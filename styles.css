@@ -1,0 +1,98 @@
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.slide {
+    display: none;
+}
+
+.slide.active {
+    display: block;
+}
+
+.notes pre {
+    white-space: pre-wrap;
+}
+
+.webdeck-hidden {
+    display: none !important;
+}
+
+html[data-webdeck-role="viewer"] #viewer {
+    padding: 10px !important;
+}
+
+html[data-webdeck-role="viewer"] #deckFrame {
+    max-width: min(70vw, 1600px) !important;
+    width: 100% !important;
+}
+
+@media print {
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    html,
+    body {
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #000 !important;
+        overflow: visible !important;
+    }
+
+    #controlBar,
+    #footerBar,
+    #presenterPanel,
+    #viewerPresenterBtn,
+    #slideIndicator {
+        display: none !important;
+    }
+
+    #app,
+    main,
+    #viewer,
+    #deckFrame,
+    #slidesContainer {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    .slide {
+        display: flex !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .slide:last-child {
+        page-break-after: auto !important;
+    }
+
+    .slide h1 {
+        font-size: 2.5rem !important;
+    }
+
+    .slide h2 {
+        font-size: 1.5rem !important;
+    }
+
+    .slide p,
+    .slide li {
+        font-size: 1.1rem !important;
+    }
+}
+
+@page {
+    size: landscape;
+    margin: 0;
+}
