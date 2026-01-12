@@ -1,97 +1,86 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agile & Scrum Engineering - COMP 7855</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>Slide Deck</title>
     <link rel="stylesheet" href="styles.css" />
 </head>
 
-<body class="h-full bg-white text-slate-900">
-    <div id="app" class="h-full flex flex-col">
+<body>
+    <div id="app" class="app">
         <!-- Top Bar -->
-        <header id="controlBar"
-            class="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white/80 backdrop-blur">
-            <div class="flex items-center gap-2">
-                <span
-                    class="text-xs px-2 py-1 rounded-full border border-emerald-500/40 text-emerald-700 bg-emerald-500/10"
-                    id="roleLabel">Viewer Mode</span>
-                <h1 class="text-sm font-semibold text-slate-900">COMP 7855: Agile & Scrum</h1>
+        <header id="controlBar" class="topbar">
+            <div class="topbar__left">
+                <span id="roleLabel" class="pill pill--viewer">Viewer Mode</span>
+                <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
             </div>
-            <div class="flex items-center gap-2 text-xs text-slate-600">
-                <button id="togglePresenterBtn"
-                    class="px-3 py-1 rounded border border-slate-300 hover:border-emerald-500 hover:text-emerald-700 transition">Open
-                    Presenter Window</button>
-                <button id="printBtn"
-                    class="px-3 py-1 rounded border border-slate-300 hover:border-sky-500 hover:text-sky-700 transition">Print
-                    PDF</button>
-                <div class="hidden sm:flex items-center gap-1 text-[11px] text-slate-500">
-                    <span class="px-1.5 py-0.5 rounded border border-slate-300">Space</span>
+            <div class="topbar__right">
+                <button id="prevBtn" class="btn btn--sm" type="button">Prev</button>
+                <button id="nextBtn" class="btn btn--sm" type="button">Next</button>
+                <button id="gotoBtn" class="btn btn--sm" type="button">Go to</button>
+                <button id="togglePresenterBtn" class="btn">Open Presenter Window</button>
+                <button id="printBtn" class="btn">Print PDF</button>
+                <div class="hint">
+                    <kbd class="kbd">Space</kbd>
                     <span>to navigate</span>
                 </div>
             </div>
         </header>
 
-        <button id="viewerPresenterBtn"
-            class="fixed top-4 right-4 z-20 px-3 py-1.5 text-xs font-semibold rounded-full border border-slate-300 bg-white/80 backdrop-blur shadow-lg hover:border-emerald-500 hover:text-emerald-700 transition webdeck-hidden">Open
-            Presenter Window</button>
-
-        <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <main class="main">
             <!-- Viewer Area -->
-            <section id="viewer" class="flex-1 flex items-center justify-center bg-slate-100 p-10 2xl:p-20">
-                <div id="deckFrame"
-                    class="aspect-video w-full max-w-4xl bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden relative">
-                    <div id="slidesContainer" class="w-full h-full relative"></div>
-                    <div id="slideIndicator"
-                        class="absolute bottom-3 right-4 text-xs text-slate-600 bg-white/80 px-2 py-1 rounded-full border border-slate-300/80">
-                        <span id="slideNumber">1</span>/<span id="slideCount">1</span>
+            <section id="viewer" class="viewer">
+                <div id="stageHost" class="stage-host">
+                    <div id="deckStage" class="stage" aria-label="Slide stage">
+                        <div id="stageInner" class="stage__inner">
+                            <div id="slidesContainer" class="slides"></div>
+                            <div id="slideIndicator" class="slide-indicator" aria-label="Slide number">
+                                <span id="slideNumber">1</span>/<span id="slideCount">1</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <!-- Presenter Panel -->
-            <aside id="presenterPanel"
-                class="webdeck-hidden w-full lg:w-86 max-w-full border-l border-slate-200 bg-white/80 flex-col">
-                <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-                    <h2 class="text-xs font-semibold text-slate-900 uppercase tracking-wide">Presenter View</h2>
-                    <div class="flex gap-2 text-[11px] text-slate-600">
-                        <span id="timeDisplay"
-                            class="font-mono px-2 py-0.5 rounded border border-slate-300">00:00</span>
-                        <button id="timerToggle"
-                            class="px-2 py-0.5 rounded border border-slate-300 hover:border-emerald-500 hover:text-emerald-700 transition">Start</button>
+            <aside id="presenterPanel" class="presenter webdeck-hidden" aria-label="Presenter panel">
+                <div class="presenter__header">
+                    <h2 class="presenter__title">Presenter View</h2>
+                    <div class="presenter__tools">
+                        <span id="timeDisplay" class="mono pill">00:00</span>
+                        <button id="timerToggle" class="btn btn--sm">Start</button>
                     </div>
                 </div>
-                <div class="flex-1 flex flex-col overflow-hidden">
-                    <div class="grid grid-cols-1 gap-3 p-3 border-b border-slate-800">
-                        <div>
-                            <h3 class="text-[11px] text-slate-400 mb-1 uppercase tracking-wide">Next Slide</h3>
-                            <div id="nextPreview"
-                                class="aspect-video w-full bg-white rounded border border-slate-200 text-xs flex items-center justify-center text-slate-600">
-                                No next slide</div>
-                        </div>
+                <div class="presenter__body">
+                    <div class="presenter__section">
+                        <h3 class="presenter__sectionTitle">Next Slide</h3>
+                        <div id="nextPreview" class="next-preview">No next slide</div>
                     </div>
-                    <div class="flex-1 flex flex-col">
-                        <div class="px-3 pt-2 pb-1 flex items-center justify-between">
-                            <h3 class="text-[11px] text-slate-400 uppercase tracking-wide">Speaker Notes</h3>
-                        </div>
-                        <div id="notesContainer" class="flex-1 overflow-auto text-sm text-slate-900 px-3 pb-3"></div>
+                    <div class="presenter__section presenter__section--grow">
+                        <h3 class="presenter__sectionTitle">Speaker Notes</h3>
+                        <div id="notesContainer" class="notes"></div>
                     </div>
                 </div>
             </aside>
         </main>
 
-        <footer id="footerBar"
-            class="px-4 py-2 border-t border-slate-200 bg-white/80 text-[11px] text-slate-600 flex flex-wrap items-center justify-between gap-2">
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="font-semibold text-slate-700">Shortcuts:</span>
-                <span>←/↑/P/E/N</span>
+        <footer id="footerBar" class="footer">
+            <div class="footer__left">
+                <strong>Shortcuts:</strong>
+                <span>←/↑/Space: Prev/Next</span>
+                <span>•</span>
+                <span>G: Go to slide</span>
+                <span>•</span>
+                <span>P: Presenter</span>
+                <span>•</span>
+                <span>E: Export PDF</span>
             </div>
-            <div>COMP 7855 - Agile & Scrum</div>
+            <div class="footer__right">Slide Deck</div>
         </footer>
     </div>
-    <script src="slides.js"></script>
+    <script type="module" src="deck.js"></script>
 </body>
 
 </html>

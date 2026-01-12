@@ -1,2 +1,10 @@
-/images/*
-slides.json
+node_modules/
+dist/
+.cache/
+.DS_Store
+.github/
+.vscode/
+
+# Optional local overrides
+decks/
+images/
