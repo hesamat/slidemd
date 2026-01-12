@@ -25,7 +25,7 @@ export class AssetLoader {
 
         await this.once("prism", async () => {
             try {
-                await import("prismjs/themes/prism-tomorrow.css");
+                await import("prismjs/themes/prism.css");
             } catch {
                 // ignore (theme is optional)
             }

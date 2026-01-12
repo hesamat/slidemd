@@ -74,6 +74,7 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             slideCountEl: $("slideCount"),
             roleLabelEl: $("roleLabel"),
             deckTitleEl: $("deckTitle"),
+            deckSelectEl: $("deckSelect"),
             prevBtn: $("prevBtn"),
             nextBtn: $("nextBtn"),
             gotoBtn: $("gotoBtn"),
@@ -86,6 +87,39 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             timeDisplay: $("timeDisplay"),
             timerToggle: $("timerToggle"),
         };
+
+        // Deck switching UI (works in dev via decks/catalog.json, and in build via embedded #deckCatalog)
+        if (elements.deckSelectEl) {
+            try {
+                const catalogRaw = await DeckLoader.loadDeckCatalog();
+                const catalog = DeckLoader.normalizeCatalog(catalogRaw);
+                const currentKey = DeckLoader.getDeckKeyFromUrl() || catalog?.default || "deck.md";
+
+                const decks = catalog?.decks || [];
+                if (decks.length === 0) {
+                    elements.deckSelectEl.innerHTML = "";
+                    elements.deckSelectEl.disabled = true;
+                } else {
+                    elements.deckSelectEl.innerHTML = decks
+                        .map((d) => `<option value="${String(d.key).replace(/"/g, "&quot;")}">${String(d.title).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</option>`)
+                        .join("");
+                    elements.deckSelectEl.value = currentKey;
+                    elements.deckSelectEl.disabled = false;
+
+                    elements.deckSelectEl.addEventListener("change", () => {
+                        const nextKey = elements.deckSelectEl.value;
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("deck", nextKey);
+                        // Reset slide hash when changing decks.
+                        url.hash = "#slide-1";
+                        window.location.href = url.toString();
+                    });
+                }
+            } catch {
+                // If catalog fails, keep deck working; just disable the selector.
+                elements.deckSelectEl.disabled = true;
+            }
+        }
 
         if (elements.deckTitleEl) {
             elements.deckTitleEl.textContent = deckTitleText;

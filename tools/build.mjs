@@ -9,6 +9,8 @@ const inCss = path.join(root, "styles.css");
 const inJs = path.join(root, "deck.js");
 const inDeck = path.join(root, "decks/deck.md");
 const outHtml = path.join(distDir, "deck.html");
+const decksDir = path.join(root, "decks");
+const inCatalog = path.join(decksDir, "catalog.json");
 
 const args = new Set(process.argv.slice(2));
 const inlineAssets = !args.has("--no-inline-assets");
@@ -151,6 +153,70 @@ const js = fs.readFileSync(inJs, "utf8");
 const deckMd = fs.readFileSync(inDeck, "utf8");
 let deck = parseDeckMarkdown(deckMd);
 
+function readJsonIfExists(filePath) {
+    if (!fs.existsSync(filePath)) return null;
+    try {
+        return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
+function isDeckSourceFile(name) {
+    return name.endsWith(".md") || name.endsWith(".json");
+}
+
+function sanitizeDeckKey(key) {
+    const s = String(key || "").trim();
+    if (!s) return null;
+    if (!/^[a-zA-Z0-9._-]+$/.test(s)) return null;
+    if (!isDeckSourceFile(s)) return null;
+    return s;
+}
+
+function loadDeckFromKey(key) {
+    const k = sanitizeDeckKey(key);
+    if (!k) throw new Error(`Invalid deck key: ${key}`);
+    const abs = path.join(decksDir, k);
+    if (!fs.existsSync(abs)) throw new Error(`Deck file not found: decks/${k}`);
+
+    if (k.endsWith(".md")) {
+        const md = fs.readFileSync(abs, "utf8");
+        return parseDeckMarkdown(md);
+    }
+
+    const jsonText = fs.readFileSync(abs, "utf8");
+    try {
+        return JSON.parse(jsonText);
+    } catch (e) {
+        throw new Error(`Invalid JSON in decks/${k}: ${String(e)}`);
+    }
+}
+
+function getCatalogKeys() {
+    const catalog = readJsonIfExists(inCatalog);
+    if (catalog && typeof catalog === "object" && Array.isArray(catalog.decks)) {
+        const keys = catalog.decks
+            .map((d) => sanitizeDeckKey(d?.key))
+            .filter(Boolean);
+        const def = sanitizeDeckKey(catalog.default);
+        return {
+            defaultKey: def || keys[0] || "deck.md",
+            keys: keys.length ? keys : ["deck.md"],
+        };
+    }
+
+    // Fallback: include every .md/.json in decks/
+    const names = fs.existsSync(decksDir) ? fs.readdirSync(decksDir) : [];
+    const keys = names
+        .filter((n) => typeof n === "string")
+        .map((n) => sanitizeDeckKey(n))
+        .filter(Boolean);
+
+    const defaultKey = keys.includes("deck.md") ? "deck.md" : (keys[0] || "deck.md");
+    return { defaultKey, keys: keys.length ? keys : ["deck.md"] };
+}
+
 function decodeHtmlEntities(s) {
     return String(s || "")
         .replace(/&lt;/g, "<")
@@ -262,14 +328,37 @@ function getDeckHtmlText(d) {
 
 let deckHtmlText = getDeckHtmlText(deck);
 
-// If the deck contains D2 code fences, pre-render them to inline SVG for dist/PDF.
-const usesD2 = /(?:language-d2|lang-d2)/i.test(deckHtmlText);
-if (usesD2) {
-    deck = await preRenderD2InDeck(deck);
-    deckHtmlText = getDeckHtmlText(deck);
+// Build a deck catalog for offline switching in dist/deck.html.
+const { defaultKey: catalogDefaultKey, keys: catalogKeys } = getCatalogKeys();
+const deckDataMap = {};
+
+for (const key of catalogKeys) {
+    let d = loadDeckFromKey(key);
+
+    // If the deck contains D2 code fences, pre-render them to inline SVG for dist/PDF.
+    let htmlText = getDeckHtmlText(d);
+    const usesD2 = /(?:language-d2|lang-d2)/i.test(htmlText);
+    if (usesD2) {
+        d = await preRenderD2InDeck(d);
+        htmlText = getDeckHtmlText(d);
+    }
+
+    if (inlineAssets) {
+        d = inlineImagesInDeck(d);
+    }
+
+    deckDataMap[key] = d;
 }
-const usesPrism = /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText);
-const usesKatex = /(\$\$[\s\S]+?\$\$)|\\\(|\\\[|\\begin\{(?:equation|align|gather|matrix|cases)/.test(deckHtmlText);
+
+// Keep the old single-deck build behavior for the default deck output.
+deck = deckDataMap[catalogDefaultKey] || deck;
+
+const allDeckHtmlText = Object.values(deckDataMap)
+    .map((d) => getDeckHtmlText(d))
+    .join("\n");
+
+const usesPrism = /<pre\b[\s\S]*?<code\b/i.test(allDeckHtmlText);
+const usesKatex = /(\$\$[\s\S]+?\$\$)|\\\(|\\\[|\\begin\{(?:equation|align|gather|matrix|cases)/.test(allDeckHtmlText);
 
 function unique(arr) {
     return Array.from(new Set(arr));
@@ -349,7 +438,7 @@ if (usesPrism || usesKatex) {
         const prismCore = readTextIfExists(path.join(root, "node_modules", "prismjs", "prism.js"));
         if (prismCore) vendorJsParts.push(prismCore);
 
-        const comps = detectPrismComponentsFromDeck(deckHtmlText);
+        const comps = detectPrismComponentsFromDeck(allDeckHtmlText);
         for (const c of comps) {
             const file = path.join(root, "node_modules", "prismjs", "components", `prism-${c}.min.js`);
             const src = readTextIfExists(file);
@@ -377,12 +466,19 @@ if (usesPrism || usesKatex) {
         .join("\n");
 }
 
-if (inlineAssets) {
-    deck = inlineImagesInDeck(deck);
-}
-
 const deckJson = JSON.stringify(deck);
 const deckTag = `<script type="application/json" id="deckData">${escapeJsonForHtmlScriptTag(deckJson)}</script>`;
+
+const deckCatalog = {
+    default: catalogDefaultKey,
+    decks: catalogKeys.map((key) => ({
+        key,
+        title: String(deckDataMap[key]?.meta?.title || "").trim() || key,
+    })),
+    data: deckDataMap,
+};
+const deckCatalogJson = JSON.stringify(deckCatalog);
+const deckCatalogTag = `<script type="application/json" id="deckCatalog">${escapeJsonForHtmlScriptTag(deckCatalogJson)}</script>`;
 
 // --- Inline local project JS (simple ESM bundling) ---
 function stripEsmSyntax(srcText) {
@@ -434,7 +530,7 @@ html = html.replace(
 const deckScriptRegex = /<script[^>]*\ssrc=["']deck\.js["'][^>]*>\s*<\/script>/i;
 html = html.replace(
     deckScriptRegex,
-    () => `${deckTag}\n${vendorJsTags}\n<script>\n${escapeInlineScriptText(bundleJs)}\n<\/script>`
+    () => `${deckCatalogTag}\n${deckTag}\n${vendorJsTags}\n<script>\n${escapeInlineScriptText(bundleJs)}\n<\/script>`
 );
 
 fs.writeFileSync(outHtml, html, "utf8");

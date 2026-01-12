@@ -71,6 +71,80 @@ Notes:
 - Any text before the first `@area` marker goes to `@main`.
 - You can use any area names you want; common ones are `header`, `main`, `footer`, `media`, `secondary`.
 
+### Custom Layouts (CSS Grid)
+
+`layout:` ultimately sets `grid-template-areas`, `grid-template-columns`, and `grid-template-rows` on the slide’s grid.
+
+The format is:
+
+- **Rows (areas):** one or more quoted strings, each string is a `grid-template-areas` row
+	- Use double quotes (`"...") or single quotes (`'...'`).
+	- Separate area names with spaces: `"header header"` or `"main media"`.
+	- Use `.` for an empty cell (standard CSS Grid behavior): `"main ."`.
+- **Optional row sizes:** you can put a row size *after a row* (before the next quoted row, or before the `/`).
+	- If you don’t specify a size, the runtime guesses:
+		- Rows containing typical content areas (`main`, `media`, `sidebar`, `secondary`, etc.) expand with `minmax(0, 1fr)`.
+		- Other rows (often headers/footers) size to content with `auto`.
+	- If you use custom area names like `"body"`, it may be treated as a header-like row and become `auto` — in that case, set the row size explicitly.
+- **Columns:** everything after the first `/` becomes `grid-template-columns`.
+	- Example: `/ 1fr 480px` or `/ 300px 1fr`.
+	- If you omit `/ ...`, columns default to `1fr`.
+
+Area-name matching is literal and case-sensitive at the CSS level. Because `@area` markers are normalized to lowercase, prefer lowercase names in your layout strings too.
+
+Examples:
+
+**1) Header + two columns + footer**
+
+```markdown
+# Custom Header + Two Column
+layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1fr 1fr
+
+@header
+## Title on top
+
+@main
+- Left side
+
+@media
+![img](images/waterfall.png)
+
+@footer
+Small footer text
+```
+
+**2) Fixed-width sidebar + content**
+
+```markdown
+# Sidebar Layout
+layout: "sidebar main" minmax(0, 1fr) / 320px 1fr
+
+@sidebar
+- Agenda
+- Links
+
+@main
+## Content
+```
+
+**3) Empty cells with `.` (spacer column)**
+
+```markdown
+# Spacer Column
+layout: "main . media" minmax(0, 1fr) / 1fr 48px 1fr
+
+@main
+Left
+
+@media
+Right
+```
+
+Tips:
+- Keep every row the same number of cells (same count of names/dots), like normal CSS Grid.
+- If a named area appears in the layout but you don’t provide `@thatArea` content, it renders as an empty region (useful for reserved space).
+- If you *do* provide `@area` content but forget to include that area name in the layout, it still renders (appended after the layout-defined areas), but it won’t be positioned how you expect—add it to your `layout:` string.
+
 ### Layout Presets
 
 Instead of writing full CSS Grid syntax, you can use preset names:

@@ -64,6 +64,9 @@ export class LayoutParser {
         for (const row of rowsRaw) {
             const names = row.split(/\s+/).filter(Boolean);
             for (const name of names) {
+                // In CSS grid-template-areas, '.' means an empty cell.
+                // Avoid generating a corresponding slide area for it.
+                if (/^\.+$/.test(name)) continue;
                 if (!orderedAreas.includes(name)) orderedAreas.push(name);
             }
         }
