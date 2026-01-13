@@ -391,7 +391,7 @@ function resolveLayoutPreset(layoutSpec) {
         "right-heavy": '"main media" / 1fr 2fr',
         "header-content": '"header" "main" "footer" / 1fr',
         "header-two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
-        "title-slide": '"main" / 1fr',
+        "title-slide": '"title" / 1fr',
         "three-column": '"main media secondary" / 1fr 1fr 1fr',
         "sidebar-content": '"sidebar main" / 300px 1fr',
         "content-sidebar": '"main sidebar" / 1fr 300px',

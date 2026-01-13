@@ -614,6 +614,15 @@ a:hover {
     display: grid;
     align-content: start;
     gap: 10px;
+    margin-bottom: 2rem;
+}
+
+.slide__area--title {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Markdown typography inside areas */
@@ -673,7 +682,7 @@ a:hover {
 }
 
 .slide__area h1 {
-    font-size: 58px;
+    font-size: 60px;
     line-height: 1.2;
     letter-spacing: -0.02em;
     font-weight: 800;
@@ -684,13 +693,13 @@ a:hover {
     font-size: 44px;
     line-height: 1.18;
     letter-spacing: -0.01em;
-    font-weight: 650;
+    font-weight: 600;
     color: rgba(15, 23, 42, 0.82);
 }
 
 .slide__area h3 {
     font-size: 32px;
-    font-weight: 700;
+    font-weight: 600;
     color: rgba(15, 23, 42, 0.82);
 }
 
