@@ -133,12 +133,12 @@ export class DeckLoader {
         return new MarkdownParser().parseDeckMarkdown(mdText);
     }
 
-    static normalizeDeck(raw) {
+    static normalizeDeck(raw, { includeHidden = false } = {}) {
         if (!raw || typeof raw !== "object") throw new Error("Invalid deck: not an object");
         if (!Array.isArray(raw.slides)) throw new Error("Invalid deck: slides must be an array");
 
         const meta = raw.meta && typeof raw.meta === "object" ? raw.meta : {};
-        const slides = raw.slides.map((s, idx) => {
+        const slidesAll = raw.slides.map((s, idx) => {
             if (!s || typeof s !== "object") throw new Error(`Invalid slide at index ${idx}`);
             const areas = s.areas && typeof s.areas === "object" ? s.areas : {};
             return {
@@ -149,9 +149,32 @@ export class DeckLoader {
                 align: safeString(s.align),
                 background: safeString(s.background),
                 theme: safeString(s.theme),
+                hidden: Boolean(s.hidden),
                 areas,
             };
         });
+
+        let slides = slidesAll;
+        if (!includeHidden) {
+            slides = slidesAll.filter((s) => !s.hidden);
+            if (slides.length === 0) {
+                slides = [
+                    {
+                        id: "no-visible-slides",
+                        title: "No visible slides",
+                        notes: "",
+                        layout: "",
+                        align: "center",
+                        background: "",
+                        theme: "",
+                        hidden: false,
+                        areas: {
+                            main: "<h2>No visible slides</h2><p>All slides in this deck are marked <code>hidden: true</code>. Add <code>?showHidden=1</code> to the URL to view them.</p>",
+                        },
+                    },
+                ];
+            }
+        }
 
         return {
             meta: {

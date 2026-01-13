@@ -30,6 +30,14 @@ export class MarkdownParser {
         this.md = null;
     }
 
+    parseBooleanDirectiveValue(raw) {
+        const s = safeString(raw).trim().toLowerCase();
+        if (!s) return null;
+        if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+        if (["0", "false", "no", "n", "off"].includes(s)) return false;
+        return null;
+    }
+
     extractTitle(markdownText) {
         const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
         const fence = new FenceTracker();
@@ -103,6 +111,7 @@ export class MarkdownParser {
         const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
         const fence = new FenceTracker();
         let value = "";
+        let found = false;
         const out = [];
 
         for (const line of lines) {
@@ -112,13 +121,14 @@ export class MarkdownParser {
                 const match = line.match(pattern);
                 if (match) {
                     value = match[1].trim();
+                    found = true;
                     continue;
                 }
             }
             out.push(line);
         }
 
-        return { value, markdown: out.join("\n").trim() };
+        return { value, found, markdown: out.join("\n").trim() };
     }
 
     escapeKatexBracketDelimiters(src) {
@@ -201,6 +211,15 @@ export class MarkdownParser {
             const { value: theme, markdown: withoutTheme } = this.extractDirective(cleaned, "theme");
             cleaned = withoutTheme;
 
+            // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
+            const { value: hiddenValue, found: hiddenFound, markdown: withoutHidden } = this.extractDirective(cleaned, "hidden");
+            cleaned = withoutHidden;
+            const { value: hideValue, found: hideFound, markdown: withoutHide } = this.extractDirective(cleaned, "hide");
+            cleaned = withoutHide;
+            const hiddenParsed = this.parseBooleanDirectiveValue(hiddenValue);
+            const hideParsed = this.parseBooleanDirectiveValue(hideValue);
+            const hidden = hiddenFound ? (hiddenParsed ?? true) : hideFound ? (hideParsed ?? true) : false;
+
             const explicitTitle = this.extractTitle(cleaned);
 
             cleaned = this.escapeKatexBracketDelimiters(cleaned);
@@ -244,6 +263,7 @@ export class MarkdownParser {
                 align: align || "",
                 background: background || "",
                 theme: themeNormalized,
+                hidden,
                 areas,
             };
         });

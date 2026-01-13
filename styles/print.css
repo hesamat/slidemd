@@ -1,0 +1,142 @@
+/* Print: deterministic 16:9 pages (1920x1080 @ 96dpi => 20in x 11.25in) */
+@media print {
+    :root {
+        --stage-scale: 1;
+        --stage-radius: 0px;
+        /* Tighten vertical rhythm a bit for print density */
+        --slide-rhythm: 12px;
+    }
+
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        animation: none !important;
+        transition: none !important;
+    }
+
+    html,
+    body {
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        overflow: visible !important;
+    }
+
+    #app {
+        height: auto !important;
+        background: transparent !important;
+    }
+
+    /* In presenter mode the app adds a top padding for the fixed topbar.
+       For print/PDF we hide the topbar, so remove the padding to keep pages aligned. */
+    html[data-webdeck-role="presenter"] .main {
+        padding-top: 0 !important;
+    }
+
+    .topbar,
+    .footer,
+    .presenter,
+    #viewerPresenterBtn,
+    .slide-indicator,
+    .overlay {
+        display: none !important;
+    }
+
+    .viewer,
+    .stage-host {
+        padding: 0 !important;
+        margin: 0 !important;
+        display: block !important;
+        place-items: unset !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+        background: transparent !important;
+    }
+
+    .stage {
+        width: auto !important;
+        height: auto !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        overflow: visible !important;
+        background: transparent !important;
+    }
+
+    /* The stage overlay uses layered radial gradients with transparency.
+       Chromium tends to rasterize these into large images per page, which can make
+       the resulting PDF sluggish to scroll/zoom in many viewers. */
+    .stage::before {
+        content: none !important;
+        background: none !important;
+        opacity: 1 !important;
+    }
+
+    .stage__inner {
+        position: static !important;
+        inset: auto !important;
+        width: auto !important;
+        height: auto !important;
+        transform: none !important;
+    }
+
+    .slides {
+        position: static !important;
+        inset: auto !important;
+        display: block !important;
+    }
+
+    /* Print-friendly spacing + code theme */
+    .slide {
+        /* Slightly tighter padding for print (vs on-screen stage) */
+        padding: 92px 110px !important;
+    }
+
+    .slide__grid {
+        gap: 26px !important;
+    }
+
+    .slide__area pre {
+        background: #f8fafc !important;
+        color: rgba(15, 23, 42, 0.92) !important;
+        border: 1px solid rgba(148, 163, 184, 0.45) !important;
+        box-shadow: none !important;
+        padding: 14px !important;
+        line-height: 1.35 !important;
+    }
+
+    .slide__area pre code {
+        font-size: 1em !important;
+    }
+
+    .slide__area :not(pre)>code {
+        background: rgba(241, 245, 249, 0.9) !important;
+        border-color: rgba(148, 163, 184, 0.4) !important;
+        color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    .slide {
+        position: relative !important;
+        inset: auto !important;
+        display: grid !important;
+        width: 20in !important;
+        height: 11.25in !important;
+        overflow: hidden !important;
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .slide:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+}
+
+@page {
+    size: 20in 11.25in;
+    margin: 0;
+}

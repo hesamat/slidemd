@@ -12,7 +12,7 @@ import { SlideRenderer } from "./src/slide-renderer.js";
     function applyRoleUiFromUrl() {
         const url = new URL(window.location.href);
         const roleFromUrl = url.searchParams.get("role");
-        const isPresenter = roleFromUrl !== "viewer";
+        const isPresenter = roleFromUrl === "presenter";
 
         document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
 
@@ -57,7 +57,10 @@ import { SlideRenderer } from "./src/slide-renderer.js";
 
     async function init() {
         const raw = await DeckLoader.loadDeckData();
-        const deck = DeckLoader.normalizeDeck(raw);
+        const url = new URL(window.location.href);
+        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
+        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
+        const deck = DeckLoader.normalizeDeck(raw, { includeHidden });
 
         // Set page title
         const deckTitleText = (deck?.meta?.title || "Slide Deck").trim() || "Slide Deck";
@@ -86,6 +89,7 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             viewerPresenterBtn: $("viewerPresenterBtn"),
             timeDisplay: $("timeDisplay"),
             timerToggle: $("timerToggle"),
+            breakBtn: $("breakBtn"),
         };
 
         // Deck switching UI (works in dev via decks/catalog.json, and in build via embedded #deckCatalog)

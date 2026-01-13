@@ -11,7 +11,9 @@ if (!fs.existsSync(distHtml)) {
     throw new Error("dist/deck.html not found. Run: npm run build");
 }
 
-const url = pathToFileURL(distHtml).toString();
+const urlObj = pathToFileURL(distHtml);
+urlObj.searchParams.set("role", "viewer");
+const url = urlObj.toString();
 
 console.log(`Loading ${url}`);
 
@@ -29,6 +31,31 @@ try {
     // Fallback: continue; the font/image settle step below will still guard against most layout shifts.
     console.log("Deck ready signal not found (continuing)");
 }
+
+// Ensure print sizing for code/blockquote matches dev theme (no change to print.css on disk).
+await page.addStyleTag({
+    content: `@media print {
+        .slide__area pre { font-size: 28px !important; line-height: 1.2 !important; padding: 18px !important; }
+        .slide__area pre code { font-size: 1.4rem !important; line-height: 1.2 !important; }
+        .slide__area blockquote { font-size: 32px !important; line-height: 1.3 !important; }
+        .slide__page-number { position: absolute; right: 22px; bottom: 18px; font-size: 18px; color: rgba(15,23,42,0.65); }
+    }`,
+});
+
+// Inject page numbers per slide (print only styling applied above)
+await page.evaluate(() => {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    slides.forEach((slide, idx) => {
+        let badge = slide.querySelector('.slide__page-number');
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'slide__page-number';
+            slide.appendChild(badge);
+        }
+        badge.textContent = `${idx + 1}/${slides.length}`;
+    });
+});
+
 await page.emulateMedia({ media: "print" });
 console.log("Print media emulated");
 

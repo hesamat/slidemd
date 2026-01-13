@@ -236,6 +236,68 @@ function extractAlignAndStrip(markdownText) {
     return { align, markdown: out.join("\n").trim() };
 }
 
+function parseBooleanDirectiveValue(raw) {
+    const s = safeString(raw).trim().toLowerCase();
+    if (!s) return null;
+    if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+    if (["0", "false", "no", "n", "off"].includes(s)) return false;
+    return null;
+}
+
+function extractHiddenAndStrip(markdownText) {
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+
+    let inFence = false;
+    let fenceMarker = null;
+    let hiddenRaw = "";
+    let hideRaw = "";
+    let hiddenSeen = false;
+    let hideSeen = false;
+
+    function toggleFence(line) {
+        const m = line.match(/^\s*(```+|~~~+)\s*/);
+        if (!m) return false;
+        const marker = m[1][0];
+        if (!inFence) {
+            inFence = true;
+            fenceMarker = marker;
+            return true;
+        }
+        if (fenceMarker === marker) {
+            inFence = false;
+            fenceMarker = null;
+            return true;
+        }
+        return false;
+    }
+
+    const out = [];
+    for (const line of lines) {
+        toggleFence(line);
+        if (!inFence) {
+            const mHidden = line.match(/^\s*hidden\s*:\s*(.*)\s*$/i);
+            if (mHidden && !hiddenSeen) {
+                hiddenRaw = safeString(mHidden[1]);
+                hiddenSeen = true;
+                continue;
+            }
+            const mHide = line.match(/^\s*hide\s*:\s*(.*)\s*$/i);
+            if (mHide && !hideSeen) {
+                hideRaw = safeString(mHide[1]);
+                hideSeen = true;
+                continue;
+            }
+        }
+        out.push(line);
+    }
+
+    const hiddenParsed = parseBooleanDirectiveValue(hiddenRaw);
+    const hideParsed = parseBooleanDirectiveValue(hideRaw);
+    const hidden = hiddenSeen ? (hiddenParsed ?? true) : hideSeen ? (hideParsed ?? true) : false;
+
+    return { hidden, markdown: out.join("\n").trim() };
+}
+
 function extractTitleAndStrip(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
 
@@ -422,6 +484,9 @@ export function parseDeckMarkdown(markdownText) {
             const { theme, markdown: withoutTheme } = extractThemeAndStrip(cleaned);
             cleaned = withoutTheme;
 
+            const { hidden, markdown: withoutHidden } = extractHiddenAndStrip(cleaned);
+            cleaned = withoutHidden;
+
             const { title: explicitTitle, markdown: withoutTitle } = extractTitleAndStrip(cleaned);
             cleaned = withoutTitle;
 
@@ -466,6 +531,7 @@ export function parseDeckMarkdown(markdownText) {
                 align: align || "",
                 background: background || "",
                 theme: themeNormalized,
+                hidden,
                 areas: areasHtml,
             };
         })

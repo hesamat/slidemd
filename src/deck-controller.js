@@ -8,15 +8,19 @@ export class DeckController {
         this.deck = deck;
         this.elements = elements;
         this.currentIndex = 0;
-        // Default role is presenter unless URL explicitly sets viewer.
-        this.isPresenterWindow = true;
+        // Default role is viewer unless URL explicitly sets presenter.
+        this.isPresenterWindow = false;
         this.presenterWindowRef = null;
         this.bc = null;
         this.timerInterval = null;
         this.timerStart = null;
         this._stageScaleRetry = 0;
 
+        this.isBreakActive = false;
+        this.breakSlideEl = null;
+
         this.SLIDE_STATE_KEY = `webdeck:${getDeckId(deck)}:slide`;
+        this.BREAK_STATE_KEY = `webdeck:${getDeckId(deck)}:break`;
 
         this.initBroadcastChannel();
         this.initRole();
@@ -53,6 +57,8 @@ export class DeckController {
             this.bc.addEventListener("message", (ev) => {
                 if (ev.data?.type === "slide" && typeof ev.data.index === "number") {
                     this.handleIncomingState(ev.data.index);
+                } else if (ev.data?.type === "break" && typeof ev.data.active === "boolean") {
+                    this.handleIncomingBreakState(ev.data.active);
                 }
             });
         }
@@ -62,8 +68,8 @@ export class DeckController {
         const url = new URL(window.location.href);
         const roleFromUrl = url.searchParams.get("role");
 
-        // Role is controlled only by URL. Default to presenter.
-        this.isPresenterWindow = roleFromUrl !== "viewer";
+        // Role is controlled only by URL. Default to viewer.
+        this.isPresenterWindow = roleFromUrl === "presenter";
 
         this.updateRoleUi();
 
@@ -73,6 +79,7 @@ export class DeckController {
 
     setupEventListeners() {
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
         window.addEventListener("storage", (ev) => this.handleStorage(ev));
         window.addEventListener("resize", () => this.applyStageScale());
         window.addEventListener("load", () => this.applyStageScale());
@@ -92,11 +99,32 @@ export class DeckController {
         if (this.elements.timerToggle) {
             this.elements.timerToggle.addEventListener("click", () => this.toggleTimer());
         }
+        if (this.elements.breakBtn) {
+            this.elements.breakBtn.addEventListener("click", () => this.toggleBreak());
+        }
     }
 
     handleKeyboard(e) {
         const tag = e.target.tagName.toLowerCase();
         if (tag === "input" || tag === "textarea") return;
+
+        // If break overlay is active, Space (and navigation keys) dismiss it without changing slides.
+        if (this.isBreakActive) {
+            const dismissKeys = new Set([
+                " ",
+                "ArrowRight",
+                "ArrowDown",
+                "PageDown",
+                "ArrowLeft",
+                "ArrowUp",
+                "PageUp",
+            ]);
+            if (dismissKeys.has(e.key)) {
+                e.preventDefault();
+                this.setBreakActive(false);
+                return;
+            }
+        }
 
         if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " " || e.key === "ArrowDown") {
             e.preventDefault();
@@ -129,11 +157,85 @@ export class DeckController {
         }
     }
 
+    handleWheel(e) {
+        const tag = e.target.tagName.toLowerCase();
+        if (tag === "input" || tag === "textarea") return;
+
+        e.preventDefault();
+        if (this.isBreakActive) {
+            this.setBreakActive(false);
+            return;
+        }
+        if (e.deltaY > 0) {
+            this.next();
+        } else if (e.deltaY < 0) {
+            this.prev();
+        }
+    }
+
     handleStorage(ev) {
         if (ev.key === this.SLIDE_STATE_KEY) {
             const idx = parseInt(ev.newValue || "0", 10);
             if (!isNaN(idx)) this.handleIncomingState(idx);
+        } else if (ev.key === this.BREAK_STATE_KEY) {
+            const active = (ev.newValue || "").trim() === "1";
+            this.handleIncomingBreakState(active);
         }
+    }
+
+    ensureBreakSlideEl() {
+        if (this.breakSlideEl) return;
+        if (!this.elements.stageInner) return;
+
+        const breakSlide = {
+            layout: "title-slide",
+            background: "#333",
+            theme: "dark",
+            align: "center",
+            areas: {
+                main: "<h1>10 Minute Break</h1>",
+            },
+        };
+
+        const el = SlideRenderer.createSlideElement(this.deck, breakSlide, 0, true);
+        el.classList.add("webdeck-break-slide", "webdeck-hidden");
+        el.style.zIndex = "80";
+        el.style.pointerEvents = "auto";
+
+        this.elements.stageInner.appendChild(el);
+        this.breakSlideEl = el;
+    }
+
+    broadcastBreakState(active) {
+        localStorage.setItem(this.BREAK_STATE_KEY, active ? "1" : "0");
+        if (this.bc) {
+            this.bc.postMessage({ type: "break", active });
+        }
+    }
+
+    setBreakActive(active, { broadcast = true } = {}) {
+        if (Boolean(active) && !this.breakSlideEl) {
+            // Create break slide on-demand when first activated
+            this.ensureBreakSlideEl();
+        }
+        this.isBreakActive = Boolean(active);
+
+        if (this.breakSlideEl) {
+            this.breakSlideEl.classList.toggle("webdeck-hidden", !this.isBreakActive);
+        }
+
+        if (broadcast) {
+            this.broadcastBreakState(this.isBreakActive);
+        }
+    }
+
+    handleIncomingBreakState(active) {
+        if (Boolean(active) === this.isBreakActive) return;
+        this.setBreakActive(Boolean(active), { broadcast: false });
+    }
+
+    toggleBreak() {
+        this.setBreakActive(!this.isBreakActive);
     }
 
     broadcastState(index) {
@@ -182,12 +284,20 @@ export class DeckController {
     }
 
     next() {
+        if (this.isBreakActive) {
+            this.setBreakActive(false);
+            return;
+        }
         if (this.currentIndex < this.deck.slides.length - 1) {
             this.goTo(this.currentIndex + 1);
         }
     }
 
     prev() {
+        if (this.isBreakActive) {
+            this.setBreakActive(false);
+            return;
+        }
         if (this.currentIndex > 0) {
             this.goTo(this.currentIndex - 1);
         }
@@ -347,6 +457,10 @@ export class DeckController {
             }
         }
 
+        // Break overlay state from storage (defaults off)
+        const breakStored = localStorage.getItem(this.BREAK_STATE_KEY);
+        this.isBreakActive = (breakStored || "").trim() === "1";
+
         // Normalize role in URL
         const url = new URL(window.location.href);
         url.searchParams.set("role", this.isPresenterWindow ? "presenter" : "viewer");
@@ -355,6 +469,8 @@ export class DeckController {
         this.updateRoleUi();
 
         this.renderSlides();
+        // Break slide is created on-demand when first activated
+        this.setBreakActive(this.isBreakActive, { broadcast: false });
         const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
         if (activeSlide) {
             await ContentEnhancer.enhanceRenderedContent(activeSlide);

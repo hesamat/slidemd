@@ -1,0 +1,362 @@
+/* Slide content (deterministic, no breakpoints) */
+.slide {
+    position: absolute;
+    inset: 0;
+    padding: 106px 124px;
+    display: none;
+    background: var(--slide-bg);
+    color: var(--slide-ink);
+}
+
+.slide[data-theme="light"] {
+    --slide-bg: #ffffff;
+    --slide-ink: rgba(15, 23, 42, 0.92);
+    --slide-muted: rgba(15, 23, 42, 0.74);
+}
+
+.slide[data-theme="dark"] {
+    --slide-bg: #0f172a;
+    --slide-ink: #e2e8f0;
+    --slide-muted: rgba(226, 232, 240, 0.72);
+}
+
+.slide.active {
+    display: grid;
+    animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .slide.active {
+        animation: none !important;
+    }
+
+    .btn,
+    .overview-item {
+        transition: none !important;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide__grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    gap: 36px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.slide__area {
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Content rhythm (spacing between blocks) */
+.slide__area:not(.slide__area--cards)>*+* {
+    margin-top: var(--slide-rhythm);
+}
+
+.slide__area--header {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    margin-bottom: 2rem;
+}
+
+.slide__area--title {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Markdown typography inside areas */
+.slide__area h1,
+.slide__area h2,
+.slide__area h3,
+.slide__area p,
+.slide__area ul,
+.slide__area ol,
+.slide__area blockquote {
+    margin: 0;
+}
+
+/* Default media sizing inside any slide area (not just .media) */
+.slide__area img,
+.slide__area video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+/* If an image is the only thing in a paragraph, treat it like a figure */
+.slide__area p>img:only-child,
+.slide__area p>video:only-child {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Image + caption/link in the same area: keep the image from overflowing vertically */
+.slide__area:has(> p > img:only-child):has(> p + p),
+.slide__area:has(> p > video:only-child):has(> p + p) {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: start;
+}
+
+.slide__area:has(> p > img:only-child):has(> p + p)>p:has(> img:only-child),
+.slide__area:has(> p > video:only-child):has(> p + p)>p:has(> video:only-child) {
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slide__area>p:has(> img:only-child):only-child,
+.slide__area>p:has(> video:only-child):only-child {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+}
+
+.slide__area h1 {
+    font-size: 60px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+    color: var(--slide-ink);
+}
+
+.slide__area h2 {
+    font-size: 45px;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    color: rgba(15, 23, 42, 0.82);
+}
+
+.slide__area h3 {
+    font-size: 34px;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.82);
+}
+
+.slide__area--header h3 {
+    color: rgba(15, 23, 42, 0.6);
+    font-weight: 650;
+    font-size: 32px;
+    margin-top: 0 !important;
+}
+
+.slide__area>p,
+.slide__area> :not(.d2) p {
+    font-size: 32px;
+    line-height: 1.32;
+    color: var(--slide-muted);
+}
+
+.slide__area strong {
+    color: rgba(15, 23, 42, 0.92);
+    font-weight: 780;
+}
+
+.slide__area em {
+    font-style: italic;
+    color: rgba(15, 23, 42, 0.78);
+}
+
+.slide__area>ul,
+.slide__area>ol,
+.slide__area> :not(.d2) ul,
+.slide__area> :not(.d2) ol {
+    padding-left: 24px;
+    display: grid;
+    gap: 16px;
+    font-size: 32px;
+    line-height: 1.32;
+    color: rgba(15, 23, 42, 0.78);
+}
+
+.slide__area li {
+    padding-left: 4px;
+}
+
+.slide__area li::marker {
+    color: var(--accent);
+}
+
+.slide__area pre {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+    color: rgba(226, 232, 240, 0.95);
+    padding: 18px;
+    font-size: 28px;
+    line-height: 1.4;
+    overflow: auto;
+    margin: 0;
+    width: 100%;
+    max-height: 100%;
+    box-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
+}
+
+.slide__area code {
+    line-height: 1.4 !important;
+    font-family: var(--font-mono);
+}
+
+.slide__area :not(pre)>code {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    background: rgba(248, 250, 252, 0.9);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 0.9em;
+    color: rgba(15, 23, 42, 0.86);
+}
+
+.slide__area pre code {
+    font-size: 1.4rem;
+}
+
+.slide__area a {
+    color: rgba(2, 132, 199, 0.95);
+    text-decoration-color: rgba(2, 132, 199, 0.35);
+}
+
+.slide__area a:hover {
+    color: rgba(3, 105, 161, 0.98);
+    text-decoration-color: rgba(3, 105, 161, 0.55);
+}
+
+/* KaTeX tuning */
+.slide__area .katex {
+    font-size: 1.12em;
+}
+
+.slide__area .katex-display {
+    margin: 0.25em 0 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* D2 diagrams */
+.slide__area .d2 {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px;
+
+    /* Before D2 renders, the raw source text is present. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.slide__area .d2 svg {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+}
+
+.slide__area pre::-webkit-scrollbar,
+.notes::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+.slide__area pre::-webkit-scrollbar-thumb,
+.notes::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.55);
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+}
+
+.slide__area pre::-webkit-scrollbar-track,
+.notes::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+/* Markdown-only components (no custom HTML/classes needed) */
+.slide__area blockquote {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.86), rgba(248, 250, 252, 0.74));
+    min-width: 0;
+    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.08);
+}
+
+.slide__area blockquote+blockquote {
+    margin-top: 18px;
+}
+
+.slide__area blockquote p {
+    font-size: 30px;
+    line-height: 1.5;
+    color: rgba(15, 23, 42, 0.78);
+}
+
+.slide__area blockquote ul,
+.slide__area blockquote ol {
+    padding-left: 22px;
+    display: grid;
+    gap: 12px;
+    font-size: 32px;
+    line-height: 1.32;
+    color: rgba(15, 23, 42, 0.78);
+    margin-top: 16px;
+}
+
+.slide__area--footer {
+    text-align: center;
+}
+
+.slide__area--footer,
+.slide__area--footer p,
+.slide__area--footer a {
+    font-size: 24px;
+    line-height: 1.25;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+/* Cards area: render consecutive blockquotes as a 2xN grid */
+.slide__area--cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-content: start;
+}
+
+.slide__area--cards blockquote {
+    margin: 0;
+}
+
+.slide__area--cards blockquote+blockquote {
+    margin-top: 0;
+}
