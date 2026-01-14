@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
+import { minify } from "terser";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -415,11 +416,10 @@ function detectPrismComponentsFromDeck(htmlText) {
 
 // Build vendor CSS/JS based on detected usage
 let vendorCss = "";
-let vendorJsTags = "";
+const vendorJsParts = [];
 
 if (usesPrism || usesKatex) {
     const vendorCssParts = [];
-    const vendorJsParts = [];
 
     if (usesPrism) {
         vendorCssParts.push(readTextIfExists(path.join(root, "node_modules", "prismjs", "themes", "prism-tomorrow.css")));
@@ -449,10 +449,6 @@ if (usesPrism || usesKatex) {
     }
 
     vendorCss = vendorCssParts.filter(Boolean).join("\n\n");
-    vendorJsTags = vendorJsParts
-        .filter(Boolean)
-        .map((src, idx) => `<script data-vendor="inline-${idx}">\n${escapeInlineScriptText(src)}\n</script>`)
-        .join("\n");
 }
 
 const deckJson = JSON.stringify(deck);
@@ -498,18 +494,46 @@ function buildBundleJs() {
 
 const bundleJs = buildBundleJs();
 
+async function processJs() {
+    // Minify your local bundle
+    const bundleResult = await minify(bundleJs);
+    const minifiedBundleJs = bundleResult.code;
+
+    // Minify vendor scripts safely
+    const minifiedVendorScripts = [];
+
+    // This will now work because vendorJsParts is defined in the outer scope
+    for (const src of vendorJsParts) {
+        if (!src) continue; // Safety check
+        const result = await minify(src);
+        minifiedVendorScripts.push(
+            `<script>\n${escapeInlineScriptText(result.code)}\n</script>`
+        );
+    }
+
+    return {
+        bundle: minifiedBundleJs,
+        vendor: minifiedVendorScripts.join("\n")
+    };
+}
+
 // Inline CSS
 html = html.replace(
-    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*\/?>/i,
+    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*\/?\s*>/i,
     () => `<style>\n${vendorCss}\n\n${css}\n</style>`
 );
 
-// Inject deck data before runtime
+// Always remove presenter mode elements from the output
+// Remove elements with id 'presenter', 'presenter-only', 'presenterPanel', 'topbar', 'controlBar', or 'footerBar' from the HTML
+html = html.replace(/<([a-zA-Z0-9]+)([^>]*\bid=["'](presenterPanel|controlBar|footerBar)["'][^>]*)>.*?<\/\1>/gs, "");
+// Optionally, hide any remaining with CSS if dynamic content remains
+html = html.replace(/(<style>)/i, `$1\n#presenter, #presenter-only, #presenterPanel, #topbar, #controlBar, #footerBar { display: none !important; }`);
+
 const deckScriptRegex = /<script[^>]*\ssrc=["']deck\.js["'][^>]*>\s*<\/script>/i;
+const { bundle, vendor } = await processJs();
 html = html.replace(
     deckScriptRegex,
-    () => `${deckTag}\n${vendorJsTags}\n<script>\n${escapeInlineScriptText(bundleJs)}\n<\/script>`
+    () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
-
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

@@ -457,12 +457,18 @@ export class DeckController {
             }
         }
 
-        // Break overlay state from storage (defaults off)
-        const breakStored = localStorage.getItem(this.BREAK_STATE_KEY);
-        this.isBreakActive = (breakStored || "").trim() === "1";
-
-        // Normalize role in URL
+        // Break overlay: honor explicit URL `?break=1`; otherwise start with break off.
+        // This prevents stale break state in localStorage from showing the break
+        // overlay unexpectedly on a fresh serve/load.
         const url = new URL(window.location.href);
+        const breakParam = url.searchParams.get("break");
+        if (breakParam !== null) {
+            this.isBreakActive = String(breakParam).trim() === "1";
+        } else {
+            this.isBreakActive = false;
+        }
+
+        // Normalize role in URL (preserve any explicit break param)
         url.searchParams.set("role", this.isPresenterWindow ? "presenter" : "viewer");
         history.replaceState({}, "", url.toString());
 
