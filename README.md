@@ -52,6 +52,23 @@ More layouts, backgrounds, and theming recipes live in [docs/authoring-examples.
 
 ## Layout Presets
 
+## Keyboard Shortcuts
+
+Common keyboard controls available when viewing a deck:
+
+- `Space`, `ArrowRight`, `ArrowDown`, `PageDown`: Next slide
+- `ArrowLeft`, `ArrowUp`, `PageUp`: Previous slide
+- `Home`: Go to first slide
+- `End`: Go to last slide
+- `G`: Open "Go to slide" prompt
+- `P`: Toggle presenter window
+- `F`: Toggle fullscreen for the stage
+- `B`: Toggle the break overlay (press again or hit Space/Arrow/Page keys to dismiss)
+
+Notes:
+- The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
+
+
 Use preset names instead of full CSS grid strings:
 
 - `focus` - Single centered content area

@@ -525,9 +525,9 @@ html = html.replace(
 
 // Always remove presenter mode elements from the output
 // Remove elements with id 'presenter', 'presenter-only', 'presenterPanel', 'topbar', 'controlBar', or 'footerBar' from the HTML
-html = html.replace(/<([a-zA-Z0-9]+)([^>]*\bid=["'](presenterPanel|controlBar|footerBar)["'][^>]*)>.*?<\/\1>/gs, "");
+html = html.replace(/<([a-zA-Z0-9]+)([^>]*\bid=["'](presenterPanel|controlBar)["'][^>]*)>.*?<\/\1>/gs, "");
 // Optionally, hide any remaining with CSS if dynamic content remains
-html = html.replace(/(<style>)/i, `$1\n#presenter, #presenter-only, #presenterPanel, #topbar, #controlBar, #footerBar { display: none !important; }`);
+html = html.replace(/(<style>)/i, `$1\n#presenter, #presenter-only, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
 
 const deckScriptRegex = /<script[^>]*\ssrc=["']deck\.js["'][^>]*>\s*<\/script>/i;
 const { bundle, vendor } = await processJs();

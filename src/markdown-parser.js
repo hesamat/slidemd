@@ -1,3 +1,7 @@
+/**
+ * MarkdownParser
+ * Extracts and parses slides from markdown files. Handles code fences, directives, and metadata for slide generation and content structuring.
+ */
 // Markdown parsing and slide extraction
 import { safeString, slugifyTitle, DESIGN_SIZE } from "./utils.js";
 

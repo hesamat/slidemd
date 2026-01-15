@@ -1,3 +1,7 @@
+/**
+ * DeckLoader
+ * Loads deck data from embedded HTML, local files, or remote sources. Handles deck catalog parsing, key sanitization, and safe loading of deck content for the slide application.
+ */
 // Deck data loading
 import { AssetLoader } from "./asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";

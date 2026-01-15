@@ -1,3 +1,7 @@
+/**
+ * SlideRenderer
+ * Renders slide DOM elements, applies layout templates, and manages accessibility attributes. Integrates with LayoutParser for grid-based slide design.
+ */
 // Slide DOM rendering
 import { safeString } from "./utils.js";
 import { LayoutParser } from "./layout-parser.js";

@@ -1,4 +1,9 @@
 // Content enhancement (D2, Prism, KaTeX)
+/**
+ * ContentEnhancer
+ * Provides static methods for enhancing slide content, including diagram rendering (D2), syntax highlighting (Prism), and math typesetting (KaTeX).
+ * Supports concurrency for batch processing and integrates with global asset loaders.
+ */
 import { normalizeCodeLanguage, escapeHtml } from "./utils.js";
 
 export class ContentEnhancer {

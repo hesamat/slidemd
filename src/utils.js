@@ -1,3 +1,7 @@
+/**
+ * Utility functions
+ * Provides helper functions for string normalization, HTML escaping, slug generation, deck ID extraction, and code language normalization.
+ */
 // Utility functions
 export const DESIGN_SIZE = { width: 1920, height: 1080 };
 

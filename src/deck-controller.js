@@ -1,23 +1,24 @@
-// Deck navigation and state management
 import { getDeckId, DESIGN_SIZE } from "./utils.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 
+/**
+ * Manages deck navigation, state synchronization between windows,
+ * responsive scaling, and the presenter/viewer roles.
+ */
 export class DeckController {
+    /**
+     * @param {Object} deck - The normalized deck data object.
+     * @param {Object} elements - Map of DOM elements required for UI updates.
+     */
     constructor(deck, elements) {
         this.deck = deck;
         this.elements = elements;
         this.currentIndex = 0;
-        // Default role is viewer unless URL explicitly sets presenter.
         this.isPresenterWindow = false;
-        this.presenterWindowRef = null;
-        this.bc = null;
-        this._stageScaleRetry = 0;
-
         this.isBreakActive = false;
-        this.breakSlideEl = null;
         this.breakMinutes = 10;
-        this.breakEndsAt = null; // timestamp in ms
+        this.breakEndsAt = null;
 
         this.SLIDE_STATE_KEY = `webdeck:${getDeckId(deck)}:slide`;
         this.BREAK_STATE_KEY = `webdeck:${getDeckId(deck)}:break`;
@@ -27,508 +28,331 @@ export class DeckController {
         this.setupEventListeners();
     }
 
-    updateRoleUi() {
-        document.documentElement.setAttribute("data-webdeck-role", this.isPresenterWindow ? "presenter" : "viewer");
+    /**
+     * Determines the user role (viewer vs presenter) from URL parameters
+     * and updates the document UI state accordingly.
+     */
+    initRole() {
+        const url = new URL(window.location.href);
+        this.isPresenterWindow = url.searchParams.get("role") === "presenter";
 
-        if (this.elements.presenterPanel) {
-            this.elements.presenterPanel.classList.toggle("webdeck-hidden", !this.isPresenterWindow);
-        }
+        document.documentElement.setAttribute("data-webdeck-role", this.isPresenterWindow ? "presenter" : "viewer");
+        this.elements.presenterPanel?.classList.toggle("webdeck-hidden", !this.isPresenterWindow);
 
         if (this.elements.togglePresenterBtn) {
             this.elements.togglePresenterBtn.textContent = this.isPresenterWindow
                 ? "Open Viewer Window"
                 : "Open Presenter Window";
         }
-    }
 
-    initBroadcastChannel() {
-        try {
-            this.bc = new BroadcastChannel(getDeckId(this.deck));
-        } catch {
-            // BroadcastChannel not supported
-        }
-
-        if (this.bc) {
-            this.bc.addEventListener("message", (ev) => {
-                if (ev.data?.type === "slide" && typeof ev.data.index === "number") {
-                    this.handleIncomingState(ev.data.index);
-                } else if (ev.data?.type === "break" && ev.data?.hasOwnProperty("active")) {
-                    this.handleIncomingBreakState(ev.data);
-                }
-            });
-        }
-    }
-
-    initRole() {
-        const url = new URL(window.location.href);
-        const roleFromUrl = url.searchParams.get("role");
-
-        // Role is controlled only by URL. Default to viewer.
-        this.isPresenterWindow = roleFromUrl === "presenter";
-
-        this.updateRoleUi();
-
-        // Role changes affect layout (topbar/footer/presenter panel visibility). Recompute scaling after layout settles.
         requestAnimationFrame(() => this.applyStageScale());
     }
 
+    /**
+     * Initializes the BroadcastChannel API for real-time synchronization 
+     * across different tabs or windows of the same deck.
+     */
+    initBroadcastChannel() {
+        this.bc = new BroadcastChannel(getDeckId(this.deck));
+        this.bc.onmessage = (ev) => {
+            if (ev.data?.type === "slide") this.handleIncomingState(ev.data.index);
+            if (ev.data?.type === "break") this.handleIncomingBreakState(ev.data);
+        };
+    }
+
+    /**
+     * Attaches global event listeners for keyboard navigation, window resizing,
+     * mouse wheel interaction, and storage sync.
+     */
     setupEventListeners() {
+        const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
+
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
-        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
-        window.addEventListener("storage", (ev) => this.handleStorage(ev));
+        listen(document, "wheel", (e) => this.handleWheel(e), { passive: false });
+        window.addEventListener("storage", (e) => this.handleStorage(e));
         window.addEventListener("resize", () => this.applyStageScale());
-        window.addEventListener("load", () => this.applyStageScale());
 
-        if (this.elements.prevBtn) this.elements.prevBtn.addEventListener("click", () => this.prev());
-        if (this.elements.nextBtn) this.elements.nextBtn.addEventListener("click", () => this.next());
-        if (this.elements.gotoBtn) this.elements.gotoBtn.addEventListener("click", () => this.openGoToPrompt());
-        if (this.elements.togglePresenterBtn) {
-            this.elements.togglePresenterBtn.addEventListener("click", () => this.togglePresenterWindow());
-        }
-        if (this.elements.viewerPresenterBtn) {
-            this.elements.viewerPresenterBtn.addEventListener("click", () => this.togglePresenterWindow());
-        }
-        if (this.elements.printBtn) {
-            this.elements.printBtn.addEventListener("click", () => this.exportPdfViaPrint());
-        }
-        if (this.elements.breakBtn) {
-            this.elements.breakBtn.addEventListener("click", () => this.toggleBreak());
-        }
+        listen(this.elements.prevBtn, "click", () => this.prev());
+        listen(this.elements.nextBtn, "click", () => this.next());
+        listen(this.elements.gotoBtn, "click", () => this.openGoToPrompt());
+        listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
+        listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
+        listen(this.elements.printBtn, "click", () => window.print());
+        listen(this.elements.breakBtn, "click", () => this.toggleBreak());
+
+        listen(this.elements.breakDurationSelect, "change", (e) => {
+            this.breakMinutes = parseInt(e.target.value, 10) || 10;
+        });
     }
 
+    /**
+     * Maps physical keys to deck actions (navigation, fullscreen, break mode).
+     * @param {KeyboardEvent} e 
+     */
     handleKeyboard(e) {
-        const tag = e.target.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea") return;
+        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
 
-        // If break overlay is active, Space (and navigation keys) dismiss it without changing slides.
-        if (this.isBreakActive) {
-            const dismissKeys = new Set([
-                " ",
-                "ArrowRight",
-                "ArrowDown",
-                "PageDown",
-                "ArrowLeft",
-                "ArrowUp",
-                "PageUp",
-            ]);
-            if (dismissKeys.has(e.key)) {
-                e.preventDefault();
-                this.setBreakActive(false);
-                return;
-            }
-        }
+        const navKeys = {
+            "ArrowRight": () => this.next(),
+            " ": () => this.next(),
+            "PageDown": () => this.next(),
+            "ArrowDown": () => this.next(),
+            "ArrowLeft": () => this.prev(),
+            "PageUp": () => this.prev(),
+            "ArrowUp": () => this.prev(),
+            "Backspace": () => this.prev(),
+            "Home": () => this.goTo(0),
+            "End": () => this.goTo(this.deck.slides.length - 1),
+            "g": () => this.openGoToPrompt(), "G": () => this.openGoToPrompt(),
+            "p": () => this.togglePresenterWindow(), "P": () => this.togglePresenterWindow(),
+            "b": () => this.toggleBreak(), "B": () => this.toggleBreak(),
+            "f": () => this.toggleFullscreen()
+        };
 
-        if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " " || e.key === "ArrowDown") {
+        if (this.isBreakActive && navKeys[e.key]) {
             e.preventDefault();
-            this.next();
-        } else if (e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "ArrowUp") {
-            e.preventDefault();
-            this.prev();
-        } else if (e.key === "Home") {
-            e.preventDefault();
-            this.goTo(0);
-        } else if (e.key === "End") {
-            e.preventDefault();
-            this.goTo(this.deck.slides.length - 1);
-        } else if (e.key === "g" || e.key === "G") {
-            e.preventDefault();
-            this.openGoToPrompt();
-        } else if (e.key === "p" || e.key === "P") {
-            e.preventDefault();
-            this.togglePresenterWindow();
-        } else if (e.key === "f" || e.key === "F") {
-            e.preventDefault();
-            if (document.fullscreenElement) {
-                document.exitFullscreen();
-            } else {
-                this.elements.stageHost?.requestFullscreen?.();
-            }
-        } else if (e.key === "b" || e.key === "B") {
-            e.preventDefault();
-            this.toggleBreak();
-        }
-    }
-
-    handleWheel(e) {
-        const tag = e.target.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea") return;
-
-        e.preventDefault();
-        if (this.isBreakActive) {
             this.setBreakActive(false);
             return;
         }
-        if (e.deltaY > 0) {
-            this.next();
-        } else if (e.deltaY < 0) {
-            this.prev();
+
+        if (navKeys[e.key]) {
+            e.preventDefault();
+            navKeys[e.key]();
         }
     }
 
+    /**
+     * Requests or exits fullscreen mode for the slide stage.
+     */
+    toggleFullscreen() {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else this.elements.stageHost?.requestFullscreen?.();
+    }
+
+    /**
+     * Handles mouse wheel scrolling for slide navigation.
+     * @param {WheelEvent} e 
+     */
+    handleWheel(e) {
+        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
+        e.preventDefault();
+        if (this.isBreakActive) return this.setBreakActive(false);
+        e.deltaY > 0 ? this.next() : this.prev();
+    }
+
+    /**
+     * Syncs state when localStorage changes (e.g., in a different tab).
+     * @param {StorageEvent} ev 
+     */
     handleStorage(ev) {
-        if (ev.key === this.SLIDE_STATE_KEY) {
-            const idx = parseInt(ev.newValue || "0", 10);
-            if (!isNaN(idx)) this.handleIncomingState(idx);
-        } else if (ev.key === this.BREAK_STATE_KEY) {
-            const raw = (ev.newValue || "").trim();
-            let parsed = null;
-            try {
-                parsed = JSON.parse(raw);
-            } catch {
-                // not JSON — legacy format
-            }
-            if (parsed && typeof parsed === "object" && parsed.hasOwnProperty("active")) {
-                this.handleIncomingBreakState(parsed);
-            } else {
-                const active = raw === "1";
-                this.handleIncomingBreakState(active);
-            }
-        }
-    }
-
-    ensureBreakSlideEl() {
-        if (this.breakSlideEl) return;
-        if (!this.elements.stageInner) return;
-
-        const breakSlide = {
-            layout: "title-slide",
-            background: "#333",
-            theme: "dark",
-            align: "center",
-            areas: {
-                main: `
-                    <div class="break-title">
-                        <h1 class="break-mins">${this.breakMinutes} Minute Break</h1>
-                        <div class="break-end">We'll continue at <span class="break-end-time"></span></div>
-                    </div>
-                `,
-            },
-        };
-
-        const el = SlideRenderer.createSlideElement(this.deck, breakSlide, 0, true);
-        el.classList.add("webdeck-break-slide", "webdeck-hidden");
-        el.style.zIndex = "80";
-        el.style.pointerEvents = "auto";
-
-        this.elements.stageInner.appendChild(el);
-        this.breakSlideEl = el;
-    }
-
-    broadcastBreakState(active, { mins = null, endsAt = null } = {}) {
-        const payload = { active: Boolean(active) };
-        if (typeof mins === "number") payload.mins = mins;
-        if (typeof endsAt === "number") payload.endsAt = endsAt;
         try {
-            localStorage.setItem(this.BREAK_STATE_KEY, JSON.stringify(payload));
-        } catch {
-            // ignore storage errors
-        }
-        if (this.bc) {
-            this.bc.postMessage(Object.assign({ type: "break" }, payload));
-        }
+            if (ev.key === this.SLIDE_STATE_KEY) {
+                this.handleIncomingState(parseInt(ev.newValue, 10));
+            } else if (ev.key === this.BREAK_STATE_KEY) {
+                this.handleIncomingBreakState(JSON.parse(ev.newValue));
+            }
+        } catch (e) { /* ignore malformed storage */ }
     }
 
+    /**
+     * Toggles the "Break" overlay and calculates the return time.
+     * @param {boolean} active - Target state.
+     * @param {Object} options
+     * @param {boolean} options.broadcast - Whether to sync this change to other windows.
+     * @param {number|null} options.endsAt - Specific timestamp for break end.
+     */
     setBreakActive(active, { broadcast = true, endsAt = null } = {}) {
-        const turningOn = Boolean(active) && !this.isBreakActive;
-        if (Boolean(active) && !this.breakSlideEl) {
-            // Create break slide on-demand when first activated
-            this.ensureBreakSlideEl();
-        }
-
-        this.isBreakActive = Boolean(active);
+        this.isBreakActive = !!active;
 
         if (this.isBreakActive) {
-            // compute or accept endsAt timestamp
-            if (typeof endsAt === "number") {
-                this.breakEndsAt = endsAt;
-            } else if (!this.breakEndsAt || turningOn) {
-                this.breakEndsAt = Date.now() + this.breakMinutes * 60 * 1000;
-            }
-        } else {
-            this.breakEndsAt = null;
+            if (!this.breakSlideEl) this.createBreakSlide();
+            this.breakEndsAt = endsAt || (Date.now() + this.breakMinutes * 60000);
+
+            const timeStr = new Date(this.breakEndsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            this.breakSlideEl.querySelector(".break-mins").textContent = `${this.breakMinutes} Minute Break`;
+            this.breakSlideEl.querySelector(".break-end-time").textContent = timeStr;
         }
 
-        if (this.breakSlideEl) {
-            // update displayed minutes and end time
-            const minsEl = this.breakSlideEl.querySelector(".break-mins");
-            const endTimeEl = this.breakSlideEl.querySelector(".break-end-time");
-            if (minsEl) minsEl.textContent = `${this.breakMinutes} Minute${this.breakMinutes === 1 ? "" : "s"} Break`;
-            if (endTimeEl) {
-                endTimeEl.textContent = this.breakEndsAt ? new Date(this.breakEndsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
-            }
-
-            this.breakSlideEl.classList.toggle("webdeck-hidden", !this.isBreakActive);
-        }
+        this.breakSlideEl?.classList.toggle("webdeck-hidden", !this.isBreakActive);
 
         if (broadcast) {
-            this.broadcastBreakState(this.isBreakActive, { mins: this.breakMinutes, endsAt: this.breakEndsAt });
+            const payload = { type: "break", active: this.isBreakActive, mins: this.breakMinutes, endsAt: this.breakEndsAt };
+            localStorage.setItem(this.BREAK_STATE_KEY, JSON.stringify(payload));
+            this.bc.postMessage(payload);
         }
     }
 
+    /**
+     * Lazily creates the break overlay DOM element when first needed.
+     */
+    createBreakSlide() {
+        const breakSlide = {
+            layout: "title-slide", background: "#333", theme: "dark", align: "center",
+            areas: { main: `<div class="break-title"><h1 class="break-mins"></h1><div class="break-end">Resume at <span class="break-end-time"></span></div></div>` }
+        };
+        this.breakSlideEl = SlideRenderer.createSlideElement(this.deck, breakSlide, 0, true);
+        this.breakSlideEl.classList.add("webdeck-break-slide", "webdeck-hidden");
+        this.breakSlideEl.style.zIndex = "80";
+        this.elements.stageInner.appendChild(this.breakSlideEl);
+    }
+
+    /**
+     * Processes incoming break state from other windows.
+     * @param {Object} state - The break state payload.
+     */
     handleIncomingBreakState(state) {
-        // `state` may be a boolean (legacy) or an object { active, mins, endsAt }
-        let active = false;
-        let mins = null;
-        let endsAt = null;
-        if (typeof state === "boolean") {
-            active = Boolean(state);
-        } else if (state && typeof state === "object") {
-            active = Boolean(state.active);
-            if (state.mins != null) {
-                const m = parseInt(state.mins, 10);
-                if (!isNaN(m)) mins = m;
-            }
-            if (state.endsAt != null) {
-                const e = Number(state.endsAt);
-                if (!isNaN(e)) endsAt = e;
-            }
-        }
-
-        if (mins) {
-            this.breakMinutes = mins;
-            if (this.elements.breakDurationSelect) {
-                this.elements.breakDurationSelect.value = String(mins);
-            }
-        }
-
-        if (Boolean(active) === this.isBreakActive) return;
-        this.setBreakActive(Boolean(active), { broadcast: false, endsAt });
+        if (state.mins) this.breakMinutes = state.mins;
+        if (this.elements.breakDurationSelect) this.elements.breakDurationSelect.value = String(this.breakMinutes);
+        this.setBreakActive(state.active, { broadcast: false, endsAt: state.endsAt });
     }
 
-    toggleBreak() {
-        this.setBreakActive(!this.isBreakActive);
-    }
+    /**
+     * Toggles the break mode on or off.
+     */
+    toggleBreak() { this.setBreakActive(!this.isBreakActive); }
 
-    broadcastState(index) {
-        localStorage.setItem(this.SLIDE_STATE_KEY, String(index));
-        if (this.bc) {
-            this.bc.postMessage({ type: "slide", index });
-        }
-    }
-
-    setHash(index) {
-        const url = new URL(window.location.href);
-        url.hash = `#slide-${index + 1}`;
-        history.replaceState({}, "", url.toString());
-    }
-
-    parseHash() {
-        const m = window.location.hash.match(/#slide-(\d+)/);
-        return m ? parseInt(m[1], 10) - 1 : null;
-    }
-
-    goTo(index, { broadcast = true, updateUrl = true } = {}) {
+    /**
+     * Transitions the deck to a specific slide index.
+     * Updates URL hash, local state, and triggers UI renders.
+     * @param {number} index - The slide index to navigate to.
+     * @param {Object} options
+     * @param {boolean} options.broadcast - Whether to sync this move to other windows.
+     */
+    goTo(index, { broadcast = true } = {}) {
         this.currentIndex = Math.max(0, Math.min(index, this.deck.slides.length - 1));
-        if (broadcast) this.broadcastState(this.currentIndex);
-        if (updateUrl) this.setHash(this.currentIndex);
-        this.render();
 
-        // Enhance content lazily for the active slide only. Rendering diagrams inside
-        // `display:none` slides can fail due to zero-sized layout.
+        if (broadcast) {
+            localStorage.setItem(this.SLIDE_STATE_KEY, String(this.currentIndex));
+            this.bc.postMessage({ type: "slide", index: this.currentIndex });
+        }
+
+        const url = new URL(window.location.href);
+        url.hash = `#slide-${this.currentIndex + 1}`;
+        history.replaceState({}, "", url.toString());
+
+        this.render();
+        this.lazyEnhanceActiveSlide();
+    }
+
+    /**
+     * Runs ContentEnhancer (for code highlighting, math, etc.) only on 
+     * the currently active slide to improve performance.
+     */
+    lazyEnhanceActiveSlide() {
         const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
         if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
-            requestAnimationFrame(() => {
-                ContentEnhancer.enhanceRenderedContent(activeSlide)
-                    .then(() => {
-                        activeSlide.dataset.webdeckEnhanced = "1";
-                    })
-                    .catch(() => {
-                        // ignore
-                    });
+            ContentEnhancer.enhanceRenderedContent(activeSlide).then(() => {
+                activeSlide.dataset.webdeckEnhanced = "1";
             });
         }
     }
 
+    /**
+     * Responds to slide navigation requests from external tabs.
+     * @param {number} index 
+     */
     handleIncomingState(index) {
-        if (index === this.currentIndex) return;
-        this.goTo(index, { broadcast: false, updateUrl: true });
+        if (index !== this.currentIndex && !isNaN(index)) this.goTo(index, { broadcast: false });
     }
 
-    next() {
-        if (this.isBreakActive) {
-            this.setBreakActive(false);
-            return;
-        }
-        if (this.currentIndex < this.deck.slides.length - 1) {
-            this.goTo(this.currentIndex + 1);
-        }
-    }
+    /** Navigates to the next slide. Dismisses break if active. */
+    next() { this.isBreakActive ? this.setBreakActive(false) : this.goTo(this.currentIndex + 1); }
 
-    prev() {
-        if (this.isBreakActive) {
-            this.setBreakActive(false);
-            return;
-        }
-        if (this.currentIndex > 0) {
-            this.goTo(this.currentIndex - 1);
-        }
-    }
+    /** Navigates to the previous slide. Dismisses break if active. */
+    prev() { this.isBreakActive ? this.setBreakActive(false) : this.goTo(this.currentIndex - 1); }
 
+    /**
+     * Computes the CSS scale required to fit the 16:9 stage into the 
+     * current viewport while maintaining aspect ratio.
+     */
     applyStageScale() {
-        const host = this.elements.stageHost;
-        const stage = this.elements.deckStage;
-        const inner = this.elements.stageInner;
+        const { stageHost: host, deckStage: stage, stageInner: inner } = this.elements;
         if (!host || !stage || !inner) return;
 
         const rect = host.getBoundingClientRect();
-        const pad = 16;
-        const availW = Math.max(0, rect.width - pad * 2);
-        const availH = Math.max(0, rect.height - pad * 2);
+        const availW = rect.width - 32;
+        const availH = rect.height - 32;
 
-        // If layout isn't ready yet (e.g., just toggled role/UI), retry a few times.
-        if ((availW === 0 || availH === 0) && this._stageScaleRetry < 8) {
-            this._stageScaleRetry++;
-            setTimeout(() => this.applyStageScale(), 50);
+        if (availW <= 0 || availH <= 0) {
+            setTimeout(() => this.applyStageScale(), 100);
             return;
         }
-        this._stageScaleRetry = 0;
 
-        const scaleX = availW / DESIGN_SIZE.width;
-        const scaleY = availH / DESIGN_SIZE.height;
-        const scale = Math.min(scaleX, scaleY, 1);
-
-        const scaledW = Math.round(DESIGN_SIZE.width * scale);
-        const scaledH = Math.round(DESIGN_SIZE.height * scale);
-
-        stage.style.width = `${scaledW}px`;
-        stage.style.height = `${scaledH}px`;
-        stage.style.setProperty("--stage-scale", String(scale));
+        const scale = Math.min(availW / DESIGN_SIZE.width, availH / DESIGN_SIZE.height, 1);
+        stage.style.width = `${Math.round(DESIGN_SIZE.width * scale)}px`;
+        stage.style.height = `${Math.round(DESIGN_SIZE.height * scale)}px`;
+        stage.style.setProperty("--stage-scale", scale);
         inner.style.transform = `scale(${scale})`;
-        inner.style.transformOrigin = "top left";
     }
 
-    renderSlides() {
-        const container = this.elements.slidesContainer;
-        container.innerHTML = "";
-
-        this.deck.slides.forEach((slide, i) => {
-            const el = SlideRenderer.createSlideElement(this.deck, slide, i, i === this.currentIndex);
-            container.appendChild(el);
-        });
-    }
-
-    renderPresenterBits() {
-        if (!this.isPresenterWindow) return;
-
-        const slide = this.deck.slides[this.currentIndex];
-        const nextSlide = this.deck.slides[this.currentIndex + 1];
-
-        if (this.elements.nextPreview) {
-            if (nextSlide) {
-                this.elements.nextPreview.textContent = SlideRenderer.getSlideTitleForUi(nextSlide, this.currentIndex + 1);
-            } else {
-                this.elements.nextPreview.textContent = "(Last slide)";
-            }
-        }
-
-        if (this.elements.notesContainer) {
-            const notes = slide?.notes || "";
-            this.elements.notesContainer.innerHTML = notes ? `<pre>${notes}</pre>` : "<p>No notes</p>";
-        }
-    }
-
+    /**
+     * Updates slide visibility and refreshes the Presenter Panel (notes, previews).
+     */
     render() {
         this.elements.slideNumberEl.textContent = String(this.currentIndex + 1);
 
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
-        slides.forEach((s, i) => {
-            s.classList.toggle("active", i === this.currentIndex);
-        });
+        slides.forEach((s, i) => s.classList.toggle("active", i === this.currentIndex));
 
-        this.renderPresenterBits();
-    }
+        if (this.isPresenterWindow) {
+            const slide = this.deck.slides[this.currentIndex];
+            const next = this.deck.slides[this.currentIndex + 1];
 
-    togglePresenterWindow() {
-        if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
-            this.presenterWindowRef.close();
-            this.presenterWindowRef = null;
-            return;
-        }
-
-        const url = new URL(window.location.href);
-        // Presenter window opens a viewer window; viewer window opens a presenter window.
-        url.searchParams.set("role", this.isPresenterWindow ? "viewer" : "presenter");
-        url.hash = `#slide-${this.currentIndex + 1}`;
-
-        this.presenterWindowRef = window.open(
-            url.toString(),
-            this.isPresenterWindow ? "webdeck-viewer" : "webdeck-presenter",
-            "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
-        );
-    }
-
-    openGoToPrompt() {
-        const input = prompt(`Go to slide (1–${this.deck.slides.length}):`);
-        if (!input) return;
-        const num = parseInt(input, 10);
-        if (!isNaN(num) && num >= 1 && num <= this.deck.slides.length) {
-            this.goTo(num - 1);
-        }
-    }
-
-    exportPdfViaPrint() {
-        window.print();
-    }
-
-    async init() {
-        // Initial slide from hash / storage
-        const hashIndex = this.parseHash();
-        if (hashIndex != null && hashIndex >= 0 && hashIndex < this.deck.slides.length) {
-            this.currentIndex = hashIndex;
-        } else {
-            const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
-            if (stored) {
-                const idx = parseInt(stored, 10);
-                if (!isNaN(idx) && idx >= 0 && idx < this.deck.slides.length) {
-                    this.currentIndex = idx;
-                }
+            if (this.elements.nextPreview) {
+                this.elements.nextPreview.textContent = next ? SlideRenderer.getSlideTitleForUi(next, this.currentIndex + 1) : "(End)";
+            }
+            if (this.elements.notesContainer) {
+                this.elements.notesContainer.innerHTML = slide?.notes ? `<pre>${slide.notes}</pre>` : "<p>No notes</p>";
             }
         }
+    }
 
-        // Break overlay: honor explicit URL `?break=1`; otherwise start with break off.
-        // This prevents stale break state in localStorage from showing the break
-        // overlay unexpectedly on a fresh serve/load.
+    /**
+     * Opens a new window with the opposite role (Presenter -> Viewer or vice versa).
+     */
+    togglePresenterWindow() {
+        if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
+            return this.presenterWindowRef.close();
+        }
         const url = new URL(window.location.href);
-        const breakParam = url.searchParams.get("break");
-        if (breakParam !== null) {
-            this.isBreakActive = String(breakParam).trim() === "1";
-        } else {
-            this.isBreakActive = false;
-        }
+        url.searchParams.set("role", this.isPresenterWindow ? "viewer" : "presenter");
+        this.presenterWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+    }
 
-        // Initialize break duration (default 10) from UI or optional URL param.
-        this.breakMinutes = 10;
-        const breakMinsParam = url.searchParams.get("breakMins") || url.searchParams.get("breakMin");
-        if (breakMinsParam != null) {
-            const m = parseInt(breakMinsParam, 10);
-            if (!isNaN(m)) this.breakMinutes = m;
-        }
-        if (this.elements.breakDurationSelect) {
-            try {
-                this.elements.breakDurationSelect.value = String(this.breakMinutes);
-            } catch { }
-            this.elements.breakDurationSelect.addEventListener("change", (ev) => {
-                const v = parseInt(ev.target.value || "", 10);
-                if (!isNaN(v)) this.breakMinutes = v;
-            });
-        }
+    /**
+     * Displays a native browser prompt to navigate to a specific slide number.
+     */
+    openGoToPrompt() {
+        const input = prompt(`Go to slide (1–${this.deck.slides.length}):`);
+        const num = parseInt(input, 10);
+        if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
+    }
 
-        // Normalize role in URL (preserve any explicit break param)
-        url.searchParams.set("role", this.isPresenterWindow ? "presenter" : "viewer");
-        history.replaceState({}, "", url.toString());
+    /**
+     * Main bootstrapper for the controller. 
+     * Loads initial state, renders the slide list, and applies scaling.
+     */
+    async init() {
+        const url = new URL(window.location.href);
 
-        this.updateRoleUi();
+        // Load initial index from hash or storage
+        const hash = window.location.hash.match(/#slide-(\d+)/);
+        const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
+        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 : (parseInt(stored, 10) || 0);
 
-        this.renderSlides();
-        // Break slide is created on-demand when first activated
+        // Load break settings from URL
+        this.breakMinutes = parseInt(url.searchParams.get("breakMins"), 10) || 10;
+        this.isBreakActive = url.searchParams.get("break") === "1";
+
+        // Initial DOM generation for all slides
+        this.elements.slidesContainer.innerHTML = "";
+        this.deck.slides.forEach((s, i) => {
+            this.elements.slidesContainer.appendChild(SlideRenderer.createSlideElement(this.deck, s, i, i === this.currentIndex));
+        });
+
+        // Sync initial UI state
         this.setBreakActive(this.isBreakActive, { broadcast: false });
-        const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
-        if (activeSlide) {
-            await ContentEnhancer.enhanceRenderedContent(activeSlide);
-            activeSlide.dataset.webdeckEnhanced = "1";
-        }
+        this.goTo(this.currentIndex, { broadcast: false });
         this.applyStageScale();
-        this.render();
-        this.setHash(this.currentIndex);
     }
 }

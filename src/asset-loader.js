@@ -1,3 +1,8 @@
+/**
+ * AssetLoader
+ * Utility class for loading and caching external assets (e.g., markdown-it, PrismJS) for the slide deck application.
+ * Provides methods to ensure assets are loaded only once and exposes them globally for use in rendering and enhancement.
+ */
 // Asset loading utilities (optional vendor enhancers)
 export class AssetLoader {
     static _oncePromises = new Map();
