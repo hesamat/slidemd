@@ -62,13 +62,12 @@ export class DeckController {
 
     /**
      * Attaches global event listeners for keyboard navigation, window resizing,
-     * mouse wheel interaction, and storage sync.
+     * and storage sync.
      */
     setupEventListeners() {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
-        listen(document, "wheel", (e) => this.handleWheel(e), { passive: false });
         window.addEventListener("storage", (e) => this.handleStorage(e));
         window.addEventListener("resize", () => this.applyStageScale());
 
@@ -127,17 +126,6 @@ export class DeckController {
     toggleFullscreen() {
         if (document.fullscreenElement) document.exitFullscreen();
         else this.elements.stageHost?.requestFullscreen?.();
-    }
-
-    /**
-     * Handles mouse wheel scrolling for slide navigation.
-     * @param {WheelEvent} e 
-     */
-    handleWheel(e) {
-        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
-        e.preventDefault();
-        if (this.isBreakActive) return this.setBreakActive(false);
-        e.deltaY > 0 ? this.next() : this.prev();
     }
 
     /**
