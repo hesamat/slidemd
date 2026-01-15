@@ -16,12 +16,6 @@ import { SlideRenderer } from "./src/slide-renderer.js";
 
         document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
 
-        const roleLabelEl = document.getElementById("roleLabel");
-        if (roleLabelEl) {
-            roleLabelEl.textContent = isPresenter ? "Presenter" : "Viewer";
-            roleLabelEl.className = `pill pill--${isPresenter ? "presenter" : "viewer"}`;
-        }
-
         const presenterPanel = document.getElementById("presenterPanel");
         if (presenterPanel) {
             presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
@@ -75,7 +69,6 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             slidesContainer: $("slidesContainer"),
             slideNumberEl: $("slideNumber"),
             slideCountEl: $("slideCount"),
-            roleLabelEl: $("roleLabel"),
             deckTitleEl: $("deckTitle"),
             deckSelectEl: $("deckSelect"),
             prevBtn: $("prevBtn"),
@@ -87,8 +80,7 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             nextPreview: $("nextPreview"),
             notesContainer: $("notesContainer"),
             viewerPresenterBtn: $("viewerPresenterBtn"),
-            timeDisplay: $("timeDisplay"),
-            timerToggle: $("timerToggle"),
+            breakDurationSelect: $("breakDuration"),
             breakBtn: $("breakBtn"),
         };
 

@@ -235,7 +235,11 @@
 }
 
 .slide__area pre code {
-    font-size: 1.4rem;
+    font-size: 1.45rem;
+}
+
+.token.operator {
+    background: transparent !important;
 }
 
 .slide__area a {
@@ -262,7 +266,8 @@
 /* D2 diagrams */
 .slide__area .d2 {
     width: 100%;
-    height: 100%;
+    height: auto;
+    max-height: 100%;
     display: grid;
     place-items: center;
     min-width: 0;
@@ -353,10 +358,56 @@
     align-content: start;
 }
 
+/* Modern table styles for markdown tables */
+.slide__area table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2.5rem 0 2.5rem 0;
+    font-size: 29px;
+    background: rgba(248, 250, 252, 0.96);
+    box-shadow: 0 2px 12px rgba(2, 6, 23, 0.06);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.slide__area th,
+.slide__area td {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    padding: 0.5em 1em;
+    text-align: left;
+}
+
+.slide__area th {
+    background: rgba(15, 23, 42, 0.08);
+    color: var(--slide-ink);
+    font-weight: 700;
+}
+
+.slide__area tr:nth-child(even) td {
+    background: rgba(148, 163, 184, 0.08);
+}
+
+.slide__area tr:hover td {
+    background: rgba(2, 132, 199, 0.08);
+    transition: background 0.2s;
+}
+
 .slide__area--cards blockquote {
     margin: 0;
 }
 
 .slide__area--cards blockquote+blockquote {
     margin-top: 0;
+}
+
+/* Break slide small tweaks */
+.webdeck-break-slide .break-title {
+    text-align: center;
+}
+
+.webdeck-break-slide .break-end {
+    margin-top: 12px;
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--slide-muted);
 }

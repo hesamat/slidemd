@@ -117,6 +117,8 @@ html[data-webdeck-role="presenter"] .main {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-top: 10px;
+    padding-left: 15px;
 }
 
 .presenter__body {

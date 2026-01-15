@@ -13,7 +13,6 @@
         <!-- Top Bar -->
         <header id="controlBar" class="topbar">
             <div class="topbar__left">
-                <span id="roleLabel" class="pill pill--viewer">Viewer Mode</span>
                 <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
             </div>
             <div class="topbar__right">
@@ -52,13 +51,25 @@
             <aside id="presenterPanel" class="presenter webdeck-hidden" aria-label="Presenter panel">
                 <div class="presenter__header">
                     <h2 class="presenter__title">Presenter View</h2>
-                    <div class="presenter__tools">
-                        <span id="timeDisplay" class="mono pill">00:00</span>
-                        <button id="timerToggle" class="btn btn--sm">Start</button>
-                        <button id="breakBtn" class="btn btn--sm">Break</button>
-                    </div>
                 </div>
                 <div class="presenter__body">
+                    <div class="presenter__tools">
+                        <label for="breakDuration" class="sr-only">Break length</label>
+                        <select id="breakDuration" class="select select--sm" aria-label="Break length">
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10" selected>10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
+                            <option value="13">13</option>
+                            <option value="14">14</option>
+                            <option value="15">15</option>
+                        </select>
+                        <button id="breakBtn" class="btn btn--sm">Break</button>
+                    </div>
                     <div class="presenter__section">
                         <h3 class="presenter__sectionTitle">Next Slide</h3>
                         <div id="nextPreview" class="next-preview">No next slide</div>

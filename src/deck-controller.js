@@ -12,12 +12,12 @@ export class DeckController {
         this.isPresenterWindow = false;
         this.presenterWindowRef = null;
         this.bc = null;
-        this.timerInterval = null;
-        this.timerStart = null;
         this._stageScaleRetry = 0;
 
         this.isBreakActive = false;
         this.breakSlideEl = null;
+        this.breakMinutes = 10;
+        this.breakEndsAt = null; // timestamp in ms
 
         this.SLIDE_STATE_KEY = `webdeck:${getDeckId(deck)}:slide`;
         this.BREAK_STATE_KEY = `webdeck:${getDeckId(deck)}:break`;
@@ -32,11 +32,6 @@ export class DeckController {
 
         if (this.elements.presenterPanel) {
             this.elements.presenterPanel.classList.toggle("webdeck-hidden", !this.isPresenterWindow);
-        }
-
-        if (this.elements.roleLabelEl) {
-            this.elements.roleLabelEl.textContent = this.isPresenterWindow ? "Presenter" : "Viewer";
-            this.elements.roleLabelEl.className = `pill pill--${this.isPresenterWindow ? "presenter" : "viewer"}`;
         }
 
         if (this.elements.togglePresenterBtn) {
@@ -57,8 +52,8 @@ export class DeckController {
             this.bc.addEventListener("message", (ev) => {
                 if (ev.data?.type === "slide" && typeof ev.data.index === "number") {
                     this.handleIncomingState(ev.data.index);
-                } else if (ev.data?.type === "break" && typeof ev.data.active === "boolean") {
-                    this.handleIncomingBreakState(ev.data.active);
+                } else if (ev.data?.type === "break" && ev.data?.hasOwnProperty("active")) {
+                    this.handleIncomingBreakState(ev.data);
                 }
             });
         }
@@ -95,9 +90,6 @@ export class DeckController {
         }
         if (this.elements.printBtn) {
             this.elements.printBtn.addEventListener("click", () => this.exportPdfViaPrint());
-        }
-        if (this.elements.timerToggle) {
-            this.elements.timerToggle.addEventListener("click", () => this.toggleTimer());
         }
         if (this.elements.breakBtn) {
             this.elements.breakBtn.addEventListener("click", () => this.toggleBreak());
@@ -151,9 +143,9 @@ export class DeckController {
             } else {
                 this.elements.stageHost?.requestFullscreen?.();
             }
-        } else if (e.key === "t" || e.key === "T") {
+        } else if (e.key === "b" || e.key === "B") {
             e.preventDefault();
-            this.toggleTimer();
+            this.toggleBreak();
         }
     }
 
@@ -178,8 +170,19 @@ export class DeckController {
             const idx = parseInt(ev.newValue || "0", 10);
             if (!isNaN(idx)) this.handleIncomingState(idx);
         } else if (ev.key === this.BREAK_STATE_KEY) {
-            const active = (ev.newValue || "").trim() === "1";
-            this.handleIncomingBreakState(active);
+            const raw = (ev.newValue || "").trim();
+            let parsed = null;
+            try {
+                parsed = JSON.parse(raw);
+            } catch {
+                // not JSON — legacy format
+            }
+            if (parsed && typeof parsed === "object" && parsed.hasOwnProperty("active")) {
+                this.handleIncomingBreakState(parsed);
+            } else {
+                const active = raw === "1";
+                this.handleIncomingBreakState(active);
+            }
         }
     }
 
@@ -193,7 +196,12 @@ export class DeckController {
             theme: "dark",
             align: "center",
             areas: {
-                main: "<h1>10 Minute Break</h1>",
+                main: `
+                    <div class="break-title">
+                        <h1 class="break-mins">${this.breakMinutes} Minute Break</h1>
+                        <div class="break-end">We'll continue at <span class="break-end-time"></span></div>
+                    </div>
+                `,
             },
         };
 
@@ -206,32 +214,85 @@ export class DeckController {
         this.breakSlideEl = el;
     }
 
-    broadcastBreakState(active) {
-        localStorage.setItem(this.BREAK_STATE_KEY, active ? "1" : "0");
+    broadcastBreakState(active, { mins = null, endsAt = null } = {}) {
+        const payload = { active: Boolean(active) };
+        if (typeof mins === "number") payload.mins = mins;
+        if (typeof endsAt === "number") payload.endsAt = endsAt;
+        try {
+            localStorage.setItem(this.BREAK_STATE_KEY, JSON.stringify(payload));
+        } catch {
+            // ignore storage errors
+        }
         if (this.bc) {
-            this.bc.postMessage({ type: "break", active });
+            this.bc.postMessage(Object.assign({ type: "break" }, payload));
         }
     }
 
-    setBreakActive(active, { broadcast = true } = {}) {
+    setBreakActive(active, { broadcast = true, endsAt = null } = {}) {
+        const turningOn = Boolean(active) && !this.isBreakActive;
         if (Boolean(active) && !this.breakSlideEl) {
             // Create break slide on-demand when first activated
             this.ensureBreakSlideEl();
         }
+
         this.isBreakActive = Boolean(active);
 
+        if (this.isBreakActive) {
+            // compute or accept endsAt timestamp
+            if (typeof endsAt === "number") {
+                this.breakEndsAt = endsAt;
+            } else if (!this.breakEndsAt || turningOn) {
+                this.breakEndsAt = Date.now() + this.breakMinutes * 60 * 1000;
+            }
+        } else {
+            this.breakEndsAt = null;
+        }
+
         if (this.breakSlideEl) {
+            // update displayed minutes and end time
+            const minsEl = this.breakSlideEl.querySelector(".break-mins");
+            const endTimeEl = this.breakSlideEl.querySelector(".break-end-time");
+            if (minsEl) minsEl.textContent = `${this.breakMinutes} Minute${this.breakMinutes === 1 ? "" : "s"} Break`;
+            if (endTimeEl) {
+                endTimeEl.textContent = this.breakEndsAt ? new Date(this.breakEndsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+            }
+
             this.breakSlideEl.classList.toggle("webdeck-hidden", !this.isBreakActive);
         }
 
         if (broadcast) {
-            this.broadcastBreakState(this.isBreakActive);
+            this.broadcastBreakState(this.isBreakActive, { mins: this.breakMinutes, endsAt: this.breakEndsAt });
         }
     }
 
-    handleIncomingBreakState(active) {
+    handleIncomingBreakState(state) {
+        // `state` may be a boolean (legacy) or an object { active, mins, endsAt }
+        let active = false;
+        let mins = null;
+        let endsAt = null;
+        if (typeof state === "boolean") {
+            active = Boolean(state);
+        } else if (state && typeof state === "object") {
+            active = Boolean(state.active);
+            if (state.mins != null) {
+                const m = parseInt(state.mins, 10);
+                if (!isNaN(m)) mins = m;
+            }
+            if (state.endsAt != null) {
+                const e = Number(state.endsAt);
+                if (!isNaN(e)) endsAt = e;
+            }
+        }
+
+        if (mins) {
+            this.breakMinutes = mins;
+            if (this.elements.breakDurationSelect) {
+                this.elements.breakDurationSelect.value = String(mins);
+            }
+        }
+
         if (Boolean(active) === this.isBreakActive) return;
-        this.setBreakActive(Boolean(active), { broadcast: false });
+        this.setBreakActive(Boolean(active), { broadcast: false, endsAt });
     }
 
     toggleBreak() {
@@ -409,39 +470,6 @@ export class DeckController {
         window.print();
     }
 
-    // Timer
-    updateTimer() {
-        if (!this.timerStart || !this.elements.timeDisplay) return;
-        const elapsed = Math.floor((Date.now() - this.timerStart) / 1000);
-        const mins = Math.floor(elapsed / 60);
-        const secs = elapsed % 60;
-        this.elements.timeDisplay.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    }
-
-    startTimer() {
-        if (this.timerInterval) return;
-        this.timerStart = Date.now();
-        this.timerInterval = setInterval(() => this.updateTimer(), 1000);
-        this.updateTimer();
-    }
-
-    stopTimer() {
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-        this.timerStart = null;
-    }
-
-    toggleTimer() {
-        if (this.timerInterval) {
-            this.stopTimer();
-            if (this.elements.timeDisplay) this.elements.timeDisplay.textContent = "00:00";
-        } else {
-            this.startTimer();
-        }
-    }
-
     async init() {
         // Initial slide from hash / storage
         const hashIndex = this.parseHash();
@@ -466,6 +494,23 @@ export class DeckController {
             this.isBreakActive = String(breakParam).trim() === "1";
         } else {
             this.isBreakActive = false;
+        }
+
+        // Initialize break duration (default 10) from UI or optional URL param.
+        this.breakMinutes = 10;
+        const breakMinsParam = url.searchParams.get("breakMins") || url.searchParams.get("breakMin");
+        if (breakMinsParam != null) {
+            const m = parseInt(breakMinsParam, 10);
+            if (!isNaN(m)) this.breakMinutes = m;
+        }
+        if (this.elements.breakDurationSelect) {
+            try {
+                this.elements.breakDurationSelect.value = String(this.breakMinutes);
+            } catch { }
+            this.elements.breakDurationSelect.addEventListener("change", (ev) => {
+                const v = parseInt(ev.target.value || "", 10);
+                if (!isNaN(v)) this.breakMinutes = v;
+            });
         }
 
         // Normalize role in URL (preserve any explicit break param)
