@@ -156,13 +156,13 @@
 }
 
 .slide__area h3 {
-    font-size: 34px;
+    font-size: 35px;
     font-weight: 600;
-    color: rgba(15, 23, 42, 0.82);
+    color: rgba(15, 23, 42, 0.6);
 }
 
 .slide__area--header h3 {
-    color: rgba(15, 23, 42, 0.6);
+    color: rgba(15, 23, 42, 0.7);
     font-weight: 650;
     font-size: 32px;
     margin-top: 0 !important;

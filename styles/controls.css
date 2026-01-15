@@ -26,10 +26,6 @@ html[data-webdeck-role="viewer"] #controlBar {
     display: none;
 }
 
-html[data-webdeck-role="viewer"] #footerBar {
-    display: none;
-}
-
 .topbar__left {
     display: flex;
     align-items: center;

@@ -16,7 +16,7 @@ const inlineAssets = !args.includes("--no-inline-assets");
 
 // Get deck file from args or use default
 const deckArg = args.find(arg => !arg.startsWith("--"));
-const deckFile = deckArg || "week2.md";
+const deckFile = deckArg || "week2-c.md";
 const inDeck = path.join(root, "decks", deckFile);
 
 function readTextIfExists(filePath) {
@@ -524,7 +524,7 @@ html = html.replace(
 );
 
 // Always remove presenter mode elements from the output
-// Remove elements with id 'presenter', 'presenter-only', 'presenterPanel', 'topbar', 'controlBar', or 'footerBar' from the HTML
+// Remove elements with id 'presenter', 'presenter-only', 'presenterPanel', 'topbar', 'controlBar' from the HTML
 html = html.replace(/<([a-zA-Z0-9]+)([^>]*\bid=["'](presenterPanel|controlBar)["'][^>]*)>.*?<\/\1>/gs, "");
 // Optionally, hide any remaining with CSS if dynamic content remains
 html = html.replace(/(<style>)/i, `$1\n#presenter, #presenter-only, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
