@@ -221,7 +221,7 @@ export class DeckController {
         listen(this.elements.gotoBtn, "click", () => this.openGoToPrompt());
         listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
-        listen(this.elements.printBtn, "click", () => window.print());
+        listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.toggleBreak());
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
@@ -459,6 +459,34 @@ export class DeckController {
         const input = prompt(`Go to slide (1–${this.deck.slides.length}):`);
         const num = parseInt(input, 10);
         if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
+    }
+
+    /**
+     * Handles the print button click by ensuring all D2 diagrams are rendered
+     * before triggering the browser's print dialog.
+     */
+    async handlePrint() {
+        // Ensure D2 module is loaded
+        if (!window.__WEBDECK_D2__) {
+            try {
+                const { AssetLoader } = await import("./asset-loader.js");
+                await AssetLoader.ensureD2Loaded();
+            } catch (e) {
+                console.error("Failed to load D2 for printing:", e);
+            }
+        }
+
+        // Render all D2 diagrams (not just active slide) for print output
+        try {
+            await ContentEnhancer.renderD2Diagrams(this.elements.slidesContainer, {
+                renderAllSlides: true
+            });
+        } catch (e) {
+            console.error("Failed to render D2 diagrams for printing:", e);
+        }
+
+        // Trigger print after ensuring all diagrams are rendered
+        window.print();
     }
 
     /**

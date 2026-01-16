@@ -26,6 +26,14 @@
     #app {
         height: auto !important;
         background: transparent !important;
+        overflow: visible !important;
+    }
+
+    /* Ensure main content doesn't create extra space */
+    .main {
+        height: auto !important;
+        padding: 0 !important;
+        overflow: visible !important;
     }
 
     /* In presenter mode the app adds a top padding for the fixed topbar.
@@ -36,10 +44,12 @@
 
     .topbar,
     .footer,
-    .presenter,
+    .presenterPanel,
     #viewerPresenterBtn,
     .slide-indicator,
-    .overlay {
+    .overlay,
+    .webdeck-break-slide,
+    .webdeck-hidden {
         display: none !important;
     }
 
@@ -88,12 +98,53 @@
         position: static !important;
         inset: auto !important;
         display: block !important;
+        width: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Ensure no extra spacing after the slides container */
+    #stageInner {
+        width: auto !important;
+        height: auto !important;
+        position: static !important;
+        inset: auto !important;
+        transform: none !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Hide any potential empty containers */
+    .viewer::after,
+    .stage-host::after,
+    .stage::after,
+    .stage__inner::after,
+    .slides::after {
+        display: none !important;
+        content: none !important;
     }
 
     /* Print-friendly spacing + code theme */
+    /* Make all slides visible for print, not just the active one */
     .slide {
         /* Slightly tighter padding for print (vs on-screen stage) */
         padding: 92px 110px !important;
+        display: grid !important;
+        position: relative !important;
+        inset: auto !important;
+        width: 20in !important;
+        height: 11.25in !important;
+        overflow: hidden !important;
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .slide:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
     }
 
     .slide__grid {
@@ -109,30 +160,10 @@
         line-height: 1.35 !important;
     }
 
-    .slide__area pre code {
-        font-size: 1em !important;
-    }
-
     .slide__area :not(pre)>code {
         background: rgba(241, 245, 249, 0.9) !important;
         border-color: rgba(148, 163, 184, 0.4) !important;
         color: rgba(15, 23, 42, 0.9) !important;
-    }
-
-    .slide {
-        position: relative !important;
-        inset: auto !important;
-        display: grid !important;
-        width: 20in !important;
-        height: 11.25in !important;
-        overflow: hidden !important;
-        page-break-after: always !important;
-        break-after: page !important;
-    }
-
-    .slide:last-child {
-        page-break-after: auto !important;
-        break-after: auto !important;
     }
 }
 

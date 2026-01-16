@@ -87,4 +87,30 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             DeckController.showBootError(e);
         });
     });
+
+    window.addEventListener("beforeprint", async () => {
+        const slidesContainer = document.getElementById("slidesContainer");
+        if (!slidesContainer) return;
+
+        // Ensure all rich text enhancers are loaded
+        try {
+            await AssetLoader.ensureRichTextEnhancers();
+        } catch (e) {
+            console.error("Could not load enhancers", e);
+        }
+
+        const allSlides = slidesContainer.querySelectorAll(".slide");
+
+        for (const slide of allSlides) {
+            try {
+                // Skip if already enhanced to save time
+                if (slide.dataset.webdeckEnhanced === "1") continue;
+
+                await ContentEnhancer.enhanceRenderedContent(slide, { renderAllSlides: true });
+                slide.dataset.webdeckEnhanced = "1";
+            } catch (e) {
+                console.error("Failed to enhance slide for printing:", e);
+            }
+        }
+    });
 })();
