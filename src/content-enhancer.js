@@ -10,6 +10,42 @@ export class ContentEnhancer {
     static d2Initialized = false;
     static d2Instance = null;
 
+    /**
+     * Extracts HTML text from a deck for scanning purposes.
+     * @param {Object} deck - The deck object containing slides
+     * @returns {string} Concatenated HTML content from all slides
+     */
+    static deckHtmlText(deck) {
+        if (!deck || !Array.isArray(deck.slides)) return "";
+        const parts = [];
+        for (const s of deck.slides) {
+            if (!s || typeof s !== "object") continue;
+            if (s.areas && typeof s.areas === "object") {
+                for (const v of Object.values(s.areas)) {
+                    if (typeof v === "string" && v) parts.push(v);
+                }
+            }
+            if (typeof s.notes === "string" && s.notes) parts.push(s.notes);
+            if (typeof s.background === "string" && s.background) parts.push(s.background);
+        }
+        return parts.join("\n");
+    }
+
+    /**
+     * Checks if text contains patterns that require rich text enhancers.
+     * @param {string} text - Text to scan
+     * @returns {boolean} True if enhancers are needed
+     */
+    static needsEnhancers(text) {
+        if (!text) return false;
+        // Prism: code blocks, KaTeX: math delimiters, D2: .d2 blocks
+        return (
+            /<pre\b[\s\S]*?<code\b/i.test(text) ||
+            /\$\$|\$|\\\(|\\\[|\\begin\{/.test(text) ||
+            /class=["'][^"']*\bd2\b[^"']*["']/i.test(text)
+        );
+    }
+
     static async runWithConcurrency(tasks, limit = 4) {
         if (!Array.isArray(tasks) || tasks.length === 0) return;
         const concurrency = Math.max(1, Math.min(limit, tasks.length));

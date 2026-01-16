@@ -16,19 +16,13 @@
                 <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
             </div>
             <div class="topbar__right">
-                <label class="deck-switch" for="deckSelect">
-                    <span class="deck-switch__label">Deck</span>
-                    <select id="deckSelect" class="select" aria-label="Select deck"></select>
-                </label>
+                <button id="openFileBtn" class="btn btn--sm" type="button">Open File</button>
+                <button id="openRemoteBtn" class="btn btn--sm" type="button">Open Remote</button>
                 <button id="prevBtn" class="btn btn--sm" type="button">Prev</button>
                 <button id="nextBtn" class="btn btn--sm" type="button">Next</button>
                 <button id="gotoBtn" class="btn btn--sm" type="button">Go to</button>
                 <button id="togglePresenterBtn" class="btn">Open Presenter Window</button>
                 <button id="printBtn" class="btn">Print PDF</button>
-                <div class="hint">
-                    <kbd class="kbd">Space</kbd>
-                    <span>to navigate</span>
-                </div>
             </div>
         </header>
 
@@ -48,7 +42,7 @@
             </section>
 
             <!-- Presenter Panel -->
-            <aside id="presenterPanel" class="presenter webdeck-hidden" aria-label="Presenter panel">
+            <aside id="presenterPanel" class="presenterPanel webdeck-hidden" aria-label="Presenter panel">
                 <div class="presenter__header">
                     <h2 class="presenter__title">Presenter View</h2>
                 </div>
@@ -97,6 +91,8 @@
             <div class="footer__right">Slide Deck</div>
         </footer>
     </div>
+    <!-- Hidden file input for local file loading -->
+    <input type="file" id="fileInput" accept=".md,.json" style="display: none;" />
     <script type="module" src="deck.js"></script>
 </body>
 

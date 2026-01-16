@@ -136,30 +136,6 @@ html[data-webdeck-role="viewer"] #controlBar {
     font-weight: 650;
 }
 
-.hint {
-    display: none;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: rgba(15, 23, 42, 0.6);
-    white-space: nowrap;
-}
-
-@media (min-width: 900px) {
-    .hint {
-        display: flex;
-    }
-}
-
-.kbd {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 3px 7px;
-    border-radius: 8px;
-    border: 1px solid rgba(15, 23, 42, 0.18);
-    background: rgba(255, 255, 255, 0.8);
-}
-
 .pill {
     display: inline-flex;
     align-items: center;

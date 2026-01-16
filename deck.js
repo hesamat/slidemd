@@ -9,24 +9,6 @@ import { SlideRenderer } from "./src/slide-renderer.js";
 (() => {
     "use strict";
 
-    function applyRoleUiFromUrl() {
-        const url = new URL(window.location.href);
-        const roleFromUrl = url.searchParams.get("role");
-        const isPresenter = roleFromUrl === "presenter";
-
-        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
-
-        const presenterPanel = document.getElementById("presenterPanel");
-        if (presenterPanel) {
-            presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
-        }
-
-        const togglePresenterBtn = document.getElementById("togglePresenterBtn");
-        if (togglePresenterBtn) {
-            togglePresenterBtn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
-        }
-    }
-
     function showBootError(err) {
         try {
             window.__WEBDECK_LAST_ERROR__ = err;
@@ -70,7 +52,9 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             slideNumberEl: $("slideNumber"),
             slideCountEl: $("slideCount"),
             deckTitleEl: $("deckTitle"),
-            deckSelectEl: $("deckSelect"),
+            openFileBtn: $("openFileBtn"),
+            openRemoteBtn: $("openRemoteBtn"),
+            fileInput: $("fileInput"),
             prevBtn: $("prevBtn"),
             nextBtn: $("nextBtn"),
             gotoBtn: $("gotoBtn"),
@@ -84,37 +68,76 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             breakBtn: $("breakBtn"),
         };
 
-        // Deck switching UI (works in dev via decks/catalog.json, and in build via embedded #deckCatalog)
-        if (elements.deckSelectEl) {
-            try {
-                const catalogRaw = await DeckLoader.loadDeckCatalog();
-                const catalog = DeckLoader.normalizeCatalog(catalogRaw);
-                const currentKey = DeckLoader.getDeckKeyFromUrl() || catalog?.default || "deck.md";
+        // File loading handlers
+        if (elements.openFileBtn && elements.fileInput) {
+            elements.openFileBtn.addEventListener("click", () => {
+                elements.fileInput.click();
+            });
 
-                const decks = catalog?.decks || [];
-                if (decks.length === 0) {
-                    elements.deckSelectEl.innerHTML = "";
-                    elements.deckSelectEl.disabled = true;
-                } else {
-                    elements.deckSelectEl.innerHTML = decks
-                        .map((d) => `<option value="${String(d.key).replace(/"/g, "&quot;")}">${String(d.title).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</option>`)
-                        .join("");
-                    elements.deckSelectEl.value = currentKey;
-                    elements.deckSelectEl.disabled = false;
+            elements.fileInput.addEventListener("change", async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
 
-                    elements.deckSelectEl.addEventListener("change", () => {
-                        const nextKey = elements.deckSelectEl.value;
-                        const url = new URL(window.location.href);
-                        url.searchParams.set("deck", nextKey);
-                        // Reset slide hash when changing decks.
-                        url.hash = "#slide-1";
-                        window.location.href = url.toString();
-                    });
+                try {
+                    const text = await file.text();
+                    let fileType;
+                    if (file.name.endsWith(".json")) {
+                        fileType = "json";
+                    } else if (file.name.endsWith(".md")) {
+                        fileType = "md";
+                    } else {
+                        alert("Unsupported file type. Please use .md or .json files.");
+                        return;
+                    }
+
+                    // Store file data in localStorage with timestamp (shared across windows)
+                    localStorage.setItem("webdeck_local_file", text);
+                    localStorage.setItem("webdeck_local_file_type", fileType);
+                    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                    localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
+
+                    // Send reload message to all other windows
+                    const reloadChannel = new BroadcastChannel("webdeck-reload");
+                    reloadChannel.postMessage({ type: "reload" });
+                    reloadChannel.close();
+
+                    // Clear the slide hash before reloading to start from slide 1
+                    window.location.hash = "";
+                    // Force a hard page reload
+                    window.location.reload();
+                } catch (err) {
+                    console.error("Failed to load file:", err);
+                    alert("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
                 }
-            } catch {
-                // If catalog fails, keep deck working; just disable the selector.
-                elements.deckSelectEl.disabled = true;
-            }
+
+                // Reset input so same file can be selected again
+                elements.fileInput.value = "";
+            });
+        }
+
+        if (elements.openRemoteBtn) {
+            elements.openRemoteBtn.addEventListener("click", async () => {
+                const url = prompt("Enter remote file URL (.md or .json):");
+                if (!url) return;
+
+                try {
+                    // Validate URL by trying to load it
+                    await DeckLoader.loadFromUrl(url);
+
+                    // Send reload message to all other windows with URL
+                    const reloadChannel = new BroadcastChannel("webdeck-reload");
+                    reloadChannel.postMessage({ type: "reload", url });
+                    reloadChannel.close();
+
+                    // Reload with URL parameter, preserving other parameters
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set("url", url);
+                    newUrl.hash = ""; // Clear slide hash to start from slide 1
+                    window.location.href = newUrl.toString();
+                } catch (err) {
+                    alert("Failed to load remote file: " + (err instanceof Error ? err.message : String(err)));
+                }
+            });
         }
 
         if (elements.deckTitleEl) {
@@ -127,35 +150,9 @@ import { SlideRenderer } from "./src/slide-renderer.js";
         const controller = new DeckController(deck, elements);
         await controller.init();
 
-        const deckHtmlText = (d) => {
-            if (!d || !Array.isArray(d.slides)) return "";
-            const parts = [];
-            for (const s of d.slides) {
-                if (!s || typeof s !== "object") continue;
-                if (s.areas && typeof s.areas === "object") {
-                    for (const v of Object.values(s.areas)) {
-                        if (typeof v === "string" && v) parts.push(v);
-                    }
-                }
-                if (typeof s.notes === "string" && s.notes) parts.push(s.notes);
-                if (typeof s.background === "string" && s.background) parts.push(s.background);
-            }
-            return parts.join("\n");
-        };
-
-        const needsEnhancers = (text) => {
-            if (!text) return false;
-            // Prism: code blocks, KaTeX: math delimiters, D2: .d2 blocks
-            return (
-                /<pre\b[\s\S]*?<code\b/i.test(text) ||
-                /\$\$|\$|\\\(|\\\[|\\begin\{/.test(text) ||
-                /class=["'][^"']*\bd2\b[^"']*["']/i.test(text)
-            );
-        };
-
         // Load optional enhancers after first render so a slow/failed asset doesn't blank the deck.
-        const textForScan = deckHtmlText(deck);
-        if (needsEnhancers(textForScan)) {
+        const textForScan = ContentEnhancer.deckHtmlText(deck);
+        if (ContentEnhancer.needsEnhancers(textForScan)) {
             await AssetLoader.ensureRichTextEnhancers();
             await ContentEnhancer.enhanceRenderedContent(elements.slidesContainer);
         }
@@ -169,36 +166,16 @@ import { SlideRenderer } from "./src/slide-renderer.js";
         }
     }
 
-    function renderSlide(slide, { index = 0, isActive = true, deck = null } = {}) {
-        const normalizedSlide = slide && typeof slide === "object" ? slide : {
-            title: "",
-            notes: "",
-            layout: "",
-            areas: { main: "" }
-        };
-        const d = deck && typeof deck === "object" ? deck : DeckLoader.normalizeDeck({
-            meta: { id: "webdeck", title: "", course: "", aspect: "16:9", stage: { ...DESIGN_SIZE } },
-            slides: [{
-                id: normalizedSlide.id ?? 1,
-                title: normalizedSlide.title ?? "",
-                notes: normalizedSlide.notes ?? "",
-                layout: normalizedSlide.layout ?? "",
-                areas: normalizedSlide.areas && typeof normalizedSlide.areas === "object" ? normalizedSlide.areas : { main: "" },
-            }],
-        });
-
-        const s = d.slides[index] || d.slides[0];
-        return SlideRenderer.createSlideElement(d, s, index, isActive);
-    }
-
     // Public API for editor tooling (non-module global)
     window.WebDeck = Object.assign(window.WebDeck || {}, {
         DESIGN_SIZE,
         normalizeCodeLanguage,
         ensureRichTextEnhancers: () => AssetLoader.ensureRichTextEnhancers(),
         enhanceRenderedContent: (rootEl) => ContentEnhancer.enhanceRenderedContent(rootEl),
-        renderSlide,
+        renderSlide: (slide, options) => SlideRenderer.renderSlide(slide, options),
         normalizeDeck: (raw) => DeckLoader.normalizeDeck(raw),
+        deckHtmlText: (deck) => ContentEnhancer.deckHtmlText(deck),
+        needsEnhancers: (text) => ContentEnhancer.needsEnhancers(text),
     });
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -211,7 +188,38 @@ import { SlideRenderer } from "./src/slide-renderer.js";
         if (!hasViewerShell) return;
 
         // Apply role immediately so UI is correct even if deck loading is slow.
-        applyRoleUiFromUrl();
+        const url = new URL(window.location.href);
+        const isPresenter = url.searchParams.get("role") === "presenter";
+        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
+
+        const presenterPanel = document.getElementById("presenterPanel");
+        if (presenterPanel) {
+            presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
+        }
+
+        const togglePresenterBtn = document.getElementById("togglePresenterBtn");
+        if (togglePresenterBtn) {
+            togglePresenterBtn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
+        }
+
+        // Listen for reload messages from other windows
+        const reloadChannel = new BroadcastChannel("webdeck-reload");
+        reloadChannel.onmessage = (ev) => {
+            if (ev.data?.type === "reload") {
+                // Clear the slide hash before reloading
+                window.location.hash = "";
+                // Reload the page
+                if (ev.data.url) {
+                    // Remote file: update URL parameter
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set("url", ev.data.url);
+                    window.location.href = newUrl.toString();
+                } else {
+                    // Local file: just reload (will read from localStorage)
+                    window.location.reload();
+                }
+            }
+        };
 
         // Show a minimal loading state until the controller renders slides.
         const slidesContainer = document.getElementById("slidesContainer");

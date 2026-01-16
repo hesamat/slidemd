@@ -3,8 +3,9 @@
  * Renders slide DOM elements, applies layout templates, and manages accessibility attributes. Integrates with LayoutParser for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString } from "./utils.js";
+import { safeString, DESIGN_SIZE } from "./utils.js";
 import { LayoutParser } from "./layout-parser.js";
+import { DeckLoader } from "./deck-loader.js";
 
 export class SlideRenderer {
     static areaLooksLikeMediaAsset(areaHtml) {
@@ -83,5 +84,36 @@ export class SlideRenderer {
         const t = slide?.title;
         if (!t) return `Slide ${fallbackIndex + 1}`;
         return String(t).replace(/<[^>]*>/g, "").trim() || `Slide ${fallbackIndex + 1}`;
+    }
+
+    /**
+     * Renders a single slide element with optional deck context.
+     * @param {Object} slide - The slide object to render
+     * @param {Object} options - Rendering options
+     * @param {number} options.index - Slide index (default: 0)
+     * @param {boolean} options.isActive - Whether slide is active (default: true)
+     * @param {Object} options.deck - Optional deck context for rendering
+     * @returns {HTMLElement} The rendered slide element
+     */
+    static renderSlide(slide, { index = 0, isActive = true, deck = null } = {}) {
+        const normalizedSlide = slide && typeof slide === "object" ? slide : {
+            title: "",
+            notes: "",
+            layout: "",
+            areas: { main: "" }
+        };
+        const d = deck && typeof deck === "object" ? deck : DeckLoader.normalizeDeck({
+            meta: { id: "webdeck", title: "", course: "", aspect: "16:9", stage: { ...DESIGN_SIZE } },
+            slides: [{
+                id: normalizedSlide.id ?? 1,
+                title: normalizedSlide.title ?? "",
+                notes: normalizedSlide.notes ?? "",
+                layout: normalizedSlide.layout ?? "",
+                areas: normalizedSlide.areas && typeof normalizedSlide.areas === "object" ? normalizedSlide.areas : { main: "" },
+            }],
+        });
+
+        const s = d.slides[index] || d.slides[0];
+        return this.createSlideElement(d, s, index, isActive);
     }
 }
