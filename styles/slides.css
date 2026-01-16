@@ -53,7 +53,7 @@
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 36px;
+    gap: 30px 44px;
     min-width: 0;
     min-height: 0;
 }
@@ -61,6 +61,9 @@
 .slide__area {
     min-width: 0;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Content rhythm (spacing between blocks) */
@@ -72,7 +75,7 @@
     display: grid;
     align-content: start;
     gap: 10px;
-    margin-bottom: 2rem;
+    margin-bottom: 20px;
 }
 
 .slide__area--title {
@@ -149,14 +152,13 @@
 
 .slide__area h2 {
     font-size: 45px;
-    line-height: 1.18;
-    letter-spacing: -0.01em;
+    line-height: 1.4;
     font-weight: 700;
     color: rgba(15, 23, 42, 0.82);
 }
 
 .slide__area h3 {
-    font-size: 35px;
+    font-size: 34px;
     font-weight: 600;
     color: rgba(15, 23, 42, 0.6);
 }
@@ -170,14 +172,14 @@
 
 .slide__area>p,
 .slide__area> :not(.d2) p {
-    font-size: 32px;
-    line-height: 1.32;
+    font-size: 28px;
+    line-height: 1.3;
     color: var(--slide-muted);
 }
 
 .slide__area strong {
-    color: rgba(15, 23, 42, 0.92);
-    font-weight: 780;
+    color: rgba(45, 49, 59, 0.8);
+    font-weight: 650;
 }
 
 .slide__area em {
@@ -189,10 +191,9 @@
 .slide__area>ol,
 .slide__area> :not(.d2) ul,
 .slide__area> :not(.d2) ol {
-    padding-left: 24px;
     display: grid;
     gap: 16px;
-    font-size: 32px;
+    font-size: 28px;
     line-height: 1.32;
     color: rgba(15, 23, 42, 0.78);
 }
@@ -218,10 +219,11 @@
     width: 100%;
     max-height: 100%;
     box-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
+    max-width: 850px;
 }
 
 .slide__area code {
-    line-height: 1.4 !important;
+    line-height: 1.35 !important;
     font-family: var(--font-mono);
 }
 
@@ -266,10 +268,11 @@
 /* D2 diagrams */
 .slide__area .d2 {
     width: 100%;
-    height: auto;
     max-height: 100%;
-    display: grid;
-    place-items: center;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -281,12 +284,13 @@
     word-break: break-word;
 }
 
-.slide__area .d2 svg {
+/* Outer SVG should fill container */
+.slide__area .d2>svg {
     display: block;
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: auto !important;
 }
 
 .slide__area pre::-webkit-scrollbar,
