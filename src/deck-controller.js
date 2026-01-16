@@ -8,6 +8,151 @@ import { ContentEnhancer } from "./content-enhancer.js";
  */
 export class DeckController {
     /**
+     * Gathers all required DOM elements for the deck interface.
+     * @returns {Object} Map of DOM element references
+     */
+    static gatherElements() {
+        const $ = (id) => document.getElementById(id);
+        return {
+            stageHost: $("stageHost"),
+            deckStage: $("deckStage"),
+            stageInner: $("stageInner"),
+            slidesContainer: $("slidesContainer"),
+            slideNumberEl: $("slideNumber"),
+            slideCountEl: $("slideCount"),
+            deckTitleEl: $("deckTitle"),
+            openFileBtn: $("openFileBtn"),
+            openRemoteBtn: $("openRemoteBtn"),
+            fileInput: $("fileInput"),
+            prevBtn: $("prevBtn"),
+            nextBtn: $("nextBtn"),
+            gotoBtn: $("gotoBtn"),
+            togglePresenterBtn: $("togglePresenterBtn"),
+            printBtn: $("printBtn"),
+            presenterPanel: $("presenterPanel"),
+            nextPreview: $("nextPreview"),
+            notesContainer: $("notesContainer"),
+            viewerPresenterBtn: $("viewerPresenterBtn"),
+            breakDurationSelect: $("breakDuration"),
+            breakBtn: $("breakBtn"),
+        };
+    }
+
+    /**
+     * Initializes the role state (viewer vs presenter) and updates the DOM accordingly.
+     */
+    static initRole() {
+        const url = new URL(window.location.href);
+        const isPresenter = url.searchParams.get("role") === "presenter";
+        
+        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
+
+        const presenterPanel = document.getElementById("presenterPanel");
+        if (presenterPanel) {
+            presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
+        }
+
+        const togglePresenterBtn = document.getElementById("togglePresenterBtn");
+        if (togglePresenterBtn) {
+            togglePresenterBtn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
+        }
+    }
+
+    /**
+     * Sets up the reload channel listener for cross-window synchronization.
+     * @returns {BroadcastChannel} The created reload channel
+     */
+    static initReloadChannel() {
+        const reloadChannel = new BroadcastChannel("webdeck-reload");
+        reloadChannel.onmessage = (ev) => {
+            if (ev.data?.type === "reload") {
+                window.location.hash = "";
+                if (ev.data.url) {
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set("url", ev.data.url);
+                    window.location.href = newUrl.toString();
+                } else {
+                    window.location.reload();
+                }
+            }
+        };
+        return reloadChannel;
+    }
+
+    /**
+     * Shows a minimal loading state in the slides container.
+     */
+    static showLoadingState() {
+        const slidesContainer = document.getElementById("slidesContainer");
+        if (slidesContainer) {
+            slidesContainer.innerHTML = `
+                <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px; color:rgba(15,23,42,.75);">
+                    <div style="font-weight:800;">Loading deck…</div>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Displays a boot error in the slides container.
+     * @param {Error|string} err - The error to display
+     */
+    static showBootError(err) {
+        try {
+            window.__WEBDECK_LAST_ERROR__ = err;
+        } catch {
+            // ignore
+        }
+
+        const slidesContainer = document.getElementById("slidesContainer");
+        if (!slidesContainer) return;
+
+        const msg = err instanceof Error ? (err.stack || err.message) : String(err);
+        slidesContainer.innerHTML = `
+            <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px;">
+                <div style="max-width:900px; width:100%; border:1px solid rgba(239,68,68,.35); background:rgba(254,242,242,.92); border-radius:16px; padding:18px 18px; color:rgba(127,29,29,.95);">
+                    <div style="font-weight:800; margin-bottom:8px;">Deck failed to load</div>
+                    <div style="font-size:12px; opacity:.9; margin-bottom:10px;">Open DevTools Console for details. This error is also available as <code>window.__WEBDECK_LAST_ERROR__</code>.</div>
+                    <pre style="margin:0; white-space:pre-wrap; font-size:12px; line-height:1.4;">${msg.replace(/</g, "<").replace(/>/g, ">")}</pre>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Updates the deck title in the UI.
+     * @param {Object} elements - DOM elements map
+     * @param {string} title - The deck title
+     */
+    static updateDeckTitle(elements, title) {
+        if (elements.deckTitleEl) {
+            elements.deckTitleEl.textContent = title;
+        }
+    }
+
+    /**
+     * Updates the slide count in the UI.
+     * @param {Object} elements - DOM elements map
+     * @param {number} count - The total slide count
+     */
+    static updateSlideCount(elements, count) {
+        if (elements.slideCountEl) {
+            elements.slideCountEl.textContent = String(count);
+        }
+    }
+
+    /**
+     * Checks if the viewer shell is present in the DOM.
+     * @returns {boolean} True if the viewer shell exists
+     */
+    static hasViewerShell() {
+        return !!(
+            document.getElementById("slidesContainer") &&
+            document.getElementById("stageHost") &&
+            document.getElementById("deckStage")
+        );
+    }
+    /**
      * @param {Object} deck - The normalized deck data object.
      * @param {Object} elements - Map of DOM elements required for UI updates.
      */

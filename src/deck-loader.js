@@ -151,6 +151,86 @@ export class DeckLoader {
         };
     }
 
+    /**
+     * Sets up the local file loading handler.
+     * @param {HTMLElement} openFileBtn - The button that triggers file selection
+     * @param {HTMLInputElement} fileInput - The file input element
+     */
+    static setupLocalFileHandler(openFileBtn, fileInput) {
+        openFileBtn.addEventListener("click", () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener("change", async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                let fileType;
+                if (file.name.endsWith(".json")) {
+                    fileType = "json";
+                } else if (file.name.endsWith(".md")) {
+                    fileType = "md";
+                } else {
+                    alert("Unsupported file type. Please use .md or .json files.");
+                    return;
+                }
+
+                // Store file data in localStorage with timestamp (shared across windows)
+                localStorage.setItem("webdeck_local_file", text);
+                localStorage.setItem("webdeck_local_file_type", fileType);
+                localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
+
+                // Send reload message to all other windows
+                const reloadChannel = new BroadcastChannel("webdeck-reload");
+                reloadChannel.postMessage({ type: "reload" });
+                reloadChannel.close();
+
+                // Clear the slide hash before reloading to start from slide 1
+                window.location.hash = "";
+                // Force a hard page reload
+                window.location.reload();
+            } catch (err) {
+                console.error("Failed to load file:", err);
+                alert("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
+            }
+
+            // Reset input so same file can be selected again
+            fileInput.value = "";
+        });
+    }
+
+    /**
+     * Sets up the remote file loading handler.
+     * @param {HTMLElement} openRemoteBtn - The button that triggers URL prompt
+     */
+    static setupRemoteFileHandler(openRemoteBtn) {
+        openRemoteBtn.addEventListener("click", async () => {
+            const url = prompt("Enter remote file URL (.md or .json):");
+            if (!url) return;
+
+            try {
+                // Validate URL by trying to load it
+                await this.loadFromUrl(url);
+
+                // Send reload message to all other windows with URL
+                const reloadChannel = new BroadcastChannel("webdeck-reload");
+                reloadChannel.postMessage({ type: "reload", url });
+                reloadChannel.close();
+
+                // Reload with URL parameter, preserving other parameters
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set("url", url);
+                newUrl.hash = ""; // Clear slide hash to start from slide 1
+                window.location.href = newUrl.toString();
+            } catch (err) {
+                alert("Failed to load remote file: " + (err instanceof Error ? err.message : String(err)));
+            }
+        });
+    }
+
     static normalizeDeck(raw, { includeHidden = false } = {}) {
         if (!raw || typeof raw !== "object") throw new Error("Invalid deck: not an object");
         if (!Array.isArray(raw.slides)) throw new Error("Invalid deck: slides must be an array");
