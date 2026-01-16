@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "migrate": "node tools/migrate-v1-to-v2.mjs",
     "build": "node tools/build.mjs",
     "pdf": "node tools/pdf.mjs",
     "preview": "npx http-server dist -p 8000 -c-1"
