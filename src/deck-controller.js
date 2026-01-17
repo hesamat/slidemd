@@ -25,9 +25,6 @@ export class DeckController {
             openRemoteBtn: $("openRemoteBtn"),
             reloadDeckBtn: $("reloadDeckBtn"),
             fileInput: $("fileInput"),
-            prevBtn: $("prevBtn"),
-            nextBtn: $("nextBtn"),
-            gotoBtn: $("gotoBtn"),
             togglePresenterBtn: $("togglePresenterBtn"),
             printBtn: $("printBtn"),
             presenterPanel: $("presenterPanel"),
@@ -231,9 +228,6 @@ export class DeckController {
         window.addEventListener("storage", (e) => this.handleStorage(e));
         window.addEventListener("resize", () => this.applyStageScale());
 
-        listen(this.elements.prevBtn, "click", () => this.prev());
-        listen(this.elements.nextBtn, "click", () => this.next());
-        listen(this.elements.gotoBtn, "click", () => this.openGoToPrompt());
         listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
@@ -246,7 +240,7 @@ export class DeckController {
 
         // Handle local file loading events
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
-        
+
         // Handle beforeprint for rendering all content
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
     }
@@ -361,7 +355,7 @@ export class DeckController {
             await AssetLoader.ensureMarkdownItLoaded();
             return new MarkdownParser().parseDeckMarkdown(localFile);
         }
-        
+
         return null;
     }
 
@@ -373,7 +367,7 @@ export class DeckController {
         const url = new URL(window.location.href);
         const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
         const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
-        
+
         const { DeckLoader } = await import("./deck-loader.js");
         const newDeck = DeckLoader.normalizeDeck(raw, { includeHidden });
 
@@ -427,7 +421,7 @@ export class DeckController {
      */
     async handleLocalFileLoad(event) {
         const { text, fileType } = event.detail || {};
-        
+
         try {
             let raw;
             if (fileType === "json") {

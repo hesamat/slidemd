@@ -77,9 +77,6 @@ try {
 // Ensure print sizing for code/blockquote matches dev theme (no change to print.css on disk).
 await page.addStyleTag({
     content: `@media print {
-        .slide__area pre { font-size: 28px !important; line-height: 1.2 !important; padding: 18px !important; }
-        .slide__area pre code { font-size: 1.4rem !important; line-height: 1.2 !important; }
-        .slide__area blockquote { font-size: 32px !important; line-height: 1.3 !important; }
         .slide__page-number { position: absolute; right: 22px; bottom: 18px; font-size: 18px; color: rgba(15,23,42,0.65); }
     }`,
 });
