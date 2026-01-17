@@ -8,16 +8,47 @@ const distDir = path.join(root, "dist");
 const inIndex = path.join(root, "index.html");
 const inCss = path.join(root, "styles.css");
 const inJs = path.join(root, "deck.js");
-const outHtml = path.join(distDir, "deck.html");
 const prismCssPath = path.join(root, "node_modules", "prismjs", "themes", "prism.css");
 
 const args = process.argv.slice(2);
 const inlineAssets = !args.includes("--no-inline-assets");
 
-// Get deck file from args or use default
-const deckArg = args.find(arg => !arg.startsWith("--"));
-const deckFile = deckArg || "week2-c.md";
-const inDeck = path.join(root, "decks", deckFile);
+/**
+ * Resolve deck file path from arguments.
+ *
+ * Usage: node build.mjs [deck-path] [--no-inline-assets]
+ *
+ * Arguments:
+ *   deck-path - Path to the deck file. Can be:
+ *               - A filename relative to the project root (e.g., "deck.md", "presentation/deck.md")
+ *               - An absolute path (e.g., "/path/to/deck.md" on Unix, "C:\\path\\to\\deck.md" on Windows)
+ *               - Defaults to "deck.md" if not provided
+ *   --no-inline-assets - Skip inlining images as data URIs (keeps external image references)
+ *
+ * Examples:
+ *   node build.mjs                          # Use default deck.md
+ *   node build.mjs my-deck.md              # Use my-deck.md from project root
+ *   node build.mjs ./presentations/deck.md # Use relative path from project root
+ *   node build.mjs /absolute/path/deck.md  # Use absolute path
+ */
+function resolveDeckPath() {
+    const deckArg = args.find(arg => !arg.startsWith("--"));
+
+    if (!deckArg) {
+        return path.join(root, "deck.md");
+    }
+
+    // Check if it's an absolute path
+    if (path.isAbsolute(deckArg)) {
+        return deckArg;
+    }
+
+    // Otherwise, resolve relative to project root
+    return path.join(root, deckArg);
+}
+
+const inDeck = resolveDeckPath();
+const outHtml = path.join(distDir, `${path.basename(inDeck, path.extname(inDeck))}.html`);
 
 function readTextIfExists(filePath) {
     if (!fs.existsSync(filePath)) return "";
@@ -210,18 +241,8 @@ const js = fs.readFileSync(inJs, "utf8");
 
 // Load and parse the deck
 let deck;
-if (deckFile.endsWith(".json")) {
-    const deckJson = fs.readFileSync(inDeck, "utf8");
-    try {
-        deck = JSON.parse(deckJson);
-    } catch (e) {
-        console.error(`Error parsing JSON deck: ${e}`);
-        process.exit(1);
-    }
-} else {
-    const deckMd = fs.readFileSync(inDeck, "utf8");
-    deck = parseDeckMarkdown(deckMd);
-}
+const deckMd = fs.readFileSync(inDeck, "utf8");
+deck = parseDeckMarkdown(deckMd);
 
 function decodeHtmlEntities(s) {
     return String(s || "")

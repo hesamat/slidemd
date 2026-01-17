@@ -4,11 +4,53 @@ import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 
 const root = process.cwd();
-const distHtml = path.join(root, "dist", "deck.html");
-const outPdf = path.join(root, "dist", "deck.pdf");
+const distDir = path.join(root, "dist");
+
+const args = process.argv.slice(2);
+
+/**
+ * Resolve HTML file path from arguments.
+ *
+ * Usage: node pdf.mjs [html-path]
+ *
+ * Arguments:
+ *   html-path - Path to the HTML file. Can be:
+ *               - A filename relative to the dist directory (e.g., "deck.html", "presentation.html")
+ *               - An absolute path (e.g., "/path/to/deck.html" on Unix, "C:\\path\\to\\deck.html" on Windows)
+ *               - Defaults to "dist/deck.html" if not provided
+ *
+ * Examples:
+ *   node pdf.mjs                    # Use default dist/deck.html
+ *   node pdf.mjs my-deck.html      # Use my-deck.html from dist directory
+ *   node pdf.mjs ./dist/deck.html  # Use relative path
+ *   node pdf.mjs /absolute/path/deck.html  # Use absolute path
+ */
+function resolveHtmlPath() {
+    const htmlArg = args.find(arg => !arg.startsWith("--"));
+
+    if (!htmlArg) {
+        return path.join(distDir, "deck.html");
+    }
+
+    // Check if it's an absolute path
+    if (path.isAbsolute(htmlArg)) {
+        return htmlArg;
+    }
+
+    // Check if it's already a path to dist
+    if (htmlArg.includes("dist")) {
+        return path.join(root, htmlArg);
+    }
+
+    // Otherwise, resolve relative to dist directory
+    return path.join(distDir, htmlArg);
+}
+
+const distHtml = resolveHtmlPath();
+const outPdf = path.join(distDir, `${path.basename(distHtml, path.extname(distHtml))}.pdf`);
 
 if (!fs.existsSync(distHtml)) {
-    throw new Error("dist/deck.html not found. Run: npm run build");
+    throw new Error(`HTML file not found: ${distHtml}\nRun: npm run build`);
 }
 
 const urlObj = pathToFileURL(distHtml);
@@ -126,9 +168,10 @@ try {
         .replace(/[:.]/g, "-")
         .replace("T", "_")
         .replace("Z", "");
-    const outAlt = path.join(root, "dist", `deck-${stamp}.pdf`);
+    const baseName = path.basename(distHtml, path.extname(distHtml));
+    const outAlt = path.join(distDir, `${baseName}-${stamp}.pdf`);
     await page.pdf({ path: outAlt, ...pdfOptions });
-    console.log(`Wrote ${outAlt} (deck.pdf was locked)`);
+    console.log(`Wrote ${outAlt} (${baseName}.pdf was locked)`);
 }
 
 await browser.close();
