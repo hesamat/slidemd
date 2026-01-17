@@ -54,6 +54,8 @@ import { SlideRenderer } from "./src/slide-renderer.js";
         } catch {
             // ignore
         }
+
+        return controller;
     }
 
     // Public API for editor tooling (non-module global)
@@ -69,7 +71,7 @@ import { SlideRenderer } from "./src/slide-renderer.js";
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Only boot the viewer runtime on pages that have the viewer DOM
+        // Only boot the viewer runtime on pages that have been viewer DOM
         if (!DeckController.hasViewerShell()) return;
 
         // Apply role immediately so UI is correct even if deck loading is slow.
@@ -82,35 +84,15 @@ import { SlideRenderer } from "./src/slide-renderer.js";
         DeckController.showLoadingState();
 
         // Initialize deck
-        init().catch((e) => {
+        let controller;
+        init().then((ctrl) => {
+            // Store controller reference for local file loading
+            controller = ctrl;
+            window.__WEBDECK_CONTROLLER__ = ctrl;
+        }).catch((e) => {
             console.error("Deck init failed:", e);
             DeckController.showBootError(e);
         });
     });
 
-    window.addEventListener("beforeprint", async () => {
-        const slidesContainer = document.getElementById("slidesContainer");
-        if (!slidesContainer) return;
-
-        // Ensure all rich text enhancers are loaded
-        try {
-            await AssetLoader.ensureRichTextEnhancers();
-        } catch (e) {
-            console.error("Could not load enhancers", e);
-        }
-
-        const allSlides = slidesContainer.querySelectorAll(".slide");
-
-        for (const slide of allSlides) {
-            try {
-                // Skip if already enhanced to save time
-                if (slide.dataset.webdeckEnhanced === "1") continue;
-
-                await ContentEnhancer.enhanceRenderedContent(slide, { renderAllSlides: true });
-                slide.dataset.webdeckEnhanced = "1";
-            } catch (e) {
-                console.error("Failed to enhance slide for printing:", e);
-            }
-        }
-    });
 })();

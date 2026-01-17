@@ -8,15 +8,29 @@ import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "./utils.js";
 
 export class DeckLoader {
+    // File handle registry: stores FileSystemFileHandle for local files
+    // Map<deckId, FileSystemFileHandle>
+    static fileHandleRegistry = new Map();
+
+    // Check if File System Access API is supported
+    static get supportsFileSystemAPI() {
+        return 'showOpenFilePicker' in window;
+    }
+
     /**
      * Load deck data from a remote URL
-     * @param {string} url - The URL to load the deck from
+     * @param {string} url - The URL to load deck from
      * @returns {Promise<object>} - The deck data
      */
-    static async loadFromUrl(url) {
+    static async loadFromUrl(url, options = {}) {
+        const { bypassCache = false } = options;
         const urlLower = url.toLowerCase();
+
+        // Add cache-busting parameter if requested
+        const fetchUrl = bypassCache ? this.addCacheBuster(url) : url;
+
         if (urlLower.endsWith(".json")) {
-            const jsonText = await this.fetchText(url, { cache: "no-cache" });
+            const jsonText = await this.fetchText(fetchUrl, { cache: "no-cache" });
             try {
                 return JSON.parse(jsonText);
             } catch (e) {
@@ -25,11 +39,53 @@ export class DeckLoader {
             }
         } else if (urlLower.endsWith(".md")) {
             await AssetLoader.ensureMarkdownItLoaded();
-            const mdText = await this.fetchText(url, { cache: "no-cache" });
+            const mdText = await this.fetchText(fetchUrl, { cache: "no-cache" });
             return new MarkdownParser().parseDeckMarkdown(mdText);
         } else {
             throw new Error("Unsupported file type. Please use .md or .json files.");
         }
+    }
+
+    /**
+     * Load deck data from a file handle (File System Access API)
+     * @param {FileSystemFileHandle} fileHandle - The file handle to read from
+     * @returns {Promise<object>} - The deck data
+     */
+    static async loadFromFileHandle(fileHandle) {
+        try {
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+
+            let fileType;
+            if (file.name.endsWith(".json")) {
+                fileType = "json";
+            } else if (file.name.endsWith(".md")) {
+                fileType = "md";
+            } else {
+                throw new Error(`Unsupported file type: ${file.name}`);
+            }
+
+            if (fileType === "json") {
+                return JSON.parse(text);
+            } else if (fileType === "md") {
+                await AssetLoader.ensureMarkdownItLoaded();
+                return new MarkdownParser().parseDeckMarkdown(text);
+            }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(`Failed to load file: ${msg}`);
+        }
+    }
+
+    /**
+     * Adds a cache-busting timestamp to a URL
+     * @param {string} url - The URL to modify
+     * @returns {string} The URL with cache-busting parameter
+     */
+    static addCacheBuster(url) {
+        const hasQuery = url.indexOf('?') !== -1;
+        const separator = hasQuery ? '&' : '?';
+        return `${url}${separator}_t=${Date.now()}`;
     }
 
     static async fetchText(url, { cache = "default", timeoutMs = 8000 } = {}) {
@@ -60,15 +116,22 @@ export class DeckLoader {
 
             if (localFile && fileType && timestamp) {
                 const age = Date.now() - parseInt(timestamp, 10);
-                // Only load if data is recent (within 30 seconds) to avoid stale data
-                if (age < 30000) {
+                // Load if data is recent (within 30 seconds) for window sharing
+                // OR if we have a reload flag (for manual reload button)
+                const reloadFlag = localStorage.getItem("webdeck_reload_flag");
+                if (age < 30000 || reloadFlag === "1") {
+                    // Clear reload flag after using it
+                    if (reloadFlag === "1") {
+                        localStorage.removeItem("webdeck_reload_flag");
+                    }
+
                     // Mark this window as having loaded the data
                     const loadedKey = "webdeck_local_file_loaded";
                     const loadedCount = parseInt(localStorage.getItem(loadedKey) || "0", 10);
                     localStorage.setItem(loadedKey, (loadedCount + 1).toString());
 
                     // If both windows have loaded (count >= 2), clear the data after a delay
-                    if (loadedCount >= 2) {
+                    if (loadedCount >= 2 && !reloadFlag) {
                         setTimeout(() => {
                             localStorage.removeItem("webdeck_local_file");
                             localStorage.removeItem("webdeck_local_file_type");
@@ -86,10 +149,13 @@ export class DeckLoader {
                         throw new Error(`Unknown file type: ${fileType}`);
                     }
                 } else {
-                    // Data is too old, clear it
-                    localStorage.removeItem("webdeck_local_file");
-                    localStorage.removeItem("webdeck_local_file_type");
-                    localStorage.removeItem("webdeck_local_file_timestamp");
+                    // Data is too old, clear it (but keep for reload functionality)
+                    // Don't clear if it might be needed for reload button
+                    if (age > 3600000) { // Clear if older than 1 hour
+                        localStorage.removeItem("webdeck_local_file");
+                        localStorage.removeItem("webdeck_local_file_type");
+                        localStorage.removeItem("webdeck_local_file_timestamp");
+                    }
                 }
             }
         } catch (err) {
@@ -108,7 +174,8 @@ export class DeckLoader {
 
             // Load from URL parameter if provided
             if (urlParam) {
-                return await this.loadFromUrl(urlParam);
+                // Add cache-busting to ensure fresh content on page refresh
+                return await this.loadFromUrl(urlParam, { bypassCache: true });
             }
         } catch {
             // Ignore URL parsing errors
@@ -144,7 +211,7 @@ export class DeckLoader {
                     theme: "",
                     hidden: false,
                     areas: {
-                        main: "<div style=\"text-align: center;\"><h1 style=\"font-size: 3rem; margin-bottom: 1rem;\">Welcome to Slide Deck</h1><p style=\"font-size: 1.5rem; margin-bottom: 2rem;\">Open a presentation to get started</p><p style=\"font-size: 1.1rem; color: var(--color-fg-muted);\">Use the <strong>Open File</strong> button to load a local .md or .json file,<br>or use <strong>Open Remote</strong> to load from a URL.</p></div>",
+                        main: "<div style=\"text-align: center;\"><h1 style=\"font-size: 3rem; margin-bottom: 1rem;\">Welcome to Slide Deck</h1><p style=\"font-size: 1.5rem; margin-bottom: 2rem;\">Open a presentation to get started</p><p style=\"font-size: 1.1rem; color: var(--color-fg-muted);\">Use <strong>Open File</strong> button to load a local .md or .json file,<br>or use <strong>Open Remote</strong> to load from a URL.</p></div>",
                     },
                 },
             ],
@@ -154,11 +221,61 @@ export class DeckLoader {
     /**
      * Sets up the local file loading handler.
      * @param {HTMLElement} openFileBtn - The button that triggers file selection
-     * @param {HTMLInputElement} fileInput - The file input element
+     * @param {HTMLInputElement} fileInput - The file input element (fallback)
      */
     static setupLocalFileHandler(openFileBtn, fileInput) {
-        openFileBtn.addEventListener("click", () => {
-            fileInput.click();
+        openFileBtn.addEventListener("click", async () => {
+            // Try File System Access API first
+            if (this.supportsFileSystemAPI) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [
+                            {
+                                description: 'Markdown files',
+                                accept: { 'text/markdown': ['.md'] }
+                            },
+                            {
+                                description: 'JSON files',
+                                accept: { 'application/json': ['.json'] }
+                            }
+                        ],
+                        multiple: false
+                    });
+
+                    if (!handle) return;
+
+                    // Read file content
+                    const text = await this.loadFromFileHandle(handle);
+
+                    // Store file handle in registry for future reloads
+                    const deckId = getDeckId(text);
+                    this.fileHandleRegistry.set(deckId, handle);
+
+                    // Store file data in localStorage with timestamp (shared across windows)
+                    // Storage event will trigger reload in other windows
+                    localStorage.setItem("webdeck_local_file", JSON.stringify(text));
+                    localStorage.setItem("webdeck_local_file_type", handle.name.endsWith(".md") ? "md" : "json");
+                    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                    localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
+
+                    // Dispatch custom event to notify the current window to load the new deck
+                    const loadEvent = new CustomEvent('webdeck-load-local', {
+                        detail: { text, fileType: handle.name.endsWith(".md") ? "md" : "json" }
+                    });
+                    window.dispatchEvent(loadEvent);
+                } catch (e) {
+                    if (e.name === 'AbortError') {
+                        // User cancelled, do nothing
+                        return;
+                    }
+                    console.error("Failed to open file with File System Access API:", e);
+                    // Fall back to file input
+                    fileInput.click();
+                }
+            } else {
+                // Fall back to traditional file input
+                fileInput.click();
+            }
         });
 
         fileInput.addEventListener("change", async (e) => {
@@ -178,20 +295,17 @@ export class DeckLoader {
                 }
 
                 // Store file data in localStorage with timestamp (shared across windows)
+                // Storage event will trigger reload in other windows
                 localStorage.setItem("webdeck_local_file", text);
                 localStorage.setItem("webdeck_local_file_type", fileType);
                 localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
                 localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
 
-                // Send reload message to all other windows
-                const reloadChannel = new BroadcastChannel("webdeck-reload");
-                reloadChannel.postMessage({ type: "reload" });
-                reloadChannel.close();
-
-                // Clear the slide hash before reloading to start from slide 1
-                window.location.hash = "";
-                // Force a hard page reload
-                window.location.reload();
+                // Dispatch custom event to notify the current window to load the new deck
+                const loadEvent = new CustomEvent('webdeck-load-local', {
+                    detail: { text, fileType }
+                });
+                window.dispatchEvent(loadEvent);
             } catch (err) {
                 console.error("Failed to load file:", err);
                 alert("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
@@ -200,6 +314,27 @@ export class DeckLoader {
             // Reset input so same file can be selected again
             fileInput.value = "";
         });
+    }
+
+    /**
+     * Reloads deck from a file handle if available
+     * @param {string} deckId - The deck ID to find handle for
+     * @returns {Promise<object>} - The reloaded deck data or null if no handle
+     */
+    static async reloadFromFileHandle(deckId) {
+        const handle = this.fileHandleRegistry.get(deckId);
+        if (!handle) {
+            return null;
+        }
+
+        try {
+            return await this.loadFromFileHandle(handle);
+        } catch (e) {
+            console.error("Failed to reload from file handle:", e);
+            // Remove invalid handle from registry
+            this.fileHandleRegistry.delete(deckId);
+            throw e;
+        }
     }
 
     /**

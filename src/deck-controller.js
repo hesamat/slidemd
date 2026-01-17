@@ -23,6 +23,7 @@ export class DeckController {
             deckTitleEl: $("deckTitle"),
             openFileBtn: $("openFileBtn"),
             openRemoteBtn: $("openRemoteBtn"),
+            reloadDeckBtn: $("reloadDeckBtn"),
             fileInput: $("fileInput"),
             prevBtn: $("prevBtn"),
             nextBtn: $("nextBtn"),
@@ -39,40 +40,33 @@ export class DeckController {
     }
 
     /**
-     * Initializes the role state (viewer vs presenter) and updates the DOM accordingly.
-     */
-    static initRole() {
-        const url = new URL(window.location.href);
-        const isPresenter = url.searchParams.get("role") === "presenter";
-        
-        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
-
-        const presenterPanel = document.getElementById("presenterPanel");
-        if (presenterPanel) {
-            presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
-        }
-
-        const togglePresenterBtn = document.getElementById("togglePresenterBtn");
-        if (togglePresenterBtn) {
-            togglePresenterBtn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
-        }
-    }
-
-    /**
      * Sets up the reload channel listener for cross-window synchronization.
+     * For remote decks (with URL param), navigates to the URL.
+     * For local decks, loads fresh data from localStorage and updates without page refresh.
      * @returns {BroadcastChannel} The created reload channel
      */
     static initReloadChannel() {
         const reloadChannel = new BroadcastChannel("webdeck-reload");
-        reloadChannel.onmessage = (ev) => {
+        reloadChannel.onmessage = async (ev) => {
             if (ev.data?.type === "reload") {
+                console.log("BroadcastChannel: received reload message", ev.data);
                 window.location.hash = "";
                 if (ev.data.url) {
+                    // Remote deck: navigate to URL
                     const newUrl = new URL(window.location.href);
                     newUrl.searchParams.set("url", ev.data.url);
                     window.location.href = newUrl.toString();
                 } else {
-                    window.location.reload();
+                    // Local deck: load fresh data from localStorage
+                    const controller = window.__WEBDECK_CONTROLLER__;
+                    if (controller) {
+                        console.log("BroadcastChannel: calling handleReloadDeck");
+                        await controller.handleReloadDeck({ preferLocalStorage: true });
+                    } else {
+                        // Controller not ready yet - fallback to page reload
+                        console.log("BroadcastChannel: controller not ready, reloading page");
+                        window.location.reload();
+                    }
                 }
             }
         };
@@ -152,6 +146,27 @@ export class DeckController {
             document.getElementById("deckStage")
         );
     }
+
+    /**
+     * Initializes the role state (viewer vs presenter) and updates the DOM accordingly.
+     */
+    static initRole() {
+        const url = new URL(window.location.href);
+        const isPresenter = url.searchParams.get("role") === "presenter";
+
+        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
+
+        const presenterPanel = document.getElementById("presenterPanel");
+        if (presenterPanel) {
+            presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
+        }
+
+        const togglePresenterBtn = document.getElementById("togglePresenterBtn");
+        if (togglePresenterBtn) {
+            togglePresenterBtn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
+        }
+    }
+
     /**
      * @param {Object} deck - The normalized deck data object.
      * @param {Object} elements - Map of DOM elements required for UI updates.
@@ -223,10 +238,17 @@ export class DeckController {
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.toggleBreak());
+        listen(this.elements.reloadDeckBtn, "click", () => this.handleReloadDeck());
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakMinutes = parseInt(e.target.value, 10) || 10;
         });
+
+        // Handle local file loading events
+        window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
+        
+        // Handle beforeprint for rendering all content
+        window.addEventListener("beforeprint", () => this.handleBeforePrint());
     }
 
     /**
@@ -274,8 +296,191 @@ export class DeckController {
     }
 
     /**
+     * Reloads the current deck from its source (URL, file handle, or localStorage).
+     * @param {Object} options
+     * @param {boolean} options.preferLocalStorage - If true, loads from localStorage instead of file handle
+     */
+    async handleReloadDeck({ preferLocalStorage = false } = {}) {
+        const url = new URL(window.location.href);
+        const deckUrl = url.searchParams.get("url");
+
+        try {
+            const { DeckLoader } = await import("./deck-loader.js");
+            let raw;
+
+            // Load deck data from appropriate source
+            if (deckUrl) {
+                raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
+
+                // Notify other windows to reload (only for remote decks)
+                this.broadcastReload();
+            } else {
+                // Local deck: try file handle first, then localStorage (unless preferLocalStorage is set)
+                if (!preferLocalStorage) {
+                    const deckId = getDeckId(this.deck);
+                    raw = await DeckLoader.reloadFromFileHandle(deckId);
+                }
+
+                if (!raw) {
+                    raw = await this.loadFromLocalStorage();
+                }
+            }
+
+            if (!raw) {
+                alert("No deck source available for reload");
+                this.render();
+                return;
+            }
+
+            // Process and update deck
+            await this.updateDeckWithData(raw);
+
+            console.log("Deck reloaded successfully");
+        } catch (err) {
+            console.error("Failed to reload deck:", err);
+            alert("Failed to reload deck: " + (err instanceof Error ? err.message : String(err)));
+            this.render();
+        }
+    }
+
+    /**
+     * Loads deck data from localStorage.
+     * @returns {Object|null} The raw deck data or null if not available
+     */
+    async loadFromLocalStorage() {
+        const localFile = localStorage.getItem("webdeck_local_file");
+        const fileType = localStorage.getItem("webdeck_local_file_type");
+
+        if (!localFile || !fileType) return null;
+
+        if (fileType === "json") {
+            return JSON.parse(localFile);
+        } else if (fileType === "md") {
+            const { AssetLoader } = await import("./asset-loader.js");
+            const { MarkdownParser } = await import("./markdown-parser.js");
+            await AssetLoader.ensureMarkdownItLoaded();
+            return new MarkdownParser().parseDeckMarkdown(localFile);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Updates the controller with new deck data, preserving slide position.
+     * @param {Object} raw - The raw deck data
+     */
+    async updateDeckWithData(raw) {
+        const url = new URL(window.location.href);
+        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
+        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
+        
+        const { DeckLoader } = await import("./deck-loader.js");
+        const newDeck = DeckLoader.normalizeDeck(raw, { includeHidden });
+
+        // Preserve current slide index if possible
+        const currentSlideIndex = this.currentIndex;
+        const newSlideCount = newDeck.slides.length;
+        const preservedIndex = Math.min(currentSlideIndex, newSlideCount - 1);
+
+        // Update deck data
+        this.deck = newDeck;
+
+        // Update UI title
+        const deckTitleText = (newDeck?.meta?.title || "Slide Deck").trim() || "Slide Deck";
+        document.title = deckTitleText;
+        DeckController.updateDeckTitle(this.elements, deckTitleText);
+
+        // Re-render slides container
+        this.elements.slidesContainer.innerHTML = "";
+        newDeck.slides.forEach((s, i) => {
+            this.elements.slidesContainer.appendChild(SlideRenderer.createSlideElement(newDeck, s, i, i === preservedIndex));
+        });
+
+        // Update slide count
+        DeckController.updateSlideCount(this.elements, newDeck.slides.length);
+
+        // Restore slide position
+        this.goTo(preservedIndex, { broadcast: false });
+
+        // Update deck ID keys
+        this.bc.close();
+        this.bc = new BroadcastChannel(getDeckId(newDeck));
+        this.SLIDE_STATE_KEY = `webdeck:${getDeckId(newDeck)}:slide`;
+        this.BREAK_STATE_KEY = `webdeck:${getDeckId(newDeck)}:break`;
+    }
+
+    /**
+     * Broadcasts a reload message to other windows and updates localStorage.
+     */
+    broadcastReload() {
+        const reloadChannel = new BroadcastChannel("webdeck-reload");
+        reloadChannel.postMessage({ type: "reload" });
+        reloadChannel.close();
+
+        localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        localStorage.setItem("webdeck_reload_flag", "1");
+    }
+
+    /**
+     * Handles loading a local file from the webdeck-load-local event.
+     * @param {Event} event - The event containing file data
+     */
+    async handleLocalFileLoad(event) {
+        const { text, fileType } = event.detail || {};
+        
+        try {
+            let raw;
+            if (fileType === "json") {
+                raw = text;
+            } else if (fileType === "md") {
+                const { AssetLoader } = await import("./asset-loader.js");
+                await AssetLoader.ensureMarkdownItLoaded();
+                const { MarkdownParser } = await import("./markdown-parser.js");
+                raw = new MarkdownParser().parseDeckMarkdown(text);
+            } else {
+                throw new Error(`Unknown file type: ${fileType}`);
+            }
+
+            await this.updateDeckWithData(raw);
+            console.log("Slides refreshed without page reload");
+        } catch (err) {
+            console.error("Failed to load local file:", err);
+            alert("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
+        }
+    }
+
+    /**
+     * Handles the beforeprint event to ensure all content is rendered.
+     */
+    async handleBeforePrint() {
+        const slidesContainer = this.elements.slidesContainer;
+        if (!slidesContainer) return;
+
+        try {
+            const { AssetLoader } = await import("./asset-loader.js");
+            await AssetLoader.ensureRichTextEnhancers();
+        } catch (e) {
+            console.error("Could not load enhancers", e);
+        }
+
+        const allSlides = slidesContainer.querySelectorAll(".slide");
+
+        for (const slide of allSlides) {
+            try {
+                // Skip if already enhanced to save time
+                if (slide.dataset.webdeckEnhanced === "1") continue;
+
+                await ContentEnhancer.enhanceRenderedContent(slide, { renderAllSlides: true });
+                slide.dataset.webdeckEnhanced = "1";
+            } catch (e) {
+                console.error("Failed to enhance slide for printing:", e);
+            }
+        }
+    }
+
+    /**
      * Syncs state when localStorage changes (e.g., in a different tab).
-     * @param {StorageEvent} ev 
+     * @param {StorageEvent} ev
      */
     handleStorage(ev) {
         try {
@@ -283,6 +488,12 @@ export class DeckController {
                 this.handleIncomingState(parseInt(ev.newValue, 10));
             } else if (ev.key === this.BREAK_STATE_KEY) {
                 this.handleIncomingBreakState(JSON.parse(ev.newValue));
+            } else if (ev.key === "webdeck_local_file_timestamp" && ev.newValue) {
+                // Another window loaded a new local file - reload from localStorage
+                // IMPORTANT: Storage event does NOT fire in the window that made the change,
+                // only in other windows. So this should only affect other windows.
+                console.log("Storage event: webdeck_local_file_timestamp changed, reloading...");
+                this.handleReloadDeck({ preferLocalStorage: true });
             }
         } catch (e) { /* ignore malformed storage */ }
     }
@@ -496,10 +707,15 @@ export class DeckController {
     async init() {
         const url = new URL(window.location.href);
 
-        // Load initial index from hash or storage
+        // Load initial index from hash or storage or sessionStorage (for reload)
         const hash = window.location.hash.match(/#slide-(\d+)/);
         const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
-        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 : (parseInt(stored, 10) || 0);
+        const restoreIndex = sessionStorage.getItem("webdeck_restore_slide_index");
+        sessionStorage.removeItem("webdeck_restore_slide_index"); // Clear after use
+
+        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 :
+            restoreIndex !== null ? parseInt(restoreIndex, 10) :
+                (parseInt(stored, 10) || 0);
 
         // Load break settings from URL
         this.breakMinutes = parseInt(url.searchParams.get("breakMins"), 10) || 10;
