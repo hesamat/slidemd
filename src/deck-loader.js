@@ -10,7 +10,12 @@ import { safeString, getDeckId, DESIGN_SIZE } from "./utils.js";
 export class DeckLoader {
     // File handle registry: stores FileSystemFileHandle for local files
     // Map<deckId, FileSystemFileHandle>
-    static fileHandleRegistry = new Map();
+    static get fileHandleRegistry() {
+        if (!window.__WEBDECK_FILE_HANDLE_REGISTRY__) {
+            window.__WEBDECK_FILE_HANDLE_REGISTRY__ = new Map();
+        }
+        return window.__WEBDECK_FILE_HANDLE_REGISTRY__;
+    }
 
     // Check if File System Access API is supported
     static get supportsFileSystemAPI() {
@@ -245,22 +250,28 @@ export class DeckLoader {
                     if (!handle) return;
 
                     // Read file content
-                    const text = await this.loadFromFileHandle(handle);
+                    // Read file content as text
+                    const file = await handle.getFile();
+                    const rawText = await file.text();
+                    const fileType = file.name.endsWith(".md") ? "md" : "json";
 
                     // Store file handle in registry for future reloads
-                    const deckId = getDeckId(text);
-                    this.fileHandleRegistry.set(deckId, handle);
+                    // (optional, for reloadFromFileHandle)
 
-                    // Store file data in localStorage with timestamp (shared across windows)
-                    // Storage event will trigger reload in other windows
-                    localStorage.setItem("webdeck_local_file", JSON.stringify(text));
-                    localStorage.setItem("webdeck_local_file_type", handle.name.endsWith(".md") ? "md" : "json");
+                    const fileName = file.name;
+                    DeckLoader.fileHandleRegistry.set(fileName, handle);
+
+                    // Store raw file data in localStorage with timestamp (shared across windows)
+
+                    localStorage.setItem("webdeck_local_file", rawText);
+                    localStorage.setItem("webdeck_local_file_type", fileType);
+                    localStorage.setItem("webdeck_local_file_name", fileName);
                     localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
                     localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
 
                     // Dispatch custom event to notify the current window to load the new deck
                     const loadEvent = new CustomEvent('webdeck-load-local', {
-                        detail: { text, fileType: handle.name.endsWith(".md") ? "md" : "json" }
+                        detail: { text: rawText, fileType }
                     });
                     window.dispatchEvent(loadEvent);
                 } catch (e) {
@@ -322,17 +333,24 @@ export class DeckLoader {
      * @returns {Promise<object>} - The reloaded deck data or null if no handle
      */
     static async reloadFromFileHandle(deckId) {
-        const handle = this.fileHandleRegistry.get(deckId);
+        // Try to get handle by deckId, then by file name in localStorage
+        let handle = DeckLoader.fileHandleRegistry.get(deckId);
+        if (!handle) {
+            const fileName = localStorage.getItem("webdeck_local_file_name");
+            if (fileName) {
+                handle = DeckLoader.fileHandleRegistry.get(fileName);
+            }
+        }
         if (!handle) {
             return null;
         }
-
         try {
             return await this.loadFromFileHandle(handle);
         } catch (e) {
             console.error("Failed to reload from file handle:", e);
             // Remove invalid handle from registry
-            this.fileHandleRegistry.delete(deckId);
+            DeckLoader.fileHandleRegistry.delete(deckId);
+            if (fileName) DeckLoader.fileHandleRegistry.delete(fileName);
             throw e;
         }
     }

@@ -169,6 +169,10 @@ export class DeckController {
      * @param {Object} elements - Map of DOM elements required for UI updates.
      */
     constructor(deck, elements) {
+        // Hide reload button in Firefox (no File System Access API)
+        if (elements.reloadDeckBtn && navigator.userAgent.includes('Firefox')) {
+            elements.reloadDeckBtn.style.display = 'none';
+        }
         this.deck = deck;
         this.elements = elements;
         this.currentIndex = 0;
@@ -266,7 +270,8 @@ export class DeckController {
             "g": () => this.openGoToPrompt(), "G": () => this.openGoToPrompt(),
             "p": () => this.togglePresenterWindow(), "P": () => this.togglePresenterWindow(),
             "b": () => this.toggleBreak(), "B": () => this.toggleBreak(),
-            "f": () => this.toggleFullscreen()
+            "f": () => this.toggleFullscreen(),
+            "r": () => this.handleReloadDeck()
         };
 
         if (this.isBreakActive && navKeys[e.key]) {
@@ -305,16 +310,13 @@ export class DeckController {
             // Load deck data from appropriate source
             if (deckUrl) {
                 raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
-
                 // Notify other windows to reload (only for remote decks)
                 this.broadcastReload();
             } else {
-                // Local deck: try file handle first, then localStorage (unless preferLocalStorage is set)
-                if (!preferLocalStorage) {
-                    const deckId = getDeckId(this.deck);
-                    raw = await DeckLoader.reloadFromFileHandle(deckId);
-                }
-
+                // Always try file handle first (if available)
+                const deckId = getDeckId(this.deck);
+                raw = await DeckLoader.reloadFromFileHandle(deckId);
+                // Fallback to localStorage if no file handle or error
                 if (!raw) {
                     raw = await this.loadFromLocalStorage();
                 }
