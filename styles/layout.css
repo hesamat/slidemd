@@ -97,6 +97,67 @@ html[data-webdeck-role="presenter"] .main {
     min-height: 0;
 }
 
+.editorPanel {
+    flex: 0 1 350px;
+    min-width: 300px;
+    max-width: 500px;
+    border-right: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.editor__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.editor__title {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.78);
+}
+
+.editor__body {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.markdown-editor {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: none;
+    background: var(--panel-bg);
+    color: rgba(15, 23, 42, 0.9);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: none;
+    outline: none;
+}
+
+.markdown-editor::placeholder {
+    color: rgba(15, 23, 42, 0.4);
+}
+
+.markdown-editor:focus {
+    background: rgba(255, 255, 255, 0.5);
+}
+
 .presenter__header {
     display: flex;
     align-items: center;

@@ -19,12 +19,28 @@
                 <button id="openFileBtn" class="btn btn--sm" type="button">Open File</button>
                 <button id="openRemoteBtn" class="btn btn--sm" type="button">Open Remote</button>
                 <button id="reloadDeckBtn" class="btn btn--sm" type="button">Reload Deck</button>
+                <button id="toggleEditModeBtn" class="btn btn--sm">Edit Mode</button>
                 <button id="togglePresenterBtn" class="btn">Open Presenter Window</button>
                 <button id="printBtn" class="btn">Print PDF</button>
             </div>
         </header>
 
         <main class="main">
+            <!-- Editor Panel -->
+            <aside id="editorPanel" class="editorPanel webdeck-hidden" aria-label="Editor panel">
+                <div class="editor__header">
+                    <h2 class="editor__title">Edit Slide</h2>
+                    <div class="editor__actions">
+                        <button id="addSlideBtn" class="btn btn--sm" title="Add new slide">+ Add Slide</button>
+                        <button id="deleteSlideBtn" class="btn btn--sm" title="Delete current slide">Delete</button>
+                        <button id="saveSlideBtn" class="btn btn--sm btn--primary" disabled>Save</button>
+                    </div>
+                </div>
+                <div class="editor__body">
+                    <textarea id="markdownEditor" class="markdown-editor" placeholder="Edit markdown for current slide..." spellcheck="false"></textarea>
+                </div>
+            </aside>
+
             <!-- Viewer Area -->
             <section id="viewer" class="viewer">
                 <div id="stageHost" class="stage-host">
