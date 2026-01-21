@@ -269,6 +269,131 @@ for (int i = ?; ?; ?) {
 ```
 ```
 
+## HTML Elements and Inline Styling
+
+You can use HTML elements and inline CSS styles within your markdown content for additional formatting flexibility:
+
+### Basic HTML Elements
+
+```markdown
+layout: header-content
+
+@header
+## HTML Elements Demo
+
+@main
+<div style="padding: 1rem; background: #f0f0f0; border-radius: 8px;">
+  <p style="color: #e74c3c; font-weight: bold;">This is a styled paragraph</p>
+  <p style="color: #27ae60;">This is another styled paragraph</p>
+</div>
+```
+
+### Styled Lists and Tables
+
+```markdown
+layout: header-content
+
+@header
+## Styled Content
+
+@main
+<table style="width: 100%; border-collapse: collapse;">
+  <tr style="background: #3498db; color: white;">
+    <th style="padding: 12px; text-align: left;">Feature</th>
+    <th style="padding: 12px; text-align: left;">Status</th>
+  </tr>
+  <tr style="background: #ecf0f1;">
+    <td style="padding: 12px;">Markdown Support</td>
+    <td style="padding: 12px; color: green;">✓ Built-in</td>
+  </tr>
+  <tr style="background: #ffffff;">
+    <td style="padding: 12px;">HTML Styling</td>
+    <td style="padding: 12px; color: green;">✓ Supported</td>
+  </tr>
+</table>
+```
+
+### Callout Boxes
+
+```markdown
+layout: header-content
+
+@header
+## Callout Examples
+
+@main
+<div style="background: #e8f4fd; border-left: 4px solid #2196f3; padding: 16px; margin: 16px 0;">
+  <strong>Note:</strong> This is an informational callout box using inline styles.
+</div>
+
+<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin: 16px 0;">
+  <strong>Warning:</strong> This is a warning callout box.
+</div>
+
+<div style="background: #d4edda; border-left: 4px solid #28a745; padding: 16px; margin: 16px 0;">
+  <strong>Success:</strong> This is a success callout box.
+</div>
+```
+
+### Styled Code Blocks
+
+```markdown
+layout: header-content
+
+@header
+## Code with Custom Styling
+
+@main
+<div style="background: #2d2d2d; color: #f8f8f2; padding: 16px; border-radius: 8px; font-family: monospace;">
+  <pre style="margin: 0;"><code style="color: #a6e22e;">int main() {
+    printf("Hello, World!");
+    return 0;
+}</code></pre>
+</div>
+```
+
+### Flexbox Layouts
+
+```markdown
+layout: header-content
+
+@header
+## Flexbox Layouts
+
+@main
+<div style="display: flex; gap: 16px; align-items: center;">
+  <div style="flex: 1; background: #e74c3c; color: white; padding: 24px; border-radius: 8px; text-align: center;">
+    <h3 style="margin: 0 0 8px 0;">Item 1</h3>
+    <p style="margin: 0;">First item</p>
+  </div>
+  <div style="flex: 1; background: #3498db; color: white; padding: 24px; border-radius: 8px; text-align: center;">
+    <h3 style="margin: 0 0 8px 0;">Item 2</h3>
+    <p style="margin: 0;">Second item</p>
+  </div>
+  <div style="flex: 1; background: #2ecc71; color: white; padding: 24px; border-radius: 8px; text-align: center;">
+    <h3 style="margin: 0 0 8px 0;">Item 3</h3>
+    <p style="margin: 0;">Third item</p>
+  </div>
+</div>
+```
+
+### Inline Styling with Markdown
+
+```markdown
+layout: header-content
+
+@header
+## Mixed Markdown and HTML
+
+@main
+Regular markdown with <span style="color: #e74c3c; font-weight: bold;">red bold text</span>
+
+and <span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px;">highlighted content</span>.
+
+- List item with <span style="color: #9b59b6;">purple text</span>
+- Another item with <strong style="text-decoration: underline;">underlined bold</strong>
+```
+
 ## Tips and Best Practices
 
 - **Keep every row the same number of cells**: When using custom layouts, ensure each row has the same count of area names or dots.

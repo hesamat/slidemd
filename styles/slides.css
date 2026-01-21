@@ -8,6 +8,10 @@
     color: var(--slide-ink);
 }
 
+.slide * {
+    font-size: 1.4rem;
+}
+
 .slide[data-theme="light"] {
     --slide-bg: #ffffff;
     --slide-ink: rgba(15, 23, 42, 0.92);
