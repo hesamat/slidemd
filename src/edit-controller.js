@@ -5,6 +5,7 @@
 import { MarkdownParser } from "./markdown-parser.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { AssetLoader } from "./asset-loader.js";
+import { Notification } from "./notification.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -213,7 +214,7 @@ export class EditController {
                 await writable.write(fullMarkdown);
                 await writable.close();
 
-                alert('Deck saved successfully!');
+                Notification.success('Deck saved successfully!');
             }
             // Fallback for Firefox/Safari
             else {
@@ -231,7 +232,7 @@ export class EditController {
             // Ignore abort errors (user cancelled)
             if (error.name !== 'AbortError') {
                 console.error('Failed to save file:', error);
-                alert('Failed to save file: ' + (error.message || error));
+                Notification.error('Failed to save file: ' + (error.message || error));
             }
         }
     }
@@ -286,13 +287,14 @@ export class EditController {
     /**
      * Delete the current slide
      */
-    deleteSlide() {
+    async deleteSlide() {
         if (this.deck.slides.length <= 1) {
-            alert('Cannot delete the only slide');
+            Notification.warning('Cannot delete the only slide');
             return;
         }
 
-        if (!confirm('Are you sure you want to delete this slide?')) {
+        const confirmed = await Notification.confirm('Are you sure you want to delete this slide?');
+        if (!confirmed) {
             return;
         }
 

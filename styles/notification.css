@@ -1,0 +1,219 @@
+/* Notification Toast Styles */
+
+.notification-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+    max-width: 400px;
+}
+
+.notification-toast {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease-out;
+    border-left: 4px solid;
+    min-width: 300px;
+}
+
+.notification-toast--show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification-toast--hide {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.notification-toast__icon {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.notification-toast__message {
+    flex: 1;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #1f2937;
+}
+
+.notification-toast__close {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #6b7280;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.notification-toast__close:hover {
+    color: #1f2937;
+}
+
+.notification-toast__close:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+/* Toast Type Variants */
+
+.notification-toast--success {
+    border-left-color: #10b981;
+}
+
+.notification-toast--success .notification-toast__icon {
+    color: #10b981;
+}
+
+.notification-toast--error {
+    border-left-color: #ef4444;
+}
+
+.notification-toast--error .notification-toast__icon {
+    color: #ef4444;
+}
+
+.notification-toast--warning {
+    border-left-color: #f59e0b;
+}
+
+.notification-toast--warning .notification-toast__icon {
+    color: #f59e0b;
+}
+
+.notification-toast--info {
+    border-left-color: #3b82f6;
+}
+
+.notification-toast--info .notification-toast__icon {
+    color: #3b82f6;
+}
+
+/* Modal Styles */
+
+.notification-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.notification-modal-backdrop--hide {
+    animation: fadeOut 0.2s ease-out;
+}
+
+.notification-modal {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    animation: slideUp 0.2s ease-out;
+}
+
+.notification-modal__title {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.notification-modal__message {
+    margin: 0 0 1.5rem 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #4b5563;
+}
+
+.notification-modal__actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+/* Animations */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(1rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive adjustments */
+
+@media (max-width: 640px) {
+    .notification-container {
+        top: 0.5rem;
+        right: 0.5rem;
+        left: 0.5rem;
+        max-width: none;
+    }
+
+    .notification-toast {
+        min-width: unset;
+    }
+
+    .notification-modal {
+        width: 95%;
+        padding: 1.25rem;
+    }
+}
