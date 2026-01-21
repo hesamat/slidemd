@@ -6,6 +6,7 @@
 import { AssetLoader } from "./asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "./utils.js";
+import { Notification } from "./notification.js";
 
 export class DeckLoader {
     // File handle registry: stores FileSystemFileHandle for local files
@@ -301,7 +302,7 @@ export class DeckLoader {
                 } else if (file.name.endsWith(".md")) {
                     fileType = "md";
                 } else {
-                    alert("Unsupported file type. Please use .md or .json files.");
+                    Notification.warning("Unsupported file type. Please use .md or .json files.");
                     return;
                 }
 
@@ -320,7 +321,7 @@ export class DeckLoader {
                 window.dispatchEvent(loadEvent);
             } catch (err) {
                 console.error("Failed to load file:", err);
-                alert("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
+                Notification.error("Failed to load file: " + (err instanceof Error ? err.message : String(err)));
             }
 
             // Reset input so same file can be selected again
@@ -380,7 +381,7 @@ export class DeckLoader {
                 newUrl.hash = ""; // Clear slide hash to start from slide 1
                 window.location.href = newUrl.toString();
             } catch (err) {
-                alert("Failed to load remote file: " + (err instanceof Error ? err.message : String(err)));
+                Notification.error("Failed to load remote file: " + (err instanceof Error ? err.message : String(err)));
             }
         });
     }

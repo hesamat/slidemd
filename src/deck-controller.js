@@ -2,6 +2,7 @@ import { getDeckId, DESIGN_SIZE } from "./utils.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 import { DeckLoader } from "./deck-loader.js";
+import { Notification } from "./notification.js";
 
 /**
  * Manages deck navigation, state synchronization between windows,
@@ -247,7 +248,7 @@ export class DeckController {
             console.log("Deck reloaded successfully");
         } catch (err) {
             console.error("Failed to reload deck:", err);
-            alert("Failed to reload deck: " + (err instanceof Error ? err.message : String(err)));
+            Notification.error("Failed to reload deck: " + (err instanceof Error ? err.message : String(err)));
         }
     }
 
@@ -336,7 +337,7 @@ export class DeckController {
             console.log("Slides refreshed from local file");
         } catch (err) {
             console.error("Failed to load local file:", err);
-            alert("Failed to load file: " + err.message);
+            Notification.error("Failed to load file: " + err.message);
         }
     }
 
