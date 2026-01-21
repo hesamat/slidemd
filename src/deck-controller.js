@@ -548,6 +548,10 @@ export class DeckController {
     }
 
     addEventListener(event, callback) {
+        if (typeof callback !== "function") {
+            console.warn("DeckController.addEventListener: callback must be a function", { event, callback });
+            return;
+        }
         if (!this._listeners.has(event)) this._listeners.set(event, []);
         this._listeners.get(event).push(callback);
     }
