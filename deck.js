@@ -70,6 +70,14 @@ import { EditController } from "./src/edit-controller.js";
     document.addEventListener("DOMContentLoaded", () => {
         if (!DeckController.hasViewerShell()) return;
 
+        // Auto-redirect to presenter mode for dev (unless ?role is already set or disabled)
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect")) {
+            url.searchParams.set("role", "presenter");
+            window.location.href = url.toString();
+            return;
+        }
+
         // Immediate UI setup
         DeckController.initRole();
         window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
