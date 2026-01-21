@@ -271,7 +271,7 @@ export class DeckLoader {
 
                     // Dispatch custom event to notify the current window to load the new deck
                     const loadEvent = new CustomEvent('webdeck-load-local', {
-                        detail: { text: rawText, fileType }
+                        detail: { text: rawText, fileType, fileName }
                     });
                     window.dispatchEvent(loadEvent);
                 } catch (e) {
@@ -314,7 +314,7 @@ export class DeckLoader {
 
                 // Dispatch custom event to notify the current window to load the new deck
                 const loadEvent = new CustomEvent('webdeck-load-local', {
-                    detail: { text, fileType }
+                    detail: { text, fileType, fileName: file.name }
                 });
                 window.dispatchEvent(loadEvent);
             } catch (err) {
