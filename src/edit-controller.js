@@ -147,28 +147,33 @@ export class EditController {
             // Parse fragment
             const fullDeckData = parser.parseDeckMarkdown(markdown);
 
-            if (fullDeckData.slides && fullDeckData.slides.length > 0) {
-                const slideData = fullDeckData.slides[0];
+            // Handle case where parsing produces no slides
+            if (!fullDeckData.slides || fullDeckData.slides.length === 0) {
+                Notification.warning('Invalid markdown: Unable to generate slide from current content');
+                return;
+            }
 
-                // Update the current slide in the deck object
-                this.deck.slides[this.currentSlideIndex] = slideData;
+            const slideData = fullDeckData.slides[0];
 
-                // Find and replace the DOM element
-                const allSlides = document.querySelectorAll('.slide');
-                const slideEl = allSlides[this.currentSlideIndex];
+            // Update the current slide in the deck object
+            this.deck.slides[this.currentSlideIndex] = slideData;
 
-                if (slideEl) {
-                    const newSlideEl = SlideRenderer.createSlideElement(
-                        this.deck,
-                        slideData,
-                        this.currentSlideIndex,
-                        true
-                    );
-                    slideEl.replaceWith(newSlideEl);
-                }
+            // Find and replace the DOM element
+            const allSlides = document.querySelectorAll('.slide');
+            const slideEl = allSlides[this.currentSlideIndex];
+
+            if (slideEl) {
+                const newSlideEl = SlideRenderer.createSlideElement(
+                    this.deck,
+                    slideData,
+                    this.currentSlideIndex,
+                    true
+                );
+                slideEl.replaceWith(newSlideEl);
             }
         } catch (error) {
             console.error('Failed to update preview:', error);
+            Notification.error('Failed to parse markdown: ' + (error.message || 'Unknown error'));
         }
     }
 
