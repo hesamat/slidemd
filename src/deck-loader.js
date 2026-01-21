@@ -35,20 +35,12 @@ export class DeckLoader {
         // Add cache-busting parameter if requested
         const fetchUrl = bypassCache ? this.addCacheBuster(url) : url;
 
-        if (urlLower.endsWith(".json")) {
-            const jsonText = await this.fetchText(fetchUrl, { cache: "no-cache" });
-            try {
-                return JSON.parse(jsonText);
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                throw new Error(`Invalid deck JSON: ${msg}`);
-            }
-        } else if (urlLower.endsWith(".md")) {
+        if (urlLower.endsWith(".md")) {
             await AssetLoader.ensureMarkdownItLoaded();
             const mdText = await this.fetchText(fetchUrl, { cache: "no-cache" });
             return new MarkdownParser().parseDeckMarkdown(mdText);
         } else {
-            throw new Error("Unsupported file type. Please use .md or .json files.");
+            throw new Error("Unsupported file type. Please use .md files.");
         }
     }
 
@@ -62,21 +54,12 @@ export class DeckLoader {
             const file = await fileHandle.getFile();
             const text = await file.text();
 
-            let fileType;
-            if (file.name.endsWith(".json")) {
-                fileType = "json";
-            } else if (file.name.endsWith(".md")) {
-                fileType = "md";
-            } else {
-                throw new Error(`Unsupported file type: ${file.name}`);
+            if (!file.name.endsWith(".md")) {
+                throw new Error(`Unsupported file type: ${file.name}. Please use .md files.`);
             }
 
-            if (fileType === "json") {
-                return JSON.parse(text);
-            } else if (fileType === "md") {
-                await AssetLoader.ensureMarkdownItLoaded();
-                return new MarkdownParser().parseDeckMarkdown(text);
-            }
+            await AssetLoader.ensureMarkdownItLoaded();
+            return new MarkdownParser().parseDeckMarkdown(text);
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             throw new Error(`Failed to load file: ${msg}`);
@@ -146,9 +129,7 @@ export class DeckLoader {
                         }, 1000);
                     }
 
-                    if (fileType === "json") {
-                        return JSON.parse(localFile);
-                    } else if (fileType === "md") {
+                    if (fileType === "md") {
                         await AssetLoader.ensureMarkdownItLoaded();
                         return new MarkdownParser().parseDeckMarkdown(localFile);
                     } else {
@@ -217,7 +198,31 @@ export class DeckLoader {
                     theme: "",
                     hidden: false,
                     areas: {
-                        main: "<div style=\"text-align: center;\"><h1 style=\"font-size: 3rem; margin-bottom: 1rem;\">Welcome to Slide Deck</h1><p style=\"font-size: 1.5rem; margin-bottom: 2rem;\">Open a presentation to get started</p><p style=\"font-size: 1.1rem; color: var(--color-fg-muted);\">Use <strong>Open File</strong> button to load a local .md or .json file,<br>or use <strong>Open Remote</strong> to load from a URL.</p></div>",
+                        main: `<div style="text-align: center; padding: 2rem;">
+    <div style="margin-bottom: 3rem;">
+        <h1 style="font-size: 3.2rem; margin-bottom: 0.5rem; font-weight: 700;">Welcome to Slide Deck</h1>
+        <p style="font-size: 1.7rem; color: var(--color-fg-muted); margin-bottom: 0;">Create and deliver beautiful presentations</p>
+    </div>
+
+    <div style="display: flex; gap: 3rem; justify-content: center; margin: 3rem 0; flex-wrap: wrap;">
+        <div style="flex: 0 1 280px; padding: 1.5rem; background: var(--color-bg-alt, #f8fafc); border-radius: 12px; border: 1px solid var(--color-border, #e2e8f0);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📁</div>
+            <h3 style="font-size: 1.7rem; margin-bottom: 0.75rem; font-weight: 600;">Open File</h3>
+            <p style="font-size: 1.5rem; color: var(--color-fg-muted); line-height: 1.6;">Load a local <strong>.md</strong> file from your computer to start presenting or editing.</p>
+        </div>
+        <div style="flex: 0 1 280px; padding: 1.5rem; background: var(--color-bg-alt, #f8fafc); border-radius: 12px; border: 1px solid var(--color-border, #e2e8f0);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌐</div>
+            <h3 style="font-size: 1.7rem; margin-bottom: 0.75rem; font-weight: 600;">Open Remote</h3>
+            <p style="font-size: 1.5rem; color: var(--color-fg-muted); line-height: 1.6;">Load a presentation from any URL by providing a direct link to a <strong>.md</strong> file.</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 3rem; padding: 1.25rem 2rem; background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%); border-radius: 10px; border-left: 4px solid var(--color-accent, #3b82f6);">
+        <p style="font-size: 1.4rem; margin: 0; color: var(--color-fg, #1e293b);">
+            <strong style="color: var(--color-accent, #3b82f6);">Tip:</strong> For the best editing experience, use a Chromium-based browser (Chrome, Edge, Arc, Etc). Other browsers may have limited file access capabilities.
+        </p>
+    </div>
+</div>`,
                     },
                 },
             ],
@@ -239,10 +244,6 @@ export class DeckLoader {
                             {
                                 description: 'Markdown files',
                                 accept: { 'text/markdown': ['.md'] }
-                            },
-                            {
-                                description: 'JSON files',
-                                accept: { 'application/json': ['.json'] }
                             }
                         ],
                         multiple: false
@@ -254,7 +255,7 @@ export class DeckLoader {
                     // Read file content as text
                     const file = await handle.getFile();
                     const rawText = await file.text();
-                    const fileType = file.name.endsWith(".md") ? "md" : "json";
+                    const fileType = "md";
 
                     // Store file handle in registry for future reloads
                     // (optional, for reloadFromFileHandle)
@@ -297,12 +298,10 @@ export class DeckLoader {
             try {
                 const text = await file.text();
                 let fileType;
-                if (file.name.endsWith(".json")) {
-                    fileType = "json";
-                } else if (file.name.endsWith(".md")) {
+                if (file.name.endsWith(".md")) {
                     fileType = "md";
                 } else {
-                    Notification.warning("Unsupported file type. Please use .md or .json files.");
+                    Notification.warning("Unsupported file type. Please use .md files.");
                     return;
                 }
 
@@ -363,7 +362,7 @@ export class DeckLoader {
      */
     static setupRemoteFileHandler(openRemoteBtn) {
         openRemoteBtn.addEventListener("click", async () => {
-            const url = prompt("Enter remote file URL (.md or .json):");
+            const url = prompt("Enter remote file URL (.md):");
             if (!url) return;
 
             try {
