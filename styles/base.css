@@ -43,6 +43,28 @@
     --stage-radius: 18px;
 
     --topbar-h: 48px;
+
+    /* Text colors for UI elements */
+    --text-primary: rgba(15, 23, 42, 0.9);
+    --text-secondary: rgba(15, 23, 42, 0.78);
+    --text-tertiary: rgba(15, 23, 42, 0.72);
+    --text-subtle: rgba(15, 23, 42, 0.65);
+    --text-muted-subtle: rgba(15, 23, 42, 0.56);
+    --text-placeholder: rgba(15, 23, 42, 0.4);
+    --text-strong: rgba(15, 23, 42, 0.85);
+
+    /* Border colors for UI elements */
+    --border-subtle: rgba(15, 23, 42, 0.08);
+    --border-medium: rgba(148, 163, 184, 0.28);
+    --border-card: rgba(148, 163, 184, 0.3);
+    --border-strong: rgba(148, 163, 184, 0.45);
+
+    /* Surface colors for UI elements */
+    --surface-light: rgba(255, 255, 255, 0.5);
+    --surface-medium: rgba(255, 255, 255, 0.72);
+
+    /* Link colors */
+    --link-hover: rgba(2, 132, 199, 0.95);
 }
 
 * {
