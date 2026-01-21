@@ -103,7 +103,7 @@ export class Notification {
 
         setTimeout(() => {
             if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
+                toast.remove();
             }
         }, 300);
     }
@@ -184,15 +184,15 @@ export class Notification {
             backdrop.appendChild(modal);
             document.body.appendChild(backdrop);
 
-            // Focus the confirm button
-            setTimeout(() => confirmBtn.focus(), 100);
+            // Focus the cancel button for better accessibility
+            setTimeout(() => cancelBtn.focus(), 100);
 
             // Cleanup function
             function cleanup() {
                 backdrop.classList.add('notification-modal-backdrop--hide');
                 setTimeout(() => {
                     if (backdrop.parentNode) {
-                        backdrop.parentNode.removeChild(backdrop);
+                        backdrop.remove();
                     }
                 }, 200);
             }
