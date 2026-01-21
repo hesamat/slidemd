@@ -177,7 +177,7 @@ export class EditController {
      */
     updateSaveButton() {
         if (this.elements.saveSlideBtn) {
-            this.elements.saveSlideBtn.disabled = false;
+            this.elements.saveSlideBtn.disabled = !this.hasUnsavedChanges;
         }
     }
 
