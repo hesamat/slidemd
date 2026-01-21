@@ -291,6 +291,7 @@ export class DeckController {
         this.initBroadcastChannel();
 
         this.goTo(preservedIndex, { broadcast: false });
+        this.dispatchEvent('deckchange', { deck: newDeck });
     }
 
     async loadFromLocalStorage() {
@@ -333,6 +334,8 @@ export class DeckController {
             // Normalize and Replace
             const newDeck = DeckLoader.normalizeDeck(raw, { includeHidden: false });
             await this.replaceDeck(newDeck);
+
+            this.broadcastReload();
 
             console.log("Slides refreshed from local file");
         } catch (err) {
@@ -463,12 +466,17 @@ export class DeckController {
     }
 
     lazyEnhanceActiveSlide() {
-        const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
-        if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
-            ContentEnhancer.enhanceRenderedContent(activeSlide).then(() => {
-                activeSlide.dataset.webdeckEnhanced = "1";
-            });
-        }
+        if (this._enhanceTimeout) clearTimeout(this._enhanceTimeout);
+        this._enhanceTimeout = setTimeout(() => {
+            const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
+            if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
+                ContentEnhancer.enhanceRenderedContent(activeSlide).then((fullyFinished) => {
+                    if (fullyFinished) {
+                        activeSlide.dataset.webdeckEnhanced = "1";
+                    }
+                });
+            }
+        }, 20); // Small debounce to avoid rendering skipped slides
     }
 
     handleIncomingState(index) {

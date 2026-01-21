@@ -40,15 +40,27 @@ export class ContentEnhancer {
     }
 
     static async renderD2Diagrams(rootEl, options = {}) {
-        if (!rootEl) return;
+        if (!rootEl) return true;
+
+        const d2Blocks = rootEl.querySelectorAll(".d2");
+        if (d2Blocks.length === 0) return true;
+
         const D2Ctor = window.__WEBDECK_D2__?.D2;
-        if (!D2Ctor) return;
+        if (!D2Ctor) {
+            console.warn("D2 renderer called but window.__WEBDECK_D2__.D2 is not available yet.");
+            return false;
+        }
 
         // 1. Initialize or Reset D2 Instance
         if (!this.d2Initialized || !this.d2Instance) {
             try {
-                if (this.d2Instance?.destroy) await this.d2Instance.destroy();
-                this.d2Instance = new D2Ctor();
+                // Only destroy if we are explicitly re-initializing due to an error
+                if (this.d2Instance?.destroy && !this.d2Initialized) {
+                    await this.d2Instance.destroy();
+                }
+                if (!this.d2Instance) {
+                    this.d2Instance = new D2Ctor();
+                }
                 this.d2Initialized = true;
             } catch (e) {
                 console.error("Failed to initialize D2:", e);
@@ -62,7 +74,7 @@ export class ContentEnhancer {
 
         // 2. Filter Nodes
         const nodes = Array.from(rootEl.querySelectorAll(".d2"))
-            .filter((n) => n instanceof HTMLElement && n.dataset.d2Processed !== "1")
+            .filter((n) => n instanceof HTMLElement && n.dataset.d2Processed !== "1" && n.dataset.d2Rendering !== "1")
             .filter((el) => {
                 const slide = el.closest?.(".slide");
                 return !slide || renderAllSlides || slide.classList.contains("active");
@@ -70,16 +82,28 @@ export class ContentEnhancer {
 
         // 3. Serial Execution Loop
         for (const [i, el] of nodes.entries()) {
+            // Re-check processed state in case a parallel call finished it
+            if (el.dataset.d2Processed === "1" || el.dataset.d2Rendering === "1") continue;
+
             if (el.querySelector("svg")) {
                 el.dataset.d2Processed = "1";
                 continue;
             }
 
-            const source = (el.textContent || el.dataset.d2Source || "").trim();
-            if (!source) {
+            const rawSource = (el.dataset.d2Source || el.textContent || "").trim();
+            if (!rawSource) {
                 el.dataset.d2Processed = "1";
                 continue;
             }
+
+            // Persist source if we haven't already, so it's never lost
+            if (!el.dataset.d2Source) {
+                el.dataset.d2Source = rawSource;
+            }
+            const source = rawSource;
+
+            // Mark as rendering to prevent concurrent attempts
+            el.dataset.d2Rendering = "1";
 
             const salt = `webdeck_d2_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
             const maxRetries = 2;
@@ -89,12 +113,18 @@ export class ContentEnhancer {
             while (!success && attempts <= maxRetries) {
                 try {
                     const compiled = await d2.compile(source, { pad: 24, center: true, salt });
+
+                    // After await, check if element is still in DOM or if someone else finished it
+                    if (!el.isConnected || el.dataset.d2Processed === "1") break;
+
                     const response = await d2.render(compiled.diagram, {
                         ...(compiled.renderOptions || {}),
                         pad: 24,
                         center: true,
                         salt,
                     });
+
+                    if (!el.isConnected || el.dataset.d2Processed === "1") break;
 
                     let svg = "";
                     if (typeof response === "string") svg = response;
@@ -118,13 +148,19 @@ export class ContentEnhancer {
                             <strong>D2 Render Error:</strong><br/>
                             <code style="white-space: pre-wrap; font-size: 0.875em;">${escapeHtml(String(e))}</code>
                         </div>`;
-                        this.d2Initialized = false;
+                        // Don't kill the whole instance on a single diagram failure unless it's a worker error
+                        if (e?.message?.includes("worker") || e?.message?.includes("terminate")) {
+                            this.d2Initialized = false;
+                        }
                     } else {
                         await new Promise((r) => setTimeout(r, 100 * attempts));
                     }
                 }
             }
+
+            delete el.dataset.d2Rendering;
         }
+        return true;
     }
 
     static async enhanceRenderedContent(rootEl, options = {}) {
@@ -147,9 +183,13 @@ export class ContentEnhancer {
         for (const codeEl of d2CodeNodes) {
             const pre = codeEl.parentElement;
             if (pre && pre.tagName === "PRE") {
+                const source = (codeEl.textContent || "").trim();
+                if (!source) continue;
+
                 const div = document.createElement("div");
                 div.className = "d2";
-                div.textContent = codeEl.textContent || "";
+                div.dataset.d2Source = source; // Persist source to prevent loss on re-render
+                div.textContent = source; // Fallback text while rendering
                 pre.replaceWith(div);
             }
         }
@@ -158,7 +198,7 @@ export class ContentEnhancer {
         const d2Blocks = rootEl.querySelectorAll(".d2");
         if (d2Blocks.length > 0) {
             // Ensure D2 loaded
-            if (!window.__WEBDECK_D2__) {
+            if (!window.__WEBDECK_D2__?.D2) {
                 try {
                     const { AssetLoader } = await import("./asset-loader.js");
                     await AssetLoader.ensureD2Loaded();
@@ -170,10 +210,12 @@ export class ContentEnhancer {
             d2Blocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
 
             try {
-                await this.renderD2Diagrams(rootEl, { renderAllSlides });
+                const success = await this.renderD2Diagrams(rootEl, { renderAllSlides });
+                if (!success) return false;
             } catch (e) {
                 console.error("Failed to render D2 diagrams:", e);
                 this.d2Initialized = false;
+                return false;
             }
         }
 
@@ -216,6 +258,7 @@ export class ContentEnhancer {
                             { left: "\\(", right: "\\)", display: false },
                             { left: "\\[", right: "\\]", display: true }
                         ],
+                        ignoredClasses: ["no-math", "katex-ignore"],
                         throwOnError: false,
                     });
                 } catch (e) {
@@ -223,5 +266,6 @@ export class ContentEnhancer {
                 }
             }
         }
+        return true;
     }
 }

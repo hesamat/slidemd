@@ -6,6 +6,7 @@ import { MarkdownParser } from "./markdown-parser.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { AssetLoader } from "./asset-loader.js";
 import { Notification } from "./notification.js";
+import { ContentEnhancer } from "./content-enhancer.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -58,6 +59,15 @@ export class EditController {
 
         // Listen for slide navigation events
         this.controller.addEventListener('slidechange', () => {
+            this.currentSlideIndex = this.controller.currentIndex;
+            this.loadSlideIntoEditor();
+        });
+
+        // Listen for deck replacement events
+        this.controller.addEventListener('deckchange', (data) => {
+            console.log("EditController: deck changed, refreshing markdown cache");
+            this.deck = data.deck;
+            this.originalMarkdown = this.cacheOriginalMarkdown();
             this.currentSlideIndex = this.controller.currentIndex;
             this.loadSlideIntoEditor();
         });
@@ -170,6 +180,11 @@ export class EditController {
                     true
                 );
                 slideEl.replaceWith(newSlideEl);
+
+                // Re-enhance the new slide content (D2, Prism, etc.)
+                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
+                    console.warn("Failed to enhance slide preview:", err);
+                });
             }
         } catch (error) {
             console.error('Failed to update preview:', error);
