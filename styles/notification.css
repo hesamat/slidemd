@@ -121,10 +121,7 @@
 
 .notification-modal-backdrop {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 10001;
     display: flex;
@@ -165,6 +162,21 @@
     display: flex;
     gap: 0.75rem;
     justify-content: flex-end;
+}
+
+.notification-modal__actions .btn--primary {
+    background: #3b82f6;
+    border-color: #2563eb;
+    color: white;
+}
+
+.notification-modal__actions .btn--primary:hover {
+    background: #2563eb;
+    border-color: #1d4ed8;
+}
+
+.notification-modal__actions .btn--primary:active {
+    background: #1d4ed8;
 }
 
 /* Animations */
