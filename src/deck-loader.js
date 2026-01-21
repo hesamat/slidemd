@@ -309,6 +309,7 @@ export class DeckLoader {
                 // Storage event will trigger reload in other windows
                 localStorage.setItem("webdeck_local_file", text);
                 localStorage.setItem("webdeck_local_file_type", fileType);
+                localStorage.setItem("webdeck_local_file_name", file.name);
                 localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
                 localStorage.removeItem("webdeck_local_file_loaded"); // Reset loaded count
 
