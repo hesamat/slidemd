@@ -9,6 +9,35 @@ import { safeString, getDeckId, DESIGN_SIZE } from "./utils.js";
 import { Notification } from "./notification.js";
 
 export class DeckLoader {
+    /**
+     * Determines the display title for the deck based on file source or metadata.
+     * Priority: Local Filename > Remote URL Filename > Deck Metadata > Default
+     * @param {object} deck - The deck object
+     * @returns {string} The display title
+     */
+    static getDisplayTitle(deck) {
+        // 1. Check for local file name (set by DeckLoader or handleLocalFileLoad)
+        const localFileName = localStorage.getItem("webdeck_local_file_name");
+        if (localFileName) {
+            return localFileName;
+        }
+
+        // 2. Check for URL parameter file name
+        const urlParam = new URL(window.location.href).searchParams.get("url");
+        if (urlParam) {
+            try {
+                const pathParts = new URL(urlParam).pathname.split('/');
+                const fileName = pathParts[pathParts.length - 1];
+                if (fileName && fileName !== '/') {
+                    return fileName;
+                }
+            } catch { /* invalid url */ }
+        }
+
+        // 3. Deck metadata or default
+        return (deck?.meta?.title || "Slide Deck").trim() || "Slide Deck";
+    }
+
     // File handle registry: stores FileSystemFileHandle for local files
     // Map<deckId, FileSystemFileHandle>
     static get fileHandleRegistry() {
@@ -383,6 +412,47 @@ export class DeckLoader {
                 Notification.error("Failed to load remote file: " + (err instanceof Error ? err.message : String(err)));
             }
         });
+    }
+
+    /**
+     * Loads deck data from localStorage (previously loaded local file)
+     * @returns {Promise<object|null>} - The deck data or null if not available
+     */
+    static async loadFromLocalStorage() {
+        const localFile = localStorage.getItem("webdeck_local_file");
+        if (!localFile) return null;
+
+        const fileType = localStorage.getItem("webdeck_local_file_type") || "md";
+
+        if (fileType === "md") {
+            await AssetLoader.ensureMarkdownItLoaded();
+            return new MarkdownParser().parseDeckMarkdown(localFile);
+        } else {
+            throw new Error(`Unknown file type: ${fileType}`);
+        }
+    }
+
+    /**
+     * Processes raw deck data, normalizes it, and handles hidden slide filtering
+     * @param {object} raw - The raw deck data
+     * @returns {Promise<object>} - The normalized deck object
+     */
+    static async processRawData(raw) {
+        const url = new URL(window.location.href);
+        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
+        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
+        return this.normalizeDeck(raw, { includeHidden });
+    }
+
+    /**
+     * Parses markdown text into a normalized deck object
+     * @param {string} text - The markdown text to parse
+     * @returns {Promise<object>} - The normalized deck object
+     */
+    static async parseMarkdown(text) {
+        await AssetLoader.ensureMarkdownItLoaded();
+        const raw = new MarkdownParser().parseDeckMarkdown(text);
+        return this.normalizeDeck(raw, { includeHidden: false });
     }
 
     static normalizeDeck(raw, { includeHidden = false } = {}) {

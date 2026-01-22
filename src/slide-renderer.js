@@ -1,6 +1,8 @@
 /**
  * SlideRenderer
- * Renders slide DOM elements, applies layout templates, and manages accessibility attributes. Integrates with LayoutParser for grid-based slide design.
+ * Renders slide DOM elements, applies layout templates, manages accessibility attributes,
+ * and handles view-related UI states (loading, errors, etc.). Integrates with LayoutParser
+ * for grid-based slide design.
  */
 // Slide DOM rendering
 import { safeString, DESIGN_SIZE } from "./utils.js";
@@ -115,5 +117,65 @@ export class SlideRenderer {
 
         const s = d.slides[index] || d.slides[0];
         return this.createSlideElement(d, s, index, isActive);
+    }
+
+    /**
+     * Displays a loading state in the slides container.
+     */
+    static showLoadingState() {
+        const slidesContainer = document.getElementById("slidesContainer");
+        if (slidesContainer) {
+            slidesContainer.innerHTML = `
+                <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px; color:rgba(15,23,42,.75);">
+                    <div style="font-weight:800;">Loading deck…</div>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Displays an error message in the slides container when deck fails to load.
+     * @param {Error|string} err - The error to display
+     */
+    static showBootError(err) {
+        try { window.__WEBDECK_LAST_ERROR__ = err; } catch { }
+        const slidesContainer = document.getElementById("slidesContainer");
+        if (!slidesContainer) return;
+        const msg = err instanceof Error ? (err.stack || err.message) : String(err);
+        slidesContainer.innerHTML = `
+            <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px;">
+                <div style="max-width:900px; width:100%; border:1px solid rgba(239,68,68,.35); background:rgba(254,242,242,.92); border-radius:16px; padding:18px 18px; color:rgba(127,29,29,.95);">
+                    <div style="font-weight:800; margin-bottom:8px;">Deck failed to load</div>
+                    <pre style="margin:0; white-space:pre-wrap; font-size:12px; line-height:1.4;">${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Creates a break slide element with the given title and theme.
+     * The slide includes a title (duration) and an end time span that can be updated.
+     * @param {Object} deck - The deck object for context
+     * @param {Object} options - Options for the break slide
+     * @param {string} options.background - Background color/style
+     * @param {string} options.theme - Theme name
+     * @returns {HTMLElement} The break slide element
+     */
+    static createBreakSlide(deck, { background = "#333", theme = "dark" } = {}) {
+        const breakSlide = {
+            layout: "title-slide",
+            background,
+            theme,
+            align: "center",
+            areas: {
+                main: `<div class="break-title">
+                    <h1 class="break-mins"></h1>
+                    <div class="break-end">Resume at <span class="break-end-time"></span></div>
+                </div>`
+            }
+        };
+        const slideEl = this.createSlideElement(deck, breakSlide, 0, true);
+        slideEl.classList.add("webdeck-break-slide");
+        return slideEl;
     }
 }

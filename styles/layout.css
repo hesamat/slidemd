@@ -112,9 +112,10 @@ html[data-webdeck-role="presenter"] .main {
 .editor__header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 12px 14px;
     border-bottom: 1px solid var(--panel-border);
+    gap: 8px;
 }
 
 .editor__title {
@@ -133,6 +134,30 @@ html[data-webdeck-role="presenter"] .main {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.editor__body-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-light);
+}
+
+.editor__body-header .slide-indicator {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.editor__body-header .editor__title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .markdown-editor {

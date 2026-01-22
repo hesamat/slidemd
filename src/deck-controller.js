@@ -1,14 +1,38 @@
-import { getDeckId, DESIGN_SIZE } from "./utils.js";
+import { getDeckId, EventEmitter } from "./utils.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 import { DeckLoader } from "./deck-loader.js";
+import { StageScaler } from "./stage-scaler.js";
+import { BreakManager } from "./break-manager.js";
 import { Notification } from "./notification.js";
 
 /**
  * Manages deck navigation, state synchronization between windows,
  * responsive scaling, and the presenter/viewer roles.
  */
-export class DeckController {
+export class DeckController extends EventEmitter {
+    // Keyboard mapping for navigation shortcuts
+    static #KEYBOARD_ACTIONS = {
+        "ArrowRight": "next",
+        " ": "next",
+        "PageDown": "next",
+        "ArrowDown": "next",
+        "ArrowLeft": "prev",
+        "PageUp": "prev",
+        "ArrowUp": "prev",
+        "Backspace": "prev",
+        "Home": "first",
+        "End": "last",
+        "g": "goto",
+        "G": "goto",
+        "p": "presenter",
+        "P": "presenter",
+        "b": "break",
+        "B": "break",
+        "f": "fullscreen",
+        "r": "reload"
+    };
+
     /**
      * Gathers all required DOM elements for the deck interface.
      * @returns {Object} Map of DOM element references
@@ -52,7 +76,6 @@ export class DeckController {
         const reloadChannel = new BroadcastChannel("webdeck-reload");
         reloadChannel.onmessage = async (ev) => {
             if (ev.data?.type === "reload") {
-                console.log("BroadcastChannel: received reload message", ev.data);
                 window.location.hash = "";
 
                 if (ev.data.url) {
@@ -70,32 +93,6 @@ export class DeckController {
             }
         };
         return reloadChannel;
-    }
-
-    static showLoadingState() {
-        const slidesContainer = document.getElementById("slidesContainer");
-        if (slidesContainer) {
-            slidesContainer.innerHTML = `
-                <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px; color:rgba(15,23,42,.75);">
-                    <div style="font-weight:800;">Loading deck…</div>
-                </div>
-            `;
-        }
-    }
-
-    static showBootError(err) {
-        try { window.__WEBDECK_LAST_ERROR__ = err; } catch { }
-        const slidesContainer = document.getElementById("slidesContainer");
-        if (!slidesContainer) return;
-        const msg = err instanceof Error ? (err.stack || err.message) : String(err);
-        slidesContainer.innerHTML = `
-            <div style="position:absolute; inset:0; display:grid; place-items:center; padding:48px;">
-                <div style="max-width:900px; width:100%; border:1px solid rgba(239,68,68,.35); background:rgba(254,242,242,.92); border-radius:16px; padding:18px 18px; color:rgba(127,29,29,.95);">
-                    <div style="font-weight:800; margin-bottom:8px;">Deck failed to load</div>
-                    <pre style="margin:0; white-space:pre-wrap; font-size:12px; line-height:1.4;">${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-                </div>
-            </div>
-        `;
     }
 
     static updateDeckTitle(elements, title) {
@@ -123,6 +120,8 @@ export class DeckController {
     }
 
     constructor(deck, elements) {
+        super();
+
         if (elements.reloadDeckBtn && navigator.userAgent.includes('Firefox')) {
             elements.reloadDeckBtn.style.display = 'none';
         }
@@ -131,12 +130,10 @@ export class DeckController {
         this.elements = elements;
         this.currentIndex = 0;
         this.isPresenterWindow = false;
-        this.isBreakActive = false;
-        this.breakMinutes = 10;
-        this.breakEndsAt = null;
-        this._listeners = new Map();
+        this.presenterWindowRef = null;
 
         this.initIds();
+        this.initBreakManager();
         this.initBroadcastChannel();
         this.applyRoleFromUrl();
         this.setupEventListeners();
@@ -145,22 +142,30 @@ export class DeckController {
     initIds() {
         const id = getDeckId(this.deck);
         this.SLIDE_STATE_KEY = `webdeck:${id}:slide`;
-        this.BREAK_STATE_KEY = `webdeck:${id}:break`;
+    }
+
+    initBreakManager() {
+        this.breakManager = new BreakManager(this.deck, this.elements, (state) => {
+            this.dispatchEvent('breakchange', state);
+        });
+    }
+
+    initBroadcastChannel() {
+        if (this.bc) this.bc.close();
+        this.bc = new BroadcastChannel(getDeckId(this.deck));
+        // Share the broadcast channel with BreakManager
+        this.breakManager.setBroadcastChannel(this.bc);
+        // Listen for break messages from other windows
+        this.bc.onmessage = (ev) => {
+            if (ev.data?.type === "slide") this.handleIncomingState(ev.data.index);
+            if (ev.data?.type === "break") this.breakManager.handleIncomingState(ev.data);
+        };
     }
 
     applyRoleFromUrl() {
         const url = new URL(window.location.href);
         this.isPresenterWindow = url.searchParams.get("role") === "presenter";
         requestAnimationFrame(() => this.applyStageScale());
-    }
-
-    initBroadcastChannel() {
-        if (this.bc) this.bc.close();
-        this.bc = new BroadcastChannel(getDeckId(this.deck));
-        this.bc.onmessage = (ev) => {
-            if (ev.data?.type === "slide") this.handleIncomingState(ev.data.index);
-            if (ev.data?.type === "break") this.handleIncomingBreakState(ev.data);
-        };
     }
 
     setupEventListeners() {
@@ -175,49 +180,20 @@ export class DeckController {
         listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
-        listen(this.elements.breakBtn, "click", () => this.toggleBreak());
+        listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.reloadDeckBtn, "click", () => this.handleReloadDeck());
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
-            this.breakMinutes = parseInt(e.target.value, 10) || 10;
+            this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
         });
 
         // Specific fix for Firefox/Legacy Input: Capture filename directly from the input
-        // because the File System Access API isn't used here, and sometimes the loader
-        // event doesn't carry the filename in this fallback mode.
         listen(this.elements.fileInput, "change", (e) => {
             if (e.target.files && e.target.files.length > 0) {
                 const name = e.target.files[0].name;
                 localStorage.setItem("webdeck_local_file_name", name);
             }
         });
-    }
-
-    /**
-     * Determines the display title for the deck based on file source or metadata.
-     * Priority: Local Filename > Remote URL Filename > Deck Metadata > Default
-     */
-    _determineTitle(deck) {
-        // 1. Check for local file name (set by DeckLoader or handleLocalFileLoad)
-        const localFileName = localStorage.getItem("webdeck_local_file_name");
-        if (localFileName) {
-            return localFileName;
-        }
-
-        // 2. Check for URL parameter file name
-        const urlParam = new URL(window.location.href).searchParams.get("url");
-        if (urlParam) {
-            try {
-                const pathParts = new URL(urlParam).pathname.split('/');
-                const fileName = pathParts[pathParts.length - 1];
-                if (fileName && fileName !== '/') {
-                    return fileName;
-                }
-            } catch (e) { /* invalid url */ }
-        }
-
-        // 3. Deck metadata or default
-        return (deck?.meta?.title || "Slide Deck").trim() || "Slide Deck";
     }
 
     /**
@@ -236,7 +212,7 @@ export class DeckController {
                 const deckId = getDeckId(this.deck);
                 raw = await DeckLoader.reloadFromFileHandle(deckId);
                 if (!raw || preferLocalStorage) {
-                    raw = await this.loadFromLocalStorage();
+                    raw = await DeckLoader.loadFromLocalStorage();
                 }
             }
 
@@ -244,21 +220,12 @@ export class DeckController {
                 throw new Error("No deck source available for reload");
             }
 
-            await this.processRawData(raw);
-            console.log("Deck reloaded successfully");
+            const newDeck = await DeckLoader.processRawData(raw);
+            await this.replaceDeck(newDeck);
         } catch (err) {
             console.error("Failed to reload deck:", err);
             Notification.error("Failed to reload deck: " + (err instanceof Error ? err.message : String(err)));
         }
-    }
-
-    async processRawData(raw) {
-        const url = new URL(window.location.href);
-        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
-        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
-
-        const newDeck = DeckLoader.normalizeDeck(raw, { includeHidden });
-        await this.replaceDeck(newDeck);
     }
 
     /**
@@ -271,8 +238,12 @@ export class DeckController {
 
         this.deck = newDeck;
 
+        // Update break manager with new deck context
+        this.breakManager.deck = newDeck;
+        this.breakManager.breakStateKey = `webdeck:${getDeckId(newDeck)}:break`;
+
         // Calculate and Apply Title
-        const deckTitleText = this._determineTitle(newDeck);
+        const deckTitleText = DeckLoader.getDisplayTitle(newDeck);
         document.title = deckTitleText;
         DeckController.updateDeckTitle(this.elements, deckTitleText);
 
@@ -294,18 +265,6 @@ export class DeckController {
         this.dispatchEvent('deckchange', { deck: newDeck });
     }
 
-    async loadFromLocalStorage() {
-        const localFile = localStorage.getItem("webdeck_local_file");
-
-        if (!localFile) return null;
-
-        // Assume Markdown
-        const { AssetLoader } = await import("./asset-loader.js");
-        const { MarkdownParser } = await import("./markdown-parser.js");
-        await AssetLoader.ensureMarkdownItLoaded();
-        return new MarkdownParser().parseDeckMarkdown(localFile);
-    }
-
     broadcastReload() {
         const reloadChannel = new BroadcastChannel("webdeck-reload");
         reloadChannel.postMessage({ type: "reload" });
@@ -317,27 +276,15 @@ export class DeckController {
     async handleLocalFileLoad(event) {
         const { text, fileName } = event.detail || {};
         try {
-            // Save filename immediately so _determineTitle can use it
-            // Note: If fileName is undefined (likely in Firefox via loader event),
-            // the 'change' listener we added in setupEventListeners will have already 
-            // saved it to localStorage, so we don't overwrite it here.
             if (fileName) {
                 localStorage.setItem("webdeck_local_file_name", fileName);
             }
 
-            // Always parse as Markdown (JSON logic removed)
-            const { AssetLoader } = await import("./asset-loader.js");
-            await AssetLoader.ensureMarkdownItLoaded();
-            const { MarkdownParser } = await import("./markdown-parser.js");
-            const raw = new MarkdownParser().parseDeckMarkdown(text);
+            // Use DeckLoader to parse the markdown
+            const newDeck = await DeckLoader.parseMarkdown(text);
 
-            // Normalize and Replace
-            const newDeck = DeckLoader.normalizeDeck(raw, { includeHidden: false });
             await this.replaceDeck(newDeck);
-
             this.broadcastReload();
-
-            console.log("Slides refreshed from local file");
         } catch (err) {
             console.error("Failed to load local file:", err);
             Notification.error("Failed to load file: " + err.message);
@@ -347,32 +294,26 @@ export class DeckController {
     handleKeyboard(e) {
         if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
 
-        const navKeys = {
-            "ArrowRight": () => this.next(),
-            " ": () => this.next(),
-            "PageDown": () => this.next(),
-            "ArrowDown": () => this.next(),
-            "ArrowLeft": () => this.prev(),
-            "PageUp": () => this.prev(),
-            "ArrowUp": () => this.prev(),
-            "Backspace": () => this.prev(),
-            "Home": () => this.goTo(0),
-            "End": () => this.goTo(this.deck.slides.length - 1),
-            "g": () => this.openGoToPrompt(), "G": () => this.openGoToPrompt(),
-            "p": () => this.togglePresenterWindow(), "P": () => this.togglePresenterWindow(),
-            "b": () => this.toggleBreak(), "B": () => this.toggleBreak(),
-            "f": () => this.toggleFullscreen(),
-            "r": () => this.handleReloadDeck()
-        };
+        const action = DeckController.#KEYBOARD_ACTIONS[e.key];
+        if (!action) return;
 
-        if (this.isBreakActive && navKeys[e.key]) {
+        if (this.breakManager.isActive) {
             e.preventDefault();
-            this.setBreakActive(false);
+            this.breakManager.setActive(false);
             return;
         }
-        if (navKeys[e.key]) {
-            e.preventDefault();
-            navKeys[e.key]();
+
+        e.preventDefault();
+        switch (action) {
+            case "next": this.next(); break;
+            case "prev": this.prev(); break;
+            case "first": this.goTo(0); break;
+            case "last": this.goTo(this.deck.slides.length - 1); break;
+            case "goto": this.openGoToPrompt(); break;
+            case "presenter": this.togglePresenterWindow(); break;
+            case "break": this.breakManager.toggle(); break;
+            case "fullscreen": this.toggleFullscreen(); break;
+            case "reload": this.handleReloadDeck(); break;
         }
     }
 
@@ -400,53 +341,13 @@ export class DeckController {
         try {
             if (ev.key === this.SLIDE_STATE_KEY) {
                 this.handleIncomingState(parseInt(ev.newValue, 10));
-            } else if (ev.key === this.BREAK_STATE_KEY) {
-                this.handleIncomingBreakState(JSON.parse(ev.newValue));
+            } else if (ev.key === this.breakManager.breakStateKey) {
+                this.breakManager.handleIncomingState(JSON.parse(ev.newValue));
             } else if (ev.key === "webdeck_local_file_timestamp" && ev.newValue) {
                 this.handleReloadDeck({ preferLocalStorage: true });
             }
         } catch (e) { /* ignore */ }
     }
-
-    setBreakActive(active, { broadcast = true, endsAt = null } = {}) {
-        this.isBreakActive = !!active;
-
-        if (this.isBreakActive) {
-            if (!this.breakSlideEl) this.createBreakSlide();
-            this.breakEndsAt = endsAt || (Date.now() + this.breakMinutes * 60000);
-
-            const timeStr = new Date(this.breakEndsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            this.breakSlideEl.querySelector(".break-mins").textContent = `${this.breakMinutes} Minute Break`;
-            this.breakSlideEl.querySelector(".break-end-time").textContent = timeStr;
-        }
-
-        this.breakSlideEl?.classList.toggle("webdeck-hidden", !this.isBreakActive);
-
-        if (broadcast) {
-            const payload = { type: "break", active: this.isBreakActive, mins: this.breakMinutes, endsAt: this.breakEndsAt };
-            localStorage.setItem(this.BREAK_STATE_KEY, JSON.stringify(payload));
-            this.bc.postMessage(payload);
-        }
-    }
-
-    createBreakSlide() {
-        const breakSlide = {
-            layout: "title-slide", background: "#333", theme: "dark", align: "center",
-            areas: { main: `<div class="break-title"><h1 class="break-mins"></h1><div class="break-end">Resume at <span class="break-end-time"></span></div></div>` }
-        };
-        this.breakSlideEl = SlideRenderer.createSlideElement(this.deck, breakSlide, 0, true);
-        this.breakSlideEl.classList.add("webdeck-break-slide", "webdeck-hidden");
-        this.breakSlideEl.style.zIndex = "80";
-        this.elements.stageInner.appendChild(this.breakSlideEl);
-    }
-
-    handleIncomingBreakState(state) {
-        if (state.mins) this.breakMinutes = state.mins;
-        if (this.elements.breakDurationSelect) this.elements.breakDurationSelect.value = String(this.breakMinutes);
-        this.setBreakActive(state.active, { broadcast: false, endsAt: state.endsAt });
-    }
-
-    toggleBreak() { this.setBreakActive(!this.isBreakActive); }
 
     goTo(index, { broadcast = true } = {}) {
         this.currentIndex = Math.max(0, Math.min(index, this.deck.slides.length - 1));
@@ -476,34 +377,31 @@ export class DeckController {
                     }
                 });
             }
-        }, 20); // Small debounce to avoid rendering skipped slides
+        }, 20);
     }
 
     handleIncomingState(index) {
         if (index !== this.currentIndex && !isNaN(index)) this.goTo(index, { broadcast: false });
     }
 
-    next() { this.isBreakActive ? this.setBreakActive(false) : this.goTo(this.currentIndex + 1); }
-    prev() { this.isBreakActive ? this.setBreakActive(false) : this.goTo(this.currentIndex - 1); }
+    next() {
+        if (this.breakManager.isActive) {
+            this.breakManager.setActive(false);
+        } else {
+            this.goTo(this.currentIndex + 1);
+        }
+    }
+
+    prev() {
+        if (this.breakManager.isActive) {
+            this.breakManager.setActive(false);
+        } else {
+            this.goTo(this.currentIndex - 1);
+        }
+    }
 
     applyStageScale() {
-        const { stageHost: host, deckStage: stage, stageInner: inner } = this.elements;
-        if (!host || !stage || !inner) return;
-
-        const rect = host.getBoundingClientRect();
-        const availW = rect.width - 32;
-        const availH = rect.height - 32;
-
-        if (availW <= 0 || availH <= 0) {
-            setTimeout(() => this.applyStageScale(), 100);
-            return;
-        }
-
-        const scale = Math.min(availW / DESIGN_SIZE.width, availH / DESIGN_SIZE.height, 1);
-        stage.style.width = `${Math.round(DESIGN_SIZE.width * scale)}px`;
-        stage.style.height = `${Math.round(DESIGN_SIZE.height * scale)}px`;
-        stage.style.setProperty("--stage-scale", scale);
-        inner.style.transform = `scale(${scale})`;
+        StageScaler.applyStageScale(this.elements);
     }
 
     render() {
@@ -555,31 +453,6 @@ export class DeckController {
         window.print();
     }
 
-    addEventListener(event, callback) {
-        if (typeof callback !== "function") {
-            console.warn("DeckController.addEventListener: callback must be a function", { event, callback });
-            return;
-        }
-        if (!this._listeners.has(event)) this._listeners.set(event, []);
-        this._listeners.get(event).push(callback);
-    }
-
-    removeEventListener(event, callback) {
-        if (this._listeners.has(event)) {
-            const listeners = this._listeners.get(event);
-            const index = listeners.indexOf(callback);
-            if (index > -1) listeners.splice(index, 1);
-        }
-    }
-
-    dispatchEvent(event, detail) {
-        if (this._listeners.has(event)) {
-            this._listeners.get(event).forEach(cb => {
-                try { cb(detail); } catch (e) { console.error(e); }
-            });
-        }
-    }
-
     async init() {
         const url = new URL(window.location.href);
         const hash = window.location.hash.match(/#slide-(\d+)/);
@@ -591,11 +464,14 @@ export class DeckController {
             restoreIndex !== null ? parseInt(restoreIndex, 10) :
                 (parseInt(stored, 10) || 0);
 
-        this.breakMinutes = parseInt(url.searchParams.get("breakMins"), 10) || 10;
-        this.isBreakActive = url.searchParams.get("break") === "1";
+        // Initialize break manager with URL params
+        const breakMins = parseInt(url.searchParams.get("breakMins"), 10) || 10;
+        const breakActive = url.searchParams.get("break") === "1";
+        this.breakManager.setDuration(breakMins);
+        this.breakManager.setActive(breakActive, { broadcast: false });
 
         // Determine title using the same logic as updates
-        const deckTitleText = this._determineTitle(this.deck);
+        const deckTitleText = DeckLoader.getDisplayTitle(this.deck);
         document.title = deckTitleText;
         DeckController.updateDeckTitle(this.elements, deckTitleText);
 
@@ -605,8 +481,23 @@ export class DeckController {
             this.elements.slidesContainer.appendChild(SlideRenderer.createSlideElement(this.deck, s, i, i === this.currentIndex));
         });
 
-        this.setBreakActive(this.isBreakActive, { broadcast: false });
         this.goTo(this.currentIndex, { broadcast: false });
         this.applyStageScale();
+    }
+
+    /**
+     * Cleanup method to release resources when the controller is destroyed.
+     */
+    destroy() {
+        if (this.bc) {
+            this.bc.close();
+        }
+        if (this.breakManager) {
+            this.breakManager.destroy();
+        }
+        if (this._enhanceTimeout) {
+            clearTimeout(this._enhanceTimeout);
+        }
+        this.removeAllListeners();
     }
 }

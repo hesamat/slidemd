@@ -81,7 +81,7 @@ import { EditController } from "./src/edit-controller.js";
         // Immediate UI setup
         DeckController.initRole();
         window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
-        DeckController.showLoadingState();
+        SlideRenderer.showLoadingState();
 
         // Start App
         init().then((ctrl) => {
