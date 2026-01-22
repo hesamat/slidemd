@@ -96,7 +96,7 @@ export class SlideThumbnails {
 
         // Scroll current thumbnail into view
         const currentThumbnail = thumbnails[currentIndex];
-        if (currentThumbnail) {
+        if (currentThumbnail && currentThumbnail.scrollIntoView) {
             currentThumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
