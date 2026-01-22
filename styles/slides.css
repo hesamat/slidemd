@@ -269,29 +269,28 @@
     width: 100%;
     max-height: 100%;
     max-width: 100%;
-    display: flex;
+    display: flex;         /* Ensure the content is centered */
     align-items: center;
     justify-content: center;
-    min-width: 0;
+    min-width: 0;         /* Important for flexbox in some cases */
     min-height: 0;
-    overflow: hidden;
+    overflow: hidden;      /* Prevent content from overflowing */
     padding: 8px;
+    box-sizing: border-box; /* Include padding in width/height */
 
-    /* Before D2 renders, the raw source text is present. */
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
 }
 
 /* Outer SVG should fill container */
-.slide__area .d2>svg {
-    display: block;
+.slide__area .d2 > svg {
+    display: block !important;  /* Override any conflicting styles */
     max-width: 100% !important;
     max-height: 100% !important;
     width: 100% !important;
-    height: auto !important;
+    height: auto !important;  /* Maintain aspect ratio */
 }
-
 .slide__area pre::-webkit-scrollbar,
 .notes::-webkit-scrollbar {
     height: 10px;

@@ -103,6 +103,7 @@
         <main class="main">
             <!-- Editor Panel -->
             <aside id="editorPanel" class="editorPanel webdeck-hidden" aria-label="Editor panel">
+                <div class="editor__resize-handle" title="Drag to resize panel"></div>
                 <div class="editor__header">
                     <div class="editor__actions">
                         <button id="addSlideBtn" class="btn btn--sm" title="Add new slide">+ Add Slide</button>
@@ -123,8 +124,7 @@
                         <span class="slide-indicator">1 / 1</span>
                         <h2 class="editor__title">Edit Slide</h2>
                     </div>
-                    <textarea id="markdownEditor" class="markdown-editor"
-                        placeholder="Edit markdown for current slide..." spellcheck="false"></textarea>
+                    <div id="markdownEditor" class="markdown-editor-container"></div>
                 </div>
             </aside>
 

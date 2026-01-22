@@ -189,9 +189,25 @@ export class MarkdownParser {
         // Convert <pre><code class="language-d2">...</code></pre> to <div class="d2">...</div>
         const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-d2[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
         return htmlText.replace(re, (match, content) => {
-            // Keep the content HTML-escaped here. In dev mode we send this HTML to the
-            // Vite server for D2 rendering, which will decode entities safely.
-            return `<div class="d2">${content}</div>`;
+            // The Vite plugin needs the D2 source as the content of the div
+            // For client-side, also store it in data-d2-source and add loading state
+            const safeContent = content.replace(/"/g, '&quot;');
+
+            // Create a div with:
+            // 1. The D2 source as content (for Vite plugin)
+            // 2. A data attribute with the source (for client-side rendering)
+            // 3. A loading indicator that will be replaced
+            // The source is hidden via CSS, loading indicator is visible initially
+            return `<div class="d2" data-d2-source="${safeContent}" style="position: relative;">
+                <style>.d2[data-d2-source] > :not(.d2-loading) { display: none; }</style>
+                <span class="d2-source-hidden">${content}</span>
+                <div class="d2-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100px; color: #666; font-size: 0.875rem;">
+                    <svg style="width: 24px; height: 24px; margin-right: 8px; animation: spin 1s linear infinite;" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.416" stroke-dashoffset="31.416" style="animation: dash 1.5s ease-in-out infinite;"/>
+                    </svg>
+                    <span>Rendering diagram...</span>
+                </div>
+            </div>`;
         });
     }
 

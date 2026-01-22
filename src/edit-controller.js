@@ -10,6 +10,8 @@ import { ContentEnhancer } from "./content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
 import { LayoutData } from "./layout-data.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
+import { MarkdownEditor } from "./markdown-editor.js";
+import { StageScaler } from "./stage-scaler.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -21,8 +23,7 @@ export class EditController {
         this.currentSlideIndex = controller.currentIndex;
         this.hasUnsavedChanges = false;
 
-        this.debounceTimer = null;
-        this.DEBOUNCE_DELAY = 300;
+        this.markdownEditor = null; // Will be initialized when edit mode is enabled
 
         // Cache original markdown from localStorage
         this.originalMarkdown = this.cacheOriginalMarkdown();
@@ -33,6 +34,59 @@ export class EditController {
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
 
         this.init();
+    }
+
+    /**
+     * Initialize panel resize functionality
+     */
+    initPanelResize() {
+        const resizeHandle = document.querySelector('.editor__resize-handle');
+        const editorPanel = this.elements.editorPanel;
+
+        if (!resizeHandle || !editorPanel) return;
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        const onMouseDown = (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = editorPanel.offsetWidth;
+            resizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        };
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const newWidth = startWidth + deltaX;
+
+            // Constrain width between min and max
+            const minWidth = 300;
+            const maxWidth = 800;
+            const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+            editorPanel.style.width = constrainedWidth + 'px';
+            editorPanel.style.flex = 'none';
+
+            // Re-scale the stage to fit the new available space
+            StageScaler.applyStageScale(this.elements);
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            resizeHandle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        resizeHandle.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     /**
@@ -55,14 +109,12 @@ export class EditController {
      * Initialize the edit controller
      */
     init() {
+        // Set up panel resize functionality
+        this.initPanelResize();
+
         // Set up edit mode toggle
         if (this.elements.toggleEditModeBtn) {
             this.elements.toggleEditModeBtn.addEventListener('click', () => this.toggleEditMode());
-        }
-
-        // Set up editor input listener
-        if (this.elements.markdownEditor) {
-            this.elements.markdownEditor.addEventListener('input', () => this.onEditorInput());
         }
 
         // Listen for slide navigation events
@@ -123,6 +175,15 @@ export class EditController {
             this.elements.presenterPanel?.classList.add('webdeck-hidden');
             this.elements.toggleEditModeBtn.classList.add('active');
             document.body.setAttribute('data-edit-mode', 'true');
+
+            // Initialize the markdown editor if not already initialized
+            if (!this.markdownEditor && this.elements.markdownEditor) {
+                this.markdownEditor = new MarkdownEditor(this.elements.markdownEditor, {
+                    onChange: (value) => this.onEditorInput(value),
+                    debounceDelay: 300,
+                });
+            }
+
             this.loadSlideIntoEditor();
         } else {
             this.elements.editorPanel?.classList.add('webdeck-hidden');
@@ -146,14 +207,14 @@ export class EditController {
      * Load the current slide's markdown into the editor
      */
     loadSlideIntoEditor() {
-        if (!this.isEditMode || !this.elements.markdownEditor) return;
+        if (!this.isEditMode || !this.markdownEditor) return;
 
         // Get markdown - first check unsaved changes, then fall back to original
         const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ??
                          this.originalMarkdown[this.currentSlideIndex] ??
                          '';
 
-        this.elements.markdownEditor.value = markdown;
+        this.markdownEditor.setValue(markdown);
         // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
         this.updateSaveButton();
     }
@@ -161,15 +222,15 @@ export class EditController {
     /**
      * Handle editor input events
      */
-    onEditorInput() {
+    onEditorInput(value) {
         // Save current editor content to unsaved cache
-        this.unsavedMarkdown.set(this.currentSlideIndex, this.elements.markdownEditor.value);
+        this.unsavedMarkdown.set(this.currentSlideIndex, value);
 
         // Check if there are any unsaved changes across all slides
         this.updateUnsavedChangesFlag();
 
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
-        this.debounceTimer = setTimeout(() => this.updatePreview(), this.DEBOUNCE_DELAY);
+        // Update preview
+        this.updatePreview();
     }
 
     /**
@@ -185,7 +246,7 @@ export class EditController {
      * Update the preview with the edited markdown
      */
     async updatePreview() {
-        const markdown = this.elements.markdownEditor.value;
+        const markdown = this.markdownEditor?.getValue() ?? '';
 
         try {
             await AssetLoader.ensureMarkdownItLoaded();

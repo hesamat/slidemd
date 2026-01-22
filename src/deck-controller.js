@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter } from "./utils.js";
+import { getDeckId, EventEmitter, yieldToMain } from "./utils.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 import { DeckLoader } from "./deck-loader.js";
@@ -6,49 +6,51 @@ import { StageScaler } from "./stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { Notification } from "./notification.js";
 
-/**
- * Manages deck navigation, state synchronization between windows,
- * responsive scaling, and the presenter/viewer roles.
- */
+// Shim for requestIdleCallback (prevents UI jank during background tasks)
+const requestIdleCallback = window.requestIdleCallback || function(cb) {
+    return setTimeout(() => {
+        const start = Date.now();
+        cb({ 
+            didTimeout: false, 
+            timeRemaining: () => Math.max(0, 50 - (Date.now() - start)) 
+        });
+    }, 1);
+};
+
+const cancelIdleCallback = window.cancelIdleCallback || function(id) {
+    clearTimeout(id);
+};
+
 export class DeckController extends EventEmitter {
-    // Keyboard mapping for navigation shortcuts
+    
     static #KEYBOARD_ACTIONS = {
-        "ArrowRight": "next",
-        " ": "next",
-        "PageDown": "next",
-        "ArrowDown": "next",
-        "ArrowLeft": "prev",
-        "PageUp": "prev",
-        "ArrowUp": "prev",
-        "Backspace": "prev",
-        "Home": "first",
-        "End": "last",
-        "g": "goto",
-        "G": "goto",
-        "p": "presenter",
-        "P": "presenter",
-        "e": "edit",
-        "E": "edit",
-        "b": "break",
-        "B": "break",
-        "f": "fullscreen",
-        "r": "reload"
+        "ArrowRight": "next", " ": "next", "PageDown": "next", "ArrowDown": "next",
+        "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
+        "Home": "first", "End": "last", 
+        "g": "goto", "G": "goto",
+        "p": "presenter", "P": "presenter", 
+        "e": "edit", "E": "edit",
+        "b": "break", "B": "break", 
+        "f": "fullscreen", "r": "reload"
     };
 
-    /**
-     * Gathers all required DOM elements for the deck interface.
-     * @returns {Object} Map of DOM element references
-     */
     static gatherElements() {
         const $ = (id) => document.getElementById(id);
         return {
+            // Stage & Layout
             stageHost: $("stageHost"),
             deckStage: $("deckStage"),
             stageInner: $("stageInner"),
             slidesContainer: $("slidesContainer"),
+            
+            // Info
             slideNumberEl: $("slideNumber"),
             slideCountEl: $("slideCount"),
             deckTitleEl: $("deckTitle"),
+            notesContainer: $("notesContainer"),
+            nextPreview: $("nextPreview"),
+            
+            // Tools
             fileInput: $("fileInput"),
             editorPanel: $("editorPanel"),
             markdownEditor: $("markdownEditor"),
@@ -56,52 +58,47 @@ export class DeckController extends EventEmitter {
             duplicateSlideBtn: $("duplicateSlideBtn"),
             deleteSlideBtn: $("deleteSlideBtn"),
             saveSlideBtn: $("saveSlideBtn"),
+            
+            // Presenter / Modes
             presenterPanel: $("presenterPanel"),
-            nextPreview: $("nextPreview"),
-            notesContainer: $("notesContainer"),
             viewerPresenterBtn: $("viewerPresenterBtn"),
+            togglePresenterBtn: $("togglePresenterBtn"),
+            toggleEditModeBtn: $("toggleEditModeBtn"),
+            toggleFullscreenBtn: $("toggleFullscreenBtn"),
+            
+            // Break Timer
             breakDurationSelect: $("breakDuration"),
             breakBtn: $("breakBtn"),
-            // Menu buttons (used for file operations)
+            
+            // Menu
+            menuBtn: $("menuBtn"),
+            menuDropdown: $("menuDropdown"),
             menuOpenFileBtn: $("menuOpenFileBtn"),
             menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuPrintBtn: $("menuPrintBtn"),
-            // Top bar controls
-            menuBtn: $("menuBtn"),
-            menuDropdown: $("menuDropdown"),
-            toggleEditModeBtn: $("toggleEditModeBtn"),
-            togglePresenterBtn: $("togglePresenterBtn"),
-            toggleFullscreenBtn: $("toggleFullscreenBtn"),
-            printBtn: $("printBtn"), // For presenter panel floating button
+            printBtn: $("printBtn"),
+            reloadDeckBtn: $("reloadDeckBtn") 
         };
     }
 
-    /**
-     * Sets up the reload channel listener for cross-window synchronization.
-     * @returns {BroadcastChannel}
-     */
     static initReloadChannel() {
-        const reloadChannel = new BroadcastChannel("webdeck-reload");
-        reloadChannel.onmessage = async (ev) => {
+        const channel = new BroadcastChannel("webdeck-reload");
+        channel.onmessage = async (ev) => {
             if (ev.data?.type === "reload") {
                 window.location.hash = "";
-
                 if (ev.data.url) {
                     const newUrl = new URL(window.location.href);
                     newUrl.searchParams.set("url", ev.data.url);
                     window.location.href = newUrl.toString();
                 } else {
                     const controller = window.__WEBDECK_CONTROLLER__;
-                    if (controller) {
-                        await controller.handleReloadDeck({ preferLocalStorage: true });
-                    } else {
-                        window.location.reload();
-                    }
+                    if (controller) await controller.handleReloadDeck({ preferLocalStorage: true });
+                    else window.location.reload();
                 }
             }
         };
-        return reloadChannel;
+        return channel;
     }
 
     static updateDeckTitle(elements, title) {
@@ -120,17 +117,17 @@ export class DeckController extends EventEmitter {
         const url = new URL(window.location.href);
         const isPresenter = url.searchParams.get("role") === "presenter";
         document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
-
-        const presenterPanel = document.getElementById("presenterPanel");
-        if (presenterPanel) presenterPanel.classList.toggle("webdeck-hidden", !isPresenter);
-
+        
+        const panel = document.getElementById("presenterPanel");
+        if (panel) panel.classList.toggle("webdeck-hidden", !isPresenter);
+        
         const btn = document.getElementById("togglePresenterBtn");
         if (btn) btn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
     }
 
     constructor(deck, elements) {
         super();
-
+        
         if (elements.reloadDeckBtn && navigator.userAgent.includes('Firefox')) {
             elements.reloadDeckBtn.style.display = 'none';
         }
@@ -140,6 +137,7 @@ export class DeckController extends EventEmitter {
         this.currentIndex = 0;
         this.isPresenterWindow = false;
         this.presenterWindowRef = null;
+        this._enhanceIdleId = null; 
 
         this.initIds();
         this.initBreakManager();
@@ -162,9 +160,7 @@ export class DeckController extends EventEmitter {
     initBroadcastChannel() {
         if (this.bc) this.bc.close();
         this.bc = new BroadcastChannel(getDeckId(this.deck));
-        // Share the broadcast channel with BreakManager
         this.breakManager.setBroadcastChannel(this.bc);
-        // Listen for break messages from other windows
         this.bc.onmessage = (ev) => {
             if (ev.data?.type === "slide") this.handleIncomingState(ev.data.index);
             if (ev.data?.type === "break") this.breakManager.handleIncomingState(ev.data);
@@ -174,61 +170,85 @@ export class DeckController extends EventEmitter {
     applyRoleFromUrl() {
         const url = new URL(window.location.href);
         this.isPresenterWindow = url.searchParams.get("role") === "presenter";
+        document.documentElement.setAttribute("data-webdeck-role", this.isPresenterWindow ? "presenter" : "viewer");
         requestAnimationFrame(() => this.applyStageScale());
+    }
+
+    async init() {
+        const url = new URL(window.location.href);
+        const hash = window.location.hash.match(/#slide-(\d+)/);
+        const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
+        const restoreIndex = sessionStorage.getItem("webdeck_restore_slide_index");
+        
+        sessionStorage.removeItem("webdeck_restore_slide_index");
+        
+        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 
+            : restoreIndex !== null ? parseInt(restoreIndex, 10) 
+            : (parseInt(stored, 10) || 0);
+
+        this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
+        this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
+
+        const title = DeckLoader.getDisplayTitle(this.deck);
+        document.title = title;
+        DeckController.updateDeckTitle(this.elements, title);
+
+        this.preloadEnhancers();
+
+        this.elements.slidesContainer.innerHTML = "";
+        this.deck.slides.forEach((s, i) => {
+            this.elements.slidesContainer.appendChild(
+                SlideRenderer.createSlideElement(this.deck, s, i, i === this.currentIndex)
+            );
+        });
+
+        this.goTo(this.currentIndex, { broadcast: false });
+        this.applyStageScale();
+    }
+
+    preloadEnhancers() {
+        import("./asset-loader.js")
+            .then(({ AssetLoader }) => AssetLoader.ensureRichTextEnhancers().catch(console.warn))
+            .catch(console.warn);
     }
 
     setupEventListeners() {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+        document.addEventListener("click", (e) => this.handleDocumentClick(e));
+        document.addEventListener("fullscreenchange", () => this.applyStageScale());
         window.addEventListener("storage", (e) => this.handleStorage(e));
         window.addEventListener("resize", () => this.applyStageScale());
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
-        // Close menu when clicking outside
-        document.addEventListener("click", (e) => this.handleDocumentClick(e));
 
         listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
-
-        // Menu button listeners
+        listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
+        
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
         listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
-        listen(this.elements.menuReloadDeckBtn, "click", () => {
-            this.handleReloadDeck();
-            this.closeMenu();
-        });
-        listen(this.elements.menuPrintBtn, "click", () => {
-            this.handlePrint();
-            this.closeMenu();
-        });
-
-        // Mode toggle listeners (EditController handles edit mode, fullscreen is handled here)
-        listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
+        listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
+        listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
         });
-
-        // Specific fix for Firefox/Legacy Input: Capture filename directly from the input
+        
         listen(this.elements.fileInput, "change", (e) => {
-            if (e.target.files && e.target.files.length > 0) {
-                const name = e.target.files[0].name;
-                localStorage.setItem("webdeck_local_file_name", name);
+            if (e.target.files?.[0]) {
+                localStorage.setItem("webdeck_local_file_name", e.target.files[0].name);
             }
         });
     }
 
-    /**
-     * Reloads the current deck from its source.
-     */
     async handleReloadDeck({ preferLocalStorage = false } = {}) {
         const url = new URL(window.location.href);
         const deckUrl = url.searchParams.get("url");
-
         try {
             let raw;
             if (deckUrl) {
@@ -242,38 +262,27 @@ export class DeckController extends EventEmitter {
                 }
             }
 
-            if (!raw) {
-                throw new Error("No deck source available for reload");
-            }
-
+            if (!raw) throw new Error("No deck source available");
+            
             const newDeck = await DeckLoader.processRawData(raw);
             await this.replaceDeck(newDeck);
         } catch (err) {
-            console.error("Failed to reload deck:", err);
-            Notification.error("Failed to reload deck: " + (err instanceof Error ? err.message : String(err)));
+            console.error("Reload failed:", err);
+            Notification.error("Failed to reload deck: " + err.message);
         }
     }
 
-    /**
-     * Replaces the current deck, updates title/UI, and preserves position.
-     */
     async replaceDeck(newDeck) {
-        const currentSlideIndex = this.currentIndex;
-        const newSlideCount = newDeck.slides.length;
-        const preservedIndex = Math.min(currentSlideIndex, newSlideCount - 1);
-
+        const preservedIndex = Math.min(this.currentIndex, newDeck.slides.length - 1);
         this.deck = newDeck;
-
-        // Update break manager with new deck context
+        
         this.breakManager.deck = newDeck;
         this.breakManager.breakStateKey = `webdeck:${getDeckId(newDeck)}:break`;
+        
+        const title = DeckLoader.getDisplayTitle(newDeck);
+        document.title = title;
+        DeckController.updateDeckTitle(this.elements, title);
 
-        // Calculate and Apply Title
-        const deckTitleText = DeckLoader.getDisplayTitle(newDeck);
-        document.title = deckTitleText;
-        DeckController.updateDeckTitle(this.elements, deckTitleText);
-
-        // Re-render
         this.elements.slidesContainer.innerHTML = "";
         newDeck.slides.forEach((s, i) => {
             this.elements.slidesContainer.appendChild(
@@ -282,16 +291,12 @@ export class DeckController extends EventEmitter {
         });
 
         DeckController.updateSlideCount(this.elements, newDeck.slides.length);
-
-        // Update floating slide counter
         if (this.elements.floatSlideCounter) {
             this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${newDeck.slides.length}`;
         }
-
-        // Reset channels
+        
         this.initIds();
         this.initBroadcastChannel();
-
         this.goTo(preservedIndex, { broadcast: false });
         this.dispatchEvent('deckchange', { deck: newDeck });
     }
@@ -305,33 +310,28 @@ export class DeckController extends EventEmitter {
     }
 
     async handleLocalFileLoad(event) {
-        const { text, fileName } = event.detail || {};
         try {
-            if (fileName) {
-                localStorage.setItem("webdeck_local_file_name", fileName);
-            }
-
-            // Use DeckLoader to parse the markdown
+            const { text, fileName } = event.detail || {};
+            if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
+            
             const newDeck = await DeckLoader.parseMarkdown(text);
-
             await this.replaceDeck(newDeck);
             this.broadcastReload();
         } catch (err) {
-            console.error("Failed to load local file:", err);
             Notification.error("Failed to load file: " + err.message);
         }
     }
 
     handleKeyboard(e) {
         if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
-
+        
         const action = DeckController.#KEYBOARD_ACTIONS[e.key];
         if (!action) return;
 
-        if (this.breakManager.isActive) {
-            e.preventDefault();
-            this.breakManager.setActive(false);
-            return;
+        if (this.breakManager.isActive) { 
+            e.preventDefault(); 
+            this.breakManager.setActive(false); 
+            return; 
         }
 
         e.preventDefault();
@@ -349,134 +349,88 @@ export class DeckController extends EventEmitter {
         }
     }
 
-    toggleFullscreen() {
-        if (document.fullscreenElement) document.exitFullscreen();
-        else this.elements.stageHost?.requestFullscreen?.();
-    }
-
-    toggleEditMode() {
-        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-        if (editController) {
-            editController.toggleEditMode();
+    handleStorage(ev) {
+        if (ev.key === this.SLIDE_STATE_KEY) {
+            this.handleIncomingState(parseInt(ev.newValue, 10));
+        } else if (ev.key === "webdeck_local_file_timestamp" && ev.newValue) {
+            this.handleReloadDeck({ preferLocalStorage: true });
         }
     }
 
-    toggleMenu() {
-        if (!this.elements.menuDropdown) return;
-        this.elements.menuDropdown.classList.toggle("webdeck-hidden");
-    }
-
-    closeMenu() {
-        if (!this.elements.menuDropdown) return;
-        this.elements.menuDropdown.classList.add("webdeck-hidden");
-    }
-
     handleDocumentClick(e) {
-        // Close menu when clicking outside of it
-        if (!this.elements.menuDropdown || !this.elements.menuBtn) return;
-
-        const menu = this.elements.menuDropdown;
-        const menuBtn = this.elements.menuBtn;
-
-        if (!menu.classList.contains("webdeck-hidden")) {
-            if (!menu.contains(e.target) && !menuBtn.contains(e.target)) {
-                menu.classList.add("webdeck-hidden");
+        if (this.elements.menuDropdown && !this.elements.menuDropdown.classList.contains("webdeck-hidden")) {
+            if (!this.elements.menuDropdown.contains(e.target) && !this.elements.menuBtn.contains(e.target)) {
+                this.elements.menuDropdown.classList.add("webdeck-hidden");
             }
         }
     }
 
     async handleBeforePrint() {
         if (this.elements.slidesContainer) {
-            try {
-                const { AssetLoader } = await import("./asset-loader.js");
-                await AssetLoader.ensureRichTextEnhancers();
-                const allSlides = this.elements.slidesContainer.querySelectorAll(".slide");
-                for (const slide of allSlides) {
-                    if (slide.dataset.webdeckEnhanced === "1") continue;
-                    await ContentEnhancer.enhanceRenderedContent(slide, { renderAllSlides: true });
-                    slide.dataset.webdeckEnhanced = "1";
-                }
-            } catch (e) { console.error("Print prep failed:", e); }
+            await this.handlePrint({ triggerBrowserPrint: false });
         }
-    }
-
-    handleStorage(ev) {
-        try {
-            if (ev.key === this.SLIDE_STATE_KEY) {
-                this.handleIncomingState(parseInt(ev.newValue, 10));
-            } else if (ev.key === this.breakManager.breakStateKey) {
-                this.breakManager.handleIncomingState(JSON.parse(ev.newValue));
-            } else if (ev.key === "webdeck_local_file_timestamp" && ev.newValue) {
-                this.handleReloadDeck({ preferLocalStorage: true });
-            }
-        } catch (e) { /* ignore */ }
     }
 
     goTo(index, { broadcast = true } = {}) {
         this.currentIndex = Math.max(0, Math.min(index, this.deck.slides.length - 1));
-
+        
         if (broadcast) {
             localStorage.setItem(this.SLIDE_STATE_KEY, String(this.currentIndex));
             this.bc.postMessage({ type: "slide", index: this.currentIndex });
         }
-
+        
         const url = new URL(window.location.href);
         url.hash = `#slide-${this.currentIndex + 1}`;
         history.replaceState({}, "", url.toString());
-
+        
         this.render();
         this.lazyEnhanceActiveSlide();
         this.dispatchEvent('slidechange', { index: this.currentIndex });
     }
 
     lazyEnhanceActiveSlide() {
-        if (this._enhanceTimeout) clearTimeout(this._enhanceTimeout);
-        this._enhanceTimeout = setTimeout(() => {
+        if (this._enhanceIdleId) cancelIdleCallback(this._enhanceIdleId);
+
+        // Wait for browser idle to process heavy items like D2 or Prism
+        this._enhanceIdleId = requestIdleCallback(() => {
             const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
             if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
-                ContentEnhancer.enhanceRenderedContent(activeSlide).then((fullyFinished) => {
-                    if (fullyFinished) {
-                        activeSlide.dataset.webdeckEnhanced = "1";
-                    }
+                ContentEnhancer.enhanceRenderedContent(activeSlide).then((success) => {
+                    if (success) activeSlide.dataset.webdeckEnhanced = "1";
                 });
             }
-        }, 20);
+        }, { timeout: 2000 });
     }
 
     handleIncomingState(index) {
-        if (index !== this.currentIndex && !isNaN(index)) this.goTo(index, { broadcast: false });
-    }
-
-    next() {
-        if (this.breakManager.isActive) {
-            this.breakManager.setActive(false);
-        } else {
-            this.goTo(this.currentIndex + 1);
+        if (index !== this.currentIndex && !isNaN(index)) {
+            this.goTo(index, { broadcast: false });
         }
     }
 
-    prev() {
-        if (this.breakManager.isActive) {
-            this.breakManager.setActive(false);
-        } else {
-            this.goTo(this.currentIndex - 1);
-        }
+    next() { 
+        if (this.breakManager.isActive) this.breakManager.setActive(false);
+        else this.goTo(this.currentIndex + 1); 
     }
 
-    applyStageScale() {
-        StageScaler.applyStageScale(this.elements);
+    prev() { 
+        if (this.breakManager.isActive) this.breakManager.setActive(false);
+        else this.goTo(this.currentIndex - 1); 
+    }
+
+    applyStageScale() { 
+        StageScaler.applyStageScale(this.elements); 
     }
 
     render() {
         this.elements.slideNumberEl.textContent = String(this.currentIndex + 1);
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
         slides.forEach((s, i) => s.classList.toggle("active", i === this.currentIndex));
-
-        // Update floating slide counter
+        
         if (this.elements.floatSlideCounter) {
             this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${this.deck.slides.length}`;
         }
-
+        
         if (this.isPresenterWindow) {
             const next = this.deck.slides[this.currentIndex + 1];
             const slide = this.deck.slides[this.currentIndex];
@@ -489,6 +443,28 @@ export class DeckController extends EventEmitter {
         }
     }
 
+    openGoToPrompt() {
+        const num = parseInt(prompt(`Go to slide (1–${this.deck.slides.length}):`), 10);
+        if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
+    }
+
+    toggleFullscreen() {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else this.elements.stageHost?.requestFullscreen?.();
+    }
+
+    toggleEditMode() { 
+        window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode(); 
+    }
+
+    toggleMenu() { 
+        this.elements.menuDropdown?.classList.toggle("webdeck-hidden"); 
+    }
+
+    closeMenu() { 
+        this.elements.menuDropdown?.classList.add("webdeck-hidden"); 
+    }
+
     togglePresenterWindow() {
         if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
             return this.presenterWindowRef.close();
@@ -498,74 +474,37 @@ export class DeckController extends EventEmitter {
         this.presenterWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
     }
 
-    openGoToPrompt() {
-        const input = prompt(`Go to slide (1–${this.deck.slides.length}):`);
-        const num = parseInt(input, 10);
-        if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
-    }
-
-    async handlePrint() {
-        if (!window.__WEBDECK_D2__) {
-            try {
-                const { AssetLoader } = await import("./asset-loader.js");
-                await AssetLoader.ensureD2Loaded();
-            } catch (e) {
-                console.warn("D2 failed to load for print:", e);
-            }
-        }
+    async handlePrint({ triggerBrowserPrint = true } = {}) {
+        const notification = document.createElement('div');
+        notification.style.cssText = "position:fixed;top:20px;right:20px;background:#333;color:white;padding:15px;border-radius:8px;z-index:9999;";
+        notification.textContent = "Preparing slides for print...";
+        document.body.appendChild(notification);
+        
         try {
-            await ContentEnhancer.renderD2Diagrams(this.elements.slidesContainer, { renderAllSlides: true });
-        } catch (e) {
-            console.warn("D2 render failed:", e);
+            if (!window.__WEBDECK_D2__) {
+                await import("./asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
+            }
+
+            const slides = this.elements.slidesContainer.querySelectorAll('.slide');
+            for (let i = 0; i < slides.length; i++) {
+                notification.textContent = `Rendering slide ${i+1}/${slides.length}...`;
+                await ContentEnhancer.enhanceRenderedContent(slides[i], { renderAllSlides: true });
+                // CRITICAL: Yield to main thread to prevent freezing
+                await yieldToMain();
+            }
+        } catch (e) { 
+            console.warn("Print prep failed:", e); 
+        } finally { 
+            notification.remove(); 
         }
-        window.print();
+        
+        if (triggerBrowserPrint) window.print();
     }
 
-    async init() {
-        const url = new URL(window.location.href);
-        const hash = window.location.hash.match(/#slide-(\d+)/);
-        const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
-        const restoreIndex = sessionStorage.getItem("webdeck_restore_slide_index");
-        sessionStorage.removeItem("webdeck_restore_slide_index");
-
-        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 :
-            restoreIndex !== null ? parseInt(restoreIndex, 10) :
-                (parseInt(stored, 10) || 0);
-
-        // Initialize break manager with URL params
-        const breakMins = parseInt(url.searchParams.get("breakMins"), 10) || 10;
-        const breakActive = url.searchParams.get("break") === "1";
-        this.breakManager.setDuration(breakMins);
-        this.breakManager.setActive(breakActive, { broadcast: false });
-
-        // Determine title using the same logic as updates
-        const deckTitleText = DeckLoader.getDisplayTitle(this.deck);
-        document.title = deckTitleText;
-        DeckController.updateDeckTitle(this.elements, deckTitleText);
-
-        // Initial render
-        this.elements.slidesContainer.innerHTML = "";
-        this.deck.slides.forEach((s, i) => {
-            this.elements.slidesContainer.appendChild(SlideRenderer.createSlideElement(this.deck, s, i, i === this.currentIndex));
-        });
-
-        this.goTo(this.currentIndex, { broadcast: false });
-        this.applyStageScale();
-    }
-
-    /**
-     * Cleanup method to release resources when the controller is destroyed.
-     */
     destroy() {
-        if (this.bc) {
-            this.bc.close();
-        }
-        if (this.breakManager) {
-            this.breakManager.destroy();
-        }
-        if (this._enhanceTimeout) {
-            clearTimeout(this._enhanceTimeout);
-        }
+        if (this.bc) this.bc.close();
+        if (this.breakManager) this.breakManager.destroy();
+        if (this._enhanceIdleId) cancelIdleCallback(this._enhanceIdleId);
         this.removeAllListeners();
     }
 }

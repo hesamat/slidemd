@@ -53,6 +53,7 @@ export class AssetLoader {
                 () => import("prismjs/components/prism-yaml.js"),
                 () => import("prismjs/components/prism-c.js"),
                 () => import("prismjs/components/prism-cpp.js"),
+                () => import("prismjs/components/prism-markdown.js"),
             ];
 
             for (const load of loadLangs) {
