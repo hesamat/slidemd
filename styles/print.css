@@ -150,21 +150,6 @@
     .slide__grid {
         gap: 26px !important;
     }
-
-    .slide__area pre {
-        background: #f8fafc !important;
-        color: rgba(15, 23, 42, 0.92) !important;
-        border: 1px solid rgba(148, 163, 184, 0.45) !important;
-        box-shadow: none !important;
-        padding: 14px !important;
-        line-height: 1.35 !important;
-    }
-
-    .slide__area :not(pre)>code {
-        background: rgba(241, 245, 249, 0.9) !important;
-        border-color: rgba(148, 163, 184, 0.4) !important;
-        color: rgba(15, 23, 42, 0.9) !important;
-    }
 }
 
 @page {
