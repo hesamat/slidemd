@@ -198,14 +198,14 @@ export class MarkdownParser {
             // 2. A data attribute with the source (for client-side rendering)
             // 3. A loading indicator that will be replaced
             // The source is hidden via CSS, loading indicator is visible initially
-            return `<div class="d2" data-d2-source="${safeContent}" style="position: relative;">
-                <style>.d2[data-d2-source] > :not(.d2-loading) { display: none; }</style>
+            return `<div class="d2" data-d2-source="${safeContent}">
                 <span class="d2-source-hidden">${content}</span>
-                <div class="d2-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100px; color: #666; font-size: 0.875rem;">
-                    <svg style="width: 24px; height: 24px; margin-right: 8px; animation: spin 1s linear infinite;" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.416" stroke-dashoffset="31.416" style="animation: dash 1.5s ease-in-out infinite;"/>
+                <div class="d2-loading">
+                    <svg class="d2-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle class="d2-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                        <path class="d2-spinner__head" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"/>
                     </svg>
-                    <span>Rendering diagram...</span>
+                    <span class="d2-loading__text">Rendering diagram...</span>
                 </div>
             </div>`;
         });
@@ -301,42 +301,5 @@ export class MarkdownParser {
             },
             slides,
         };
-    }
-
-    async renderD2InDeck(deckData) {
-        // Post-process the deck to render D2 diagrams via server API
-        if (!deckData || !deckData.slides) return deckData;
-
-        const updated = { ...deckData };
-        updated.slides = await Promise.all(
-            deckData.slides.map(async (slide) => {
-                const newAreas = {};
-                for (const [name, html] of Object.entries(slide.areas || {})) {
-                    if (html.includes('class="d2"')) {
-                        try {
-                            const response = await fetch('/api/render-d2', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ html }),
-                            });
-                            if (response.ok) {
-                                const data = await response.json();
-                                newAreas[name] = data.html;
-                            } else {
-                                newAreas[name] = html;
-                            }
-                        } catch (e) {
-                            console.error('Failed to render D2:', e);
-                            newAreas[name] = html;
-                        }
-                    } else {
-                        newAreas[name] = html;
-                    }
-                }
-                return { ...slide, areas: newAreas };
-            })
-        );
-
-        return updated;
     }
 }

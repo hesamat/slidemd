@@ -142,6 +142,50 @@
     min-height: 0;
 }
 
+/* D2 loading state (shared across markdown + client rendering) */
+.d2[data-d2-source] > :not(.d2-loading) {
+    display: none;
+}
+
+.d2-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.d2-spinner {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    animation: d2-spin 1s linear infinite;
+}
+
+.d2-spinner__track {
+    opacity: 0.3;
+}
+
+.d2-spinner__head {
+    stroke-linecap: round;
+}
+
+@keyframes d2-spin {
+    100% { transform: rotate(360deg); }
+}
+
+/* Stop spinner animation on inactive slides to reduce CPU */
+.slide:not(.active) .d2-spinner {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .d2-spinner {
+        animation: none !important;
+    }
+}
+
 .slide__area h1 {
     font-size: 60px;
     line-height: 1.2;

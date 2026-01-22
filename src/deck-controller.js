@@ -205,11 +205,19 @@ export class DeckController extends EventEmitter {
 
         this.goTo(this.currentIndex, { broadcast: false });
         this.applyStageScale();
+        
+        // Immediately enhance the first slide (don't wait for idle)
+        requestAnimationFrame(() => this.enhanceActiveSlideNow());
     }
 
     preloadEnhancers() {
         import("./asset-loader.js")
-            .then(({ AssetLoader }) => AssetLoader.ensureRichTextEnhancers().catch(console.warn))
+            .then(({ AssetLoader }) => {
+                AssetLoader.ensureRichTextEnhancers().catch(console.warn);
+                // Scan deck and warmup D2 if needed
+                const { hasD2 } = ContentEnhancer.scanDeck(this.deck);
+                if (hasD2) ContentEnhancer.warmupD2().catch(console.warn);
+            })
             .catch(console.warn);
     }
 
@@ -385,22 +393,19 @@ export class DeckController extends EventEmitter {
         history.replaceState({}, "", url.toString());
         
         this.render();
-        this.lazyEnhanceActiveSlide();
+        this.enhanceActiveSlideNow();
         this.dispatchEvent('slidechange', { index: this.currentIndex });
     }
 
-    lazyEnhanceActiveSlide() {
-        if (this._enhanceIdleId) cancelIdleCallback(this._enhanceIdleId);
-
-        // Wait for browser idle to process heavy items like D2 or Prism
-        this._enhanceIdleId = requestIdleCallback(() => {
-            const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
-            if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
+    enhanceActiveSlideNow() {
+        const activeSlide = this.elements.slidesContainer?.querySelector(".slide.active");
+        if (activeSlide && activeSlide.dataset.webdeckEnhanced !== "1") {
+            requestAnimationFrame(() => {
                 ContentEnhancer.enhanceRenderedContent(activeSlide).then((success) => {
                     if (success) activeSlide.dataset.webdeckEnhanced = "1";
                 });
-            }
-        }, { timeout: 2000 });
+            });
+        }
     }
 
     handleIncomingState(index) {
@@ -509,7 +514,6 @@ export class DeckController extends EventEmitter {
     destroy() {
         if (this.bc) this.bc.close();
         if (this.breakManager) this.breakManager.destroy();
-        if (this._enhanceIdleId) cancelIdleCallback(this._enhanceIdleId);
         this.removeAllListeners();
     }
 }

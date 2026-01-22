@@ -77,37 +77,6 @@ export function viteDynamicD2Plugin() {
         async transformIndexHtml(html) {
             return await renderD2BlocksInHtml(html);
         },
-
-        configureServer(server) {
-            return () => {
-                server.middlewares.use('/api/render-d2', async (req, res) => {
-                    if (req.method !== 'POST') {
-                        res.statusCode = 405;
-                        res.end('Method not allowed');
-                        return;
-                    }
-
-                    let body = '';
-                    req.on('data', (chunk) => {
-                        body += chunk.toString();
-                    });
-
-                    req.on('end', async () => {
-                        try {
-                            const { html } = JSON.parse(body);
-                            const rendered = await renderD2BlocksInHtml(html);
-                            res.statusCode = 200;
-                            res.setHeader('Content-Type', 'application/json');
-                            res.end(JSON.stringify({ html: rendered }));
-                        } catch (e) {
-                            res.statusCode = 500;
-                            res.setHeader('Content-Type', 'application/json');
-                            res.end(JSON.stringify({ error: e.message }));
-                        }
-                    });
-                });
-            };
-        },
     };
 }
 

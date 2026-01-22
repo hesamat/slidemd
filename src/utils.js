@@ -126,3 +126,17 @@ export function simpleHash(str) {
 export function yieldToMain() {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
+
+/**
+ * Wraps a promise with a timeout.
+ * @template T
+ * @param {Promise<T>} promise - The promise to wrap
+ * @param {number} ms - Timeout in milliseconds
+ * @returns {Promise<T>} - Promise that rejects on timeout
+ */
+export function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+    ]);
+}
