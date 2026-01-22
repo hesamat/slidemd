@@ -7,6 +7,5 @@ dist/
 .vscode/
 
 # Optional local overrides
-decks/
 images/
 deck.md
