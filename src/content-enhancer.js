@@ -102,100 +102,109 @@ export class ContentEnhancer {
         let d2 = null;
 
         for (const [i, el] of nodes.entries()) {
-            const rawSource = el.dataset.d2Source; 
-            if (!rawSource) {
-                el.dataset.d2Processed = "1";
-                continue;
-            }
-
-            const sourceHash = simpleHash(rawSource);
-            if (this.d2Cache.has(sourceHash)) {
-                el.innerHTML = this.d2Cache.get(sourceHash);
-                el.dataset.d2Processed = "1";
-                const svgEl = el.querySelector("svg");
-                if (svgEl) {
-                    svgEl.style.width = "100%";
-                    svgEl.style.height = "auto";
-                }
-                continue; 
-            }
-
-            if (!d2) {
-                try {
-                    await yieldToMain();
-                    d2 = await this.initializeD2();
-                } catch (e) {
-                    console.error("Failed to initialize D2:", e);
-                    return false;
-                }
-            }
-
-            const elementId = `d2_${sourceHash}_${i}`;
-            if (this.d2RenderQueue.has(elementId)) continue;
-
-            this.d2RenderQueue.add(elementId);
-            el.dataset.d2Rendering = "1";
-
-            const salt = `d2_${Date.now()}_${i}`;
-            let success = false;
-            let attempts = 0;
-
-            await yieldToMain();
-
-            while (!success && attempts <= 1) {
-                try {
-                    const timeoutPromise = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error("Timeout")), 15000)
-                    );
-
-                    const compiled = await Promise.race([
-                        d2.compile(rawSource, { pad: 24, center: true, salt }),
-                        timeoutPromise
-                    ]);
-
-                    await yieldToMain();
-
-                    const response = await Promise.race([
-                        d2.render(compiled.diagram, { 
-                            ...(compiled.renderOptions || {}), 
-                            pad: 24, center: true, salt 
-                        }),
-                        timeoutPromise
-                    ]);
-
-                    let svg = (typeof response === "string") ? response : 
-                              (response?.svg || response?.result || "");
-                    
-                    if (!svg) throw new Error("No SVG generated");
-
-                    this.d2Cache.set(sourceHash, svg);
-
-                    el.innerHTML = svg;
+            try {
+                const rawSource = el.dataset.d2Source; 
+                if (!rawSource) {
                     el.dataset.d2Processed = "1";
-                    
+                    continue;
+                }
+
+                const sourceHash = simpleHash(rawSource);
+                if (this.d2Cache.has(sourceHash)) {
+                    el.innerHTML = this.d2Cache.get(sourceHash);
+                    el.dataset.d2Processed = "1";
                     const svgEl = el.querySelector("svg");
                     if (svgEl) {
                         svgEl.style.width = "100%";
                         svgEl.style.height = "auto";
-                        svgEl.style.maxWidth = "100%";
                     }
-                    success = true;
+                    continue; 
+                }
 
-                } catch (e) {
-                    attempts++;
-                    if (e.message === "Timeout" || e.message.includes("worker")) {
-                        d2 = await this.initializeD2(true);
-                    }
-                    if (attempts > 1) {
-                        el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(e.message)}</div>`;
-                        el.dataset.d2Processed = "1";
-                    } else {
-                        await new Promise(r => setTimeout(r, 500));
+                if (!d2) {
+                    try {
+                        await yieldToMain();
+                        d2 = await this.initializeD2();
+                    } catch (e) {
+                        console.error("Failed to initialize D2:", e);
+                        return false;
                     }
                 }
+
+                const elementId = `d2_${sourceHash}_${i}`;
+                if (this.d2RenderQueue.has(elementId)) continue;
+
+                this.d2RenderQueue.add(elementId);
+                el.dataset.d2Rendering = "1";
+
+                const salt = `d2_${Date.now()}_${i}`;
+                let success = false;
+                let attempts = 0;
+
+                await yieldToMain();
+
+                while (!success && attempts <= 1) {
+                    try {
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error("Timeout")), 15000)
+                        );
+
+                        const compiled = await Promise.race([
+                            d2.compile(rawSource, { pad: 24, center: true, salt }),
+                            timeoutPromise
+                        ]);
+
+                        await yieldToMain();
+
+                        const response = await Promise.race([
+                            d2.render(compiled.diagram, { 
+                                ...(compiled.renderOptions || {}), 
+                                pad: 24, center: true, salt 
+                            }),
+                            timeoutPromise
+                        ]);
+
+                        let svg = (typeof response === "string") ? response : 
+                                  (response?.svg || response?.result || "");
+                        
+                        if (!svg) throw new Error("No SVG generated");
+
+                        this.d2Cache.set(sourceHash, svg);
+
+                        el.innerHTML = svg;
+                        el.dataset.d2Processed = "1";
+                        
+                        const svgEl = el.querySelector("svg");
+                        if (svgEl) {
+                            svgEl.style.width = "100%";
+                            svgEl.style.height = "auto";
+                            svgEl.style.maxWidth = "100%";
+                        }
+                        success = true;
+
+                    } catch (e) {
+                        attempts++;
+                        if (e.message === "Timeout" || e.message.includes("worker")) {
+                            d2 = await this.initializeD2(true);
+                        }
+                        if (attempts > 1) {
+                            el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(e.message)}</div>`;
+                            el.dataset.d2Processed = "1";
+                        } else {
+                            await new Promise(r => setTimeout(r, 500));
+                        }
+                    }
+                }
+                this.d2RenderQueue.delete(elementId);
+                delete el.dataset.d2Rendering;
+            } catch (e) {
+                console.error(`Error processing D2 diagram at index ${i}:`, e);
+                el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(e.message)}</div>`;
+                el.dataset.d2Processed = "1";
+                if (el.dataset.d2Rendering) {
+                    delete el.dataset.d2Rendering;
+                }
             }
-            this.d2RenderQueue.delete(elementId);
-            delete el.dataset.d2Rendering;
         }
 
         return true;
