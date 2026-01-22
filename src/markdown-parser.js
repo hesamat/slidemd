@@ -191,7 +191,7 @@ export class MarkdownParser {
         return htmlText.replace(re, (match, content) => {
             // The Vite plugin needs the D2 source as the content of the div
             // For client-side, also store it in data-d2-source and add loading state
-            const safeContent = content.replace(/"/g, '&quot;');
+            const safeContent = content.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             // Create a div with:
             // 1. The D2 source as content (for Vite plugin)
