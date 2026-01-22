@@ -55,6 +55,8 @@ export class ContentEnhancer {
             }
         } catch (e) {
             console.warn("D2 Warmup failed (will retry on demand):", e);
+            // Clear the failed promise to allow retry on first actual use
+            this.d2Promise = null;
         }
     }
 
