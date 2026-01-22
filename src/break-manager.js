@@ -148,5 +148,12 @@ export class BreakManager {
         }
         this.breakSlideEl = null;
         this._broadcastChannel = null;
+
+        this.isActive = false;
+        this.minutes = null;
+        this.endsAt = null;
+        this.elements = null;
+        this.deck = null;
+        this.onStateChange = null;
     }
 }
