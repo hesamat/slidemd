@@ -6,11 +6,7 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-}
-
-.slide * {
-    font-size: 1.4rem;
-}
+}   
 
 .slide[data-theme="light"] {
     --slide-bg: #ffffff;
