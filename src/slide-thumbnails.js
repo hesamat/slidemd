@@ -6,24 +6,24 @@
 
 export class SlideThumbnails {
     constructor(deck, controller, elements) {
-        this.deck = deck;
-        this.controller = controller;
-        this.elements = elements;
-        this.container = null;
+        this._deck = deck;
+        this._controller = controller;
+        this._elements = elements;
+        this._container = null;
 
         this.init();
     }
 
     init() {
-        this.container = document.getElementById('slideThumbnails');
-        if (!this.container) return;
+        this._container = document.getElementById('slideThumbnails');
+        if (!this._container) return;
 
         // Listen for slide changes to update current thumbnail highlight
-        this.controller.addEventListener('slidechange', () => this.updateCurrentSlide());
+        this._controller.addEventListener('slidechange', () => this.updateCurrentSlide());
 
         // Listen for deck changes to update our deck reference and re-render
-        this.controller.addEventListener('deckchange', (data) => {
-            this.deck = data.deck;
+        this._controller.addEventListener('deckchange', (data) => {
+            this._deck = data.deck;
             this.render();
         });
     }
@@ -32,13 +32,13 @@ export class SlideThumbnails {
      * Render all slide thumbnails
      */
     render() {
-        if (!this.container) return;
+        if (!this._container) return;
 
-        this.container.innerHTML = '';
+        this._container.innerHTML = '';
 
-        this.deck.slides.forEach((slide, index) => {
+        this._deck.slides.forEach((slide, index) => {
             const thumbnail = this.createThumbnail(slide, index);
-            this.container.appendChild(thumbnail);
+            this._container.appendChild(thumbnail);
         });
 
         this.updateCurrentSlide();
@@ -69,7 +69,7 @@ export class SlideThumbnails {
 
         // Click handler to navigate to slide
         thumbnail.addEventListener('click', () => {
-            this.controller.goTo(index);
+            this._controller.goTo(index);
         });
 
         return thumbnail;
@@ -79,10 +79,10 @@ export class SlideThumbnails {
      * Update the current slide highlight
      */
     updateCurrentSlide() {
-        if (!this.container) return;
+        if (!this._container) return;
 
-        const currentIndex = this.controller.currentIndex;
-        const thumbnails = this.container.querySelectorAll('.slide-thumbnail');
+        const currentIndex = this._controller.currentIndex;
+        const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
 
         thumbnails.forEach((thumbnail, index) => {
             if (index === currentIndex) {
@@ -105,9 +105,9 @@ export class SlideThumbnails {
      * Update the title of a specific thumbnail
      */
     updateThumbnailTitle(index, title) {
-        if (!this.container) return;
+        if (!this._container) return;
 
-        const thumbnails = this.container.querySelectorAll('.slide-thumbnail');
+        const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
         if (thumbnails[index]) {
             const titleEl = thumbnails[index].querySelector('.slide-thumbnail__title');
             if (titleEl) {
