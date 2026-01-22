@@ -137,7 +137,8 @@ export class DeckController extends EventEmitter {
         this.currentIndex = 0;
         this.isPresenterWindow = false;
         this.presenterWindowRef = null;
-        this._enhanceIdleId = null; 
+        this._enhanceIdleId = null;
+        this._isPrinting = false; 
 
         this.initIds();
         this.initBreakManager();
@@ -475,6 +476,9 @@ export class DeckController extends EventEmitter {
     }
 
     async handlePrint({ triggerBrowserPrint = true } = {}) {
+        if (this._isPrinting) return;
+        this._isPrinting = true;
+        
         const notification = document.createElement('div');
         notification.style.cssText = "position:fixed;top:20px;right:20px;background:#333;color:white;padding:15px;border-radius:8px;z-index:9999;";
         notification.textContent = "Preparing slides for print...";
@@ -495,7 +499,8 @@ export class DeckController extends EventEmitter {
         } catch (e) { 
             console.warn("Print prep failed:", e); 
         } finally { 
-            notification.remove(); 
+            notification.remove();
+            this._isPrinting = false;
         }
         
         if (triggerBrowserPrint) window.print();
