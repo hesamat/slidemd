@@ -3,7 +3,7 @@
  * Extracts and parses slides from markdown files. Handles code fences, directives, and metadata for slide generation and content structuring.
  */
 // Markdown parsing and slide extraction
-import { safeString, slugifyTitle, DESIGN_SIZE } from "./utils.js";
+import { safeString, slugifyTitle, DESIGN_SIZE, escapeHtml } from "./utils.js";
 
 class FenceTracker {
     constructor() {
@@ -191,7 +191,7 @@ export class MarkdownParser {
         return htmlText.replace(re, (match, content) => {
             // The Vite plugin needs the D2 source as the content of the div
             // For client-side, also store it in data-d2-source and add loading state
-            const safeContent = content.replace(/"/g, '&quot;');
+            const safeContent = escapeHtml(content);
 
             // Create a div with:
             // 1. The D2 source as content (for Vite plugin)
