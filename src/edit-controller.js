@@ -100,6 +100,11 @@ export class EditController {
             this.elements.deleteSlideBtn.addEventListener('click', () => this.deleteSlide());
         }
 
+        // Set up duplicate slide button
+        if (this.elements.duplicateSlideBtn) {
+            this.elements.duplicateSlideBtn.addEventListener('click', () => this.duplicateSlide());
+        }
+
         // Initialize layout picker modal
         LayoutPicker.initModal();
 
@@ -400,6 +405,86 @@ export class EditController {
         // Refresh thumbnails after deleting slide
         this.thumbnails.refresh();
         this.updateSlideIndicator();
+    }
+
+    /**
+     * Duplicate the current slide
+     */
+    async duplicateSlide() {
+        const sourceIndex = this.currentSlideIndex;
+        const insertIndex = sourceIndex + 1;
+
+        // Get the markdown for the current slide (prefer unsaved changes)
+        const markdown = this.unsavedMarkdown.get(sourceIndex) ??
+                         this.originalMarkdown[sourceIndex] ?? '';
+
+        if (!markdown) {
+            Notification.warning('Cannot duplicate empty slide');
+            return;
+        }
+
+        // Parse the markdown to get slide data
+        try {
+            await AssetLoader.ensureMarkdownItLoaded();
+            const parser = new MarkdownParser();
+            const deckData = parser.parseDeckMarkdown(markdown);
+
+            if (!deckData.slides || deckData.slides.length === 0) {
+                Notification.warning('Failed to parse slide for duplication');
+                return;
+            }
+
+            // Create a copy of the slide with a new ID
+            const newSlide = { ...deckData.slides[0], id: Date.now() };
+
+            // Update data models
+            this.deck.slides.splice(insertIndex, 0, newSlide);
+            this.originalMarkdown.splice(insertIndex, 0, markdown);
+
+            // Update UI
+            if (this.elements.slideCountEl) {
+                this.elements.slideCountEl.textContent = String(this.deck.slides.length);
+            }
+
+            if (this.elements.slidesContainer) {
+                const newSlideEl = SlideRenderer.createSlideElement(
+                    this.deck,
+                    newSlide,
+                    insertIndex,
+                    false
+                );
+
+                const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
+                if (allSlides[sourceIndex]) {
+                    allSlides[sourceIndex].after(newSlideEl);
+                } else {
+                    this.elements.slidesContainer.appendChild(newSlideEl);
+                }
+
+                // Enhance the new slide
+                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
+                    console.warn("Failed to enhance duplicated slide:", err);
+                });
+            }
+
+            // Clear unsaved map since indices shifted, mark new slide as unsaved
+            this.unsavedMarkdown.clear();
+            this.unsavedMarkdown.set(insertIndex, markdown);
+            this.hasUnsavedChanges = true;
+            this.updateSaveButton();
+
+            // Navigate to new slide
+            this.controller.goTo(insertIndex);
+
+            // Refresh thumbnails and update indicator
+            this.thumbnails.refresh();
+            this.updateSlideIndicator();
+
+            Notification.success('Slide duplicated successfully');
+        } catch (error) {
+            console.error('Failed to duplicate slide:', error);
+            Notification.error('Failed to duplicate slide: ' + (error.message || 'Unknown error'));
+        }
     }
 
     /**

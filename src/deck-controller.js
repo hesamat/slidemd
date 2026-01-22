@@ -57,6 +57,7 @@ export class DeckController extends EventEmitter {
             editorPanel: $("editorPanel"),
             markdownEditor: $("markdownEditor"),
             addSlideBtn: $("addSlideBtn"),
+            duplicateSlideBtn: $("duplicateSlideBtn"),
             deleteSlideBtn: $("deleteSlideBtn"),
             saveSlideBtn: $("saveSlideBtn"),
             presenterPanel: $("presenterPanel"),
