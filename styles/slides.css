@@ -6,7 +6,7 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-}
+}   
 
 .slide[data-theme="light"] {
     --slide-bg: #ffffff;

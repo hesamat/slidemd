@@ -143,7 +143,10 @@ export class MarkdownParser {
             .map((line) => {
                 fence.toggle(line);
                 if (fence.isInFence) return line;
-                return line.replace(/\\\[/g, "\\\\[").replace(/\\\]/g, "\\\\]");
+                return line
+                    .replace(/\\\[/g, "\\\\[")
+                    .replace(/\\\]/g, "\\\\]")
+                    .replace(/\\\$/g, '<span class="katex-ignore">$</span>');
             })
             .join("\n");
     }

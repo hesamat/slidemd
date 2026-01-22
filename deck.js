@@ -5,26 +5,21 @@ import { ContentEnhancer } from "./src/content-enhancer.js";
 import { DeckLoader } from "./src/deck-loader.js";
 import { DeckController } from "./src/deck-controller.js";
 import { SlideRenderer } from "./src/slide-renderer.js";
+import { EditController } from "./src/edit-controller.js";
 
 (() => {
     "use strict";
 
     async function init() {
-        // Load deck data
+        // Load raw data and normalize
         const raw = await DeckLoader.loadDeckData();
         const url = new URL(window.location.href);
-        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
-        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
+        const includeHidden = ["1", "true", "yes", "on"].includes((url.searchParams.get("showHidden") || "").toLowerCase());
         const deck = DeckLoader.normalizeDeck(raw, { includeHidden });
 
-        // Set page title
-        const deckTitleText = (deck?.meta?.title || "Slide Deck").trim() || "Slide Deck";
-        document.title = deckTitleText;
-
-        // Gather DOM elements
+        // Gather Elements & Setup handlers
         const elements = DeckController.gatherElements();
 
-        // Set up file handlers
         if (elements.openFileBtn && elements.fileInput) {
             DeckLoader.setupLocalFileHandler(elements.openFileBtn, elements.fileInput);
         }
@@ -32,67 +27,68 @@ import { SlideRenderer } from "./src/slide-renderer.js";
             DeckLoader.setupRemoteFileHandler(elements.openRemoteBtn);
         }
 
-        // Update UI
-        DeckController.updateDeckTitle(elements, deckTitleText);
         DeckController.updateSlideCount(elements, deck.slides.length);
 
-        // Create controller and initialize
+        // Initialize Controller
+        // Note: Controller calculates and sets the title inside .init()
         const controller = new DeckController(deck, elements);
         await controller.init();
 
-        // Load optional enhancers after first render so a slow/failed asset doesn't blank the deck.
+        // Initialize optional Editor
+        try {
+            const editController = new EditController(deck, controller, elements);
+            window.__WEBDECK_EDIT_CONTROLLER__ = editController;
+        } catch (e) {
+            // Edit controller is optional
+        }
+
+        // Lazy load enhancers
         const textForScan = ContentEnhancer.deckHtmlText(deck);
         if (ContentEnhancer.needsEnhancers(textForScan)) {
             await AssetLoader.ensureRichTextEnhancers();
             await ContentEnhancer.enhanceRenderedContent(elements.slidesContainer);
         }
 
-        // Signal readiness for automation/export (e.g. Playwright PDF capture)
-        try {
-            window.__WEBDECK_READY__ = true;
-            window.dispatchEvent(new Event("webdeck:ready"));
-        } catch {
-            // ignore
-        }
+        // Signal readiness
+        window.__WEBDECK_READY__ = true;
+        window.dispatchEvent(new Event("webdeck:ready"));
 
         return controller;
     }
 
-    // Public API for editor tooling (non-module global)
+    // Public API
     window.WebDeck = Object.assign(window.WebDeck || {}, {
         DESIGN_SIZE,
         normalizeCodeLanguage,
-        ensureRichTextEnhancers: () => AssetLoader.ensureRichTextEnhancers(),
-        enhanceRenderedContent: (rootEl) => ContentEnhancer.enhanceRenderedContent(rootEl),
-        renderSlide: (slide, options) => SlideRenderer.renderSlide(slide, options),
-        normalizeDeck: (raw) => DeckLoader.normalizeDeck(raw),
-        deckHtmlText: (deck) => ContentEnhancer.deckHtmlText(deck),
-        needsEnhancers: (text) => ContentEnhancer.needsEnhancers(text),
+        ensureRichTextEnhancers: AssetLoader.ensureRichTextEnhancers,
+        enhanceRenderedContent: ContentEnhancer.enhanceRenderedContent,
+        renderSlide: SlideRenderer.renderSlide,
+        normalizeDeck: DeckLoader.normalizeDeck,
+        deckHtmlText: ContentEnhancer.deckHtmlText,
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Only boot the viewer runtime on pages that have been viewer DOM
         if (!DeckController.hasViewerShell()) return;
 
-        // Apply role immediately so UI is correct even if deck loading is slow.
+        // Auto-redirect to presenter mode for dev (unless ?role is already set or disabled)
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect")) {
+            url.searchParams.set("role", "presenter");
+            window.location.href = url.toString();
+            return;
+        }
+
+        // Immediate UI setup
         DeckController.initRole();
-
-        // Set up reload channel
-        DeckController.initReloadChannel();
-
-        // Show a minimal loading state until the controller renders slides.
+        window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
         DeckController.showLoadingState();
 
-        // Initialize deck
-        let controller;
+        // Start App
         init().then((ctrl) => {
-            // Store controller reference for local file loading
-            controller = ctrl;
             window.__WEBDECK_CONTROLLER__ = ctrl;
         }).catch((e) => {
             console.error("Deck init failed:", e);
             DeckController.showBootError(e);
         });
     });
-
 })();
