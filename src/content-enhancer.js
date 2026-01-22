@@ -83,6 +83,11 @@ export class ContentEnhancer {
         return this.d2Promise;
     }
 
+    static showD2Error(el, message) {
+        el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(message)}</div>`;
+        el.dataset.d2Processed = "1";
+    }
+
     static async renderD2Diagrams(rootEl, options = {}) {
         if (!rootEl) return true;
 
@@ -102,6 +107,8 @@ export class ContentEnhancer {
         let d2 = null;
 
         for (const [i, el] of nodes.entries()) {
+            let elementId = null;
+            let addedToQueue = false;
             try {
                 const rawSource = el.dataset.d2Source; 
                 if (!rawSource) {
@@ -131,10 +138,11 @@ export class ContentEnhancer {
                     }
                 }
 
-                const elementId = `d2_${sourceHash}_${i}`;
+                elementId = `d2_${sourceHash}_${i}`;
                 if (this.d2RenderQueue.has(elementId)) continue;
 
                 this.d2RenderQueue.add(elementId);
+                addedToQueue = true;
                 el.dataset.d2Rendering = "1";
 
                 const salt = `d2_${Date.now()}_${i}`;
@@ -188,19 +196,19 @@ export class ContentEnhancer {
                             d2 = await this.initializeD2(true);
                         }
                         if (attempts > 1) {
-                            el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(e.message)}</div>`;
-                            el.dataset.d2Processed = "1";
+                            this.showD2Error(el, e.message);
                         } else {
                             await new Promise(r => setTimeout(r, 500));
                         }
                     }
                 }
-                this.d2RenderQueue.delete(elementId);
-                delete el.dataset.d2Rendering;
             } catch (e) {
                 console.error(`Error processing D2 diagram at index ${i}:`, e);
-                el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(e.message)}</div>`;
-                el.dataset.d2Processed = "1";
+                this.showD2Error(el, e.message);
+            } finally {
+                if (addedToQueue && elementId) {
+                    this.d2RenderQueue.delete(elementId);
+                }
                 if (el.dataset.d2Rendering) {
                     delete el.dataset.d2Rendering;
                 }
