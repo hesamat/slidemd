@@ -27,6 +27,8 @@ export class DeckController extends EventEmitter {
         "G": "goto",
         "p": "presenter",
         "P": "presenter",
+        "e": "edit",
+        "E": "edit",
         "b": "break",
         "B": "break",
         "f": "fullscreen",
@@ -340,6 +342,7 @@ export class DeckController extends EventEmitter {
             case "last": this.goTo(this.deck.slides.length - 1); break;
             case "goto": this.openGoToPrompt(); break;
             case "presenter": this.togglePresenterWindow(); break;
+            case "edit": this.toggleEditMode(); break;
             case "break": this.breakManager.toggle(); break;
             case "fullscreen": this.toggleFullscreen(); break;
             case "reload": this.handleReloadDeck(); break;
@@ -349,6 +352,13 @@ export class DeckController extends EventEmitter {
     toggleFullscreen() {
         if (document.fullscreenElement) document.exitFullscreen();
         else this.elements.stageHost?.requestFullscreen?.();
+    }
+
+    toggleEditMode() {
+        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (editController) {
+            editController.toggleEditMode();
+        }
     }
 
     toggleMenu() {
