@@ -15,8 +15,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    gap: 10px;
+    padding: 0 16px;
+    gap: 16px;
     border-bottom: 1px solid var(--panel-border);
     background: rgba(255, 255, 255, 0.74);
     backdrop-filter: blur(14px);
@@ -29,7 +29,16 @@ html[data-webdeck-role="viewer"] #controlBar {
 .topbar__left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.topbar__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
     min-width: 0;
 }
 
@@ -40,17 +49,6 @@ html[data-webdeck-role="viewer"] #controlBar {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.topbar__right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
 }
 
 .btn {
@@ -203,4 +201,306 @@ html[data-webdeck-role="viewer"] #controlBar {
 
 .webdeck-hidden {
     display: none !important;
+}
+
+/* Icon-only button */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    appearance: none;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text-primary);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 10px 22px rgba(2, 6, 23, 0.08);
+    transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.icon-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2;
+}
+
+.icon-btn:hover {
+    border-color: rgba(16, 185, 129, 0.5);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.icon-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset, 0 6px 16px rgba(2, 6, 23, 0.1);
+}
+
+.icon-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 10px 22px rgba(2, 6, 23, 0.08), 0 0 0 3px var(--focus-ring);
+}
+
+/* Button with icon + text */
+.btn--icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn--icon svg {
+    flex-shrink: 0;
+}
+
+/* Button group */
+.btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.04);
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.btn-group .icon-btn {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    width: 32px;
+    height: 32px;
+}
+
+.btn-group .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn-group .icon-btn:focus-visible {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 2px var(--focus-ring);
+}
+
+.btn-group + .btn-group {
+    margin-left: 8px;
+}
+
+/* Slide counter in top bar */
+.slide-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    user-select: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .btn--icon span {
+        display: none;
+    }
+    .topbar__center {
+        display: none;
+    }
+}
+
+/* ===== Menu Dropdown ===== */
+.menu-dropdown {
+    position: relative;
+}
+
+.menu-dropdown__content {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 180px;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-ui);
+    padding: 6px;
+    z-index: 100;
+    animation: menuFadeIn 0.15s ease;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.1s ease;
+    text-align: left;
+}
+
+.menu-item:hover {
+    background: rgba(15, 23, 42, 0.06);
+}
+
+.menu-item:active {
+    background: rgba(15, 23, 42, 0.1);
+}
+
+.menu-item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.menu-divider {
+    height: 1px;
+    margin: 6px 0;
+    background: var(--border-subtle);
+}
+
+/* ===== Mode Toggles ===== */
+.mode-toggles {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.05);
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+}
+
+.mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text-primary);
+}
+
+.mode-toggle.active {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.mode-toggle svg {
+    flex-shrink: 0;
+}
+
+/* Hide mode toggle text on small screens */
+@media (max-width: 768px) {
+    .mode-toggle span {
+        display: none;
+    }
+    .mode-toggle {
+        padding: 7px;
+    }
+}
+
+/* ===== Floating Bottom Toolbar ===== */
+.floating-toolbar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    z-index: 55;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.floating-toolbar:hover {
+    transform: translateX(-50%) translateY(-2px);
+}
+
+/* Hide floating toolbar in edit mode or when editor is open */
+body:has(.editorPanel:not(.webdeck-hidden)) .floating-toolbar,
+body[data-edit-mode="true"] .floating-toolbar {
+    opacity: 0.3;
+}
+
+body:has(.editorPanel:not(.webdeck-hidden)) .floating-toolbar:hover,
+body[data-edit-mode="true"] .floating-toolbar:hover {
+    opacity: 1;
+}
+
+.float-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.float-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.float-btn:active {
+    transform: scale(0.95);
+}
+
+.float-slide-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+    user-select: none;
+}
+
+/* Hide floating toolbar in presenter mode (viewer window) */
+html[data-webdeck-role="viewer"] .floating-toolbar {
+    display: none;
 }

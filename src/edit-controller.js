@@ -121,19 +121,18 @@ export class EditController {
         if (this.isEditMode) {
             this.elements.editorPanel?.classList.remove('webdeck-hidden');
             this.elements.presenterPanel?.classList.add('webdeck-hidden');
-            this.elements.toggleEditModeBtn.classList.add('btn--active');
-            this.elements.toggleEditModeBtn.textContent = 'Exit Edit';
+            this.elements.toggleEditModeBtn.classList.add('active');
+            document.body.setAttribute('data-edit-mode', 'true');
             this.loadSlideIntoEditor();
         } else {
             this.elements.editorPanel?.classList.add('webdeck-hidden');
+            this.elements.toggleEditModeBtn.classList.remove('active');
+            document.body.removeAttribute('data-edit-mode');
 
             // Restore presenter panel visibility based on presenter role
             if (this.controller.isPresenterWindow) {
                 this.elements.presenterPanel?.classList.remove('webdeck-hidden');
             }
-
-            this.elements.toggleEditModeBtn.classList.remove('btn--active');
-            this.elements.toggleEditModeBtn.textContent = 'Edit Mode';
 
             // Discard unsaved changes when exiting edit mode
             if (this.hasUnsavedChanges) {

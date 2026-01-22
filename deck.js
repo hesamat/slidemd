@@ -20,11 +20,11 @@ import { EditController } from "./src/edit-controller.js";
         // Gather Elements & Setup handlers
         const elements = DeckController.gatherElements();
 
-        if (elements.openFileBtn && elements.fileInput) {
-            DeckLoader.setupLocalFileHandler(elements.openFileBtn, elements.fileInput);
+        if (elements.menuOpenFileBtn && elements.fileInput) {
+            DeckLoader.setupLocalFileHandler(elements.menuOpenFileBtn, elements.fileInput);
         }
-        if (elements.openRemoteBtn) {
-            DeckLoader.setupRemoteFileHandler(elements.openRemoteBtn);
+        if (elements.menuOpenRemoteBtn) {
+            DeckLoader.setupRemoteFileHandler(elements.menuOpenRemoteBtn);
         }
 
         DeckController.updateSlideCount(elements, deck.slides.length);

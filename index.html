@@ -13,15 +13,91 @@
         <!-- Top Bar -->
         <header id="controlBar" class="topbar">
             <div class="topbar__left">
+                <div class="menu-dropdown">
+                    <button id="menuBtn" class="icon-btn" type="button" aria-label="Open menu" title="Menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div id="menuDropdown" class="menu-dropdown__content webdeck-hidden">
+                        <button id="menuOpenFileBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span>Open File</span>
+                        </button>
+                        <button id="menuOpenRemoteBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path
+                                    d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                </path>
+                            </svg>
+                            <span>Open Remote</span>
+                        </button>
+                        <button id="menuReloadDeckBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                            <span>Reload Deck</span>
+                        </button>
+                        <div class="menu-divider"></div>
+                        <button id="menuPrintBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2">
+                                </path>
+                                <rect x="6" y="14" width="12" height="8"></rect>
+                            </svg>
+                            <span>Print PDF</span>
+                        </button>
+                    </div>
+                </div>
                 <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
             </div>
             <div class="topbar__right">
-                <button id="openFileBtn" class="btn btn--sm" type="button">Open File</button>
-                <button id="openRemoteBtn" class="btn btn--sm" type="button">Open Remote</button>
-                <button id="reloadDeckBtn" class="btn btn--sm" type="button">Reload Deck</button>
-                <button id="toggleEditModeBtn" class="btn btn--sm">Edit Mode</button>
-                <button id="togglePresenterBtn" class="btn">Open Presenter Window</button>
-                <button id="printBtn" class="btn">Print PDF</button>
+                <div class="mode-toggles">
+                    <button id="toggleEditModeBtn" class="mode-toggle" type="button" aria-label="Toggle edit mode"
+                        title="Edit Mode (E)" data-mode="edit">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        <span>Edit</span>
+                    </button>
+                    <button id="togglePresenterBtn" class="mode-toggle" type="button" aria-label="Toggle presenter view"
+                        title="Presenter View (P)" data-mode="presenter">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        <span>Presenter</span>
+                    </button>
+                </div>
+                <button id="toggleFullscreenBtn" class="icon-btn" type="button" aria-label="Toggle fullscreen"
+                    title="Fullscreen (F)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                        </path>
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -31,7 +107,8 @@
                 <div class="editor__header">
                     <div class="editor__actions">
                         <button id="addSlideBtn" class="btn btn--sm" title="Add new slide">+ Add Slide</button>
-                        <button id="duplicateSlideBtn" class="btn btn--sm" title="Duplicate current slide">Duplicate</button>
+                        <button id="duplicateSlideBtn" class="btn btn--sm"
+                            title="Duplicate current slide">Duplicate</button>
                         <button id="deleteSlideBtn" class="btn btn--sm" title="Delete current slide">Delete</button>
                         <button id="saveSlideBtn" class="btn btn--sm btn--primary" disabled>Save</button>
                     </div>
@@ -120,7 +197,8 @@
     <input type="file" id="fileInput" accept=".md" style="display: none;" />
 
     <!-- Layout Picker Modal -->
-    <div id="layoutPickerModal" class="modal webdeck-hidden" role="dialog" aria-modal="true" aria-labelledby="layoutPickerTitle">
+    <div id="layoutPickerModal" class="modal webdeck-hidden" role="dialog" aria-modal="true"
+        aria-labelledby="layoutPickerTitle">
         <div class="modal__overlay" id="layoutPickerOverlay"></div>
         <div class="modal__dialog">
             <div class="modal__header">

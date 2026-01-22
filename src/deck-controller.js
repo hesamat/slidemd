@@ -47,13 +47,7 @@ export class DeckController extends EventEmitter {
             slideNumberEl: $("slideNumber"),
             slideCountEl: $("slideCount"),
             deckTitleEl: $("deckTitle"),
-            openFileBtn: $("openFileBtn"),
-            openRemoteBtn: $("openRemoteBtn"),
-            reloadDeckBtn: $("reloadDeckBtn"),
             fileInput: $("fileInput"),
-            toggleEditModeBtn: $("toggleEditModeBtn"),
-            togglePresenterBtn: $("togglePresenterBtn"),
-            printBtn: $("printBtn"),
             editorPanel: $("editorPanel"),
             markdownEditor: $("markdownEditor"),
             addSlideBtn: $("addSlideBtn"),
@@ -66,6 +60,18 @@ export class DeckController extends EventEmitter {
             viewerPresenterBtn: $("viewerPresenterBtn"),
             breakDurationSelect: $("breakDuration"),
             breakBtn: $("breakBtn"),
+            // Menu buttons (used for file operations)
+            menuOpenFileBtn: $("menuOpenFileBtn"),
+            menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
+            menuReloadDeckBtn: $("menuReloadDeckBtn"),
+            menuPrintBtn: $("menuPrintBtn"),
+            // Top bar controls
+            menuBtn: $("menuBtn"),
+            menuDropdown: $("menuDropdown"),
+            toggleEditModeBtn: $("toggleEditModeBtn"),
+            togglePresenterBtn: $("togglePresenterBtn"),
+            toggleFullscreenBtn: $("toggleFullscreenBtn"),
+            printBtn: $("printBtn"), // For presenter panel floating button
         };
     }
 
@@ -177,12 +183,29 @@ export class DeckController extends EventEmitter {
         window.addEventListener("resize", () => this.applyStageScale());
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
+        // Close menu when clicking outside
+        document.addEventListener("click", (e) => this.handleDocumentClick(e));
 
         listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
-        listen(this.elements.reloadDeckBtn, "click", () => this.handleReloadDeck());
+
+        // Menu button listeners
+        listen(this.elements.menuBtn, "click", () => this.toggleMenu());
+        listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
+        listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
+        listen(this.elements.menuReloadDeckBtn, "click", () => {
+            this.handleReloadDeck();
+            this.closeMenu();
+        });
+        listen(this.elements.menuPrintBtn, "click", () => {
+            this.handlePrint();
+            this.closeMenu();
+        });
+
+        // Mode toggle listeners (EditController handles edit mode, fullscreen is handled here)
+        listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -258,6 +281,11 @@ export class DeckController extends EventEmitter {
 
         DeckController.updateSlideCount(this.elements, newDeck.slides.length);
 
+        // Update floating slide counter
+        if (this.elements.floatSlideCounter) {
+            this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${newDeck.slides.length}`;
+        }
+
         // Reset channels
         this.initIds();
         this.initBroadcastChannel();
@@ -321,6 +349,30 @@ export class DeckController extends EventEmitter {
     toggleFullscreen() {
         if (document.fullscreenElement) document.exitFullscreen();
         else this.elements.stageHost?.requestFullscreen?.();
+    }
+
+    toggleMenu() {
+        if (!this.elements.menuDropdown) return;
+        this.elements.menuDropdown.classList.toggle("webdeck-hidden");
+    }
+
+    closeMenu() {
+        if (!this.elements.menuDropdown) return;
+        this.elements.menuDropdown.classList.add("webdeck-hidden");
+    }
+
+    handleDocumentClick(e) {
+        // Close menu when clicking outside of it
+        if (!this.elements.menuDropdown || !this.elements.menuBtn) return;
+
+        const menu = this.elements.menuDropdown;
+        const menuBtn = this.elements.menuBtn;
+
+        if (!menu.classList.contains("webdeck-hidden")) {
+            if (!menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                menu.classList.add("webdeck-hidden");
+            }
+        }
     }
 
     async handleBeforePrint() {
@@ -409,6 +461,11 @@ export class DeckController extends EventEmitter {
         this.elements.slideNumberEl.textContent = String(this.currentIndex + 1);
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
         slides.forEach((s, i) => s.classList.toggle("active", i === this.currentIndex));
+
+        // Update floating slide counter
+        if (this.elements.floatSlideCounter) {
+            this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${this.deck.slides.length}`;
+        }
 
         if (this.isPresenterWindow) {
             const next = this.deck.slides[this.currentIndex + 1];
