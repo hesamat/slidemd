@@ -11,16 +11,71 @@ import { EditController } from "./src/edit-controller.js";
     "use strict";
 
     function showBootError(err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        document.body.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a1a;color:#ff6b6b;font-family:sans-serif;padding:20px;">
-                <div style="max-width:600px;background:#2a2a2a;padding:30px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                    <h2 style="margin-top:0;">Deck Initialization Failed</h2>
-                    <pre style="background:#000;padding:15px;border-radius:4px;overflow:auto;color:#fff;">${msg}</pre>
-                    <button onclick="location.reload()" style="margin-top:15px;padding:8px 16px;cursor:pointer;">Reload</button>
-                </div>
-            </div>
-        `;
+        // Log full error (including stack) to aid debugging
+        console.error("Deck initialization failed:", err);
+
+        const message = err instanceof Error ? err.message : String(err);
+        const stackOrMessage = err instanceof Error && err.stack ? err.stack : message;
+
+        const overlayId = "deck-boot-error-overlay";
+        let overlay = document.getElementById(overlayId);
+
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.id = overlayId;
+            overlay.style.position = "fixed";
+            overlay.style.inset = "0";
+            overlay.style.zIndex = "99999";
+            overlay.style.display = "flex";
+            overlay.style.alignItems = "center";
+            overlay.style.justifyContent = "center";
+            overlay.style.height = "100vh";
+            overlay.style.background = "#1a1a1a";
+            overlay.style.color = "#ff6b6b";
+            overlay.style.fontFamily = "sans-serif";
+            overlay.style.padding = "20px";
+
+            const container = document.createElement("div");
+            container.style.maxWidth = "600px";
+            container.style.background = "#2a2a2a";
+            container.style.padding = "30px";
+            container.style.borderRadius = "8px";
+            container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+
+            const heading = document.createElement("h2");
+            heading.style.marginTop = "0";
+            heading.textContent = "Deck Initialization Failed";
+
+            const pre = document.createElement("pre");
+            pre.style.background = "#000";
+            pre.style.padding = "15px";
+            pre.style.borderRadius = "4px";
+            pre.style.overflow = "auto";
+            pre.style.color = "#fff";
+            pre.id = overlayId + "-message";
+            pre.textContent = stackOrMessage;
+
+            const button = document.createElement("button");
+            button.textContent = "Reload";
+            button.style.marginTop = "15px";
+            button.style.padding = "8px 16px";
+            button.style.cursor = "pointer";
+            button.addEventListener("click", () => {
+                // Force a full reload to try initialization again
+                location.reload();
+            });
+
+            container.appendChild(heading);
+            container.appendChild(pre);
+            container.appendChild(button);
+            overlay.appendChild(container);
+            document.body.appendChild(overlay);
+        } else {
+            const pre = document.getElementById(overlayId + "-message");
+            if (pre) {
+                pre.textContent = stackOrMessage;
+            }
+        }
     }
 
     async function init() {
