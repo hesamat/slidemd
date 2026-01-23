@@ -458,3 +458,17 @@
     font-weight: 600;
     color: var(--slide-muted);
 }
+
+/* Hidden slides - hidden by default, visible in edit mode */
+.slide--hidden {
+    display: none !important;
+}
+
+body[data-edit-mode="true"] .slide--hidden {
+    display: grid !important;
+    opacity: 0.5;
+}
+
+body[data-edit-mode="true"] .slide--hidden.active {
+    opacity: 0.7;
+}

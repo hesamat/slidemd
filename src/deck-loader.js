@@ -310,19 +310,19 @@ export class DeckLoader {
     }
 
     static async processRawData(raw) {
-        const url = new URL(window.location.href);
-        const showHiddenRaw = (url.searchParams.get("showHidden") || "").trim().toLowerCase();
-        const includeHidden = ["1", "true", "yes", "y", "on"].includes(showHiddenRaw);
-        return this.normalizeDeck(raw, { includeHidden });
+        // Always include hidden slides so edit mode can show them
+        // CSS will handle hiding them in presentation mode
+        return this.normalizeDeck(raw, { includeHidden: true });
     }
 
     static async parseMarkdown(text) {
         await AssetLoader.ensureMarkdownItLoaded();
         const raw = new MarkdownParser().parseDeckMarkdown(text);
-        return this.normalizeDeck(raw, { includeHidden: false });
+        // Always include hidden slides so edit mode can show them
+        return this.normalizeDeck(raw, { includeHidden: true });
     }
 
-    static normalizeDeck(raw, { includeHidden = false } = {}) {
+    static normalizeDeck(raw, { includeHidden = true } = {}) {
         if (!raw || typeof raw !== "object") throw new Error("Invalid deck: not an object");
         if (!Array.isArray(raw.slides)) throw new Error("Invalid deck: slides must be an array");
 

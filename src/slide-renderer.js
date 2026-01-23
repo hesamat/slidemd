@@ -18,7 +18,7 @@ export class SlideRenderer {
 
     static createSlideElement(deck, slide, index, isActive) {
         const wrapper = document.createElement("div");
-        wrapper.className = `slide${isActive ? " active" : ""}`;
+        wrapper.className = `slide${isActive ? " active" : ""}${slide?.hidden ? " slide--hidden" : ""}`;
         wrapper.setAttribute("role", "region");
         wrapper.setAttribute("aria-roledescription", "slide");
 
