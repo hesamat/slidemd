@@ -11,13 +11,14 @@ export class DeckController extends EventEmitter {
     static #KEYBOARD_ACTIONS = {
         "ArrowRight": "next", " ": "next", "PageDown": "next", "ArrowDown": "next",
         "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
-        "Home": "first", "End": "last", 
+        "Home": "first", "End": "last",
         "g": "goto", "G": "goto",
         "e": "edit", "E": "edit",
-        "b": "break", "B": "break", 
+        "b": "break", "B": "break",
         "f": "fullscreen", "F": "fullscreen",
         "r": "reload", "R": "reload",
-        "v": "viewer", "V": "viewer"
+        "v": "viewer", "V": "viewer",
+        "d": "theme", "D": "theme"
     };
 
     static gatherElements() {
@@ -64,7 +65,10 @@ export class DeckController extends EventEmitter {
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuPrintBtn: $("menuPrintBtn"),
             printBtn: $("printBtn"),
-            reloadDeckBtn: $("reloadDeckBtn") 
+            reloadDeckBtn: $("reloadDeckBtn"),
+
+            // Theme
+            themeToggleBtn: $("themeToggleBtn")
         };
     }
 
@@ -85,6 +89,30 @@ export class DeckController extends EventEmitter {
             }
         };
         return channel;
+    }
+
+    static THEME_KEY = "webdeck_theme";
+
+    static initTheme() {
+        const stored = localStorage.getItem(DeckController.THEME_KEY);
+        if (stored === "light" || stored === "dark") {
+            DeckController.applyTheme(stored);
+        } else {
+            // Respect system preference
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            DeckController.applyTheme(prefersDark ? "dark" : "light");
+        }
+    }
+
+    static applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+    }
+
+    static toggleTheme() {
+        const current = document.documentElement.getAttribute("data-theme") || "light";
+        const newTheme = current === "dark" ? "light" : "dark";
+        localStorage.setItem(DeckController.THEME_KEY, newTheme);
+        DeckController.applyTheme(newTheme);
     }
 
     static updateDeckTitle(elements, title) {
@@ -222,6 +250,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
+        listen(this.elements.themeToggleBtn, "click", () => DeckController.toggleTheme());
         
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
@@ -340,6 +369,7 @@ export class DeckController extends EventEmitter {
             case "break": if (this.isPresenterWindow) this.breakManager.toggle(); break;
             case "fullscreen": this.toggleFullscreen(); break;
             case "reload": if (this.isPresenterWindow) this.handleReloadDeck(); break;
+            case "theme": DeckController.toggleTheme(); break;
         }
     }
 
