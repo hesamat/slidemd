@@ -476,10 +476,29 @@ const deckJson = JSON.stringify(deck);
 const deckTag = `<script type="application/json" id="deckData">${escapeJsonForHtmlScriptTag(deckJson)}</script>`;
 
 // --- Inline local project JS (simple ESM bundling) ---
-function stripEsmSyntax(srcText) {
+function stripEsmSyntax(srcText, filePath) {
     if (!srcText) return "";
-    // Remove import lines
-    let out = srcText.replace(/^\s*import[^;]+;\s*$/gm, "");
+    let out = srcText;
+
+    // Handle JSON imports: find and inline them
+    // Pattern: import NAME from 'path.json' with { type: 'json' };
+    const jsonImportRe = /import\s+(\w+)\s+from\s+['"]([^'"]+\.json)['"]\s+with\s+\{\s*type:\s*['"]json['"]\s*\}\s*;?/g;
+    out = out.replace(jsonImportRe, (_match, importName, jsonPath) => {
+        const resolvedPath = path.resolve(path.dirname(filePath), jsonPath);
+        try {
+            const jsonContent = fs.readFileSync(resolvedPath, "utf8");
+            const jsonObj = JSON.parse(jsonContent);
+            // Inline the JSON as a const declaration
+            return `const ${importName} = ${JSON.stringify(jsonObj)};`;
+        } catch (e) {
+            console.warn(`Warning: Failed to inline JSON import ${jsonPath}: ${e.message}`);
+            return `const ${importName} = null; /* Failed to inline JSON import */`;
+        }
+    });
+
+    // Remove other import lines (including those with 'with' clause for JSON imports)
+    // Matches from 'import' to the next semicolon, handling multi-line imports
+    out = out.replace(/^\s*import\s+[\s\S]*?;\s*$/gm, "");
     // Convert named exports to plain declarations
     out = out.replace(/^\s*export\s+(class|function|const|let|var)\s+/gm, (m, kind) => `${kind} `);
     // Remove 'export {' re-exports (not used in this project)
@@ -492,6 +511,10 @@ function stripEsmSyntax(srcText) {
 function buildBundleJs() {
     const order = [
         path.join(root, "src", "utils.js"),
+        path.join(root, "src", "notification.js"),
+        path.join(root, "src", "layout-data.js"),
+        path.join(root, "src", "stage-scaler.js"),
+        path.join(root, "src", "break-manager.js"),
         path.join(root, "src", "asset-loader.js"),
         path.join(root, "src", "content-enhancer.js"),
         path.join(root, "src", "markdown-parser.js"),
@@ -506,7 +529,7 @@ function buildBundleJs() {
         .filter((p) => fs.existsSync(p))
         .map((p) => {
             const src = fs.readFileSync(p, "utf8");
-            return `// ${path.relative(root, p)}\n` + stripEsmSyntax(src);
+            return `// ${path.relative(root, p)}\n` + stripEsmSyntax(src, p);
         });
 
     // Don't wrap in IIFE - deck.js already has one at the end
