@@ -1,142 +1,25 @@
-import { getDeckId, EventEmitter, yieldToMain } from "./utils.js";
+import { getDeckId, EventEmitter } from "./utils.js";
 import { SlideRenderer } from "./slide-renderer.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 import { DeckLoader } from "./deck-loader.js";
 import { StageScaler } from "./stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
-import { Notification } from "./notification.js";
+import { ThemeManager } from "./theme-manager.js";
+import { KeyboardHandler } from "./keyboard-handler.js";
+import { RoleManager } from "./role-manager.js";
+import { SlideNavigator } from "./slide-navigator.js";
+import { PrintManager } from "./print-manager.js";
+import { ReloadManager } from "./reload-manager.js";
+import { UiActions } from "./ui-actions.js";
 
 export class DeckController extends EventEmitter {
 
-    static #KEYBOARD_ACTIONS = {
-        "ArrowRight": "next", " ": "next", "PageDown": "next", "ArrowDown": "next",
-        "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
-        "Home": "first", "End": "last",
-        "g": "goto", "G": "goto",
-        "e": "edit", "E": "edit",
-        "b": "break", "B": "break",
-        "f": "fullscreen", "F": "fullscreen",
-        "r": "reload", "R": "reload",
-        "v": "viewer", "V": "viewer",
-        "d": "theme", "D": "theme"
-    };
-
-    static gatherElements() {
-        const $ = (id) => document.getElementById(id);
-        return {
-            // Stage & Layout
-            stageHost: $("stageHost"),
-            deckStage: $("deckStage"),
-            stageInner: $("stageInner"),
-            slidesContainer: $("slidesContainer"),
-
-            // Info
-            slideNumberEl: $("slideNumber"),
-            slideCountEl: $("slideCount"),
-            deckTitleEl: $("deckTitle"),
-            notesContainer: $("notesContainer"),
-            nextPreview: $("nextPreview"),
-
-            // Tools
-            fileInput: $("fileInput"),
-            editorPanel: $("editorPanel"),
-            markdownEditor: $("markdownEditor"),
-            addSlideBtn: $("addSlideBtn"),
-            duplicateSlideBtn: $("duplicateSlideBtn"),
-            deleteSlideBtn: $("deleteSlideBtn"),
-            saveSlideBtn: $("saveSlideBtn"),
-            toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
-
-            // Presenter / Modes
-            presenterPanel: $("presenterPanel"),
-            openViewerBtn: $("openViewerBtn"),
-            toggleEditModeBtn: $("toggleEditModeBtn"),
-            toggleFullscreenBtn: $("toggleFullscreenBtn"),
-
-            // Break Timer
-            breakDurationSelect: $("breakDuration"),
-            breakBtn: $("breakBtn"),
-
-            // Menu
-            menuBtn: $("menuBtn"),
-            menuDropdown: $("menuDropdown"),
-            menuOpenFileBtn: $("menuOpenFileBtn"),
-            menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
-            menuReloadDeckBtn: $("menuReloadDeckBtn"),
-            menuPrintBtn: $("menuPrintBtn"),
-            printBtn: $("printBtn"),
-            reloadDeckBtn: $("reloadDeckBtn"),
-
-            // Theme
-            themeToggleBtn: $("themeToggleBtn")
-        };
-    }
-
-    static initReloadChannel() {
-        const channel = new BroadcastChannel("webdeck-reload");
-        channel.onmessage = async (ev) => {
-            if (ev.data?.type === "reload") {
-                window.location.hash = "";
-                if (ev.data.url) {
-                    const newUrl = new URL(window.location.href);
-                    newUrl.searchParams.set("url", ev.data.url);
-                    window.location.href = newUrl.toString();
-                } else {
-                    const controller = window.__WEBDECK_CONTROLLER__;
-                    if (controller) await controller.handleReloadDeck({ preferLocalStorage: true });
-                    else window.location.reload();
-                }
-            }
-        };
-        return channel;
-    }
-
-    static THEME_KEY = "webdeck_theme";
-
-    static initTheme() {
-        const stored = localStorage.getItem(DeckController.THEME_KEY);
-        if (stored === "light" || stored === "dark") {
-            DeckController.applyTheme(stored);
-        } else {
-            // Respect system preference
-            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-            DeckController.applyTheme(prefersDark ? "dark" : "light");
-        }
-    }
-
-    static applyTheme(theme) {
-        document.documentElement.setAttribute("data-theme", theme);
-    }
-
-    static toggleTheme() {
-        const current = document.documentElement.getAttribute("data-theme") || "light";
-        const newTheme = current === "dark" ? "light" : "dark";
-        localStorage.setItem(DeckController.THEME_KEY, newTheme);
-        DeckController.applyTheme(newTheme);
-    }
-
     static updateDeckTitle(elements, title) {
-        if (elements.deckTitleEl) elements.deckTitleEl.textContent = title;
+        UiActions.updateDeckTitle(elements, title);
     }
 
     static updateSlideCount(elements, count) {
-        if (elements.slideCountEl) elements.slideCountEl.textContent = String(count);
-    }
-
-    static hasViewerShell() {
-        return !!(document.getElementById("slidesContainer") && document.getElementById("stageHost"));
-    }
-
-    static initRole() {
-        const url = new URL(window.location.href);
-        const isPresenter = url.searchParams.get("role") === "presenter";
-        document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
-
-        const panel = document.getElementById("presenterPanel");
-        if (panel) panel.classList.toggle("webdeck-hidden", !isPresenter);
-
-        const btn = document.getElementById("openViewerBtn");
-        if (btn) btn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
+        UiActions.updateSlideCount(elements, count);
     }
 
     constructor(deck, elements) {
@@ -148,16 +31,14 @@ export class DeckController extends EventEmitter {
 
         this.deck = deck;
         this.elements = elements;
-        this.currentIndex = 0;
-        this.isPresenterWindow = false;
-        this.presenterWindowRef = null;
         this._enhanceIdleId = null;
-        this._isPrinting = false;
 
         this.initIds();
+        this.initSlideNavigator();
+        this.initRoleManager();
+        this.initReloadManager();
+        this.initKeyboardHandler();
         this.initBreakManager();
-        this.initBroadcastChannel();
-        this.applyRoleFromUrl();
         this.setupEventListeners();
     }
 
@@ -166,27 +47,72 @@ export class DeckController extends EventEmitter {
         this.SLIDE_STATE_KEY = `webdeck:${id}:slide`;
     }
 
+    initSlideNavigator() {
+        this.slideNavigator = new SlideNavigator(this.deck, {
+            slideStateKey: this.SLIDE_STATE_KEY,
+            broadcastChannel: null, // Will be set in initBroadcastChannel
+            isEditMode: () => this.isEditMode()
+        });
+        // Listen for slide changes to trigger render
+        this.slideNavigator.addEventListener("slidechange", (e) => {
+            this.render();
+            this.enhanceActiveSlideNow();
+            this.dispatchEvent('slidechange', e);
+        });
+        // Listen for render requests (e.g., when edit mode changes)
+        this.slideNavigator.addEventListener("renderneeded", () => {
+            this.render();
+        });
+    }
+
+    initRoleManager() {
+        this.roleManager = new RoleManager(this.elements);
+        this.roleManager.applyRoleFromUrl();
+    }
+
+    initReloadManager() {
+        this.reloadManager = new ReloadManager(this.deck, this.elements, {
+            slideNavigator: this.slideNavigator,
+            breakManager: null, // Will be set after breakManager is initialized
+            getDeckId: getDeckId
+        });
+        // Listen for deck changes
+        this.reloadManager.addEventListener('deckchange', (e) => {
+            this.dispatchEvent('deckchange', e);
+        });
+        // Initialize the broadcast channel
+        this.reloadManager.initBroadcastChannel();
+        // Store reference to bc for backward compatibility
+        this.bc = this.reloadManager.getBroadcastChannel();
+    }
+
+    initKeyboardHandler() {
+        this.keyboardHandler = new KeyboardHandler({
+            next: () => this.slideNavigator.next(),
+            prev: () => this.slideNavigator.prev(),
+            first: () => this.slideNavigator.goTo(0),
+            last: () => this.slideNavigator.goTo(this.deck.slides.length - 1),
+            goto: () => this.slideNavigator.openGoToPrompt(),
+            viewer: () => this.roleManager.openViewerWindow(),
+            edit: () => this.toggleEditMode(),
+            break: () => this.breakManager.toggle(),
+            fullscreen: () => this.toggleFullscreen(),
+            reload: () => this.reloadManager.handleReloadDeck(),
+            theme: () => ThemeManager.toggleTheme(),
+            isBreakActive: () => this.breakManager.isActive,
+            endBreak: () => this.breakManager.setActive(false),
+            isPresenterWindow: () => this.roleManager.isPresenterWindow
+        });
+    }
+
     initBreakManager() {
         this.breakManager = new BreakManager(this.deck, this.elements, (state) => {
             this.dispatchEvent('breakchange', state);
         });
-    }
-
-    initBroadcastChannel() {
-        if (this.bc) this.bc.close();
-        this.bc = new BroadcastChannel(getDeckId(this.deck));
-        this.breakManager.setBroadcastChannel(this.bc);
-        this.bc.onmessage = (ev) => {
-            if (ev.data?.type === "slide") this.handleIncomingState(ev.data.index);
-            if (ev.data?.type === "break") this.breakManager.handleIncomingState(ev.data);
-        };
-    }
-
-    applyRoleFromUrl() {
-        const url = new URL(window.location.href);
-        this.isPresenterWindow = url.searchParams.get("role") === "presenter";
-        document.documentElement.setAttribute("data-webdeck-role", this.isPresenterWindow ? "presenter" : "viewer");
-        requestAnimationFrame(() => this.applyStageScale());
+        // Set breakManager on reloadManager
+        if (this.reloadManager) {
+            this.reloadManager.breakManager = this.breakManager;
+        }
     }
 
     async init() {
@@ -202,7 +128,8 @@ export class DeckController extends EventEmitter {
                 : (parseInt(stored, 10) || 0);
 
         // Ensure we start on a visible slide (unless in edit mode)
-        this.currentIndex = this.getVisibleIndex(initialIndex);
+        const visibleIndex = this.slideNavigator.getVisibleIndex(initialIndex);
+        this.slideNavigator.currentIndex = visibleIndex;
 
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
@@ -216,11 +143,11 @@ export class DeckController extends EventEmitter {
         this.elements.slidesContainer.innerHTML = "";
         this.deck.slides.forEach((s, i) => {
             this.elements.slidesContainer.appendChild(
-                SlideRenderer.createSlideElement(this.deck, s, i, i === this.currentIndex)
+                SlideRenderer.createSlideElement(this.deck, s, i, i === this.slideNavigator.currentIndex)
             );
         });
 
-        this.goTo(this.currentIndex, { broadcast: false });
+        this.slideNavigator.goTo(this.slideNavigator.currentIndex, { broadcast: false });
         this.applyStageScale();
 
         // Immediately enhance the first slide (don't wait for idle)
@@ -249,11 +176,11 @@ export class DeckController extends EventEmitter {
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
 
-        listen(this.elements.openViewerBtn, "click", () => this.openViewerWindow());
+        listen(this.elements.openViewerBtn, "click", () => this.roleManager.openViewerWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
-        listen(this.elements.themeToggleBtn, "click", () => DeckController.toggleTheme());
+        listen(this.elements.themeToggleBtn, "click", () => ThemeManager.toggleTheme());
 
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
@@ -272,117 +199,19 @@ export class DeckController extends EventEmitter {
         });
     }
 
-    async handleReloadDeck({ preferLocalStorage = false } = {}) {
-        const url = new URL(window.location.href);
-        const deckUrl = url.searchParams.get("url");
-        try {
-            let raw;
-            if (deckUrl) {
-                raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
-                this.broadcastReload();
-            } else {
-                const deckId = getDeckId(this.deck);
-                raw = await DeckLoader.reloadFromFileHandle(deckId);
-                if (!raw || preferLocalStorage) {
-                    raw = await DeckLoader.loadFromLocalStorage();
-                }
-            }
-
-            if (!raw) throw new Error("No deck source available");
-
-            const newDeck = await DeckLoader.processRawData(raw);
-            await this.replaceDeck(newDeck);
-        } catch (err) {
-            console.error("Reload failed:", err);
-            Notification.error("Failed to reload deck: " + err.message);
-        }
-    }
-
-    async replaceDeck(newDeck) {
-        const preservedIndex = Math.min(this.currentIndex, newDeck.slides.length - 1);
-        // Ensure we land on a visible slide (unless in edit mode)
-        const visibleIndex = this.getVisibleIndex(preservedIndex);
-        this.deck = newDeck;
-
-        this.breakManager.deck = newDeck;
-        this.breakManager.breakStateKey = `webdeck:${getDeckId(newDeck)}:break`;
-
-        const title = DeckLoader.getDisplayTitle(newDeck);
-        document.title = title;
-        DeckController.updateDeckTitle(this.elements, title);
-
-        this.elements.slidesContainer.innerHTML = "";
-        newDeck.slides.forEach((s, i) => {
-            this.elements.slidesContainer.appendChild(
-                SlideRenderer.createSlideElement(newDeck, s, i, i === preservedIndex)
-            );
-        });
-
-        DeckController.updateSlideCount(this.elements, newDeck.slides.length);
-        if (this.elements.floatSlideCounter) {
-            this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${newDeck.slides.length}`;
-        }
-
-        this.initIds();
-        this.initBroadcastChannel();
-        this.goTo(visibleIndex, { broadcast: false });
-        this.dispatchEvent('deckchange', { deck: newDeck });
-    }
-
-    broadcastReload() {
-        const reloadChannel = new BroadcastChannel("webdeck-reload");
-        reloadChannel.postMessage({ type: "reload" });
-        reloadChannel.close();
-        localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-        localStorage.setItem("webdeck_reload_flag", "1");
-    }
-
     async handleLocalFileLoad(event) {
-        try {
-            const { text, fileName } = event.detail || {};
-            if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
-
-            const newDeck = await DeckLoader.parseMarkdown(text);
-            await this.replaceDeck(newDeck);
-            this.broadcastReload();
-        } catch (err) {
-            Notification.error("Failed to load file: " + err.message);
-        }
+        await this.reloadManager.handleLocalFileLoad(event);
     }
 
     handleKeyboard(e) {
-        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
-
-        const action = DeckController.#KEYBOARD_ACTIONS[e.key];
-        if (!action) return;
-
-        if (this.breakManager.isActive) {
-            e.preventDefault();
-            this.breakManager.setActive(false);
-            return;
-        }
-
-        e.preventDefault();
-        switch (action) {
-            case "next": this.next(); break;
-            case "prev": this.prev(); break;
-            case "first": this.goTo(0); break;
-            case "last": this.goTo(this.deck.slides.length - 1); break;
-            case "goto": this.openGoToPrompt(); break;
-            case "viewer": this.openViewerWindow(); break;
-            case "edit": if (this.isPresenterWindow) this.toggleEditMode(); break;
-            case "break": if (this.isPresenterWindow) this.breakManager.toggle(); break;
-            case "fullscreen": this.toggleFullscreen(); break;
-            case "reload": this.handleReloadDeck(); break;
-            case "theme": DeckController.toggleTheme(); break;
-        }
+        this.keyboardHandler?.handleKeyboard(e);
     }
 
     handleStorage(ev) {
         if (ev.key === this.SLIDE_STATE_KEY) {
-            this.handleIncomingState(parseInt(ev.newValue, 10));
+            this.slideNavigator.handleIncomingState(parseInt(ev.newValue, 10));
         } else if (ev.key === "webdeck_local_file_timestamp" && ev.newValue) {
-            this.handleReloadDeck({ preferLocalStorage: true });
+            this.reloadManager.handleStorage(ev);
         }
     }
 
@@ -396,7 +225,7 @@ export class DeckController extends EventEmitter {
 
     async handleBeforePrint() {
         if (this.elements.slidesContainer) {
-            await this.handlePrint({ triggerBrowserPrint: false });
+            await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint: false });
         }
     }
 
@@ -405,58 +234,6 @@ export class DeckController extends EventEmitter {
      */
     isEditMode() {
         return document.body.getAttribute('data-edit-mode') === 'true';
-    }
-
-    /**
-     * Find the next visible slide index (skips hidden slides)
-     */
-    findNextVisibleIndex(fromIndex) {
-        for (let i = fromIndex + 1; i < this.deck.slides.length; i++) {
-            if (!this.deck.slides[i]?.hidden) return i;
-        }
-        return fromIndex; // No next visible slide, stay on current
-    }
-
-    /**
-     * Find the previous visible slide index (skips hidden slides)
-     */
-    findPrevVisibleIndex(fromIndex) {
-        for (let i = fromIndex - 1; i >= 0; i--) {
-            if (!this.deck.slides[i]?.hidden) return i;
-        }
-        return fromIndex; // No previous visible slide, stay on current
-    }
-
-    /**
-     * Get the actual visible slide index (skips hidden slides unless in edit mode)
-     */
-    getVisibleIndex(targetIndex) {
-        const clamped = Math.max(0, Math.min(targetIndex, this.deck.slides.length - 1));
-        // In edit mode, allow navigating to any slide including hidden ones
-        if (this.isEditMode()) return clamped;
-        // Outside edit mode, if the target slide is hidden, find the next visible one
-        if (this.deck.slides[clamped]?.hidden) {
-            return this.findNextVisibleIndex(clamped);
-        }
-        return clamped;
-    }
-
-    goTo(index, { broadcast = true } = {}) {
-        const visibleIndex = this.getVisibleIndex(index);
-        this.currentIndex = visibleIndex;
-
-        if (broadcast) {
-            localStorage.setItem(this.SLIDE_STATE_KEY, String(this.currentIndex));
-            this.bc.postMessage({ type: "slide", index: this.currentIndex });
-        }
-
-        const url = new URL(window.location.href);
-        url.hash = `#slide-${this.currentIndex + 1}`;
-        history.replaceState({}, "", url.toString());
-
-        this.render();
-        this.enhanceActiveSlideNow();
-        this.dispatchEvent('slidechange', { index: this.currentIndex });
     }
 
     enhanceActiveSlideNow() {
@@ -470,54 +247,24 @@ export class DeckController extends EventEmitter {
         }
     }
 
-    handleIncomingState(index) {
-        if (index !== this.currentIndex && !isNaN(index)) {
-            this.goTo(index, { broadcast: false });
-        }
-    }
-
-    next() {
-        if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else {
-            // In edit mode, go to next slide (including hidden)
-            // Outside edit mode, skip to next visible slide
-            const targetIndex = this.isEditMode()
-                ? this.currentIndex + 1
-                : this.findNextVisibleIndex(this.currentIndex);
-            this.goTo(targetIndex);
-        }
-    }
-
-    prev() {
-        if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else {
-            // In edit mode, go to previous slide (including hidden)
-            // Outside edit mode, skip to previous visible slide
-            const targetIndex = this.isEditMode()
-                ? this.currentIndex - 1
-                : this.findPrevVisibleIndex(this.currentIndex);
-            this.goTo(targetIndex);
-        }
-    }
-
     applyStageScale() {
         StageScaler.applyStageScale(this.elements);
     }
 
     render() {
-        this.elements.slideNumberEl.textContent = String(this.currentIndex + 1);
+        this.elements.slideNumberEl.textContent = String(this.slideNavigator.currentIndex + 1);
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
-        slides.forEach((s, i) => s.classList.toggle("active", i === this.currentIndex));
+        slides.forEach((s, i) => s.classList.toggle("active", i === this.slideNavigator.currentIndex));
 
         if (this.elements.floatSlideCounter) {
-            this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${this.deck.slides.length}`;
+            this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${this.deck.slides.length}`;
         }
 
-        if (this.isPresenterWindow) {
-            const next = this.deck.slides[this.currentIndex + 1];
-            const slide = this.deck.slides[this.currentIndex];
+        if (this.roleManager.isPresenterWindow) {
+            const next = this.deck.slides[this.slideNavigator.currentIndex + 1];
+            const slide = this.deck.slides[this.slideNavigator.currentIndex];
             if (this.elements.nextPreview) {
-                this.elements.nextPreview.textContent = next ? SlideRenderer.getSlideTitleForUi(next, this.currentIndex + 1) : "(End)";
+                this.elements.nextPreview.textContent = next ? SlideRenderer.getSlideTitleForUi(next, this.slideNavigator.currentIndex + 1) : "(End)";
             }
             if (this.elements.notesContainer) {
                 this.elements.notesContainer.innerHTML = slide?.notes ? `<pre>${slide.notes}</pre>` : "<p>No notes</p>";
@@ -525,76 +272,32 @@ export class DeckController extends EventEmitter {
         }
     }
 
-    openGoToPrompt() {
-        const num = parseInt(prompt(`Go to slide (1–${this.deck.slides.length}):`), 10);
-        if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
-    }
-
     toggleFullscreen() {
-        if (document.fullscreenElement) document.exitFullscreen();
-        else this.elements.stageHost?.requestFullscreen?.();
+        UiActions.toggleFullscreen(this.elements.stageHost);
     }
 
     toggleEditMode() {
         window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode();
-    }
-
-    /**
-     * Called when edit mode is toggled to ensure we're on a valid slide
-     */
-    onEditModeChanged() {
-        // If exiting edit mode and current slide is hidden, navigate to next visible
-        if (!this.isEditMode() && this.deck.slides[this.currentIndex]?.hidden) {
-            this.goTo(this.findNextVisibleIndex(this.currentIndex), { broadcast: false });
-        }
-        // Re-render to update slide visibility
-        this.render();
+        // Notify the navigator that edit mode has changed
+        this.slideNavigator.onEditModeChanged();
     }
 
     toggleMenu() {
-        this.elements.menuDropdown?.classList.toggle("webdeck-hidden");
+        UiActions.toggleMenu(this.elements.menuDropdown);
     }
 
     closeMenu() {
-        this.elements.menuDropdown?.classList.add("webdeck-hidden");
-    }
-
-    openViewerWindow() {
-        if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
-            return this.presenterWindowRef.close();
-        }
-        const url = new URL(window.location.href);
-        url.searchParams.set("role", this.isPresenterWindow ? "viewer" : "presenter");
-        this.presenterWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+        UiActions.toggleMenu(this.elements.menuDropdown, false);
     }
 
     async handlePrint({ triggerBrowserPrint = true } = {}) {
-        if (this._isPrinting) return;
-        this._isPrinting = true;
-
-        try {
-            if (!window.__WEBDECK_D2__) {
-                await import("./asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
-            }
-
-            const slides = this.elements.slidesContainer.querySelectorAll('.slide');
-            for (let i = 0; i < slides.length; i++) {
-                await ContentEnhancer.enhanceRenderedContent(slides[i], { renderAllSlides: true });
-                // CRITICAL: Yield to main thread to prevent freezing
-                await yieldToMain();
-            }
-        } catch (e) {
-            console.warn("Print prep failed:", e);
-        } finally {
-            this._isPrinting = false;
-        }
-
-        if (triggerBrowserPrint) window.print();
+        await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint });
     }
 
     destroy() {
-        if (this.bc) this.bc.close();
+        if (this.reloadManager) this.reloadManager.destroy();
         if (this.breakManager) this.breakManager.destroy();
+        if (this.roleManager) this.roleManager.destroy();
         this.removeAllListeners();
     }
 }

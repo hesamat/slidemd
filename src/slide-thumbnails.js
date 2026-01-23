@@ -88,7 +88,7 @@ export class SlideThumbnails {
 
         // Click handler to navigate to slide
         thumbnail.addEventListener('click', () => {
-            this._controller.goTo(index);
+            this._controller.slideNavigator.goTo(index);
         });
 
         return thumbnail;
@@ -199,7 +199,7 @@ export class SlideThumbnails {
     updateCurrentSlide() {
         if (!this._container) return;
 
-        const currentIndex = this._controller.currentIndex;
+        const currentIndex = this._controller.slideNavigator.currentIndex;
         const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
 
         thumbnails.forEach((thumbnail, index) => {

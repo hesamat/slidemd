@@ -20,7 +20,7 @@ export class EditController {
         this.elements = elements;
 
         this.isEditMode = false;
-        this.currentSlideIndex = controller.currentIndex;
+        this.currentSlideIndex = controller.slideNavigator.currentIndex;
         this.hasUnsavedChanges = false;
 
         this.markdownEditor = null; // Will be initialized when edit mode is enabled
@@ -124,7 +124,7 @@ export class EditController {
 
         // Listen for slide navigation events
         this.controller.addEventListener('slidechange', () => {
-            this.currentSlideIndex = this.controller.currentIndex;
+            this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
             this.updateSlideIndicator();
         });
@@ -137,7 +137,7 @@ export class EditController {
             this.unsavedMarkdown.clear();
             this.hasUnsavedChanges = false;
             this.updateSaveButton();
-            this.currentSlideIndex = this.controller.currentIndex;
+            this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
             this.updateSlideIndicator();
         });
@@ -199,7 +199,7 @@ export class EditController {
             document.body.removeAttribute('data-edit-mode');
 
             // Restore presenter panel visibility based on presenter role
-            if (this.controller.isPresenterWindow) {
+            if (this.controller.roleManager.isPresenterWindow) {
                 this.elements.presenterPanel?.classList.remove('webdeck-hidden');
             }
 
@@ -447,7 +447,7 @@ export class EditController {
         }
 
         // Navigate to new slide
-        this.controller.goTo(insertIndex);
+        this.controller.slideNavigator.goTo(insertIndex);
     }
 
     /**
@@ -482,7 +482,7 @@ export class EditController {
 
         // Navigate
         const newIndex = Math.max(0, indexToDelete - 1);
-        this.controller.goTo(newIndex);
+        this.controller.slideNavigator.goTo(newIndex);
 
         // Clear unsaved map since indices shifted
         this.unsavedMarkdown.clear();
@@ -561,7 +561,7 @@ export class EditController {
             this.updateSaveButton();
 
             // Navigate to new slide
-            this.controller.goTo(insertIndex);
+            this.controller.slideNavigator.goTo(insertIndex);
 
             // Refresh thumbnails and update indicator
             this.thumbnails.refresh();
@@ -640,7 +640,7 @@ export class EditController {
             }
 
             // Navigate to new slide and load into editor
-            this.controller.goTo(insertIndex);
+            this.controller.slideNavigator.goTo(insertIndex);
 
             // Clear unsaved map since indices shifted, mark new slide as unsaved
             this.unsavedMarkdown.clear();

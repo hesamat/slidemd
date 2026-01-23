@@ -74,6 +74,29 @@ try {
     console.log("Deck ready signal not found (continuing)");
 }
 
+// CRITICAL: Enhance ALL slides for PDF output (not just the active one)
+// Prism syntax highlighting is only applied to active slides by default,
+// but PDF needs all slides to be highlighted.
+console.log("Enhancing all slides for PDF output...");
+await page.evaluate(async () => {
+    if (!window.Prism) return;
+
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    for (const slide of slides) {
+        const codeBlocks = slide.querySelectorAll('pre code');
+        codeBlocks.forEach((codeEl) => {
+            // Ensure language class is set correctly
+            const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
+            if (match) {
+                codeEl.className = `language-${match[1]}`;
+            }
+            // Apply Prism highlighting
+            Prism.highlightElement(codeEl);
+        });
+    }
+});
+console.log("All slides enhanced for PDF");
+
 // Ensure print sizing for code/blockquote matches dev theme (no change to print.css on disk).
 await page.addStyleTag({
     content: `@media print {

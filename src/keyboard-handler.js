@@ -1,0 +1,90 @@
+/**
+ * KeyboardHandler
+ * Maps keyboard keys to actions and delegates to appropriate controllers.
+ */
+
+export class KeyboardHandler {
+    static #KEYBOARD_ACTIONS = {
+        "ArrowRight": "next", " ": "next", "PageDown": "next", "ArrowDown": "next",
+        "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
+        "Home": "first", "End": "last",
+        "g": "goto", "G": "goto",
+        "e": "edit", "E": "edit",
+        "b": "break", "B": "break",
+        "f": "fullscreen", "F": "fullscreen",
+        "r": "reload", "R": "reload",
+        "v": "viewer", "V": "viewer",
+        "d": "theme", "D": "theme"
+    };
+
+    /**
+     * Creates a new KeyboardHandler.
+     * @param {Object} actions - Callback functions for each keyboard action
+     * @param {Function} actions.next - Navigate to next slide
+     * @param {Function} actions.prev - Navigate to previous slide
+     * @param {Function} actions.first - Navigate to first slide
+     * @param {Function} actions.last - Navigate to last slide
+     * @param {Function} actions.goto - Open "go to slide" prompt
+     * @param {Function} actions.viewer - Open presenter/viewer window
+     * @param {Function} actions.edit - Toggle edit mode (presenter only)
+     * @param {Function} actions.break - Toggle break timer (presenter only)
+     * @param {Function} actions.fullscreen - Toggle fullscreen mode
+     * @param {Function} actions.reload - Reload the deck
+     * @param {Function} actions.theme - Toggle theme
+     * @param {Function} actions.shouldPreventDefault - Optional callback to check if default should be prevented
+     * @param {Function} actions.isBreakActive - Callback to check if break mode is active
+     * @param {Function} actions.endBreak - Callback to end break mode
+     * @param {Function} actions.isPresenterWindow - Callback to check if current window is presenter
+     */
+    constructor(actions) {
+        this.actions = actions;
+    }
+
+    /**
+     * Handles keyboard events and dispatches to the appropriate action.
+     * @param {KeyboardEvent} e - The keyboard event
+     */
+    handleKeyboard(e) {
+        // Ignore keyboard events when typing in input or textarea
+        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) {
+            return;
+        }
+
+        const action = KeyboardHandler.#KEYBOARD_ACTIONS[e.key];
+        if (!action) return;
+
+        // If break mode is active, any navigation key ends the break
+        if (this.actions.isBreakActive?.() && ["next", "prev", "first", "last", "goto"].includes(action)) {
+            e.preventDefault();
+            this.actions.endBreak?.();
+            return;
+        }
+
+        // Check if we should prevent default (for actions that want it)
+        if (this.actions.shouldPreventDefault?.(action) !== false) {
+            e.preventDefault();
+        }
+
+        switch (action) {
+            case "next": this.actions.next?.(); break;
+            case "prev": this.actions.prev?.(); break;
+            case "first": this.actions.first?.(); break;
+            case "last": this.actions.last?.(); break;
+            case "goto": this.actions.goto?.(); break;
+            case "viewer": this.actions.viewer?.(); break;
+            case "edit":
+                if (this.actions.isPresenterWindow?.()) {
+                    this.actions.edit?.();
+                }
+                break;
+            case "break":
+                if (this.actions.isPresenterWindow?.()) {
+                    this.actions.break?.();
+                }
+                break;
+            case "fullscreen": this.actions.fullscreen?.(); break;
+            case "reload": this.actions.reload?.(); break;
+            case "theme": this.actions.theme?.(); break;
+        }
+    }
+}

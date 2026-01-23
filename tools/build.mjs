@@ -522,6 +522,14 @@ function buildBundleJs() {
         path.join(root, "src", "slide-renderer.js"),
         path.join(root, "src", "deck-loader.js"),
         path.join(root, "src", "deck-controller.js"),
+        path.join(root, "src", "theme-manager.js"),
+        path.join(root, "src", "keyboard-handler.js"),
+        path.join(root, "src", "role-manager.js"),
+        path.join(root, "src", "slide-navigator.js"),
+        path.join(root, "src", "reload-manager.js"),
+        path.join(root, "src", "print-manager.js"),
+        path.join(root, "src", "element-gatherer.js"),
+        path.join(root, "src", "ui-actions.js"),
         path.join(root, "deck.js"),
     ];
 

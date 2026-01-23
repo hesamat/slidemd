@@ -147,8 +147,25 @@
         break-after: auto !important;
     }
 
+    /* Exclude hidden slides from print output */
+    .slide--hidden {
+        display: none !important;
+    }
+
     .slide__grid {
         gap: 26px !important;
+    }
+
+    /* Ensure code blocks render properly in PDF */
+    .slide__area pre {
+        /* Use solid color instead of gradient for better PDF compatibility */
+        background: #f5f2f0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .slide__area pre code {
+        font-family: Consolas, Monaco, "Courier New", monospace !important;
     }
 }
 

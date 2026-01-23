@@ -6,6 +6,10 @@ import { DeckLoader } from "./src/deck-loader.js";
 import { DeckController } from "./src/deck-controller.js";
 import { SlideRenderer } from "./src/slide-renderer.js";
 import { EditController } from "./src/edit-controller.js";
+import { ThemeManager } from "./src/theme-manager.js";
+import { RoleManager } from "./src/role-manager.js";
+import { ReloadManager } from "./src/reload-manager.js";
+import { ElementGatherer } from "./src/element-gatherer.js";
 
 (() => {
     "use strict";
@@ -83,7 +87,7 @@ import { EditController } from "./src/edit-controller.js";
         const deck = await DeckLoader.loadDeckData();
 
         // 2. Gather DOM Elements
-        const elements = DeckController.gatherElements();
+        const elements = ElementGatherer.gatherElements();
 
         // 3. Setup File Handlers
         if (elements.menuOpenFileBtn && elements.fileInput) {
@@ -145,7 +149,7 @@ import { EditController } from "./src/edit-controller.js";
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-        if (!DeckController.hasViewerShell()) return;
+        if (!RoleManager.hasViewerShell()) return;
 
         // Auto-redirect checks (optional)
         const url = new URL(window.location.href);
@@ -155,9 +159,9 @@ import { EditController } from "./src/edit-controller.js";
             return;
         }
 
-        DeckController.initRole();
-        DeckController.initTheme();
-        window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
+        RoleManager.initRole();
+        ThemeManager.initTheme();
+        window.__WEBDECK_RELOAD_CHANNEL__ = ReloadManager.initReloadChannel();
 
         if (SlideRenderer.showLoadingState) {
             SlideRenderer.showLoadingState();
