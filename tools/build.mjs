@@ -505,6 +505,94 @@ function stripEsmSyntax(srcText, filePath) {
     out = out.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "");
     // Convert 'export default' to plain assignment (rare; not used here)
     out = out.replace(/^\s*export\s+default\s+/gm, "const __default_export__ = ");
+
+    // Handle internal dynamic imports - since all modules are bundled together,
+    // we replace these with direct references to the already-available classes
+
+    // Pattern: const { AssetLoader } = await import("../core/asset-loader.js")
+    out = out.replace(
+        /const\s*\{\s*AssetLoader\s*\}\s*=\s*await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)/g,
+        () => `{ AssetLoader } = { AssetLoader }`
+    );
+    // Clean up the broken destructuring syntax above to just access AssetLoader directly
+    out = out.replace(
+        /\{\s*AssetLoader\s*\}\s*=\s*\{\s*AssetLoader\s*\}/g,
+        () => `/* AssetLoader already available */`
+    );
+
+    // Pattern: import("../core/asset-loader.js") - standalone import
+    out = out.replace(
+        /import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)/g,
+        () => `Promise.resolve({ AssetLoader })`
+    );
+
+    // Pattern: import("../core/asset-loader.js").then(m => m.AssetLoader)
+    out = out.replace(
+        /import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader/g,
+        () => `Promise.resolve(AssetLoader)`
+    );
+
+    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded())
+    out = out.replace(
+        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureD2Loaded\(\)\)/g,
+        () => `AssetLoader.ensureD2Loaded()`
+    );
+
+    // For dist builds, stub out the problematic import() calls in AssetLoader methods
+    // by replacing the entire method with a no-op version
+
+    // Stub ensureKatexLoaded method - replace entire method with no-op
+    // Match from "static async ensureKatexLoaded() {" to "static async ensureD2Loaded() {"
+    out = out.replace(
+        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureD2Loaded)/,
+        () => `static async ensureKatexLoaded() { /* KaTeX inlined in dist build */ return; }`
+    );
+
+    // Stub ensureD2Loaded method - replace entire method with no-op
+    // Match from "static async ensureD2Loaded() {" to "static async ensureRichTextEnhancers() {"
+    out = out.replace(
+        /static async ensureD2Loaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
+        () => `static async ensureD2Loaded() { /* D2 pre-rendered in dist build */ return; }`
+    );
+
+    // Also stub ensurePrismLoaded and ensureMarkdownItLoaded for consistency
+    out = out.replace(
+        /static async ensurePrismLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureKatexLoaded)/,
+        () => `static async ensurePrismLoaded() { /* Prism inlined in dist build */ return; }`
+    );
+
+    out = out.replace(
+        /static async ensureMarkdownItLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensurePrismLoaded)/,
+        () => `static async ensureMarkdownItLoaded() { /* markdown-it not needed in dist build */ return; }`
+    );
+
+    // Stub ContentEnhancer methods that try to access D2 at runtime
+    // Since D2 is pre-rendered in dist builds, these should not run
+    if (filePath.includes('content-enhancer.js')) {
+        // Stub warmupD2 - simpler pattern that doesn't depend on exact indentation
+        // Replace from method start to the next method's start
+        out = out.replace(
+            /static async warmupD2\(\) \{[\s\S]*?\n    static async initializeD2/,
+            () => `static async warmupD2() { /* D2 pre-rendered in dist build */ return; }\n    static async initializeD2`
+        );
+        // Stub initializeD2 - replace from method start to showD2Error
+        out = out.replace(
+            /static async initializeD2\([^)]*\) \{[\s\S]*?\n    static showD2Error/,
+            () => `static async initializeD2() { /* D2 pre-rendered in dist build */ return null; }\n    static showD2Error`
+        );
+    }
+
+    // Remove auto-redirect to presenter mode in dist builds
+    // In exported HTML, we don't want to auto-redirect to ?role=presenter
+    if (filePath.includes('deck.js')) {
+        // Remove the auto-redirect block entirely
+        out = out.replace(
+            // Match from "// Auto-redirect checks" comment to the "return;" statement
+            /\/\/ Auto-redirect checks \(optional\)[\s\S]*?window\.location\.href = url\.toString\(\);[\s\S]*?return;[\s\S]*?\}/,
+            () => `/* Auto-redirect disabled in dist build */`
+        );
+    }
+
     return out;
 }
 
@@ -582,10 +670,74 @@ html = html.replace(
 );
 
 // Always remove presenter mode elements from the output
-// Remove elements with id 'presenter', 'presenter-only', 'presenterPanel', 'topbar', 'controlBar' from the HTML
-html = html.replace(/<([a-zA-Z0-9]+)([^>]*\bid=["'](presenterPanel|controlBar)["'][^>]*)>.*?<\/\1>/gs, "");
+// Remove elements with id 'presenterPanel', 'viewerOnlyControls', 'controlBar' from the HTML
+// This function handles nested tags correctly by counting depth
+function removeElementById(htmlText, elementId) {
+    const idRegex = new RegExp(`<([a-zA-Z0-9]+)([^>]*\\bid=["']${elementId}["'][^>]*)>`, "gi");
+    let result = htmlText;
+
+    let match;
+    while ((match = idRegex.exec(htmlText)) !== null) {
+        const fullTag = match[0];
+        const tagName = match[1];
+        const tagStart = match.index;
+        const tagEnd = tagStart + fullTag.length;
+
+        const openTag = `<${tagName}`;
+        const closeTag = `</${tagName}>`;
+
+        // Find the matching closing tag by counting depth
+        let depth = 1;
+        let searchPos = tagEnd;
+
+        while (depth > 0 && searchPos < result.length) {
+            const nextOpen = result.indexOf(openTag, searchPos);
+            const nextClose = result.indexOf(closeTag, searchPos);
+
+            if (nextClose === -1) {
+                // No closing tag found, skip this element
+                depth = 0;
+                break;
+            }
+
+            if (nextOpen !== -1 && nextOpen < nextClose) {
+                // Check if it's actually an opening tag (not just part of another string)
+                // and not a closing tag or self-closing
+                const charAfterOpenTag = result.charCodeAt(nextOpen + openTag.length);
+                const isOpeningTag = charAfterOpenTag === 62 || // >
+                    (charAfterOpenTag === 32 || charAfterOpenTag === 9 || charAfterOpenTag === 10 || charAfterOpenTag === 13); // whitespace
+
+                if (isOpeningTag && !result.substring(nextOpen, nextOpen + 2).includes("</")) {
+                    depth++;
+                    searchPos = nextOpen + openTag.length;
+                } else {
+                    searchPos = nextClose + closeTag.length;
+                }
+            } else {
+                depth--;
+                if (depth === 0) {
+                    // Remove the entire element
+                    result = result.substring(0, tagStart) + result.substring(nextClose + closeTag.length);
+                } else {
+                    searchPos = nextClose + closeTag.length;
+                }
+            }
+        }
+
+        // Reset search to continue from the beginning since we modified the string
+        htmlText = result;
+        idRegex.lastIndex = 0;
+    }
+
+    return result;
+}
+
+// Remove all presenter mode elements
+html = removeElementById(html, "presenterPanel");
+html = removeElementById(html, "controlBar");
+html = removeElementById(html, "viewerOnlyControls");
 // Optionally, hide any remaining with CSS if dynamic content remains
-html = html.replace(/(<style>)/i, `$1\n#presenter, #presenter-only, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
+html = html.replace(/(<style>)/i, `$1\n#presenter, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
 
 const deckScriptRegex = /<script[^>]*\ssrc=["']deck\.js["'][^>]*>\s*<\/script>/i;
 const { bundle, vendor } = await processJs();

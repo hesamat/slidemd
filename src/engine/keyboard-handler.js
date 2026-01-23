@@ -50,6 +50,12 @@ export class KeyboardHandler {
             return;
         }
 
+        // Ignore events with modifier keys (Ctrl, Alt, Meta) to allow browser shortcuts
+        // Exceptions: Ctrl key combinations for specific shortcuts can be added here if needed
+        if (e.ctrlKey || e.altKey || e.metaKey) {
+            return;
+        }
+
         const action = KeyboardHandler.#KEYBOARD_ACTIONS[e.key];
         if (!action) return;
 
@@ -61,7 +67,9 @@ export class KeyboardHandler {
         }
 
         // Check if we should prevent default (for actions that want it)
-        if (this.actions.shouldPreventDefault?.(action) !== false) {
+        // For "reload" action, don't prevent default to allow browser's Ctrl+R/F5 to work
+        const shouldPrevent = this.actions.shouldPreventDefault?.(action) !== false;
+        if (shouldPrevent && action !== "reload") {
             e.preventDefault();
         }
 
@@ -83,7 +91,10 @@ export class KeyboardHandler {
                 }
                 break;
             case "fullscreen": this.actions.fullscreen?.(); break;
-            case "reload": this.actions.reload?.(); break;
+            case "reload":
+                if (this.actions.isPresenterWindow?.()) {
+                    this.actions.reload?.();
+                } break;
             case "theme": this.actions.theme?.(); break;
         }
     }

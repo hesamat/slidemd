@@ -22,15 +22,6 @@
     backdrop-filter: blur(14px);
 }
 
-html[data-webdeck-role="viewer"] #controlBar {
-    display: none;
-}
-
-html[data-webdeck-role="viewer"] .viewerOnlyControls {
-    display: none;
-}
-
-
 .topbar__left {
     display: flex;
     align-items: center;
