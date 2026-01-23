@@ -1,0 +1,70 @@
+{
+  "layouts": {
+    "focus": {
+      "gridTemplate": "\"main\" / 1fr",
+      "description": "Single centered content area",
+      "preview": "<div style=\"grid-area: main\"></div>",
+      "template": "## Focus Slide\n\nYour main content here\n\n* Point one\n* Point two\n* Point three"
+    },
+    "two-column": {
+      "gridTemplate": "\"main media\" / 1fr 1fr",
+      "description": "Two equal columns",
+      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div>",
+      "template": "layout: two-column\n\n@main\n## Main Content\n\nPrimary content goes here\n\n* Key point\n* Another point\n\n@media\n## Side Content\n\nSupporting information\n\n- Detail one\n- Detail two"
+    },
+    "left-heavy": {
+      "gridTemplate": "\"main media\" / 2fr 1fr",
+      "description": "Left side 2x larger",
+      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div>",
+      "template": "layout: left-heavy\n\n@main\n## Main Content\n\nPrimary content with more space\n\n* First major point\n* Second major point\n* Third major point\n\n@media\n## Sidebar\n\nSupporting details"
+    },
+    "right-heavy": {
+      "gridTemplate": "\"main media\" / 1fr 2fr",
+      "description": "Right side 2x larger",
+      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div>",
+      "template": "layout: right-heavy\n\n@main\n## Introduction\n\nBrief intro or bullet points\n\n@media\n## Deep Dive\n\nMain content with more space\n\nDetailed explanation goes here\n\n* Point one\n* Point two\n* Point three"
+    },
+    "header-content": {
+      "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
+      "description": "Header, content, footer stacked",
+      "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
+      "template": "layout: header-content\n\n@header\n## Section Title\n\n@main\n### Main Content\n\nYour slide content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+    },
+    "header-two-column": {
+      "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
+      "description": "Header with two columns",
+      "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
+      "template": "layout: header-two-column\n\n@header\n# Presentation Title\n\n@main\n## Left Column\n\nContent for the left side\n\n* Point A\n* Point B\n\n@media\n## Right Column\n\nContent for the right side\n\n* Point X\n* Point Y\n\n@footer\nFooter text"
+    },
+    "title-slide": {
+      "gridTemplate": "\"title\" / 1fr",
+      "description": "Full-screen centered title",
+      "preview": "<div style=\"grid-area: title\"></div>",
+      "template": "layout: title-slide\nalign: center\n\n@title\n# Your Title Here\n\n## Subtitle or Tagline\n\n---\n\n**Author Name**\n\nDate or Event"
+    },
+    "three-column": {
+      "gridTemplate": "\"main media secondary\" / 1fr 1fr 1fr",
+      "description": "Three equal columns",
+      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: secondary\"></div>",
+      "template": "layout: three-column\n\n@main\n## Column One\n\nFirst column content\n\n@media\n## Column Two\n\nSecond column content\n\n@secondary\n## Column Three\n\nThird column content"
+    },
+    "sidebar-content": {
+      "gridTemplate": "\"sidebar main\" / 300px 1fr",
+      "description": "Fixed sidebar with main content",
+      "preview": "<div style=\"grid-area: sidebar\"></div><div style=\"grid-area: main\"></div>",
+      "template": "layout: sidebar-content\n\n@sidebar\n## Menu\n\n* Item 1\n* Item 2\n* Item 3\n\n@main\n## Main Content\n\nYour primary content here\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit."
+    },
+    "content-sidebar": {
+      "gridTemplate": "\"main sidebar\" / 1fr 300px",
+      "description": "Main content with sidebar",
+      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: sidebar\"></div>",
+      "template": "layout: content-sidebar\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context"
+    },
+    "default": {
+      "gridTemplate": "\"main\" / 1fr",
+      "description": "Default single column layout",
+      "preview": "<div style=\"grid-area: main\"></div>",
+      "template": "## New Slide\n\nAdd your content here\n\n* Point one\n* Point two\n* Point three"
+    }
+  }
+}

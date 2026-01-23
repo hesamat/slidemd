@@ -3,7 +3,7 @@
  * Extracts and parses slides from markdown files. Handles code fences, directives, and metadata for slide generation and content structuring.
  */
 // Markdown parsing and slide extraction
-import { safeString, slugifyTitle, DESIGN_SIZE } from "./utils.js";
+import { safeString, slugifyTitle, DESIGN_SIZE, escapeHtml } from "./utils.js";
 
 class FenceTracker {
     constructor() {
@@ -189,9 +189,25 @@ export class MarkdownParser {
         // Convert <pre><code class="language-d2">...</code></pre> to <div class="d2">...</div>
         const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-d2[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
         return htmlText.replace(re, (match, content) => {
-            // Keep the content HTML-escaped here. In dev mode we send this HTML to the
-            // Vite server for D2 rendering, which will decode entities safely.
-            return `<div class="d2">${content}</div>`;
+            // The Vite plugin needs the D2 source as the content of the div
+            // For client-side, also store it in data-d2-source and add loading state
+            const safeContent = content.replace(/"/g, '&quot;');
+
+            // Create a div with:
+            // 1. The D2 source as content (for Vite plugin)
+            // 2. A data attribute with the source (for client-side rendering)
+            // 3. A loading indicator that will be replaced
+            // The source is hidden via CSS, loading indicator is visible initially
+            return `<div class="d2" data-d2-source="${safeContent}">
+                <span class="d2-source-hidden">${content}</span>
+                <div class="d2-loading">
+                    <svg class="d2-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle class="d2-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                        <path class="d2-spinner__head" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"/>
+                    </svg>
+                    <span class="d2-loading__text">Rendering diagram...</span>
+                </div>
+            </div>`;
         });
     }
 
@@ -285,42 +301,5 @@ export class MarkdownParser {
             },
             slides,
         };
-    }
-
-    async renderD2InDeck(deckData) {
-        // Post-process the deck to render D2 diagrams via server API
-        if (!deckData || !deckData.slides) return deckData;
-
-        const updated = { ...deckData };
-        updated.slides = await Promise.all(
-            deckData.slides.map(async (slide) => {
-                const newAreas = {};
-                for (const [name, html] of Object.entries(slide.areas || {})) {
-                    if (html.includes('class="d2"')) {
-                        try {
-                            const response = await fetch('/api/render-d2', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ html }),
-                            });
-                            if (response.ok) {
-                                const data = await response.json();
-                                newAreas[name] = data.html;
-                            } else {
-                                newAreas[name] = html;
-                            }
-                        } catch (e) {
-                            console.error('Failed to render D2:', e);
-                            newAreas[name] = html;
-                        }
-                    } else {
-                        newAreas[name] = html;
-                    }
-                }
-                return { ...slide, areas: newAreas };
-            })
-        );
-
-        return updated;
     }
 }

@@ -4,20 +4,10 @@
  */
 // Layout parsing and grid generation
 import { safeString } from "./utils.js";
+import { LayoutData } from "./layout-data.js";
 
 export class LayoutParser {
-    static PRESETS = {
-        focus: '"main" / 1fr',
-        "two-column": '"main media" / 1fr 1fr',
-        "left-heavy": '"main media" / 2fr 1fr',
-        "right-heavy": '"main media" / 1fr 2fr',
-        "header-content": '"header" "main" "footer" / 1fr',
-        "header-two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
-        "title-slide": '"title" / 1fr',
-        "three-column": '"main media secondary" / 1fr 1fr 1fr',
-        "sidebar-content": '"sidebar main" / 300px 1fr',
-        "content-sidebar": '"main sidebar" / 1fr 300px',
-    };
+    static PRESETS = LayoutData.getPresets();
 
     static resolvePreset(layoutSpec) {
         const key = safeString(layoutSpec).trim().toLowerCase();

@@ -10,53 +10,130 @@ import { EditController } from "./src/edit-controller.js";
 (() => {
     "use strict";
 
-    async function init() {
-        // Load raw data and normalize
-        const raw = await DeckLoader.loadDeckData();
-        const url = new URL(window.location.href);
-        const includeHidden = ["1", "true", "yes", "on"].includes((url.searchParams.get("showHidden") || "").toLowerCase());
-        const deck = DeckLoader.normalizeDeck(raw, { includeHidden });
+    function showBootError(err) {
+        // Log full error (including stack) to aid debugging
+        console.error("Deck initialization failed:", err);
 
-        // Gather Elements & Setup handlers
+        const message = err instanceof Error ? err.message : String(err);
+        const stackOrMessage = err instanceof Error && err.stack ? err.stack : message;
+
+        const overlayId = "deck-boot-error-overlay";
+        let overlay = document.getElementById(overlayId);
+
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.id = overlayId;
+            overlay.style.position = "fixed";
+            overlay.style.inset = "0";
+            overlay.style.zIndex = "99999";
+            overlay.style.display = "flex";
+            overlay.style.alignItems = "center";
+            overlay.style.justifyContent = "center";
+            overlay.style.height = "100vh";
+            overlay.style.background = "#1a1a1a";
+            overlay.style.color = "#ff6b6b";
+            overlay.style.fontFamily = "sans-serif";
+            overlay.style.padding = "20px";
+
+            const container = document.createElement("div");
+            container.style.maxWidth = "600px";
+            container.style.background = "#2a2a2a";
+            container.style.padding = "30px";
+            container.style.borderRadius = "8px";
+            container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+
+            const heading = document.createElement("h2");
+            heading.style.marginTop = "0";
+            heading.textContent = "Deck Initialization Failed";
+
+            const pre = document.createElement("pre");
+            pre.style.background = "#000";
+            pre.style.padding = "15px";
+            pre.style.borderRadius = "4px";
+            pre.style.overflow = "auto";
+            pre.style.color = "#fff";
+            pre.id = overlayId + "-message";
+            pre.textContent = stackOrMessage;
+
+            const button = document.createElement("button");
+            button.textContent = "Reload";
+            button.style.marginTop = "15px";
+            button.style.padding = "8px 16px";
+            button.style.cursor = "pointer";
+            button.addEventListener("click", () => {
+                // Force a full reload to try initialization again
+                location.reload();
+            });
+
+            container.appendChild(heading);
+            container.appendChild(pre);
+            container.appendChild(button);
+            overlay.appendChild(container);
+            document.body.appendChild(overlay);
+        } else {
+            const pre = document.getElementById(overlayId + "-message");
+            if (pre) {
+                pre.textContent = stackOrMessage;
+            }
+        }
+    }
+
+    async function init() {
+        // 1. Load & Normalize Data
+        const deck = await DeckLoader.loadDeckData();
+
+        // 2. Gather DOM Elements
         const elements = DeckController.gatherElements();
 
-        if (elements.openFileBtn && elements.fileInput) {
-            DeckLoader.setupLocalFileHandler(elements.openFileBtn, elements.fileInput);
+        // 3. Setup File Handlers
+        if (elements.menuOpenFileBtn && elements.fileInput) {
+            DeckLoader.setupLocalFileHandler(elements.menuOpenFileBtn, elements.fileInput);
         }
-        if (elements.openRemoteBtn) {
-            DeckLoader.setupRemoteFileHandler(elements.openRemoteBtn);
+        if (elements.menuOpenRemoteBtn) {
+            DeckLoader.setupRemoteFileHandler(elements.menuOpenRemoteBtn);
         }
 
+        // 4. Update UI Initial State
         DeckController.updateSlideCount(elements, deck.slides.length);
 
-        // Initialize Controller
-        // Note: Controller calculates and sets the title inside .init()
+        // 5. Initialize Controller
         const controller = new DeckController(deck, elements);
         await controller.init();
 
-        // Initialize optional Editor
+        // 6. Initialize Editor (Optional)
         try {
             const editController = new EditController(deck, controller, elements);
             window.__WEBDECK_EDIT_CONTROLLER__ = editController;
         } catch (e) {
-            // Edit controller is optional
+            console.log("Editor skipped.");
         }
 
-        // Lazy load enhancers
-        const textForScan = ContentEnhancer.deckHtmlText(deck);
-        if (ContentEnhancer.needsEnhancers(textForScan)) {
-            await AssetLoader.ensureRichTextEnhancers();
+        // 7. PRELOAD / WARMUP ENHANCERS
+        // We scan the deck now to see what we need. 
+        // We trigger downloads immediately in the background (no await)
+        const features = ContentEnhancer.scanDeck(deck);
+        
+        if (features.hasMath || features.hasCode) {
+             AssetLoader.ensureRichTextEnhancers().catch(e => console.warn(e));
+        }
+        
+        if (features.hasD2) {
+            // This starts the D2 worker immediately so it's ready when we reach the slide
+            ContentEnhancer.warmupD2();
+        }
+
+        // Apply enhancers to the CURRENT view immediately
+        if (features.hasD2 || features.hasMath || features.hasCode) {
             await ContentEnhancer.enhanceRenderedContent(elements.slidesContainer);
         }
 
-        // Signal readiness
+        // 8. Signal Readiness
         window.__WEBDECK_READY__ = true;
         window.dispatchEvent(new Event("webdeck:ready"));
 
         return controller;
     }
 
-    // Public API
     window.WebDeck = Object.assign(window.WebDeck || {}, {
         DESIGN_SIZE,
         normalizeCodeLanguage,
@@ -64,31 +141,34 @@ import { EditController } from "./src/edit-controller.js";
         enhanceRenderedContent: ContentEnhancer.enhanceRenderedContent,
         renderSlide: SlideRenderer.renderSlide,
         normalizeDeck: DeckLoader.normalizeDeck,
-        deckHtmlText: ContentEnhancer.deckHtmlText,
     });
 
     document.addEventListener("DOMContentLoaded", () => {
         if (!DeckController.hasViewerShell()) return;
 
-        // Auto-redirect to presenter mode for dev (unless ?role is already set or disabled)
+        // Auto-redirect checks (optional)
         const url = new URL(window.location.href);
         if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect")) {
-            url.searchParams.set("role", "presenter");
-            window.location.href = url.toString();
-            return;
+            // url.searchParams.set("role", "presenter");
+            // window.location.href = url.toString();
+            // return;
         }
 
-        // Immediate UI setup
         DeckController.initRole();
         window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
-        DeckController.showLoadingState();
+        
+        if (SlideRenderer.showLoadingState) {
+            SlideRenderer.showLoadingState();
+        } else {
+            const container = document.getElementById("slidesContainer");
+            if (container) container.innerHTML = '<div class="loader">Loading...</div>';
+        }
 
-        // Start App
         init().then((ctrl) => {
             window.__WEBDECK_CONTROLLER__ = ctrl;
         }).catch((e) => {
             console.error("Deck init failed:", e);
-            DeckController.showBootError(e);
+            showBootError(e);
         });
     });
 })();

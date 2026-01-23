@@ -6,7 +6,7 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-}   
+}
 
 .slide[data-theme="light"] {
     --slide-bg: #ffffff;
@@ -142,6 +142,50 @@
     min-height: 0;
 }
 
+/* D2 loading state (shared across markdown + client rendering) */
+.d2[data-d2-source] > :not(.d2-loading) {
+    display: none;
+}
+
+.d2-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.d2-spinner {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    animation: d2-spin 1s linear infinite;
+}
+
+.d2-spinner__track {
+    opacity: 0.3;
+}
+
+.d2-spinner__head {
+    stroke-linecap: round;
+}
+
+@keyframes d2-spin {
+    100% { transform: rotate(360deg); }
+}
+
+/* Stop spinner animation on inactive slides to reduce CPU */
+.slide:not(.active) .d2-spinner {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .d2-spinner {
+        animation: none !important;
+    }
+}
+
 .slide__area h1 {
     font-size: 60px;
     line-height: 1.2;
@@ -212,14 +256,13 @@
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
     color: rgba(226, 232, 240, 0.95);
     padding: 18px;
-    font-size: 28px;
+    font-size: 1.46rem;
     line-height: 1.4;
     overflow: auto;
     margin: 0;
-    width: 100%;
-    max-height: 100%;
     box-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
-    max-width: 850px;
+    max-width: 1100px;
+
 }
 
 .slide__area code {
@@ -237,7 +280,7 @@
 }
 
 .slide__area pre code {
-    font-size: 1.45rem;
+    font-size: 1.3rem;
 }
 
 .token.operator {
@@ -270,29 +313,28 @@
     width: 100%;
     max-height: 100%;
     max-width: 100%;
-    display: flex;
+    display: flex;         /* Ensure the content is centered */
     align-items: center;
     justify-content: center;
-    min-width: 0;
+    min-width: 0;         /* Important for flexbox in some cases */
     min-height: 0;
-    overflow: hidden;
+    overflow: hidden;      /* Prevent content from overflowing */
     padding: 8px;
+    box-sizing: border-box; /* Include padding in width/height */
 
-    /* Before D2 renders, the raw source text is present. */
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
 }
 
 /* Outer SVG should fill container */
-.slide__area .d2>svg {
-    display: block;
+.slide__area .d2 > svg {
+    display: block !important;  /* Override any conflicting styles */
     max-width: 100% !important;
     max-height: 100% !important;
     width: 100% !important;
-    height: auto !important;
+    height: auto !important;  /* Maintain aspect ratio */
 }
-
 .slide__area pre::-webkit-scrollbar,
 .notes::-webkit-scrollbar {
     height: 10px;

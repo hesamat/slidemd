@@ -1,184 +1,252 @@
+
 /**
  * ContentEnhancer
  * Provides static methods for enhancing slide content, including diagram rendering (D2), syntax highlighting (Prism), and math typesetting (KaTeX).
+ *
+ * D2 rendering uses the main thread with proper error handling and SVG validation.
+ * Only visible/active slides are rendered by default.
+ * D2 is preloaded on browser idle.
  */
-import { normalizeCodeLanguage, escapeHtml } from "./utils.js";
+import { normalizeCodeLanguage, escapeHtml, yieldToMain, withTimeout } from "./utils.js";
 
 export class ContentEnhancer {
-    static d2Initialized = false;
+    static d2Promise = null;
     static d2Instance = null;
 
     /**
-     * Extracts HTML text from a deck for scanning purposes.
+     * Validates that a string is valid SVG markup.
+     * Checks for: non-empty, contains <svg tag, ends with </svg>, contains actual content
      */
-    static deckHtmlText(deck) {
-        if (!deck || !Array.isArray(deck.slides)) return "";
-        const parts = [];
-        for (const s of deck.slides) {
-            if (!s || typeof s !== "object") continue;
-            if (s.areas && typeof s.areas === "object") {
-                for (const v of Object.values(s.areas)) {
-                    if (typeof v === "string" && v) parts.push(v);
-                }
-            }
-            if (typeof s.notes === "string" && s.notes) parts.push(s.notes);
-            if (typeof s.background === "string" && s.background) parts.push(s.background);
-        }
-        return parts.join("\n");
+    static isValidSvg(svg) {
+        if (!svg || typeof svg !== 'string') return false;
+        const trimmed = svg.trim();
+        if (!trimmed) return false;
+
+        // Remove XML declaration if present (<?xml...?>) before checking
+        const withoutXmlDecl = trimmed.replace(/^<\?xml[^?]*\?>\s*/, '');
+
+        if (!withoutXmlDecl.startsWith('<svg')) return false;
+        if (!trimmed.includes('</svg>')) return false;
+
+        // Check for some actual SVG content (paths, shapes, text, etc.)
+        // This catches empty SVGs like <svg></svg>
+        const hasContent = /<(path|rect|circle|ellipse|line|polygon|polyline|text|g|use|image)\b/i.test(svg);
+        return hasContent;
     }
 
     /**
-     * Checks if text contains patterns that require rich text enhancers.
+     * Efficiently scans the deck object to see what enhancers we need
+     * (Avoids converting the whole deck to a massive HTML string)
      */
-    static needsEnhancers(text) {
-        if (!text) return false;
-        return (
-            /<pre\b[\s\S]*?<code\b/i.test(text) ||
-            /\$\$|\$|\\\(|\\\[|\\begin\{/.test(text) ||
-            /class=["'][^"']*\bd2\b[^"']*["']/i.test(text)
-        );
+    static scanDeck(deck) {
+        let hasD2 = false;
+        let hasMath = false;
+        let hasCode = false;
+
+        const checkText = (text) => {
+            if (!text) return;
+            if (!hasD2 && /class=["'][^"']*\bd2\b[^"']*["']/.test(text)) hasD2 = true;
+            if (!hasD2 && /(```|~~~)\s*d2/.test(text)) hasD2 = true; // Check markdown blocks too
+            if (!hasMath && /\$\$|\$|\\\(|\\\[|\\begin\{/.test(text)) hasMath = true;
+            if (!hasCode && /<pre\b[\s\S]*?<code\b/i.test(text)) hasCode = true;
+        };
+
+        for (const slide of deck.slides) {
+            if (hasD2 && hasMath && hasCode) break; // Found everything
+            if (slide.notes) checkText(slide.notes);
+            if (slide.areas) {
+                for (const area of Object.values(slide.areas)) checkText(area);
+            }
+        }
+        return { hasD2, hasMath, hasCode };
     }
+
+    /**
+     * Triggers a background download and initialization of D2.
+     * Call this immediately when the app starts if D2 is detected.
+     */
+    static async warmupD2() {
+        if (this.d2Instance || this.d2Promise) return; // Already running
+        
+        console.log("Warming up D2 engine in background...");
+        try {
+            // 1. Download Script
+            await this.initializeD2();
+            
+            // 2. Force Worker Start (Compile nothing)
+            if (this.d2Instance) {
+                await this.d2Instance.compile("", { salt: "warmup" });
+            }
+        } catch (e) {
+            console.warn("D2 Warmup failed (will retry on demand):", e);
+            // Clear the failed promise to allow retry on first actual use
+            this.d2Promise = null;
+        }
+    }
+
+    static async initializeD2(forceReinit = false) {
+        if (this.d2Promise && !forceReinit) return this.d2Promise;
+
+        this.d2Promise = (async () => {
+            if (forceReinit && this.d2Instance) {
+                try {
+                    if (this.d2Instance.worker?.terminate) this.d2Instance.worker.terminate();
+                } catch (e) { console.warn("D2 cleanup warning:", e); }
+                this.d2Instance = null;
+            }
+
+            // Load Script via AssetLoader
+            if (!window.__WEBDECK_D2__?.D2) {
+                const { AssetLoader } = await import("./asset-loader.js");
+                await AssetLoader.ensureD2Loaded();
+            }
+
+            const D2Ctor = window.__WEBDECK_D2__.D2;
+            this.d2Instance = new D2Ctor();
+            return this.d2Instance;
+        })();
+
+        return this.d2Promise;
+    }
+
+    static showD2Error(el, message) {
+        el.innerHTML = `<div style="color:#d32f2f; padding:1rem; border:1px solid red;">Error: ${escapeHtml(message)}</div>`;
+        el.dataset.d2Processed = "1";
+    }
+
 
     static async renderD2Diagrams(rootEl, options = {}) {
         if (!rootEl) return true;
 
+        // Only render visible/active slides unless renderAllSlides is true
+        const { renderAllSlides = false } = options;
         const d2Blocks = rootEl.querySelectorAll(".d2");
         if (d2Blocks.length === 0) return true;
+        const nodes = Array.from(d2Blocks).filter(el => {
+            if (el.dataset.d2Processed === "1") return false;
+            const slide = el.closest(".slide");
+            if (!slide) return true;
+            if (renderAllSlides) return true;
+            // Only render if slide is visible
+            return slide.classList.contains("active") && slide.offsetParent !== null;
+        });
+        if (nodes.length === 0) return true;
 
-        const D2Ctor = window.__WEBDECK_D2__?.D2;
-        if (!D2Ctor) {
-            console.warn("D2 renderer called but window.__WEBDECK_D2__.D2 is not available yet.");
+        // Initialize D2 once
+        let d2 = null;
+        try {
+            await yieldToMain();
+            d2 = await this.initializeD2();
+        } catch (e) {
+            console.error("Failed to initialize D2:", e);
             return false;
         }
 
-        // 1. Initialize or Reset D2 Instance
-        if (!this.d2Initialized || !this.d2Instance) {
-            try {
-                // Only destroy if we are explicitly re-initializing due to an error
-                if (this.d2Instance?.destroy && !this.d2Initialized) {
-                    await this.d2Instance.destroy();
-                }
-                if (!this.d2Instance) {
-                    this.d2Instance = new D2Ctor();
-                }
-                this.d2Initialized = true;
-            } catch (e) {
-                console.error("Failed to initialize D2:", e);
-                this.d2Initialized = false;
-                return;
-            }
-        }
-
-        const d2 = this.d2Instance;
-        const { renderAllSlides = false } = options;
-
-        // 2. Filter Nodes
-        const nodes = Array.from(rootEl.querySelectorAll(".d2"))
-            .filter((n) => n instanceof HTMLElement && n.dataset.d2Processed !== "1" && n.dataset.d2Rendering !== "1")
-            .filter((el) => {
-                const slide = el.closest?.(".slide");
-                return !slide || renderAllSlides || slide.classList.contains("active");
-            });
-
-        // 3. Serial Execution Loop
-        for (const [i, el] of nodes.entries()) {
-            // Re-check processed state in case a parallel call finished it
-            if (el.dataset.d2Processed === "1" || el.dataset.d2Rendering === "1") continue;
-
-            if (el.querySelector("svg")) {
-                el.dataset.d2Processed = "1";
-                continue;
-            }
-
-            const rawSource = (el.dataset.d2Source || el.textContent || "").trim();
-            if (!rawSource) {
-                el.dataset.d2Processed = "1";
-                continue;
-            }
-
-            // Persist source if we haven't already, so it's never lost
-            if (!el.dataset.d2Source) {
-                el.dataset.d2Source = rawSource;
-            }
-            const source = rawSource;
-
-            // Mark as rendering to prevent concurrent attempts
-            el.dataset.d2Rendering = "1";
-
-            const salt = `webdeck_d2_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
-            const maxRetries = 2;
-            let success = false;
-            let attempts = 0;
-
-            while (!success && attempts <= maxRetries) {
+        // Batch rendering for UI responsiveness, offload to worker if possible
+        const BATCH_SIZE = 2;
+        let idx = 0;
+        while (idx < nodes.length) {
+            const batch = nodes.slice(idx, idx + BATCH_SIZE);
+            await Promise.all(batch.map(async (el, i) => {
+                if (el.dataset.d2Rendering === "1") return;
+                el.dataset.d2Rendering = "1";
                 try {
-                    const compiled = await d2.compile(source, { pad: 24, center: true, salt });
+                    const rawSource = el.dataset.d2Source;
+                    if (!rawSource) {
+                        el.dataset.d2Processed = "1";
+                        return;
+                    }
+                    const salt = `d2_${idx}_${i}`;
+                    console.debug(`[D2] Rendering diagram (${rawSource.length} bytes)`);
 
-                    // After await, check if element is still in DOM or if someone else finished it
-                    if (!el.isConnected || el.dataset.d2Processed === "1") break;
+                    // Render on main thread
+                    let svg;
+                    try {
+                        console.debug('[D2] Compiling...');
+                        const compiled = await withTimeout(
+                            d2.compile(rawSource, { pad: 24, center: true, salt }),
+                            8000
+                        );
 
-                    const response = await d2.render(compiled.diagram, {
-                        ...(compiled.renderOptions || {}),
-                        pad: 24,
-                        center: true,
-                        salt,
-                    });
+                        if (!compiled?.diagram) {
+                            throw new Error('D2 compile returned empty result');
+                        }
 
-                    if (!el.isConnected || el.dataset.d2Processed === "1") break;
+                        console.debug('[D2] Rendering...');
+                        const response = await withTimeout(
+                            d2.render(compiled.diagram, {
+                                ...(compiled.renderOptions || {}),
+                                pad: 24, center: true, salt
+                            }),
+                            8000
+                        );
 
-                    let svg = "";
-                    if (typeof response === "string") svg = response;
-                    else if (typeof response?.svg === "string") svg = response.svg;
-                    else if (typeof response?.result === "string") svg = response.result;
+                        svg = (typeof response === "string") ? response :
+                            (response?.svg || response?.result || "");
+
+                        if (!svg || typeof svg !== 'string') {
+                            console.error('[D2] Invalid response:', {
+                                response,
+                                responseKeys: Object.keys(response || {}),
+                                hasSvg: !!response?.svg,
+                                hasResult: !!response?.result,
+                                svgType: typeof response?.svg,
+                                resultType: typeof response?.result,
+                                extractedSvg: svg,
+                                extractedSvgType: typeof svg
+                            });
+                            throw new Error('D2 returned invalid response');
+                        }
+
+                        console.debug(`[D2] Complete (${svg.length} chars)`);
+                    } catch (e) {
+                        console.error('[D2] Rendering failed:', e);
+                        throw new Error(e?.message || 'Rendering error');
+                    }
+
+                    // Validate SVG
+                    if (!this.isValidSvg(svg)) {
+                        throw new Error('D2 returned invalid SVG');
+                    }
 
                     el.innerHTML = svg;
                     el.dataset.d2Processed = "1";
-
-                    const insertedSvg = el.querySelector("svg");
-                    if (insertedSvg) {
-                        insertedSvg.style.maxWidth = "100%";
-                        insertedSvg.style.maxHeight = "100%";
+                    const svgEl = el.querySelector("svg");
+                    if (svgEl) {
+                        svgEl.style.width = "100%";
+                        svgEl.style.height = "auto";
+                        svgEl.style.maxWidth = "100%";
                     }
-                    success = true;
                 } catch (e) {
-                    attempts++;
-                    if (attempts > maxRetries) {
-                        console.error("D2 Final Failure:", e);
-                        el.innerHTML = `<div style="color: #dc2626; padding: 1rem; border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2;">
-                            <strong>D2 Render Error:</strong><br/>
-                            <code style="white-space: pre-wrap; font-size: 0.875em;">${escapeHtml(String(e))}</code>
-                        </div>`;
-                        // Don't kill the whole instance on a single diagram failure unless it's a worker error
-                        if (e?.message?.includes("worker") || e?.message?.includes("terminate")) {
-                            this.d2Initialized = false;
-                        }
-                    } else {
-                        await new Promise((r) => setTimeout(r, 100 * attempts));
-                    }
+                    console.error(`Error processing D2 diagram at index ${idx + i}:`, e);
+                    this.showD2Error(el, e.message);
+                    el.dataset.d2Processed = "1";
+                } finally {
+                    delete el.dataset.d2Rendering;
                 }
-            }
-
-            delete el.dataset.d2Rendering;
+            }));
+            idx += BATCH_SIZE;
+            await yieldToMain();
         }
         return true;
     }
 
     static async enhanceRenderedContent(rootEl, options = {}) {
         if (!rootEl) return;
-        const { renderAllSlides = false } = options;
+        const { renderAllSlides = false, force = false } = options;
 
-        // --- 0. ENSURE DEPENDENCIES LOADED ---
-        // If Prism or KaTeX are missing, try to load them on the fly
+        if (!force && rootEl.dataset?.webdeckEnhanced === "1") return true;
+
+        // Note: Asset loading logic moved to scanDeck/warmup in deck.js
+        // but we keep this check for runtime safety.
         if (!window.Prism || (!window.renderMathInElement && /\$\$|\$|\\\(|\\\[|\\begin\{/.test(rootEl.textContent || ""))) {
             try {
                 const { AssetLoader } = await import("./asset-loader.js");
                 await AssetLoader.ensureRichTextEnhancers();
-            } catch (e) {
-                console.warn("Could not load rich text enhancers:", e);
-            }
+            } catch (e) { console.warn("Enhancer load error", e); }
         }
 
-        // --- 1. PREPARE D2 BLOCKS ---
+        // 1. Prepare D2 blocks (Save source, show spinner)
         const d2CodeNodes = rootEl.querySelectorAll("pre code.language-d2, pre code.lang-d2");
         for (const codeEl of d2CodeNodes) {
             const pre = codeEl.parentElement;
@@ -188,84 +256,66 @@ export class ContentEnhancer {
 
                 const div = document.createElement("div");
                 div.className = "d2";
-                div.dataset.d2Source = source; // Persist source to prevent loss on re-render
-                div.textContent = source; // Fallback text while rendering
+                div.dataset.d2Source = source;
+                div.innerHTML = `
+                    <div class="d2-loading">
+                        <svg class="d2-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="d2-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                            <path class="d2-spinner__head" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"></path>
+                        </svg>
+                        <span class="d2-loading__text">Rendering...</span>
+                    </div>`;
                 pre.replaceWith(div);
             }
         }
 
-        // --- 2. RENDER D2 ---
+        // 2. Trigger Render
         const d2Blocks = rootEl.querySelectorAll(".d2");
         if (d2Blocks.length > 0) {
-            // Ensure D2 loaded
+             // If we didn't warmup, this will be slow, but it will work.
             if (!window.__WEBDECK_D2__?.D2) {
                 try {
                     const { AssetLoader } = await import("./asset-loader.js");
                     await AssetLoader.ensureD2Loaded();
-                } catch (e) {
-                    console.error("Failed to load D2 module:", e);
-                }
+                } catch (e) { console.error("D2 load error", e); }
             }
-
             d2Blocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
-
-            try {
-                const success = await this.renderD2Diagrams(rootEl, { renderAllSlides });
-                if (!success) return false;
-            } catch (e) {
-                console.error("Failed to render D2 diagrams:", e);
-                this.d2Initialized = false;
-                return false;
-            }
+            
+            // Run rendering in background
+            this.renderD2Diagrams(rootEl, { renderAllSlides }).catch(e => console.error(e));
         }
 
-        // --- 3. PRISM SYNTAX HIGHLIGHTING ---
-        if (window.Prism && typeof window.Prism.highlightElement === "function") {
+        // 3. Prism
+        if (window.Prism) {
             const codeNodes = Array.from(rootEl.querySelectorAll("pre code"));
-
-            if (codeNodes.length > 0) {
-                for (const codeEl of codeNodes) {
-                    // Extract language from class (e.g., "language-js" or "lang-js")
-                    const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
-                    let lang = match ? match[1] : "none";
-
-                    // Normalize (e.g., 'js' -> 'javascript')
-                    if (typeof normalizeCodeLanguage === 'function') {
-                        lang = normalizeCodeLanguage(lang);
-                    }
-
-                    // Apply canonical class for Prism
-                    codeEl.className = `language-${lang}`;
-                }
-
-                if (typeof window.Prism.highlightAllUnder === "function") {
-                    window.Prism.highlightAllUnder(rootEl);
-                } else {
-                    codeNodes.forEach((codeEl) => window.Prism.highlightElement(codeEl));
-                }
+            for (const codeEl of codeNodes) {
+                const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
+                let lang = match ? match[1] : "none";
+                if (typeof normalizeCodeLanguage === 'function') lang = normalizeCodeLanguage(lang);
+                codeEl.className = `language-${lang}`;
             }
+            try {
+                if (window.Prism.highlightAllUnder) window.Prism.highlightAllUnder(rootEl);
+                else codeNodes.forEach(c => window.Prism.highlightElement(c));
+            } catch (e) { }
         }
 
-        // --- 4. KATEX MATH RENDERING ---
-        if (typeof window.renderMathInElement === "function") {
-            const text = rootEl.textContent || "";
-            if (/\$\$|\$|\\\(|\\\[|\\begin\{/.test(text)) {
-                try {
-                    window.renderMathInElement(rootEl, {
-                        delimiters: [
-                            { left: "$$", right: "$$", display: true },
-                            { left: "$", right: "$", display: false },
-                            { left: "\\(", right: "\\)", display: false },
-                            { left: "\\[", right: "\\]", display: true }
-                        ],
-                        ignoredClasses: ["no-math", "katex-ignore"],
-                        throwOnError: false,
-                    });
-                } catch (e) {
-                    console.warn("KaTeX rendering failed:", e);
-                }
-            }
+        // 4. KaTeX
+        if (window.renderMathInElement && /\$\$|\$|\\\(|\\\[|\\begin\{/.test(rootEl.textContent || "")) {
+            try {
+                window.renderMathInElement(rootEl, {
+                    delimiters: [
+                        { left: "$$", right: "$$", display: true },
+                        { left: "$", right: "$", display: false },
+                        { left: "\\(", right: "\\)", display: false },
+                        { left: "\\[", right: "\\]", display: true }
+                    ],
+                    ignoredClasses: ["no-math", "katex-ignore", "d2"],
+                    throwOnError: false,
+                });
+            } catch (e) { }
         }
+        if (rootEl.dataset) rootEl.dataset.webdeckEnhanced = "1";
         return true;
     }
 }
