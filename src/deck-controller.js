@@ -484,12 +484,7 @@ export class DeckController extends EventEmitter {
     async handlePrint({ triggerBrowserPrint = true } = {}) {
         if (this._isPrinting) return;
         this._isPrinting = true;
-        
-        const notification = document.createElement('div');
-        notification.style.cssText = "position:fixed;top:20px;right:20px;background:#333;color:white;padding:15px;border-radius:8px;z-index:9999;";
-        notification.textContent = "Preparing slides for print...";
-        document.body.appendChild(notification);
-        
+
         try {
             if (!window.__WEBDECK_D2__) {
                 await import("./asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
@@ -497,18 +492,16 @@ export class DeckController extends EventEmitter {
 
             const slides = this.elements.slidesContainer.querySelectorAll('.slide');
             for (let i = 0; i < slides.length; i++) {
-                notification.textContent = `Rendering slide ${i+1}/${slides.length}...`;
                 await ContentEnhancer.enhanceRenderedContent(slides[i], { renderAllSlides: true });
                 // CRITICAL: Yield to main thread to prevent freezing
                 await yieldToMain();
             }
-        } catch (e) { 
-            console.warn("Print prep failed:", e); 
-        } finally { 
-            notification.remove();
+        } catch (e) {
+            console.warn("Print prep failed:", e);
+        } finally {
             this._isPrinting = false;
         }
-        
+
         if (triggerBrowserPrint) window.print();
     }
 
