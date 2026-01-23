@@ -68,7 +68,7 @@ export class DeckController extends EventEmitter {
             reloadDeckBtn: $("reloadDeckBtn"),
 
             // Theme
-            themeToggleBtn: $("themeToggleBtn") 
+            themeToggleBtn: $("themeToggleBtn")
         };
     }
 
