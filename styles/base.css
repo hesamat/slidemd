@@ -2,13 +2,13 @@
     color-scheme: light;
 
     /* ===== Theme ===== */
-    --theme-bg: rgba(var(--color-primary), 0.05);
+    --theme-bg: rgba(var(--color-primary), 0.1);
 
     /* ===== Colors ===== */
     /* Base dark slate for text and borders */
     --color-slate: 15, 23, 42;
     /* Primary accent (indigo) */
-    --color-primary: 99, 102, 241;
+    --color-primary: 119, 102, 191;
     /* Secondary accent (teal, used for hover states) */
     --color-secondary: 20, 184, 166;
 
@@ -28,7 +28,7 @@
     --surface-hover: rgba(var(--color-slate), 0.06);
 
     /* ===== Accent States ===== */
-    --accent-bg: rgba(var(--color-primary), 0.12);
+    --accent-bg: rgba(var(--color-primary), 0.16);
     --accent-border: rgba(var(--color-primary), 0.4);
     --accent-text: rgba(var(--color-primary), 0.95);
 
@@ -39,7 +39,7 @@
     --ui-line-height: 1.35;
 
     /* ===== Spacing ===== */
-    --radius-sm: 10px;
+    --radius-sm: 8px;
     --radius-md: 14px;
     --radius-lg: 18px;
 

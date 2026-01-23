@@ -66,11 +66,12 @@
 .slide-thumbnails {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     padding: 8px 8px 12px 8px;
     max-height: 200px;
     overflow-y: auto;
     overflow-x: hidden;
+    background-color: var(--theme-bg);
 }
 
 /* Custom scrollbar for thumbnails */
