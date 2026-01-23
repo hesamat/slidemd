@@ -12,6 +12,7 @@ import { normalizeCodeLanguage, escapeHtml, yieldToMain, withTimeout } from "./u
 export class ContentEnhancer {
     static d2Promise = null;
     static d2Instance = null;
+    static d2Cache = new Map(); // Cache rendered diagrams by source hash
 
     /**
      * Validates that a string is valid SVG markup.
@@ -32,6 +33,29 @@ export class ContentEnhancer {
         // This catches empty SVGs like <svg></svg>
         const hasContent = /<(path|rect|circle|ellipse|line|polygon|polyline|text|g|use|image)\b/i.test(svg);
         return hasContent;
+    }
+
+    /**
+     * Creates a simple hash of a string for caching purposes.
+     * Uses SubtleCrypto for better distribution than simple hashing.
+     */
+    static async hashString(str) {
+        if (!crypto?.subtle) {
+            // Fallback for older browsers: simple hash
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            return hash.toString(36);
+        }
+
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
     /**
@@ -135,15 +159,14 @@ export class ContentEnhancer {
         // Initialize D2 once
         let d2 = null;
         try {
-            await yieldToMain();
             d2 = await this.initializeD2();
         } catch (e) {
             console.error("Failed to initialize D2:", e);
             return false;
         }
 
-        // Batch rendering for UI responsiveness, offload to worker if possible
-        const BATCH_SIZE = 2;
+        // Batch rendering for UI responsiveness - larger batch for better throughput
+        const BATCH_SIZE = 4;
         let idx = 0;
         while (idx < nodes.length) {
             const batch = nodes.slice(idx, idx + BATCH_SIZE);
@@ -156,6 +179,22 @@ export class ContentEnhancer {
                         el.dataset.d2Processed = "1";
                         return;
                     }
+
+                    // Check cache first
+                    const sourceHash = await this.hashString(rawSource);
+                    if (this.d2Cache.has(sourceHash)) {
+                        const cachedSvg = this.d2Cache.get(sourceHash);
+                        el.innerHTML = cachedSvg;
+                        el.dataset.d2Processed = "1";
+                        const svgEl = el.querySelector("svg");
+                        if (svgEl) {
+                            svgEl.style.width = "100%";
+                            svgEl.style.height = "auto";
+                            svgEl.style.maxWidth = "100%";
+                        }
+                        return;
+                    }
+
                     const salt = `d2_${idx}_${i}`;
                     console.debug(`[D2] Rendering diagram (${rawSource.length} bytes)`);
 
@@ -208,6 +247,9 @@ export class ContentEnhancer {
                     if (!this.isValidSvg(svg)) {
                         throw new Error('D2 returned invalid SVG');
                     }
+
+                    // Store in cache
+                    this.d2Cache.set(sourceHash, svg);
 
                     el.innerHTML = svg;
                     el.dataset.d2Processed = "1";
