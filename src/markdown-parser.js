@@ -51,7 +51,7 @@ export class MarkdownParser {
             fence.toggle(line);
 
             if (!title && !fence.isInFence) {
-                const m = line.match(/^\s*#\s+(.+?)\s*$/);
+                const m = line.match(/^\s*#{1,6}\s+(.+?)\s*$/);
                 if (m) {
                     title = safeString(m[1]).trim();
                 }

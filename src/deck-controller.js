@@ -6,21 +6,6 @@ import { StageScaler } from "./stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { Notification } from "./notification.js";
 
-// Shim for requestIdleCallback (prevents UI jank during background tasks)
-const requestIdleCallback = window.requestIdleCallback || function(cb) {
-    return setTimeout(() => {
-        const start = Date.now();
-        cb({ 
-            didTimeout: false, 
-            timeRemaining: () => Math.max(0, 50 - (Date.now() - start)) 
-        });
-    }, 1);
-};
-
-const cancelIdleCallback = window.cancelIdleCallback || function(id) {
-    clearTimeout(id);
-};
-
 export class DeckController extends EventEmitter {
     
     static #KEYBOARD_ACTIONS = {
@@ -28,10 +13,11 @@ export class DeckController extends EventEmitter {
         "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
         "Home": "first", "End": "last", 
         "g": "goto", "G": "goto",
-        "p": "presenter", "P": "presenter", 
         "e": "edit", "E": "edit",
         "b": "break", "B": "break", 
-        "f": "fullscreen", "r": "reload"
+        "f": "fullscreen", "F": "fullscreen",
+        "r": "reload", "R": "reload",
+        "v": "viewer", "V": "viewer"
     };
 
     static gatherElements() {
@@ -62,8 +48,7 @@ export class DeckController extends EventEmitter {
             
             // Presenter / Modes
             presenterPanel: $("presenterPanel"),
-            viewerPresenterBtn: $("viewerPresenterBtn"),
-            togglePresenterBtn: $("togglePresenterBtn"),
+            openViewerBtn: $("openViewerBtn"),
             toggleEditModeBtn: $("toggleEditModeBtn"),
             toggleFullscreenBtn: $("toggleFullscreenBtn"),
             
@@ -122,7 +107,7 @@ export class DeckController extends EventEmitter {
         const panel = document.getElementById("presenterPanel");
         if (panel) panel.classList.toggle("webdeck-hidden", !isPresenter);
         
-        const btn = document.getElementById("togglePresenterBtn");
+        const btn = document.getElementById("openViewerBtn");
         if (btn) btn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
     }
 
@@ -233,8 +218,7 @@ export class DeckController extends EventEmitter {
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
 
-        listen(this.elements.togglePresenterBtn, "click", () => this.togglePresenterWindow());
-        listen(this.elements.viewerPresenterBtn, "click", () => this.togglePresenterWindow());
+        listen(this.elements.openViewerBtn, "click", () => this.openViewerWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
@@ -351,11 +335,11 @@ export class DeckController extends EventEmitter {
             case "first": this.goTo(0); break;
             case "last": this.goTo(this.deck.slides.length - 1); break;
             case "goto": this.openGoToPrompt(); break;
-            case "presenter": this.togglePresenterWindow(); break;
-            case "edit": this.toggleEditMode(); break;
-            case "break": this.breakManager.toggle(); break;
+            case "viewer": this.openViewerWindow(); break;
+            case "edit": if (this.isPresenterWindow) this.toggleEditMode(); break;
+            case "break": if (this.isPresenterWindow) this.breakManager.toggle(); break;
             case "fullscreen": this.toggleFullscreen(); break;
-            case "reload": this.handleReloadDeck(); break;
+            case "reload": if (this.isPresenterWindow) this.handleReloadDeck(); break;
         }
     }
 
@@ -472,7 +456,7 @@ export class DeckController extends EventEmitter {
         this.elements.menuDropdown?.classList.add("webdeck-hidden"); 
     }
 
-    togglePresenterWindow() {
+    openViewerWindow() {
         if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
             return this.presenterWindowRef.close();
         }

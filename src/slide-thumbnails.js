@@ -62,7 +62,7 @@ export class SlideThumbnails {
         // Slide title
         const title = document.createElement('div');
         title.className = 'slide-thumbnail__title';
-        title.textContent = slide.title || `Slide ${index + 1}`;
+        title.textContent = slide.title || `Slide ${index}`;
 
         thumbnail.appendChild(number);
         thumbnail.appendChild(title);

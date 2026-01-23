@@ -77,7 +77,7 @@
             </div>
             <div class="topbar__right">
                 <div class="mode-toggles">
-                    <button id="togglePresenterBtn" class="mode-toggle" type="button" aria-label="Toggle presenter view"
+                    <button id="openViewerBtn" class="mode-toggle" type="button" aria-label="Open viewer view"
                         title="Presenter View (P)" data-mode="presenter">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -191,10 +191,14 @@
             <div class="footer__left">
                 <strong>Shortcuts:</strong>
                 <span><b>Arrows, Space, PgUp/Dn</b>: Prev/Next</span>
-                <span>•</span>
-                <span><b>E</b> Edit Mode</span>
-                <span>•</span>
-                <span><b>P</b> Presenter</span>
+                <span class="viewerOnlyControls">
+                    <span>•</span>
+                    <span style="padding: 0 6px;"><b>V</b> Open Viewer</span>
+                    <span>•</span>
+                    <span style="padding: 0 6px;"><b>E</b> Edit Mode</span>
+                    <span>•</span>
+                    <span style="padding-left: 6px;"><b>R</b> Reload</span>
+                </span>
                 <span>•</span>
                 <span><b>F</b> Full Screen</span>
                 <span>•</span>
