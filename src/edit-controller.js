@@ -112,6 +112,11 @@ export class EditController {
         // Set up panel resize functionality
         this.initPanelResize();
 
+        // Set up thumbnails toggle
+        if (this.elements.toggleThumbnailsBtn) {
+            this.elements.toggleThumbnailsBtn.addEventListener('click', () => this.toggleThumbnails());
+        }
+
         // Set up edit mode toggle
         if (this.elements.toggleEditModeBtn) {
             this.elements.toggleEditModeBtn.addEventListener('click', () => this.toggleEditMode());
@@ -200,6 +205,20 @@ export class EditController {
                 this.hasUnsavedChanges = false;
                 this.updateSaveButton();
             }
+        }
+    }
+
+    /**
+     * Toggle slides preview collapse/expand
+     */
+    toggleThumbnails() {
+        const thumbnailsContainer = document.querySelector('.editor__thumbnails');
+        const toggleBtn = this.elements.toggleThumbnailsBtn;
+
+        if (thumbnailsContainer && toggleBtn) {
+            const isCollapsed = thumbnailsContainer.classList.toggle('collapsed');
+            toggleBtn.setAttribute('aria-label', isCollapsed ? 'Expand slides' : 'Collapse slides');
+            toggleBtn.setAttribute('title', isCollapsed ? 'Expand slides' : 'Collapse slides');
         }
     }
 

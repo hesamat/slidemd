@@ -1,70 +1,53 @@
 :root {
     color-scheme: light;
-    --app-bg: #0b1220;
-    --panel-bg: rgba(255, 255, 255, 0.85);
-    --panel-border: rgba(15, 23, 42, 0.12);
-    --text: #0f172a;
-    --muted: rgba(15, 23, 42, 0.68);
-    --shadow: 0 18px 50px rgba(2, 6, 23, 0.28);
 
-    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI",
-        sans-serif;
+    /* ===== Colors ===== */
+    /* Base dark slate for text and borders */
+    --color-slate: 15, 23, 42;
+    /* Primary accent (indigo) */
+    --color-primary: 99, 102, 241;
+    /* Secondary accent (teal, used for hover states) */
+    --color-secondary: 20, 184, 166;
+
+    /* ===== Text ===== */
+    --text-high: rgba(var(--color-slate), 0.95);
+    --text-medium: rgba(var(--color-slate), 0.75);
+    --text-low: rgba(var(--color-slate), 0.55);
+
+    /* ===== Borders ===== */
+    --border-subtle: rgba(var(--color-slate), 0.08);
+    --border-medium: rgba(148, 163, 184, 0.35);
+    --border-strong: rgba(148, 163, 184, 0.5);
+
+    /* ===== Surfaces ===== */
+    --surface-bg: rgba(255, 255, 255, 0.95);
+    --surface-elevated: rgba(248, 250, 252, 0.98);
+    --surface-hover: rgba(var(--color-slate), 0.06);
+
+    /* ===== Accent States ===== */
+    --accent-bg: rgba(var(--color-primary), 0.12);
+    --accent-border: rgba(var(--color-primary), 0.4);
+    --accent-text: rgba(var(--color-primary), 0.95);
+
+    /* ===== Typography ===== */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
     --ui-font-size: 13px;
     --ui-line-height: 1.35;
 
+    /* ===== Spacing ===== */
     --radius-sm: 10px;
     --radius-md: 14px;
     --radius-lg: 18px;
-    --radius-xl: 20px;
 
-    --border: rgba(15, 23, 42, 0.14);
-    --border-soft: rgba(148, 163, 184, 0.32);
-    --surface: rgba(255, 255, 255, 0.86);
-    --surface-strong: rgba(255, 255, 255, 0.92);
-    --surface-subtle: rgba(248, 250, 252, 0.78);
-
-    --shadow-soft: 0 14px 40px rgba(2, 6, 23, 0.22);
-    --shadow-ui: 0 10px 24px rgba(2, 6, 23, 0.12);
-
-    --accent: rgb(5, 36, 26);
-    --accent-2: rgb(14, 165, 233);
-    --focus-ring: rgba(14, 165, 233, 0.28);
-
+    /* ===== Stage ===== */
     --slide-bg: #ffffff;
-    --slide-ink: rgba(15, 23, 42, 0.92);
-    --slide-muted: rgba(15, 23, 42, 0.74);
-    --slide-rhythm: 18px;
-
     --stage-w: 1920px;
     --stage-h: 1080px;
     --stage-scale: 1;
-    --stage-radius: 18px;
 
+    /* ===== Layout ===== */
     --topbar-h: 48px;
-
-    /* Text colors for UI elements */
-    --text-primary: rgba(15, 23, 42, 0.9);
-    --text-secondary: rgba(15, 23, 42, 0.78);
-    --text-tertiary: rgba(15, 23, 42, 0.72);
-    --text-subtle: rgba(15, 23, 42, 0.65);
-    --text-muted-subtle: rgba(15, 23, 42, 0.56);
-    --text-placeholder: rgba(15, 23, 42, 0.4);
-    --text-strong: rgba(15, 23, 42, 0.85);
-
-    /* Border colors for UI elements */
-    --border-subtle: rgba(15, 23, 42, 0.08);
-    --border-medium: rgba(148, 163, 184, 0.28);
-    --border-card: rgba(148, 163, 184, 0.3);
-    --border-strong: rgba(148, 163, 184, 0.45);
-
-    /* Surface colors for UI elements */
-    --surface-light: rgba(255, 255, 255, 0.5);
-    --surface-medium: rgba(255, 255, 255, 0.72);
-
-    /* Link colors */
-    --link-hover: rgba(2, 132, 199, 0.95);
 }
 
 * {
@@ -81,13 +64,13 @@ body {
     font-family: var(--font-sans);
     font-size: var(--ui-font-size);
     line-height: var(--ui-line-height);
-    background: radial-gradient(1200px 800px at 20% 10%, #1b2a44, #0b1220 60%, #070b13);
-    color: var(--text);
+    background: rgba(var(--color-primary), 0.05);
+    color: rgba(var(--color-slate), 0.92);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-    background: rgba(14, 165, 233, 0.22);
+    background: rgba(var(--color-primary), 0.22);
 }
