@@ -85,7 +85,7 @@
     font-size: 20px;
     color: var(--slide-ink);
     border: 1px solid var(--slide-ink);
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--surface-bg);
     padding: 7px 12px;
     border-radius: 999px;
     user-select: none;
