@@ -175,6 +175,9 @@ export class EditController {
     toggleEditMode() {
         this.isEditMode = !this.isEditMode;
 
+        // Notify the controller so it can adjust navigation
+        this.controller.onEditModeChanged?.();
+
         if (this.isEditMode) {
             this.elements.editorPanel?.classList.remove('webdeck-hidden');
             this.elements.presenterPanel?.classList.add('webdeck-hidden');
@@ -289,15 +292,20 @@ export class EditController {
             this.thumbnails.updateThumbnailTitle(this.currentSlideIndex, slideData.title);
 
             // Find and replace the DOM element
-            const allSlides = document.querySelectorAll('.slide');
+            // Use the slides container to get slides in correct order
+            const slidesContainer = document.getElementById('slidesContainer');
+            if (!slidesContainer) return;
+
+            const allSlides = slidesContainer.querySelectorAll(':scope > .slide');
             const slideEl = allSlides[this.currentSlideIndex];
 
             if (slideEl) {
+                const wasActive = slideEl.classList.contains('active');
                 const newSlideEl = SlideRenderer.createSlideElement(
                     this.deck,
                     slideData,
                     this.currentSlideIndex,
-                    true
+                    wasActive  // Preserve the active state
                 );
                 slideEl.replaceWith(newSlideEl);
 

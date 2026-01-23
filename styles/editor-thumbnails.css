@@ -152,6 +152,40 @@
     font-weight: 600;
 }
 
+/* Toggle icon for showing/hiding slides */
+.slide-thumbnail__toggle-icon {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-medium);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.slide-thumbnail__toggle-icon:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+/* Show toggle icon on hover for all slides */
+.slide-thumbnail:hover .slide-thumbnail__toggle-icon {
+    display: inline-flex;
+}
+
+/* Always show toggle icon for hidden slides */
+.slide-thumbnail__toggle-icon--hidden,
+.slide-thumbnail--hidden .slide-thumbnail__toggle-icon {
+    display: inline-flex;
+}
+
 /* Hidden thumbnail styling */
 .slide-thumbnail--hidden {
     opacity: 0.6;
@@ -168,15 +202,4 @@
 
 .slide-thumbnail--hidden.current {
     opacity: 0.8;
-}
-
-.slide-thumbnail__hidden-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    color: var(--text-medium);
-    opacity: 0.7;
 }

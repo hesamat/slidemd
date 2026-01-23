@@ -144,7 +144,7 @@
 }
 
 /* D2 loading state (shared across markdown + client rendering) */
-.d2[data-d2-source] > :not(.d2-loading) {
+.d2[data-d2-source]> :not(.d2-loading) {
     display: none;
 }
 
@@ -173,7 +173,9 @@
 }
 
 @keyframes d2-spin {
-    100% { transform: rotate(360deg); }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Stop spinner animation on inactive slides to reduce CPU */
@@ -314,14 +316,18 @@
     width: 100%;
     max-height: 100%;
     max-width: 100%;
-    display: flex;         /* Ensure the content is centered */
+    display: flex;
+    /* Ensure the content is centered */
     align-items: center;
     justify-content: center;
-    min-width: 0;         /* Important for flexbox in some cases */
+    min-width: 0;
+    /* Important for flexbox in some cases */
     min-height: 0;
-    overflow: hidden;      /* Prevent content from overflowing */
+    overflow: hidden;
+    /* Prevent content from overflowing */
     padding: 8px;
-    box-sizing: border-box; /* Include padding in width/height */
+    box-sizing: border-box;
+    /* Include padding in width/height */
 
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -329,13 +335,16 @@
 }
 
 /* Outer SVG should fill container */
-.slide__area .d2 > svg {
-    display: block !important;  /* Override any conflicting styles */
+.slide__area .d2>svg {
+    display: block !important;
+    /* Override any conflicting styles */
     max-width: 100% !important;
     max-height: 100% !important;
     width: 100% !important;
-    height: auto !important;  /* Maintain aspect ratio */
+    height: auto !important;
+    /* Maintain aspect ratio */
 }
+
 .slide__area pre::-webkit-scrollbar,
 .notes::-webkit-scrollbar {
     height: 10px;
@@ -461,11 +470,13 @@
 
 /* Hidden slides - hidden by default, visible in edit mode */
 .slide--hidden {
-    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
 }
 
+/* Hidden slides in edit mode */
 body[data-edit-mode="true"] .slide--hidden {
-    display: grid !important;
+    visibility: visible;
     opacity: 0.5;
 }
 

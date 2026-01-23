@@ -197,9 +197,12 @@ export class DeckController extends EventEmitter {
 
         sessionStorage.removeItem("webdeck_restore_slide_index");
 
-        this.currentIndex = hash ? parseInt(hash[1], 10) - 1
+        let initialIndex = hash ? parseInt(hash[1], 10) - 1
             : restoreIndex !== null ? parseInt(restoreIndex, 10)
                 : (parseInt(stored, 10) || 0);
+
+        // Ensure we start on a visible slide (unless in edit mode)
+        this.currentIndex = this.getVisibleIndex(initialIndex);
 
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
@@ -297,6 +300,8 @@ export class DeckController extends EventEmitter {
 
     async replaceDeck(newDeck) {
         const preservedIndex = Math.min(this.currentIndex, newDeck.slides.length - 1);
+        // Ensure we land on a visible slide (unless in edit mode)
+        const visibleIndex = this.getVisibleIndex(preservedIndex);
         this.deck = newDeck;
 
         this.breakManager.deck = newDeck;
@@ -320,7 +325,7 @@ export class DeckController extends EventEmitter {
 
         this.initIds();
         this.initBroadcastChannel();
-        this.goTo(preservedIndex, { broadcast: false });
+        this.goTo(visibleIndex, { broadcast: false });
         this.dispatchEvent('deckchange', { deck: newDeck });
     }
 
@@ -395,8 +400,50 @@ export class DeckController extends EventEmitter {
         }
     }
 
+    /**
+     * Check if we're in edit mode
+     */
+    isEditMode() {
+        return document.body.getAttribute('data-edit-mode') === 'true';
+    }
+
+    /**
+     * Find the next visible slide index (skips hidden slides)
+     */
+    findNextVisibleIndex(fromIndex) {
+        for (let i = fromIndex + 1; i < this.deck.slides.length; i++) {
+            if (!this.deck.slides[i]?.hidden) return i;
+        }
+        return fromIndex; // No next visible slide, stay on current
+    }
+
+    /**
+     * Find the previous visible slide index (skips hidden slides)
+     */
+    findPrevVisibleIndex(fromIndex) {
+        for (let i = fromIndex - 1; i >= 0; i--) {
+            if (!this.deck.slides[i]?.hidden) return i;
+        }
+        return fromIndex; // No previous visible slide, stay on current
+    }
+
+    /**
+     * Get the actual visible slide index (skips hidden slides unless in edit mode)
+     */
+    getVisibleIndex(targetIndex) {
+        const clamped = Math.max(0, Math.min(targetIndex, this.deck.slides.length - 1));
+        // In edit mode, allow navigating to any slide including hidden ones
+        if (this.isEditMode()) return clamped;
+        // Outside edit mode, if the target slide is hidden, find the next visible one
+        if (this.deck.slides[clamped]?.hidden) {
+            return this.findNextVisibleIndex(clamped);
+        }
+        return clamped;
+    }
+
     goTo(index, { broadcast = true } = {}) {
-        this.currentIndex = Math.max(0, Math.min(index, this.deck.slides.length - 1));
+        const visibleIndex = this.getVisibleIndex(index);
+        this.currentIndex = visibleIndex;
 
         if (broadcast) {
             localStorage.setItem(this.SLIDE_STATE_KEY, String(this.currentIndex));
@@ -431,12 +478,26 @@ export class DeckController extends EventEmitter {
 
     next() {
         if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else this.goTo(this.currentIndex + 1);
+        else {
+            // In edit mode, go to next slide (including hidden)
+            // Outside edit mode, skip to next visible slide
+            const targetIndex = this.isEditMode()
+                ? this.currentIndex + 1
+                : this.findNextVisibleIndex(this.currentIndex);
+            this.goTo(targetIndex);
+        }
     }
 
     prev() {
         if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else this.goTo(this.currentIndex - 1);
+        else {
+            // In edit mode, go to previous slide (including hidden)
+            // Outside edit mode, skip to previous visible slide
+            const targetIndex = this.isEditMode()
+                ? this.currentIndex - 1
+                : this.findPrevVisibleIndex(this.currentIndex);
+            this.goTo(targetIndex);
+        }
     }
 
     applyStageScale() {
@@ -476,6 +537,18 @@ export class DeckController extends EventEmitter {
 
     toggleEditMode() {
         window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode();
+    }
+
+    /**
+     * Called when edit mode is toggled to ensure we're on a valid slide
+     */
+    onEditModeChanged() {
+        // If exiting edit mode and current slide is hidden, navigate to next visible
+        if (!this.isEditMode() && this.deck.slides[this.currentIndex]?.hidden) {
+            this.goTo(this.findNextVisibleIndex(this.currentIndex), { broadcast: false });
+        }
+        // Re-render to update slide visibility
+        this.render();
     }
 
     toggleMenu() {
