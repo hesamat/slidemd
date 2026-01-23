@@ -1,15 +1,15 @@
 // Deterministic HTML deck runtime (Markdown deck schema)
-import { DESIGN_SIZE, normalizeCodeLanguage } from "./src/utils.js";
-import { AssetLoader } from "./src/asset-loader.js";
-import { ContentEnhancer } from "./src/content-enhancer.js";
-import { DeckLoader } from "./src/deck-loader.js";
-import { DeckController } from "./src/deck-controller.js";
-import { SlideRenderer } from "./src/slide-renderer.js";
-import { EditController } from "./src/edit-controller.js";
-import { ThemeManager } from "./src/theme-manager.js";
-import { RoleManager } from "./src/role-manager.js";
-import { ReloadManager } from "./src/reload-manager.js";
-import { ElementGatherer } from "./src/element-gatherer.js";
+import { DESIGN_SIZE, normalizeCodeLanguage } from "./src/core/utils.js";
+import { AssetLoader } from "./src/core/asset-loader.js";
+import { ContentEnhancer } from "./src/renderer/content-enhancer.js";
+import { DeckLoader } from "./src/data/deck-loader.js";
+import { DeckController } from "./src/engine/deck-controller.js";
+import { SlideRenderer } from "./src/renderer/slide-renderer.js";
+import { EditController } from "./src/editor/edit-controller.js";
+import { ThemeManager } from "./src/renderer/theme-manager.js";
+import { RoleManager } from "./src/engine/role-manager.js";
+import { ReloadManager } from "./src/engine/reload-manager.js";
+import { ElementGatherer } from "./src/core/element-gatherer.js";
 
 (() => {
     "use strict";

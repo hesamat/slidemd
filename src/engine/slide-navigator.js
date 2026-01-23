@@ -3,7 +3,7 @@
  * Handles slide navigation including visible/hidden slide logic.
  */
 
-import { EventEmitter } from "./utils.js";
+import { EventEmitter } from "../core/utils.js";
 
 export class SlideNavigator extends EventEmitter {
     /**

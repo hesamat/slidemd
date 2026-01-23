@@ -2,7 +2,7 @@
  * MarkdownEditor
  * A lightweight markdown editor with syntax highlighting using Prism.js backdrop highlighter pattern.
  */
-import { AssetLoader } from "./asset-loader.js";
+import { AssetLoader } from "../core/asset-loader.js";
 
 export class MarkdownEditor {
     /**

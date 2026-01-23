@@ -1,16 +1,16 @@
-import { getDeckId, EventEmitter } from "./utils.js";
-import { SlideRenderer } from "./slide-renderer.js";
-import { ContentEnhancer } from "./content-enhancer.js";
-import { DeckLoader } from "./deck-loader.js";
-import { StageScaler } from "./stage-scaler.js";
+import { getDeckId, EventEmitter } from "../core/utils.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
+import { ContentEnhancer } from "../renderer/content-enhancer.js";
+import { DeckLoader } from "../data/deck-loader.js";
+import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
-import { ThemeManager } from "./theme-manager.js";
+import { ThemeManager } from "../renderer/theme-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
-import { PrintManager } from "./print-manager.js";
+import { PrintManager } from "../renderer/print-manager.js";
 import { ReloadManager } from "./reload-manager.js";
-import { UiActions } from "./ui-actions.js";
+import { UiActions } from "../ui/ui-actions.js";
 
 export class DeckController extends EventEmitter {
 
@@ -155,7 +155,7 @@ export class DeckController extends EventEmitter {
     }
 
     preloadEnhancers() {
-        import("./asset-loader.js")
+        import("../core/asset-loader.js")
             .then(({ AssetLoader }) => {
                 AssetLoader.ensureRichTextEnhancers().catch(console.warn);
                 // Scan deck and warmup D2 if needed

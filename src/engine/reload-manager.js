@@ -3,11 +3,11 @@
  * Handles deck reloading from various sources and cross-window reload broadcasting.
  */
 
-import { EventEmitter } from "./utils.js";
-import { DeckLoader } from "./deck-loader.js";
-import { SlideRenderer } from "./slide-renderer.js";
-import { Notification } from "./notification.js";
-import { UiActions } from "./ui-actions.js";
+import { EventEmitter } from "../core/utils.js";
+import { DeckLoader } from "../data/deck-loader.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
+import { Notification } from "../renderer/notification.js";
+import { UiActions } from "../ui/ui-actions.js";
 
 export class ReloadManager extends EventEmitter {
     /**

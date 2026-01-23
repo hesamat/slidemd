@@ -3,8 +3,8 @@
  * Manages break state, timers, and slide rendering for presentation breaks.
  * Handles cross-window synchronization of break state via localStorage and BroadcastChannel.
  */
-import { getDeckId } from "./utils.js";
-import { SlideRenderer } from "./slide-renderer.js";
+import { getDeckId } from "../core/utils.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
 
 export class BreakManager {
     /**

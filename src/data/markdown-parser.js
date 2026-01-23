@@ -3,7 +3,7 @@
  * Extracts and parses slides from markdown files. Handles code fences, directives, and metadata for slide generation and content structuring.
  */
 // Markdown parsing and slide extraction
-import { safeString, slugifyTitle, DESIGN_SIZE, escapeHtml } from "./utils.js";
+import { safeString, slugifyTitle, DESIGN_SIZE, escapeHtml } from "../core/utils.js";
 
 class FenceTracker {
     constructor() {

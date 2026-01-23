@@ -3,7 +3,7 @@
  * Manages presenter/viewer role state, URL-based role detection, and presenter window reference.
  */
 
-import { EventEmitter } from "./utils.js";
+import { EventEmitter } from "../core/utils.js";
 
 export class RoleManager extends EventEmitter {
     /**

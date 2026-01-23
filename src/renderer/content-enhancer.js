@@ -7,7 +7,7 @@
  * Only visible/active slides are rendered by default.
  * D2 is preloaded on browser idle.
  */
-import { normalizeCodeLanguage, escapeHtml, yieldToMain, withTimeout } from "./utils.js";
+import { normalizeCodeLanguage, escapeHtml, yieldToMain, withTimeout } from "../core/utils.js";
 
 export class ContentEnhancer {
     static d2Promise = null;
@@ -122,7 +122,7 @@ export class ContentEnhancer {
 
             // Load Script via AssetLoader
             if (!window.__WEBDECK_D2__?.D2) {
-                const { AssetLoader } = await import("./asset-loader.js");
+                const { AssetLoader } = await import("../core/asset-loader.js");
                 await AssetLoader.ensureD2Loaded();
             }
 
@@ -347,7 +347,7 @@ export class ContentEnhancer {
         // but we keep this check for runtime safety.
         if (!window.Prism || (!window.renderMathInElement && /\$\$|\$|\\\(|\\\[|\\begin\{/.test(rootEl.textContent || ""))) {
             try {
-                const { AssetLoader } = await import("./asset-loader.js");
+                const { AssetLoader } = await import("../core/asset-loader.js");
                 await AssetLoader.ensureRichTextEnhancers();
             } catch (e) { console.warn("Enhancer load error", e); }
         }
@@ -381,7 +381,7 @@ export class ContentEnhancer {
             // If we didn't warmup, this will be slow, but it will work.
             if (!window.__WEBDECK_D2__?.D2) {
                 try {
-                    const { AssetLoader } = await import("./asset-loader.js");
+                    const { AssetLoader } = await import("../core/asset-loader.js");
                     await AssetLoader.ensureD2Loaded();
                 } catch (e) {
                     console.error("D2 load error", e);

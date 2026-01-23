@@ -2,10 +2,10 @@
  * DeckLoader
  * Loads deck data from embedded HTML, local files, or remote sources.
  */
-import { AssetLoader } from "./asset-loader.js";
+import { AssetLoader } from "../core/asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
-import { safeString, getDeckId, DESIGN_SIZE, yieldToMain } from "./utils.js";
-import { Notification } from "./notification.js";
+import { safeString, getDeckId, DESIGN_SIZE, yieldToMain } from "../core/utils.js";
+import { Notification } from "../renderer/notification.js";
 
 export class DeckLoader {
     

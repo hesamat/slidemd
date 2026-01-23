@@ -3,7 +3,7 @@
  * Parses layout specifications and generates CSS grid templates for slide areas. Supports preset layouts and custom grid definitions for flexible slide design.
  */
 // Layout parsing and grid generation
-import { safeString } from "./utils.js";
+import { safeString } from "../core/utils.js";
 import { LayoutData } from "./layout-data.js";
 
 export class LayoutParser {

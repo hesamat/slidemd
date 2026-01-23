@@ -510,26 +510,32 @@ function stripEsmSyntax(srcText, filePath) {
 
 function buildBundleJs() {
     const order = [
-        path.join(root, "src", "utils.js"),
-        path.join(root, "src", "notification.js"),
-        path.join(root, "src", "layout-data.js"),
-        path.join(root, "src", "stage-scaler.js"),
-        path.join(root, "src", "break-manager.js"),
-        path.join(root, "src", "asset-loader.js"),
-        path.join(root, "src", "content-enhancer.js"),
-        path.join(root, "src", "markdown-parser.js"),
-        path.join(root, "src", "layout-parser.js"),
-        path.join(root, "src", "slide-renderer.js"),
-        path.join(root, "src", "deck-loader.js"),
-        path.join(root, "src", "deck-controller.js"),
-        path.join(root, "src", "theme-manager.js"),
-        path.join(root, "src", "keyboard-handler.js"),
-        path.join(root, "src", "role-manager.js"),
-        path.join(root, "src", "slide-navigator.js"),
-        path.join(root, "src", "reload-manager.js"),
-        path.join(root, "src", "print-manager.js"),
-        path.join(root, "src", "element-gatherer.js"),
-        path.join(root, "src", "ui-actions.js"),
+        // Core utilities and helpers
+        path.join(root, "src", "core", "utils.js"),
+        path.join(root, "src", "core", "element-gatherer.js"),
+        path.join(root, "src", "core", "asset-loader.js"),
+        // Data loading and parsing
+        path.join(root, "src", "data", "layout-data.js"),
+        path.join(root, "src", "data", "markdown-parser.js"),
+        path.join(root, "src", "data", "layout-parser.js"),
+        path.join(root, "src", "data", "deck-loader.js"),
+        // Renderer components
+        path.join(root, "src", "renderer", "notification.js"),
+        path.join(root, "src", "renderer", "stage-scaler.js"),
+        path.join(root, "src", "renderer", "content-enhancer.js"),
+        path.join(root, "src", "renderer", "slide-renderer.js"),
+        path.join(root, "src", "renderer", "theme-manager.js"),
+        path.join(root, "src", "renderer", "print-manager.js"),
+        // Engine components
+        path.join(root, "src", "engine", "keyboard-handler.js"),
+        path.join(root, "src", "engine", "role-manager.js"),
+        path.join(root, "src", "engine", "slide-navigator.js"),
+        path.join(root, "src", "engine", "break-manager.js"),
+        path.join(root, "src", "engine", "reload-manager.js"),
+        path.join(root, "src", "engine", "deck-controller.js"),
+        // UI components
+        path.join(root, "src", "ui", "ui-actions.js"),
+        // Entry point
         path.join(root, "deck.js"),
     ];
 

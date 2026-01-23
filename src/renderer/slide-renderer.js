@@ -5,9 +5,9 @@
  * for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString, DESIGN_SIZE } from "./utils.js";
-import { LayoutParser } from "./layout-parser.js";
-import { DeckLoader } from "./deck-loader.js";
+import { safeString, DESIGN_SIZE } from "../core/utils.js";
+import { LayoutParser } from "../data/layout-parser.js";
+import { DeckLoader } from "../data/deck-loader.js";
 
 export class SlideRenderer {
     static areaLooksLikeMediaAsset(areaHtml) {

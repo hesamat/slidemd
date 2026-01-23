@@ -3,7 +3,7 @@
  * Handles print preparation, content enhancement before printing, and browser print triggering.
  */
 
-import { yieldToMain } from "./utils.js";
+import { yieldToMain } from "../core/utils.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 
 export class PrintManager {
@@ -24,7 +24,7 @@ export class PrintManager {
         try {
             // Ensure D2 is loaded before printing
             if (!window.__WEBDECK_D2__) {
-                await import("./asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
+                await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
             }
 
             const slides = slidesContainer.querySelectorAll('.slide');

@@ -4,7 +4,7 @@
  * Provides access to layout configuration without UI concerns.
  */
 
-import LAYOUTS from './data/layouts.json' with { type: 'json' };
+import LAYOUTS from './layouts.json' with { type: 'json' };
 
 export class LayoutData {
     /**

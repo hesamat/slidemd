@@ -4,7 +4,7 @@
  * Calculates optimal scale while maintaining the design aspect ratio.
  */
 
-import { DESIGN_SIZE } from './utils.js';
+import { DESIGN_SIZE } from '../core/utils.js';
 
 export class StageScaler {
     /**

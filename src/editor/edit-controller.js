@@ -2,16 +2,16 @@
  * EditController
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
-import { MarkdownParser } from "./markdown-parser.js";
-import { SlideRenderer } from "./slide-renderer.js";
-import { AssetLoader } from "./asset-loader.js";
-import { Notification } from "./notification.js";
-import { ContentEnhancer } from "./content-enhancer.js";
+import { MarkdownParser } from "../data/markdown-parser.js";
+import { SlideRenderer } from "../renderer/slide-renderer.js";
+import { AssetLoader } from "../core/asset-loader.js";
+import { Notification } from "../renderer/notification.js";
+import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
-import { LayoutData } from "./layout-data.js";
+import { LayoutData } from "../data/layout-data.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
-import { StageScaler } from "./stage-scaler.js";
+import { StageScaler } from "../renderer/stage-scaler.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
