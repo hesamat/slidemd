@@ -13,6 +13,8 @@ export class ContentEnhancer {
     static d2Promise = null;
     static d2Instance = null;
     static d2Cache = new Map(); // Cache rendered diagrams by source hash
+    static d2RenderQueue = []; // Queue for serialized rendering
+    static d2Rendering = false; // Flag to track if rendering is in progress
 
     /**
      * Validates that a string is valid SVG markup.
@@ -91,12 +93,11 @@ export class ContentEnhancer {
      */
     static async warmupD2() {
         if (this.d2Instance || this.d2Promise) return; // Already running
-        
-        console.log("Warming up D2 engine in background...");
+
         try {
             // 1. Download Script
             await this.initializeD2();
-            
+
             // 2. Force Worker Start (Compile nothing)
             if (this.d2Instance) {
                 await this.d2Instance.compile("", { salt: "warmup" });
@@ -138,6 +139,109 @@ export class ContentEnhancer {
         el.dataset.d2Processed = "1";
     }
 
+    /**
+     * Renders a single D2 diagram with retry logic.
+     * Implements exponential backoff for transient failures.
+     */
+    static async renderD2WithRetry(d2, source, options, maxRetries = 3) {
+        const { salt } = options;
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const attemptSalt = `${salt}_attempt${attempt}_${Date.now()}`;
+
+                const compiled = await withTimeout(
+                    d2.compile(source, {
+                        pad: 24,
+                        center: true,
+                        noXMLTag: true,
+                        salt: attemptSalt
+                    }),
+                    8000
+                );
+
+                if (!compiled?.diagram) {
+                    throw new Error('D2 compile returned empty result');
+                }
+
+                // Try to render - using unique salt each time to avoid conflicts
+                // NOTE: Don't spread compiled.renderOptions as it may cause issues
+                let response = await withTimeout(
+                    d2.render(compiled.diagram, {
+                        pad: 24,
+                        center: true,
+                        noXMLTag: true,
+                        salt: attemptSalt
+                    }),
+                    8000
+                );
+
+                // Extract SVG from response
+                let svg = null;
+
+                // Case 1: Direct string response (most common)
+                if (typeof response === "string") {
+                    svg = response;
+                }
+                // Case 2: Object response - D2 library bug detected
+                else if (typeof response === "object" && response !== null) {
+                    throw new Error("D2 render returned an object instead of SVG string");
+                }
+
+                // Final validation
+                if (!svg || typeof svg !== 'string') {
+                    throw new Error(`D2 returned invalid response (attempt ${attempt}/${maxRetries})`);
+                }
+
+                return svg;
+
+            } catch (e) {
+                lastError = e;
+
+                // If this is not the last attempt, wait before retrying
+                if (attempt < maxRetries) {
+                    const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000); // 100ms, 200ms, 400ms
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // All retries failed
+        throw lastError || new Error('D2 rendering failed after all retries');
+    }
+
+    /**
+     * Processes the D2 render queue one item at a time.
+     * This ensures serial execution to prevent race conditions.
+     */
+    static async processD2RenderQueue() {
+        if (this.d2Rendering) {
+            return;
+        }
+
+        if (this.d2RenderQueue.length === 0) {
+            return;
+        }
+
+        this.d2Rendering = true;
+
+        try {
+            while (this.d2RenderQueue.length > 0) {
+                const task = this.d2RenderQueue.shift();
+                try {
+                    await withTimeout(task(), 15000); // 15 second timeout per diagram
+                } catch (e) {
+                    console.warn("[D2 Queue] Task failed:", e);
+                }
+                // Yield to main thread every task to prevent blocking
+                await yieldToMain();
+            }
+        } finally {
+            this.d2Rendering = false;
+        }
+    }
+
 
     static async renderD2Diagrams(rootEl, options = {}) {
         if (!rootEl) return true;
@@ -165,25 +269,26 @@ export class ContentEnhancer {
             return false;
         }
 
-        // Batch rendering for UI responsiveness - larger batch for better throughput
-        const BATCH_SIZE = 4;
-        let idx = 0;
-        while (idx < nodes.length) {
-            const batch = nodes.slice(idx, idx + BATCH_SIZE);
-            await Promise.all(batch.map(async (el, i) => {
-                if (el.dataset.d2Rendering === "1") return;
-                el.dataset.d2Rendering = "1";
-                try {
-                    const rawSource = el.dataset.d2Source;
-                    if (!rawSource) {
-                        el.dataset.d2Processed = "1";
-                        return;
-                    }
+        // Process each diagram and add to queue
+        for (let idx = 0; idx < nodes.length; idx++) {
+            const el = nodes[idx];
+            if (el.dataset.d2Rendering === "1") continue;
+            el.dataset.d2Rendering = "1";
 
-                    // Check cache first
+            const rawSource = el.dataset.d2Source;
+            if (!rawSource) {
+                el.dataset.d2Processed = "1";
+                delete el.dataset.d2Rendering;
+                continue;
+            }
+
+            // Add rendering task to queue
+            const salt = `d2_${idx}`;
+            this.d2RenderQueue.push(async () => {
+                try {
                     const sourceHash = await this.hashString(rawSource);
-                    if (this.d2Cache.has(sourceHash)) {
-                        const cachedSvg = this.d2Cache.get(sourceHash);
+                    const cachedSvg = this.d2Cache.get(sourceHash);
+                    if (cachedSvg) {
                         el.innerHTML = cachedSvg;
                         el.dataset.d2Processed = "1";
                         const svgEl = el.querySelector("svg");
@@ -195,53 +300,9 @@ export class ContentEnhancer {
                         return;
                     }
 
-                    const salt = `d2_${idx}_${i}`;
-                    console.debug(`[D2] Rendering diagram (${rawSource.length} bytes)`);
-
-                    // Render on main thread
-                    let svg;
-                    try {
-                        console.debug('[D2] Compiling...');
-                        const compiled = await withTimeout(
-                            d2.compile(rawSource, { pad: 24, center: true, salt }),
-                            8000
-                        );
-
-                        if (!compiled?.diagram) {
-                            throw new Error('D2 compile returned empty result');
-                        }
-
-                        console.debug('[D2] Rendering...');
-                        const response = await withTimeout(
-                            d2.render(compiled.diagram, {
-                                ...(compiled.renderOptions || {}),
-                                pad: 24, center: true, salt
-                            }),
-                            8000
-                        );
-
-                        svg = (typeof response === "string") ? response :
-                            (response?.svg || response?.result || "");
-
-                        if (!svg || typeof svg !== 'string') {
-                            console.error('[D2] Invalid response:', {
-                                response,
-                                responseKeys: Object.keys(response || {}),
-                                hasSvg: !!response?.svg,
-                                hasResult: !!response?.result,
-                                svgType: typeof response?.svg,
-                                resultType: typeof response?.result,
-                                extractedSvg: svg,
-                                extractedSvgType: typeof svg
-                            });
-                            throw new Error('D2 returned invalid response');
-                        }
-
-                        console.debug(`[D2] Complete (${svg.length} chars)`);
-                    } catch (e) {
-                        console.error('[D2] Rendering failed:', e);
-                        throw new Error(e?.message || 'Rendering error');
-                    }
+                    const svg = await this.renderD2WithRetry(d2, rawSource, {
+                        salt
+                    });
 
                     // Validate SVG
                     if (!this.isValidSvg(svg)) {
@@ -251,6 +312,7 @@ export class ContentEnhancer {
                     // Store in cache
                     this.d2Cache.set(sourceHash, svg);
 
+                    // Update DOM
                     el.innerHTML = svg;
                     el.dataset.d2Processed = "1";
                     const svgEl = el.querySelector("svg");
@@ -260,16 +322,18 @@ export class ContentEnhancer {
                         svgEl.style.maxWidth = "100%";
                     }
                 } catch (e) {
-                    console.error(`Error processing D2 diagram at index ${idx + i}:`, e);
-                    this.showD2Error(el, e.message);
+                    this.showD2Error(el, e.message || 'D2 rendering failed');
                     el.dataset.d2Processed = "1";
                 } finally {
                     delete el.dataset.d2Rendering;
                 }
-            }));
-            idx += BATCH_SIZE;
-            await yieldToMain();
+            });
+
+            if (idx % 8 === 0) await yieldToMain();
         }
+
+        // Process queue
+        await this.processD2RenderQueue();
         return true;
     }
 
@@ -314,17 +378,23 @@ export class ContentEnhancer {
         // 2. Trigger Render
         const d2Blocks = rootEl.querySelectorAll(".d2");
         if (d2Blocks.length > 0) {
-             // If we didn't warmup, this will be slow, but it will work.
+            // If we didn't warmup, this will be slow, but it will work.
             if (!window.__WEBDECK_D2__?.D2) {
                 try {
                     const { AssetLoader } = await import("./asset-loader.js");
                     await AssetLoader.ensureD2Loaded();
-                } catch (e) { console.error("D2 load error", e); }
+                } catch (e) {
+                    console.error("D2 load error", e);
+                    return;
+                }
             }
             d2Blocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
-            
-            // Run rendering in background
-            this.renderD2Diagrams(rootEl, { renderAllSlides }).catch(e => console.error(e));
+
+            // Run rendering in background with better error logging
+            this.renderD2Diagrams(rootEl, { renderAllSlides })
+                .catch(e => {
+                    console.error("[ContentEnhancer] D2 rendering failed:", e);
+                });
         }
 
         // 3. Prism
@@ -339,7 +409,7 @@ export class ContentEnhancer {
             try {
                 if (window.Prism.highlightAllUnder) window.Prism.highlightAllUnder(rootEl);
                 else codeNodes.forEach(c => window.Prism.highlightElement(c));
-            } catch (e) { }
+            } catch (e) { console.warn("[ContentEnhancer] Prism error:", e); }
         }
 
         // 4. KaTeX
@@ -355,7 +425,7 @@ export class ContentEnhancer {
                     ignoredClasses: ["no-math", "katex-ignore", "d2"],
                     throwOnError: false,
                 });
-            } catch (e) { }
+            } catch (e) { console.warn("[ContentEnhancer] KaTeX error:", e); }
         }
         if (rootEl.dataset) rootEl.dataset.webdeckEnhanced = "1";
         return true;

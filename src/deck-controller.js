@@ -7,7 +7,7 @@ import { BreakManager } from "./break-manager.js";
 import { Notification } from "./notification.js";
 
 export class DeckController extends EventEmitter {
-    
+
     static #KEYBOARD_ACTIONS = {
         "ArrowRight": "next", " ": "next", "PageDown": "next", "ArrowDown": "next",
         "ArrowLeft": "prev", "PageUp": "prev", "ArrowUp": "prev", "Backspace": "prev",
@@ -29,14 +29,14 @@ export class DeckController extends EventEmitter {
             deckStage: $("deckStage"),
             stageInner: $("stageInner"),
             slidesContainer: $("slidesContainer"),
-            
+
             // Info
             slideNumberEl: $("slideNumber"),
             slideCountEl: $("slideCount"),
             deckTitleEl: $("deckTitle"),
             notesContainer: $("notesContainer"),
             nextPreview: $("nextPreview"),
-            
+
             // Tools
             fileInput: $("fileInput"),
             editorPanel: $("editorPanel"),
@@ -46,17 +46,17 @@ export class DeckController extends EventEmitter {
             deleteSlideBtn: $("deleteSlideBtn"),
             saveSlideBtn: $("saveSlideBtn"),
             toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
-            
+
             // Presenter / Modes
             presenterPanel: $("presenterPanel"),
             openViewerBtn: $("openViewerBtn"),
             toggleEditModeBtn: $("toggleEditModeBtn"),
             toggleFullscreenBtn: $("toggleFullscreenBtn"),
-            
+
             // Break Timer
             breakDurationSelect: $("breakDuration"),
             breakBtn: $("breakBtn"),
-            
+
             // Menu
             menuBtn: $("menuBtn"),
             menuDropdown: $("menuDropdown"),
@@ -131,17 +131,17 @@ export class DeckController extends EventEmitter {
         const url = new URL(window.location.href);
         const isPresenter = url.searchParams.get("role") === "presenter";
         document.documentElement.setAttribute("data-webdeck-role", isPresenter ? "presenter" : "viewer");
-        
+
         const panel = document.getElementById("presenterPanel");
         if (panel) panel.classList.toggle("webdeck-hidden", !isPresenter);
-        
+
         const btn = document.getElementById("openViewerBtn");
         if (btn) btn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
     }
 
     constructor(deck, elements) {
         super();
-        
+
         if (elements.reloadDeckBtn && navigator.userAgent.includes('Firefox')) {
             elements.reloadDeckBtn.style.display = 'none';
         }
@@ -152,7 +152,7 @@ export class DeckController extends EventEmitter {
         this.isPresenterWindow = false;
         this.presenterWindowRef = null;
         this._enhanceIdleId = null;
-        this._isPrinting = false; 
+        this._isPrinting = false;
 
         this.initIds();
         this.initBreakManager();
@@ -194,12 +194,12 @@ export class DeckController extends EventEmitter {
         const hash = window.location.hash.match(/#slide-(\d+)/);
         const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
         const restoreIndex = sessionStorage.getItem("webdeck_restore_slide_index");
-        
+
         sessionStorage.removeItem("webdeck_restore_slide_index");
-        
-        this.currentIndex = hash ? parseInt(hash[1], 10) - 1 
-            : restoreIndex !== null ? parseInt(restoreIndex, 10) 
-            : (parseInt(stored, 10) || 0);
+
+        this.currentIndex = hash ? parseInt(hash[1], 10) - 1
+            : restoreIndex !== null ? parseInt(restoreIndex, 10)
+                : (parseInt(stored, 10) || 0);
 
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
@@ -219,7 +219,7 @@ export class DeckController extends EventEmitter {
 
         this.goTo(this.currentIndex, { broadcast: false });
         this.applyStageScale();
-        
+
         // Immediately enhance the first slide (don't wait for idle)
         requestAnimationFrame(() => this.enhanceActiveSlideNow());
     }
@@ -251,7 +251,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
         listen(this.elements.themeToggleBtn, "click", () => DeckController.toggleTheme());
-        
+
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
         listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
@@ -261,7 +261,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
         });
-        
+
         listen(this.elements.fileInput, "change", (e) => {
             if (e.target.files?.[0]) {
                 localStorage.setItem("webdeck_local_file_name", e.target.files[0].name);
@@ -286,7 +286,7 @@ export class DeckController extends EventEmitter {
             }
 
             if (!raw) throw new Error("No deck source available");
-            
+
             const newDeck = await DeckLoader.processRawData(raw);
             await this.replaceDeck(newDeck);
         } catch (err) {
@@ -298,10 +298,10 @@ export class DeckController extends EventEmitter {
     async replaceDeck(newDeck) {
         const preservedIndex = Math.min(this.currentIndex, newDeck.slides.length - 1);
         this.deck = newDeck;
-        
+
         this.breakManager.deck = newDeck;
         this.breakManager.breakStateKey = `webdeck:${getDeckId(newDeck)}:break`;
-        
+
         const title = DeckLoader.getDisplayTitle(newDeck);
         document.title = title;
         DeckController.updateDeckTitle(this.elements, title);
@@ -317,7 +317,7 @@ export class DeckController extends EventEmitter {
         if (this.elements.floatSlideCounter) {
             this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${newDeck.slides.length}`;
         }
-        
+
         this.initIds();
         this.initBroadcastChannel();
         this.goTo(preservedIndex, { broadcast: false });
@@ -336,7 +336,7 @@ export class DeckController extends EventEmitter {
         try {
             const { text, fileName } = event.detail || {};
             if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
-            
+
             const newDeck = await DeckLoader.parseMarkdown(text);
             await this.replaceDeck(newDeck);
             this.broadcastReload();
@@ -347,14 +347,14 @@ export class DeckController extends EventEmitter {
 
     handleKeyboard(e) {
         if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) return;
-        
+
         const action = DeckController.#KEYBOARD_ACTIONS[e.key];
         if (!action) return;
 
-        if (this.breakManager.isActive) { 
-            e.preventDefault(); 
-            this.breakManager.setActive(false); 
-            return; 
+        if (this.breakManager.isActive) {
+            e.preventDefault();
+            this.breakManager.setActive(false);
+            return;
         }
 
         e.preventDefault();
@@ -368,7 +368,7 @@ export class DeckController extends EventEmitter {
             case "edit": if (this.isPresenterWindow) this.toggleEditMode(); break;
             case "break": if (this.isPresenterWindow) this.breakManager.toggle(); break;
             case "fullscreen": this.toggleFullscreen(); break;
-            case "reload": if (this.isPresenterWindow) this.handleReloadDeck(); break;
+            case "reload": this.handleReloadDeck(); break;
             case "theme": DeckController.toggleTheme(); break;
         }
     }
@@ -397,16 +397,16 @@ export class DeckController extends EventEmitter {
 
     goTo(index, { broadcast = true } = {}) {
         this.currentIndex = Math.max(0, Math.min(index, this.deck.slides.length - 1));
-        
+
         if (broadcast) {
             localStorage.setItem(this.SLIDE_STATE_KEY, String(this.currentIndex));
             this.bc.postMessage({ type: "slide", index: this.currentIndex });
         }
-        
+
         const url = new URL(window.location.href);
         url.hash = `#slide-${this.currentIndex + 1}`;
         history.replaceState({}, "", url.toString());
-        
+
         this.render();
         this.enhanceActiveSlideNow();
         this.dispatchEvent('slidechange', { index: this.currentIndex });
@@ -429,29 +429,29 @@ export class DeckController extends EventEmitter {
         }
     }
 
-    next() { 
+    next() {
         if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else this.goTo(this.currentIndex + 1); 
+        else this.goTo(this.currentIndex + 1);
     }
 
-    prev() { 
+    prev() {
         if (this.breakManager.isActive) this.breakManager.setActive(false);
-        else this.goTo(this.currentIndex - 1); 
+        else this.goTo(this.currentIndex - 1);
     }
 
-    applyStageScale() { 
-        StageScaler.applyStageScale(this.elements); 
+    applyStageScale() {
+        StageScaler.applyStageScale(this.elements);
     }
 
     render() {
         this.elements.slideNumberEl.textContent = String(this.currentIndex + 1);
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
         slides.forEach((s, i) => s.classList.toggle("active", i === this.currentIndex));
-        
+
         if (this.elements.floatSlideCounter) {
             this.elements.floatSlideCounter.textContent = `${this.currentIndex + 1} / ${this.deck.slides.length}`;
         }
-        
+
         if (this.isPresenterWindow) {
             const next = this.deck.slides[this.currentIndex + 1];
             const slide = this.deck.slides[this.currentIndex];
@@ -474,16 +474,16 @@ export class DeckController extends EventEmitter {
         else this.elements.stageHost?.requestFullscreen?.();
     }
 
-    toggleEditMode() { 
-        window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode(); 
+    toggleEditMode() {
+        window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode();
     }
 
-    toggleMenu() { 
-        this.elements.menuDropdown?.classList.toggle("webdeck-hidden"); 
+    toggleMenu() {
+        this.elements.menuDropdown?.classList.toggle("webdeck-hidden");
     }
 
-    closeMenu() { 
-        this.elements.menuDropdown?.classList.add("webdeck-hidden"); 
+    closeMenu() {
+        this.elements.menuDropdown?.classList.add("webdeck-hidden");
     }
 
     openViewerWindow() {

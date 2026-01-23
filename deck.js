@@ -114,7 +114,7 @@ import { EditController } from "./src/edit-controller.js";
         const features = ContentEnhancer.scanDeck(deck);
 
         if (features.hasMath || features.hasCode) {
-             AssetLoader.ensureRichTextEnhancers().catch(e => console.warn(e));
+            AssetLoader.ensureRichTextEnhancers().catch(e => console.warn(e));
         }
 
         if (features.hasD2) {
@@ -150,15 +150,15 @@ import { EditController } from "./src/edit-controller.js";
         // Auto-redirect checks (optional)
         const url = new URL(window.location.href);
         if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect")) {
-            // url.searchParams.set("role", "presenter");
-            // window.location.href = url.toString();
-            // return;
+            url.searchParams.set("role", "presenter");
+            window.location.href = url.toString();
+            return;
         }
 
         DeckController.initRole();
         DeckController.initTheme();
         window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
-        
+
         if (SlideRenderer.showLoadingState) {
             SlideRenderer.showLoadingState();
         } else {
