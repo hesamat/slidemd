@@ -67,7 +67,7 @@
 
 .next-preview {
     border: 1px solid var(--border-medium);
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--surface-bg);
     border-radius: var(--radius-md);
     padding: 12px;
     font-size: 13px;
@@ -82,10 +82,18 @@
     min-height: 0;
     min-width: 0;
     border: 1px solid var(--border-medium);
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--surface-bg);
     border-radius: var(--radius-md);
     padding: 12px;
     overflow: auto;
+}
+
+.notes pre {
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-high);
 }
 
 /* Presenter: don't let long code blocks push the sidebar off-screen */
@@ -200,7 +208,7 @@
     justify-content: space-between;
     padding: 8px 14px;
     border-bottom: 1px solid var(--border-subtle);
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--surface-elevated);
 }
 
 .editor__body-header .slide-indicator {

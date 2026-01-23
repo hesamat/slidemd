@@ -155,6 +155,7 @@ import { EditController } from "./src/edit-controller.js";
         }
 
         DeckController.initRole();
+        DeckController.initTheme();
         window.__WEBDECK_RELOAD_CHANNEL__ = DeckController.initReloadChannel();
         
         if (SlideRenderer.showLoadingState) {
