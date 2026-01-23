@@ -2,7 +2,7 @@
   "layouts": {
     "focus": {
       "gridTemplate": "\"main\" / 1fr",
-      "description": "Single centered content area",
+      "description": "Single column content area",
       "preview": "<div style=\"grid-area: main\"></div>",
       "template": "## Focus Slide\n\nYour main content here\n\n* Point one\n* Point two\n* Point three"
     },
@@ -32,7 +32,7 @@
     },
     "header-two-column": {
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
-      "description": "Header with two columns",
+      "description": "Header with two columns and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: header-two-column\n\n@header\n# Presentation Title\n\n@main\n## Left Column\n\nContent for the left side\n\n* Point A\n* Point B\n\n@media\n## Right Column\n\nContent for the right side\n\n* Point X\n* Point Y\n\n@footer\nFooter text"
     },

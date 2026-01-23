@@ -126,78 +126,6 @@ html[data-webdeck-role="viewer"] #controlBar {
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 10px 22px rgba(2, 6, 23, 0.08), 0 0 0 4px rgba(var(--color-primary), 0.28);
 }
 
-.deck-switch {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0;
-    margin: 0;
-    white-space: nowrap;
-}
-
-.deck-switch__label {
-    color: var(--text-medium);
-    font-size: 11px;
-    font-weight: 650;
-}
-
-.pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border-subtle);
-    background: rgba(255, 255, 255, 0.78);
-    font-size: 12px;
-    font-weight: 650;
-    color: var(--text-high);
-}
-
-/* Lightweight utilities (used by slide HTML blocks) */
-.align-left {
-    text-align: left;
-}
-
-.align-center {
-    text-align: center;
-}
-
-.text-sm {
-    font-size: 0.9em;
-}
-
-.text-lg {
-    font-size: 1.1em;
-}
-
-.text-slate-400 {
-    color: rgba(100, 116, 139, 0.95);
-}
-
-.text-emerald-600 {
-    color: rgba(5, 150, 105, 0.98);
-}
-
-.floating-btn {
-    position: fixed;
-    top: 14px;
-    right: 14px;
-    z-index: 70;
-    padding: 10px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.12);
-    color: rgba(255, 255, 255, 0.92);
-    font-weight: 650;
-    font-size: 12px;
-    cursor: pointer;
-    backdrop-filter: blur(10px);
-}
-
-.floating-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-}
 
 .webdeck-hidden {
     display: none !important;
@@ -250,17 +178,6 @@ html[data-webdeck-role="viewer"] #controlBar {
     color: var(--accent-text);
 }
 
-/* Button with icon + text */
-.btn--icon {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.btn--icon svg {
-    flex-shrink: 0;
-}
-
 /* Button group */
 .btn-group {
     display: inline-flex;
@@ -293,26 +210,8 @@ html[data-webdeck-role="viewer"] #controlBar {
     margin-left: 8px;
 }
 
-/* Slide counter in top bar */
-.slide-counter {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 48px;
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 650;
-    color: var(--text-medium);
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 8px;
-    user-select: none;
-}
-
 /* Responsive adjustments */
 @media (max-width: 900px) {
-    .btn--icon span {
-        display: none;
-    }
     .topbar__center {
         display: none;
     }
@@ -435,78 +334,3 @@ html[data-webdeck-role="viewer"] #controlBar {
     }
 }
 
-/* ===== Floating Bottom Toolbar ===== */
-.floating-toolbar {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(12px);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    z-index: 55;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.floating-toolbar:hover {
-    transform: translateX(-50%) translateY(-2px);
-}
-
-/* Hide floating toolbar in edit mode or when editor is open */
-body:has(.editorPanel:not(.webdeck-hidden)) .floating-toolbar,
-body[data-edit-mode="true"] .floating-toolbar {
-    opacity: 0.3;
-}
-
-body:has(.editorPanel:not(.webdeck-hidden)) .floating-toolbar:hover,
-body[data-edit-mode="true"] .floating-toolbar:hover {
-    opacity: 1;
-}
-
-.float-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    border: none;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.float-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: scale(1.05);
-}
-
-.float-btn:active {
-    transform: scale(0.95);
-}
-
-.float-slide-counter {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 56px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 9px;
-    user-select: none;
-}
-
-/* Hide floating toolbar in presenter mode (viewer window) */
-html[data-webdeck-role="viewer"] .floating-toolbar {
-    display: none;
-}

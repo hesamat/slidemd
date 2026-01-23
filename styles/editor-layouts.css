@@ -1,0 +1,76 @@
+/* Layout Picker Grid */
+
+.layout-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.layout-option {
+    background: var(--surface-elevated);
+    border: 2px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.layout-option:hover {
+    border-color: rgba(var(--color-secondary), 0.6);
+    background: rgba(255, 255, 255, 0.98);
+    transform: translateY(-2px);
+}
+
+.layout-option:focus {
+    outline: 2px solid var(--accent-border);
+    outline-offset: 2px;
+}
+
+.layout-option.selected {
+    border-color: var(--accent-border);
+    background: var(--accent-bg);
+}
+
+.layout-option__preview {
+    aspect-ratio: 16 / 9;
+    background: var(--slide-bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    display: grid;
+    overflow: hidden;
+    position: relative;
+}
+
+.layout-option__preview::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px dashed var(--border-subtle);
+    border-radius: 2px;
+    opacity: 0.5;
+}
+
+/* Grid templates are now applied dynamically via JavaScript based on layouts.json */
+/* This avoids duplication and keeps a single source of truth for layout definitions */
+
+.layout-option__preview>* {
+    background: rgba(var(--color-primary), 0.15);
+    border-radius: 2px;
+    border: 1px solid rgba(var(--color-primary), 0.3);
+}
+
+.layout-option__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-high);
+    text-align: center;
+}
+
+.layout-option__description {
+    font-size: 11px;
+    color: var(--text-medium);
+    text-align: center;
+}

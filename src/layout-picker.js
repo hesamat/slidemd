@@ -5,6 +5,7 @@
  */
 
 import { LayoutData } from './layout-data.js';
+import LAYOUTS from './data/layouts.json' with { type: 'json' };
 
 export class LayoutPicker {
     static modal = null;
@@ -59,10 +60,11 @@ export class LayoutPicker {
             const description = LayoutData.getDescription(layout);
             const preview = LayoutData.getPreviewHTML(layout);
             const formattedName = LayoutData.formatLayoutName(layout);
+            const gridStyle = this.getGridTemplateStyle(layout);
 
             return `
                 <div class="layout-option" data-layout="${layout}" tabindex="0" role="button" aria-label="Select ${layout} layout">
-                    <div class="layout-option__preview">
+                    <div class="layout-option__preview" style="${gridStyle}">
                         ${preview}
                     </div>
                     <div class="layout-option__name">${formattedName}</div>
@@ -117,6 +119,61 @@ export class LayoutPicker {
             this.modal.classList.add('webdeck-hidden');
         }
         this.onSelectCallback = null;
+    }
+
+    /**
+     * Get grid template style for preview rendering
+     * Converts grid shorthand like '"main" / 1fr' to proper grid property 'grid: 'main' 1fr / 1fr'
+     * Uses single quotes to avoid conflicts with HTML attribute double quotes
+     * Scales down fixed pixel widths for preview contexts
+     */
+    static getGridTemplateStyle(layoutName) {
+        const gridTemplate = LAYOUTS.layouts[layoutName]?.gridTemplate;
+        if (!gridTemplate) return '';
+
+        // The grid property needs row heights: "areas" row-height / columns
+        // If format is '"areas" / cols', convert to '"areas" 1fr / cols'
+        if (gridTemplate.includes('/')) {
+            const [areasPart, colsPart] = gridTemplate.split('/');
+            const areas = areasPart.trim();
+            let cols = colsPart.trim();
+
+            // Scale down fixed pixel widths for previews (e.g., 300px -> 60px)
+            cols = cols.replace(/(\d+)px/g, (_, pixels) => {
+                const scaled = Math.round(parseInt(pixels) / 5);
+                return `${scaled}px`;
+            });
+
+            // If areasPart doesn't include row height (no space after closing quote), add 1fr for each row
+            if (areas.endsWith('"') || areas.endsWith("'")) {
+                // Convert double quotes to single quotes
+                const areasSingle = areas.replace(/"/g, "'");
+
+                // Parse the grid template areas
+                // Each quoted string is a row definition (may contain multiple areas)
+                // e.g., "'sidebar main'" is one row with two areas
+                // e.g., "'header' 'main'" are two rows
+                const rowDefinitions = [];
+
+                // Match complete quoted strings (rows)
+                const rowRegex = /'([^']+)'/g;
+                let match;
+
+                while ((match = rowRegex.exec(areasSingle)) !== null) {
+                    const fullRowDef = match[0]; // e.g., 'sidebar main' or 'header'
+                    rowDefinitions.push(fullRowDef);
+                }
+
+                // Each row definition needs a height
+                const rowsWithHeights = rowDefinitions.map(rowDef => `${rowDef} 1fr`).join(' ');
+                return `grid: ${rowsWithHeights} / ${cols};`;
+            }
+            // Convert any double quotes to single quotes for HTML compatibility
+            return `grid: ${gridTemplate.replace(/"/g, "'")};`;
+        }
+
+        // Convert any double quotes to single quotes for HTML compatibility
+        return `grid: ${gridTemplate.replace(/"/g, "'")};`;
     }
 
     /**

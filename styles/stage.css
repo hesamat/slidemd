@@ -1,0 +1,93 @@
+/* Stage and Viewer Layout */
+
+.viewer {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+}
+
+.stage-host {
+    width: 100%;
+    height: 100%;
+    max-width: min(calc(96vw - 250px), 2560px);
+    max-height: min(94vh, 1440px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Fullscreen mode - fill the entire screen */
+.stage-host:fullscreen,
+.stage-host:-webkit-full-screen,
+.stage-host:-moz-full-screen {
+    max-width: 100vw;
+    max-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    padding: 0;
+    background: var(--slide-bg);
+}
+
+/* In fullscreen, make the stage fill the host */
+.stage-host:fullscreen .stage,
+.stage-host:-webkit-full-screen .stage,
+.stage-host:-moz-full-screen .stage {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+}
+
+.stage {
+    position: relative;
+    background: var(--slide-bg);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+    border: 1px solid var(--border-medium);
+    width: var(--stage-w);
+    height: var(--stage-h);
+}
+
+.stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(1100px 700px at 10% 0%, rgba(14, 165, 233, 0.08), transparent 60%),
+        radial-gradient(900px 700px at 90% 0%, rgba(var(--color-secondary), 0.06), transparent 55%),
+        radial-gradient(900px 700px at 50% 120%, rgba(var(--color-primary), 0.05), transparent 55%);
+    opacity: 0.95;
+}
+
+.stage__inner {
+    position: absolute;
+    inset: 0;
+    width: var(--stage-w);
+    height: var(--stage-h);
+    transform: scale(var(--stage-scale));
+    transform-origin: top left;
+}
+
+.slides {
+    position: absolute;
+    inset: 0;
+}
+
+.slide-indicator {
+    position: absolute;
+    bottom: 18px;
+    right: 20px;
+    font-size: 20px;
+    color: var(--text-low);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-bg);
+    padding: 7px 12px;
+    border-radius: 999px;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+}
