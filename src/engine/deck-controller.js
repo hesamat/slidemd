@@ -9,6 +9,7 @@ import { KeyboardHandler } from "./keyboard-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
+import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 
@@ -187,6 +188,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
+        listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -292,6 +294,10 @@ export class DeckController extends EventEmitter {
 
     async handlePrint({ triggerBrowserPrint = true } = {}) {
         await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint });
+    }
+
+    async handleHtmlExport({ filename = null } = {}) {
+        await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, { filename });
     }
 
     destroy() {

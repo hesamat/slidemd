@@ -51,6 +51,7 @@ export class ElementGatherer {
             menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuPrintBtn: $("menuPrintBtn"),
+            menuExportHtmlBtn: $("menuExportHtmlBtn"),
             printBtn: $("printBtn"),
             reloadDeckBtn: $("reloadDeckBtn"),
 
