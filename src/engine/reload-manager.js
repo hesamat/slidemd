@@ -50,9 +50,23 @@ export class ReloadManager extends EventEmitter {
      * Handles deck reloading from URL, file handle, or localStorage.
      * @param {Object} options - Optional parameters
      * @param {boolean} options.preferLocalStorage - Whether to prefer localStorage over file handle
+     * @param {boolean} options.skipConfirmation - Whether to skip the unsaved changes confirmation
      * @returns {Promise<void>}
      */
-    async handleReloadDeck({ preferLocalStorage = false } = {}) {
+    async handleReloadDeck({ preferLocalStorage = false, skipConfirmation = false } = {}) {
+        // Check for unsaved changes before reloading
+        if (!skipConfirmation) {
+            const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+            if (editController && editController.hasUnsavedChanges) {
+                const confirmed = await Notification.confirm(
+                    'You have unsaved changes. Reloading the deck will replace all your changes with the saved file. Continue?'
+                );
+                if (!confirmed) {
+                    return;
+                }
+            }
+        }
+
         const url = new URL(window.location.href);
         const deckUrl = url.searchParams.get("url");
         try {

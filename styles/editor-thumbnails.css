@@ -99,7 +99,7 @@
     padding: 8px 10px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.4s ease;
     border: 1px solid transparent;
     background: var(--surface-elevated);
 }
@@ -152,54 +152,56 @@
     font-weight: 600;
 }
 
-/* Toggle icon for showing/hiding slides */
-.slide-thumbnail__toggle-icon {
-    display: none;
+/* Action buttons container (move up/down) */
+.slide-thumbnail__actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.slide-thumbnail__action-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     margin: 0;
-    background: transparent;
-    border: none;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-medium);
     border-radius: var(--radius-sm);
-    color: var(--text-medium);
+    color: var(--text-high);
     cursor: pointer;
     transition: all 0.2s ease;
+    opacity: 1;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.slide-thumbnail__toggle-icon:hover {
+.slide-thumbnail__action-btn:hover {
     background: var(--surface-hover);
-    color: var(--text-high);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Show toggle icon on hover for all slides */
-.slide-thumbnail:hover .slide-thumbnail__toggle-icon {
-    display: inline-flex;
+.slide-thumbnail__action-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Always show toggle icon for hidden slides */
-.slide-thumbnail__toggle-icon--hidden,
-.slide-thumbnail--hidden .slide-thumbnail__toggle-icon {
-    display: inline-flex;
+.slide-thumbnail__action-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2.5;
 }
 
-/* Hidden thumbnail styling */
-.slide-thumbnail--hidden {
-    opacity: 0.6;
+.slide-thumbnail.current .slide-thumbnail__action-btn {
+    background: var(--accent-bg);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
 }
 
-.slide-thumbnail--hidden .slide-thumbnail__number {
-    color: var(--text-medium);
-    border-color: var(--border-subtle);
-}
-
-.slide-thumbnail--hidden .slide-thumbnail__title {
-    color: var(--text-medium);
-}
-
-.slide-thumbnail--hidden.current {
-    opacity: 0.8;
+.slide-thumbnail.current .slide-thumbnail__action-btn:hover {
+    background: var(--accent-bg-hover);
 }

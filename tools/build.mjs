@@ -281,6 +281,9 @@ if (inlineAssets) {
 
 const usesPrism = /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText);
 const usesKatex = /(\$\$[\s\S]+?\$\$)|\\\(|\\\[|\\begin\{(?:equation|align|gather|matrix|cases)/.test(deckHtmlText);
+const usesMermaid = /class=["'][^"']*\bmermaid\b[^"']*["']/.test(deckHtmlText) ||
+    /(```|~~~)\s*mermaid/.test(deckHtmlText) ||
+    /<div\s+class=["']mermaid["']/.test(deckHtmlText);
 
 function unique(arr) {
     return Array.from(new Set(arr));
@@ -310,6 +313,8 @@ function prismComponentForLang(lang) {
         xml: "markup",
         markup: "markup",
         clike: "clike",
+        markdown: "markdown",
+        makefile: "makefile",
     };
     return map[l] || null;
 }
@@ -350,7 +355,7 @@ function detectPrismComponentsFromDeck(htmlText) {
 let vendorCss = "";
 const vendorJsParts = [];
 
-if (usesPrism || usesKatex) {
+if (usesPrism || usesKatex || usesMermaid) {
     const vendorCssParts = [];
 
     if (usesPrism) {
@@ -378,6 +383,13 @@ if (usesPrism || usesKatex) {
         );
         if (katexCore) vendorJsParts.push(katexCore);
         if (katexAutoRender) vendorJsParts.push(katexAutoRender);
+    }
+
+    if (usesMermaid) {
+        // Don't inline mermaid (v11 is 2.7MB and ESM-only)
+        // Instead, inject a script tag to load it from CDN
+        // This will be processed later to add the CDN link to the HTML head
+        vendorJsParts.push(`/* Mermaid loaded from CDN (usesMermaid flag) */`);
     }
 
     vendorCss = vendorCssParts.filter(Boolean).join("\n\n");
@@ -478,12 +490,12 @@ function stripEsmSyntax(srcText, filePath) {
     );
 
     // Stub ContentEnhancer methods that try to access Mermaid at runtime
-    // Since Mermaid is bundled in dist builds for runtime, these are no-ops
+    // Since Mermaid is loaded from CDN in dist builds, update initializeMermaid to use it
     if (filePath.includes('content-enhancer.js')) {
-        // Stub initializeMermaid - replace from method start to showMermaidError
+        // Stub initializeMermaid - replace from method start to renderMermaidDiagrams
         out = out.replace(
-            /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static showMermaidError/,
-            () => `static async initializeMermaid() { /* Mermaid bundled in dist build */ return window.__WEBDECK_MERMAID__ || { mermaid: window.mermaid }; }\n    static showMermaidError`
+            /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static async renderMermaidDiagrams/,
+            () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }\n    static async renderMermaidDiagrams`
         );
     }
 
@@ -650,5 +662,13 @@ html = html.replace(
     deckScriptRegex,
     () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
+
+// Inject mermaid CDN script if needed (before closing </head> tag)
+if (usesMermaid) {
+    const mermaidScript = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"default",securityLevel:"loose"});</script>';
+    html = html.replace(/<\/head>/i, `${mermaidScript}</head>`);
+    console.log(`Added mermaid CDN link for diagram rendering`);
+}
+
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

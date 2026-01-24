@@ -10,6 +10,7 @@ export class SlideThumbnails {
         this._controller = controller;
         this._elements = elements;
         this._container = null;
+        this._currentIndex = 0;
 
         this.init();
     }
@@ -49,10 +50,10 @@ export class SlideThumbnails {
      */
     createThumbnail(slide, index) {
         const thumbnail = document.createElement('div');
-        thumbnail.className = `slide-thumbnail${slide?.hidden ? ' slide-thumbnail--hidden' : ''}`;
+        thumbnail.className = 'slide-thumbnail';
         thumbnail.dataset.slideIndex = index;
         thumbnail.setAttribute('role', 'button');
-        thumbnail.setAttribute('aria-label', `Go to slide ${index + 1}${slide?.hidden ? ' (hidden)' : ''}`);
+        thumbnail.setAttribute('aria-label', `Go to slide ${index + 1}`);
 
         // Slide number
         const number = document.createElement('div');
@@ -67,24 +68,42 @@ export class SlideThumbnails {
         thumbnail.appendChild(number);
         thumbnail.appendChild(title);
 
-        // Toggle hidden icon (shown on hover for all slides, always visible for hidden slides)
-        const toggleIcon = document.createElement('button');
-        toggleIcon.className = `slide-thumbnail__toggle-icon${slide?.hidden ? ' slide-thumbnail__toggle-icon--hidden' : ''}`;
-        toggleIcon.type = 'button';
-        toggleIcon.setAttribute('aria-label', slide?.hidden ? 'Show slide' : 'Hide slide');
-        toggleIcon.setAttribute('title', slide?.hidden ? 'Show slide' : 'Hide slide');
-        // Eye-off icon for hidden slides, Eye icon for visible slides
-        toggleIcon.innerHTML = slide?.hidden
-            ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
-            : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        // Action buttons container (shown only for current slide)
+        const actionsContainer = document.createElement('div');
+        actionsContainer.className = 'slide-thumbnail__actions';
+        actionsContainer.style.display = 'none'; // Hidden by default
 
-        // Prevent navigation when clicking the toggle icon
-        toggleIcon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.toggleSlideHidden(index, !slide?.hidden);
-        });
+        // Move up button
+        if (index > 0) {
+            const moveUpBtn = document.createElement('button');
+            moveUpBtn.className = 'slide-thumbnail__action-btn';
+            moveUpBtn.type = 'button';
+            moveUpBtn.setAttribute('aria-label', 'Move slide up');
+            moveUpBtn.setAttribute('title', 'Move slide up');
+            moveUpBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>';
+            moveUpBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._moveSlide(index, 'up');
+            });
+            actionsContainer.appendChild(moveUpBtn);
+        }
 
-        thumbnail.appendChild(toggleIcon);
+        // Move down button
+        if (index < this._deck.slides.length - 1) {
+            const moveDownBtn = document.createElement('button');
+            moveDownBtn.className = 'slide-thumbnail__action-btn';
+            moveDownBtn.type = 'button';
+            moveDownBtn.setAttribute('aria-label', 'Move slide down');
+            moveDownBtn.setAttribute('title', 'Move slide down');
+            moveDownBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+            moveDownBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._moveSlide(index, 'down');
+            });
+            actionsContainer.appendChild(moveDownBtn);
+        }
+
+        thumbnail.appendChild(actionsContainer);
 
         // Click handler to navigate to slide
         thumbnail.addEventListener('click', () => {
@@ -95,120 +114,32 @@ export class SlideThumbnails {
     }
 
     /**
-     * Toggle the hidden state of a slide
-     */
-    async toggleSlideHidden(index, newState) {
-        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-        if (!editController) {
-            console.warn('Edit controller not available');
-            return;
-        }
-
-        const slide = this._deck.slides[index];
-        if (!slide) return;
-
-        // Update the slide's hidden property
-        slide.hidden = newState;
-
-        // Get the current markdown for this slide
-        const markdown = editController.unsavedMarkdown.get(index) ??
-                         editController.originalMarkdown[index] ?? '';
-
-        if (!markdown) return;
-
-        // Toggle @hidden directive in markdown
-        let updatedMarkdown;
-        if (newState) {
-            // Add @hidden directive
-            const lines = markdown.split('\n');
-            // Find the last directive line or the first content line
-            let insertIndex = 0;
-            for (let i = 0; i < lines.length; i++) {
-                const trimmed = lines[i].trim();
-                if (trimmed.startsWith('@') && !trimmed.startsWith('@hidden') && !trimmed.startsWith('@hide')) {
-                    insertIndex = i + 1;
-                } else if (trimmed.length > 0 && !trimmed.startsWith('@')) {
-                    break;
-                }
-            }
-            lines.splice(insertIndex, 0, '@hidden');
-            updatedMarkdown = lines.join('\n');
-        } else {
-            // Remove @hidden or @hide directive
-            updatedMarkdown = markdown
-                .replace(/^@hidden\s*\n?/gm, '')
-                .replace(/^@hide\s*\n?/gm, '');
-        }
-
-        // Update the markdown cache
-        editController.unsavedMarkdown.set(index, updatedMarkdown);
-        editController.hasUnsavedChanges = true;
-        editController.updateSaveButton();
-
-        // Update the slide DOM directly for immediate feedback
-        // Use the slides container to get slides in correct order
-        const slidesContainer = document.getElementById('slidesContainer');
-        if (slidesContainer) {
-            const allSlides = slidesContainer.querySelectorAll(':scope > .slide');
-            if (allSlides[index]) {
-                if (newState) {
-                    allSlides[index].classList.add('slide--hidden');
-                } else {
-                    allSlides[index].classList.remove('slide--hidden');
-                }
-            }
-        }
-
-        // Update just this specific thumbnail without full re-render
-        this.updateThumbnailHiddenState(index, newState);
-    }
-
-    /**
-     * Update just the hidden state of a specific thumbnail (avoiding full re-render)
-     */
-    updateThumbnailHiddenState(index, isHidden) {
-        if (!this._container) return;
-
-        const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
-        const thumbnail = thumbnails[index];
-
-        if (thumbnail) {
-            // Update the thumbnail class
-            thumbnail.classList.toggle('slide-thumbnail--hidden', isHidden);
-
-            // Update the toggle icon class and SVG
-            const toggleIcon = thumbnail.querySelector('.slide-thumbnail__toggle-icon');
-            if (toggleIcon) {
-                toggleIcon.classList.toggle('slide-thumbnail__toggle-icon--hidden', isHidden);
-                toggleIcon.setAttribute('aria-label', isHidden ? 'Show slide' : 'Hide slide');
-                toggleIcon.setAttribute('title', isHidden ? 'Show slide' : 'Hide slide');
-                // Update the SVG
-                toggleIcon.innerHTML = isHidden
-                    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
-                    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-            }
-
-            // Update the thumbnail aria-label
-            thumbnail.setAttribute('aria-label', `Go to slide ${index + 1}${isHidden ? ' (hidden)' : ''}`);
-        }
-    }
-
-    /**
      * Update the current slide highlight
      */
     updateCurrentSlide() {
         if (!this._container) return;
 
         const currentIndex = this._controller.slideNavigator.currentIndex;
+        this._currentIndex = currentIndex;
         const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
 
         thumbnails.forEach((thumbnail, index) => {
+            const actionsContainer = thumbnail.querySelector('.slide-thumbnail__actions');
+
             if (index === currentIndex) {
                 thumbnail.classList.add('current');
                 thumbnail.setAttribute('aria-current', 'true');
+                // Show action buttons for current slide
+                if (actionsContainer) {
+                    actionsContainer.style.display = 'flex';
+                }
             } else {
                 thumbnail.classList.remove('current');
                 thumbnail.removeAttribute('aria-current');
+                // Hide action buttons for other slides
+                if (actionsContainer) {
+                    actionsContainer.style.display = 'none';
+                }
             }
         });
 
@@ -216,6 +147,31 @@ export class SlideThumbnails {
         const currentThumbnail = thumbnails[currentIndex];
         if (currentThumbnail && currentThumbnail.scrollIntoView) {
             currentThumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    /**
+     * Move a slide up or down (delegates to edit controller)
+     */
+    _moveSlide(index, direction) {
+        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (!editController) {
+            console.warn('Edit controller not available');
+            return;
+        }
+
+        if (direction === 'up') {
+            // Switch to the target slide first, then move
+            this._controller.slideNavigator.goTo(index);
+            // Small delay to let the slide switch happen before moving
+            setTimeout(() => {
+                editController.moveSlideUp();
+            }, 50);
+        } else if (direction === 'down') {
+            this._controller.slideNavigator.goTo(index);
+            setTimeout(() => {
+                editController.moveSlideDown();
+            }, 50);
         }
     }
 
