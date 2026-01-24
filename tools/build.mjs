@@ -253,88 +253,6 @@ function decodeHtmlEntities(s) {
         .replace(/&#39;/g, "'");
 }
 
-async function renderD2BlocksInHtml(htmlText, d2, { saltPrefix = "webdeck_d2", startIndex = 0 } = {}) {
-    const html = String(htmlText || "");
-    const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-d2[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
-    let out = "";
-    let last = 0;
-    let i = startIndex;
-
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(html))) {
-        out += html.slice(last, m.index);
-        last = re.lastIndex;
-
-        const src = decodeHtmlEntities(m[1]).trim();
-        const salt = `${saltPrefix}_${i++}`;
-        try {
-            const compiled = await d2.compile(src, {
-                pad: 24,
-                center: true,
-                noXMLTag: true,
-                salt,
-            });
-
-            const svg = await d2.render(compiled.diagram, {
-                ...(compiled.renderOptions || {}),
-                pad: 24,
-                center: true,
-                noXMLTag: true,
-                salt,
-            });
-
-            out += `<div class="d2">${svg || ""}</div>`;
-        } catch (e) {
-            out += `<div class="d2"><pre style="color:#dc2626; white-space:pre-wrap;">D2 render failed: ${String(e)}</pre></div>`;
-        }
-    }
-
-    out += html.slice(last);
-    return { html: out, nextIndex: i };
-}
-
-async function preRenderD2InDeck(d) {
-    if (!d || typeof d !== "object" || !Array.isArray(d.slides)) return d;
-
-    const { D2 } = await import("@terrastruct/d2");
-    const d2 = new D2();
-
-    // D2 Node runtime spins up a worker_threads Worker and does not currently
-    // expose a public dispose(). We terminate the worker explicitly so the
-    // Node process can exit when the build is done.
-    try {
-        let idx = 0;
-
-        const slides = [];
-        for (const slide of d.slides) {
-            if (!slide || typeof slide !== "object" || !slide.areas || typeof slide.areas !== "object") {
-                slides.push(slide);
-                continue;
-            }
-
-            const outAreas = {};
-            for (const [k, html] of Object.entries(slide.areas)) {
-                const r = await renderD2BlocksInHtml(html, d2, { startIndex: idx });
-                idx = r.nextIndex;
-                outAreas[k] = r.html;
-            }
-
-            slides.push({ ...slide, areas: outAreas });
-        }
-
-        return { ...d, slides };
-    } finally {
-        try {
-            if (d2 && d2.worker && typeof d2.worker.terminate === "function") {
-                await d2.worker.terminate();
-            }
-        } catch {
-            // ignore
-        }
-    }
-}
-
 // Optional vendor assets (PrismJS + KaTeX).
 // These get inlined into dist/deck.html, but we only inline what the current deck actually uses.
 function getDeckHtmlText(d) {
@@ -354,13 +272,6 @@ function getDeckHtmlText(d) {
 }
 
 let deckHtmlText = getDeckHtmlText(deck);
-
-// Check if deck uses D2 diagrams and pre-render them
-const usesD2 = /(?:language-d2|lang-d2)/i.test(deckHtmlText);
-if (usesD2) {
-    deck = await preRenderD2InDeck(deck);
-    deckHtmlText = getDeckHtmlText(deck);
-}
 
 // Inline images if requested
 if (inlineAssets) {
@@ -532,27 +443,27 @@ function stripEsmSyntax(srcText, filePath) {
         () => `Promise.resolve(AssetLoader)`
     );
 
-    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded())
+    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureMermaidLoaded())
     out = out.replace(
-        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureD2Loaded\(\)\)/g,
-        () => `AssetLoader.ensureD2Loaded()`
+        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureMermaidLoaded\(\)\)/g,
+        () => `AssetLoader.ensureMermaidLoaded()`
     );
 
     // For dist builds, stub out the problematic import() calls in AssetLoader methods
     // by replacing the entire method with a no-op version
 
     // Stub ensureKatexLoaded method - replace entire method with no-op
-    // Match from "static async ensureKatexLoaded() {" to "static async ensureD2Loaded() {"
+    // Match from "static async ensureKatexLoaded() {" to "static async ensureMermaidLoaded() {"
     out = out.replace(
-        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureD2Loaded)/,
+        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureMermaidLoaded)/,
         () => `static async ensureKatexLoaded() { /* KaTeX inlined in dist build */ return; }`
     );
 
-    // Stub ensureD2Loaded method - replace entire method with no-op
-    // Match from "static async ensureD2Loaded() {" to "static async ensureRichTextEnhancers() {"
+    // Stub ensureMermaidLoaded method - replace entire method with no-op
+    // Match from "static async ensureMermaidLoaded() {" to "static async ensureRichTextEnhancers() {"
     out = out.replace(
-        /static async ensureD2Loaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
-        () => `static async ensureD2Loaded() { /* D2 pre-rendered in dist build */ return; }`
+        /static async ensureMermaidLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
+        () => `static async ensureMermaidLoaded() { /* Mermaid bundled in dist build */ return; }`
     );
 
     // Also stub ensurePrismLoaded and ensureMarkdownItLoaded for consistency
@@ -566,19 +477,13 @@ function stripEsmSyntax(srcText, filePath) {
         () => `static async ensureMarkdownItLoaded() { /* markdown-it not needed in dist build */ return; }`
     );
 
-    // Stub ContentEnhancer methods that try to access D2 at runtime
-    // Since D2 is pre-rendered in dist builds, these should not run
+    // Stub ContentEnhancer methods that try to access Mermaid at runtime
+    // Since Mermaid is bundled in dist builds for runtime, these are no-ops
     if (filePath.includes('content-enhancer.js')) {
-        // Stub warmupD2 - simpler pattern that doesn't depend on exact indentation
-        // Replace from method start to the next method's start
+        // Stub initializeMermaid - replace from method start to showMermaidError
         out = out.replace(
-            /static async warmupD2\(\) \{[\s\S]*?\n    static async initializeD2/,
-            () => `static async warmupD2() { /* D2 pre-rendered in dist build */ return; }\n    static async initializeD2`
-        );
-        // Stub initializeD2 - replace from method start to showD2Error
-        out = out.replace(
-            /static async initializeD2\([^)]*\) \{[\s\S]*?\n    static showD2Error/,
-            () => `static async initializeD2() { /* D2 pre-rendered in dist build */ return null; }\n    static showD2Error`
+            /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static showMermaidError/,
+            () => `static async initializeMermaid() { /* Mermaid bundled in dist build */ return window.__WEBDECK_MERMAID__ || { mermaid: window.mermaid }; }\n    static showMermaidError`
         );
     }
 

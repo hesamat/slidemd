@@ -79,6 +79,7 @@ export class DeckController extends EventEmitter {
         });
         // Listen for deck changes
         this.reloadManager.addEventListener('deckchange', (e) => {
+            this.deck = e.deck;
             this.dispatchEvent('deckchange', e);
         });
         // Initialize the broadcast channel
@@ -156,12 +157,16 @@ export class DeckController extends EventEmitter {
     }
 
     preloadEnhancers() {
-        import("../core/asset-loader.js")
-            .then(({ AssetLoader }) => {
+        const loaderPromise = window.AssetLoader
+            ? Promise.resolve(window.AssetLoader)
+            : import("../core/asset-loader.js").then(({ AssetLoader }) => AssetLoader);
+
+        loaderPromise
+            .then((AssetLoader) => {
                 AssetLoader.ensureRichTextEnhancers().catch(console.warn);
-                // Scan deck and warmup D2 if needed
-                const { hasD2 } = ContentEnhancer.scanDeck(this.deck);
-                if (hasD2) ContentEnhancer.warmupD2().catch(console.warn);
+                // Scan deck and warmup Mermaid if needed
+                const { hasMermaid } = ContentEnhancer.scanDeck(this.deck);
+                if (hasMermaid) ContentEnhancer.initializeMermaid().catch(console.warn);
             })
             .catch(console.warn);
     }

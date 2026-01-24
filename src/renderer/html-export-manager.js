@@ -4,8 +4,6 @@
  * Similar to build.mjs, creates a single file with all CSS and JS inlined.
  */
 
-import { yieldToMain } from "../core/utils.js";
-import { ContentEnhancer } from "./content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
 
 export class HtmlExportManager {
@@ -51,62 +49,15 @@ export class HtmlExportManager {
      * @param {string} options.filename - Output filename (default: auto-generated from deck title)
      * @returns {Promise<void>}
      */
-    static async handleHtmlExport(slidesContainer, deck, { filename = null } = {}) {
+    static async handleHtmlExport(slidesContainer, deck, { filename = null, includeSlideSnapshot = false, minify = true, useCdn = true } = {}) {
         if (HtmlExportManager._isExporting) return;
         HtmlExportManager._isExporting = true;
 
         try {
-            // 1. Force load all enhancers locally first (so we can snapshot D2)
-            console.log('HtmlExport: Loading rich text enhancers...');
-            const assetLoader = await import("../core/asset-loader.js").then(m => m.AssetLoader);
+            // Generate the standalone HTML (runtime enhancers run in exported file)
+            const html = await HtmlExportManager.generateStandaloneHtml(deck, slidesContainer, { includeSlideSnapshot, minify, useCdn });
 
-            await assetLoader.ensureRichTextEnhancers();
-            if (!window.__WEBDECK_D2__?.D2) {
-                await assetLoader.ensureD2Loaded();
-            }
-            if (!window.Prism) {
-                try { await assetLoader.ensurePrismLoaded(); } catch (e) { console.error(e); }
-            }
-
-            // 2. Enhance all slides (Force D2 generation)
-            // We use force:true to ensure diagrams are generated
-            const slides = slidesContainer.querySelectorAll('.slide');
-            console.log(`HtmlExport: Enhancing ${slides.length} slides...`);
-
-            // Check if D2 is properly loaded
-            const d2Loaded = window.__WEBDECK_D2__?.D2;
-            console.log(`HtmlExport: D2 loaded:`, !!d2Loaded);
-
-            for (let i = 0; i < slides.length; i++) {
-                // Determine if slide has content needing enhancement
-                const html = slides[i].innerHTML;
-                const needsEnhancement = html.includes('language-') || html.includes('d2');
-
-                if (needsEnhancement) {
-                    await ContentEnhancer.enhanceRenderedContent(slides[i], { renderAllSlides: true, force: true });
-                    // Give the UI thread a moment to update DOM
-                    await new Promise(r => setTimeout(r, 10));
-                }
-            }
-
-            // Debug: Check D2 state after enhancement
-            const d2Blocks = slidesContainer.querySelectorAll('.d2');
-            const d2Processed = slidesContainer.querySelectorAll('.d2[data-d2-processed]');
-            console.log(`HtmlExport: After enhancement - ${d2Blocks.length} D2 blocks, ${d2Processed.length} processed`);
-
-            // 3. Wait for D2 Rendering to complete
-            // This is CRITICAL because D2 is async. We must wait for the DOM to update.
-            await HtmlExportManager.waitForD2Rendering(slidesContainer);
-
-            // Debug: Check D2 state after waiting
-            const d2ProcessedAfter = slidesContainer.querySelectorAll('.d2[data-d2-processed]');
-            console.log(`HtmlExport: After waitForD2Rendering - ${d2ProcessedAfter.length} processed`);
-
-            // 4. Generate the standalone HTML 
-            // This will now include the Prism JS library so it can run on load
-            const html = await HtmlExportManager.generateStandaloneHtml(deck, slidesContainer);
-
-            // 5. Trigger download
+            // Trigger download
             const outputFilename = filename || HtmlExportManager.generateFilename(deck);
             HtmlExportManager.downloadHtml(html, outputFilename);
 
@@ -119,16 +70,16 @@ export class HtmlExportManager {
     }
 
     /**
-     * Waits for D2 diagrams to finish rendering before export.
+     * Waits for Mermaid diagrams to finish rendering before export.
      */
-    static async waitForD2Rendering(slidesContainer) {
-        // Find blocks that look like D2 source code OR processed D2 containers
-        // If snapshotting hasn't happened yet, they might still be <pre class="d2">
-        const d2Potential = slidesContainer.querySelectorAll('.d2');
+    static async waitForMermaidRendering(slidesContainer) {
+        // Find blocks that look like Mermaid source code OR processed Mermaid containers
+        // If snapshotting hasn't happened yet, they might still be <pre class="mermaid">
+        const mermaidPotential = slidesContainer.querySelectorAll('.mermaid');
 
-        if (d2Potential.length === 0) return;
+        if (mermaidPotential.length === 0) return;
 
-        console.log(`HtmlExport: Waiting for ${d2Potential.length} D2 diagram(s)...`);
+        console.log(`HtmlExport: Waiting for ${mermaidPotential.length} Mermaid diagram(s)...`);
 
         const startTime = Date.now();
         const timeout = 30000;
@@ -137,7 +88,7 @@ export class HtmlExportManager {
             let allReady = true;
             let pending = 0;
 
-            for (const block of d2Potential) {
+            for (const block of mermaidPotential) {
                 // If it's a PRE tag, it hasn't been transformed yet
                 if (block.tagName === 'PRE') {
                     allReady = false;
@@ -146,19 +97,19 @@ export class HtmlExportManager {
                 }
 
                 // If it's a DIV, check if it has the processed flag
-                if (block.tagName === 'DIV' && !block.dataset.d2Processed) {
+                if (block.tagName === 'DIV' && !block.dataset.mermaidProcessed) {
                     allReady = false;
                     pending++;
                 }
             }
 
             if (allReady) {
-                console.log('HtmlExport: All D2 diagrams rendered.');
+                console.log('HtmlExport: All Mermaid diagrams rendered.');
                 break;
             }
 
             if (Date.now() - startTime > timeout) {
-                console.warn(`HtmlExport: Timeout waiting for D2. Exporting current state.`);
+                console.warn(`HtmlExport: Timeout waiting for Mermaid. Exporting current state.`);
                 break;
             }
 
@@ -169,15 +120,21 @@ export class HtmlExportManager {
     /**
      * Generates a fully self-contained HTML document.
      */
-    static async generateStandaloneHtml(deck, slidesContainer) {
+    static async generateStandaloneHtml(deck, slidesContainer, { includeSlideSnapshot = false, minify = true, useCdn = true } = {}) {
         // 1. Get CSS (Vendor + App)
         const mainCss = HtmlExportManager.extractCssFromDocument();
-        const vendorCss = await HtmlExportManager.fetchVendorCss(deck);
-        const allCss = vendorCss + '\n\n' + mainCss;
+        const vendorCssData = await HtmlExportManager.fetchVendorCss(deck, useCdn);
+        let allCss = vendorCssData.css + '\n\n' + mainCss;
+        if (minify) allCss = HtmlExportManager.minifyCss(allCss);
 
         // 2. Get JS (App Bundle + Vendor Libraries)
-        const bundledJs = await HtmlExportManager.fetchAndBundleJs();
-        const vendorJs = await HtmlExportManager.fetchVendorJs(deck);
+        let bundledJs = await HtmlExportManager.fetchAndBundleJs();
+        let vendorJs = useCdn ? '' : await HtmlExportManager.fetchVendorJs(deck);
+        const vendorScripts = useCdn ? HtmlExportManager.generateCdnScripts(deck) : '';
+        if (minify) {
+            bundledJs = HtmlExportManager.minifyJs(bundledJs);
+            if (vendorJs) vendorJs = HtmlExportManager.minifyJs(vendorJs);
+        }
 
         // 3. Escape Data
         const deckJson = JSON.stringify(deck);
@@ -185,7 +142,7 @@ export class HtmlExportManager {
 
         // 4. Extract Slide HTML (The Snapshot)
         const title = DeckLoader.getDisplayTitle(deck);
-        const slidesHtml = HtmlExportManager.extractSlidesHtml(slidesContainer);
+        const slidesHtml = includeSlideSnapshot ? HtmlExportManager.extractSlidesHtml(slidesContainer) : "";
 
         const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -195,7 +152,6 @@ export class HtmlExportManager {
 `;
 
         // We add a small init script to trigger Prism on load
-        // D2 is not triggered here because we can't bundle the WASM
         const initScript = `
         window.addEventListener('DOMContentLoaded', () => {
             // Re-run Prism if it's available (fixes broken snapshots)
@@ -212,6 +168,7 @@ export class HtmlExportManager {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
+${vendorCssData.links}
     <style>
 ${presenterHideCss}
 ${allCss}
@@ -239,10 +196,9 @@ ${slidesHtml}
 
     <script type="application/json" id="deckData">${escapedDeckJson}</script>
     
-    <!-- Vendor Libraries (Prism) -->
-    <script>
-${vendorJs}
-    </script>
+    <!-- Vendor Libraries -->
+${vendorScripts}
+${vendorJs ? `    <script>\n${vendorJs}\n    </script>` : ''}
 
     <!-- App Logic -->
     <script>
@@ -302,8 +258,16 @@ ${initScript}
             vendorScripts += `/* Prism JS */\n${prismJs}\n${pythonJs}\n${jsJs}\n`;
         }
 
-        // Note: We DO NOT bundle D2 here because it requires WASM. 
-        // D2 content must be snapshotted.
+        // Inline Mermaid for runtime rendering in exported HTML
+        const needsMermaid = /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
+        if (needsMermaid) {
+            console.log("HtmlExport: Inlining Mermaid.js library...");
+            const mermaidJs = await fetchJs(
+                'node_modules/mermaid/dist/mermaid.min.js',
+                'https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js'
+            );
+            vendorScripts += `/* Mermaid JS */\n${mermaidJs}\n`;
+        }
 
         return vendorScripts;
     }
@@ -322,7 +286,7 @@ ${initScript}
 
                 let src = await response.text();
                 const processedSrc = await HtmlExportManager.stripEsmSyntax(src, filePath);
-                parts.push(`// ${filePath}\n` + processedSrc);
+                parts.push(processedSrc);
             } catch (e) {
                 console.error(`Could not load ${filePath}:`, e);
             }
@@ -365,16 +329,32 @@ ${initScript}
         out = out.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "");
         out = out.replace(/^\s*export\s+default\s+/gm, "const __default_export__ = ");
 
-        // 3. Stub Dynamic Imports
+        // 3. Replace dynamic imports of AssetLoader with global access
         out = out.replace(
             /const\s*\{\s*AssetLoader\s*\}\s*=\s*await\s+import\(['"][^'"]*asset-loader\.js['"]\)\s*;?/g,
-            () => `/* AssetLoader already available */`
+            () => `const { AssetLoader } = window;`
+        );
+        out = out.replace(
+            /const\s+(\w+)\s*=\s*await\s+import\(['"][^'"]*asset-loader\.js['"]\)\s*\.then\s*\(\s*m\s*=>\s*m\.AssetLoader\s*\)\s*;?/g,
+            (_m, varName) => `const ${varName} = window.AssetLoader;`
+        );
+        out = out.replace(
+            /\(\s*await\s+import\(['"][^'"]*asset-loader\.js['"]\)\s*\)\.AssetLoader/g,
+            () => `window.AssetLoader`
+        );
+        out = out.replace(
+            /import\(['"][^'"]*asset-loader\.js['"]\)\s*\.then\s*\(\s*\(\s*\{\s*AssetLoader\s*\}\s*\)\s*=>\s*AssetLoader\s*\)/g,
+            () => `Promise.resolve(window.AssetLoader)`
+        );
+        out = out.replace(
+            /import\(['"][^'"]*asset-loader\.js['"]\)\s*\.then\s*\(\s*m\s*=>\s*m\.AssetLoader\s*\)/g,
+            () => `Promise.resolve(window.AssetLoader)`
         );
 
         // 4. Stub AssetLoader methods
         // Since we inline Prism, we stub ensurePrismLoaded to do nothing (it's already there)
         out = out.replace(
-            /await\s+import\(['"][^'"]*asset-loader\.js['"]\)\s*\.then\s*\(\s*m\s*=>\s*m\.AssetLoader\.(ensureD2Loaded|ensureRichTextEnhancers|ensureKatexLoaded|ensurePrismLoaded)\(\s*\)\s*\)/g,
+            /await\s+import\(['"][^'"]*asset-loader\.js['"]\)\s*\.then\s*\(\s*m\s*=>\s*m\.AssetLoader\.(ensureMermaidLoaded|ensureRichTextEnhancers|ensureKatexLoaded|ensurePrismLoaded)\(\s*\)\s*\)/g,
             () => `AssetLoader.$1()`
         );
 
@@ -382,49 +362,13 @@ ${initScript}
         if (filePath.includes('asset-loader.js')) {
             // KaTeX stub
             out = out.replace(
-                /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureD2Loaded)/,
+                /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureMermaidLoaded)/,
                 () => `static async ensureKatexLoaded() { /* KaTeX inlined */ return; }`
-            );
-            // D2 stub (Pre-rendered only)
-            out = out.replace(
-                /static async ensureD2Loaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
-                () => `static async ensureD2Loaded() { /* D2 pre-rendered */ return; }`
             );
             // Prism stub (Library inlined via fetchVendorJs)
             out = out.replace(
                 /static async ensurePrismLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureKatexLoaded)/,
                 () => `static async ensurePrismLoaded() { /* Prism inlined */ return; }`
-            );
-        }
-
-        // 6. Stub ContentEnhancer D2 methods (D2 is pre-rendered in exported HTML)
-        if (filePath.includes('content-enhancer.js')) {
-            // Stub warmupD2 - replace entire method with no-op
-            out = out.replace(
-                /static async warmupD2\(\) \{[\s\S]*?\n    static async initializeD2/,
-                () => `static async warmupD2() { /* D2 pre-rendered in exported HTML */ return; }
-    static async initializeD2`
-            );
-            // Stub initializeD2 - return null (D2 instance not available)
-            out = out.replace(
-                /static async initializeD2\([^)]*\) \{[\s\S]*?\n    static showD2Error/,
-                () => `static async initializeD2() { /* D2 pre-rendered in exported HTML */ return null; }
-    static showD2Error`
-            );
-            // Stub renderD2Diagrams - return true (skip rendering)
-            out = out.replace(
-                /static async renderD2Diagrams\([^)]*\) \{[\s\S]*?\n    static async enhanceRenderedContent/,
-                () => `static async renderD2Diagrams() { /* D2 pre-rendered in exported HTML */ return true; }
-    static async enhanceRenderedContent`
-            );
-        }
-
-        // 7. Stub deck.js D2 warmup call (skip D2 initialization in exported HTML)
-        if (filePath.includes('deck.js')) {
-            // Comment out the warmupD2 call
-            out = out.replace(
-                /ContentEnhancer\.warmupD2\(\);/,
-                () => `/* ContentEnhancer.warmupD2() - D2 pre-rendered in exported HTML */`
             );
         }
 
@@ -464,11 +408,59 @@ ${initScript}
         }).join('\n');
     }
 
+    static minifyCss(cssText) {
+        if (!cssText) return '';
+        return cssText
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s*([:;{},])\s*/g, '$1')
+            .replace(/;}/g, '}')
+            .trim();
+    }
+
+    static minifyJs(jsText) {
+        if (!jsText) return '';
+        // Safe minify: only trim trailing whitespace and collapse extra blank lines.
+        // Removing comments here can break code (e.g., tokens inside strings/regex).
+        const trimmed = jsText
+            .split('\n')
+            .map(line => line.trimEnd())
+            .join('\n');
+        return trimmed.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    /**
+     * Generates CDN script tags for vendor libraries
+     */
+    static generateCdnScripts(deck) {
+        const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
+        const scripts = [];
+
+        const needsPrism = /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) ||
+            /```[\s\S]*?\n/.test(deckHtmlText) ||
+            /~~~[\s\S]*?\n/.test(deckHtmlText);
+
+        if (needsPrism) {
+            scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>');
+            scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>');
+            scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>');
+        }
+
+        const needsMermaid = /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
+        if (needsMermaid) {
+            scripts.push('    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>');
+        }
+
+        return scripts.join('\n');
+    }
+
     /**
      * Fetches vendor CSS with CDN fallback
+     * Returns an object with { links: string, css: string }
      */
-    static async fetchVendorCss(deck) {
-        const parts = [];
+    static async fetchVendorCss(deck, useCdn = false) {
+        const links = [];
+        const cssParts = [];
         const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
         const fetchCssWithFallback = async (localPath, cdnUrl, name) => {
@@ -486,28 +478,39 @@ ${initScript}
         };
 
         if (/<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) || /```/.test(deckHtmlText)) {
-            parts.push(await fetchCssWithFallback(
-                'node_modules/prismjs/themes/prism-tomorrow.css',
-                'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css',
-                'Prism'
-            ));
+            if (useCdn) {
+                links.push('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">');
+            } else {
+                cssParts.push(await fetchCssWithFallback(
+                    'node_modules/prismjs/themes/prism-tomorrow.css',
+                    'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css',
+                    'Prism'
+                ));
+            }
         }
 
         if (/(\$\$|\\\(|\\begin)/.test(deckHtmlText)) {
-            parts.push(await fetchCssWithFallback(
-                'node_modules/katex/dist/katex.min.css',
-                'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css',
-                'KaTeX'
-            ));
+            if (useCdn) {
+                links.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">');
+            } else {
+                cssParts.push(await fetchCssWithFallback(
+                    'node_modules/katex/dist/katex.min.css',
+                    'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css',
+                    'KaTeX'
+                ));
+            }
         }
 
-        parts.push(`
-/* D2 Diagram Styles (Standalone) */
-.d2 { display: flex; justify-content: center; width: 100%; margin: 1rem 0; }
-.d2 svg { max-width: 100%; height: auto; background-color: transparent; }
+        cssParts.push(`
+/* Mermaid Diagram Styles (Standalone) */
+.mermaid { display: flex; justify-content: center; width: 100%; margin: 1rem 0; }
+.mermaid svg { max-width: 100%; height: auto; background-color: transparent; }
 `);
 
-        return parts.join('\n\n');
+        return {
+            links: links.join('\n'),
+            css: cssParts.join('\n\n')
+        };
     }
 
     static extractSlidesHtml(slidesContainer) {

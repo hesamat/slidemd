@@ -309,7 +309,7 @@ export class EditController {
                 );
                 slideEl.replaceWith(newSlideEl);
 
-                // Re-enhance the new slide content (D2, Prism, etc.)
+                // Re-enhance the new slide content (Mermaid, Prism, etc.)
                 ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 });

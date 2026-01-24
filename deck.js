@@ -119,18 +119,18 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
             AssetLoader.ensureRichTextEnhancers().catch(e => console.warn(e));
         }
 
-        if (features.hasD2) {
-            // This starts the D2 worker immediately so it's ready when we reach the slide
-            ContentEnhancer.warmupD2();
+        if (features.hasMermaid) {
+            // This starts the Mermaid initialization immediately so it's ready when we reach the slide
+            ContentEnhancer.initializeMermaid().catch(e => console.warn("Mermaid initialization failed:", e));
         }
 
         // 8. Signal Readiness FIRST
-        // Don't block initialization on D2 rendering - it runs in background
+        // Don't block initialization on Mermaid rendering - it runs in background
         window.__WEBDECK_READY__ = true;
         window.dispatchEvent(new Event("webdeck:ready"));
 
         // 9. Apply enhancers to the CURRENT view in background (non-blocking)
-        if (features.hasD2 || features.hasMath || features.hasCode) {
+        if (features.hasMermaid || features.hasMath || features.hasCode) {
             ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch(e => console.warn(e));
         }
 

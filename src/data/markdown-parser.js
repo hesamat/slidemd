@@ -185,29 +185,15 @@ export class MarkdownParser {
         return out;
     }
 
-    convertD2CodeBlocksToDiv(htmlText) {
-        // Convert <pre><code class="language-d2">...</code></pre> to <div class="d2">...</div>
-        const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-d2[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+    convertMermaidCodeBlocksToDiv(htmlText) {
+        // Convert <pre><code class="language-mermaid">...</code></pre> to <div class="mermaid">...</div>
+        const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-mermaid[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
         return htmlText.replace(re, (match, content) => {
-            // The Vite plugin needs the D2 source as the content of the div
-            // For client-side, also store it in data-d2-source and add loading state
+            // For client-side, store Mermaid source in data-mermaid-source and add loading state
             const safeContent = content.replace(/"/g, '&quot;');
 
-            // Create a div with:
-            // 1. The D2 source as content (for Vite plugin)
-            // 2. A data attribute with the source (for client-side rendering)
-            // 3. A loading indicator that will be replaced
-            // The source is hidden via CSS, loading indicator is visible initially
-            return `<div class="d2" data-d2-source="${safeContent}">
-                <span class="d2-source-hidden">${content}</span>
-                <div class="d2-loading">
-                    <svg class="d2-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle class="d2-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-                        <path class="d2-spinner__head" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"/>
-                    </svg>
-                    <span class="d2-loading__text">Rendering diagram...</span>
-                </div>
-            </div>`;
+            // Create a div with a data attribute for client-side rendering
+            return `<div class="mermaid" data-mermaid-source="${safeContent}"></div>`;
         });
     }
 
@@ -251,8 +237,8 @@ export class MarkdownParser {
             const areas = {};
             for (const [name, src] of Object.entries(areasMd)) {
                 let html = this.md.render(src);
-                // Convert D2 code blocks to divs for server-side rendering
-                html = this.convertD2CodeBlocksToDiv(html);
+                // Convert Mermaid code blocks to divs for client-side rendering
+                html = this.convertMermaidCodeBlocksToDiv(html);
                 areas[name] = html;
             }
 
