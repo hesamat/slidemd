@@ -86,6 +86,7 @@ Use preset names instead of full CSS grid strings:
 
 - Syntax highlighting via Prism; the build inlines assets so it works offline.
 - Math via KaTeX auto-render. Inline: `$...$` or `\(...\)`; display: `$$...$$` or `\[...\]`.
+- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/authoring-examples.md](docs/authoring-examples.md#mermaid-diagrams) for syntax guide.
 
 ## Build and Export
 
