@@ -70,54 +70,6 @@ export class HtmlExportManager {
     }
 
     /**
-     * Waits for Mermaid diagrams to finish rendering before export.
-     */
-    static async waitForMermaidRendering(slidesContainer) {
-        // Find blocks that look like Mermaid source code OR processed Mermaid containers
-        // If snapshotting hasn't happened yet, they might still be <pre class="mermaid">
-        const mermaidPotential = slidesContainer.querySelectorAll('.mermaid');
-
-        if (mermaidPotential.length === 0) return;
-
-        console.log(`HtmlExport: Waiting for ${mermaidPotential.length} Mermaid diagram(s)...`);
-
-        const startTime = Date.now();
-        const timeout = 30000;
-
-        while (true) {
-            let allReady = true;
-            let pending = 0;
-
-            for (const block of mermaidPotential) {
-                // If it's a PRE tag, it hasn't been transformed yet
-                if (block.tagName === 'PRE') {
-                    allReady = false;
-                    pending++;
-                    continue;
-                }
-
-                // If it's a DIV, check if it has the processed flag
-                if (block.tagName === 'DIV' && !block.dataset.mermaidProcessed) {
-                    allReady = false;
-                    pending++;
-                }
-            }
-
-            if (allReady) {
-                console.log('HtmlExport: All Mermaid diagrams rendered.');
-                break;
-            }
-
-            if (Date.now() - startTime > timeout) {
-                console.warn(`HtmlExport: Timeout waiting for Mermaid. Exporting current state.`);
-                break;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-    }
-
-    /**
      * Generates a fully self-contained HTML document.
      */
     static async generateStandaloneHtml(deck, slidesContainer, { includeSlideSnapshot = false, minify = true, useCdn = true } = {}) {
