@@ -54,7 +54,7 @@
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 30px 44px;
+    gap: 25px 44px;
     min-width: 0;
     min-height: 0;
 }
@@ -68,8 +68,8 @@
 }
 
 /* Content rhythm (spacing between blocks) */
-.slide__area:not(.slide__area--cards)>*+* {
-    margin: var(--slide-rhythm) 0;
+.slide__area:not(.slide__area--cards) {
+    row-gap: var(--slide-rhythm);
 }
 
 .slide__area--header {
@@ -161,7 +161,7 @@
 .slide__area h3 {
     font-size: 34px;
     font-weight: 600;
-    color: rgba(15, 23, 42, 0.6);
+    color: rgba(15, 23, 42, 0.75);
 }
 
 .slide__area--header h3 {
@@ -171,8 +171,7 @@
     margin-top: 0 !important;
 }
 
-.slide__area>p,
-.slide__area> :not(.mermaid) p {
+.slide__area>p {
     font-size: 28px;
     line-height: 1.4;
     color: var(--slide-muted);
@@ -189,9 +188,7 @@
 }
 
 .slide__area>ul,
-.slide__area>ol,
-.slide__area> :not(.mermaid) ul,
-.slide__area> :not(.mermaid) ol {
+.slide__area>ol {
     display: grid;
     gap: 16px;
     font-size: 28px;
@@ -216,7 +213,7 @@
     font-size: 1.46rem;
     line-height: 1.4;
     overflow: auto;
-    margin: 0.7rem 0.5rem !important;
+    margin: 0.5rem 0.4rem !important;
     box-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
     max-width: 1100px;
 
@@ -237,7 +234,7 @@
 }
 
 .slide__area pre code {
-    font-size: 1.3rem;
+    font-size: 1.35rem;
 }
 
 .token.operator {
@@ -297,6 +294,18 @@
     width: 100% !important;
     height: auto !important;
     /* Maintain aspect ratio */
+}
+
+/* Mermaid chart title styling */
+.slide__area .mermaid text,
+p {
+    font-family: var(--font-sans) !important;
+}
+
+.slide__area .mermaid text {
+    font-size: 32px !important;
+    font-weight: 500 !important;
+    color: rgba(15, 23, 42, 0.75) !important;
 }
 
 .slide__area pre::-webkit-scrollbar,
