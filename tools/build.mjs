@@ -676,5 +676,12 @@ if (usesMermaid) {
     console.log(`Added mermaid CDN link for diagram rendering`);
 }
 
+// Initialize KaTeX auto-render for dist builds (needed since ensureKatexLoaded is stubbed out)
+if (usesKatex) {
+    const katexInitScript = '<script>window.renderMathInElement=window.renderMathInElement||function(e,t){var n={delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredClasses:["no-math","katex-ignore","mermaid"],throwOnError:!1,...t};if("object"==typeof katex&&"function"==typeof renderMathInElement)renderMathInElement(e,n);else console.warn("KaTeX auto-render not available");};</script>';
+    html = html.replace(/<\/head>/i, `${katexInitScript}</head>`);
+    console.log(`Added KaTeX auto-render initialization`);
+}
+
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

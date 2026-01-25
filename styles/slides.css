@@ -291,14 +291,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    contain: content;
 }
 
+/* Remove width/height attributes from mermaid SVG and let it scale naturally */
 .slide__area .mermaid>svg {
     display: block !important;
+    width: auto !important;
+    height: auto !important;
     max-width: 100% !important;
     max-height: 100% !important;
-    width: 100% !important;
-    height: auto !important;
 }
 
 .slide__area .mermaid text {
@@ -313,7 +316,7 @@
 
 .slide__area .katex-display {
     margin: 0.25em 0;
-    overflow: auto;
+    overflow: hidden;
 }
 
 

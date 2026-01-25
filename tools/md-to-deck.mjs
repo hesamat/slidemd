@@ -405,6 +405,8 @@ function escapeKatexBracketDelimiters(markdownText) {
 
     let inFence = false;
     let fenceMarker = null;
+    let inMathBlock = false;
+    let mathBlockLines = [];
 
     function toggleFence(line) {
         const m = line.match(/^\s*(```+|~~~+)\s*/);
@@ -421,18 +423,50 @@ function escapeKatexBracketDelimiters(markdownText) {
         }
     }
 
-    return lines
-        .map((line) => {
-            toggleFence(line);
-            if (inFence) return line;
+    const result = [];
 
+    for (const line of lines) {
+        toggleFence(line);
+        if (inFence) {
+            result.push(line);
+            continue;
+        }
+
+        // Check for $$ math block delimiters
+        if (line.trim() === "$$") {
+            if (!inMathBlock) {
+                // Start of math block
+                inMathBlock = true;
+                mathBlockLines = [];
+            } else {
+                // End of math block - convert to single-line format
+                const mathContent = mathBlockLines.join(" ").trim();
+                // Escape all backslashes in the math content
+                const escaped = mathContent.replace(/\\/g, "\\\\");
+                result.push(`$$${escaped}$$`);
+                inMathBlock = false;
+                mathBlockLines = [];
+            }
+        } else if (inMathBlock) {
+            // Collect lines inside the math block
+            mathBlockLines.push(line);
+        } else {
+            // Outside math blocks, only escape LaTeX bracket delimiters
             // markdown-it treats backslash as an escape and turns "\[" into "[".
             // Doubling the slash keeps a literal "\[" in the rendered HTML so KaTeX can see it.
-            return line
-                .replace(/(^|[^\\])\\\[/g, "$1\\\\[")
-                .replace(/(^|[^\\])\\\]/g, "$1\\\\]");
-        })
-        .join("\n");
+            result.push(
+                line
+                    .replace(/(^|[^\\])\\\[/g, "$1\\\\[")
+                    .replace(/(^|[^\\])\\\]/g, "$1\\\\]")
+            );
+        }
+    }
+
+    if (inMathBlock) {
+        console.warn("[escapeKatex] Warning: Unclosed $$ block at end of content");
+    }
+
+    return result.join("\n");
 }
 
 function makeMarkdownRenderer() {
