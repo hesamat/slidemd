@@ -9,6 +9,7 @@ import { KeyboardHandler } from "./keyboard-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
+import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 
@@ -78,6 +79,7 @@ export class DeckController extends EventEmitter {
         });
         // Listen for deck changes
         this.reloadManager.addEventListener('deckchange', (e) => {
+            this.deck = e.deck;
             this.dispatchEvent('deckchange', e);
         });
         // Initialize the broadcast channel
@@ -155,12 +157,16 @@ export class DeckController extends EventEmitter {
     }
 
     preloadEnhancers() {
-        import("../core/asset-loader.js")
-            .then(({ AssetLoader }) => {
+        const loaderPromise = window.AssetLoader
+            ? Promise.resolve(window.AssetLoader)
+            : import("../core/asset-loader.js").then(({ AssetLoader }) => AssetLoader);
+
+        loaderPromise
+            .then((AssetLoader) => {
                 AssetLoader.ensureRichTextEnhancers().catch(console.warn);
-                // Scan deck and warmup D2 if needed
-                const { hasD2 } = ContentEnhancer.scanDeck(this.deck);
-                if (hasD2) ContentEnhancer.warmupD2().catch(console.warn);
+                // Scan deck and warmup Mermaid if needed
+                const { hasMermaid } = ContentEnhancer.scanDeck(this.deck);
+                if (hasMermaid) ContentEnhancer.initializeMermaid().catch(console.warn);
             })
             .catch(console.warn);
     }
@@ -187,6 +193,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
+        listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });
 
         listen(this.elements.breakDurationSelect, "change", (e) => {
             this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -225,7 +232,7 @@ export class DeckController extends EventEmitter {
 
     async handleBeforePrint() {
         if (this.elements.slidesContainer) {
-            await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint: false });
+            await PrintManager.handlePrint(this.elements.slidesContainer, this.deck?.meta?.title, { triggerBrowserPrint: false });
         }
     }
 
@@ -291,7 +298,11 @@ export class DeckController extends EventEmitter {
     }
 
     async handlePrint({ triggerBrowserPrint = true } = {}) {
-        await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint });
+        await PrintManager.handlePrint(this.elements.slidesContainer, this.deck?.meta?.title, { triggerBrowserPrint });
+    }
+
+    async handleHtmlExport({ filename = null } = {}) {
+        await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, { filename });
     }
 
     destroy() {

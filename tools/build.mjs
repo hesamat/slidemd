@@ -244,97 +244,6 @@ let deck;
 const deckMd = fs.readFileSync(inDeck, "utf8");
 deck = parseDeckMarkdown(deckMd);
 
-function decodeHtmlEntities(s) {
-    return String(s || "")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-}
-
-async function renderD2BlocksInHtml(htmlText, d2, { saltPrefix = "webdeck_d2", startIndex = 0 } = {}) {
-    const html = String(htmlText || "");
-    const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-d2[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
-    let out = "";
-    let last = 0;
-    let i = startIndex;
-
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(html))) {
-        out += html.slice(last, m.index);
-        last = re.lastIndex;
-
-        const src = decodeHtmlEntities(m[1]).trim();
-        const salt = `${saltPrefix}_${i++}`;
-        try {
-            const compiled = await d2.compile(src, {
-                pad: 24,
-                center: true,
-                noXMLTag: true,
-                salt,
-            });
-
-            const svg = await d2.render(compiled.diagram, {
-                ...(compiled.renderOptions || {}),
-                pad: 24,
-                center: true,
-                noXMLTag: true,
-                salt,
-            });
-
-            out += `<div class="d2">${svg || ""}</div>`;
-        } catch (e) {
-            out += `<div class="d2"><pre style="color:#dc2626; white-space:pre-wrap;">D2 render failed: ${String(e)}</pre></div>`;
-        }
-    }
-
-    out += html.slice(last);
-    return { html: out, nextIndex: i };
-}
-
-async function preRenderD2InDeck(d) {
-    if (!d || typeof d !== "object" || !Array.isArray(d.slides)) return d;
-
-    const { D2 } = await import("@terrastruct/d2");
-    const d2 = new D2();
-
-    // D2 Node runtime spins up a worker_threads Worker and does not currently
-    // expose a public dispose(). We terminate the worker explicitly so the
-    // Node process can exit when the build is done.
-    try {
-        let idx = 0;
-
-        const slides = [];
-        for (const slide of d.slides) {
-            if (!slide || typeof slide !== "object" || !slide.areas || typeof slide.areas !== "object") {
-                slides.push(slide);
-                continue;
-            }
-
-            const outAreas = {};
-            for (const [k, html] of Object.entries(slide.areas)) {
-                const r = await renderD2BlocksInHtml(html, d2, { startIndex: idx });
-                idx = r.nextIndex;
-                outAreas[k] = r.html;
-            }
-
-            slides.push({ ...slide, areas: outAreas });
-        }
-
-        return { ...d, slides };
-    } finally {
-        try {
-            if (d2 && d2.worker && typeof d2.worker.terminate === "function") {
-                await d2.worker.terminate();
-            }
-        } catch {
-            // ignore
-        }
-    }
-}
-
 // Optional vendor assets (PrismJS + KaTeX).
 // These get inlined into dist/deck.html, but we only inline what the current deck actually uses.
 function getDeckHtmlText(d) {
@@ -355,13 +264,6 @@ function getDeckHtmlText(d) {
 
 let deckHtmlText = getDeckHtmlText(deck);
 
-// Check if deck uses D2 diagrams and pre-render them
-const usesD2 = /(?:language-d2|lang-d2)/i.test(deckHtmlText);
-if (usesD2) {
-    deck = await preRenderD2InDeck(deck);
-    deckHtmlText = getDeckHtmlText(deck);
-}
-
 // Inline images if requested
 if (inlineAssets) {
     deck = inlineImagesInDeck(deck);
@@ -370,6 +272,9 @@ if (inlineAssets) {
 
 const usesPrism = /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText);
 const usesKatex = /(\$\$[\s\S]+?\$\$)|\\\(|\\\[|\\begin\{(?:equation|align|gather|matrix|cases)/.test(deckHtmlText);
+const usesMermaid = /class=["'][^"']*\bmermaid\b[^"']*["']/.test(deckHtmlText) ||
+    /(```|~~~)\s*mermaid/.test(deckHtmlText) ||
+    /<div\s+class=["']mermaid["']/.test(deckHtmlText);
 
 function unique(arr) {
     return Array.from(new Set(arr));
@@ -399,6 +304,8 @@ function prismComponentForLang(lang) {
         xml: "markup",
         markup: "markup",
         clike: "clike",
+        markdown: "markdown",
+        makefile: "makefile",
     };
     return map[l] || null;
 }
@@ -439,7 +346,7 @@ function detectPrismComponentsFromDeck(htmlText) {
 let vendorCss = "";
 const vendorJsParts = [];
 
-if (usesPrism || usesKatex) {
+if (usesPrism || usesKatex || usesMermaid) {
     const vendorCssParts = [];
 
     if (usesPrism) {
@@ -467,6 +374,13 @@ if (usesPrism || usesKatex) {
         );
         if (katexCore) vendorJsParts.push(katexCore);
         if (katexAutoRender) vendorJsParts.push(katexAutoRender);
+    }
+
+    if (usesMermaid) {
+        // Don't inline mermaid (v11 is 2.7MB and ESM-only)
+        // Instead, inject a script tag to load it from CDN
+        // This will be processed later to add the CDN link to the HTML head
+        vendorJsParts.push(`/* Mermaid loaded from CDN (usesMermaid flag) */`);
     }
 
     vendorCss = vendorCssParts.filter(Boolean).join("\n\n");
@@ -532,27 +446,27 @@ function stripEsmSyntax(srcText, filePath) {
         () => `Promise.resolve(AssetLoader)`
     );
 
-    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded())
+    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureMermaidLoaded())
     out = out.replace(
-        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureD2Loaded\(\)\)/g,
-        () => `AssetLoader.ensureD2Loaded()`
+        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureMermaidLoaded\(\)\)/g,
+        () => `AssetLoader.ensureMermaidLoaded()`
     );
 
     // For dist builds, stub out the problematic import() calls in AssetLoader methods
     // by replacing the entire method with a no-op version
 
     // Stub ensureKatexLoaded method - replace entire method with no-op
-    // Match from "static async ensureKatexLoaded() {" to "static async ensureD2Loaded() {"
+    // Match from "static async ensureKatexLoaded() {" to "static async ensureMermaidLoaded() {"
     out = out.replace(
-        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureD2Loaded)/,
+        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureMermaidLoaded)/,
         () => `static async ensureKatexLoaded() { /* KaTeX inlined in dist build */ return; }`
     );
 
-    // Stub ensureD2Loaded method - replace entire method with no-op
-    // Match from "static async ensureD2Loaded() {" to "static async ensureRichTextEnhancers() {"
+    // Stub ensureMermaidLoaded method - replace entire method with no-op
+    // Match from "static async ensureMermaidLoaded() {" to "static async ensureRichTextEnhancers() {"
     out = out.replace(
-        /static async ensureD2Loaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
-        () => `static async ensureD2Loaded() { /* D2 pre-rendered in dist build */ return; }`
+        /static async ensureMermaidLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
+        () => `static async ensureMermaidLoaded() { /* Mermaid bundled in dist build */ return; }`
     );
 
     // Also stub ensurePrismLoaded and ensureMarkdownItLoaded for consistency
@@ -566,19 +480,28 @@ function stripEsmSyntax(srcText, filePath) {
         () => `static async ensureMarkdownItLoaded() { /* markdown-it not needed in dist build */ return; }`
     );
 
-    // Stub ContentEnhancer methods that try to access D2 at runtime
-    // Since D2 is pre-rendered in dist builds, these should not run
+    // Stub ContentEnhancer methods that try to access Mermaid at runtime
+    // Since Mermaid is loaded from CDN in dist builds, update initializeMermaid to use it
     if (filePath.includes('content-enhancer.js')) {
-        // Stub warmupD2 - simpler pattern that doesn't depend on exact indentation
-        // Replace from method start to the next method's start
+        // Stub initializeMermaid - replace from method start to renderMermaidDiagrams
+        // We must preserve getMermaidSandbox since renderMermaidDiagrams uses it
         out = out.replace(
-            /static async warmupD2\(\) \{[\s\S]*?\n    static async initializeD2/,
-            () => `static async warmupD2() { /* D2 pre-rendered in dist build */ return; }\n    static async initializeD2`
-        );
-        // Stub initializeD2 - replace from method start to showD2Error
-        out = out.replace(
-            /static async initializeD2\([^)]*\) \{[\s\S]*?\n    static showD2Error/,
-            () => `static async initializeD2() { /* D2 pre-rendered in dist build */ return null; }\n    static showD2Error`
+            /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static async renderMermaidDiagrams/,
+            () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }
+
+    // add somewhere in ContentEnhancer (stubbed for dist build)
+    static getMermaidSandbox() {
+        let box = document.getElementById("mermaid-sandbox");
+        if (!box) {
+            box = document.createElement("div");
+            box.id = "mermaid-sandbox";
+            box.style.cssText = "position:fixed;left:-10000px;width:0;height:0;overflow:hidden;";
+            document.body.appendChild(box);
+        }
+        return box;
+    }
+
+    static async renderMermaidDiagrams`
         );
     }
 
@@ -745,5 +668,13 @@ html = html.replace(
     deckScriptRegex,
     () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
+
+// Inject mermaid CDN script if needed (before closing </head> tag)
+if (usesMermaid) {
+    const mermaidScript = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"default",securityLevel:"loose"});</script>';
+    html = html.replace(/<\/head>/i, `${mermaidScript}</head>`);
+    console.log(`Added mermaid CDN link for diagram rendering`);
+}
+
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

@@ -50,9 +50,23 @@ export class ReloadManager extends EventEmitter {
      * Handles deck reloading from URL, file handle, or localStorage.
      * @param {Object} options - Optional parameters
      * @param {boolean} options.preferLocalStorage - Whether to prefer localStorage over file handle
+     * @param {boolean} options.skipConfirmation - Whether to skip the unsaved changes confirmation
      * @returns {Promise<void>}
      */
-    async handleReloadDeck({ preferLocalStorage = false } = {}) {
+    async handleReloadDeck({ preferLocalStorage = false, skipConfirmation = false } = {}) {
+        // Check for unsaved changes before reloading
+        if (!skipConfirmation) {
+            const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+            if (editController && editController.hasUnsavedChanges) {
+                const confirmed = await Notification.confirm(
+                    'You have unsaved changes. Reloading the deck will replace all your changes with the saved file. Continue?'
+                );
+                if (!confirmed) {
+                    return;
+                }
+            }
+        }
+
         const url = new URL(window.location.href);
         const deckUrl = url.searchParams.get("url");
         try {
@@ -81,10 +95,12 @@ export class ReloadManager extends EventEmitter {
     /**
      * Replaces the current deck with a new one.
      * @param {Object} newDeck - The new deck object
+     * @param {Object} options - Optional parameters
+     * @param {boolean} options.startAtFirstSlide - If true, start at slide 0 instead of preserving current position
      * @returns {Promise<void>}
      */
-    async replaceDeck(newDeck) {
-        const preservedIndex = Math.min(this.slideNavigator.currentIndex, newDeck.slides.length - 1);
+    async replaceDeck(newDeck, { startAtFirstSlide = false } = {}) {
+        const preservedIndex = startAtFirstSlide ? 0 : Math.min(this.slideNavigator.currentIndex, newDeck.slides.length - 1);
         // Ensure we land on a visible slide (unless in edit mode)
         const visibleIndex = this.slideNavigator.getVisibleIndex(preservedIndex);
         const oldDeck = this.deck;
@@ -141,7 +157,7 @@ export class ReloadManager extends EventEmitter {
             if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
 
             const newDeck = await DeckLoader.parseMarkdown(text);
-            await this.replaceDeck(newDeck);
+            await this.replaceDeck(newDeck, { startAtFirstSlide: true });
             this.broadcastReload();
         } catch (err) {
             Notification.error("Failed to load file: " + err.message);

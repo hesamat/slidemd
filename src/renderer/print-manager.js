@@ -1,40 +1,69 @@
 /**
  * PrintManager
- * Handles print preparation, content enhancement before printing, and browser print triggering.
+ * Handles print preparation and browser print triggering.
  */
 
-import { yieldToMain } from "../core/utils.js";
 import { ContentEnhancer } from "./content-enhancer.js";
 
 export class PrintManager {
     static _isPrinting = false;
 
     /**
-     * Handles print preparation and optionally triggers browser print.
-     * Enhances all slides with content (D2 diagrams, syntax highlighting, math) before printing.
-     * @param {HTMLElement} slidesContainer - The container element holding all slides
-     * @param {Object} options - Optional parameters
-     * @param {boolean} options.triggerBrowserPrint - Whether to trigger window.print() after preparation
-     * @returns {Promise<void>}
+     * Regex to match emoji characters
      */
-    static async handlePrint(slidesContainer, { triggerBrowserPrint = true } = {}) {
+    static EMOJI_REGEX = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+
+    /**
+     * Removes emojis from text nodes for PDF.js compatibility.
+     * Emojis get converted to complex font patterns that old PDF.js can't handle.
+     */
+    static removeEmojis(element) {
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => {
+                    if (node.parentElement.tagName === 'SCRIPT' || node.parentElement.tagName === 'STYLE') {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return PrintManager.EMOJI_REGEX.test(node.textContent)
+                        ? NodeFilter.FILTER_ACCEPT
+                        : NodeFilter.FILTER_REJECT;
+                }
+            }
+        );
+
+        const textNodes = [];
+        let node;
+        while ((node = walker.nextNode())) {
+            textNodes.push(node);
+        }
+
+        for (const textNode of textNodes) {
+            textNode.textContent = textNode.textContent.replace(PrintManager.EMOJI_REGEX, '');
+        }
+    }
+
+    /**
+     * Handles print preparation and optionally triggers browser print.
+     * @param {HTMLElement} slidesContainer - The container holding all slides
+     * @param {string} deckTitle - The title of the deck
+     * @param {Object} options - Optional parameters
+     * @param {boolean} options.triggerBrowserPrint - Whether to trigger window.print()
+     */
+    static async handlePrint(slidesContainer, deckTitle, { triggerBrowserPrint = true } = {}) {
         if (PrintManager._isPrinting) return;
         PrintManager._isPrinting = true;
 
         try {
-            // Ensure D2 is loaded before printing
-            if (!window.__WEBDECK_D2__) {
-                await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureD2Loaded());
+            const slides = slidesContainer.querySelectorAll('.slide');
+            for (const slide of slides) {
+                await ContentEnhancer.enhanceRenderedContent(slide, { renderAllSlides: true });
+                // Remove emojis for PDF.js compatibility
+                PrintManager.removeEmojis(slide);
             }
 
-            const slides = slidesContainer.querySelectorAll('.slide');
-            for (let i = 0; i < slides.length; i++) {
-                await ContentEnhancer.enhanceRenderedContent(slides[i], { renderAllSlides: true });
-                // CRITICAL: Yield to main thread to prevent freezing
-                await yieldToMain();
-            }
-        } catch (e) {
-            console.warn("Print prep failed:", e);
+            document.title = deckTitle;
         } finally {
             PrintManager._isPrinting = false;
         }
@@ -42,10 +71,6 @@ export class PrintManager {
         if (triggerBrowserPrint) window.print();
     }
 
-    /**
-     * Checks if print preparation is currently in progress.
-     * @returns {boolean} True if currently preparing for print
-     */
     static isPrinting() {
         return PrintManager._isPrinting;
     }

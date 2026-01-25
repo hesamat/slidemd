@@ -8,7 +8,7 @@ import { safeString, getDeckId, DESIGN_SIZE, yieldToMain } from "../core/utils.j
 import { Notification } from "../renderer/notification.js";
 
 export class DeckLoader {
-    
+
     static getDisplayTitle(deck) {
         const localFileName = localStorage.getItem("webdeck_local_file_name");
         if (localFileName) return localFileName;
@@ -43,10 +43,10 @@ export class DeckLoader {
         if (url.toLowerCase().endsWith(".md")) {
             await AssetLoader.ensureMarkdownItLoaded();
             const mdText = await this.fetchText(fetchUrl, { cache: "no-cache" });
-            
+
             // Yield if file is large to allow UI to update
             if (mdText.length > 50000) await yieldToMain();
-            
+
             return new MarkdownParser().parseDeckMarkdown(mdText);
         } else {
             throw new Error("Unsupported file type. Please use .md files.");
@@ -262,11 +262,11 @@ export class DeckLoader {
     static async reloadFromFileHandle(deckId) {
         let handle = DeckLoader.fileHandleRegistry.get(deckId);
         const fileName = localStorage.getItem("webdeck_local_file_name");
-        
+
         if (!handle && fileName) {
             handle = DeckLoader.fileHandleRegistry.get(fileName);
         }
-        
+
         if (!handle) return null;
 
         try {
@@ -286,7 +286,7 @@ export class DeckLoader {
 
             try {
                 await this.loadFromUrl(url); // Validate
-                
+
                 const reloadChannel = new BroadcastChannel("webdeck-reload");
                 reloadChannel.postMessage({ type: "reload", url });
                 reloadChannel.close();
@@ -304,7 +304,7 @@ export class DeckLoader {
     static async loadFromLocalStorage() {
         const localFile = localStorage.getItem("webdeck_local_file");
         if (!localFile) return null;
-        
+
         await AssetLoader.ensureMarkdownItLoaded();
         return new MarkdownParser().parseDeckMarkdown(localFile);
     }
@@ -342,7 +342,7 @@ export class DeckLoader {
         });
 
         let slides = includeHidden ? slidesAll : slidesAll.filter(s => !s.hidden);
-        
+
         if (slides.length === 0) {
             slides = [{
                 id: "no-visible-slides",

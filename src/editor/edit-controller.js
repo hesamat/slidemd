@@ -309,7 +309,7 @@ export class EditController {
                 );
                 slideEl.replaceWith(newSlideEl);
 
-                // Re-enhance the new slide content (D2, Prism, etc.)
+                // Re-enhance the new slide content (Mermaid, Prism, etc.)
                 ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 });
@@ -404,6 +404,47 @@ export class EditController {
     }
 
     /**
+     * Helper: Rebuild unsaved markdown map after slide index changes
+     * @param {number} insertAtIndex - The index where a slide was inserted (use -1 for no insert)
+     * @param {number} deleteAtIndex - The index where a slide was deleted (use -1 for no delete)
+     * @param {number} newSlideIndex - Index of a new slide to mark as unsaved (optional)
+     * @param {string} newSlideMarkdown - Markdown for the new slide (optional)
+     */
+    _rebuildUnsavedMarkdownMap(insertAtIndex = -1, deleteAtIndex = -1, newSlideIndex = -1, newSlideMarkdown = '') {
+        const newUnsavedMarkdown = new Map();
+
+        for (const [index, content] of this.unsavedMarkdown) {
+            let newIndex = index;
+
+            // Adjust index based on delete
+            if (deleteAtIndex >= 0 && index > deleteAtIndex) {
+                newIndex = index - 1;
+            }
+
+            // Adjust index based on insert (after delete adjustment)
+            if (insertAtIndex >= 0 && newIndex >= insertAtIndex) {
+                newIndex = newIndex + 1;
+            }
+
+            // Skip if this was the deleted slide
+            if (deleteAtIndex >= 0 && index === deleteAtIndex) {
+                continue;
+            }
+
+            newUnsavedMarkdown.set(newIndex, content);
+        }
+
+        // Add new slide as unsaved if specified
+        if (newSlideIndex >= 0 && newSlideMarkdown) {
+            newUnsavedMarkdown.set(newSlideIndex, newSlideMarkdown);
+        }
+
+        this.unsavedMarkdown = newUnsavedMarkdown;
+        this.hasUnsavedChanges = this.unsavedMarkdown.size > 0;
+        this.updateSaveButton();
+    }
+
+    /**
      * Add a new slide after the current one
      */
     addSlide() {
@@ -480,18 +521,153 @@ export class EditController {
             allSlides[indexToDelete].remove();
         }
 
-        // Navigate
-        const newIndex = Math.max(0, indexToDelete - 1);
+        // Navigate: stay on the same index if possible (which now holds what was the next slide)
+        // unless deleting the last slide, in which case go to the new last slide
+        const newIndex = indexToDelete >= this.deck.slides.length
+            ? this.deck.slides.length - 1
+            : indexToDelete;
         this.controller.slideNavigator.goTo(newIndex);
 
-        // Clear unsaved map since indices shifted
-        this.unsavedMarkdown.clear();
-        this.hasUnsavedChanges = false;
+        // Rebuild unsaved markdown map with adjusted indices
+        this._rebuildUnsavedMarkdownMap(-1, indexToDelete);
+
+        // Mark as unsaved to enable save button for structural change
+        if (this.unsavedMarkdown.size === 0) {
+            // Add a marker to indicate unsaved structural changes
+            this.unsavedMarkdown.set(0, this.originalMarkdown[0] || '');
+        }
+        this.hasUnsavedChanges = true;
         this.updateSaveButton();
 
         // Refresh thumbnails after deleting slide
         this.thumbnails.refresh();
         this.updateSlideIndicator();
+    }
+
+    /**
+     * Move the current slide up by one position
+     */
+    moveSlideUp() {
+        if (this.currentSlideIndex <= 0) {
+            Notification.warning('Cannot move the first slide up');
+            return;
+        }
+
+        const currentIndex = this.currentSlideIndex;
+        const targetIndex = currentIndex - 1;
+
+        // Swap in data models
+        // Swap deck.slides
+        [this.deck.slides[currentIndex], this.deck.slides[targetIndex]] =
+            [this.deck.slides[targetIndex], this.deck.slides[currentIndex]];
+        // Swap originalMarkdown
+        [this.originalMarkdown[currentIndex], this.originalMarkdown[targetIndex]] =
+            [this.originalMarkdown[targetIndex], this.originalMarkdown[currentIndex]];
+
+        // Get the DOM elements
+        const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
+        const currentSlideEl = allSlides[currentIndex];
+        const targetSlideEl = allSlides[targetIndex];
+
+        if (currentSlideEl && targetSlideEl) {
+            // Swap DOM elements
+            const currentClone = currentSlideEl.cloneNode(true);
+            const targetClone = targetSlideEl.cloneNode(true);
+
+            targetSlideEl.replaceWith(currentClone);
+            currentSlideEl.replaceWith(targetClone);
+
+            // Update active class
+            targetClone.classList.remove('active');
+            currentClone.classList.add('active');
+        }
+
+        // Rebuild unsaved markdown map - just swap the two indices
+        const newUnsavedMarkdown = new Map();
+        for (const [index, content] of this.unsavedMarkdown) {
+            if (index === currentIndex) {
+                newUnsavedMarkdown.set(targetIndex, content);
+            } else if (index === targetIndex) {
+                newUnsavedMarkdown.set(currentIndex, content);
+            } else {
+                newUnsavedMarkdown.set(index, content);
+            }
+        }
+        this.unsavedMarkdown = newUnsavedMarkdown;
+        this.hasUnsavedChanges = true;
+        this.updateSaveButton();
+
+        // Navigate to the new position
+        this.controller.slideNavigator.goTo(targetIndex);
+
+        // Refresh thumbnails and update indicator
+        this.thumbnails.refresh();
+        this.updateSlideIndicator();
+
+        Notification.success('Slide moved up');
+    }
+
+    /**
+     * Move the current slide down by one position
+     */
+    moveSlideDown() {
+        if (this.currentSlideIndex >= this.deck.slides.length - 1) {
+            Notification.warning('Cannot move the last slide down');
+            return;
+        }
+
+        const currentIndex = this.currentSlideIndex;
+        const targetIndex = currentIndex + 1;
+
+        // Swap in data models
+        // Swap deck.slides
+        [this.deck.slides[currentIndex], this.deck.slides[targetIndex]] =
+            [this.deck.slides[targetIndex], this.deck.slides[currentIndex]];
+        // Swap originalMarkdown
+        [this.originalMarkdown[currentIndex], this.originalMarkdown[targetIndex]] =
+            [this.originalMarkdown[targetIndex], this.originalMarkdown[currentIndex]];
+
+        // Get the DOM elements
+        const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
+        const currentSlideEl = allSlides[currentIndex];
+        const targetSlideEl = allSlides[targetIndex];
+
+        if (currentSlideEl && targetSlideEl) {
+            // Swap DOM elements
+            const currentClone = currentSlideEl.cloneNode(true);
+            const targetClone = targetSlideEl.cloneNode(true);
+
+            targetSlideEl.replaceWith(currentClone);
+            currentSlideEl.replaceWith(targetClone);
+
+            // Update active class
+            targetClone.classList.remove('active');
+            currentClone.classList.add('active');
+        }
+
+        // Rebuild unsaved markdown map - just swap the two indices
+        const newUnsavedMarkdown = new Map();
+        for (const [index, content] of this.unsavedMarkdown) {
+            if (index === currentIndex) {
+                newUnsavedMarkdown.set(targetIndex, content);
+            } else if (index === targetIndex) {
+                newUnsavedMarkdown.set(currentIndex, content);
+            } else {
+                newUnsavedMarkdown.set(index, content);
+            }
+        }
+        this.unsavedMarkdown = newUnsavedMarkdown;
+        this.hasUnsavedChanges = true;
+        this.updateSaveButton();
+
+        // Navigate to the new position
+        this.controller.slideNavigator.goTo(targetIndex);
+
+        // Refresh thumbnails and update indicator
+        this.thumbnails.refresh();
+        this.updateSlideIndicator();
+
+        Notification.success('Slide moved down');
     }
 
     /**
@@ -554,11 +730,8 @@ export class EditController {
                 });
             }
 
-            // Clear unsaved map since indices shifted, mark new slide as unsaved
-            this.unsavedMarkdown.clear();
-            this.unsavedMarkdown.set(insertIndex, markdown);
-            this.hasUnsavedChanges = true;
-            this.updateSaveButton();
+            // Rebuild unsaved markdown map with adjusted indices
+            this._rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, markdown);
 
             // Navigate to new slide
             this.controller.slideNavigator.goTo(insertIndex);
@@ -642,11 +815,8 @@ export class EditController {
             // Navigate to new slide and load into editor
             this.controller.slideNavigator.goTo(insertIndex);
 
-            // Clear unsaved map since indices shifted, mark new slide as unsaved
-            this.unsavedMarkdown.clear();
-            this.unsavedMarkdown.set(insertIndex, template);
-            this.hasUnsavedChanges = true;
-            this.updateSaveButton();
+            // Rebuild unsaved markdown map with adjusted indices
+            this._rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, template);
 
             // Refresh thumbnails after adding slide
             this.thumbnails.refresh();

@@ -54,6 +54,7 @@ export class AssetLoader {
                 () => import("prismjs/components/prism-c.js"),
                 () => import("prismjs/components/prism-cpp.js"),
                 () => import("prismjs/components/prism-markdown.js"),
+                () => import("prismjs/components/prism-makefile.js"),
             ];
 
             for (const load of loadLangs) {
@@ -93,16 +94,29 @@ export class AssetLoader {
         });
     }
 
-    static async ensureD2Loaded() {
-        if (window.__WEBDECK_D2__?.D2) return;
+    static async ensureMermaidLoaded() {
+        if (window.__WEBDECK_MERMAID__) return;
 
-        await this.once("d2", async () => {
-            // Use the package entrypoint to satisfy Vite's export-map checks.
-            // In dist single-file builds, D2 is typically pre-rendered.
-            const mod = await import("@terrastruct/d2");
-            const D2 = mod?.D2 || mod?.default?.D2 || mod?.default;
-            if (!D2) throw new Error("D2 export not found");
-            window.__WEBDECK_D2__ = { D2 };
+        const mermaidInitOptions = {
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            fontFamily: 'Open Sans, sans-serif',
+        };
+
+        // Use a preloaded global Mermaid if present (e.g., inlined in exported HTML)
+        if (window.mermaid && typeof window.mermaid.initialize === "function") {
+            window.mermaid.initialize(mermaidInitOptions);
+            window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
+            return;
+        }
+
+        await this.once("mermaid", async () => {
+            const mermaidMod = await import("mermaid");
+            const mermaid = mermaidMod?.default || mermaidMod;
+            // Initialize Mermaid with default config
+            mermaid.initialize(mermaidInitOptions);
+            window.__WEBDECK_MERMAID__ = { mermaid };
         });
     }
 
@@ -111,8 +125,13 @@ export class AssetLoader {
         await Promise.allSettled([
             this.ensurePrismLoaded(),
             this.ensureKatexLoaded(),
-            // D2 is loaded lazily too, but preloading here keeps navigation snappy once you hit a D2 slide.
-            this.ensureD2Loaded(),
+            // Mermaid is loaded lazily too, but preloading here keeps navigation snappy once you hit a Mermaid slide.
+            this.ensureMermaidLoaded(),
         ]);
     }
+}
+
+// Expose for non-module consumers (exported HTML bundle)
+if (typeof window !== "undefined") {
+    window.AssetLoader = AssetLoader;
 }

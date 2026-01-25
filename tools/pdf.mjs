@@ -77,25 +77,80 @@ try {
 // CRITICAL: Enhance ALL slides for PDF output (not just the active one)
 // Prism syntax highlighting is only applied to active slides by default,
 // but PDF needs all slides to be highlighted.
+// Also need to render Mermaid diagrams and remove emojis for PDF.js compatibility.
 console.log("Enhancing all slides for PDF output...");
 await page.evaluate(async () => {
-    if (!window.Prism) return;
-
     const slides = Array.from(document.querySelectorAll('.slide'));
-    for (const slide of slides) {
-        const codeBlocks = slide.querySelectorAll('pre code');
-        codeBlocks.forEach((codeEl) => {
-            // Ensure language class is set correctly
-            const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
-            if (match) {
-                codeEl.className = `language-${match[1]}`;
+
+    // 1. Remove emojis for PDF.js compatibility (emojis become complex font patterns)
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    const removeEmojisFromElement = (el) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+            acceptNode: (node) => {
+                if (node.parentElement.tagName === 'SCRIPT' || node.parentElement.tagName === 'STYLE') {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return emojiRegex.test(node.textContent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
             }
-            // Apply Prism highlighting
-            Prism.highlightElement(codeEl);
         });
+        const nodes = [];
+        let node;
+        while ((node = walker.nextNode())) nodes.push(node);
+        nodes.forEach(n => n.textContent = n.textContent.replace(emojiRegex, ''));
+    };
+
+    // 2. Process each slide
+    for (const slide of slides) {
+        // Remove emojis
+        removeEmojisFromElement(slide);
+
+        // Prism syntax highlighting
+        if (window.Prism) {
+            const codeBlocks = slide.querySelectorAll('pre code');
+            codeBlocks.forEach((codeEl) => {
+                const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
+                if (match) {
+                    codeEl.className = `language-${match[1]}`;
+                }
+                Prism.highlightElement(codeEl);
+            });
+        }
+
+        // Mermaid diagram rendering (convert code blocks to divs, then render)
+        const mermaidCodeNodes = slide.querySelectorAll("pre code.language-mermaid, pre code.lang-mermaid");
+        for (const codeEl of mermaidCodeNodes) {
+            const pre = codeEl.parentElement;
+            if (pre?.tagName === "PRE") {
+                const source = codeEl.textContent?.trim();
+                if (!source) continue;
+
+                const div = document.createElement("div");
+                div.className = "mermaid";
+                div.dataset.mermaidSource = source;
+                div.textContent = source;
+                pre.replaceWith(div);
+            }
+        }
+
+        const mermaidDivs = slide.querySelectorAll('.mermaid[data-mermaid-source]');
+        if (mermaidDivs.length > 0 && window.mermaid) {
+            for (const div of mermaidDivs) {
+                const source = div.dataset.mermaidSource;
+                if (!source) continue;
+
+                try {
+                    const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    const out = await window.mermaid.render(id, source);
+                    div.innerHTML = out.svg;
+                    out.bindFunctions?.(div);
+                } catch (e) {
+                    div.innerHTML = `<div style="color:#d32f2f; padding:1rem;">Error: ${e.message || 'Mermaid rendering failed'}</div>`;
+                }
+            }
+        }
     }
 });
-console.log("All slides enhanced for PDF");
+console.log("All slides enhanced for PDF (Mermaid rendered, emojis removed)");
 
 // Ensure print sizing for code/blockquote matches dev theme (no change to print.css on disk).
 await page.addStyleTag({

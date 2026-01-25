@@ -394,6 +394,79 @@ and <span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px;">hig
 - Another item with <strong style="text-decoration: underline;">underlined bold</strong>
 ```
 
+## Mermaid Diagrams
+
+You can embed Mermaid diagrams using triple-backtick code blocks with the `mermaid` language. Mermaid supports various diagram types including flowcharts, sequence diagrams, state diagrams, and more.
+
+### Basic Mermaid Diagram
+
+```markdown
+layout: header-content
+
+@header
+## Memory Layout Visualization
+
+@main
+```mermaid
+graph LR
+    A[Start] --> B{Condition}
+    B -->|True| C[Action A]
+    B -->|False| D[Action B]
+    C --> E[End]
+    D --> E
+```
+```
+
+### Mermaid with Title (Recommended)
+
+The title font will be automatically adjusted to match your slide's styling, making the diagram more readable and professional.
+
+```markdown
+layout: header-content
+
+@header
+## Memory Layout
+
+@main
+```mermaid
+---
+title: Memory
+---
+graph LR
+    direction LR
+    m0["[0][0]<br/>1"]:::row0
+    m1["[0][1]<br/>2"]:::row0
+    m2["[0][2]<br/>3"]:::row0
+    m3["[0][3]<br/>4"]:::row0
+    m4["[1][0]<br/>5"]:::row1
+
+    m0 --- m1 --- m2 --- m3 --- m4
+
+    classDef row0 fill:lightblue,stroke:#333,font-size:1.5rem,stroke-width:2px
+    classDef row1 fill:lightgreen,stroke:#333,font-size:1.5rem,stroke-width:2px
+```
+```
+
+### Common Mermaid Diagram Types
+
+| Type | Description | Example Syntax |
+|------|-------------|----------------|
+| `graph LR` | Left-to-right flowchart | `A --> B` |
+| `graph TD` | Top-down flowchart | `A --> B` |
+| `sequenceDiagram` | Sequence diagram | `participant A; A->>B: Message` |
+| `stateDiagram-v2` | State diagram | `[*] --> State1` |
+| `classDiagram` | Class diagram | `class Animal{+String name}` |
+| `erDiagram` | Entity relationship | `Customer ||--o{ Order : places` |
+
+### Styling Tips
+
+- Use `classDef` to define custom styles for nodes
+- Use `:::classname` to apply styles to specific nodes
+- The `font-size` in Mermaid styles uses `rem` units and will scale with the slide
+- Title fonts are automatically adjusted to match slide typography
+
+For the complete Mermaid syntax reference, see [mermaid.js.org](https://mermaid.js.org/intro/)
+
 ## Tips and Best Practices
 
 - **Keep every row the same number of cells**: When using custom layouts, ensure each row has the same count of area names or dots.

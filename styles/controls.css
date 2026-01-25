@@ -4,8 +4,12 @@
     flex-direction: column;
 }
 
-/* Top Bar */
+/* Top Bar - hidden by default, shown only in presenter role */
 .topbar {
+    display: none;
+}
+
+html[data-webdeck-role="presenter"] .topbar {
     position: fixed;
     top: 0;
     left: 0;

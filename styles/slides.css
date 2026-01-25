@@ -1,4 +1,40 @@
-/* Slide content (deterministic, no breakpoints) */
+/* ==========================================================================
+   1. Design System & Variables
+   ========================================================================== */
+
+:root {
+    /* Main Theme */
+    --slide-bg-light: #ffffff;
+    --slide-ink-light: rgba(15, 23, 42, 0.85);
+
+    --slide-muted-light: rgba(15, 23, 42, 0.74);
+
+    --slide-bg-dark: #0f172a;
+    --slide-ink-dark: #e2e8f0;
+    --slide-muted-dark: rgba(226, 232, 240, 0.72);
+
+    /* Accents & UI */
+    --accent: rgba(2, 132, 199, 0.95);
+    --accent-hover: rgba(3, 105, 161, 0.98);
+    --accent-decoration: rgba(2, 132, 199, 0.35);
+
+    /* Borders & Backgrounds */
+    --border-color: rgba(148, 163, 184, 0.26);
+    --bg-subtle: rgba(243, 242, 243, 0.9);
+
+    /* Code Blocks */
+    --code-border: rgba(148, 163, 184, 0.28);
+    --code-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
+
+    /* Sizing & Spacing */
+    --slide-rhythm: 12px;
+    --radius-lg: 12px;
+}
+
+/* ==========================================================================
+   2. Base Slide Layout
+   ========================================================================== */
+
 .slide {
     position: absolute;
     inset: 0;
@@ -6,19 +42,21 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-    --slide-rhythm: 12px;
+    font-size: 29px;
+    /* Base font size for slide content */
 }
 
+.slide:not([data-theme]),
 .slide[data-theme="light"] {
-    --slide-bg: #ffffff;
-    --slide-ink: rgba(15, 23, 42, 0.92);
-    --slide-muted: rgba(15, 23, 42, 0.74);
+    --slide-bg: var(--slide-bg-light);
+    --slide-ink: var(--slide-ink-light);
+    --slide-muted: var(--slide-muted-light);
 }
 
 .slide[data-theme="dark"] {
-    --slide-bg: #0f172a;
-    --slide-ink: #e2e8f0;
-    --slide-muted: rgba(226, 232, 240, 0.72);
+    --slide-bg: var(--slide-bg-dark);
+    --slide-ink: var(--slide-ink-dark);
+    --slide-muted: var(--slide-muted-dark);
 }
 
 .slide.active {
@@ -26,17 +64,316 @@
     animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-
-    .slide.active {
-        animation: none !important;
-    }
-
-    .btn,
-    .overview-item {
-        transition: none !important;
-    }
+.slide__grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    gap: 20px 40px;
+    min-width: 0;
+    min-height: 0;
 }
+
+.slide__area {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    row-gap: var(--slide-rhythm);
+}
+
+/* Area Modifiers */
+.slide__area--header {
+    align-content: start;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.slide__area--title {
+    text-align: center;
+    justify-content: center;
+}
+
+.slide__area--footer {
+    text-align: center;
+    font-size: 24px;
+    line-height: 1.25;
+    color: var(--slide-muted);
+}
+
+.slide__area--footer p,
+.slide__area--footer a {
+    font-size: inherit;
+    color: inherit;
+}
+
+
+/* ==========================================================================
+   3. Core Typography
+   ========================================================================== */
+
+/* Reset margins for block elements from Markdown */
+.slide__area h1,
+.slide__area h2,
+.slide__area h3,
+.slide__area p,
+.slide__area ul,
+.slide__area ol,
+.slide__area blockquote,
+.slide__area pre {
+    margin: 0;
+}
+
+.slide__area h1 {
+    font-size: 60px;
+    line-height: 1.5;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+}
+
+.slide__area h2 {
+    font-size: 45px;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
+.slide__area h3 {
+    font-size: 34px;
+    font-weight: 600;
+}
+
+.slide__area p {
+    line-height: 1.4;
+    color: var(--slide-muted);
+}
+
+.slide__area strong {
+    color: var(--slide-ink);
+    font-weight: 650;
+}
+
+.slide__area ul,
+.slide__area ol {
+    display: grid;
+    gap: 16px;
+    line-height: 1.3;
+    /* Use em for scalable padding */
+    padding-left: 1.2em;
+    margin-top: 8px;
+}
+
+.slide__area li::marker {
+    color: var(--accent);
+}
+
+.slide__area a {
+    color: var(--accent);
+    text-decoration-color: var(--accent-decoration);
+}
+
+.slide__area a:hover {
+    color: var(--accent-hover);
+}
+
+
+/* ==========================================================================
+   4. Code Blocks & Syntax Highlighting (Prism)
+   ========================================================================== */
+
+/* --- Block Code (pre > code) --- */
+
+/* This is the main container for a code block.
+   This selector is more specific than Prism's default theme, so it will win. */
+.slide__area pre[class*="language-"] {
+    border: 1px solid var(--code-border);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    overflow: auto;
+    box-shadow: var(--code-shadow);
+    max-width: 1100px;
+    margin: 0.5rem 0.4rem;
+    /* No !important needed */
+
+    /* The FIX: Set line-height on the block container, not the inline code element. */
+    line-height: 1.1;
+}
+
+/* This targets the <code> element *inside* the <pre> block. */
+.slide__area pre[class*="language-"]>code {
+    font-family: var(--font-mono);
+    font-size: 1.38rem;
+    line-height: inherit;
+    /* Inherit line-height from the <pre> parent */
+    background: none;
+    /* Prism themes sometimes add a background to code, remove it. */
+    padding: 0;
+    color: inherit;
+}
+
+/* --- Inline Code (`code`) --- */
+.slide__area :not(pre)>code {
+    border: 1px solid var(--border-color);
+    background: var(--bg-subtle);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    /* Relative to the surrounding text */
+    color: var(--slide-ink);
+}
+
+/* Custom scrollbar for code blocks */
+.slide__area pre::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+.slide__area pre::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.55);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.slide__area pre::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+/* ==========================================================================
+   5. Rich Content (Images, Media, Diagrams)
+   ========================================================================== */
+
+/* --- General Media --- */
+.slide__area img,
+.slide__area video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    /* Center media by default */
+}
+
+/* --- Full-bleed Media Figures --- */
+/* A paragraph containing only an image/video should fill the available space */
+.slide__area p> :is(img, video):only-child {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Ensure paragraphs with media-only children are properly constrained */
+.slide__area p:has(> :is(img, video):only-child) {
+    min-height: 0;
+    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Fix for figure-like layout with captions */
+.slide__area:has(p > :is(img, video):only-child):has(p + p) {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.slide__area:has(p > :is(img, video):only-child):has(p + p)>p:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+}
+
+/* --- Mermaid Diagrams --- */
+.slide__area .mermaid {
+    width: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slide__area .mermaid>svg {
+    display: block !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+}
+
+.slide__area .mermaid text {
+    font-weight: 500 !important;
+    font-size: 2rem !important;
+}
+
+/* --- KaTeX Math --- */
+.slide__area .katex {
+    font-size: 1.12em;
+}
+
+.slide__area .katex-display {
+    margin: 0.25em 0;
+    overflow: auto;
+}
+
+
+/* ==========================================================================
+   6. Components (Blockquotes, Tables, Cards)
+   ========================================================================== */
+
+.slide__area blockquote {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    background: var(--bg-subtle);
+    box-shadow: 4px 6px 6px rgba(2, 6, 23, 0.1);
+    margin-bottom: 10px;
+}
+
+.slide__area blockquote p {
+    font-size: 30px;
+    line-height: 1.5;
+}
+
+/* --- Tables --- */
+.slide__area table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2rem 0;
+    font-size: 29px;
+    background: var(--bg-subtle);
+    box-shadow: 0 2px 12px rgba(2, 6, 23, 0.06);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.slide__area th,
+.slide__area td {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    padding: 0.5em 1em;
+    text-align: left;
+}
+
+.slide__area th {
+    background: rgba(15, 23, 42, 0.08);
+    font-weight: 700;
+}
+
+/* --- Cards Layout --- */
+.slide__area--cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-content: start;
+}
+
+.slide__area--cards>blockquote {
+    margin: 0;
+}
+
+/* ==========================================================================
+   7. Animation & Utilities
+   ========================================================================== */
 
 @keyframes slideIn {
     from {
@@ -50,436 +387,12 @@
     }
 }
 
-.slide__grid {
-    width: 100%;
-    height: 100%;
-    display: grid;
-    gap: 30px 44px;
-    min-width: 0;
-    min-height: 0;
-}
-
-.slide__area {
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-/* Content rhythm (spacing between blocks) */
-.slide__area:not(.slide__area--cards)>*+* {
-    margin: var(--slide-rhythm) 0;
-}
-
-.slide__area--header {
-    display: grid;
-    align-content: start;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.slide__area--title {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Markdown typography inside areas */
-.slide__area h1,
-.slide__area h2,
-.slide__area h3,
-.slide__area p,
-.slide__area ul,
-.slide__area ol,
-.slide__area blockquote {
-    margin: 0;
-}
-
-/* Default media sizing inside any slide area (not just .media) */
-.slide__area img,
-.slide__area video {
-    display: block;
-    max-width: 100%;
-    height: auto;
-}
-
-/* If an image is the only thing in a paragraph, treat it like a figure */
-.slide__area p>img:only-child,
-.slide__area p>video:only-child {
-    width: 100%;
-    height: 100%;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-
-/* Image + caption/link in the same area: keep the image from overflowing vertically */
-.slide__area:has(> p > img:only-child):has(> p + p),
-.slide__area:has(> p > video:only-child):has(> p + p) {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    align-content: start;
-}
-
-.slide__area:has(> p > img:only-child):has(> p + p)>p:has(> img:only-child),
-.slide__area:has(> p > video:only-child):has(> p + p)>p:has(> video:only-child) {
-    height: 100%;
-    min-height: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.slide__area>p:has(> img:only-child):only-child,
-.slide__area>p:has(> video:only-child):only-child {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-}
-
-/* D2 loading state (shared across markdown + client rendering) */
-.d2[data-d2-source]> :not(.d2-loading) {
-    display: none;
-}
-
-.d2-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100px;
-    color: #666;
-    font-size: 0.875rem;
-}
-
-.d2-spinner {
-    width: 24px;
-    height: 24px;
-    margin-right: 8px;
-    animation: d2-spin 1s linear infinite;
-}
-
-.d2-spinner__track {
-    opacity: 0.3;
-}
-
-.d2-spinner__head {
-    stroke-linecap: round;
-}
-
-@keyframes d2-spin {
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-/* Stop spinner animation on inactive slides to reduce CPU */
-.slide:not(.active) .d2-spinner {
-    animation: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .d2-spinner {
+
+    .slide.active,
+    .btn,
+    .overview-item {
         animation: none !important;
+        transition: none !important;
     }
-}
-
-.slide__area h1 {
-    font-size: 60px;
-    line-height: 1.5;
-    letter-spacing: -0.02em;
-    font-weight: 800;
-    color: var(--slide-ink);
-}
-
-.slide__area h2 {
-    font-size: 45px;
-    line-height: 1.4;
-    font-weight: 700;
-    color: rgba(15, 23, 42, 0.82);
-}
-
-.slide__area h3 {
-    font-size: 34px;
-    font-weight: 600;
-    color: rgba(15, 23, 42, 0.6);
-}
-
-.slide__area--header h3 {
-    color: rgba(15, 23, 42, 0.7);
-    font-weight: 650;
-    font-size: 32px;
-    margin-top: 0 !important;
-}
-
-.slide__area>p,
-.slide__area> :not(.d2) p {
-    font-size: 28px;
-    line-height: 1.4;
-    color: var(--slide-muted);
-}
-
-.slide__area strong {
-    color: rgba(45, 49, 59, 0.8);
-    font-weight: 650;
-}
-
-.slide__area em {
-    font-style: italic;
-    color: rgba(15, 23, 42, 0.78);
-}
-
-.slide__area>ul,
-.slide__area>ol,
-.slide__area> :not(.d2) ul,
-.slide__area> :not(.d2) ol {
-    display: grid;
-    gap: 16px;
-    font-size: 28px;
-    line-height: 1.32;
-    color: rgba(15, 23, 42, 0.78);
-}
-
-.slide__area li {
-    padding-left: 4px;
-}
-
-.slide__area li::marker {
-    color: var(--accent);
-}
-
-.slide__area pre {
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: var(--radius-lg);
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
-    color: rgba(226, 232, 240, 0.95);
-    padding: 18px;
-    font-size: 1.46rem;
-    line-height: 1.4;
-    overflow: auto;
-    margin: 0.7rem 0.5rem !important;
-    box-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
-    max-width: 1100px;
-
-}
-
-.slide__area code {
-    line-height: 1.35 !important;
-    font-family: var(--font-mono);
-}
-
-.slide__area :not(pre)>code {
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    background: rgba(248, 250, 252, 0.9);
-    border-radius: 10px;
-    padding: 2px 8px;
-    font-size: 0.9em;
-    color: rgba(15, 23, 42, 0.86);
-}
-
-.slide__area pre code {
-    font-size: 1.3rem;
-}
-
-.token.operator {
-    background: transparent !important;
-}
-
-.slide__area a {
-    color: rgba(2, 132, 199, 0.95);
-    text-decoration-color: rgba(2, 132, 199, 0.35);
-}
-
-.slide__area a:hover {
-    color: rgba(3, 105, 161, 0.98);
-    text-decoration-color: rgba(3, 105, 161, 0.55);
-}
-
-/* KaTeX tuning */
-.slide__area .katex {
-    font-size: 1.12em;
-}
-
-.slide__area .katex-display {
-    margin: 0.25em 0 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-/* D2 diagrams */
-.slide__area .d2 {
-    width: 100%;
-    max-height: 100%;
-    max-width: 100%;
-    display: flex;
-    /* Ensure the content is centered */
-    align-items: center;
-    justify-content: center;
-    min-width: 0;
-    /* Important for flexbox in some cases */
-    min-height: 0;
-    overflow: hidden;
-    /* Prevent content from overflowing */
-    padding: 8px;
-    box-sizing: border-box;
-    /* Include padding in width/height */
-
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-}
-
-/* Outer SVG should fill container */
-.slide__area .d2>svg {
-    display: block !important;
-    /* Override any conflicting styles */
-    max-width: 100% !important;
-    max-height: 100% !important;
-    width: 100% !important;
-    height: auto !important;
-    /* Maintain aspect ratio */
-}
-
-.slide__area pre::-webkit-scrollbar,
-.notes::-webkit-scrollbar {
-    height: 10px;
-    width: 10px;
-}
-
-.slide__area pre::-webkit-scrollbar-thumb,
-.notes::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.55);
-    border-radius: 999px;
-    border: 2px solid rgba(255, 255, 255, 0.18);
-}
-
-.slide__area pre::-webkit-scrollbar-track,
-.notes::-webkit-scrollbar-track {
-    background: rgba(148, 163, 184, 0.14);
-}
-
-/* Markdown-only components (no custom HTML/classes needed) */
-.slide__area blockquote {
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    border-radius: var(--radius-lg);
-    padding: 2rem;
-    background: linear-gradient(180deg, rgba(248, 250, 252, 0.86), rgba(248, 250, 252, 0.74));
-    min-width: 0;
-    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.08);
-}
-
-.slide__area blockquote+blockquote {
-    margin-top: 18px;
-}
-
-.slide__area blockquote p {
-    font-size: 30px;
-    line-height: 1.5;
-    color: rgba(15, 23, 42, 0.78);
-}
-
-.slide__area blockquote ul,
-.slide__area blockquote ol {
-    padding-left: 22px;
-    display: grid;
-    gap: 12px;
-    font-size: 32px;
-    line-height: 1.32;
-    color: rgba(15, 23, 42, 0.78);
-    margin-top: 16px;
-}
-
-.slide__area--footer {
-    text-align: center;
-}
-
-.slide__area--footer,
-.slide__area--footer p,
-.slide__area--footer a {
-    font-size: 24px;
-    line-height: 1.25;
-    color: rgba(15, 23, 42, 0.55);
-}
-
-/* Cards area: render consecutive blockquotes as a 2xN grid */
-.slide__area--cards {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    align-content: start;
-}
-
-/* Modern table styles for markdown tables */
-.slide__area table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 2.5rem 0 2.5rem 0;
-    font-size: 29px;
-    background: rgba(248, 250, 252, 0.96);
-    box-shadow: 0 2px 12px rgba(2, 6, 23, 0.06);
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-.slide__area th,
-.slide__area td {
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    padding: 0.5em 1em;
-    text-align: left;
-}
-
-.slide__area th {
-    background: rgba(15, 23, 42, 0.08);
-    color: var(--slide-ink);
-    font-weight: 700;
-}
-
-.slide__area tr:nth-child(even) td {
-    background: rgba(148, 163, 184, 0.08);
-}
-
-.slide__area tr:hover td {
-    background: rgba(2, 132, 199, 0.08);
-    transition: background 0.2s;
-}
-
-.slide__area--cards blockquote {
-    margin: 0;
-}
-
-.slide__area--cards blockquote+blockquote {
-    margin-top: 0;
-}
-
-/* Break slide small tweaks */
-.webdeck-break-slide .break-title {
-    text-align: center;
-}
-
-.webdeck-break-slide .break-end {
-    margin-top: 12px;
-    font-size: 36px;
-    font-weight: 600;
-    color: var(--slide-muted);
-}
-
-/* Hidden slides - hidden by default, visible in edit mode */
-.slide--hidden {
-    visibility: hidden;
-    pointer-events: none;
-}
-
-/* Hidden slides in edit mode */
-body[data-edit-mode="true"] .slide--hidden {
-    visibility: visible;
-    opacity: 0.5;
-}
-
-body[data-edit-mode="true"] .slide--hidden.active {
-    opacity: 0.7;
 }

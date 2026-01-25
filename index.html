@@ -63,12 +63,21 @@
                             </svg>
                             <span>Print PDF</span>
                         </button>
+                        <button id="menuExportHtmlBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Export HTML</span>
+                        </button>
                     </div>
                 </div>
                 <button id="toggleEditModeBtn" class="icon-btn" type="button" aria-label="Toggle edit mode"
                     title="Edit Mode (E)">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-stroke-linecap="round" stroke-linejoin="round">
+                        stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
@@ -77,10 +86,10 @@ stroke-linecap="round" stroke-linejoin="round">
             </div>
             <div class="topbar__right">
                 <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Toggle dark mode"
-title="Toggle Dark Mode (D)">
+                    title="Toggle Dark Mode (D)">
                     <span class="theme-toggle__track">
                         <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 24 24" fill="none"
-stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="5"></circle>
                             <line x1="12" y1="1" x2="12" y2="3"></line>
                             <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -92,7 +101,7 @@ stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="r
                             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                         </svg>
                         <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 24 24" fill="none"
-stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                         </svg>
                         <span class="theme-toggle__thumb"></span>
@@ -140,7 +149,7 @@ stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="r
                     <div class="editor__thumbnails-header">
                         <span class="editor__thumbnails-title">Slides</span>
                         <button id="toggleThumbnailsBtn" class="editor__thumbnails-toggle" type="button"
-aria-label="Collapse slides" title="Collapse slides">
+                            aria-label="Collapse slides" title="Collapse slides">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -220,6 +229,8 @@ aria-label="Collapse slides" title="Collapse slides">
                     <span style="padding: 0 6px;"><b>E</b> Edit Mode</span>
                     <span>•</span>
                     <span style="padding-left: 6px;"><b>R</b> Reload</span>
+                    <span>•</span>
+                    <span style="padding-left: 6px;"><b>D</b> Switch Theme</span>
                 </span>
                 <span>•</span>
                 <span><b>F</b> Full Screen</span>
