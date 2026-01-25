@@ -54,16 +54,22 @@ More layouts, backgrounds, and theming recipes live in [docs/authoring-examples.
 
 ## Keyboard Shortcuts
 
-Common keyboard controls available when viewing a deck:
-
+### Navigation
 - `Space`, `ArrowRight`, `ArrowDown`, `PageDown`: Next slide
-- `ArrowLeft`, `ArrowUp`, `PageUp`: Previous slide
+- `ArrowLeft`, `ArrowUp`, `PageUp`, `Backspace`: Previous slide
 - `Home`: Go to first slide
 - `End`: Go to last slide
 - `G`: Open "Go to slide" prompt
-- `P`: Toggle presenter window
+
+### Stage Controls (all windows)
 - `F`: Toggle fullscreen for the stage
-- `B`: Toggle the break overlay (press again or hit Space/Arrow/Page keys to dismiss)
+
+### Presenter Panel Only
+- `V`: Open viewer window (present)
+- `E`: Toggle edit mode
+- `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
+- `R`: Reload the deck
+- `D`: Toggle theme
 
 Notes:
 - The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
