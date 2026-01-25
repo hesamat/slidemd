@@ -1,0 +1,21 @@
+{
+  "name": "SlideMD - Markdown Presentations",
+  "short_name": "SlideMD",
+  "description": "Create and present slides using plain Markdown. Built for technical educators with code highlighting, math notation, and diagrams.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "landscape-primary",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "education", "utilities"],
+  "scope": "/",
+  "lang": "en"
+}

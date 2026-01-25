@@ -40,7 +40,7 @@
       "gridTemplate": "\"title\" / 1fr",
       "description": "Full-screen centered title",
       "preview": "<div style=\"grid-area: title\"></div>",
-      "template": "layout: title-slide\nalign: center\n\n@title\n# Your Title Here\n\n## Subtitle or Tagline\n\n---\n\n**Author Name**\n\nDate or Event"
+      "template": "layout: title-slide\n\n@title\n# Your Title Here\n\n## Subtitle or Tagline\n\n---\n\n**Author Name**\n\nDate or Event"
     },
     "three-column": {
       "gridTemplate": "\"main media secondary\" / 1fr 1fr 1fr",

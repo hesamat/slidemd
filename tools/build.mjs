@@ -13,6 +13,9 @@ const prismCssPath = path.join(root, "node_modules", "prismjs", "themes", "prism
 const args = process.argv.slice(2);
 const inlineAssets = !args.includes("--no-inline-assets");
 
+// Will be set after resolving the deck path
+let deckDir = root;
+
 /**
  * Resolve deck file path from arguments.
  *
@@ -49,6 +52,9 @@ function resolveDeckPath() {
 
 const inDeck = resolveDeckPath();
 const outHtml = path.join(distDir, `${path.basename(inDeck, path.extname(inDeck))}.html`);
+
+// Set deckDir to the directory containing the deck file
+deckDir = path.dirname(path.resolve(inDeck));
 
 function readTextIfExists(filePath) {
     if (!fs.existsSync(filePath)) return "";
@@ -174,13 +180,19 @@ function toDataUri(filePath) {
 function inlineLocalImagesInHtml(htmlText) {
     if (!htmlText) return htmlText;
 
-    // Replace src="images/..." and src='images/...'
-    return htmlText.replace(/\s(src|poster)=(['"])(images\/[^'">]+)\2/gi, (m, attr, q, rel) => {
-        const abs = path.join(root, rel);
+    // Replace src="..." and src='...' for local relative paths
+    // Matches: relative paths that don't start with /, http://, https://, or data:
+    return htmlText.replace(/\s(src|poster)=(['"])([^'">\s]+)\2/gi, (m, attr, quote, relPath) => {
+        // Skip if it's an absolute path, URL, or already a data URI
+        if (relPath.startsWith('/') || relPath.startsWith('http://') || relPath.startsWith('https://') || relPath.startsWith('data:')) {
+            return m;
+        }
+        // Resolve relative to the deck file's directory
+        const abs = path.resolve(deckDir, relPath);
         if (!fs.existsSync(abs)) return m;
         const uri = toDataUri(abs);
         if (!uri) return m;
-        return ` ${attr}=${q}${uri}${q}`;
+        return ` ${attr}=${quote}${uri}${quote}`;
     });
 }
 
@@ -198,14 +210,16 @@ function inlineImagesInDeck(deck) {
         // Inline background images if they reference local files
         let background = s.background || "";
         if (background && background.includes("url(")) {
-            background = background.replace(/url\((['"]?)([^'")\s]+)\1\)/g, (m, q, url) => {
-                // Check if it's a local path (starts with images/ or relative path)
-                if (url.startsWith("images/") || (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:"))) {
-                    const abs = path.join(root, url);
-                    if (fs.existsSync(abs)) {
-                        const uri = toDataUri(abs);
-                        if (uri) return `url(${uri})`;
-                    }
+            background = background.replace(/url\((['"]?)([^'")\s]+)\1\)/g, (m, quote, url) => {
+                // Skip if it's an absolute path, URL, or already a data URI
+                if (url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+                    return m;
+                }
+                // Resolve relative to the deck file's directory
+                const abs = path.resolve(deckDir, url);
+                if (fs.existsSync(abs)) {
+                    const uri = toDataUri(abs);
+                    if (uri) return `url(${uri})`;
                 }
                 return m;
             });
