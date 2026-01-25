@@ -2,7 +2,6 @@ node_modules/
 dist/
 .cache/
 .DS_Store
-.github/
 .claude/
 .vscode/
 
