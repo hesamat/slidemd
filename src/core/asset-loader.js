@@ -97,13 +97,16 @@ export class AssetLoader {
     static async ensureMermaidLoaded() {
         if (window.__WEBDECK_MERMAID__) return;
 
+        const mermaidInitOptions = {
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            fontFamily: 'Open Sans, sans-serif',
+        };
+
         // Use a preloaded global Mermaid if present (e.g., inlined in exported HTML)
         if (window.mermaid && typeof window.mermaid.initialize === "function") {
-            window.mermaid.initialize({
-                startOnLoad: false,
-                theme: 'default',
-                securityLevel: 'loose'
-            });
+            window.mermaid.initialize(mermaidInitOptions);
             window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
             return;
         }
@@ -112,11 +115,7 @@ export class AssetLoader {
             const mermaidMod = await import("mermaid");
             const mermaid = mermaidMod?.default || mermaidMod;
             // Initialize Mermaid with default config
-            mermaid.initialize({
-                startOnLoad: false,
-                theme: 'default',
-                securityLevel: 'loose'
-            });
+            mermaid.initialize(mermaidInitOptions);
             window.__WEBDECK_MERMAID__ = { mermaid };
         });
     }

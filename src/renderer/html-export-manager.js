@@ -158,6 +158,18 @@ ${slidesHtml}
                 </div>
             </section>
         </main>
+
+        <footer id="footerBar" class="footer">
+            <div class="footer__left">
+                <strong>Shortcuts:</strong>
+                <span><b>Arrows, Space, PgUp/Dn</b>: Prev/Next</span>
+                <span>•</span>
+                <span><b>F</b> Full Screen</span>
+                <span>•</span>
+                <span><b>G</b>: Go to slide</span>
+            </div>
+            <div class="footer__right">Slide Deck</div>
+        </footer>
     </div>
 
     <script type="application/json" id="deckData">${escapedDeckJson}</script>

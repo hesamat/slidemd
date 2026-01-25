@@ -157,9 +157,9 @@
     display: grid;
     gap: 16px;
     line-height: 1.3;
-    padding-left: 1.2em;
-    margin-top: 10px;
     /* Use em for scalable padding */
+    padding-left: 1.2em;
+    margin-top: 8px;
 }
 
 .slide__area li::marker {
@@ -301,16 +301,9 @@
     height: auto !important;
 }
 
-/* FIX: This selector was incorrect. ", p" was a global selector.
-   It should target text and p elements *inside* the mermaid svg. */
-.slide__area .mermaid text,
-.slide__area .mermaid p {
-    font-family: var(--font-sans) !important;
-}
-
 .slide__area .mermaid text {
-    font-size: 2rem !important;
     font-weight: 500 !important;
+    font-size: 2rem !important;
 }
 
 /* --- KaTeX Math --- */
