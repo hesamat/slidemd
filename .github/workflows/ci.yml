@@ -24,7 +24,7 @@ jobs:
         run: npm ci
 
       - name: Build HTML slides
-        run: npm run build -- decks/deck.md
+        run: npm run build -- docs/example.md
 
       - name: Generate PDF
         run: npm run pdf
