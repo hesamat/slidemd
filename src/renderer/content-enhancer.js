@@ -114,6 +114,13 @@ export class ContentEnhancer {
 
         if (!force && rootEl.dataset?.webdeckEnhanced === "1") return true;
 
+        // 0. Add target="_blank" to footer links
+        const footerLinks = rootEl.querySelectorAll(".slide__area--footer a[href]");
+        for (const link of footerLinks) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+        }
+
         // Load assets if needed
         if (!window.Prism || !window.renderMathInElement || (!window.__WEBDECK_MERMAID__ && rootEl.querySelector(".mermaid"))) {
             try {
