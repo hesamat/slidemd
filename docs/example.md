@@ -53,7 +53,7 @@ The default view is your presenter dashboard with:
 - **Presenter Panel**
   - **Next Slide** – Preview of upcoming content
   - **Speaker Notes** – Your private notes (hidden from audience)
-  *Tip: Add speaker notes using HTML comments: `<!-- notes: Your private notes here --!>`*
+  *Tip: Add speaker notes using HTML comments: `<!-- notes: Your private notes here -->`*
   - **Break controls** – Open break slide with a come back time
 
 ### Presenter Shortcuts
