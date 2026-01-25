@@ -135,8 +135,6 @@ export class HtmlExportManager {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
-    <link rel="icon" type="image/png" sizes="500x500" href="public/icon.png" />
-    <link rel="apple-touch-icon" sizes="500x500" href="public/icon.png" />
     <meta name="theme-color" content="#3b82f6" />
 ${vendorCssData.links}
     <style>
