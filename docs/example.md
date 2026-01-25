@@ -23,6 +23,10 @@ No installation, no accounts, no build steps. Your content stays on your machine
 
 @media
 
+
+<img src="public/icon.png" alt="SlideMD Icon" style="width: 350px; height: 350px; object-fit: contain;" />
+
+
 ### Getting Started
 
 - **Open File** – Click menu (⋮) → Open File

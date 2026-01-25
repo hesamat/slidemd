@@ -5,6 +5,7 @@
  */
 
 import { DeckLoader } from "../data/deck-loader.js";
+import LAYOUTS_JSON from "../data/layouts.json" with { type: 'json' };
 
 export class HtmlExportManager {
     static _isExporting = false;
@@ -134,6 +135,9 @@ export class HtmlExportManager {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
+    <link rel="icon" type="image/png" sizes="500x500" href="public/icon.png" />
+    <link rel="apple-touch-icon" sizes="500x500" href="public/icon.png" />
+    <meta name="theme-color" content="#3b82f6" />
 ${vendorCssData.links}
     <style>
 ${presenterHideCss}
@@ -345,20 +349,34 @@ ${initScript}
         let out = srcText;
 
         // 1. Handle JSON imports
-        const jsonImportRe = /import\s+(\w+)\s+from\s+['"]([^'"]+\.json(?:\?import)?)['"](?:\s+with\s+\{\s*type:\s*['"]json['"]\s*\})?\s*;?/g;
+        // Vite transforms JSON imports to: import X from "/path/to/file.json?import&t=..."
+        const jsonImportRe = /import\s+(\w+)\s+from\s+['"]([^'"]+\.json(?:\?[^'"]*)?)['"]\s*;?/g;
         const jsonImports = [...srcText.matchAll(jsonImportRe)];
 
         for (const jsonMatch of jsonImports) {
             const [fullMatch, importName, jsonPath] = jsonMatch;
             try {
+                // Remove Vite's query parameters (?import&t=...) to get the clean path
                 let cleanPath = jsonPath.split('?')[0];
+
+                // Special handling for layouts.json - inline it directly
+                if (cleanPath.includes('layouts.json')) {
+                    const jsonContent = JSON.stringify(LAYOUTS_JSON);
+                    out = out.replace(fullMatch, `const ${importName} = ${jsonContent};`);
+                    continue;
+                }
+
+                // For other JSON files, try fetching
                 let jsonUrl = cleanPath.startsWith('/') ? cleanPath :
-                    filePath.substring(0, filePath.lastIndexOf('/')) + '/' + (cleanPath.startsWith('./') ? cleanPath.substring(2) : cleanPath);
+                    '/' + filePath.substring(0, filePath.lastIndexOf('/')) + '/' + (cleanPath.startsWith('./') ? cleanPath.substring(2) : cleanPath);
 
                 const jsonResp = await fetch(jsonUrl);
                 if (jsonResp.ok) {
                     const jsonContent = await jsonResp.text();
                     out = out.replace(fullMatch, `const ${importName} = ${jsonContent};`);
+                } else {
+                    // Fetch returned non-ok status (404, etc.)
+                    out = out.replace(fullMatch, `const ${importName} = {};`);
                 }
             } catch (e) {
                 out = out.replace(fullMatch, `const ${importName} = {};`);

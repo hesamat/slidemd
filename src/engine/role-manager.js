@@ -62,9 +62,6 @@ export class RoleManager extends EventEmitter {
 
         const panel = document.getElementById("presenterPanel");
         if (panel) panel.classList.toggle("webdeck-hidden", !isPresenter);
-
-        const btn = document.getElementById("openViewerBtn");
-        if (btn) btn.textContent = isPresenter ? "Open Viewer Window" : "Open Presenter Window";
     }
 
     /**
