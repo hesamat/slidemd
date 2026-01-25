@@ -20,7 +20,7 @@
 
     /* Borders & Backgrounds */
     --border-color: rgba(148, 163, 184, 0.26);
-    --bg-subtle: rgba(248, 250, 252, 0.9);
+    --bg-subtle: rgba(243, 242, 243, 0.9);
 
     /* Code Blocks */
     --code-border: rgba(148, 163, 184, 0.28);
@@ -42,7 +42,7 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-    font-size: 28px;
+    font-size: 29px;
     /* Base font size for slide content */
 }
 
@@ -333,7 +333,8 @@
     border-radius: var(--radius-lg);
     padding: 2rem;
     background: var(--bg-subtle);
-    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.08);
+    box-shadow: 4px 6px 6px rgba(2, 6, 23, 0.1);
+    margin-bottom: 10px;
 }
 
 .slide__area blockquote p {
