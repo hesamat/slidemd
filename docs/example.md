@@ -25,32 +25,55 @@ No installation, no accounts, no build steps. Your content stays on your machine
 
 ### Getting Started
 
-- **Open File** – Click <div style="display: inline-block; padding: 10px; background: #e0e0e0; border-radius: 8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></div> → <div style="display: inline-block; padding: 10px; background: #e0e0e0; border-radius: 8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></div> Open File
+- **Open File** – Click menu (⋮) → Open File
 - **Presenter View** – Press `V` to open a separate window, then move it to your projector or second screen. Press `F` to switch to full-screen view for better readability.
 - **Export PDF** – Press `Ctrl+P` to print/export as PDF
-- **Export HTML** – Click <div style="display: inline-block; padding: 10px; background: #e0e0e0; border-radius: 8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></div> → <div style="display: inline-block; padding: 10px; background: #e0e0e0; border-radius: 8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></div> Export as standalone HTML
+- **Export HTML** – Click menu (⋮) → Export HTML
 
 ---
 
-layout: header-content
+layout: header-two-column
+
+<!-- notes: Test speaker notes! -->
 
 @header
 
-## Keyboard Shortcuts
+## Presentation Flow - Presenter Mode
 
 @main
 
+
+The default view is your presenter dashboard with:
+
+- **Current Slide** – What the audience sees
+- **Presenter Panel**
+  - **Next Slide** – Preview of upcoming content
+  - **Speaker Notes** – Your private notes (hidden from audience)
+  *Tip: Add speaker notes using HTML comments: `<!-- notes: Your private notes here --!>`*
+  - **Break controls** – Open break slide with a come back time
+
+### Presenter Shortcuts
+
 | Key | Action |
 |-----|--------|
-| `→` / `PgDn` / `Space` | Next slide |
-| `←` / `PgUp` / `Backspace` | Previous slide |
-| `Home` / `End` | First / Last slide |
-| `G` | Go to slide (type number) |
+| `V` | Open/close viewer window |
 | `F` | Toggle fullscreen |
-| `E` | Toggle edit mode |
-| `V` | Open Viewer window |
+| `B` | Start break timer |
 | `D` | Toggle dark/light theme |
-| `R` | Reload deck from file |
+
+@media
+
+### Typical Presentation Workflow
+
+1. **Open your deck** – Load your `.md` file
+2. **Enter presenter mode** – You're already there! The default view shows your slides, notes, and controls
+3. **Open viewer window** – Press `V` to open a clean view for your audience
+4. **Position windows** – Drag the viewer window to your projector/second screen
+5. **Go fullscreen** – Press `F` on the viewer window for a clean presentation
+6. **Present** – Use arrow keys or space to navigate
+7. **Take breaks** – Press `B` to show a break slide with timer
+
+
 
 ---
 
@@ -227,51 +250,53 @@ Column sizes use CSS units: `fr`, `px`, `%`, etc.
 
 ---
 
-layout: header-content
+layout: header-two-column
 
 @header
 
-## HTML & Inline Styling
+## Markdown & Styling
 
 @main
 
-### Callout Boxes
+### Blockquotes
+Blockquotes make your content more scannable.
+Use them for key takeaways, important reminders, and callouts.
 
-Use HTML when you need custom styling:
+> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Add inline `<span>` styles to create highlighted warnings.
+> This draws attention without being distracting.
 
-<div style="font-size: 1.4rem; background: #e8f4fd; border-left: 4px solid #2196f3; padding: 16px; margin: 16px 0;">
-  <strong>Note:</strong> This is an informational callout box using inline styles.
-</div>
+### Text Formatting
 
-<div style="font-size: 1.4rem; background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin: 16px 0;">
-  <strong>Warning:</strong> Great for emphasizing important points.
-</div>
+Use markdown to emphasize key terms and improve readability:
 
-<div style="font-size: 1.4rem; background: #d4edda; border-left: 4px solid #28a745; padding: 16px; margin: 16px 0;">
-  <strong>Success:</strong> Perfect for highlighting achievements or key takeaways.
-</div>
+- **Bold** for important concepts and terminology
+- *Italic* for definitions, variables, or subtle emphasis
+- `Code` for filenames, commands, and technical terms
+- [Links] for references and external resources
+- `![diagram]()` for images
 
-### Inline Styling
+@media
+### Lists & Formatting
 
-Regular markdown with <span style="color: #e74c3c; font-weight: bold;">red bold</span> and <span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px;">highlighted</span> text.
+**Unordered lists** (`- item`) – For points without sequence
+- Group related concepts
+- Keep items parallel in structure
 
-### Styled Tables
+**Ordered lists** (`1. item`) – For steps or priorities
+1. Break complex processes into steps
+2. Keep action verbs consistent
 
-<table style="width: 100%; border-collapse: collapse;">
-  <tr style="background: #3498db; color: white;">
-    <th style="padding: 10px; text-align: left;">Feature</th>
-    <th style="padding: 10px; text-align: left;">Status</th>
-  </tr>
-  <tr style="background: #ecf0f1;">
-    <td style="padding: 10px;">Markdown</td>
-    <td style="padding: 10px; color: green;">✓ Built-in</td>
-  </tr>
-  <tr style="background: #fff;">
-    <td style="padding: 10px;">HTML</td>
-    <td style="padding: 10px; color: green;">✓ Supported</td>
-  </tr>
-</table>
+### Custom HTML
 
+When markdown isn't enough, add inline styles:
+```markdown
+<span style="color: #e74c3c; font-weight: bold;">
+Red text
+</span>
+<span style="padding: 4px 8px; border-radius: 4px;">
+Highlights
+</span>
+```
 ---
 
 layout: header-two-column
@@ -282,113 +307,69 @@ layout: header-two-column
 
 @main
 
-### Entering Edit Mode
+Press `E` to enter edit mode — split-screen with Markdown editor and live preview.
 
-Press `E` or click the edit icon in the toolbar.
+### Key Features
 
-### Features
+- **Live preview** – See changes instantly as you type
+- **Slide thumbnails** – Jump to any slide instantly
+- **Quick actions** – Add, delete, duplicate, reorder slides
+- **Auto-save tracking** – Know when you have unsaved changes
+- **Layout Picker** – Select from preset layouts when adding new slides
 
-**Split View** – Markdown editor on left, live preview on right
-
-**Slide Navigation** – Thumbnail list with quick jumping
-
-**Slide Management** – Add, delete, duplicate, and reorder slides
-
-**Layout Picker** – Select from preset layouts when creating slides
-
-**Auto-tracking** – Unsaved changes indicator
-
-### Workflow
-
-1. Open a `.md` file (or URL)
-2. Press `E` to enter edit mode
-3. Modify content in the editor
-4. Preview updates automatically
-5. Use slide actions to manage deck
-6. Save with `Ctrl+S` or the Save button
 
 @media
 
-### Slide Actions
+![diagram](public/edit-mode.png)
 
-| Action | Description |
-|--------|-------------|
-| **Add** | Insert new slide |
-| **Delete** | Remove current slide |
-| **Duplicate** | Copy current slide |
-| **Move Up/Down** | Reorder slides |
-| **Save** | Export to `.md` file |
-
-### Tips
-
-Edit mode is useful for building decks from scratch or making quick fixes before presenting.
-
-Changes are temporary until you save.
 
 ---
 
-layout: header-two-column
+layout: header-content
 
 @header
 
-## Presenter Mode & Export
+## Keyboard Shortcuts
 
 @main
-
-### Presenter Mode
-
-Press `P` to open a separate presenter window with:
-
-- **Current Slide** – What the audience sees
-- **Next Slide** – Preview of upcoming content
-- **Speaker Notes** – Your private notes (hidden from audience)
-- **Timer** – Elapsed time tracking
-- **Progress** – Slide counter
-
-### Adding Speaker Notes
-
-```markdown
-@main
-## Topic Introduction
-
-Content visible to audience.
-
-<!-- notes: Remember to mention the prerequisite.
-Ask if there are questions before moving on. -->
-```
-
-Notes are only visible in presenter mode.
-
-@media
-
-### Export Options
-
-**PDF Export**  
-Press `Ctrl+P` or `E` to print/save as PDF  
-Good for handouts or archiving
-
-**HTML Export**  
-Click <div style="display: inline-block; padding: 10px; background: #e0e0e0; border-radius: 8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></div> → Export HTML  
-Creates standalone file (viewer mode only)  
-Works offline, no server needed
-
-### Presenter Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `D` | Toggle theme |
-| `B` | Start break timer |
+| `→` / `PgDn` / `Space` | Next slide |
+| `←` / `PgUp` / `Backspace` | Previous slide |
+| `Home` / `End` | First / Last slide |
+| `G` | Go to slide (type number) |
+| `F` | Toggle fullscreen |
+| `E` | Toggle edit mode |
+| `V` | Open Viewer window (for second screen) |
+| `D` | Toggle dark/light theme |
+| `R` | Reload deck from file |
+| `Ctrl+P` | Print/Export PDF |
 
 ---
 
-layout: focus
+layout: "main" "footer" / 1fr
 
 @main
 
-## Ready to Start
+## Ready to Present!
 
-Open your `.md` file and press `E` to edit or `F` to present.
+### Your Next Steps
 
-Check `docs/authoring-examples.md` for more examples and recipes.
+1. **Open this file** – `docs/example.md` (you're here!)
+2. **Press `E`** – Enter edit mode to experiment
+3. **Press `V`** – Open viewer window for dual-screen setup
+4. **Press `F`** – Go fullscreen and present!
 
-*Open source project – contribute or adapt as needed.*
+<div style="font-size: 1.4rem; background: #e8f4fd; border-left: 4px solid #2196f3; padding: 16px; margin: 20px 0;">
+  <strong>Pro tip:</strong> This presentation is built with SlideMD. Check the source to see how it's made!
+</div>
+
+### Learn More
+
+- **`docs/authoring-examples.md`** – Advanced examples & recipes
+- **`docs/example.md`** – This presentation's source code
+- **GitHub** – Contribute, report issues, or star the project
+
+@footer
+  Open source • Built for educators • Free forever

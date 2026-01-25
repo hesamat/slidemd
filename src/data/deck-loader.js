@@ -148,6 +148,13 @@ export class DeckLoader {
             const exampleText = await this.fetchText("docs/example.md", { cache: "default" });
             const deck = new MarkdownParser().parseDeckMarkdown(exampleText);
 
+            // Store in localStorage so the markdown editor can access it
+            // This makes the welcome deck behave as if it was opened as a file by the user
+            localStorage.setItem("webdeck_local_file", exampleText);
+            localStorage.setItem("webdeck_local_file_type", "md");
+            localStorage.setItem("webdeck_local_file_name", "example.md");
+            localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
             return deck;
         } catch (e) {
             console.error("Failed to load example.md:", e);
