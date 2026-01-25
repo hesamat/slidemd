@@ -128,15 +128,25 @@ Use these preset names (defined in [src/data/layout-data.js](src/data/layout-dat
 - Layout picker: [src/editor/layout-picker.js](src/editor/layout-picker.js)
 - Slide thumbnails: [src/editor/slide-thumbnails.js](src/editor/slide-thumbnails.js)
 
-## Keyboard Shortcuts (for reference)
+### Keyboard shortcuts
 - `Space`, `ArrowRight`, `ArrowDown`, `PageDown`: Next slide
-- `ArrowLeft`, `ArrowUp`, `PageUp`: Previous slide
-- `Home`/`End`: First/Last slide
-- `G`: Go to slide prompt
-- `P`: Toggle presenter window
-- `F`: Toggle fullscreen
-- `B`: Toggle break overlay
+- `ArrowLeft`, `ArrowUp`, `PageUp`, `Backspace`: Previous slide
+- `Home`: Go to first slide
+- `End`: Go to last slide
+- `G`: Open "Go to slide" prompt
 
+### Stage Controls (all windows)
+- `F`: Toggle fullscreen for the stage
+
+### Presenter Panel Only
+- `V`: Open viewer window (present)
+- `E`: Toggle edit mode
+- `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
+- `R`: Reload the deck
+- `D`: Toggle theme
+
+Notes:
+- The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
 ## Testing
 
 ### Development Mode
