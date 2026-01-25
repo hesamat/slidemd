@@ -85,6 +85,19 @@ export function getDeckId(deck) {
     return typeof id === "string" && id.trim() ? id.trim() : "webdeck";
 }
 
+/**
+ * Checks if the current window is embedded in an iframe.
+ * @returns {boolean} True if running in an iframe
+ */
+export function isEmbedded() {
+    try {
+        return window.self !== window.top || !!window.frameElement;
+    } catch (e) {
+        // If accessing window.top throws (cross-origin), assume embedded
+        return true;
+    }
+}
+
 export function normalizeCodeLanguage(raw) {
     const lang = safeString(raw).trim().toLowerCase();
     if (!lang) return "none";

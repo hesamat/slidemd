@@ -1,6 +1,7 @@
 /**
  * KeyboardHandler
  * Maps keyboard keys to actions and delegates to appropriate controllers.
+ * Also handles mouse wheel events for slide navigation.
  */
 
 export class KeyboardHandler {
@@ -35,6 +36,7 @@ export class KeyboardHandler {
      * @param {Function} actions.isBreakActive - Callback to check if break mode is active
      * @param {Function} actions.endBreak - Callback to end break mode
      * @param {Function} actions.isPresenterWindow - Callback to check if current window is presenter
+     * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
      */
     constructor(actions) {
         this.actions = actions;
@@ -102,6 +104,42 @@ export class KeyboardHandler {
                 if (this.actions.isPresenterWindow?.()) {
                     this.actions.theme?.();
                 } break;
+        }
+    }
+
+    /**
+     * Handles wheel events for slide navigation.
+     * Disabled when embedded in an iframe.
+     * @param {WheelEvent} e - The wheel event
+     */
+    handleWheel(e) {
+        // Disable wheel navigation when embedded in an iframe
+        if (this.actions.isEmbedded?.()) {
+            return;
+        }
+
+        // Ignore wheel events when typing in input or textarea
+        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) {
+            return;
+        }
+
+        // If break mode is active, wheel scroll ends the break
+        if (this.actions.isBreakActive?.()) {
+            e.preventDefault();
+            this.actions.endBreak?.();
+            return;
+        }
+
+        // Determine scroll direction and navigate
+        // deltaY > 0 = scroll down (next slide), deltaY < 0 = scroll up (prev slide)
+        const deltaThreshold = 50; // Minimum scroll distance to trigger navigation
+        if (Math.abs(e.deltaY) >= deltaThreshold) {
+            e.preventDefault();
+            if (e.deltaY > 0) {
+                this.actions.next?.();
+            } else {
+                this.actions.prev?.();
+            }
         }
     }
 }

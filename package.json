@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node tools/build.mjs -- docs/example.md",
     "pdf": "node tools/pdf.mjs",
-    "preview": "npx http-server dist -p 8000 -c-1"
+    "preview": "npx http-server dist -p 8001 -c-1"
   },
   "dependencies": {
     "mermaid": "^11.6.0"

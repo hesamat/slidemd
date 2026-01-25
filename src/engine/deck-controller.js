@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter } from "../core/utils.js";
+import { getDeckId, EventEmitter, isEmbedded } from "../core/utils.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -103,7 +103,8 @@ export class DeckController extends EventEmitter {
             theme: () => ThemeManager.toggleTheme(),
             isBreakActive: () => this.breakManager.isActive,
             endBreak: () => this.breakManager.setActive(false),
-            isPresenterWindow: () => this.roleManager.isPresenterWindow
+            isPresenterWindow: () => this.roleManager.isPresenterWindow,
+            isEmbedded: isEmbedded
         });
     }
 
@@ -175,6 +176,7 @@ export class DeckController extends EventEmitter {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
         document.addEventListener("click", (e) => this.handleDocumentClick(e));
         document.addEventListener("fullscreenchange", () => this.applyStageScale());
         window.addEventListener("storage", (e) => this.handleStorage(e));
@@ -212,6 +214,10 @@ export class DeckController extends EventEmitter {
 
     handleKeyboard(e) {
         this.keyboardHandler?.handleKeyboard(e);
+    }
+
+    handleWheel(e) {
+        this.keyboardHandler?.handleWheel(e);
     }
 
     handleStorage(ev) {
