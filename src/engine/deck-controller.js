@@ -232,7 +232,7 @@ export class DeckController extends EventEmitter {
 
     async handleBeforePrint() {
         if (this.elements.slidesContainer) {
-            await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint: false });
+            await PrintManager.handlePrint(this.elements.slidesContainer, this.deck?.meta?.title, { triggerBrowserPrint: false });
         }
     }
 
@@ -298,7 +298,7 @@ export class DeckController extends EventEmitter {
     }
 
     async handlePrint({ triggerBrowserPrint = true } = {}) {
-        await PrintManager.handlePrint(this.elements.slidesContainer, { triggerBrowserPrint });
+        await PrintManager.handlePrint(this.elements.slidesContainer, this.deck?.meta?.title, { triggerBrowserPrint });
     }
 
     async handleHtmlExport({ filename = null } = {}) {

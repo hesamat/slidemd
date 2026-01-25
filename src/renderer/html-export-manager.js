@@ -104,8 +104,22 @@ export class HtmlExportManager {
 `;
 
         // We add a small init script to trigger Prism on load
+        // Use 'load' instead of 'DOMContentLoaded' to ensure CDN scripts are loaded
         const initScript = `
-        window.addEventListener('DOMContentLoaded', () => {
+        // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
+        window.__WEBDECK_EXPORTED__ = true;
+
+        // Clear any stored slide state so we always start on slide 1
+        try {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('webdeck:')) {
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch (e) { /* ignore localStorage errors */ }
+
+        // Wait for window.load to ensure all CDN scripts (Prism, etc.) are loaded
+        window.addEventListener('load', () => {
             // Re-run Prism if it's available (fixes broken snapshots)
             if (window.Prism) {
                 console.log('Export: Re-running Prism highlight...');
@@ -162,6 +176,77 @@ ${initScript}
     }
 
     /**
+     * Maps language names to Prism component names.
+     */
+    static prismComponentForLang(lang) {
+        const l = String(lang || "").toLowerCase();
+        const map = {
+            js: "javascript",
+            javascript: "javascript",
+            ts: "typescript",
+            typescript: "typescript",
+            json: "json",
+            bash: "bash",
+            sh: "bash",
+            shell: "bash",
+            powershell: "powershell",
+            ps: "powershell",
+            python: "python",
+            py: "python",
+            java: "java",
+            c: "c",
+            cpp: "cpp",
+            "c++": "cpp",
+            css: "css",
+            html: "markup",
+            xml: "markup",
+            markup: "markup",
+            clike: "clike",
+            markdown: "markdown",
+            makefile: "makefile",
+        };
+        return map[l] || null;
+    }
+
+    /**
+     * Returns the dependency chain for a Prism component.
+     */
+    static prismDependencies(component) {
+        switch (component) {
+            case "typescript":
+                return ["clike", "javascript", "typescript"];
+            case "javascript":
+                return ["clike", "javascript"];
+            case "java":
+                return ["clike", "java"];
+            case "c":
+                return ["clike", "c"];
+            case "cpp":
+                return ["clike", "cpp"];
+            default:
+                return [component];
+        }
+    }
+
+    /**
+     * Detects which Prism language components are needed from the deck content.
+     */
+    static detectPrismComponentsFromDeck(deck) {
+        const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
+        const langs = [];
+        const re = /(?:lang|language)-([a-zA-Z0-9_+\-]+)/g;
+        let m;
+        while ((m = re.exec(deckHtmlText))) {
+            const comp = HtmlExportManager.prismComponentForLang(m[1]);
+            if (comp) langs.push(comp);
+        }
+
+        // Unique components with their dependencies
+        const comps = Array.from(new Set(langs.flatMap((c) => HtmlExportManager.prismDependencies(c))));
+        return comps;
+    }
+
+    /**
      * Fetches vendor JS libraries (specifically Prism) to inline in the export.
      * This ensures code highlighting works even if snapshotting fails.
      */
@@ -189,37 +274,30 @@ ${initScript}
 
         if (needsPrism) {
             console.log("HtmlExport: Inlining Prism.js library...");
-            // We use the Autoloader version so it can fetch languages if connected to net, 
+            // We use the Autoloader version so it can fetch languages if connected to net,
             // but the core highlighting works immediately.
             const prismJs = await fetchJs(
                 'node_modules/prismjs/prism.js',
                 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js'
             );
 
-            // Also try to fetch python/javascript common languages to bundle them
-            const pythonJs = await fetchJs(
-                'node_modules/prismjs/components/prism-python.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js'
-            );
+            vendorScripts += `/* Prism Core */\n${prismJs}\n`;
 
-            const jsJs = await fetchJs(
-                'node_modules/prismjs/components/prism-javascript.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js'
-            );
-
-            vendorScripts += `/* Prism JS */\n${prismJs}\n${pythonJs}\n${jsJs}\n`;
+            // Detect and load all required language components
+            const components = HtmlExportManager.detectPrismComponentsFromDeck(deck);
+            for (const c of components) {
+                const langJs = await fetchJs(
+                    `node_modules/prismjs/components/prism-${c}.min.js`,
+                    `https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-${c}.min.js`
+                );
+                if (langJs) {
+                    vendorScripts += `/* Prism: ${c} */\n${langJs}\n`;
+                }
+            }
         }
 
-        // Inline Mermaid for runtime rendering in exported HTML
-        const needsMermaid = /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
-        if (needsMermaid) {
-            console.log("HtmlExport: Inlining Mermaid.js library...");
-            const mermaidJs = await fetchJs(
-                'node_modules/mermaid/dist/mermaid.min.js',
-                'https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js'
-            );
-            vendorScripts += `/* Mermaid JS */\n${mermaidJs}\n`;
-        }
+        // Note: Mermaid is loaded from CDN, not inlined, to avoid large file size
+        // See generateCdnScripts for Mermaid CDN script
 
         return vendorScripts;
     }
@@ -394,13 +472,18 @@ ${initScript}
 
         if (needsPrism) {
             scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>');
-            scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>');
-            scripts.push('    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>');
+
+            // Add detected language components
+            const components = HtmlExportManager.detectPrismComponentsFromDeck(deck);
+            for (const c of components) {
+                scripts.push(`    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-${c}.min.js"></script>`);
+            }
         }
 
         const needsMermaid = /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
         if (needsMermaid) {
-            scripts.push('    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>');
+            // Use ESM import for Mermaid to avoid CORS issues with file:// protocol
+            scripts.push('    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"default",securityLevel:"loose"});</script>');
         }
 
         return scripts.join('\n');

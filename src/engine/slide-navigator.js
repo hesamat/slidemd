@@ -116,10 +116,168 @@ export class SlideNavigator extends EventEmitter {
 
     /**
      * Opens a prompt to navigate to a specific slide.
+     * Shows a modal with a scrollable list of slides.
      */
     openGoToPrompt() {
-        const num = parseInt(prompt(`Go to slide (1–${this.deck.slides.length}):`), 10);
-        if (num >= 1 && num <= this.deck.slides.length) this.goTo(num - 1);
+        this._closeGoToModal();
+
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'go-to-slide-modal';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal__overlay';
+        overlay.addEventListener('click', () => this._closeGoToModal());
+
+        const dialog = document.createElement('div');
+        dialog.className = 'modal__dialog modal__dialog--go-to-slide';
+
+        const header = document.createElement('div');
+        header.className = 'modal__header';
+
+        const title = document.createElement('h2');
+        title.className = 'modal__title';
+        title.textContent = 'Go to Slide';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal__close';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.addEventListener('click', () => this._closeGoToModal());
+
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+
+        const body = document.createElement('div');
+        body.className = 'modal__body';
+
+        // Input field for quick navigation by number
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'go-to-slide__input-container';
+
+        const inputLabel = document.createElement('label');
+        inputLabel.className = 'go-to-slide__label';
+        inputLabel.textContent = `Go to slide (1–${this.deck.slides.length}):`;
+
+        const input = document.createElement('input');
+        input.className = 'go-to-slide__input';
+        input.type = 'number';
+        input.min = '1';
+        input.max = this.deck.slides.length;
+        input.placeholder = 'Enter slide number...';
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const num = parseInt(input.value, 10);
+                if (num >= 1 && num <= this.deck.slides.length) {
+                    this.goTo(num - 1);
+                    this._closeGoToModal();
+                }
+            } else if (e.key === 'Escape') {
+                this._closeGoToModal();
+            }
+        });
+
+        inputContainer.appendChild(inputLabel);
+        inputContainer.appendChild(input);
+
+        // Divider
+        const divider = document.createElement('div');
+        divider.className = 'go-to-slide__divider';
+        divider.textContent = 'or select from list:';
+
+        // Scrollable slide list
+        const listContainer = document.createElement('div');
+        listContainer.className = 'go-to-slide__list';
+
+        this.deck.slides.forEach((slide, index) => {
+            const item = document.createElement('div');
+            item.className = 'go-to-slide__item';
+            item.setAttribute('role', 'button');
+            item.tabIndex = 0;
+
+            const isCurrent = index === this.currentIndex;
+            const isHidden = slide.hidden;
+
+            if (isCurrent) item.classList.add('current');
+            if (isHidden) item.classList.add('hidden');
+
+            const number = document.createElement('div');
+            number.className = 'go-to-slide__number';
+            number.textContent = index + 1;
+
+            const title = document.createElement('div');
+            title.className = 'go-to-slide__title';
+            title.textContent = slide.title || `Slide ${index + 1}`;
+
+            const status = document.createElement('div');
+            status.className = 'go-to-slide__status';
+            if (isCurrent) {
+                status.innerHTML = '<span class="go-to-slide__badge current">Current</span>';
+            } else if (isHidden) {
+                status.innerHTML = '<span class="go-to-slide__badge hidden">Hidden</span>';
+            }
+
+            item.appendChild(number);
+            item.appendChild(title);
+            item.appendChild(status);
+
+            item.addEventListener('click', () => {
+                this.goTo(index);
+                this._closeGoToModal();
+            });
+
+            item.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.goTo(index);
+                    this._closeGoToModal();
+                } else if (e.key === 'Escape') {
+                    this._closeGoToModal();
+                }
+            });
+
+            listContainer.appendChild(item);
+        });
+
+        body.appendChild(inputContainer);
+        body.appendChild(divider);
+        body.appendChild(listContainer);
+
+        dialog.appendChild(header);
+        dialog.appendChild(body);
+
+        modal.appendChild(overlay);
+        modal.appendChild(dialog);
+
+        document.body.appendChild(modal);
+
+        // Focus input and select existing value
+        input.focus();
+        input.select();
+
+        // Handle Escape key
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                this._closeGoToModal();
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+        this._goToModalEscapeHandler = escapeHandler;
+    }
+
+    /**
+     * Closes the go-to-slide modal.
+     * @private
+     */
+    _closeGoToModal() {
+        const modal = document.getElementById('go-to-slide-modal');
+        if (modal) {
+            modal.remove();
+        }
+        if (this._goToModalEscapeHandler) {
+            document.removeEventListener('keydown', this._goToModalEscapeHandler);
+            this._goToModalEscapeHandler = null;
+        }
     }
 
     /**

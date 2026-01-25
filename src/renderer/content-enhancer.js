@@ -43,6 +43,28 @@ export class ContentEnhancer {
         return window.__WEBDECK_MERMAID__;
     }
 
+    // add somewhere in ContentEnhancer
+    static getMermaidSandbox() {
+        let box = document.getElementById("mermaid-sandbox");
+        if (!box) {
+            box = document.createElement("div");
+            box.id = "mermaid-sandbox";
+            box.setAttribute("aria-hidden", "true");
+            box.style.cssText = `
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      contain: layout paint style;
+    `;
+            document.body.appendChild(box);
+        }
+        return box;
+    }
+
     /**
      * Renders Mermaid diagrams.
      */
@@ -66,8 +88,14 @@ export class ContentEnhancer {
 
             try {
                 const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                const { svg } = await mermaid.render(id, source);
-                el.innerHTML = svg;
+                const sandbox = this.getMermaidSandbox();
+
+                // (Optional but helps avoid a second reflow due to font swapping)
+                if (document.fonts?.ready) await document.fonts.ready;
+
+                const out = await mermaid.render(id, source, sandbox);
+                el.innerHTML = out.svg;
+                out.bindFunctions?.(el);
             } catch (e) {
                 el.innerHTML = `<div style="color:#d32f2f; padding:1rem;">Error: ${escapeHtml(e.message || 'Mermaid rendering failed')}</div>`;
             }

@@ -79,7 +79,10 @@ export class KeyboardHandler {
             case "first": this.actions.first?.(); break;
             case "last": this.actions.last?.(); break;
             case "goto": this.actions.goto?.(); break;
-            case "viewer": this.actions.viewer?.(); break;
+            case "viewer":
+                if (this.actions.isPresenterWindow?.()) {
+                    this.actions.viewer?.();
+                } break;
             case "edit":
                 if (this.actions.isPresenterWindow?.()) {
                     this.actions.edit?.();
@@ -95,7 +98,10 @@ export class KeyboardHandler {
                 if (this.actions.isPresenterWindow?.()) {
                     this.actions.reload?.();
                 } break;
-            case "theme": this.actions.theme?.(); break;
+            case "theme":
+                if (this.actions.isPresenterWindow?.()) {
+                    this.actions.theme?.();
+                } break;
         }
     }
 }

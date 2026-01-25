@@ -244,15 +244,6 @@ let deck;
 const deckMd = fs.readFileSync(inDeck, "utf8");
 deck = parseDeckMarkdown(deckMd);
 
-function decodeHtmlEntities(s) {
-    return String(s || "")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-}
-
 // Optional vendor assets (PrismJS + KaTeX).
 // These get inlined into dist/deck.html, but we only inline what the current deck actually uses.
 function getDeckHtmlText(d) {
@@ -493,9 +484,24 @@ function stripEsmSyntax(srcText, filePath) {
     // Since Mermaid is loaded from CDN in dist builds, update initializeMermaid to use it
     if (filePath.includes('content-enhancer.js')) {
         // Stub initializeMermaid - replace from method start to renderMermaidDiagrams
+        // We must preserve getMermaidSandbox since renderMermaidDiagrams uses it
         out = out.replace(
             /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static async renderMermaidDiagrams/,
-            () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }\n    static async renderMermaidDiagrams`
+            () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }
+
+    // add somewhere in ContentEnhancer (stubbed for dist build)
+    static getMermaidSandbox() {
+        let box = document.getElementById("mermaid-sandbox");
+        if (!box) {
+            box = document.createElement("div");
+            box.id = "mermaid-sandbox";
+            box.style.cssText = "position:fixed;left:-10000px;width:0;height:0;overflow:hidden;";
+            document.body.appendChild(box);
+        }
+        return box;
+    }
+
+    static async renderMermaidDiagrams`
         );
     }
 

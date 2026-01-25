@@ -12,6 +12,8 @@
         print-color-adjust: exact !important;
         animation: none !important;
         transition: none !important;
+        /* Remove all box-shadows for PDF.js compatibility (creates complex patterns) */
+        box-shadow: none !important;
     }
 
     html,

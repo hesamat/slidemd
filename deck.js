@@ -150,8 +150,9 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         if (!RoleManager.hasViewerShell()) return;
 
         // Auto-redirect checks (optional)
+        // Skip auto-redirect for exported HTML files (marked with __WEBDECK_EXPORTED__)
         const url = new URL(window.location.href);
-        if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect")) {
+        if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect") && !window.__WEBDECK_EXPORTED__) {
             url.searchParams.set("role", "presenter");
             window.location.href = url.toString();
             return;
