@@ -2,7 +2,8 @@ node_modules/
 dist/
 .cache/
 .DS_Store
-.claude/
+.claude/*
+!.claude/CLAUDE.md
 .vscode/
 
 # Optional local overrides
