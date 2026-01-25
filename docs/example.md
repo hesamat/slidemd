@@ -24,7 +24,7 @@ No installation, no accounts, no build steps. Your content stays on your machine
 @media
 
 
-<img src="public/icon.png" alt="SlideMD Icon" style="width: 350px; height: 350px; object-fit: contain;" />
+<img src="../public/icon.png" alt="SlideMD Icon" style="width: 350px; height: 350px; object-fit: contain;" />
 
 
 ### Getting Started
@@ -324,7 +324,7 @@ Press `E` to enter edit mode — split-screen with Markdown editor and live prev
 
 @media
 
-![diagram](public/edit-mode.png)
+![diagram](../public/edit-mode.png)
 
 
 ---
