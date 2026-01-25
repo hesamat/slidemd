@@ -249,7 +249,10 @@ export class SlideNavigator extends EventEmitter {
         modal.appendChild(overlay);
         modal.appendChild(dialog);
 
-        document.body.appendChild(modal);
+        // Append to fullscreen element if in fullscreen mode, otherwise to body
+        const fullscreenElement = document.fullscreenElement;
+        const targetParent = fullscreenElement || document.body;
+        targetParent.appendChild(modal);
 
         // Focus input and select existing value
         input.focus();

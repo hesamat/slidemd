@@ -85,6 +85,14 @@
     overflow: visible;
 }
 
+/* Ensure modal is visible on top in fullscreen mode */
+:fullscreen .modal,
+-webkit-full-screen .modal,
+-moz-full-screen .modal,
+-ms-fullscreen .modal {
+    z-index: 2147483647;
+}
+
 .go-to-slide__input-container {
     display: flex;
     flex-direction: column;
