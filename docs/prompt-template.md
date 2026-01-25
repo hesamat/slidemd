@@ -150,7 +150,7 @@ Include **6-8 short activities** total (3-4 per session), placed every 2-3 conte
 7. **Refactoring Exercise** - Show naive code, ask how to improve
 8. **Trace the Execution** - Step through code and show values
 
-**Format for activity slides:**
+**Suggested format for activity slides:**
 
 ```markdown
 layout: focus
@@ -202,7 +202,7 @@ print(mystery([1, 2]))
 - Use class diagrams for data structures
 - Add `classDef` styling for color-coding
 
-### Best Practice Examples:
+### Suggested Best Practice Examples:
 
 ```markdown
 layout: left-heavy
@@ -274,16 +274,12 @@ background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)
 
 1. Follow exact SlideMD syntax (no markdown rendering errors)
 2. Create 25-35 slides total for 2-hour lecture
-3. Include clear break point between sessions
+3. Create the hand-in template as well
 4. Use speaker notes (`<!-- notes: -->`) on at least 10 slides
-5. Include **6-8 short activities** spread throughout (every 2-3 slides), not grouped together
-6. Each activity slide should instruct students to take screenshot for hand-in template
+5. Include **5-8 short activities** spread throughout (every 2-3 slides), not grouped together
+6. Each activity slide should instruct students to take screenshot or write down in their hand-in template
 7. Use varied layouts (not all `header-content`)
-8. Include at least 2 Mermaid diagrams
-9. Include code examples in appropriate language
-10. Add visual interest with gradients/backgrounds on 3-4 key slides
-11. Include submission instructions slide before end of lecture
-12. End with summary slide reviewing all learning objectives
-13. **NO emojis** - they break PDF rendering in CMS
-
-**Output format:** Return ONLY the markdown file content starting with the first slide's layout declaration. Do NOT include any explanatory text outside the slides.
+8. Include code examples in appropriate language
+9. Include submission instructions slide before end of lecture
+10. End with summary slide reviewing all learning objectives
+11. **NO emojis** - they break PDF rendering in CMS
