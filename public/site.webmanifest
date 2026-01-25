@@ -9,7 +9,7 @@
   "orientation": "landscape-primary",
   "icons": [
     {
-      "src": "/public/icon.png",
+      "src": "/icon.png",
       "sizes": "500x500",
       "type": "image/png",
       "purpose": "any maskable"
