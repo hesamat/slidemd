@@ -42,7 +42,7 @@
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
-    font-size: 29px;
+    font-size: 28px;
     /* Base font size for slide content */
 }
 
@@ -219,7 +219,7 @@
     font-family: var(--font-mono);
     font-size: 0.85em;
     /* Relative to the surrounding text */
-    color: var(--slide-ink);
+    color: var(--slide-ink-light);
 }
 
 /* Custom scrollbar for code blocks */
@@ -342,8 +342,7 @@
 .slide__area table {
     width: 100%;
     border-collapse: collapse;
-    margin: 2rem 0;
-    font-size: 29px;
+    margin: var(--slide-rhythm) 0;
     background: var(--bg-subtle);
     box-shadow: 0 2px 12px rgba(2, 6, 23, 0.06);
     border-radius: var(--radius-lg);

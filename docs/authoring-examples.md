@@ -24,7 +24,6 @@ The system includes several built-in layout presets that you can reference by na
 ```markdown
 layout: title-slide
 background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
-align: center
 
 @title
 
@@ -135,7 +134,6 @@ Use `background:` for per-slide backgrounds. Supports gradients, images, and sol
 ```markdown
 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
 layout: title-slide
-align: center
 
 @main
 # Gradient Background
@@ -186,20 +184,6 @@ theme: light
 This slide uses dark text on light background
 ```
 
-## Content Alignment
-
-Use `align: center` to center content in slides with a single main area:
-
-```markdown
-layout: focus
-align: center
-
-@main
-# Centered Content
-
-This content is vertically and horizontally centered.
-```
-
 ## Hidden Slides
 
 Mark a slide as hidden to skip it during normal navigation. Add `?showHidden=1` to the URL to include them when reviewing.
@@ -247,31 +231,33 @@ Explanation on the left side.
 ![diagram](images/architecture.png)
 ```
 
-## Activity Slides
 
-A common pattern for activity/exercise slides:
+## Markdown Formatting
+
+Use standard markdown for most content - it's cleaner and more maintainable:
+
+### Blockquotes
+
+Blockquotes are perfect for callouts, tips, and important notes:
 
 ```markdown
-layout: "header" "main" / 1fr
-background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)
+layout: header-content
 
 @header
-## 💻 Activity: Loop Patterns
+## Key Concepts
 
 @main
-**Write `for` loops to produce each output:**
+> **Note:** This is a blockquote for highlighting important information.
+> Perfect for callouts, tips, and key takeaways.
 
-**1. Print:** `10 8 6 4 2 0`
-```c
-for (int i = ?; ?; ?) {
-    printf("%d ", i);
-}
-```
+> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> You could use blockquotes for warnings or cautions.
+> Add inline styles to highlight the label.
+
 ```
 
 ## HTML Elements and Inline Styling
 
-You can use HTML elements and inline CSS styles within your markdown content for additional formatting flexibility:
+When you need more control than standard markdown provides, you can use HTML elements and inline CSS styles:
 
 ### Basic HTML Elements
 
@@ -313,25 +299,26 @@ layout: header-content
 </table>
 ```
 
-### Callout Boxes
+### Advanced HTML Examples
+
+> **Note:** For simple callouts and highlights, prefer markdown blockquotes (see "Markdown Formatting" section above). Use HTML only when you need custom styling that blockquotes can't provide.
 
 ```markdown
 layout: header-content
 
 @header
-## Callout Examples
+## Advanced Styling Example
 
 @main
-<div style="font-size: 1.4rem; background: #e8f4fd; border-left: 4px solid #2196f3; padding: 16px; margin: 16px 0;">
-  <strong>Note:</strong> This is an informational callout box using inline styles.
-</div>
-
-<div style="font-size: 1.4rem; background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin: 16px 0;">
-  <strong>Warning:</strong> This is a warning callout box.
-</div>
-
-<div style="font-size: 1.4rem; background: #d4edda; border-left: 4px solid #28a745; padding: 16px; margin: 16px 0;">
-  <strong>Success:</strong> This is a success callout box.
+<div style="display: flex; gap: 16px; margin: 20px 0;">
+  <div style="flex: 1; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; text-align: center;">
+    <h3 style="margin: 0 0 8px 0;">Feature A</h3>
+    <p style="margin: 0; font-size: 0.9rem;">Description here</p>
+  </div>
+  <div style="flex: 1; padding: 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 12px; text-align: center;">
+    <h3 style="margin: 0 0 8px 0;">Feature B</h3>
+    <p style="margin: 0; font-size: 0.9rem;">Description here</p>
+  </div>
 </div>
 ```
 

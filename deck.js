@@ -107,7 +107,7 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
             const editController = new EditController(deck, controller, elements);
             window.__WEBDECK_EDIT_CONTROLLER__ = editController;
         } catch (e) {
-            console.log("Editor skipped.");
+            // Editor skipped. Likely not in editor mode.;
         }
 
         // 7. PRELOAD / WARMUP ENHANCERS

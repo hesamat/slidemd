@@ -50,11 +50,6 @@ export class SlideRenderer {
         grid.style.gridTemplateColumns = layout.gridTemplateColumns;
         grid.style.gridTemplateRows = layout.gridTemplateRows;
 
-        const align = safeString(slide?.align).trim().toLowerCase();
-        if (align === "center" && layout.orderedAreas.length === 1 && layout.orderedAreas[0] === "main") {
-            grid.style.placeItems = "center";
-        }
-
         const names = [...layout.orderedAreas];
         for (const extra of areaNamesFromContent) {
             if (!names.includes(extra)) names.push(extra);
@@ -166,7 +161,6 @@ export class SlideRenderer {
             layout: "title-slide",
             background,
             theme,
-            align: "center",
             areas: {
                 main: `<div class="break-title">
                     <h1 class="break-mins"></h1>

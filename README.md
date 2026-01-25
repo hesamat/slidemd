@@ -1,4 +1,4 @@
-# HTML Slides - Quick Guide
+# SlideMD - Markdown Presentations
 
 A lightweight, browser-based slide deck with a presenter view.
 
@@ -31,7 +31,7 @@ Opens automatically at http://localhost:8000/index.html.
 ## Authoring decks/deck.md
 
 - Slides are separated by `---`; the default input file is `decks/deck.md`.
-- Each slide supports: `layout:`, `align:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
+- Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
 

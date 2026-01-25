@@ -75,10 +75,30 @@ export class ReloadManager extends EventEmitter {
                 raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
                 this.broadcastReload();
             } else {
-                const deckId = this.getDeckId(this.deck);
-                raw = await DeckLoader.reloadFromFileHandle(deckId);
-                if (!raw || preferLocalStorage) {
+                // Try file handle first
+                try {
+                    const deckId = this.getDeckId(this.deck);
+                    raw = await DeckLoader.reloadFromFileHandle(deckId);
+                } catch (e) {
+                    console.log('[Reload] File handle check failed:', e.message);
+                    raw = null;
+                }
+
+                // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+                if (!raw) {
+                    const hasLocalData = localStorage.getItem("webdeck_local_file");
+
+                    if (!hasLocalData) {
+                        // No localStorage data and no file handle - reload the page to get the default deck
+                        console.log('[Reload] No file loaded, reloading page to get default deck');
+                        window.location.reload();
+                        return;
+                    }
+
                     raw = await DeckLoader.loadFromLocalStorage();
+                    if (!raw) {
+                        throw new Error("Failed to parse the stored file. Check the markdown syntax.");
+                    }
                 }
             }
 
@@ -158,7 +178,9 @@ export class ReloadManager extends EventEmitter {
 
             const newDeck = await DeckLoader.parseMarkdown(text);
             await this.replaceDeck(newDeck, { startAtFirstSlide: true });
-            this.broadcastReload();
+            // Note: No need to broadcastReload here since setupLocalFileHandler
+            // already stored the data in localStorage with a timestamp,
+            // which will trigger storage events in other tabs
         } catch (err) {
             Notification.error("Failed to load file: " + err.message);
         }

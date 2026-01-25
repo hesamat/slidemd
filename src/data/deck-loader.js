@@ -107,33 +107,17 @@ export class DeckLoader {
                 if (age < 30000 || reloadFlag === "1" || !hasUrlParam) {
                     if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
 
-                    const loadedKey = "webdeck_local_file_loaded";
-                    const loadedCount = parseInt(localStorage.getItem(loadedKey) || "0", 10);
-                    localStorage.setItem(loadedKey, (loadedCount + 1).toString());
-
-                    // Cleanup coordination
-                    if (loadedCount >= 2 && !reloadFlag) {
-                        setTimeout(() => {
-                            localStorage.removeItem("webdeck_local_file");
-                            localStorage.removeItem("webdeck_local_file_type");
-                            localStorage.removeItem("webdeck_local_file_timestamp");
-                            localStorage.removeItem(loadedKey);
-                        }, 1000);
-                    }
-
                     if (fileType === "md") {
                         await AssetLoader.ensureMarkdownItLoaded();
                         return new MarkdownParser().parseDeckMarkdown(localFile);
                     }
-                } else if (age > 3600000) { // Cleanup old data (>1hr)
-                    localStorage.removeItem("webdeck_local_file");
-                    localStorage.removeItem("webdeck_local_file_type");
-                    localStorage.removeItem("webdeck_local_file_timestamp");
                 }
             }
         } catch (err) {
-            console.error("loadDeckData: storage error", err);
-            localStorage.removeItem("webdeck_local_file");
+            console.error("loadDeckData: error loading from localStorage", err);
+            // Don't delete localStorage data on any error - let it fall through
+            // to try other sources (URL, embedded, welcome deck)
+            // Only clear localStorage explicitly when user loads a new file
         }
 
         // 2. Try URL Param
@@ -154,44 +138,40 @@ export class DeckLoader {
             }
         }
 
-        // 4. Default Welcome Deck
-        return this.getWelcomeDeck();
+        // 4. Default Welcome Deck (load example.md)
+        return await this.getWelcomeDeck();
     }
 
-    static getWelcomeDeck() {
-        return {
-            meta: {
-                title: "Slide Deck",
-                aspect: "16:9",
-                stage: { ...DESIGN_SIZE },
-            },
-            slides: [
-                {
-                    id: "welcome",
-                    title: "Welcome",
-                    areas: {
-                        main: `<div style="text-align: center; padding: 2rem;">
-    <div style="margin-bottom: 3rem;">
-        <h1 style="font-size: 3.2rem; margin-bottom: 0.5rem; font-weight: 700;">Welcome to Slide Deck</h1>
-        <p style="font-size: 1.7rem; color: var(--color-fg-muted); margin-bottom: 0;">Create and deliver beautiful presentations</p>
-    </div>
-    <div style="display: flex; gap: 3rem; justify-content: center; margin: 3rem 0; flex-wrap: wrap;">
-        <div style="flex: 0 1 280px; padding: 1.5rem; background: var(--color-bg-alt, #f8fafc); border-radius: 12px; border: 1px solid var(--color-border, #e2e8f0);">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📁</div>
-            <h3 style="font-size: 1.7rem; margin-bottom: 0.75rem; font-weight: 600;">Open File</h3>
-            <p style="font-size: 1.5rem; color: var(--color-fg-muted); line-height: 1.6;">Load a local <strong>.md</strong> file.</p>
-        </div>
-        <div style="flex: 0 1 280px; padding: 1.5rem; background: var(--color-bg-alt, #f8fafc); border-radius: 12px; border: 1px solid var(--color-border, #e2e8f0);">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌐</div>
-            <h3 style="font-size: 1.7rem; margin-bottom: 0.75rem; font-weight: 600;">Open Remote</h3>
-            <p style="font-size: 1.5rem; color: var(--color-fg-muted); line-height: 1.6;">Load a presentation from a URL.</p>
-        </div>
-    </div>
-</div>`,
-                    },
+    static async getWelcomeDeck() {
+        try {
+            await AssetLoader.ensureMarkdownItLoaded();
+            const exampleText = await this.fetchText("docs/example.md", { cache: "default" });
+            const deck = new MarkdownParser().parseDeckMarkdown(exampleText);
+
+            return deck;
+        } catch (e) {
+            console.error("Failed to load example.md:", e);
+            // Fallback to minimal deck if example.md fails to load
+            return {
+                meta: {
+                    title: "SlideMD",
+                    aspect: "16:9",
+                    stage: { ...DESIGN_SIZE },
                 },
-            ],
-        };
+                slides: [
+                    {
+                        id: "welcome",
+                        title: "Welcome",
+                        areas: {
+                            main: `<div style="text-align: center; padding: 2rem;">
+    <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to SlideMD</h1>
+    <p style="font-size: 1.5rem; color: var(--color-fg-muted);">Create beautiful presentations with Markdown</p>
+</div>`,
+                        },
+                    },
+                ],
+            };
+        }
     }
 
     static setupLocalFileHandler(openFileBtn, fileInput) {
@@ -213,7 +193,6 @@ export class DeckLoader {
                     localStorage.setItem("webdeck_local_file_type", "md");
                     localStorage.setItem("webdeck_local_file_name", file.name);
                     localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-                    localStorage.removeItem("webdeck_local_file_loaded");
 
                     const loadEvent = new CustomEvent('webdeck-load-local', {
                         detail: { text: rawText, fileType: "md", fileName: file.name }
@@ -245,7 +224,6 @@ export class DeckLoader {
                 localStorage.setItem("webdeck_local_file_type", "md");
                 localStorage.setItem("webdeck_local_file_name", file.name);
                 localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-                localStorage.removeItem("webdeck_local_file_loaded");
 
                 const loadEvent = new CustomEvent('webdeck-load-local', {
                     detail: { text, fileType: "md", fileName: file.name }
@@ -302,11 +280,16 @@ export class DeckLoader {
     }
 
     static async loadFromLocalStorage() {
-        const localFile = localStorage.getItem("webdeck_local_file");
-        if (!localFile) return null;
+        try {
+            const localFile = localStorage.getItem("webdeck_local_file");
+            if (!localFile) return null;
 
-        await AssetLoader.ensureMarkdownItLoaded();
-        return new MarkdownParser().parseDeckMarkdown(localFile);
+            await AssetLoader.ensureMarkdownItLoaded();
+            return new MarkdownParser().parseDeckMarkdown(localFile);
+        } catch (err) {
+            console.error("loadFromLocalStorage: parsing error", err);
+            return null;
+        }
     }
 
     static async processRawData(raw) {
@@ -333,7 +316,8 @@ export class DeckLoader {
                 title: safeString(s.title) || `Slide ${idx + 1}`,
                 notes: safeString(s.notes),
                 layout: safeString(s.layout),
-                align: safeString(s.align),
+                // For backwards compatibility, accept but ignore align field
+                ...((s.align !== undefined) && { align: safeString(s.align) }),
                 background: safeString(s.background),
                 theme: safeString(s.theme),
                 hidden: Boolean(s.hidden),

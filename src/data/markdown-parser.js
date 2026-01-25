@@ -238,11 +238,12 @@ export class MarkdownParser {
             let cleaned = this.stripNotes(raw);
 
             // Extract all directives
-            const { value: align, markdown: withoutAlign } = this.extractDirective(cleaned, "align");
-            cleaned = withoutAlign;
-
             const { value: layout, markdown: withoutLayout } = this.extractDirective(cleaned, "layout");
             cleaned = withoutLayout;
+
+            // For backwards compatibility, extract but ignore align directive
+            const { markdown: withoutAlign } = this.extractDirective(cleaned, "align");
+            cleaned = withoutAlign;
 
             const { value: background, markdown: withoutBackground } = this.extractDirective(cleaned, "background");
             cleaned = withoutBackground;
@@ -299,7 +300,6 @@ export class MarkdownParser {
                 title: slideTitle,
                 notes,
                 layout: layout || "",
-                align: align || "",
                 background: background || "",
                 theme: themeNormalized,
                 hidden,
