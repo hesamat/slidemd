@@ -138,17 +138,47 @@ export class MarkdownParser {
     escapeKatexBracketDelimiters(src) {
         const lines = safeString(src).replace(/\r\n?/g, "\n").split("\n");
         const fence = new FenceTracker();
+        let inMathBlock = false;
+        let mathBlockLines = [];
+        const result = [];
 
-        return lines
-            .map((line) => {
-                fence.toggle(line);
-                if (fence.isInFence) return line;
-                return line
-                    .replace(/\\\[/g, "\\\\[")
-                    .replace(/\\\]/g, "\\\\]")
-                    .replace(/\\\$/g, '<span class="katex-ignore">$</span>');
-            })
-            .join("\n");
+        for (const line of lines) {
+            fence.toggle(line);
+            if (fence.isInFence) {
+                result.push(line);
+                continue;
+            }
+
+            // Check for $$ math block delimiters
+            if (line.trim() === "$$") {
+                if (!inMathBlock) {
+                    // Start of math block
+                    inMathBlock = true;
+                    mathBlockLines = [];
+                } else {
+                    // End of math block - convert to single-line format
+                    const mathContent = mathBlockLines.join(" ").trim();
+                    // Escape all backslashes in the math content
+                    const escaped = mathContent.replace(/\\/g, "\\\\");
+                    result.push(`$$${escaped}$$`);
+                    inMathBlock = false;
+                    mathBlockLines = [];
+                }
+            } else if (inMathBlock) {
+                // Collect lines inside the math block
+                mathBlockLines.push(line);
+            } else {
+                // Outside math blocks, escape LaTeX bracket delimiters
+                result.push(
+                    line
+                        .replace(/\\\[/g, "\\\\[")
+                        .replace(/\\\]/g, "\\\\]")
+                        .replace(/\\\$/g, '<span class="katex-ignore">$</span>')
+                );
+            }
+        }
+
+        return result.join("\n");
     }
 
     parseAreas(markdownText) {

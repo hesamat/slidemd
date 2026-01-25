@@ -316,7 +316,7 @@
 
 .slide__area .katex-display {
     margin: 0.25em 0;
-    overflow: auto;
+    overflow: hidden;
 }
 
 

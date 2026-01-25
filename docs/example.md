@@ -58,14 +58,12 @@ layout: focus
 @main
 ## Mermaid Diagrams
 
-<div class="mermaid-graph" style="width: 100%; max-width: 600px; margin: 0 auto;">
 ```mermaid
 graph TD
     A[Start] --> B[Build]
     B --> C[PDF]
     C --> D[Done]
 ```
-</div>
 
 ---
 
