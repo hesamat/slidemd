@@ -25,8 +25,9 @@ layout: header-content
 
 ---
 
-layout: content-full
+layout: focus
 
+@main
 ## Code Highlighting
 
 ```python
@@ -38,8 +39,9 @@ print(greet("World"))
 
 ---
 
-layout: content-full
+layout: focus
 
+@main
 ## Math Equations
 
 Inline: $E = mc^2$
@@ -56,12 +58,14 @@ layout: focus
 @main
 ## Mermaid Diagrams
 
+<div class="mermaid-graph" style="width: 100%; max-width: 600px; margin: 0 auto;">
 ```mermaid
 graph TD
     A[Start] --> B[Build]
     B --> C[PDF]
     C --> D[Done]
 ```
+</div>
 
 ---
 
