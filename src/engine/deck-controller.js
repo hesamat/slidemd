@@ -176,7 +176,6 @@ export class DeckController extends EventEmitter {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
-        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
         document.addEventListener("click", (e) => this.handleDocumentClick(e));
         document.addEventListener("fullscreenchange", () => this.applyStageScale());
         window.addEventListener("storage", (e) => this.handleStorage(e));
@@ -214,10 +213,6 @@ export class DeckController extends EventEmitter {
 
     handleKeyboard(e) {
         this.keyboardHandler?.handleKeyboard(e);
-    }
-
-    handleWheel(e) {
-        this.keyboardHandler?.handleWheel(e);
     }
 
     handleStorage(ev) {
