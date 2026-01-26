@@ -190,7 +190,9 @@
     overflow: auto;
     box-shadow: var(--code-shadow);
     max-width: 1100px;
-    margin: 0.5rem 0.4rem;
+    width: fit-content;
+    margin: 0.5rem 0;
+    min-width: 650px;
     /* No !important needed */
 
     /* The FIX: Set line-height on the block container, not the inline code element. */
