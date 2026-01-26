@@ -58,7 +58,7 @@
     width: 100%;
 }
 
-/* Markdown Editor with Backdrop Highlighter */
+/* Markdown Editor */
 .markdown-editor-wrapper {
     position: relative;
     flex: 1;
@@ -67,110 +67,16 @@
     overflow: hidden;
 }
 
-.markdown-editor-backdrop {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    padding: 14px;
-    font-family: var(--font-mono);
-    font-size: 14px;
-    line-height: 1.6;
-    tab-size: 4;
-    -moz-tab-size: 4;
-    background: var(--surface-bg);
-    color: transparent;
-    overflow: auto;
-    pointer-events: none;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    border: none;
-    box-sizing: border-box;
-    scrollbar-width: none; /* Firefox - hide scrollbar */
-}
-
-.markdown-editor-backdrop::-webkit-scrollbar {
-    display: none; /* Chrome/Safari - hide scrollbar */
-}
-
-.markdown-editor-backdrop code {
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    tab-size: 4;
-    -moz-tab-size: 4;
-    background: transparent !important;
-    color: var(--text-high);
-    display: block;
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-    white-space: inherit;
-    word-wrap: inherit;
-}
-
-/* Prism colors for markdown syntax highlighting */
-/* Default color for all tokens to prevent invisible text */
-.markdown-editor-backdrop .token {
-    color: var(--text-high);
-}
-
-.markdown-editor-backdrop .token.title,
-.markdown-editor-backdrop .token.header {
-    color: #e06c75;
-    font-weight: bold;
-}
-
-.markdown-editor-backdrop .token.bold {
-    color: #e06c75;
-    font-weight: bold;
-}
-
-.markdown-editor-backdrop .token.italic {
-    color: #c678dd;
-    font-style: italic;
-}
-
-.markdown-editor-backdrop .token.link {
-    color: #61afef;
-}
-
-.markdown-editor-backdrop .token.url {
-    color: #98c379;
-}
-
-.markdown-editor-backdrop .token.code {
-    color: #98c379;
-}
-
-.markdown-editor-backdrop .token.list {
-    color: #c678dd;
-}
-
-.markdown-editor-backdrop .token.quote {
-    color: #5c6370;
-    font-style: italic;
-}
-
-.markdown-editor-backdrop .token.hr {
-    color: #5c6370;
-}
-
-.markdown-editor-backdrop .token.placeholder {
-    color: var(--text-low);
-}
-
 .markdown-editor-textarea {
     position: absolute;
     inset: 0;
     margin: 0;
     padding: 14px;
     font-family: var(--font-mono);
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.6;
-    tab-size: 4;
-    -moz-tab-size: 4;
-    background: transparent;
-    color: transparent;
+    background: var(--surface-bg);
+    color: var(--text-high);
     caret-color: var(--text-high);
     border: none;
     outline: none;
@@ -178,7 +84,6 @@
     overflow: auto;
     white-space: pre-wrap;
     word-wrap: break-word;
-    z-index: 1;
     box-sizing: border-box;
 }
 
@@ -186,6 +91,6 @@
     color: var(--text-low);
 }
 
-.markdown-editor-wrapper:focus-within .markdown-editor-backdrop {
+.markdown-editor-textarea:focus {
     background: var(--surface-elevated);
 }
