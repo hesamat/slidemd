@@ -81,7 +81,7 @@ For a **2-hour lecture (2 × 50-minute sessions)**, create approximately **25-35
    - **Comparative examples**: Use `two-column` (side-by-side comparison) or `header-two-column`
    - **Common pitfalls**: Use `header-content` with warning callouts
    - **Best practices**: Use `header-two-column` (preferred) or `header-content`
-   - **Interactive activities**: Use `focus` with colored background (every 2-3 content slides, see Activity Guidelines below)
+   - **Interactive activities**: Use custom `layout: "header header" "main sidebar" / 1fr auto` with colored background (every 2-3 content slides, see Activity Guidelines below)
 
 5. **Session Summary**: Use `focus` with colored background or `header-content`
    - Key takeaways from Part 1
@@ -97,7 +97,7 @@ For a **2-hour lecture (2 × 50-minute sessions)**, create approximately **25-35
    - More complex concepts
    - Real-world examples
    - Extended code examples
-   - **Interactive activities** (every 2-3 content slides, see Activity Guidelines below)
+   - **Interactive activities**: Use custom `layout: "header header" "main sidebar" / 1fr auto` with colored background (every 2-3 content slides, see Activity Guidelines below)
 
 8. **Common Mistakes & Debugging**: Use `header-two-column` (errors in left column, fixes in right column) or `header-content`
     - Typical errors students make
@@ -161,14 +161,16 @@ Include **6-8 short activities** total (3-4 per session), placed every 2-3 conte
 **Suggested format for activity slides:**
 
 ```markdown
-layout: focus
-background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)
+layout: "header header" "main sidebar" / 1fr auto
+background: linear-gradient(135deg, #f1faff 0%, #bbcde6 100%)
 
 <!-- notes: Give students 3-5 minutes to complete -->
 
-@main
+@header
 
 # Activity 1: Code Prediction
+
+@main
 
 ## What will this code output?
 
@@ -179,8 +181,39 @@ def mystery(x):
 print(mystery([1, 2]))
 ```
 
-**Take a screenshot of your answer for the hand-in template**
+@sidebar
+
+## Instructions
+
+> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Update the hand-in with your answer.</span>
 ```
+
+**Activity Instructions Guidelines:**
+- Always use the same blue callout style for instructions (shown above)
+- Keep instructions brief - the hand-in template contains detailed instructions
+- Use "Hand-in:" as the callout label consistently
+- Instructions should remind students what to submit (screenshot, code, explanation, etc.)
+
+---
+
+## Custom Layouts
+
+For activity slides that need a header with a sidebar, use custom CSS grid layouts:
+
+**Header + Main + Sidebar:**
+```markdown
+layout: "header header" "main sidebar" / 1fr 300px
+```
+- Creates: Header row (full width), then Main (flexible) + Sidebar 
+- Content areas: `@header`, `@main`, `@sidebar`
+- Perfect for activities with title, content, and instructions
+
+**Header + Three Columns:**
+```markdown
+layout: "header header header" "main media secondary" / 1fr 1fr 1fr
+```
+- Creates: Header row (full width), then three equal columns
+- Content areas: `@header`, `@main`, `@media`, `@secondary`
 
 ---
 
@@ -221,6 +254,21 @@ print(mystery([1, 2]))
 - Use sequence diagrams for function calls or API interactions
 - Use class diagrams for data structures
 - Add `classDef` styling for color-coding
+
+### For Activity Instructions (Sidebar):
+Use consistent blue callout styling for all activity instructions:
+
+```markdown
+> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Update the hand-in with your answer.</span>
+```
+
+**Common instruction variations:**
+- "Screenshot your answer for the hand-in template."
+- "Write your code in the hand-in template."
+- "Fill in the blanks and write your answers in the hand-in template."
+- "Explain your answer in the hand-in template."
+
+Keep instructions brief since the hand-in template contains detailed instructions for each activity.
 
 ### Title Slide Example:
 
@@ -451,13 +499,14 @@ After generating the slide deck, you must ALSO create a **student hand-in templa
 2. Create 25-35 slides total for 2-hour lecture
 3. **Create a student hand-in template** as a separate markdown document after the slide deck
 4. Use speaker notes (`<!-- notes: -->`) on at least 10 slides
-5. Include **5-8 short activities** spread throughout (every 2-3 slides), not grouped together
-6. Each activity slide should instruct students to take screenshot or write down in their hand-in template
-7. Use varied layouts (not all `header-content`)
-8. Include code examples in appropriate language
-9. Include submission instructions slide before end of lecture
-10. End with summary slide reviewing all learning objectives
-11. **NO emojis** - they break PDF rendering in CMS
+5. Include **6-8 short activities** spread throughout (every 2-3 slides), not grouped together
+6. **Activity slides must use custom layout:** `layout: "header header" "main sidebar" / 1fr 300px`
+7. **Activity instructions must use consistent blue callout style** in sidebar (see examples)
+8. Use varied layouts for content slides (not all `header-content`)
+9. Include code examples in appropriate language
+10. Include submission instructions slide before end of lecture
+11. End with summary slide reviewing all learning objectives
+12. **NO emojis** - they break PDF rendering in CMS
 
 **Output format:**
 1. First, provide the complete slide deck markdown (starting with the first slide's layout declaration)
