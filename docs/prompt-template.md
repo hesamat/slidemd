@@ -16,10 +16,9 @@
 - `title-slide` - Centered title page
 - `focus` - Single centered content area
 - `two-column` - Two equal columns
-- `left-heavy` - Wider left column, narrower right
 - `right-heavy` - Wider right column, narrower left
 - `header-content` - Header + main content area
-- `header-two-column` - Header + two columns
+- `header-two-column` - Header + two columns (recommended for most content)
 - `three-column` - Three equal columns
 - `content-sidebar` - Main content + 300px sidebar
 - `sidebar-content` - 300px sidebar + main content
@@ -33,8 +32,8 @@
 - `@footer` - Optional footer content
 
 **CRITICAL: Layout to Content Area Mappings**
-- `two-column`, `left-heavy`, `right-heavy`: Use `@main` and `@media` (NEVER use `@sidebar`)
-- `header-two-column`: Use `@header` and `@main` + `@media` (NEVER use `@sidebar`)
+- `two-column`, `right-heavy`: Use `@main` and `@media` (NEVER use `@sidebar`)
+- `header-two-column`: Use `@header` and `@main` + `@media` (NEVER use `@sidebar`) - **RECOMMENDED for most slides**
 - `content-sidebar`, `sidebar-content`: Use `@main` and `@sidebar` (ONLY when you want a 300px sidebar)
 - `header-content`: Use `@header` and `@main`
 - `focus`: Use `@main` only
@@ -77,11 +76,11 @@ For a **2-hour lecture (2 × 50-minute sessions)**, create approximately **25-35
 
 4. **Main Content Slides with Integrated Activities** (mix of layouts)
    - **Concept introduction** slides: Use `focus` or `header-content`
-   - **Code examples**: Use `left-heavy` (explanation left, code right) or `header-content`
+   - **Code examples**: Use `header-two-column` (explanation left, code right) or `header-content`
    - **Visual diagrams**: Use `header-two-column` (content + diagram) or `focus`
    - **Comparative examples**: Use `two-column` (side-by-side comparison) or `header-two-column`
    - **Common pitfalls**: Use `header-content` with warning callouts
-   - **Best practices**: Use `header-two-column` or `left-heavy`
+   - **Best practices**: Use `header-two-column` (preferred) or `header-content`
    - **Interactive activities**: Use `focus` with colored background (every 2-3 content slides, see Activity Guidelines below)
 
 5. **Session Summary**: Use `focus` with colored background or `header-content`
@@ -100,7 +99,7 @@ For a **2-hour lecture (2 × 50-minute sessions)**, create approximately **25-35
    - Extended code examples
    - **Interactive activities** (every 2-3 content slides, see Activity Guidelines below)
 
-8. **Common Mistakes & Debugging**: Use `left-heavy` (errors on left, fixes on right) or `header-content`
+8. **Common Mistakes & Debugging**: Use `header-two-column` (errors in left column, fixes in right column) or `header-content`
     - Typical errors students make
     - How to debug/troubleshoot
 
@@ -240,13 +239,17 @@ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
 
 ### Two-Column Layout Examples (CORRECT usage):
 
-**Example 1: left-heavy (explanation left, code right)**
+**Example 1: header-two-column (explanation left, code right) - RECOMMENDED**
 ```markdown
-layout: left-heavy
+layout: header-two-column
+
+@header
+
+# Function Parameters in C
 
 @main
 
-## Function Parameters
+### Pass-by-Value Behavior
 
 Parameters are passed by value in C.
 
@@ -295,7 +298,7 @@ layout: header-two-column
 
 @header
 
-## Comparison: Array vs Pointer
+# Comparison: Array vs Pointer
 
 @main
 
@@ -316,18 +319,22 @@ ptr[0] = 10;  // Same!
 ```
 ```
 
-**NEVER use @sidebar with two-column, left-heavy, right-heavy, or header-two-column layouts!**
+**NEVER use @sidebar with two-column, right-heavy, or header-two-column layouts!**
 - Use `@media` for the right column in these layouts
 - Use `@sidebar` ONLY with `content-sidebar` or `sidebar-content` layouts when you want a fixed 300px sidebar
 
 ### Suggested Best Practice Examples:
 
 ```markdown
-layout: left-heavy
+layout: header-two-column
+
+@header
+
+## Common Pitfall: Off-by-One Errors
 
 @main
 
-## Common Pitfall: Off-by-One Errors
+### The Problem
 
 > <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Remember that arrays are 0-indexed in most languages!
 

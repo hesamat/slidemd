@@ -127,8 +127,7 @@
 .slide__area h1 {
     font-size: 60px;
     line-height: 1.5;
-    letter-spacing: -0.02em;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .slide__area h2 {
@@ -306,7 +305,7 @@
 
 .slide__area .mermaid text {
     font-weight: 500 !important;
-    font-size: 2rem !important;
+    font-size: 1.6rem !important;
 }
 
 /* --- KaTeX Math --- */
