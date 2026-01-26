@@ -8,50 +8,54 @@
 
 **Basic Structure:**
 - Slides are separated by `---` (three dashes on a line by themselves)
-- Each slide begins with frontmatter: `layout: preset-name`
+- Each slide begins with frontmatter: `layout: "grid definition" / "columns" / "alignment"`
 - Content areas are marked with `@area-name` (e.g., `@header`, `@main`, `@media`, `@sidebar`)
 - Content before the first `@area` flows into `@main`
 
-**Available Layout Presets:**
-- `title-slide` - Centered title page
-- `focus` - Single centered content area
-- `two-column` - Two equal columns
-- `right-heavy` - Wider right column, narrower left
-- `header-content` - Header + main content area
-- `header-two-column` - Header + two columns (recommended for most content)
-- `three-column` - Three equal columns
-- `content-sidebar` - Main content + 300px sidebar
-- `sidebar-content` - 300px sidebar + main content
+**Useful Layout Patterns:**
+
+```markdown
+# Title slide (centered)
+layout: "title" / 1fr / center
+# Content: @title
+
+# Header + single content
+layout: "header" "main" / auto 1fr
+# Content: @header, @main
+
+# Header + two equal columns
+layout: "header header" "main media" / 1fr 1fr
+# Content: @header, @main, @media
+
+# Two equal columns (no header)
+layout: "main media" / 1fr 1fr
+# Content: @main, @media
+
+# Header + main + sidebar (for activities)
+layout: "header header" "main sidebar" / 1fr 300px
+# Content: @header, @main, @sidebar
+```
 
 **Content Areas:**
-- `@title` - For title slide content
+- `@title` - Title slide content
 - `@header` - Top section (full width)
 - `@main` - Primary content area
-- `@media` - Images, diagrams, secondary content (RIGHT column in two-column layouts)
-- `@sidebar` - Narrow side column (300px - use ONLY with `content-sidebar` or `sidebar-content` layouts)
-- `@footer` - Optional footer content
-
-**CRITICAL: Layout to Content Area Mappings**
-- `two-column`, `right-heavy`: Use `@main` and `@media` (NEVER use `@sidebar`)
-- `header-two-column`: Use `@header` and `@main` + `@media` (NEVER use `@sidebar`) - **RECOMMENDED for most slides**
-- `content-sidebar`, `sidebar-content`: Use `@main` and `@sidebar` (ONLY when you want a 300px sidebar)
-- `header-content`: Use `@header` and `@main`
-- `focus`: Use `@main` only
-- `title-slide`: Use `@title` only
-- `three-column`: Use three content areas (check layout definition)
+- `@media` - Secondary content (typically right column)
+- `@sidebar` - Narrow side column (300px)
+- `@footer` - Optional footer
 
 **Slide Options:**
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
 - `hidden: true` - Slide hidden by default
-- Speaker notes via HTML comments: `<!-- notes: Your private notes -->`
+- Speaker notes: `<!-- notes: Your private notes -->`
 
 **Built-in Features:**
-- **Code highlighting:** Fenced code blocks with language identifier (```python, ```javascript, etc.)
+- **Code highlighting:** Fenced code blocks with language identifier
 - **Math:** Inline `$x^2$` or block `$$\int$$` using KaTeX
 - **Diagrams:** Mermaid syntax in ```mermaid blocks
 - **Markdown:** Bold, italic, lists, blockquotes, tables, links
-- **HTML:** Inline styles for custom formatting when needed
+- **HTML:** Inline styles for custom formatting
 
 ---
 
@@ -59,112 +63,91 @@
 
 For a **2-hour lecture (2 × 50-minute sessions)**, create approximately **25-35 slides** total with this flow:
 
-### Part 1: First 50-Minute Session (~15-18 slides)
+**Part 1: First 50-Minute Session (~15-18 slides)**
+1. Title Slide (centered layout)
+2. Agenda/Overview (header + main) - topics and learning objectives
+3. Context/Review (header + two columns) - previous week recap, course progression
+4. Main Content with Integrated Activities (mix of layouts)
+   - Concept introduction: single centered or header + main
+   - Code examples: header + two columns (explanation left, code right)
+   - Visual diagrams: header + two columns or single centered
+   - Comparative examples: two equal columns
+   - Common pitfalls: header + main with warning callouts
+   - Best practices: header + two columns
+   - **Interactive activities every 2-3 slides** (use header + main + sidebar with colored background)
+5. Session Summary (single centered with colored background)
 
-1. **Title Slide** (`title-slide`)
-   - Course/lecture title, course number, week/topic
-   - Instructor name, subtitle
+**Part 2: Second 50-Minute Session (~15-18 slides)**
+6. Part 2 Opening (header + main) - recap Part 1, preview Part 2
+7. Advanced Content with Integrated Activities (same variety as Part 1)
+8. Common Mistakes & Debugging (header + two columns - errors left, fixes right)
+9. Submission Instructions (single centered with colored background) - screenshots, hand-in template
+10. Further Reading/References (two equal columns)
+11. Summary & Q&A (single centered or centered title)
 
-2. **Agenda/Overview** (`header-content`)
-   - Topics covered today
-   - Learning objectives bullet list
-
-3. **Context/Review** (`header-two-column`)
-   - Previous week topics recap
-   - Where we are in the course progression
-   - Coming attractions (future topics)
-
-4. **Main Content Slides with Integrated Activities** (mix of layouts)
-   - **Concept introduction** slides: Use `focus` or `header-content`
-   - **Code examples**: Use `header-two-column` (explanation left, code right) or `header-content`
-   - **Visual diagrams**: Use `header-two-column` (content + diagram) or `focus`
-   - **Comparative examples**: Use `two-column` (side-by-side comparison) or `header-two-column`
-   - **Common pitfalls**: Use `header-content` with warning callouts
-   - **Best practices**: Use `header-two-column` (preferred) or `header-content`
-   - **Interactive activities**: Use custom `layout: "header header" "main sidebar" / 1fr auto` with colored background (every 2-3 content slides, see Activity Guidelines below)
-
-5. **Session Summary**: Use `focus` with colored background or `header-content`
-   - Key takeaways from Part 1
-   - Transition to break
-
-### Part 2: Second 50-Minute Session (~15-18 slides)
-
-6. **Part 2 Opening** (`header-content`)
-   - Brief recap of Part 1
-   - Preview of Part 2 topics
-
-7. **Advanced Content with Integrated Activities** (same slide variety as Part 1)
-   - More complex concepts
-   - Real-world examples
-   - Extended code examples
-   - **Interactive activities**: Use custom `layout: "header header" "main sidebar" / 1fr auto` with colored background (every 2-3 content slides, see Activity Guidelines below)
-
-8. **Common Mistakes & Debugging**: Use `header-two-column` (errors in left column, fixes in right column) or `header-content`
-    - Typical errors students make
-    - How to debug/troubleshoot
-
-9. **Submission Instructions**: Use `focus` with colored background or `header-content`
-    - Remind students to take screenshots of activity results
-    - Fill in hand-in template with screenshots and written answers
-    - Submit by end of lecture (or specified deadline)
-
-10. **Further Reading/References**: Use `two-column` or `header-two-column`
-    - Recommended resources
-    - Next week's preview
-
-11. **Summary & Q&A**: Use `focus` or `title-slide`
-    - Recap all learning objectives
-    - Final questions
-    - Homework/assignment reminders
-
-### Activity Guidelines
-
-**Spread activities throughout the lecture:**
+**Activity Guidelines:**
 - Include **6-8 short activities** total (3-4 per session)
 - Place an activity every **2-3 content slides**
-- Each activity should take **2-5 minutes**
-- Activities build on each other throughout the lecture
-
-**Activity types:**
-- Quick code prediction questions
-- Fill-in-the-blank exercises
-- Spot the bug challenges
-- Short coding problems (5-10 lines)
-- Concept check questions
-- Debugging mini-exercises
-
-**Student submission format:**
-- Students take **screenshots** of their activity results
-- Screenshots are placed in a **hand-in template** (provided separately)
-- Include written answers for conceptual questions
-- Submit completed template at end of lecture
+- Each activity takes **2-5 minutes**
+- Types: Code prediction, spot the bug, fill-in-the-blank, concept checks, mini debug challenges, short coding exercises
+- Students take screenshots and paste into hand-in template with written answers
 
 ---
 
-## Interactive Element Guidelines
+## Content Formatting Guidelines
 
-**Activity Guidelines (spread throughout lecture):**
+**IMPORTANT: No emojis** - they cause PDF rendering issues. Use text labels or styled HTML spans instead.
 
-Include **6-8 short activities** total (3-4 per session), placed every 2-3 content slides. Each activity should take 2-5 minutes.
+**Layout and Syntax Rules:**
+- ALWAYS specify `layout:` at the top of each slide (before any `@area` markers)
+- Place `@area` markers on their own lines
+- Content before first `@area` flows into `@main`
+- Speaker notes with `<!-- notes: -->` BEFORE the first `@area` marker
 
-**Activity Types:**
+**For Code Examples:**
+- Include brief comments explaining key lines
+- Keep examples under 20 lines
+- Show "bad" vs "good" patterns using two equal columns
 
-1. **Code Prediction** - Show code, ask "What will this output?"
-2. **Spot the Bug** - Show buggy code, ask students to find errors
-3. **Fill-in-the-Blank** - Code with missing pieces to complete
-4. **Quick Concept Check** - Multiple-choice or short answer questions
-5. **Mini Debug Challenge** - Broken code with specific issues to fix
-6. **Short Coding Exercise** - 5-10 lines of code to write
-7. **Refactoring Exercise** - Show naive code, ask how to improve
-8. **Trace the Execution** - Step through code and show values
+**For Concepts:**
+- Start with `##` heading for concept name
+- Use **bold** for key terms on first introduction
+- Use `code font` for syntax elements
+- Bullet lists for characteristics
+- Blockquotes for warnings or tips
 
-**Suggested format for activity slides:**
+**For Diagrams:**
+- Mermaid flowcharts for process flows
+- Sequence diagrams for function calls or API interactions
+- Class diagrams for data structures
+- Add `classDef` styling for color-coding
+
+---
+
+## Slide Examples
+
+### Title Slide
 
 ```markdown
-layout: "header header" "main sidebar" / 1fr auto
+layout: title-slide
+background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
+
+<!-- notes: Welcome students. Acknowledge the density of today's lecture. We are bridging the gap between basic scripting and software engineering today. -->
+
+@title
+
+# Course Topic
+## [Course Code] - Week X
+### Instructor Name
+```
+
+### Activity Slide
+
+```markdown
+layout: "header header" "main sidebar" / 1fr 300px
 background: linear-gradient(135deg, #f1faff 0%, #bbcde6 100%)
 
-<!-- notes: Give students 3-5 minutes to complete -->
+<!-- notes: Give students 3-5 minutes -->
 
 @header
 
@@ -185,111 +168,18 @@ print(mystery([1, 2]))
 
 ## Instructions
 
-> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Update the hand-in with your answer.</span>
+> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Screenshot your answer for the hand-in template.</span>
 ```
 
 **Activity Instructions Guidelines:**
-- Always use the same blue callout style for instructions (shown above)
-- Keep instructions brief - the hand-in template contains detailed instructions
-- Use "Hand-in:" as the callout label consistently
-- Instructions should remind students what to submit (screenshot, code, explanation, etc.)
+- Always use the blue callout style shown above
+- Keep instructions brief - hand-in template has details
+- Remind students what to submit (screenshot, code, explanation)
 
----
-
-## Custom Layouts
-
-For activity slides that need a header with a sidebar, use custom CSS grid layouts:
-
-**Header + Main + Sidebar:**
-```markdown
-layout: "header header" "main sidebar" / 1fr 300px
-```
-- Creates: Header row (full width), then Main (flexible) + Sidebar 
-- Content areas: `@header`, `@main`, `@sidebar`
-- Perfect for activities with title, content, and instructions
-
-**Header + Three Columns:**
-```markdown
-layout: "header header header" "main media secondary" / 1fr 1fr 1fr
-```
-- Creates: Header row (full width), then three equal columns
-- Content areas: `@header`, `@main`, `@media`, `@secondary`
-
----
-
-## Content Formatting Guidelines
-
-**IMPORTANT: Avoid Emojis**
-- Do NOT use emojis in slide content (e.g., thinking face, checkmarks, warning signs)
-- Emojis cause PDF rendering issues in the CMS
-- Use text labels or HTML spans with styling instead
-- Example: Use "Warning:" instead of emoji-based warnings
-
-**CRITICAL: Valid Content Areas Only**
-- ONLY use these content area markers: `@title`, `@header`, `@main`, `@media`, `@sidebar`, `@footer`
-- NEVER use `@author`, `@instructor`, `@presenter`, or any other custom markers
-- For title slides, use `@title` area and put instructor name in regular markdown
-- Invalid content areas will cause rendering errors
-
-**Layout and Syntax Rules**
-- ALWAYS specify `layout: preset-name` at the top of each slide (before any `@area` markers)
-- Place `@area` markers on their own lines
-- Content before the first `@area` marker flows into `@main`
-- Use speaker notes with HTML comments: `<!-- notes: Your text -->` BEFORE the first `@area` marker
-
-### For Code Examples:
-- Include brief comments in code explaining key lines
-- Keep examples under 20 lines
-- Show "bad" vs "good" patterns using `two-column`
-
-### For Concepts:
-- Start with `##` heading for the concept name
-- Use **bold** for key terms on first introduction
-- Use `code font` for syntax elements
-- Include bullet lists for characteristics (use `-` for unordered)
-- Blockquotes for important warnings or tips
-
-### For Diagrams:
-- Use Mermaid flowcharts for process flows
-- Use sequence diagrams for function calls or API interactions
-- Use class diagrams for data structures
-- Add `classDef` styling for color-coding
-
-### For Activity Instructions (Sidebar):
-Use consistent blue callout styling for all activity instructions:
+### Content Slide with Code
 
 ```markdown
-> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Update the hand-in with your answer.</span>
-```
-
-**Common instruction variations:**
-- "Screenshot your answer for the hand-in template."
-- "Write your code in the hand-in template."
-- "Fill in the blanks and write your answers in the hand-in template."
-- "Explain your answer in the hand-in template."
-
-Keep instructions brief since the hand-in template contains detailed instructions for each activity.
-
-### Title Slide Example:
-
-```markdown
-layout: title-slide
-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
-
-@title
-
-# Course Title: Lecture Topic
-## Course Code - Week X
-
-**Instructor:** Instructor Name
-**Date:** Fall 202X
-```
-
-### Two-Column Layout Examples (CORRECT usage):
-
-**Example 1: header-two-column (explanation left, code right) - RECOMMENDED**
-```markdown
-layout: header-two-column
+layout: "header header" "main media" / 1fr 1fr
 
 @header
 
@@ -315,9 +205,10 @@ void func(int x) {
 ```
 ```
 
-**Example 2: two-column (side-by-side comparison)**
+### Comparison Slide
+
 ```markdown
-layout: two-column
+layout: "main media" / 1fr 1fr
 
 @main
 
@@ -340,41 +231,10 @@ if (p != NULL) {
 ```
 ```
 
-**Example 3: header-two-column (header + two columns)**
-```markdown
-layout: header-two-column
-
-@header
-
-# Comparison: Array vs Pointer
-
-@main
-
-### Array Access
-
-```c
-int arr[5] = {1,2,3,4,5};
-arr[0] = 10;
-```
-
-@media
-
-### Pointer Access
-
-```c
-int *ptr = arr;
-ptr[0] = 10;  // Same!
-```
-```
-
-**NEVER use @sidebar with two-column, right-heavy, or header-two-column layouts!**
-- Use `@media` for the right column in these layouts
-- Use `@sidebar` ONLY with `content-sidebar` or `sidebar-content` layouts when you want a fixed 300px sidebar
-
-### Suggested Best Practice Examples:
+### Best Practices Slide
 
 ```markdown
-layout: header-two-column
+layout: "header header" "main media" / 1fr 1fr
 
 @header
 
@@ -382,19 +242,17 @@ layout: header-two-column
 
 @main
 
-### The Problem
-
-> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Remember that arrays are 0-indexed in most languages!
+> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Arrays are 0-indexed!
 
 **Key Points:**
-- First element is at index `0`
-- Last element is at `length - 1`
-- Loop condition should be `i < length`, not `i <= length`
+- First element at index `0`
+- Last element at `length - 1`
+- Use `i < length`, not `i <= length`
 
 @media
 
 ```python
-# WRONG - causes IndexError
+# WRONG - IndexError
 for i in range(len(arr)):
     print(arr[i + 1])
 
@@ -402,14 +260,13 @@ for i in range(len(arr)):
 for i in range(len(arr)):
     print(arr[i])
 ```
+```
 
-### Submission Instructions Slide:
+### Submission Instructions Slide
 
 ```markdown
-layout: focus
+layout: "main" / 1fr / center
 background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)
-
-<!-- notes: Remind students about submission process -->
 
 @main
 
@@ -423,15 +280,16 @@ background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)
 4. **Submit** the completed template by end of lecture
 
 **Template location:** [Course LMS page / Handout folder]
-
 **Deadline:** End of class today
 ```
 
-### Hand-in Template Requirements:
+---
 
-After generating the slide deck, you must ALSO create a **student hand-in template** that students will use to submit their activity work.
+## Hand-in Template
 
-**Format:** Provide the hand-in template as plain text (markdown format) that can be copied into a document editor (Word, Google Docs, etc.)
+After generating the slide deck, create a **student hand-in template** for students to submit activity work.
+
+**Format:** Plain markdown that can be copied into a document editor (Word, Google Docs, etc.)
 
 **Template Structure:**
 
@@ -468,14 +326,13 @@ After generating the slide deck, you must ALSO create a **student hand-in templa
 
 ---
 
+```
 
 **Template Requirements:**
-1. Include a section for EACH activity from the slide deck
-2. Each section must have space for screenshot AND written answer
+1. Include a section for EACH activity
+2. Each section has space for screenshot AND written answer
 3. Include student name/ID/date fields at top
 4. Include submission checklist at end
-5. Make it clear and easy for students to complete
-6. Create it as a docx file
 
 ---
 
@@ -500,13 +357,12 @@ After generating the slide deck, you must ALSO create a **student hand-in templa
 3. **Create a student hand-in template** as a separate markdown document after the slide deck
 4. Use speaker notes (`<!-- notes: -->`) on at least 10 slides
 5. Include **6-8 short activities** spread throughout (every 2-3 slides), not grouped together
-6. **Activity slides must use custom layout:** `layout: "header header" "main sidebar" / 1fr 300px`
-7. **Activity instructions must use consistent blue callout style** in sidebar (see examples)
-8. Use varied layouts for content slides (not all `header-content`)
+6. **Activity slides should use:** `layout: "header header" "main sidebar" / 1fr 300px` with colored background
+7. **Activity instructions must use consistent blue callout style** (see examples)
+8. Use varied layouts for content slides (not all the same)
 9. Include code examples in appropriate language
 10. Include submission instructions slide before end of lecture
 11. End with summary slide reviewing all learning objectives
-12. **NO emojis** - they break PDF rendering in CMS
 
 **Output format:**
 1. First, provide the complete slide deck markdown (starting with the first slide's layout declaration)
