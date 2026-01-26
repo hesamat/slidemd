@@ -11,7 +11,6 @@ export class WheelHandler {
      * @param {Function} actions.prev - Navigate to previous slide
      * @param {Function} actions.isBreakActive - Callback to check if break mode is active
      * @param {Function} actions.endBreak - Callback to end break mode
-     * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
      */
     constructor(actions) {
         this.actions = actions;
@@ -39,9 +38,8 @@ export class WheelHandler {
 
         // If break mode is active, any wheel action ends the break
         if (this.actions.isBreakActive?.()) {
-            e.preventDefault();
-            e.stopPropagation();
             this.actions.endBreak?.();
+            // Don't navigate, just end the break
             return;
         }
 

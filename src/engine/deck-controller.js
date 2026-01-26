@@ -115,8 +115,7 @@ export class DeckController extends EventEmitter {
             next: () => this.slideNavigator.next(),
             prev: () => this.slideNavigator.prev(),
             isBreakActive: () => this.breakManager.isActive,
-            endBreak: () => this.breakManager.setActive(false),
-            isEmbedded: isEmbedded
+            endBreak: () => this.breakManager.setActive(false)
         });
     }
 
