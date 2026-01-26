@@ -75,7 +75,6 @@ body {
 }
 
 /* Prevent scrolling when embedded in an iframe to avoid conflicts with parent page */
-html[data-embedded="true"],
 html[data-embedded="true"] body {
     overflow: hidden;
     position: fixed;

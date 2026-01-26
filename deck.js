@@ -154,8 +154,9 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         if (embedded) {
             document.documentElement.setAttribute("data-embedded", "true");
             // Prevent wheel and touch events from bubbling to parent
-            window.addEventListener("wheel", (e) => e.stopPropagation(), { passive: false });
-            window.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: false });
+            // Using capture phase to stop events before they bubble
+            window.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true, capture: true });
+            window.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true, capture: true });
         }
 
         // Auto-redirect checks (optional)
