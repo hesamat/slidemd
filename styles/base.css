@@ -74,6 +74,15 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent scrolling when embedded in an iframe to avoid conflicts with parent page */
+html[data-embedded="true"],
+html[data-embedded="true"] body {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+}
+
 ::selection {
     background: rgba(var(--color-primary), 0.22);
 }
