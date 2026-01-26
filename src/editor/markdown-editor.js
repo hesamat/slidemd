@@ -146,6 +146,10 @@ export class MarkdownEditor {
         }
 
         this.backdrop.innerHTML = highlighted;
+
+        // Force a layout recalculation to ensure backdrop and textarea stay aligned
+        // This prevents cursor/click misalignment that can occur when content changes
+        void this.backdrop.offsetHeight;
     }
 
     /**

@@ -75,6 +75,8 @@
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.6;
+    tab-size: 4;
+    -moz-tab-size: 4;
     background: var(--surface-bg);
     color: transparent;
     overflow: auto;
@@ -94,6 +96,8 @@
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
+    tab-size: 4;
+    -moz-tab-size: 4;
     background: transparent !important;
     color: var(--text-high);
     display: block;
@@ -163,6 +167,8 @@
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.6;
+    tab-size: 4;
+    -moz-tab-size: 4;
     background: transparent;
     color: transparent;
     caret-color: var(--text-high);
