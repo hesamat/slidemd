@@ -193,10 +193,7 @@
     width: fit-content;
     margin: 0.5rem 0;
     min-width: 650px;
-    /* No !important needed */
-
-    /* The FIX: Set line-height on the block container, not the inline code element. */
-    line-height: 1.1;
+    line-height: 1;
 }
 
 /* This targets the <code> element *inside* the <pre> block. */
