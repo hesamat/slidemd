@@ -2,6 +2,13 @@
  * FreezeManager
  * Manages freeze state for viewer window synchronization.
  * When frozen, slide changes in the presenter window won't be broadcast to viewer windows.
+ * 
+ * State Synchronization:
+ * - When frozen: Slide navigation continues in presenter window but changes are not broadcast
+ *   to viewer windows via BroadcastChannel or localStorage.
+ * - When unfrozen: Slide navigation resumes normal broadcasting behavior.
+ * - Viewer windows opened while frozen: Will remain on their current slide until unfrozen.
+ * - Freeze state persistence: Stored in localStorage and restored on page load.
  */
 import { getDeckId } from "../core/utils.js";
 
@@ -33,6 +40,22 @@ export class FreezeManager {
      */
     setBroadcastChannel(channel) {
         this._broadcastChannel = channel;
+    }
+
+    /**
+     * Initializes freeze state from localStorage.
+     * This should be called during application startup to restore freeze state.
+     */
+    init() {
+        try {
+            const stored = localStorage.getItem(this.freezeStateKey);
+            if (stored) {
+                const payload = JSON.parse(stored);
+                this.setFrozen(payload.frozen, { broadcast: false });
+            }
+        } catch (e) {
+            console.warn('[FreezeManager] Failed to restore freeze state:', e);
+        }
     }
 
     /**
@@ -95,6 +118,12 @@ export class FreezeManager {
      * Note: Does not close the broadcast channel as it is owned by DeckController.
      */
     destroy() {
+        // Clean up button state
+        if (this.elements.freezeBtn) {
+            this.elements.freezeBtn.classList.remove("active");
+            this.elements.freezeBtn.setAttribute("aria-pressed", "false");
+        }
+        
         this._broadcastChannel = null;
         this.isFrozen = false;
         this.elements = null;

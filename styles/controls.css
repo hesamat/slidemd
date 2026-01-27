@@ -87,6 +87,11 @@ html[data-webdeck-role="presenter"] .topbar {
     color: var(--accent-text);
 }
 
+.btn-icon {
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
 .btn--sm {
     padding: 6px 8px;
     border-radius: 9px;

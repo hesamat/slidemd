@@ -154,7 +154,13 @@ export class DeckController extends EventEmitter {
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
 
-        this.freezeManager.setFrozen(url.searchParams.get("freeze") === "1", { broadcast: false });
+        // Initialize freeze state from URL or localStorage
+        const freezeFromUrl = url.searchParams.get("freeze") === "1";
+        if (freezeFromUrl) {
+            this.freezeManager.setFrozen(true, { broadcast: false });
+        } else {
+            this.freezeManager.init();
+        }
 
         const title = DeckLoader.getDisplayTitle(this.deck);
         document.title = title;
