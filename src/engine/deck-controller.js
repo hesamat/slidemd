@@ -4,6 +4,7 @@ import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
+import { FreezeManager } from "./freeze-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { RoleManager } from "./role-manager.js";
@@ -40,6 +41,7 @@ export class DeckController extends EventEmitter {
         this.initReloadManager();
         this.initKeyboardHandler();
         this.initBreakManager();
+        this.initFreezeManager();
         this.setupEventListeners();
     }
 
@@ -75,6 +77,7 @@ export class DeckController extends EventEmitter {
         this.reloadManager = new ReloadManager(this.deck, this.elements, {
             slideNavigator: this.slideNavigator,
             breakManager: null, // Will be set after breakManager is initialized
+            freezeManager: null, // Will be set after freezeManager is initialized
             getDeckId: getDeckId
         });
         // Listen for deck changes
@@ -118,6 +121,20 @@ export class DeckController extends EventEmitter {
         }
     }
 
+    initFreezeManager() {
+        this.freezeManager = new FreezeManager(this.deck, this.elements, (state) => {
+            this.dispatchEvent('freezechange', state);
+        });
+        // Set freezeManager on slideNavigator
+        if (this.slideNavigator) {
+            this.slideNavigator.setFreezeManager(this.freezeManager);
+        }
+        // Set freezeManager on reloadManager
+        if (this.reloadManager) {
+            this.reloadManager.freezeManager = this.freezeManager;
+        }
+    }
+
     async init() {
         const url = new URL(window.location.href);
         const hash = window.location.hash.match(/#slide-(\d+)/);
@@ -136,6 +153,8 @@ export class DeckController extends EventEmitter {
 
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
+
+        this.freezeManager.setFrozen(url.searchParams.get("freeze") === "1", { broadcast: false });
 
         const title = DeckLoader.getDisplayTitle(this.deck);
         document.title = title;
@@ -186,6 +205,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.openViewerBtn, "click", () => this.roleManager.openViewerWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
+        listen(this.elements.freezeBtn, "click", () => this.freezeManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
         listen(this.elements.themeToggleBtn, "click", () => ThemeManager.toggleTheme());
 
@@ -309,6 +329,7 @@ export class DeckController extends EventEmitter {
     destroy() {
         if (this.reloadManager) this.reloadManager.destroy();
         if (this.breakManager) this.breakManager.destroy();
+        if (this.freezeManager) this.freezeManager.destroy();
         if (this.roleManager) this.roleManager.destroy();
         this.removeAllListeners();
     }
