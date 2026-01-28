@@ -38,8 +38,8 @@ export class DeckController extends EventEmitter {
         this.initSlideNavigator();
         this.initRoleManager();
         this.initReloadManager();
-        this.initKeyboardHandler();
         this.initBreakManager();
+        this.initKeyboardHandler();
         this.setupEventListeners();
     }
 
@@ -82,10 +82,7 @@ export class DeckController extends EventEmitter {
             this.deck = e.deck;
             this.dispatchEvent('deckchange', e);
         });
-        // Initialize the broadcast channel
-        this.reloadManager.initBroadcastChannel();
-        // Store reference to bc for backward compatibility
-        this.bc = this.reloadManager.getBroadcastChannel();
+        // Note: broadcast channel initialized later, after breakManager exists
     }
 
     initKeyboardHandler() {
@@ -119,6 +116,11 @@ export class DeckController extends EventEmitter {
     }
 
     async init() {
+        // Initialize broadcast channel after breakManager is ready
+        this.reloadManager.initBroadcastChannel();
+        // Store reference to bc for backward compatibility
+        this.bc = this.reloadManager.getBroadcastChannel();
+
         const url = new URL(window.location.href);
         const hash = window.location.hash.match(/#slide-(\d+)/);
         const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
