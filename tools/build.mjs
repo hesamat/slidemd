@@ -320,6 +320,7 @@ function prismComponentForLang(lang) {
         clike: "clike",
         markdown: "markdown",
         makefile: "makefile",
+        cmake: "cmake",
     };
     return map[l] || null;
 }
