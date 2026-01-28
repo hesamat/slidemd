@@ -302,11 +302,6 @@
     max-height: 100% !important;
 }
 
-.slide__area .mermaid text {
-    font-weight: 500 !important;
-    font-size: 1.6rem !important;
-}
-
 /* --- KaTeX Math --- */
 .slide__area .katex {
     font-size: 1.12em;
@@ -340,23 +335,109 @@
 .slide__area table {
     width: 100%;
     border-collapse: collapse;
-    margin: var(--slide-rhythm) 0;
-    background: var(--bg-subtle);
-    box-shadow: 0 2px 12px rgba(2, 6, 23, 0.06);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
+    background: transparent;
+    border-spacing: 0;
+    font-size: 0.9em;
+    border-radius: 8px;
+    /* Allow wide tables to scroll without overflowing the slide */
+    display: block;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-.slide__area th,
-.slide__area td {
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    padding: 0.5em 1em;
+/* Table caption */
+.slide__area table caption {
     text-align: left;
+    font-size: 0.9em;
+    color: var(--slide-muted);
+    padding: 6px 12px 0 12px;
 }
 
-.slide__area th {
-    background: rgba(15, 23, 42, 0.08);
-    font-weight: 700;
+/* Styling the Header (sticky on scroll) */
+.slide__area thead th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--slide-muted, #cbd5e1);
+    color: var(--slide-ink, #1e293b);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.05em;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--slide-bg);
+    backdrop-filter: saturate(1.05) blur(2px);
+}
+
+/* Styling the Cells */
+.slide__area tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--slide-muted, #475569);
+    vertical-align: top;
+    white-space: normal;
+    word-break: break-word;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+/* Remove border from last row */
+.slide__area tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Zebra striping (light/dark aware) */
+.slide:not([data-theme]) .slide__area tbody tr:nth-child(odd) td,
+.slide[data-theme="light"] .slide__area tbody tr:nth-child(odd) td {
+    background: rgba(2, 6, 23, 0.02);
+}
+
+.slide[data-theme="dark"] .slide__area tbody tr:nth-child(odd) td {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+/* Row Hover & Focus */
+.slide__area tbody tr:hover td,
+.slide__area tbody tr:focus-within td {
+    color: var(--slide-ink);
+    background: color-mix(in srgb, var(--accent-decoration) 6%, transparent);
+}
+
+/* Make rows keyboard-focusable if markup allows (tabindex on tr) */
+.slide__area tbody tr:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Small screens: stack cells if needed (improves readability) */
+@media (max-width: 640px) {
+
+    .slide__area table,
+    .slide__area thead,
+    .slide__area tbody,
+    .slide__area th,
+    .slide__area td,
+    .slide__area tr {
+        display: block;
+        width: 100%;
+    }
+
+    .slide__area thead {
+        /* keep header labels visible above rows */
+        position: relative;
+    }
+
+    .slide__area tbody tr {
+        margin-bottom: 12px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: transparent;
+    }
+
+    .slide__area tbody td {
+        padding: 10px 12px;
+        border-bottom: none;
+    }
 }
 
 /* --- Cards Layout --- */
