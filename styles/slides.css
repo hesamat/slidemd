@@ -335,10 +335,8 @@
 .slide__area table {
     width: 100%;
     border-collapse: collapse;
-    background: transparent;
     border-spacing: 0;
     font-size: 0.9em;
-    border-radius: 8px;
     /* Allow wide tables to scroll without overflowing the slide */
     display: block;
     overflow: auto;
@@ -371,6 +369,11 @@
 }
 
 /* Styling the Cells */
+.slide__area tbody {
+    background: var(--slide-bg);
+    border-radius: 8px;
+}
+
 .slide__area tbody td {
     padding: 12px 16px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
