@@ -91,9 +91,6 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         if (elements.menuOpenFileBtn && elements.fileInput) {
             DeckLoader.setupLocalFileHandler(elements.menuOpenFileBtn, elements.fileInput);
         }
-        if (elements.menuOpenRemoteBtn) {
-            DeckLoader.setupRemoteFileHandler(elements.menuOpenRemoteBtn);
-        }
 
         // 4. Update UI Initial State
         DeckController.updateSlideCount(elements, deck.slides.length);

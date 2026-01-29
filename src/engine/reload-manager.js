@@ -67,38 +67,31 @@ export class ReloadManager extends EventEmitter {
             }
         }
 
-        const url = new URL(window.location.href);
-        const deckUrl = url.searchParams.get("url");
         try {
             let raw;
-            if (deckUrl) {
-                raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
-                this.broadcastReload();
-            } else {
-                // Try file handle first
-                try {
-                    const deckId = this.getDeckId(this.deck);
-                    raw = await DeckLoader.reloadFromFileHandle(deckId);
-                } catch (e) {
-                    console.log('[Reload] File handle check failed:', e.message);
-                    raw = null;
+            // Try file handle first
+            try {
+                const deckId = this.getDeckId(this.deck);
+                raw = await DeckLoader.reloadFromFileHandle(deckId);
+            } catch (e) {
+                console.log('[Reload] File handle check failed:', e.message);
+                raw = null;
+            }
+
+            // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+            if (!raw) {
+                const hasLocalData = localStorage.getItem("webdeck_local_file");
+
+                if (!hasLocalData) {
+                    // No localStorage data and no file handle - reload the page to get the default deck
+                    console.log('[Reload] No file loaded, reloading page to get default deck');
+                    window.location.reload();
+                    return;
                 }
 
-                // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+                raw = await DeckLoader.loadFromLocalStorage();
                 if (!raw) {
-                    const hasLocalData = localStorage.getItem("webdeck_local_file");
-
-                    if (!hasLocalData) {
-                        // No localStorage data and no file handle - reload the page to get the default deck
-                        console.log('[Reload] No file loaded, reloading page to get default deck');
-                        window.location.reload();
-                        return;
-                    }
-
-                    raw = await DeckLoader.loadFromLocalStorage();
-                    if (!raw) {
-                        throw new Error("Failed to parse the stored file. Check the markdown syntax.");
-                    }
+                    throw new Error("Failed to parse the stored file. Check the markdown syntax.");
                 }
             }
 
@@ -222,19 +215,13 @@ export class ReloadManager extends EventEmitter {
         channel.onmessage = async (ev) => {
             if (ev.data?.type === "reload") {
                 window.location.hash = "";
-                if (ev.data.url) {
-                    const newUrl = new URL(window.location.href);
-                    newUrl.searchParams.set("url", ev.data.url);
-                    window.location.href = newUrl.toString();
+                const controller = window.__WEBDECK_CONTROLLER__;
+                if (controller && controller.reloadManager) {
+                    await controller.reloadManager.handleReloadDeck({ preferLocalStorage: true });
+                } else if (controller) {
+                    await controller.handleReloadDeck({ preferLocalStorage: true });
                 } else {
-                    const controller = window.__WEBDECK_CONTROLLER__;
-                    if (controller && controller.reloadManager) {
-                        await controller.reloadManager.handleReloadDeck({ preferLocalStorage: true });
-                    } else if (controller) {
-                        await controller.handleReloadDeck({ preferLocalStorage: true });
-                    } else {
-                        window.location.reload();
-                    }
+                    window.location.reload();
                 }
             }
         };

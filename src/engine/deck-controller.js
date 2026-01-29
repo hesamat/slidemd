@@ -193,7 +193,6 @@ export class DeckController extends EventEmitter {
 
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
-        listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
         listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });

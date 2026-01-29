@@ -48,7 +48,6 @@ export class ElementGatherer {
             menuBtn: $("menuBtn"),
             menuDropdown: $("menuDropdown"),
             menuOpenFileBtn: $("menuOpenFileBtn"),
-            menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuPrintBtn: $("menuPrintBtn"),
             menuExportHtmlBtn: $("menuExportHtmlBtn"),
