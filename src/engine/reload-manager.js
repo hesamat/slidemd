@@ -130,7 +130,7 @@ export class ReloadManager extends EventEmitter {
 
     /**
      * Broadcasts the deck data to viewer windows.
-     * Called by the presenter window after loading the deck.
+     * Called by the editor window after loading the deck.
      * @param {Object} deck - The deck object to broadcast
      */
     broadcastDeckData(deck) {
