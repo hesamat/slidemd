@@ -608,7 +608,7 @@ html = html.replace(
 );
 
 // Always remove presenter mode elements from the output
-// Remove elements with id 'presenterPanel', 'viewerOnlyControls', 'controlBar' from the HTML
+// Remove elements with id 'presenterPanel', 'editorOnlyControls', 'controlBar' from the HTML
 // This function handles nested tags correctly by counting depth
 function removeElementById(htmlText, elementId) {
     const idRegex = new RegExp(`<([a-zA-Z0-9]+)([^>]*\\bid=["']${elementId}["'][^>]*)>`, "gi");
@@ -673,7 +673,7 @@ function removeElementById(htmlText, elementId) {
 // Remove all presenter mode elements
 html = removeElementById(html, "presenterPanel");
 html = removeElementById(html, "controlBar");
-html = removeElementById(html, "viewerOnlyControls");
+html = removeElementById(html, "editorOnlyControls");
 // Optionally, hide any remaining with CSS if dynamic content remains
 html = html.replace(/(<style>)/i, `$1\n#presenter, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
 

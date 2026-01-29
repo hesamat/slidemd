@@ -36,7 +36,7 @@ export class ElementGatherer {
 
             // Presenter / Modes
             presenterPanel: $("presenterPanel"),
-            openViewerBtn: $("openViewerBtn"),
+            presentBtn: $("presentBtn"),
             toggleEditModeBtn: $("toggleEditModeBtn"),
             toggleFullscreenBtn: $("toggleFullscreenBtn"),
 

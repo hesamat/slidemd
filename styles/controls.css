@@ -9,7 +9,7 @@
     display: none;
 }
 
-html[data-webdeck-role="presenter"] .topbar {
+html[data-webdeck-role="editor"] .topbar {
     position: fixed;
     top: 0;
     left: 0;

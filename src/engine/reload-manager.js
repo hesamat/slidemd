@@ -205,7 +205,7 @@ export class ReloadManager extends EventEmitter {
         this.dispatchEvent('deckchange', { deck: newDeck });
 
         // Broadcast deck data to viewer windows
-        if (RoleManager.isPresenterMode()) {
+        if (RoleManager.isEditorMode()) {
             this.broadcastDeckData(newDeck);
         }
     }

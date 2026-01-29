@@ -139,7 +139,7 @@ Use these preset names (defined in [src/data/layout-data.js](src/data/layout-dat
 - `F`: Toggle fullscreen for the stage
 
 ### Presenter Panel Only
-- `V`: Open viewer window (present)
+- `P`: Toggle viewer window (present)
 - `E`: Toggle edit mode
 - `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
 - `R`: Reload the deck

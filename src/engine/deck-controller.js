@@ -92,7 +92,7 @@ export class DeckController extends EventEmitter {
             first: () => this.slideNavigator.goTo(0),
             last: () => this.slideNavigator.goTo(this.deck.slides.length - 1),
             goto: () => this.slideNavigator.openGoToPrompt(),
-            viewer: () => this.roleManager.openViewerWindow(),
+            viewer: () => this.roleManager.togglePresentWindow(),
             edit: () => this.toggleEditMode(),
             break: () => this.breakManager.toggle(),
             fullscreen: () => this.toggleFullscreen(),
@@ -100,7 +100,7 @@ export class DeckController extends EventEmitter {
             theme: () => ThemeManager.toggleTheme(),
             isBreakActive: () => this.breakManager.isActive,
             endBreak: () => this.breakManager.setActive(false),
-            isPresenterWindow: () => this.roleManager.isPresenterWindow,
+            isEditorWindow: () => this.roleManager.isEditorWindow,
             isEmbedded: isEmbedded
         });
     }
@@ -187,7 +187,7 @@ export class DeckController extends EventEmitter {
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
 
-        listen(this.elements.openViewerBtn, "click", () => this.roleManager.openViewerWindow());
+        listen(this.elements.presentBtn, "click", () => this.roleManager.togglePresentWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
@@ -271,7 +271,7 @@ export class DeckController extends EventEmitter {
             this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${this.deck.slides.length}`;
         }
 
-        if (this.roleManager.isPresenterWindow) {
+        if (this.roleManager.isEditorWindow) {
             const next = this.deck.slides[this.slideNavigator.currentIndex + 1];
             const slide = this.deck.slides[this.slideNavigator.currentIndex];
             if (this.elements.nextPreview) {
