@@ -141,9 +141,7 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
 
         // 10. Broadcast deck data to viewer windows (presenter only)
         if (!isViewer) {
-            const channel = new BroadcastChannel("webdeck-deck");
-            channel.postMessage({ type: "deck", deck });
-            channel.close();
+            controller.reloadManager.broadcastDeckData(deck);
         }
 
         return controller;
