@@ -141,11 +141,11 @@ export class ReloadManager extends EventEmitter {
 
     /**
      * Initializes the presenter's deck request listener using request-response pattern.
-     * The presenter listens for "request-deck" messages from viewers and responds with deck data.
+     * The editor listens for "request-deck" messages from viewers and responds with deck data.
      * This ensures viewers can get deck data even if they open after the presenter.
      * Called by the presenter window after loading the deck.
      */
-    initPresenterDeckListener() {
+    initEditorDeckListener() {
         if (RoleManager.isViewerMode()) return;
 
         // Close existing channel if it exists

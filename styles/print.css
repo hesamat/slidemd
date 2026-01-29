@@ -38,7 +38,7 @@
         overflow: visible !important;
     }
 
-    /* In presenter mode the app adds a top padding for the fixed topbar.
+    /* In editor mode the app adds a top padding for the fixed topbar.
        For print/PDF we hide the topbar, so remove the padding to keep pages aligned. */
     html[data-webdeck-role="editor"] .main {
         padding-top: 0 !important;

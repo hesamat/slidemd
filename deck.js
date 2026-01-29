@@ -86,7 +86,7 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
 
         // 1. Load & Normalize Data
         // Exported files (HTML/PDF) and non-viewer windows load normally
-        // Viewer windows receive deck data via broadcast from presenter
+        // Viewer windows receive deck data via broadcast from editor
         const deck = (isViewer && !isExported)
             ? await DeckLoader.loadDeckDataFromBroadcast()
             : await DeckLoader.loadDeckData();
@@ -138,9 +138,9 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
             ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch(e => console.warn(e));
         }
 
-        // 10. Setup deck data communication (presenter listens for viewer requests)
+        // 10. Setup deck data communication (editor listens for viewer requests)
         if (!isViewer) {
-            controller.reloadManager.initPresenterDeckListener();
+            controller.reloadManager.initEditorDeckListener();
         }
 
         return controller;
