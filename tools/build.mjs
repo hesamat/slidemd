@@ -698,5 +698,8 @@ if (usesKatex) {
     console.log(`Added KaTeX auto-render initialization`);
 }
 
+// Mark this as an exported build (for deck.js to skip broadcast-based loading)
+html = html.replace(/<\/head>/i, '<script>window.__WEBDECK_EXPORTED__=true;</script></head>');
+
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

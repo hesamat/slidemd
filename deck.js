@@ -83,10 +83,12 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
     async function init() {
         const url = new URL(window.location.href);
         const isViewer = url.searchParams.get("role") === "viewer";
+        const isExported = window.__WEBDECK_EXPORTED__;
 
         // 1. Load & Normalize Data
+        // Exported files (HTML/PDF) and non-viewer windows load normally
         // Viewer windows receive deck data via broadcast from presenter
-        const deck = isViewer
+        const deck = (isViewer && !isExported)
             ? await DeckLoader.loadDeckDataFromBroadcast()
             : await DeckLoader.loadDeckData();
 
