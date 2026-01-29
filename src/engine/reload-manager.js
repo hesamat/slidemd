@@ -8,6 +8,7 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { UiActions } from "../ui/ui-actions.js";
+import { RoleManager } from "./role-manager.js";
 
 export class ReloadManager extends EventEmitter {
     /**
@@ -29,6 +30,7 @@ export class ReloadManager extends EventEmitter {
         this.breakManager = options.breakManager;
         this.getDeckId = options.getDeckId || (() => "webdeck");
         this.bc = null;
+        this.deckChannel = null;
     }
 
     /**
@@ -47,7 +49,28 @@ export class ReloadManager extends EventEmitter {
     }
 
     /**
-     * Handles deck reloading from URL, file handle, or localStorage.
+     * Initializes the deck data channel for receiving deck updates from editor.
+     * Only used by viewer windows.
+     */
+    initDeckDataChannel() {
+        if (!RoleManager.isViewerMode()) return;
+
+        // Close existing channel if it exists
+        if (this.deckChannel) {
+            this.deckChannel.close();
+        }
+
+        this.deckChannel = new BroadcastChannel("webdeck-deck");
+        this.deckChannel.onmessage = async (ev) => {
+            if (ev.data?.type === "deck") {
+                const newDeck = ev.data.deck;
+                await this.replaceDeck(newDeck, { startAtFirstSlide: false });
+            }
+        };
+    }
+
+    /**
+     * Handles deck reloading from file handle or localStorage.
      * @param {Object} options - Optional parameters
      * @param {boolean} options.preferLocalStorage - Whether to prefer localStorage over file handle
      * @param {boolean} options.skipConfirmation - Whether to skip the unsaved changes confirmation
@@ -67,38 +90,31 @@ export class ReloadManager extends EventEmitter {
             }
         }
 
-        const url = new URL(window.location.href);
-        const deckUrl = url.searchParams.get("url");
         try {
             let raw;
-            if (deckUrl) {
-                raw = await DeckLoader.loadFromUrl(deckUrl, { bypassCache: true });
-                this.broadcastReload();
-            } else {
-                // Try file handle first
-                try {
-                    const deckId = this.getDeckId(this.deck);
-                    raw = await DeckLoader.reloadFromFileHandle(deckId);
-                } catch (e) {
-                    console.log('[Reload] File handle check failed:', e.message);
-                    raw = null;
+            // Try file handle first
+            try {
+                const deckId = this.getDeckId(this.deck);
+                raw = await DeckLoader.reloadFromFileHandle(deckId);
+            } catch (e) {
+                console.log('[Reload] File handle check failed:', e.message);
+                raw = null;
+            }
+
+            // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+            if (!raw) {
+                const hasLocalData = localStorage.getItem("webdeck_local_file");
+
+                if (!hasLocalData) {
+                    // No localStorage data and no file handle - reload the page to get the default deck
+                    console.log('[Reload] No file loaded, reloading page to get default deck');
+                    window.location.reload();
+                    return;
                 }
 
-                // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+                raw = await DeckLoader.loadFromLocalStorage();
                 if (!raw) {
-                    const hasLocalData = localStorage.getItem("webdeck_local_file");
-
-                    if (!hasLocalData) {
-                        // No localStorage data and no file handle - reload the page to get the default deck
-                        console.log('[Reload] No file loaded, reloading page to get default deck');
-                        window.location.reload();
-                        return;
-                    }
-
-                    raw = await DeckLoader.loadFromLocalStorage();
-                    if (!raw) {
-                        throw new Error("Failed to parse the stored file. Check the markdown syntax.");
-                    }
+                    throw new Error("Failed to parse the stored file. Check the markdown syntax.");
                 }
             }
 
@@ -110,6 +126,40 @@ export class ReloadManager extends EventEmitter {
             console.error("Reload failed:", err);
             Notification.error("Failed to reload deck: " + err.message);
         }
+    }
+
+    /**
+     * Broadcasts the deck data to viewer windows.
+     * Called by the editor window after loading the deck.
+     * @param {Object} deck - The deck object to broadcast
+     */
+    broadcastDeckData(deck) {
+        const channel = new BroadcastChannel("webdeck-deck");
+        channel.postMessage({ type: "deck", deck });
+        channel.close();
+    }
+
+    /**
+     * Initializes the presenter's deck request listener using request-response pattern.
+     * The editor listens for "request-deck" messages from viewers and responds with deck data.
+     * This ensures viewers can get deck data even if they open after the presenter.
+     * Called by the presenter window after loading the deck.
+     */
+    initEditorDeckListener() {
+        if (RoleManager.isViewerMode()) return;
+
+        // Close existing channel if it exists
+        if (this.deckChannel) {
+            this.deckChannel.close();
+        }
+
+        this.deckChannel = new BroadcastChannel("webdeck-deck");
+        this.deckChannel.onmessage = (ev) => {
+            if (ev.data?.type === "request-deck") {
+                // Respond to viewer's request with current deck data
+                this.deckChannel.postMessage({ type: "deck", deck: this.deck });
+            }
+        };
     }
 
     /**
@@ -153,6 +203,11 @@ export class ReloadManager extends EventEmitter {
         this.initBroadcastChannel();
         this.slideNavigator.goTo(visibleIndex, { broadcast: false });
         this.dispatchEvent('deckchange', { deck: newDeck });
+
+        // Broadcast deck data to viewer windows
+        if (RoleManager.isEditorMode()) {
+            this.broadcastDeckData(newDeck);
+        }
     }
 
     /**
@@ -222,19 +277,13 @@ export class ReloadManager extends EventEmitter {
         channel.onmessage = async (ev) => {
             if (ev.data?.type === "reload") {
                 window.location.hash = "";
-                if (ev.data.url) {
-                    const newUrl = new URL(window.location.href);
-                    newUrl.searchParams.set("url", ev.data.url);
-                    window.location.href = newUrl.toString();
+                const controller = window.__WEBDECK_CONTROLLER__;
+                if (controller && controller.reloadManager) {
+                    await controller.reloadManager.handleReloadDeck({ preferLocalStorage: true });
+                } else if (controller) {
+                    await controller.handleReloadDeck({ preferLocalStorage: true });
                 } else {
-                    const controller = window.__WEBDECK_CONTROLLER__;
-                    if (controller && controller.reloadManager) {
-                        await controller.reloadManager.handleReloadDeck({ preferLocalStorage: true });
-                    } else if (controller) {
-                        await controller.handleReloadDeck({ preferLocalStorage: true });
-                    } else {
-                        window.location.reload();
-                    }
+                    window.location.reload();
                 }
             }
         };
@@ -246,6 +295,7 @@ export class ReloadManager extends EventEmitter {
      */
     destroy() {
         if (this.bc) this.bc.close();
+        if (this.deckChannel) this.deckChannel.close();
         this.removeAllListeners();
         this.deck = null;
         this.elements = null;

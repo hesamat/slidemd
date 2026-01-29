@@ -1,10 +1,10 @@
 /**
  * DeckLoader
- * Loads deck data from embedded HTML, local files, or remote sources.
+ * Loads deck data from embedded HTML or local files.
  */
 import { AssetLoader } from "../core/asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
-import { safeString, getDeckId, DESIGN_SIZE, yieldToMain } from "../core/utils.js";
+import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
 import { Notification } from "../renderer/notification.js";
 
 export class DeckLoader {
@@ -12,15 +12,6 @@ export class DeckLoader {
     static getDisplayTitle(deck) {
         const localFileName = localStorage.getItem("webdeck_local_file_name");
         if (localFileName) return localFileName;
-
-        const urlParam = new URL(window.location.href).searchParams.get("url");
-        if (urlParam) {
-            try {
-                const pathParts = new URL(urlParam).pathname.split('/');
-                const fileName = pathParts[pathParts.length - 1];
-                if (fileName && fileName !== '/') return fileName;
-            } catch { /* invalid url */ }
-        }
 
         return safeString(deck?.meta?.title) || "Slide Deck";
     }
@@ -34,23 +25,6 @@ export class DeckLoader {
 
     static get supportsFileSystemAPI() {
         return 'showOpenFilePicker' in window;
-    }
-
-    static async loadFromUrl(url, options = {}) {
-        const { bypassCache = false } = options;
-        const fetchUrl = bypassCache ? this.addCacheBuster(url) : url;
-
-        if (url.toLowerCase().endsWith(".md")) {
-            await AssetLoader.ensureMarkdownItLoaded();
-            const mdText = await this.fetchText(fetchUrl, { cache: "no-cache" });
-
-            // Yield if file is large to allow UI to update
-            if (mdText.length > 50000) await yieldToMain();
-
-            return new MarkdownParser().parseDeckMarkdown(mdText);
-        } else {
-            throw new Error("Unsupported file type. Please use .md files.");
-        }
     }
 
     static async loadFromFileHandle(fileHandle) {
@@ -69,25 +43,10 @@ export class DeckLoader {
         }
     }
 
-    static addCacheBuster(url) {
-        const hasQuery = url.indexOf('?') !== -1;
-        const separator = hasQuery ? '&' : '?';
-        return `${url}${separator}_t=${Date.now()}`;
-    }
-
-    static async fetchText(url, { cache = "default", timeoutMs = 8000 } = {}) {
-        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-        const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-
-        try {
-            const res = await fetch(url, { cache, signal: controller?.signal });
-            if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
-            return await res.text();
-        } catch (e) {
-            throw new Error(`Failed to load ${url}: ${e.message || String(e)}`);
-        } finally {
-            if (timer) clearTimeout(timer);
-        }
+    static async fetchText(url, options = {}) {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+        return await res.text();
     }
 
     static async loadDeckData() {
@@ -99,12 +58,10 @@ export class DeckLoader {
 
             if (localFile && fileType && timestamp) {
                 const age = Date.now() - parseInt(timestamp, 10);
-                const url = new URL(window.location.href);
-                const hasUrlParam = url.searchParams.get("url");
                 const reloadFlag = localStorage.getItem("webdeck_reload_flag");
 
-                // Logic: Load if fresh (30s), if reload requested, or if no URL param overrides it
-                if (age < 30000 || reloadFlag === "1" || !hasUrlParam) {
+                // Logic: Load if fresh (30s) or if reload requested
+                if (age < 30000 || reloadFlag === "1") {
                     if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
 
                     if (fileType === "md") {
@@ -116,19 +73,11 @@ export class DeckLoader {
         } catch (err) {
             console.error("loadDeckData: error loading from localStorage", err);
             // Don't delete localStorage data on any error - let it fall through
-            // to try other sources (URL, embedded, welcome deck)
+            // to try other sources (embedded, welcome deck)
             // Only clear localStorage explicitly when user loads a new file
         }
 
-        // 2. Try URL Param
-        try {
-            const urlParam = new URL(window.location.href).searchParams.get("url");
-            if (urlParam) {
-                return await this.loadFromUrl(urlParam, { bypassCache: true });
-            }
-        } catch { /* ignore */ }
-
-        // 3. Try Embedded JSON
+        // 2. Try Embedded JSON
         const embedded = document.getElementById("deckData");
         if (embedded?.textContent?.trim()) {
             try {
@@ -138,7 +87,7 @@ export class DeckLoader {
             }
         }
 
-        // 4. Default Welcome Deck (load example.md)
+        // 3. Default Welcome Deck (load example.md)
         return await this.getWelcomeDeck();
     }
 
@@ -264,25 +213,31 @@ export class DeckLoader {
         }
     }
 
-    static setupRemoteFileHandler(openRemoteBtn) {
-        openRemoteBtn.addEventListener("click", async () => {
-            const url = prompt("Enter remote file URL (.md):");
-            if (!url) return;
+    /**
+     * Loads deck data from broadcast channel using request-response pattern (for viewer windows).
+     * Sends a request to the editor window and waits for the deck data response.
+     * @param {number} timeoutMs - Timeout in milliseconds (default 5000)
+     * @returns {Promise<Object>} The deck data
+     */
+    static loadDeckDataFromBroadcast(timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+            const channel = new BroadcastChannel("webdeck-deck");
+            const timeout = setTimeout(() => {
+                channel.close();
+                reject(new Error("Timeout waiting for deck data from editor. Make sure the editor window is open."));
+            }, timeoutMs);
 
-            try {
-                await this.loadFromUrl(url); // Validate
+            // Set up listener for response
+            channel.onmessage = (ev) => {
+                if (ev.data?.type === "deck") {
+                    clearTimeout(timeout);
+                    channel.close();
+                    resolve(ev.data.deck);
+                }
+            };
 
-                const reloadChannel = new BroadcastChannel("webdeck-reload");
-                reloadChannel.postMessage({ type: "reload", url });
-                reloadChannel.close();
-
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.set("url", url);
-                newUrl.hash = "";
-                window.location.href = newUrl.toString();
-            } catch (err) {
-                Notification.error("Failed to load remote file: " + err.message);
-            }
+            // Send request for deck data
+            channel.postMessage({ type: "request-deck" });
         });
     }
 

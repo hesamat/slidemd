@@ -81,8 +81,15 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
     }
 
     async function init() {
+        const isViewer = RoleManager.isViewerMode();
+        const isExported = window.__WEBDECK_EXPORTED__;
+
         // 1. Load & Normalize Data
-        const deck = await DeckLoader.loadDeckData();
+        // Exported files (HTML/PDF) and non-viewer windows load normally
+        // Viewer windows receive deck data via broadcast from editor
+        const deck = (isViewer && !isExported)
+            ? await DeckLoader.loadDeckDataFromBroadcast()
+            : await DeckLoader.loadDeckData();
 
         // 2. Gather DOM Elements
         const elements = ElementGatherer.gatherElements();
@@ -90,9 +97,6 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         // 3. Setup File Handlers
         if (elements.menuOpenFileBtn && elements.fileInput) {
             DeckLoader.setupLocalFileHandler(elements.menuOpenFileBtn, elements.fileInput);
-        }
-        if (elements.menuOpenRemoteBtn) {
-            DeckLoader.setupRemoteFileHandler(elements.menuOpenRemoteBtn);
         }
 
         // 4. Update UI Initial State
@@ -134,6 +138,11 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
             ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch(e => console.warn(e));
         }
 
+        // 10. Setup deck data communication (editor listens for viewer requests)
+        if (!isViewer) {
+            controller.reloadManager.initEditorDeckListener();
+        }
+
         return controller;
     }
 
@@ -161,7 +170,7 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         // Skip auto-redirect for exported HTML files (marked with __WEBDECK_EXPORTED__)
         const url = new URL(window.location.href);
         if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect") && !window.__WEBDECK_EXPORTED__) {
-            url.searchParams.set("role", "presenter");
+            url.searchParams.set("role", "editor");
             window.location.href = url.toString();
             return;
         }

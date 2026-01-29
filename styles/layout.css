@@ -8,7 +8,7 @@
     overflow: hidden;
 }
 
-html[data-webdeck-role="presenter"] .main {
+html[data-webdeck-role="editor"] .main {
     padding-top: var(--topbar-h);
 }
 
