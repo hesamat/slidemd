@@ -36,7 +36,7 @@ export class ElementGatherer {
 
             // Presenter / Modes
             presenterPanel: $("presenterPanel"),
-            openViewerBtn: $("openViewerBtn"),
+            presentBtn: $("presentBtn"),
             toggleEditModeBtn: $("toggleEditModeBtn"),
             toggleFullscreenBtn: $("toggleFullscreenBtn"),
 
@@ -48,7 +48,6 @@ export class ElementGatherer {
             menuBtn: $("menuBtn"),
             menuDropdown: $("menuDropdown"),
             menuOpenFileBtn: $("menuOpenFileBtn"),
-            menuOpenRemoteBtn: $("menuOpenRemoteBtn"),
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuPrintBtn: $("menuPrintBtn"),
             menuExportHtmlBtn: $("menuExportHtmlBtn"),

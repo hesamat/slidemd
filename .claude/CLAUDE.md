@@ -41,17 +41,17 @@ For automated builds or CI/CD:
 
 **HTML Build:**
 ```bash
-npm run build -- path/to/deck.md
+npm run build
 ```
-- Outputs to `dist/deck.html` by default
+- Outputs to `dist/example.html` by default
 - Uses: [tools/build.mjs](tools/build.mjs)
 - Same as app export but CLI-based
 
 **PDF Export:**
 ```bash
-npm run pdf -- path/to/deck.md
+npm run pdf
 ```
-- Outputs to `dist/deck.pdf` using Playwright
+- Outputs to `dist/example.pdf` using Playwright
 - Uses: [tools/pdf.mjs](tools/pdf.mjs)
 - Generates deterministic, timestamped output if file is in use
 
@@ -74,7 +74,7 @@ npm run pdf -- path/to/deck.md
 ## Deck Authoring
 
 ### Default Location
-- [decks/deck.md](decks/deck.md) - Default deck content
+- [docs/example.md](docs/example.md) - Default deck content
 - To build a different deck, update the build.mjs argument
 
 ### Slide Syntax
@@ -139,7 +139,7 @@ Use these preset names (defined in [src/data/layout-data.js](src/data/layout-dat
 - `F`: Toggle fullscreen for the stage
 
 ### Presenter Panel Only
-- `V`: Open viewer window (present)
+- `P`: Toggle viewer window (present)
 - `E`: Toggle edit mode
 - `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
 - `R`: Reload the deck
@@ -160,7 +160,7 @@ Notes:
 
 ## Common Tasks
 - **Add a new layout preset**: Add to [src/data/layout-data.js](src/data/layout-data.js)
-- **Modify deck content**: Edit [decks/deck.md](decks/deck.md)
+- **Modify deck content**: Edit [docs/example.md](docs/example.md)
 - **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
 - **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
