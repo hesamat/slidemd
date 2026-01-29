@@ -221,12 +221,11 @@ export class DeckLoader {
      */
     static loadDeckDataFromBroadcast(timeoutMs = 5000) {
         return new Promise((resolve, reject) => {
+            const channel = new BroadcastChannel("webdeck-deck");
             const timeout = setTimeout(() => {
                 channel.close();
                 reject(new Error("Timeout waiting for deck data from presenter. Make sure the presenter window is open."));
             }, timeoutMs);
-
-            const channel = new BroadcastChannel("webdeck-deck");
             channel.onmessage = (ev) => {
                 if (ev.data?.type === "deck") {
                     clearTimeout(timeout);
