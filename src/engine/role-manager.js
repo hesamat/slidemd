@@ -15,6 +15,7 @@ export class RoleManager extends EventEmitter {
         this.elements = elements;
         this.isEditorWindow = false;
         this.viewerWindowRef = null;
+        this._windowCheckInterval = null;
     }
 
     /**
@@ -36,12 +37,14 @@ export class RoleManager extends EventEmitter {
         if (this.viewerWindowRef && !this.viewerWindowRef.closed) {
             this.viewerWindowRef.close();
             this.viewerWindowRef = null;
+            this._stopWindowCheck();
             this._updatePresentButton(false);
             return;
         }
         const url = new URL(window.location.href);
         url.searchParams.set("role", this.isEditorWindow ? "viewer" : "editor");
         this.viewerWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+        this._startWindowCheck();
         this._updatePresentButton(true);
     }
 
@@ -61,6 +64,30 @@ export class RoleManager extends EventEmitter {
         // Update aria-label for accessibility
         btn.setAttribute('aria-label', isWindowOpen ? 'Close viewer window' : 'Open viewer view');
         btn.setAttribute('title', isWindowOpen ? 'Close' : 'Present');
+    }
+
+    /**
+     * Start polling for viewer window closure.
+     */
+    _startWindowCheck() {
+        this._stopWindowCheck();
+        this._windowCheckInterval = setInterval(() => {
+            if (this.viewerWindowRef && this.viewerWindowRef.closed) {
+                this.viewerWindowRef = null;
+                this._stopWindowCheck();
+                this._updatePresentButton(false);
+            }
+        }, 500);
+    }
+
+    /**
+     * Stop polling for viewer window closure.
+     */
+    _stopWindowCheck() {
+        if (this._windowCheckInterval) {
+            clearInterval(this._windowCheckInterval);
+            this._windowCheckInterval = null;
+        }
     }
 
     /**
@@ -106,6 +133,7 @@ export class RoleManager extends EventEmitter {
      * Cleans up resources.
      */
     destroy() {
+        this._stopWindowCheck();
         this.removeAllListeners();
         this.elements = null;
         this.viewerWindowRef = null;
