@@ -43,8 +43,8 @@ export class DeckLoader {
         }
     }
 
-    static async fetchText(url) {
-        const res = await fetch(url);
+    static async fetchText(url, options = {}) {
+        const res = await fetch(url, options);
         if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
         return await res.text();
     }
