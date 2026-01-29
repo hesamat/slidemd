@@ -65,7 +65,7 @@ export class ReloadManager extends EventEmitter {
     }
 
     /**
-     * Handles deck reloading from URL, file handle, or localStorage.
+     * Handles deck reloading from file handle or localStorage.
      * @param {Object} options - Optional parameters
      * @param {boolean} options.preferLocalStorage - Whether to prefer localStorage over file handle
      * @param {boolean} options.skipConfirmation - Whether to skip the unsaved changes confirmation
