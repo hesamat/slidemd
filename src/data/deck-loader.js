@@ -214,8 +214,8 @@ export class DeckLoader {
     }
 
     /**
-     * Loads deck data from broadcast channel (for viewer windows).
-     * Waits for the presenter window to broadcast the deck data.
+     * Loads deck data from broadcast channel using request-response pattern (for viewer windows).
+     * Sends a request to the presenter window and waits for the deck data response.
      * @param {number} timeoutMs - Timeout in milliseconds (default 5000)
      * @returns {Promise<Object>} The deck data
      */
@@ -226,6 +226,8 @@ export class DeckLoader {
                 channel.close();
                 reject(new Error("Timeout waiting for deck data from presenter. Make sure the presenter window is open."));
             }, timeoutMs);
+            
+            // Set up listener for response
             channel.onmessage = (ev) => {
                 if (ev.data?.type === "deck") {
                     clearTimeout(timeout);
@@ -233,6 +235,9 @@ export class DeckLoader {
                     resolve(ev.data.deck);
                 }
             };
+            
+            // Send request for deck data
+            channel.postMessage({ type: "request-deck" });
         });
     }
 

@@ -138,9 +138,9 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
             ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch(e => console.warn(e));
         }
 
-        // 10. Broadcast deck data to viewer windows (presenter only)
+        // 10. Setup deck data communication (presenter listens for viewer requests)
         if (!isViewer) {
-            controller.reloadManager.broadcastDeckData(deck);
+            controller.reloadManager.initPresenterDeckListener();
         }
 
         return controller;
