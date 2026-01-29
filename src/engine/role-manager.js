@@ -52,6 +52,24 @@ export class RoleManager extends EventEmitter {
     }
 
     /**
+     * Checks if the current window is in presenter mode.
+     * @returns {boolean} True if presenter mode
+     */
+    static isPresenterMode() {
+        const url = new URL(window.location.href);
+        return url.searchParams.get("role") === "presenter";
+    }
+
+    /**
+     * Checks if the current window is in viewer mode.
+     * @returns {boolean} True if viewer mode
+     */
+    static isViewerMode() {
+        const url = new URL(window.location.href);
+        return url.searchParams.get("role") === "viewer";
+    }
+
+    /**
      * Initializes the role from URL and updates the UI.
      * This is a static initializer for app startup.
      */

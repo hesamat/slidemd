@@ -8,6 +8,7 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { UiActions } from "../ui/ui-actions.js";
+import { RoleManager } from "./role-manager.js";
 
 export class ReloadManager extends EventEmitter {
     /**
@@ -44,6 +45,23 @@ export class ReloadManager extends EventEmitter {
             if (ev.data?.type === "slide") this.slideNavigator?.handleIncomingState(ev.data.index);
             if (ev.data?.type === "break") this.breakManager?.handleIncomingState(ev.data);
         };
+    }
+
+    /**
+     * Initializes the deck data channel for receiving deck updates from presenter.
+     * Only used by viewer windows.
+     */
+    initDeckDataChannel() {
+        if (!RoleManager.isViewerMode()) return;
+
+        const deckChannel = new BroadcastChannel("webdeck-deck");
+        deckChannel.onmessage = async (ev) => {
+            if (ev.data?.type === "deck") {
+                const newDeck = ev.data.deck;
+                await this.replaceDeck(newDeck, { startAtFirstSlide: false });
+            }
+        };
+        return deckChannel;
     }
 
     /**
@@ -106,6 +124,17 @@ export class ReloadManager extends EventEmitter {
     }
 
     /**
+     * Broadcasts the deck data to viewer windows.
+     * Called by the presenter window after loading the deck.
+     * @param {Object} deck - The deck object to broadcast
+     */
+    broadcastDeckData(deck) {
+        const channel = new BroadcastChannel("webdeck-deck");
+        channel.postMessage({ type: "deck", deck });
+        channel.close();
+    }
+
+    /**
      * Replaces the current deck with a new one.
      * @param {Object} newDeck - The new deck object
      * @param {Object} options - Optional parameters
@@ -146,6 +175,11 @@ export class ReloadManager extends EventEmitter {
         this.initBroadcastChannel();
         this.slideNavigator.goTo(visibleIndex, { broadcast: false });
         this.dispatchEvent('deckchange', { deck: newDeck });
+
+        // Broadcast deck data to viewer windows
+        if (RoleManager.isPresenterMode()) {
+            this.broadcastDeckData(newDeck);
+        }
     }
 
     /**

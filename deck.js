@@ -81,8 +81,14 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
     }
 
     async function init() {
+        const url = new URL(window.location.href);
+        const isViewer = url.searchParams.get("role") === "viewer";
+
         // 1. Load & Normalize Data
-        const deck = await DeckLoader.loadDeckData();
+        // Viewer windows receive deck data via broadcast from presenter
+        const deck = isViewer
+            ? await DeckLoader.loadDeckDataFromBroadcast()
+            : await DeckLoader.loadDeckData();
 
         // 2. Gather DOM Elements
         const elements = ElementGatherer.gatherElements();
@@ -129,6 +135,13 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
         // 9. Apply enhancers to the CURRENT view in background (non-blocking)
         if (features.hasMermaid || features.hasMath || features.hasCode) {
             ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch(e => console.warn(e));
+        }
+
+        // 10. Broadcast deck data to viewer windows (presenter only)
+        if (!isViewer) {
+            const channel = new BroadcastChannel("webdeck-deck");
+            channel.postMessage({ type: "deck", deck });
+            channel.close();
         }
 
         return controller;

@@ -118,6 +118,8 @@ export class DeckController extends EventEmitter {
     async init() {
         // Initialize broadcast channel after breakManager is ready
         this.reloadManager.initBroadcastChannel();
+        // Initialize deck data channel for viewer windows
+        this.reloadManager.initDeckDataChannel();
         // Store reference to bc for backward compatibility
         this.bc = this.reloadManager.getBroadcastChannel();
 

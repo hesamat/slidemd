@@ -213,6 +213,38 @@ export class DeckLoader {
         }
     }
 
+    /**
+     * Loads deck data from broadcast channel (for viewer windows).
+     * Waits for the presenter window to broadcast the deck data.
+     * @param {number} timeoutMs - Timeout in milliseconds (default 5000)
+     * @returns {Promise<Object>} The deck data
+     */
+    static loadDeckDataFromBroadcast(timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+            const url = new URL(window.location.href);
+            const isViewer = url.searchParams.get("role") === "viewer";
+
+            if (!isViewer) {
+                reject(new Error("Broadcast loading is only for viewer windows"));
+                return;
+            }
+
+            const timeout = setTimeout(() => {
+                channel.close();
+                reject(new Error("Timeout waiting for deck data from presenter. Make sure the presenter window is open."));
+            }, timeoutMs);
+
+            const channel = new BroadcastChannel("webdeck-deck");
+            channel.onmessage = (ev) => {
+                if (ev.data?.type === "deck") {
+                    clearTimeout(timeout);
+                    channel.close();
+                    resolve(ev.data.deck);
+                }
+            };
+        });
+    }
+
     static async loadFromLocalStorage() {
         try {
             const localFile = localStorage.getItem("webdeck_local_file");
