@@ -30,6 +30,7 @@ export class ReloadManager extends EventEmitter {
         this.breakManager = options.breakManager;
         this.getDeckId = options.getDeckId || (() => "webdeck");
         this.bc = null;
+        this.deckChannel = null;
     }
 
     /**
@@ -54,14 +55,18 @@ export class ReloadManager extends EventEmitter {
     initDeckDataChannel() {
         if (!RoleManager.isViewerMode()) return;
 
-        const deckChannel = new BroadcastChannel("webdeck-deck");
-        deckChannel.onmessage = async (ev) => {
+        // Close existing channel if it exists
+        if (this.deckChannel) {
+            this.deckChannel.close();
+        }
+
+        this.deckChannel = new BroadcastChannel("webdeck-deck");
+        this.deckChannel.onmessage = async (ev) => {
             if (ev.data?.type === "deck") {
                 const newDeck = ev.data.deck;
                 await this.replaceDeck(newDeck, { startAtFirstSlide: false });
             }
         };
-        return deckChannel;
     }
 
     /**
@@ -267,6 +272,7 @@ export class ReloadManager extends EventEmitter {
      */
     destroy() {
         if (this.bc) this.bc.close();
+        if (this.deckChannel) this.deckChannel.close();
         this.removeAllListeners();
         this.deck = null;
         this.elements = null;
