@@ -224,7 +224,7 @@ export class DeckLoader {
             const channel = new BroadcastChannel("webdeck-deck");
             const timeout = setTimeout(() => {
                 channel.close();
-                reject(new Error("Timeout waiting for deck data from presenter. Make sure the presenter window is open."));
+                reject(new Error("Timeout waiting for deck data from editor. Make sure the editor window is open."));
             }, timeoutMs);
             
             // Set up listener for response
