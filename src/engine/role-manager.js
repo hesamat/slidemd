@@ -36,11 +36,31 @@ export class RoleManager extends EventEmitter {
         if (this.presenterWindowRef && !this.presenterWindowRef.closed) {
             this.presenterWindowRef.close();
             this.presenterWindowRef = null;
+            this._updatePresentButton(false);
             return;
         }
         const url = new URL(window.location.href);
         url.searchParams.set("role", this.isPresenterWindow ? "viewer" : "presenter");
         this.presenterWindowRef = window.open(url.toString(), "_blank", "width=1100,height=700");
+        this._updatePresentButton(true);
+    }
+
+    /**
+     * Update the present button text based on window state.
+     * @param {boolean} isWindowOpen - Whether the viewer window is open
+     */
+    _updatePresentButton(isWindowOpen) {
+        const btn = this.elements.openViewerBtn;
+        if (!btn) return;
+
+        const textSpan = btn.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = isWindowOpen ? 'Close' : 'Present';
+        }
+
+        // Update aria-label for accessibility
+        btn.setAttribute('aria-label', isWindowOpen ? 'Close viewer window' : 'Open viewer view');
+        btn.setAttribute('title', isWindowOpen ? 'Close' : 'Present');
     }
 
     /**
