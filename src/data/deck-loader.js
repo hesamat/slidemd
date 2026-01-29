@@ -221,14 +221,6 @@ export class DeckLoader {
      */
     static loadDeckDataFromBroadcast(timeoutMs = 5000) {
         return new Promise((resolve, reject) => {
-            const url = new URL(window.location.href);
-            const isViewer = url.searchParams.get("role") === "viewer";
-
-            if (!isViewer) {
-                reject(new Error("Broadcast loading is only for viewer windows"));
-                return;
-            }
-
             const timeout = setTimeout(() => {
                 channel.close();
                 reject(new Error("Timeout waiting for deck data from presenter. Make sure the presenter window is open."));
