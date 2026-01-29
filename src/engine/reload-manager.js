@@ -49,7 +49,7 @@ export class ReloadManager extends EventEmitter {
     }
 
     /**
-     * Initializes the deck data channel for receiving deck updates from presenter.
+     * Initializes the deck data channel for receiving deck updates from editor.
      * Only used by viewer windows.
      */
     initDeckDataChannel() {
