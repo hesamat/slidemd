@@ -140,6 +140,29 @@ export class ReloadManager extends EventEmitter {
     }
 
     /**
+     * Initializes the presenter's deck request listener using request-response pattern.
+     * The presenter listens for "request-deck" messages from viewers and responds with deck data.
+     * This ensures viewers can get deck data even if they open after the presenter.
+     * Called by the presenter window after loading the deck.
+     */
+    initPresenterDeckListener() {
+        if (RoleManager.isViewerMode()) return;
+
+        // Close existing channel if it exists
+        if (this.deckChannel) {
+            this.deckChannel.close();
+        }
+
+        this.deckChannel = new BroadcastChannel("webdeck-deck");
+        this.deckChannel.onmessage = (ev) => {
+            if (ev.data?.type === "request-deck") {
+                // Respond to viewer's request with current deck data
+                this.deckChannel.postMessage({ type: "deck", deck: this.deck });
+            }
+        };
+    }
+
+    /**
      * Replaces the current deck with a new one.
      * @param {Object} newDeck - The new deck object
      * @param {Object} options - Optional parameters
