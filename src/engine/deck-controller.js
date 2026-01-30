@@ -42,7 +42,6 @@ export class DeckController extends EventEmitter {
         this.initKeyboardHandler();
         this.initWheelHandler();
         this.initBreakManager();
-        this.initKeyboardHandler();
         this.setupEventListeners();
     }
 
