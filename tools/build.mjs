@@ -560,6 +560,7 @@ function buildBundleJs() {
         path.join(root, "src", "engine", "break-manager.js"),
         path.join(root, "src", "engine", "reload-manager.js"),
         path.join(root, "src", "engine", "deck-controller.js"),
+        path.join(root, "src", "engine", "freeze-manager.js"),
         // UI components
         path.join(root, "src", "ui", "ui-actions.js"),
         // Entry point
