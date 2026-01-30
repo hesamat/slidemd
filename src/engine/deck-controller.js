@@ -4,6 +4,7 @@ import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
+import { FreezeManager } from "./freeze-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { WheelHandler } from "./wheel-handler.js";
@@ -42,6 +43,7 @@ export class DeckController extends EventEmitter {
         this.initKeyboardHandler();
         this.initWheelHandler();
         this.initBreakManager();
+        this.initFreezeManager();
         this.setupEventListeners();
     }
 
@@ -77,6 +79,7 @@ export class DeckController extends EventEmitter {
         this.reloadManager = new ReloadManager(this.deck, this.elements, {
             slideNavigator: this.slideNavigator,
             breakManager: null, // Will be set after breakManager is initialized
+            freezeManager: null, // Will be set after freezeManager is initialized
             getDeckId: getDeckId
         });
         // Listen for deck changes
@@ -126,6 +129,19 @@ export class DeckController extends EventEmitter {
         }
     }
 
+    initFreezeManager() {
+        this.freezeManager = new FreezeManager(this.deck, this.elements, (state) => {
+            this.dispatchEvent('freezechange', state);
+        });
+        // Set freezeManager on slideNavigator and reloadManager
+        if (this.slideNavigator) {
+            this.slideNavigator.freezeManager = this.freezeManager;
+        }
+        if (this.reloadManager) {
+            this.reloadManager.freezeManager = this.freezeManager;
+        }
+    }
+
     async init() {
         // Initialize broadcast channel after breakManager is ready
         this.reloadManager.initBroadcastChannel();
@@ -151,6 +167,8 @@ export class DeckController extends EventEmitter {
 
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
+
+        // Note: Freeze state is not persisted or initialized from URL - it's temporary per session
 
         const title = DeckLoader.getDisplayTitle(this.deck);
         document.title = title;
@@ -202,6 +220,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.presentBtn, "click", () => this.roleManager.togglePresentWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
+        listen(this.elements.freezeBtn, "click", () => this.freezeManager.toggle());
         listen(this.elements.toggleFullscreenBtn, "click", () => this.toggleFullscreen());
         listen(this.elements.themeToggleBtn, "click", () => ThemeManager.toggleTheme());
 
@@ -328,6 +347,7 @@ export class DeckController extends EventEmitter {
     destroy() {
         if (this.reloadManager) this.reloadManager.destroy();
         if (this.breakManager) this.breakManager.destroy();
+        if (this.freezeManager) this.freezeManager.destroy();
         if (this.roleManager) this.roleManager.destroy();
         this.removeAllListeners();
     }

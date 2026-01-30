@@ -65,6 +65,18 @@
     color: var(--text-medium);
 }
 
+.presenter__sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.presenter__sectionHeader .presenter__sectionTitle {
+    margin: 0;
+    flex: 1;
+}
+
 .next-preview {
     border: 1px solid var(--border-medium);
     background: var(--surface-bg);

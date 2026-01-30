@@ -44,6 +44,9 @@ export class ElementGatherer {
             breakDurationSelect: $("breakDuration"),
             breakBtn: $("breakBtn"),
 
+            // Freeze
+            freezeBtn: $("freezeBtn"),
+
             // Menu
             menuBtn: $("menuBtn"),
             menuDropdown: $("menuDropdown"),

@@ -18,6 +18,7 @@ export class ReloadManager extends EventEmitter {
      * @param {Object} options - Configuration options
      * @param {SlideNavigator} options.slideNavigator - The slide navigator instance
      * @param {BreakManager} options.breakManager - The break manager instance
+     * @param {FreezeManager} options.freezeManager - The freeze manager instance
      * @param {Function} options.getDeckId - Function to get deck ID
      * @param {Function} options.updateDeckTitle - Function to update deck title UI
      * @param {Function} options.updateSlideCount - Function to update slide count UI
@@ -28,6 +29,7 @@ export class ReloadManager extends EventEmitter {
         this.elements = elements;
         this.slideNavigator = options.slideNavigator;
         this.breakManager = options.breakManager;
+        this.freezeManager = options.freezeManager;
         this.getDeckId = options.getDeckId || (() => "webdeck");
         this.bc = null;
         this.deckChannel = null;
@@ -41,10 +43,12 @@ export class ReloadManager extends EventEmitter {
         if (this.bc) this.bc.close();
         this.bc = new BroadcastChannel(getDeckId(this.deck));
         if (this.breakManager) this.breakManager.setBroadcastChannel(this.bc);
+        if (this.freezeManager) this.freezeManager.setBroadcastChannel(this.bc);
         if (this.slideNavigator) this.slideNavigator.setBroadcastChannel(this.bc);
         this.bc.onmessage = (ev) => {
             if (ev.data?.type === "slide") this.slideNavigator?.handleIncomingState(ev.data.index);
             if (ev.data?.type === "break") this.breakManager?.handleIncomingState(ev.data);
+            if (ev.data?.type === "freeze") this.freezeManager?.handleIncomingState(ev.data);
         };
     }
 
@@ -207,6 +211,11 @@ export class ReloadManager extends EventEmitter {
         if (this.breakManager) {
             this.breakManager.deck = newDeck;
             this.breakManager.breakStateKey = `webdeck:${this.getDeckId(newDeck)}:break`;
+        }
+
+        if (this.freezeManager) {
+            this.freezeManager.deck = newDeck;
+            this.freezeManager.freezeStateKey = `webdeck:${this.getDeckId(newDeck)}:freeze`;
         }
 
         const title = DeckLoader.getDisplayTitle(newDeck);

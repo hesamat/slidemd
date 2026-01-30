@@ -20,6 +20,7 @@ export class SlideNavigator extends EventEmitter {
         this.slideStateKey = options.slideStateKey || "webdeck:slide";
         this.broadcastChannel = options.broadcastChannel;
         this.isEditMode = options.isEditMode || (() => false);
+        this.freezeManager = null;
         this.currentIndex = 0;
     }
 
@@ -81,7 +82,9 @@ export class SlideNavigator extends EventEmitter {
         const visibleIndex = this.getVisibleIndex(index);
         this.currentIndex = visibleIndex;
 
-        if (broadcast) {
+        // Only broadcast if not frozen
+        const shouldBroadcast = broadcast && !(this.freezeManager?.isFrozen);
+        if (shouldBroadcast) {
             localStorage.setItem(this.slideStateKey, String(this.currentIndex));
             this.broadcastChannel?.postMessage({ type: "slide", index: this.currentIndex });
         }
