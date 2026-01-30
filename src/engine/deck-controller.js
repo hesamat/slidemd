@@ -7,6 +7,7 @@ import { BreakManager } from "./break-manager.js";
 import { FreezeManager } from "./freeze-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
+import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
@@ -40,6 +41,7 @@ export class DeckController extends EventEmitter {
         this.initRoleManager();
         this.initReloadManager();
         this.initKeyboardHandler();
+        this.initWheelHandler();
         this.initBreakManager();
         this.initFreezeManager();
         this.setupEventListeners();
@@ -85,10 +87,7 @@ export class DeckController extends EventEmitter {
             this.deck = e.deck;
             this.dispatchEvent('deckchange', e);
         });
-        // Initialize the broadcast channel
-        this.reloadManager.initBroadcastChannel();
-        // Store reference to bc for backward compatibility
-        this.bc = this.reloadManager.getBroadcastChannel();
+        // Note: broadcast channel initialized later, after breakManager exists
     }
 
     initKeyboardHandler() {
@@ -98,7 +97,7 @@ export class DeckController extends EventEmitter {
             first: () => this.slideNavigator.goTo(0),
             last: () => this.slideNavigator.goTo(this.deck.slides.length - 1),
             goto: () => this.slideNavigator.openGoToPrompt(),
-            viewer: () => this.roleManager.openViewerWindow(),
+            viewer: () => this.roleManager.togglePresentWindow(),
             edit: () => this.toggleEditMode(),
             break: () => this.breakManager.toggle(),
             fullscreen: () => this.toggleFullscreen(),
@@ -106,8 +105,17 @@ export class DeckController extends EventEmitter {
             theme: () => ThemeManager.toggleTheme(),
             isBreakActive: () => this.breakManager.isActive,
             endBreak: () => this.breakManager.setActive(false),
-            isPresenterWindow: () => this.roleManager.isPresenterWindow,
+            isEditorWindow: () => this.roleManager.isEditorWindow,
             isEmbedded: isEmbedded
+        });
+    }
+
+    initWheelHandler() {
+        this.wheelHandler = new WheelHandler({
+            next: () => this.slideNavigator.next(),
+            prev: () => this.slideNavigator.prev(),
+            isBreakActive: () => this.breakManager.isActive,
+            endBreak: () => this.breakManager.setActive(false)
         });
     }
 
@@ -136,6 +144,13 @@ export class DeckController extends EventEmitter {
     }
 
     async init() {
+        // Initialize broadcast channel after breakManager is ready
+        this.reloadManager.initBroadcastChannel();
+        // Initialize deck data channel for viewer windows
+        this.reloadManager.initDeckDataChannel();
+        // Store reference to bc for backward compatibility
+        this.bc = this.reloadManager.getBroadcastChannel();
+
         const url = new URL(window.location.href);
         const hash = window.location.hash.match(/#slide-(\d+)/);
         const stored = localStorage.getItem(this.SLIDE_STATE_KEY);
@@ -201,6 +216,7 @@ export class DeckController extends EventEmitter {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
         document.addEventListener("click", (e) => this.handleDocumentClick(e));
         document.addEventListener("fullscreenchange", () => this.applyStageScale());
         window.addEventListener("storage", (e) => this.handleStorage(e));
@@ -208,7 +224,7 @@ export class DeckController extends EventEmitter {
         window.addEventListener("beforeprint", () => this.handleBeforePrint());
         window.addEventListener("webdeck-load-local", (e) => this.handleLocalFileLoad(e));
 
-        listen(this.elements.openViewerBtn, "click", () => this.roleManager.openViewerWindow());
+        listen(this.elements.presentBtn, "click", () => this.roleManager.togglePresentWindow());
         listen(this.elements.printBtn, "click", () => this.handlePrint());
         listen(this.elements.breakBtn, "click", () => this.breakManager.toggle());
         listen(this.elements.freezeBtn, "click", () => this.freezeManager.toggle());
@@ -217,7 +233,6 @@ export class DeckController extends EventEmitter {
 
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
-        listen(this.elements.menuOpenRemoteBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
         listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });
@@ -239,6 +254,10 @@ export class DeckController extends EventEmitter {
 
     handleKeyboard(e) {
         this.keyboardHandler?.handleKeyboard(e);
+    }
+
+    handleWheel(e) {
+        this.wheelHandler?.handleWheel(e);
     }
 
     handleStorage(ev) {
@@ -294,7 +313,7 @@ export class DeckController extends EventEmitter {
             this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${this.deck.slides.length}`;
         }
 
-        if (this.roleManager.isPresenterWindow) {
+        if (this.roleManager.isEditorWindow) {
             const next = this.deck.slides[this.slideNavigator.currentIndex + 1];
             const slide = this.deck.slides[this.slideNavigator.currentIndex];
             if (this.elements.nextPreview) {

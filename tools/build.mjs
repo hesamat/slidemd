@@ -320,6 +320,7 @@ function prismComponentForLang(lang) {
         clike: "clike",
         markdown: "markdown",
         makefile: "makefile",
+        cmake: "cmake",
     };
     return map[l] || null;
 }
@@ -553,6 +554,7 @@ function buildBundleJs() {
         path.join(root, "src", "renderer", "print-manager.js"),
         // Engine components
         path.join(root, "src", "engine", "keyboard-handler.js"),
+        path.join(root, "src", "engine", "wheel-handler.js"),
         path.join(root, "src", "engine", "role-manager.js"),
         path.join(root, "src", "engine", "slide-navigator.js"),
         path.join(root, "src", "engine", "break-manager.js"),
@@ -607,7 +609,7 @@ html = html.replace(
 );
 
 // Always remove presenter mode elements from the output
-// Remove elements with id 'presenterPanel', 'viewerOnlyControls', 'controlBar' from the HTML
+// Remove elements with id 'presenterPanel', 'editorOnlyControls', 'controlBar' from the HTML
 // This function handles nested tags correctly by counting depth
 function removeElementById(htmlText, elementId) {
     const idRegex = new RegExp(`<([a-zA-Z0-9]+)([^>]*\\bid=["']${elementId}["'][^>]*)>`, "gi");
@@ -672,7 +674,7 @@ function removeElementById(htmlText, elementId) {
 // Remove all presenter mode elements
 html = removeElementById(html, "presenterPanel");
 html = removeElementById(html, "controlBar");
-html = removeElementById(html, "viewerOnlyControls");
+html = removeElementById(html, "editorOnlyControls");
 // Optionally, hide any remaining with CSS if dynamic content remains
 html = html.replace(/(<style>)/i, `$1\n#presenter, #presenterPanel, #topbar, #controlBar { display: none !important; }`);
 
@@ -696,6 +698,9 @@ if (usesKatex) {
     html = html.replace(/<\/head>/i, `${katexInitScript}</head>`);
     console.log(`Added KaTeX auto-render initialization`);
 }
+
+// Mark this as an exported build (for deck.js to skip broadcast-based loading)
+html = html.replace(/<\/head>/i, '<script>window.__WEBDECK_EXPORTED__=true;</script></head>');
 
 fs.writeFileSync(outHtml, html, "utf8");
 console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);

@@ -99,7 +99,7 @@ export class HtmlExportManager {
 
         const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
-#presenter, #presenterPanel, #topbar, #controlBar, #editorPanel, #viewerOnlyControls { display: none !important; }
+#presenter, #presenterPanel, #topbar, #controlBar, #editorPanel, #editorOnlyControls { display: none !important; }
 .main { display: flex !important; height: 100vh !important; width: 100vw !important; }
 .viewer { width: 100% !important; height: 100% !important; }
 `;
@@ -218,6 +218,7 @@ ${initScript}
             clike: "clike",
             markdown: "markdown",
             makefile: "makefile",
+            cmake: "cmake",
         };
         return map[l] || null;
     }

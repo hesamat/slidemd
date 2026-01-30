@@ -4,12 +4,17 @@
     flex-direction: column;
 }
 
-/* Top Bar - hidden by default, shown only in presenter role */
+/* Top Bar - hidden by default, shown only in editor role */
 .topbar {
     display: none;
 }
 
-html[data-webdeck-role="presenter"] .topbar {
+/* Editor-only controls - hidden by default, shown only in editor role */
+#editorOnlyControls {
+    display: none;
+}
+
+html[data-webdeck-role="editor"] .topbar {
     position: fixed;
     top: 0;
     left: 0;
@@ -24,6 +29,10 @@ html[data-webdeck-role="presenter"] .topbar {
     border-bottom: 1px solid var(--border-medium);
     background: var(--surface-bg);
     backdrop-filter: blur(14px);
+}
+
+html[data-webdeck-role="editor"] #editorOnlyControls {
+    display: contents;
 }
 
 .topbar__left {

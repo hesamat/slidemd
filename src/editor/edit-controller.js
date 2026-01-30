@@ -198,8 +198,8 @@ export class EditController {
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
 
-            // Restore presenter panel visibility based on presenter role
-            if (this.controller.roleManager.isPresenterWindow) {
+            // Restore presenter panel visibility based on editor role
+            if (this.controller.roleManager.isEditorWindow) {
                 this.elements.presenterPanel?.classList.remove('webdeck-hidden');
             }
 

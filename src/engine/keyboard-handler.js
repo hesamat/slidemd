@@ -13,7 +13,7 @@ export class KeyboardHandler {
         "b": "break", "B": "break",
         "f": "fullscreen", "F": "fullscreen",
         "r": "reload", "R": "reload",
-        "v": "viewer", "V": "viewer",
+        "p": "viewer", "P": "viewer",
         "d": "theme", "D": "theme"
     };
 
@@ -25,16 +25,16 @@ export class KeyboardHandler {
      * @param {Function} actions.first - Navigate to first slide
      * @param {Function} actions.last - Navigate to last slide
      * @param {Function} actions.goto - Open "go to slide" prompt
-     * @param {Function} actions.viewer - Open presenter/viewer window
-     * @param {Function} actions.edit - Toggle edit mode (presenter only)
-     * @param {Function} actions.break - Toggle break timer (presenter only)
+     * @param {Function} actions.viewer - Open viewer window
+     * @param {Function} actions.edit - Toggle edit mode (editor only)
+     * @param {Function} actions.break - Toggle break timer (editor only)
      * @param {Function} actions.fullscreen - Toggle fullscreen mode
      * @param {Function} actions.reload - Reload the deck
      * @param {Function} actions.theme - Toggle theme
      * @param {Function} actions.shouldPreventDefault - Optional callback to check if default should be prevented
      * @param {Function} actions.isBreakActive - Callback to check if break mode is active
      * @param {Function} actions.endBreak - Callback to end break mode
-     * @param {Function} actions.isPresenterWindow - Callback to check if current window is presenter
+     * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
      * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
      */
     constructor(actions) {
@@ -81,26 +81,26 @@ export class KeyboardHandler {
             case "last": this.actions.last?.(); break;
             case "goto": this.actions.goto?.(); break;
             case "viewer":
-                if (this.actions.isPresenterWindow?.()) {
+                if (this.actions.isEditorWindow?.()) {
                     this.actions.viewer?.();
                 } break;
             case "edit":
-                if (this.actions.isPresenterWindow?.()) {
+                if (this.actions.isEditorWindow?.()) {
                     this.actions.edit?.();
                 }
                 break;
             case "break":
-                if (this.actions.isPresenterWindow?.()) {
+                if (this.actions.isEditorWindow?.()) {
                     this.actions.break?.();
                 }
                 break;
             case "fullscreen": this.actions.fullscreen?.(); break;
             case "reload":
-                if (this.actions.isPresenterWindow?.()) {
+                if (this.actions.isEditorWindow?.()) {
                     this.actions.reload?.();
                 } break;
             case "theme":
-                if (this.actions.isPresenterWindow?.()) {
+                if (this.actions.isEditorWindow?.()) {
                     this.actions.theme?.();
                 } break;
         }

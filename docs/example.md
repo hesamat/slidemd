@@ -30,7 +30,7 @@ No installation, no accounts, no build steps. Your content stays on your machine
 ### Getting Started
 
 - **Open File** – Click menu (⋮) → Open File
-- **Presenter View** – Press `V` to open a separate window, then move it to your projector or second screen. Press `F` to switch to full-screen view for better readability.
+- **Presenter View** – Press `P` to open/close a separate window, then move it to your projector or second screen. Press `F` to switch to full-screen view for better readability.
 - **Export PDF** – Press `Ctrl+P` to print/export as PDF
 - **Export HTML** – Click menu (⋮) → Export HTML
 
@@ -60,7 +60,7 @@ The default view is your presenter dashboard with:
 
 | Key | Action |
 |-----|--------|
-| `V` | Open/close viewer window |
+| `P` | Open/close viewer window |
 | `F` | Toggle fullscreen |
 | `B` | Start break timer |
 | `D` | Toggle dark/light theme |
@@ -71,7 +71,7 @@ The default view is your presenter dashboard with:
 
 1. **Open your deck** – Load your `.md` file
 2. **Enter presenter mode** – You're already there! The default view shows your slides, notes, and controls
-3. **Open viewer window** – Press `V` to open a clean view for your audience
+3. **Toggle viewer window** – Press `P` to open/close a clean view for your audience
 4. **Position windows** – Drag the viewer window to your projector/second screen
 5. **Go fullscreen** – Press `F` on the viewer window for a clean presentation
 6. **Present** – Use arrow keys or space to navigate
@@ -345,7 +345,7 @@ layout: header-content
 | `G` | Go to slide (type number) |
 | `F` | Toggle fullscreen |
 | `E` | Toggle edit mode |
-| `V` | Open Viewer window (for second screen) |
+| `P` | Open/Close Viewer window (for second screen) |
 | `D` | Toggle dark/light theme |
 | `R` | Reload deck from file |
 | `Ctrl+P` | Print/Export PDF |
@@ -362,7 +362,7 @@ layout: "main" "footer" / 1fr
 
 1. **Open this file** – `docs/example.md` (you're here!)
 2. **Press `E`** – Enter edit mode to experiment
-3. **Press `V`** – Open viewer window for dual-screen setup
+3. **Press `P`** – Open/close viewer window for dual-screen setup
 4. **Press `F`** – Go fullscreen and present!
 
 <div style="font-size: 1.4rem; background: #e8f4fd; border-left: 4px solid #2196f3; padding: 16px; margin: 20px 0;">
