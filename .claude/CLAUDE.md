@@ -99,6 +99,37 @@ Use these preset names (defined in [src/data/layout-data.js](src/data/layout-dat
 - **Math**: KaTeX - inline `$...$` or `\(...\)`; display `$$...$$` or `\[...\]`
 - **Diagrams**: Mermaid in ```mermaid code blocks
 
+#### Math Formatting (KaTeX)
+
+**Inline math** (single `$` - stays on one line):
+```markdown
+$E = mc^2$
+$\text{Time complexity: } O(n \log n)$
+```
+
+**Display math** (double `$$` - centered, larger):
+
+For multi-line content with `\begin{aligned}` or similar, the `$$` delimiters MUST be on their own lines:
+```markdown
+$$
+\begin{aligned}
+x &= a + b \\
+  &= c + d
+\end{aligned}
+$$
+```
+
+For single-line display math, delimiters can be on the same line:
+```markdown
+$$E = mc^2$$
+```
+
+**Important KaTeX limitations:**
+- KaTeX has limited LaTeX support compared to full LaTeX
+- Advanced packages like `amssymb` are NOT available
+- Use `\textrm{}` instead of `\text{}` inside math environments (`\begin{cases}`, `\begin{aligned}`, etc.)
+- Symbols like `\square`, `\blacksquare` require workarounds (use `\text{QED}`, `\text{■}`, Unicode, or emojis instead)
+
 ## Development Guidelines
 
 ### Core Principles

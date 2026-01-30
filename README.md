@@ -94,6 +94,33 @@ Use preset names instead of full CSS grid strings:
 - Math via KaTeX auto-render. Inline: `$...$` or `\(...\)`; display: `$$...$$` or `\[...\]`.
 - Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/authoring-examples.md](docs/authoring-examples.md#mermaid-diagrams) for syntax guide.
 
+### Math Formatting (KaTeX)
+
+**Inline math** (single `$` - stays on one line):
+```markdown
+$E = mc^2$
+$\text{Time complexity: } O(n \log n)$
+```
+
+**Display math** (double `$$` - centered, larger):
+
+For multi-line content with `\begin{aligned}` or similar, the `$$` delimiters must be on their own lines:
+```markdown
+$$
+\begin{aligned}
+x &= a + b \\
+  &= c + d
+\end{aligned}
+$$
+```
+
+For single-line display math, delimiters can be on the same line:
+```markdown
+$$E = mc^2$$
+```
+
+**Note:** KaTeX has limited LaTeX support. Some advanced packages (`amssymb`, etc.) are not available. Use `\textrm{}` instead of `\text{}` inside math environments like `\begin{cases}` or `\begin{aligned}`.
+
 ## Build and Export
 
 - Development server: `npm run dev` (opens http://localhost:8000/index.html)
