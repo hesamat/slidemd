@@ -1,5 +1,5 @@
 // Deterministic HTML deck runtime (Markdown deck schema)
-import { DESIGN_SIZE, normalizeCodeLanguage } from "./src/core/utils.js";
+import { DESIGN_SIZE, normalizeCodeLanguage, isEmbedded } from "./src/core/utils.js";
 import { AssetLoader } from "./src/core/asset-loader.js";
 import { ContentEnhancer } from "./src/renderer/content-enhancer.js";
 import { DeckLoader } from "./src/data/deck-loader.js";
@@ -157,6 +157,14 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
 
     document.addEventListener("DOMContentLoaded", () => {
         if (!RoleManager.hasViewerShell()) return;
+
+        // Detect and mark embedded mode to prevent scroll conflicts
+        const embedded = isEmbedded();
+        if (embedded) {
+            document.documentElement.setAttribute("data-embedded", "true");
+            // Touch events still need to be prevented from bubbling
+            window.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true, capture: true });
+        }
 
         // Auto-redirect checks (optional)
         // Skip auto-redirect for exported HTML files (marked with __WEBDECK_EXPORTED__)

@@ -6,6 +6,7 @@ import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
+import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
@@ -38,8 +39,9 @@ export class DeckController extends EventEmitter {
         this.initSlideNavigator();
         this.initRoleManager();
         this.initReloadManager();
-        this.initBreakManager();
         this.initKeyboardHandler();
+        this.initWheelHandler();
+        this.initBreakManager();
         this.setupEventListeners();
     }
 
@@ -102,6 +104,15 @@ export class DeckController extends EventEmitter {
             endBreak: () => this.breakManager.setActive(false),
             isEditorWindow: () => this.roleManager.isEditorWindow,
             isEmbedded: isEmbedded
+        });
+    }
+
+    initWheelHandler() {
+        this.wheelHandler = new WheelHandler({
+            next: () => this.slideNavigator.next(),
+            prev: () => this.slideNavigator.prev(),
+            isBreakActive: () => this.breakManager.isActive,
+            endBreak: () => this.breakManager.setActive(false)
         });
     }
 
@@ -180,6 +191,7 @@ export class DeckController extends EventEmitter {
         const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
 
         document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+        document.addEventListener("wheel", (e) => this.handleWheel(e), { passive: false });
         document.addEventListener("click", (e) => this.handleDocumentClick(e));
         document.addEventListener("fullscreenchange", () => this.applyStageScale());
         window.addEventListener("storage", (e) => this.handleStorage(e));
@@ -216,6 +228,10 @@ export class DeckController extends EventEmitter {
 
     handleKeyboard(e) {
         this.keyboardHandler?.handleKeyboard(e);
+    }
+
+    handleWheel(e) {
+        this.wheelHandler?.handleWheel(e);
     }
 
     handleStorage(ev) {

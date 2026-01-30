@@ -554,6 +554,7 @@ function buildBundleJs() {
         path.join(root, "src", "renderer", "print-manager.js"),
         // Engine components
         path.join(root, "src", "engine", "keyboard-handler.js"),
+        path.join(root, "src", "engine", "wheel-handler.js"),
         path.join(root, "src", "engine", "role-manager.js"),
         path.join(root, "src", "engine", "slide-navigator.js"),
         path.join(root, "src", "engine", "break-manager.js"),
