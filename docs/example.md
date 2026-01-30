@@ -102,13 +102,6 @@ Main content goes here.
 
 @media
 ![diagram.png](diagram.png)
-
----
-
-layout: two-column
-
-@main
-# Next slide content
 ```
 
 ### Content Areas
