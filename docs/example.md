@@ -42,7 +42,7 @@ layout: header-two-column
 
 @header
 
-## Presentation Flow - Presenter Mode
+## Presentation Flow
 
 @main
 
