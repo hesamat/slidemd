@@ -326,14 +326,6 @@ export class SlideNavigator extends EventEmitter {
     }
 
     /**
-     * Sets the freeze manager reference.
-     * @param {FreezeManager} freezeManager - The freeze manager to use
-     */
-    setFreezeManager(freezeManager) {
-        this.freezeManager = freezeManager;
-    }
-
-    /**
      * Sets the slide state key for localStorage.
      * @param {string} key - The localStorage key
      */

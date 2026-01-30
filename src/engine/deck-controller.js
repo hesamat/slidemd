@@ -133,11 +133,10 @@ export class DeckController extends EventEmitter {
         this.freezeManager = new FreezeManager(this.deck, this.elements, (state) => {
             this.dispatchEvent('freezechange', state);
         });
-        // Set freezeManager on slideNavigator
+        // Set freezeManager on slideNavigator and reloadManager
         if (this.slideNavigator) {
-            this.slideNavigator.setFreezeManager(this.freezeManager);
+            this.slideNavigator.freezeManager = this.freezeManager;
         }
-        // Set freezeManager on reloadManager
         if (this.reloadManager) {
             this.reloadManager.freezeManager = this.freezeManager;
         }
@@ -169,13 +168,7 @@ export class DeckController extends EventEmitter {
         this.breakManager.setDuration(parseInt(url.searchParams.get("breakMins"), 10) || 10);
         this.breakManager.setActive(url.searchParams.get("break") === "1", { broadcast: false });
 
-        // Initialize freeze state from URL or localStorage
-        const freezeFromUrl = url.searchParams.get("freeze") === "1";
-        if (freezeFromUrl) {
-            this.freezeManager.setFrozen(true, { broadcast: false });
-        } else {
-            this.freezeManager.init();
-        }
+        // Note: Freeze state is not persisted or initialized from URL - it's temporary per session
 
         const title = DeckLoader.getDisplayTitle(this.deck);
         document.title = title;

@@ -8,7 +8,7 @@
  *   to viewer windows via BroadcastChannel or localStorage.
  * - When unfrozen: Slide navigation resumes normal broadcasting behavior.
  * - Viewer windows opened while frozen: Will remain on their current slide until unfrozen.
- * - Freeze state persistence: Stored in localStorage and restored on page load.
+ * - Freeze state is temporary and not persisted across page reloads.
  */
 import { getDeckId } from "../core/utils.js";
 
@@ -43,22 +43,6 @@ export class FreezeManager {
     }
 
     /**
-     * Initializes freeze state from localStorage.
-     * This should be called during application startup to restore freeze state.
-     */
-    init() {
-        try {
-            const stored = localStorage.getItem(this.freezeStateKey);
-            if (stored) {
-                const payload = JSON.parse(stored);
-                this.setFrozen(payload.frozen, { broadcast: false });
-            }
-        } catch (e) {
-            console.warn('[FreezeManager] Failed to restore freeze state:', e);
-        }
-    }
-
-    /**
      * Sets the freeze state and optionally broadcasts to other windows.
      * @param {boolean} frozen - Whether viewer should be frozen
      * @param {Object} options - Optional parameters
@@ -79,7 +63,7 @@ export class FreezeManager {
                 type: "freeze",
                 frozen: this.isFrozen
             };
-            localStorage.setItem(this.freezeStateKey, JSON.stringify(payload));
+            // Note: Not persisting to localStorage - freeze state is temporary per session
             this._broadcastChannel?.postMessage(payload);
         }
 
