@@ -96,16 +96,18 @@ export class ReloadManager extends EventEmitter {
 
         try {
             let raw;
-            // Try file handle first
-            try {
-                const deckId = this.getDeckId(this.deck);
-                raw = await DeckLoader.reloadFromFileHandle(deckId);
-            } catch (e) {
-                console.log('[Reload] File handle check failed:', e.message);
-                raw = null;
+            // Try file handle first (only if supported by browser)
+            if (DeckLoader.supportsFileSystemAPI) {
+                try {
+                    const deckId = this.getDeckId(this.deck);
+                    raw = await DeckLoader.reloadFromFileHandle(deckId);
+                } catch (e) {
+                    console.log('[Reload] File handle check failed:', e.message);
+                    raw = null;
+                }
             }
 
-            // Always try localStorage if file handle fails, regardless of preferLocalStorage flag
+            // Try localStorage if file handle fails, or if File System API isn't supported
             if (!raw) {
                 const hasLocalData = localStorage.getItem("webdeck_local_file");
 
@@ -114,6 +116,29 @@ export class ReloadManager extends EventEmitter {
                     console.log('[Reload] No file loaded, reloading page to get default deck');
                     window.location.reload();
                     return;
+                }
+
+                const isFirefoxNotSupported = !DeckLoader.supportsFileSystemAPI;
+
+                // In Firefox, prompt user to re-upload file before using cached version
+                if (isFirefoxNotSupported) {
+                    const shouldReupload = await Notification.promptActionOrCancel(
+                        'Reload Deck',
+                        'Your browser does not support automatic file reloading. Do you want to re-upload the file to see the latest changes, or use the cached version?',
+                        'Re-upload file'
+                    );
+
+                    if (shouldReupload) {
+                        const fileInput = this.elements?.fileInput || window.__WEBDECK_ELEMENTS__?.fileInput;
+                        if (fileInput) {
+                            fileInput.click();
+                        } else {
+                            console.warn('[Reload] File input not found');
+                        }
+                        // Return early - don't reload from cache
+                        return;
+                    }
+                    // If user chose "Use cached version", fall through to localStorage reload
                 }
 
                 raw = await DeckLoader.loadFromLocalStorage();
