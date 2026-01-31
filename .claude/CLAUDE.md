@@ -121,7 +121,7 @@ $$
 
 For single-line display math, delimiters can be on the same line:
 ```markdown
-$$E = mc^2$$
+$E = mc^2$
 ```
 
 **Important KaTeX limitations:**
