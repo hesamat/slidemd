@@ -30,6 +30,8 @@ export class HtmlExportManager {
         "src/renderer/print-manager.js",
         // Engine components
         "src/engine/keyboard-handler.js",
+        "src/engine/wheel-handler.js",
+        "src/engine/freeze-manager.js",
         "src/engine/role-manager.js",
         "src/engine/slide-navigator.js",
         "src/engine/break-manager.js",
