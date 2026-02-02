@@ -20,10 +20,31 @@ export class WheelHandler {
     }
 
     /**
+     * Checks if any modal is currently open.
+     * @returns {boolean} True if a modal is open
+     */
+    isModalOpen() {
+        // Check for main modals (layout picker, go-to-slide, etc.)
+        const modal = document.querySelector('.modal:not(.webdeck-hidden)');
+        if (modal) return true;
+
+        // Check for notification modal
+        const notificationModal = document.querySelector('.notification-modal-backdrop');
+        if (notificationModal) return true;
+
+        return false;
+    }
+
+    /**
      * Handles wheel events and dispatches to navigation actions.
      * @param {WheelEvent} e - The wheel event
      */
     handleWheel(e) {
+        // Ignore wheel events when a modal is open
+        if (this.isModalOpen()) {
+            return;
+        }
+
         // Ignore wheel events when already processing one
         if (this.isScrolling) {
             e.preventDefault();
