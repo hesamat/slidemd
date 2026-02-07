@@ -319,7 +319,7 @@
 .slide__area pre:has(> code[class*="language-"]) {
     border: 1px solid var(--code-border-color);
     border-radius: var(--radius-lg);
-    padding: 20px;
+    padding: 12px 18px;
     overflow: auto;
     box-shadow: var(--code-shadow);
     max-width: 100%;
