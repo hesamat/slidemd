@@ -3,32 +3,53 @@
    ========================================================================== */
 
 :root {
-    /* Main Theme */
+    /* --- THEME COLORS --- */
     --slide-bg-light: #ffffff;
-    --slide-ink-light: rgba(15, 23, 42, 0.85);
-
-    --slide-muted-light: rgba(15, 23, 42, 0.74);
+    --slide-ink-light: rgba(15, 23, 42, 0.90);
+    --slide-muted-light: rgba(15, 23, 42, 0.68);
+    --slide-secondary-light: rgba(15, 23, 42, 0.55);
 
     --slide-bg-dark: #0f172a;
-    --slide-ink-dark: #e2e8f0;
-    --slide-muted-dark: rgba(226, 232, 240, 0.72);
+    --slide-ink-dark: #f0f2f5;
+    --slide-muted-dark: rgba(226, 232, 240, 0.68);
+    --slide-secondary-dark: rgba(226, 232, 240, 0.55);
 
-    /* Accents & UI */
+    /* --- ACCENT COLORS --- */
     --accent: rgba(2, 132, 199, 0.95);
     --accent-hover: rgba(3, 105, 161, 0.98);
-    --accent-decoration: rgba(2, 132, 199, 0.35);
+    --accent-decoration: rgba(2, 132, 199, 0.25);
+    --accent-light: rgba(2, 132, 199, 0.15);
 
-    /* Borders & Backgrounds */
-    --border-color: rgba(148, 163, 184, 0.26);
-    --bg-subtle: rgba(243, 242, 243, 0.9);
+    /* --- BORDERS & SURFACES --- */
+    --border-color: rgba(148, 163, 184, 0.20);
+    --border-subtle: rgba(148, 163, 184, 0.12);
+    --bg-subtle: rgba(243, 242, 243, 0.95);
 
-    /* Code Blocks */
-    --code-border: rgba(148, 163, 184, 0.28);
-    --code-shadow: 0 8px 5px rgba(2, 6, 23, 0.28);
+    /* --- CODE STYLING --- */
+    --code-border: rgba(148, 163, 184, 0.24);
+    --code-shadow: 0 4px 12px rgba(2, 6, 23, 0.12);
+    --code-bg-subtle: rgba(2, 6, 23, 0.04);
 
-    /* Sizing & Spacing */
+    /* --- SPACING & SIZING --- */
     --slide-rhythm: 12px;
-    --radius-lg: 12px;
+    --spacing-xs: 6px;
+    --spacing-sm: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* --- BORDERS & RADIUS --- */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    /* --- TYPOGRAPHY --- */
+    --line-max: 68ch;
+    --line-max-narrow: 50ch;
+
+    /* --- FONT STACK --- */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Courier New", monospace;
 }
 
 /* ==========================================================================
@@ -38,25 +59,40 @@
 .slide {
     position: absolute;
     inset: 0;
-    padding: 106px 124px;
+    padding: 106px 126px;
     display: none;
     background: var(--slide-bg);
     color: var(--slide-ink);
     font-size: 28px;
-    /* Base font size for slide content */
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
+/* Theme variants */
 .slide:not([data-theme]),
 .slide[data-theme="light"] {
     --slide-bg: var(--slide-bg-light);
     --slide-ink: var(--slide-ink-light);
     --slide-muted: var(--slide-muted-light);
+    --slide-secondary: var(--slide-secondary-light);
+
+    /* Code surface (light slides) */
+    --code-surface: rgba(2, 6, 23, 0.04);
+    --code-ink: rgba(15, 23, 42, 0.92);
+    --code-border-color: var(--code-border);
 }
 
 .slide[data-theme="dark"] {
     --slide-bg: var(--slide-bg-dark);
     --slide-ink: var(--slide-ink-dark);
     --slide-muted: var(--slide-muted-dark);
+    --slide-secondary: var(--slide-secondary-dark);
+
+    /* Code surface (dark slides) */
+    --code-surface: rgba(0, 0, 0, 0.22);
+    --code-ink: rgba(240, 242, 245, 0.95);
+    --code-border-color: rgba(255, 255, 255, 0.16);
 }
 
 .slide.active {
@@ -64,47 +100,58 @@
     animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Grid layout for multi-area slides */
 .slide__grid {
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 20px 40px;
+    gap: 22px 48px;
     min-width: 0;
     min-height: 0;
 }
 
+/* Content area container */
 .slide__area {
     min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    row-gap: var(--slide-rhythm);
+    row-gap: var(--spacing-sm);
+    max-width: 100%;
 }
 
 /* Area Modifiers */
 .slide__area--header {
     align-content: start;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area--title {
     text-align: center;
     justify-content: center;
+    align-items: center;
+    max-width: var(--line-max-narrow);
+    margin: 0 auto;
 }
 
 .slide__area--footer {
     text-align: center;
     font-size: 24px;
-    line-height: 1.25;
+    line-height: 1.4;
     color: var(--slide-muted);
+    margin-top: auto;
+    align-items: center;
 }
 
 .slide__area--footer p,
 .slide__area--footer a {
     font-size: inherit;
     color: inherit;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 
@@ -116,6 +163,7 @@
 .slide__area h1,
 .slide__area h2,
 .slide__area h3,
+.slide__area h4,
 .slide__area p,
 .slide__area ul,
 .slide__area ol,
@@ -124,54 +172,136 @@
     margin: 0;
 }
 
+/* --- HEADING STYLES --- */
+
 .slide__area h1 {
     font-size: 60px;
-    line-height: 1.5;
+    line-height: 1.2;
     font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--slide-ink);
 }
 
 .slide__area h2 {
-    font-size: 45px;
-    line-height: 1.4;
+    font-size: 44px;
+    line-height: 1.3;
     font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--slide-ink);
+    margin-top: var(--spacing-sm);
 }
 
 .slide__area h3 {
-    font-size: 34px;
+    font-size: 32px;
+    line-height: 1.35;
     font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--slide-ink);
+    margin-top: var(--spacing-xs);
 }
 
-.slide__area p {
+.slide__area h4 {
+    font-size: 26px;
     line-height: 1.4;
+    font-weight: 600;
+    color: var(--slide-ink);
+}
+
+/* --- PARAGRAPH & TEXT STYLES --- */
+
+.slide__area p {
+    line-height: 1.6;
     color: var(--slide-muted);
+    margin-top: var(--spacing-xs);
 }
 
 .slide__area strong {
     color: var(--slide-ink);
-    font-weight: 650;
+    font-weight: 700;
 }
+
+/* Allow inline color styles to override strong color */
+.slide__area span[style*="color"] strong {
+    color: inherit;
+}
+
+.slide__area em {
+    font-style: italic;
+    color: var(--slide-secondary);
+}
+
+/* --- LIST STYLES --- */
 
 .slide__area ul,
 .slide__area ol {
     display: grid;
-    gap: 16px;
-    line-height: 1.3;
-    /* Use em for scalable padding */
-    padding-left: 1.2em;
-    margin-top: 8px;
+    gap: var(--spacing-md);
+    line-height: 1.5;
+    padding-left: 1.5em;
+    margin-top: var(--spacing-sm);
+}
+
+.slide__area li {
+    color: var(--slide-muted);
+    max-width: var(--line-max);
 }
 
 .slide__area li::marker {
     color: var(--accent);
+    font-weight: 600;
 }
+
+.slide__area li strong {
+    color: var(--slide-ink);
+    font-weight: 700;
+}
+
+/* --- LINK STYLES --- */
 
 .slide__area a {
     color: var(--accent);
-    text-decoration-color: var(--accent-decoration);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.2em;
+    transition: color 200ms ease;
 }
 
 .slide__area a:hover {
     color: var(--accent-hover);
+}
+
+/* --- CONTENT WIDTH CONSTRAINTS --- */
+
+.slide__area p,
+.slide__area blockquote,
+.slide__area ul,
+.slide__area ol,
+.slide__area table {
+    max-width: var(--line-max);
+}
+
+.slide__area--media,
+.slide__area--sidebar,
+.slide__area--secondary {
+    max-width: 100%;
+}
+
+/* Allow media shadows to render beyond the content box */
+.slide__area--media {
+    overflow: visible;
+    padding: 8px;
+}
+
+.slide__area--header h1,
+.slide__area--header h2,
+.slide__area--header p {
+    max-width: var(--line-max);
+}
+
+.slide__area--title h1,
+.slide__area--title h2,
+.slide__area--title h3,
+.slide__area--title p {
+    max-width: var(--line-max-narrow);
 }
 
 
@@ -179,86 +309,128 @@
    4. Code Blocks & Syntax Highlighting (Prism)
    ========================================================================== */
 
-/* --- Block Code (pre > code) --- */
+/* --- BLOCK CODE (pre > code) --- */
 
-/* This is the main container for a code block.
-   This selector is more specific than Prism's default theme, so it will win. */
-.slide__area pre[class*="language-"] {
-    border: 1px solid var(--code-border);
+/* Support both:
+   - <pre class="language-..."><code>...</code></pre>
+   - <pre><code class="language-...">...</code></pre>
+*/
+.slide__area pre[class*="language-"],
+.slide__area pre:has(> code[class*="language-"]) {
+    border: 1px solid var(--code-border-color);
     border-radius: var(--radius-lg);
-    padding: 18px;
+    padding: 20px;
     overflow: auto;
     box-shadow: var(--code-shadow);
-    max-width: 1100px;
-    width: fit-content;
-    margin: 0.5rem 0;
-    line-height: 1;
+    max-width: 100%;
+    margin: var(--spacing-sm) 0;
+    line-height: 1.15;
+    color: var(--code-ink);
+    text-shadow: none;
+    /* Prism themes sometimes set backgrounds; force our slide look */
+    background: var(--code-surface) !important;
 }
 
-/* This targets the <code> element *inside* the <pre> block. */
-.slide__area pre[class*="language-"]>code {
+/* Code inside pre blocks */
+.slide__area pre[class*="language-"]>code,
+.slide__area pre>code[class*="language-"] {
     font-family: var(--font-mono);
-    font-size: 1.38rem;
+    font-size: 1.4rem;
     line-height: inherit;
-    /* Inherit line-height from the <pre> parent */
-    background: none;
-    /* Prism themes sometimes add a background to code, remove it. */
+    background: transparent !important;
     padding: 0;
     color: inherit;
+    letter-spacing: 0.01em;
 }
 
-/* --- Inline Code (`code`) --- */
+/* Keep operators and symbols consistent with main code color */
+.slide__area pre[class*="language-"] .token.operator,
+.slide__area pre[class*="language-"] .token.punctuation,
+.slide__area pre[class*="language-"] .token.symbol,
+.slide__area pre:has(> code[class*="language-"]) .token.operator,
+.slide__area pre:has(> code[class*="language-"]) .token.punctuation,
+.slide__area pre:has(> code[class*="language-"]) .token.symbol {
+    color: currentColor;
+    background: none !important;
+    text-shadow: none !important;
+}
+
+/* Some Prism themes add token backgrounds for selection/emphasis */
+.slide__area pre[class*="language-"] .token,
+.slide__area pre:has(> code[class*="language-"]) .token {
+    background: none !important;
+}
+
+/* Markdown blocks are often used for configuration examples.
+   Flatten token colors so the snippet matches the slide theme. */
+.slide__area pre:has(> code.language-markdown) .token {
+    color: currentColor !important;
+}
+
+/* --- INLINE CODE --- */
+
 .slide__area :not(pre)>code {
-    border: 1px solid var(--border-color);
-    background: var(--bg-subtle);
-    border-radius: 6px;
-    padding: 2px 8px;
+    border: 1px solid var(--code-border);
+    background: var(--code-bg-subtle);
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
     font-family: var(--font-mono);
-    font-size: 0.85em;
-    /* Relative to the surrounding text */
-    color: var(--slide-ink-light);
+    font-size: 0.95em;
+    color: var(--slide-ink);
+    font-weight: 500;
 }
 
-/* Custom scrollbar for code blocks */
+/* --- SCROLLBAR STYLING --- */
+
 .slide__area pre::-webkit-scrollbar {
-    height: 10px;
-    width: 10px;
+    height: 8px;
+    width: 8px;
 }
 
 .slide__area pre::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.55);
-    border-radius: 10px;
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 6px;
     border: 2px solid transparent;
     background-clip: content-box;
 }
 
 .slide__area pre::-webkit-scrollbar-track {
-    background: rgba(148, 163, 184, 0.14);
+    background: rgba(148, 163, 184, 0.10);
 }
 
 /* ==========================================================================
    5. Rich Content (Images, Media, Diagrams)
    ========================================================================== */
 
-/* --- General Media --- */
+/* --- GENERAL MEDIA --- */
+
 .slide__area img,
 .slide__area video {
     display: block;
     max-width: 100%;
     height: auto;
     margin: 0 auto;
-    /* Center media by default */
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* --- Full-bleed Media Figures --- */
-/* A paragraph containing only an image/video should fill the available space */
+/* Subtle shadow for dark theme slides */
+.slide[data-theme="dark"] .slide__area img,
+.slide[data-theme="dark"] .slide__area video {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Full-bleed media in paragraphs */
 .slide__area p> :is(img, video):only-child {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    border-radius: 0;
 }
 
-/* Ensure paragraphs with media-only children are properly constrained */
+/* Center containers with media-only children */
 .slide__area p:has(> :is(img, video):only-child) {
     min-height: 0;
     max-height: 100%;
@@ -267,7 +439,7 @@
     justify-content: center;
 }
 
-/* Fix for figure-like layout with captions */
+/* Figure-like layout with captions */
 .slide__area:has(p > :is(img, video):only-child):has(p + p) {
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto;
@@ -280,7 +452,8 @@
     min-height: 0;
 }
 
-/* --- Mermaid Diagrams --- */
+/* --- MERMAID DIAGRAMS --- */
+
 .slide__area .mermaid {
     width: 100%;
     max-height: 100%;
@@ -292,7 +465,6 @@
     contain: content;
 }
 
-/* Remove width/height attributes from mermaid SVG and let it scale naturally */
 .slide__area .mermaid>svg {
     display: block !important;
     width: auto !important;
@@ -301,13 +473,14 @@
     max-height: 100% !important;
 }
 
-/* --- KaTeX Math --- */
+/* --- KATEX MATH --- */
+
 .slide__area .katex {
-    font-size: 1.12em;
+    font-size: 1.1em;
 }
 
 .slide__area .katex-display {
-    margin: 0.25em 0;
+    margin: 0.4em 0;
     overflow: hidden;
 }
 
@@ -316,71 +489,78 @@
    6. Components (Blockquotes, Tables, Cards)
    ========================================================================== */
 
+/* --- BLOCKQUOTES --- */
+
 .slide__area blockquote {
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 2rem;
-    background: var(--bg-subtle);
-    box-shadow: 4px 6px 6px rgba(2, 6, 23, 0.1);
-    margin-bottom: 10px;
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    background: var(--accent-light);
+    margin: var(--spacing-sm) 0;
+    transition: all 200ms ease;
 }
 
 .slide__area blockquote p {
-    font-size: 30px;
-    line-height: 1.5;
+    font-size: 1em;
+    line-height: 1.6;
+    color: var(--slide-muted);
+    margin: 0;
 }
 
-/* --- Tables --- */
+.slide__area blockquote strong {
+    color: var(--slide-ink);
+}
+
+/* --- TABLES --- */
+
 .slide__area table {
     width: 100%;
     border-collapse: collapse;
     border-spacing: 0;
-    font-size: 0.9em;
-    /* Allow wide tables to scroll without overflowing the slide */
+    font-size: 0.95em;
     display: block;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    margin: var(--spacing-sm) 0;
 }
 
 /* Table caption */
 .slide__area table caption {
     text-align: left;
     font-size: 0.9em;
-    color: var(--slide-muted);
-    padding: 6px 12px 0 12px;
+    font-weight: 600;
+    color: var(--slide-ink);
+    padding: 12px 16px 8px 16px;
 }
 
-/* Styling the Header (sticky on scroll) */
+/* Table headers */
 .slide__area thead th {
     text-align: left;
-    padding: 12px 16px;
-    border-bottom: 2px solid var(--slide-muted, #cbd5e1);
-    color: var(--slide-ink, #1e293b);
-    font-weight: 600;
+    padding: 14px 16px;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--accent-light);
+    color: var(--slide-ink);
+    font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.85em;
-    letter-spacing: 0.05em;
+    font-size: 0.80em;
+    letter-spacing: 0.06em;
     position: sticky;
     top: 0;
     z-index: 2;
-    background: var(--slide-bg);
-    backdrop-filter: saturate(1.05) blur(2px);
+    backdrop-filter: blur(4px);
 }
 
-/* Styling the Cells */
-.slide__area tbody {
-    background: var(--slide-bg);
-    border-radius: 8px;
-}
-
+/* Table body cells */
 .slide__area tbody td {
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    color: var(--slide-muted, #475569);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--slide-muted);
     vertical-align: top;
     white-space: normal;
     word-break: break-word;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: background-color 150ms ease;
 }
 
 /* Remove border from last row */
@@ -388,30 +568,29 @@
     border-bottom: none;
 }
 
-/* Zebra striping (light/dark aware) */
+/* Zebra striping for better readability */
 .slide:not([data-theme]) .slide__area tbody tr:nth-child(odd) td,
 .slide[data-theme="light"] .slide__area tbody tr:nth-child(odd) td {
-    background: rgba(2, 6, 23, 0.02);
+    background: rgba(15, 23, 42, 0.03);
 }
 
 .slide[data-theme="dark"] .slide__area tbody tr:nth-child(odd) td {
-    background: rgba(255, 255, 255, 0.015);
+    background: rgba(255, 255, 255, 0.04);
 }
 
-/* Row Hover & Focus */
-.slide__area tbody tr:hover td,
-.slide__area tbody tr:focus-within td {
+/* Row hover state */
+.slide__area tbody tr:hover td {
+    background: var(--accent-light);
     color: var(--slide-ink);
-    background: color-mix(in srgb, var(--accent-decoration) 6%, transparent);
 }
 
-/* Make rows keyboard-focusable if markup allows (tabindex on tr) */
+/* Row focus state */
 .slide__area tbody tr:focus {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
 }
 
-/* Small screens: stack cells if needed (improves readability) */
+/* Mobile table layout */
 @media (max-width: 640px) {
 
     .slide__area table,
@@ -425,28 +604,33 @@
     }
 
     .slide__area thead {
-        /* keep header labels visible above rows */
         position: relative;
     }
 
     .slide__area tbody tr {
-        margin-bottom: 12px;
-        border-radius: 8px;
+        margin-bottom: var(--spacing-md);
+        border-radius: var(--radius-md);
         overflow: hidden;
         background: transparent;
+        border: 1px solid var(--border-color);
     }
 
     .slide__area tbody td {
-        padding: 10px 12px;
-        border-bottom: none;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .slide__area tbody tr:last-child td {
+        border-bottom: 1px solid var(--border-subtle);
     }
 }
 
-/* --- Cards Layout --- */
+/* --- CARDS LAYOUT --- */
+
 .slide__area--cards {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--spacing-lg);
     align-content: start;
 }
 
@@ -455,13 +639,13 @@
 }
 
 /* ==========================================================================
-   7. Animation & Utilities
+   7. Animation & Accessibility
    ========================================================================== */
 
 @keyframes slideIn {
     from {
         opacity: 0;
-        transform: translateY(6px);
+        transform: translateY(8px);
     }
 
     to {
@@ -470,11 +654,13 @@
     }
 }
 
+/* Respect prefers-reduced-motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
 
     .slide.active,
-    .btn,
-    .overview-item {
+    .slide__area a,
+    .slide__area button,
+    .slide__area tbody tr {
         animation: none !important;
         transition: none !important;
     }

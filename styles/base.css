@@ -1,10 +1,11 @@
 :root {
     color-scheme: light;
 
-    /* ===== Theme ===== */
-    --theme-bg: rgba(var(--color-primary), 0.1);
+    /* ========================================================================
+       2. COLOR SYSTEM
+       ======================================================================== */
 
-    /* ===== Colors ===== */
+    /* --- PRIMARY COLORS --- */
     /* Base dark slate for text and borders */
     --color-slate: 15, 23, 42;
     /* Primary accent (indigo) */
@@ -12,44 +13,54 @@
     /* Secondary accent (teal, used for hover states) */
     --color-secondary: 20, 184, 166;
 
-    /* ===== Text ===== */
+    /* --- TEXT HIERARCHY --- */
     --text-high: rgba(var(--color-slate), 0.95);
     --text-medium: rgba(var(--color-slate), 0.75);
     --text-low: rgba(var(--color-slate), 0.55);
 
-    /* ===== Borders ===== */
+    /* --- BORDERS --- */
     --border-subtle: rgba(var(--color-slate), 0.08);
     --border-medium: rgba(148, 163, 184, 0.35);
     --border-strong: rgba(148, 163, 184, 0.5);
 
-    /* ===== Surfaces ===== */
+    /* --- SURFACES --- */
     --surface-bg: rgba(255, 255, 255, 0.95);
     --surface-elevated: rgba(248, 250, 252, 0.98);
     --surface-hover: rgba(var(--color-slate), 0.06);
+    --theme-bg: rgba(var(--color-primary), 0.08);
 
-    /* ===== Accent States ===== */
-    --accent-bg: rgba(var(--color-primary), 0.16);
-    --accent-border: rgba(var(--color-primary), 0.4);
+    /* --- ACCENT STATES --- */
+    --accent-bg: rgba(var(--color-primary), 0.12);
+    --accent-border: rgba(var(--color-primary), 0.35);
     --accent-text: rgba(var(--color-primary), 0.95);
 
-    /* ===== Typography ===== */
-    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    /* ========================================================================
+       3. TYPOGRAPHY
+       ======================================================================== */
+
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Courier New", monospace;
     --ui-font-size: 13px;
-    --ui-line-height: 1.35;
+    --ui-line-height: 1.5;
 
-    /* ===== Spacing ===== */
-    --radius-sm: 8px;
-    --radius-md: 14px;
-    --radius-lg: 18px;
+    /* ========================================================================
+       4. SPACING & SIZING
+       ======================================================================== */
 
-    /* ===== Stage ===== */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    /* --- STAGE DIMENSIONS --- */
     --slide-bg: #ffffff;
     --stage-w: 1920px;
     --stage-h: 1080px;
     --stage-scale: 1;
 
-    /* ===== Layout ===== */
+    /* ========================================================================
+       5. LAYOUT
+       ======================================================================== */
+
     --topbar-h: 48px;
 }
 
@@ -68,13 +79,13 @@ body {
     font-size: var(--ui-font-size);
     line-height: var(--ui-line-height);
     background: var(--theme-bg);
-    color: rgba(var(--color-slate), 0.92);
+    color: var(--text-high);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Prevent scrolling when embedded in an iframe to avoid conflicts with parent page */
+/* Embedded iframe mode - prevent scrolling */
 html[data-embedded="true"] body {
     overflow: hidden;
     position: fixed;
@@ -82,32 +93,42 @@ html[data-embedded="true"] body {
     height: 100%;
 }
 
+/* Text selection styling */
 ::selection {
-    background: rgba(var(--color-primary), 0.22);
+    background: var(--accent-bg);
+    color: var(--accent-text);
 }
 
-/* ===== Dark Theme ===== */
+/* ========================================================================
+   Dark Theme
+   ======================================================================== */
+
 [data-theme="dark"] {
     color-scheme: dark;
 
-    /* Colors - light slate for dark mode text */
+    /* --- DARK MODE COLORS --- */
     --color-slate: 226, 232, 240;
 
-    /* Text colors */
-    --text-high: rgba(var(--color-slate), 0.98);
-    --text-medium: rgba(var(--color-slate), 0.80);
-    --text-low: rgba(var(--color-slate), 0.60);
+    /* Text colors - lighter for dark backgrounds */
+    --text-high: rgba(var(--color-slate), 0.95);
+    --text-medium: rgba(var(--color-slate), 0.75);
+    --text-low: rgba(var(--color-slate), 0.55);
 
-    /* Borders - lighter for dark mode */
-    --border-subtle: rgba(255, 255, 255, 0.08);
-    --border-medium: rgba(255, 255, 255, 0.20);
-    --border-strong: rgba(255, 255, 255, 0.30);
+    /* Borders - lighter and more visible on dark */
+    --border-subtle: rgba(255, 255, 255, 0.10);
+    --border-medium: rgba(255, 255, 255, 0.18);
+    --border-strong: rgba(255, 255, 255, 0.28);
 
     /* Surfaces - dark backgrounds */
-    --surface-bg: rgba(30, 41, 59, 0.98);
-    --surface-elevated: rgba(51, 65, 85, 0.98);
-    --surface-hover: rgba(255, 255, 255, 0.12);
+    --surface-bg: rgba(15, 23, 42, 0.95);
+    --surface-elevated: rgba(30, 41, 59, 0.98);
+    --surface-hover: rgba(255, 255, 255, 0.10);
 
     /* Theme background */
-    --theme-bg: rgba(15, 23, 42, 0.98);
+    --theme-bg: rgba(7, 10, 19, 0.98);
+
+    /* Accent states for dark mode */
+    --accent-bg: rgba(var(--color-primary), 0.15);
+    --accent-border: rgba(var(--color-primary), 0.40);
+    --accent-text: rgba(var(--color-primary), 0.90);
 }

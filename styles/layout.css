@@ -1,4 +1,6 @@
-/* Main App Layout */
+/* ========================================================================
+   Main Layout System
+   ======================================================================== */
 
 .main {
     flex: 1;
@@ -18,16 +20,24 @@ html[data-webdeck-role="editor"] .main {
     }
 }
 
-/* Consistent links (UI + slides) */
+/* ========================================================================
+   Links & Interactions
+   ======================================================================== */
+
 a {
     color: inherit;
-    text-decoration-thickness: 0.08em;
-    text-underline-offset: 0.12em;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    transition: color 200ms ease;
 }
 
 a:hover {
-    color: rgba(var(--color-secondary), 0.8);
+    color: rgba(var(--color-secondary), 0.9);
 }
+
+/* ========================================================================
+   Footer
+   ======================================================================== */
 
 .footer {
     display: flex;
@@ -37,7 +47,7 @@ a:hover {
     gap: 12px;
     border-top: 1px solid var(--border-medium);
     background: var(--surface-bg);
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(12px) saturate(1.1);
     font-size: 11px;
     color: var(--text-high);
 }
@@ -53,7 +63,10 @@ a:hover {
     color: var(--text-low);
 }
 
-/* Responsive adjustments */
+/* ========================================================================
+   Responsive Layout (Mobile)
+   ======================================================================== */
+
 @media (max-width: 900px) {
     .footer {
         display: none;
