@@ -118,10 +118,10 @@ export class ReloadManager extends EventEmitter {
                     return;
                 }
 
-                const isFirefoxNotSupported = !DeckLoader.supportsFileSystemAPI;
+                const isFileSystemAPINotSupported = !DeckLoader.supportsFileSystemAPI;
 
-                // In Firefox, prompt user to re-upload file before using cached version
-                if (isFirefoxNotSupported) {
+                // When file system API is not supported, prompt user to re-upload file before using cached version
+                if (isFileSystemAPINotSupported) {
                     const shouldReupload = await Notification.promptActionOrCancel(
                         'Reload Deck',
                         'Your browser does not support automatic file reloading. Do you want to re-upload the file to see the latest changes, or use the cached version?',
