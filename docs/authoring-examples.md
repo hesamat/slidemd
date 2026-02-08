@@ -1,26 +1,63 @@
+layout: title-slide
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+
+@title
+
 # Authoring Examples and Recipes
+## A Complete Guide to Creating Slides
 
-These examples show common patterns when editing decks/deck.md. Slides are separated by `---`, and any text before the first `@area` marker flows into `@main`.
+---
 
+layout: header-content
+
+@header
+## Introduction
+
+@main
+These examples show common patterns when editing slide decks.
+
+**Key Concepts:**
+- Slides are separated by `---`
+- Any text before the first `@area` marker flows into `@main`
+- Layouts control how content is arranged on each slide
+
+---
+
+layout: header-two-column
+
+@header
 ## Layout Presets
 
-The system includes several built-in layout presets that you can reference by name:
+@main
+The system includes several built-in layout presets:
 
 | Preset | Description |
 |--------|-------------|
 | `focus` | Single main area, full width |
-| `two-column` | Two equal columns (main, media) |
-| `left-heavy` | Two columns with wider left side |
-| `right-heavy` | Two columns with wider right side |
-| `header-content` | Header, main content, footer (stacked) |
-| `header-two-column` | Header, two columns (main, media), footer |
-| `title-slide` | Single centered title area |
-| `three-column` | Three equal columns |
-| `sidebar-content` | Fixed sidebar (300px) + main content |
-| `content-sidebar` | Main content + fixed sidebar (300px) |
+| `two-column` | Two equal columns |
+| `left-heavy` | Two columns, wider left |
+| `right-heavy` | Two columns, wider right |
+| `header-content` | Header + main + footer |
 
+@media
+**Additional presets:**
+
+| Preset | Description |
+|--------|-------------|
+| `header-two-column` | Header + two columns |
+| `title-slide` | Centered title area |
+| `three-column` | Three equal columns |
+| `sidebar-content` | Fixed sidebar + content |
+| `content-sidebar` | Content + fixed sidebar |
+
+---
+
+layout: header-content
+
+@header
 ## Basic Title Slide
 
+@main
 ```markdown
 layout: title-slide
 background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
@@ -32,8 +69,14 @@ background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
 ### Mo Parsa
 ```
 
+---
+
+layout: header-content
+
+@header
 ## Basic Two-Column Slide
 
+@main
 Using the `header-two-column` preset:
 
 ```markdown
@@ -55,8 +98,14 @@ layout: header-two-column
 - **Week 4:** Pointers
 ```
 
+---
+
+layout: header-content
+
+@header
 ## Header + Single Content Area
 
+@main
 ```markdown
 layout: header-content
 
@@ -69,21 +118,35 @@ layout: header-content
 - Declare, initialize, and iterate over **arrays**
 ```
 
+---
+
+layout: header-content
+
+@header
 ## Custom Layouts (CSS Grid)
 
-You can define custom layouts using CSS grid template syntax. The format is:
+@main
+You can define custom layouts using CSS grid template syntax:
 
 ```
 layout: "row1" "row2" ... / column-sizes
 ```
 
-- **Rows**: One or more quoted strings; each string is a grid row. Use spaces between area names and `.` for empty cells.
-- **Columns**: Everything after the `/` becomes `grid-template-columns`. If omitted, defaults to `1fr`.
-- **Row sizing**: You can optionally add a size after each row string (before the next row or `/`).
-- Area names are case-sensitive in CSS; `@area` markers are normalized to lowercase.
+**Key Points:**
+- **Rows**: One or more quoted strings; each string is a grid row
+- **Columns**: Everything after `/` becomes `grid-template-columns`
+- **Row sizing**: Optional size after each row string
+- Area names are case-sensitive in CSS
 
-### Custom Layout with Row Sizes
+---
 
+layout: header-content
+
+@header
+## Custom Layout Examples
+
+@main
+**Custom Layout with Row Sizes:**
 ```markdown
 layout: "header" auto "main" 1fr / 800px
 
@@ -94,98 +157,62 @@ layout: "header" auto "main" 1fr / 800px
 Content constrained to 800px width, centered.
 ```
 
-### Three-Column Layout with Spacer
+---
 
-```markdown
-layout: "header header header" auto "main . media" minmax(0, 1fr) / 1fr 48px 1fr
-
-@header
-## Spacer Column Example
-
-@main
-Left content
-
-@media
-Right content
-```
-
-The `.` represents an empty cell for spacing.
-
-### Header + Two Columns (Manual Definition)
-
-```markdown
-layout: "header header" "main media" / 1fr 1fr
+layout: header-content
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+theme: dark
 
 @header
-## Custom Two Column
-
-@main
-- Point A
-- Point B
-
-@media
-![diagram](images/diagram.png)
-```
-
 ## Slide Backgrounds
 
-Use `background:` for per-slide backgrounds. Supports gradients, images, and solid colors.
-
-```markdown
-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
-layout: title-slide
-
 @main
+**Code Example:**
+
+```
+layout: title-slide
+background: linear-gradient(135deg, #667eea 0%,  #764ba2 100%)
+theme: dark
+
+@title
 # Gradient Background
 ```
 
-```markdown
-background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)
+**Supports gradients, images, and solid colors.**
 
-@header
-## Activity Slide
-
-@main
-Content with a subtle gradient background
-```
-
-```markdown
-background: #1a1a1a
-theme: dark
-
-@header
-## Solid Color
-
-@main
-Light text on dark background
-```
-
-## Theming
-
-Set `theme: light` or `theme: dark` to override the default theme for a slide.
-
-```markdown
-theme: dark
-
-@header
-## Dark Slide
-
-@main
-This slide uses light text on dark background
+You can use:
+- Gradients (like this slide)
+- Solid colors: `background: #1a1a1a`
+- Images: `background: url(image.jpg)`
 
 ---
 
-theme: light
+theme: dark
+background: #1a1a2a
+layout: header-content
 
 @header
-## Light Slide
+## Dark Theme Example
 
 @main
-This slide uses dark text on light background
+This slide demonstrates the **dark theme**.
+
+**Code:**
+```
+theme: dark
+background: #1a1a2a
 ```
 
+Light text automatically appears on dark backgrounds.
+
+---
+
+layout: header-content
+
+@header
 ## Hidden Slides
 
+@main
 Mark a slide as hidden to skip it during normal navigation. Add `?showHidden=1` to the URL to include them when reviewing.
 
 ```markdown
@@ -199,13 +226,20 @@ hidden: true
 This slide will not appear in the deck by default.
 ```
 
+---
+
+layout: header-content
+<!-- Speaker notes go at the very top of the slide as an HTML comment -->
+
+@header
 ## Speaker Notes
 
-Add HTML comments at the top of a slide for speaker notes:
+@main
+Add HTML comments at the **very top** of a slide (before layout) for speaker notes:
 
-```markdown
+```
+<!-- This is a speaker note visible only in source -->
 layout: header-content
-<!-- notes: Explain that loops are fundamental to programming -->
 
 @header
 ## Loop Concepts
@@ -214,8 +248,16 @@ layout: header-content
 Loops allow repeated execution of code blocks.
 ```
 
+Notes are only visible in presenter mode or source.
+
+---
+
+layout: header-content
+
+@header
 ## Media Areas
 
+@main
 Areas containing images, videos, or iframes are automatically styled with the `.media` class for proper sizing:
 
 ```markdown
@@ -231,14 +273,17 @@ Explanation on the left side.
 ![diagram](images/architecture.png)
 ```
 
+---
 
+layout: header-content
+
+@header
 ## Markdown Formatting
 
-Use standard markdown for most content - it's cleaner and more maintainable:
+@main
+Use standard markdown for most content - it's cleaner and more maintainable.
 
-### Blockquotes
-
-Blockquotes are perfect for callouts, tips, and important notes:
+**Blockquotes** are perfect for callouts, tips, and important notes:
 
 ```markdown
 layout: header-content
@@ -249,151 +294,112 @@ layout: header-content
 @main
 > **Note:** This is a blockquote for highlighting important information.
 > Perfect for callouts, tips, and key takeaways.
-
-> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> You could use blockquotes for warnings or cautions.
-> Add inline styles to highlight the label.
-
 ```
 
+---
+
+layout: header-content
+
+@header
+## Blockquote Styling Example
+
+@main
+You can add inline styles to blockquotes for emphasis:
+
+```markdown
+> **Warning:** Use blockquotes for warnings.
+> You can add <span style="color: #dc2626;">colored text</span> 
+> or other inline styles as needed.
+```
+
+---
+
+layout: header-content
+
+@header
 ## HTML Elements and Inline Styling
 
-When you need more control than standard markdown provides, you can use HTML elements and inline CSS styles:
-
-### Basic HTML Elements
-
-```markdown
-layout: header-content
-
-@header
-## HTML Elements Demo
-
 @main
+When you need more control than markdown provides, use HTML elements with inline CSS.
+
+> **Note:** Prefer markdown blockquotes for simple callouts. Use HTML only when you need custom styling.
+
+**Basic example:**
+```markdown
 <div style="padding: 1rem; background: #f0f0f0; border-radius: 8px;">
-  <p style="color: #e74c3c; font-weight: bold;">This is a styled paragraph</p>
-  <p style="color: #27ae60;">This is another styled paragraph</p>
+  <p style="color: #e74c3c; font-weight: bold;">Styled paragraph</p>
 </div>
 ```
 
-### Styled Lists and Tables
+---
 
-```markdown
 layout: header-content
 
 @header
-## Styled Content
+## HTML Styling Examples
 
 @main
-<table style="width: 100%; border-collapse: collapse;">
-  <tr style="background: #3498db; color: white;">
-    <th style="padding: 12px; text-align: left;">Feature</th>
-    <th style="padding: 12px; text-align: left;">Status</th>
-  </tr>
-  <tr style="background: #ecf0f1;">
-    <td style="padding: 12px;">Markdown Support</td>
-    <td style="padding: 12px; color: green;">✓ Built-in</td>
-  </tr>
-  <tr style="background: #ffffff;">
-    <td style="padding: 12px;">HTML Styling</td>
-    <td style="padding: 12px; color: green;">✓ Supported</td>
-  </tr>
-</table>
+**Inline spans with markdown:**
+```markdown
+Regular text with <span style="color: #e74c3c;">red text</span> 
+and <span style="background: #fff3cd; padding: 2px 6px;">highlights</span>.
 ```
 
-### Advanced HTML Examples
-
-> **Note:** For simple callouts and highlights, prefer markdown blockquotes (see "Markdown Formatting" section above). Use HTML only when you need custom styling that blockquotes can't provide.
-
+**Flexbox layouts:**
 ```markdown
-layout: header-content
-
-@header
-## Advanced Styling Example
-
-@main
-<div style="display: flex; gap: 16px; margin: 20px 0;">
-  <div style="flex: 1; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; text-align: center;">
-    <h3 style="margin: 0 0 8px 0;">Feature A</h3>
-    <p style="margin: 0; font-size: 0.9rem;">Description here</p>
+<div style="display: flex; gap: 16px;">
+  <div style="flex: 1; padding: 20px; background: #667eea; 
+    color: white; border-radius: 8px; text-align: center;">
+    <h3>Feature A</h3>
   </div>
-  <div style="flex: 1; padding: 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 12px; text-align: center;">
-    <h3 style="margin: 0 0 8px 0;">Feature B</h3>
-    <p style="margin: 0; font-size: 0.9rem;">Description here</p>
+  <div style="flex: 1; padding: 20px; background: #f093fb; 
+    color: white; border-radius: 8px; text-align: center;">
+    <h3>Feature B</h3>
   </div>
 </div>
 ```
 
-### Styled Code Blocks
+---
 
-```markdown
 layout: header-content
 
 @header
-## Code with Custom Styling
-
-@main
-<div style="background: #2d2d2d; color: #f8f8f2; padding: 16px; border-radius: 8px; font-family: monospace;">
-  <pre style="margin: 0;"><code style="color: #a6e22e;">int main() {
-    printf("Hello, World!");
-    return 0;
-}</code></pre>
-</div>
-```
-
-### Flexbox Layouts
-
-```markdown
-layout: header-content
-
-@header
-## Flexbox Layouts
-
-@main
-<div style="display: flex; gap: 16px; align-items: center;">
-  <div style="flex: 1; background: #e74c3c; color: white; padding: 24px; border-radius: 8px; text-align: center;">
-    <h3 style="margin: 0 0 8px 0;">Item 1</h3>
-    <p style="margin: 0;">First item</p>
-  </div>
-  <div style="flex: 1; background: #3498db; color: white; padding: 24px; border-radius: 8px; text-align: center;">
-    <h3 style="margin: 0 0 8px 0;">Item 2</h3>
-    <p style="margin: 0;">Second item</p>
-  </div>
-  <div style="flex: 1; background: #2ecc71; color: white; padding: 24px; border-radius: 8px; text-align: center;">
-    <h3 style="margin: 0 0 8px 0;">Item 3</h3>
-    <p style="margin: 0;">Third item</p>
-  </div>
-</div>
-```
-
-### Inline Styling with Markdown
-
-```markdown
-layout: header-content
-
-@header
-## Mixed Markdown and HTML
-
-@main
-Regular markdown with <span style="color: #e74c3c; font-weight: bold;">red bold text</span>
-
-and <span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px;">highlighted content</span>.
-
-- List item with <span style="color: #9b59b6;">purple text</span>
-- Another item with <strong style="text-decoration: underline;">underlined bold</strong>
-```
-
 ## Mermaid Diagrams
 
-You can embed Mermaid diagrams using triple-backtick code blocks with the `mermaid` language. Mermaid supports various diagram types including flowcharts, sequence diagrams, state diagrams, and more.
+@main
+You can embed Mermaid diagrams using triple-backtick code blocks with the `mermaid` language. 
 
-### Basic Mermaid Diagram
+Mermaid supports various diagram types including:
+- Flowcharts
+- Sequence diagrams
+- State diagrams
+- Class diagrams
+- Entity relationship diagrams
 
-```markdown
-layout: header-content
+---
+
+layout: header-two-column
 
 @header
-## Memory Layout Visualization
+## Basic Mermaid Diagram
 
 @main
+**Code Example:**
+
+```
+graph LR
+    A[Start] --> B{Condition}
+    B -->|True| C[Action A]
+    B -->|False| D[Action B]
+    C --> E[End]
+    D --> E
+```
+
+Use triple backticks with `mermaid` language.
+
+@media
+**Result:**
+
 ```mermaid
 graph LR
     A[Start] --> B{Condition}
@@ -402,40 +408,60 @@ graph LR
     C --> E[End]
     D --> E
 ```
-```
 
-### Mermaid with Title (Recommended)
+---
 
-The title font will be automatically adjusted to match your slide's styling, making the diagram more readable and professional.
-
-```markdown
-layout: header-content
+layout: header-two-column
 
 @header
-## Memory Layout
+## Mermaid with Title (Recommended)
 
 @main
-```mermaid
+**Code with Title:**
+
+```
 ---
-title: Memory
+title: Memory Layout Example
 ---
 graph LR
-    direction LR
     m0["[0][0]<br/>1"]:::row0
     m1["[0][1]<br/>2"]:::row0
     m2["[0][2]<br/>3"]:::row0
-    m3["[0][3]<br/>4"]:::row0
-    m4["[1][0]<br/>5"]:::row1
-
-    m0 --- m1 --- m2 --- m3 --- m4
-
-    classDef row0 fill:lightblue,stroke:#333,font-size:1.5rem,stroke-width:2px
-    classDef row1 fill:lightgreen,stroke:#333,font-size:1.5rem,stroke-width:2px
-```
+    m3["[1][0]<br/>5"]:::row1
+    m0 --- m1 --- m2 --- m3
+    classDef row0 fill:lightblue
+    classDef row1 fill:lightgreen
 ```
 
-### Common Mermaid Diagram Types
+Add `---` section for title at top.
 
+@media
+**Result:**
+
+```mermaid
+---
+title: Memory Layout Example
+---
+graph LR
+    m0["[0][0]<br/>1"]:::row0
+    m1["[0][1]<br/>2"]:::row0
+    m2["[0][2]<br/>3"]:::row0
+    m3["[1][0]<br/>5"]:::row1
+
+    m0 --- m1 --- m2 --- m3
+
+    classDef row0 fill:lightblue,stroke:#333,stroke-width:2px
+    classDef row1 fill:lightgreen,stroke:#333,stroke-width:2px
+```
+
+---
+
+layout: header-content
+
+@header
+## Common Mermaid Diagram Types
+
+@main
 | Type | Description | Example Syntax |
 |------|-------------|----------------|
 | `graph LR` | Left-to-right flowchart | `A --> B` |
@@ -443,21 +469,46 @@ graph LR
 | `sequenceDiagram` | Sequence diagram | `participant A; A->>B: Message` |
 | `stateDiagram-v2` | State diagram | `[*] --> State1` |
 | `classDiagram` | Class diagram | `class Animal{+String name}` |
-| `erDiagram` | Entity relationship | `Customer ||--o{ Order : places` |
+| `erDiagram` | Entity relationship | `Customer \|\|--o{ Order : places...` |
 
-### Styling Tips
+---
 
+layout: header-content
+
+@header
+## Mermaid Styling Tips
+
+@main
+**Styling:**
 - Use `classDef` to define custom styles for nodes
 - Use `:::classname` to apply styles to specific nodes
 - The `font-size` in Mermaid styles uses `rem` units and will scale with the slide
 - Title fonts are automatically adjusted to match slide typography
 
-For the complete Mermaid syntax reference, see [mermaid.js.org](https://mermaid.js.org/intro/)
+**Example:**
+```markdown
+classDef highlight fill:#f9f,stroke:#333,stroke-width:4px
+A[Node]:::highlight
+```
 
+For complete reference: [mermaid.js.org](https://mermaid.js.org/intro/)
+
+---
+
+layout: header-content
+
+@header
 ## Tips and Best Practices
 
-- **Keep every row the same number of cells**: When using custom layouts, ensure each row has the same count of area names or dots.
-- **Use lowercase area names**: Area names are case-sensitive in CSS; `@area` markers are normalized to lowercase.
-- **Named areas without content**: If a named area appears in the layout but no `@area` content is provided, it renders as an empty region.
-- **Extra content areas**: If you provide `@area` content but forget to include it in the layout, it still renders but won't be positioned as expected.
-- **Row sizing hints**: Content rows (containing main/media/left/right/secondary/content/sidebar) default to `minmax(0, 1fr)`, while header/footer rows default to `auto`.
+@main
+**Custom Layouts:**
+- Keep every row the same number of cells - ensure each row has the same count of area names or dots
+- Use lowercase area names - they are case-sensitive in CSS; `@area` markers are normalized to lowercase
+
+**Content Areas:**
+- Named areas without content render as empty regions
+- Extra `@area` content without layout placement still renders but won't be positioned as expected
+
+**Row Sizing:**
+- Content rows (main/media/left/right/secondary/content/sidebar) default to `minmax(0, 1fr)`
+- Header/footer rows default to `auto`
