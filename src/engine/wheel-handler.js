@@ -36,12 +36,30 @@ export class WheelHandler {
     }
 
     /**
+     * Checks if the wheel event is over an area that should handle its own scrolling.
+     * @param {WheelEvent} e - The wheel event
+     * @returns {boolean} True if the event is over a scrollable area that should not trigger navigation
+     */
+    isOverScrollableArea(e) {
+        // Check if the wheel event is over the thumbnails panel
+        const thumbnailsPanel = e.target.closest('.slide-thumbnails, .editor__thumbnails');
+        if (thumbnailsPanel) return true;
+
+        return false;
+    }
+
+    /**
      * Handles wheel events and dispatches to navigation actions.
      * @param {WheelEvent} e - The wheel event
      */
     handleWheel(e) {
         // Ignore wheel events when a modal is open
         if (this.isModalOpen()) {
+            return;
+        }
+
+        // Ignore wheel events over scrollable areas like thumbnails
+        if (this.isOverScrollableArea(e)) {
             return;
         }
 
