@@ -207,6 +207,9 @@ export class EditController {
                 this.updateSaveButton();
             }
         }
+
+        // Re-scale the stage to fit the new layout after toggling edit mode
+        setTimeout(() => StageScaler.applyStageScale(this.elements), 50);
     }
 
     /**
@@ -231,8 +234,8 @@ export class EditController {
 
         // Get markdown - first check unsaved changes, then fall back to original
         const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ??
-                         this.originalMarkdown[this.currentSlideIndex] ??
-                         '';
+            this.originalMarkdown[this.currentSlideIndex] ??
+            '';
 
         this.markdownEditor.setValue(markdown);
         // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
@@ -662,7 +665,7 @@ export class EditController {
 
         // Get the markdown for the current slide (prefer unsaved changes)
         const markdown = this.unsavedMarkdown.get(sourceIndex) ??
-                         this.originalMarkdown[sourceIndex] ?? '';
+            this.originalMarkdown[sourceIndex] ?? '';
 
         if (!markdown) {
             Notification.warning('Cannot duplicate empty slide');
