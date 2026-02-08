@@ -223,14 +223,6 @@
     background: var(--surface-elevated);
 }
 
-.editor__body-header .slide-indicator {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
 .editor__body-header .editor__title {
     margin: 0;
     font-size: 11px;

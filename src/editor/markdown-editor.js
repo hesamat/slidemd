@@ -12,7 +12,7 @@ export class MarkdownEditor {
         this.container = container;
         this.options = {
             placeholder: options.placeholder || "Edit markdown for current slide...",
-            onChange: options.onChange || (() => {}),
+            onChange: options.onChange || (() => { }),
             debounceDelay: options.debounceDelay || 150,
         };
 
@@ -34,6 +34,7 @@ export class MarkdownEditor {
         this.container.innerHTML = `
             <div class="markdown-editor-wrapper">
                 <textarea
+                    id="markdown-editor-textarea"
                     class="markdown-editor-textarea"
                     placeholder="${this.escapeHtml(this.options.placeholder)}"
                     spellcheck="false"

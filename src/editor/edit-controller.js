@@ -126,7 +126,6 @@ export class EditController {
         this.controller.addEventListener('slidechange', () => {
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
-            this.updateSlideIndicator();
         });
 
         // Listen for deck replacement events
@@ -139,7 +138,6 @@ export class EditController {
             this.updateSaveButton();
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
-            this.updateSlideIndicator();
         });
 
         // Set up save button
@@ -326,18 +324,6 @@ export class EditController {
     updateSaveButton() {
         if (this.elements.saveSlideBtn) {
             this.elements.saveSlideBtn.disabled = !this.hasUnsavedChanges;
-        }
-    }
-
-    /**
-     * Update the slide indicator (e.g., "1 / 5")
-     */
-    updateSlideIndicator() {
-        const indicator = document.querySelector('.editor__body-header .slide-indicator');
-        if (indicator) {
-            const current = this.currentSlideIndex + 1;
-            const total = this.deck.slides.length;
-            indicator.textContent = `${current} / ${total}`;
         }
     }
 
@@ -541,7 +527,6 @@ export class EditController {
 
         // Refresh thumbnails after deleting slide
         this.thumbnails.refresh();
-        this.updateSlideIndicator();
     }
 
     /**
@@ -600,9 +585,8 @@ export class EditController {
         // Navigate to the new position
         this.controller.slideNavigator.goTo(targetIndex);
 
-        // Refresh thumbnails and update indicator
+        // Refresh thumbnails after moving slide
         this.thumbnails.refresh();
-        this.updateSlideIndicator();
 
         Notification.success('Slide moved up');
     }
@@ -663,9 +647,8 @@ export class EditController {
         // Navigate to the new position
         this.controller.slideNavigator.goTo(targetIndex);
 
-        // Refresh thumbnails and update indicator
+        // Refresh thumbnails after moving slide
         this.thumbnails.refresh();
-        this.updateSlideIndicator();
 
         Notification.success('Slide moved down');
     }
@@ -736,9 +719,8 @@ export class EditController {
             // Navigate to new slide
             this.controller.slideNavigator.goTo(insertIndex);
 
-            // Refresh thumbnails and update indicator
+            // Refresh thumbnails after duplicating slide
             this.thumbnails.refresh();
-            this.updateSlideIndicator();
 
             Notification.success('Slide duplicated successfully');
         } catch (error) {
@@ -820,7 +802,6 @@ export class EditController {
 
             // Refresh thumbnails after adding slide
             this.thumbnails.refresh();
-            this.updateSlideIndicator();
 
             Notification.success(`Added new slide with "${layoutName}" layout`);
         } catch (error) {
