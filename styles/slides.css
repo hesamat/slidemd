@@ -33,7 +33,7 @@
     /* --- SPACING & SIZING --- */
     --slide-rhythm: 12px;
     --spacing-xs: 6px;
-    --spacing-sm: 12px;
+    --spacing-sm: 10px;
     --spacing-md: 16px;
     --spacing-lg: 24px;
     --spacing-xl: 32px;
@@ -44,7 +44,7 @@
     --radius-lg: 14px;
 
     /* --- TYPOGRAPHY --- */
-    --line-max: 68ch;
+    --line-max: 87ch;
 
     /* --- FONT STACK --- */
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
@@ -208,7 +208,7 @@
 
 /* --- PARAGRAPH & TEXT STYLES --- */
 
-.slide__area p {
+.slide__area p:not(.nodeLabel > p) {
     line-height: 1.6;
     color: var(--slide-muted);
     margin-top: var(--spacing-xs);
@@ -469,6 +469,11 @@
     height: auto !important;
     max-width: 100% !important;
     max-height: 100% !important;
+}
+
+.slide__area .mermaid .flowchartTitleText {
+    font-size: 26px !important;
+    font-weight: 600 !important;
 }
 
 /* --- KATEX MATH --- */

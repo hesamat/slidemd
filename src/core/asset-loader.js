@@ -100,9 +100,35 @@ export class AssetLoader {
 
         const mermaidInitOptions = {
             startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose',
-            fontFamily: 'Open Sans, sans-serif',
+            theme: "base",
+            securityLevel: "loose",
+            flowchart: {
+                curve: "basis",
+                nodeSpacing: 60,
+                rankSpacing: 60,
+                padding: 20,
+            },
+            themeVariables: {
+                primaryColor: "#e0d5ff",
+                primaryBorderColor: "#7c3aed",
+                primaryTextColor: "#1f2937",
+                textColor: "#1f2937",
+                lineColor: "#7c3aed",
+                secondaryColor: "#dbeafe",
+                secondaryBorderColor: "#2563eb",
+                secondaryTextColor: "#1f2937",
+                tertiaryColor: "#fef3c7",
+                tertiaryBorderColor: "#f59e0b",
+                tertiaryTextColor: "#1f2937",
+                noteBkgColor: "#fef3c7",
+                noteBorderColor: "#f59e0b",
+                edgeLabelBackground: "#ffffff",
+                clusterBkg: "#f9fafb",
+                clusterBorder: "#d1d5db",
+                fontFamily: "Segoe UI, Roboto, sans-serif",
+                fontSize: "18px",
+                mainBkg: "#e0d5ff",
+            },
         };
 
         // Use a preloaded global Mermaid if present (e.g., inlined in exported HTML)
