@@ -45,7 +45,6 @@
 
     /* --- TYPOGRAPHY --- */
     --line-max: 68ch;
-    --line-max-narrow: 50ch;
 
     /* --- FONT STACK --- */
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
@@ -132,7 +131,7 @@
     text-align: center;
     justify-content: center;
     align-items: center;
-    max-width: var(--line-max-narrow);
+    max-width: var(--line-max);
     margin: 0 auto;
 }
 
@@ -238,7 +237,7 @@
     gap: var(--spacing-md);
     line-height: 1.5;
     padding-left: 1.5em;
-    margin-top: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
 }
 
 .slide__area li {
@@ -300,7 +299,7 @@
 .slide__area--title h2,
 .slide__area--title h3,
 .slide__area--title p {
-    max-width: var(--line-max-narrow);
+    max-width: var(--line-max);
 }
 
 
