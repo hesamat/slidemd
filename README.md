@@ -56,11 +56,14 @@ More layouts, backgrounds, and theming recipes live in [docs/authoring-examples.
 
 Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:
 - Search inside the slide with Ctrl/Cmd+F (and Ctrl/Cmd+G to jump results).
-- Autocomplete for `layout:` presets and `@area` markers.
+- Autocomplete for `layout:`, `theme:`, `background:`, `hidden:`, and `@area` markers.
+- Slash commands: type `/` to insert common directives and blocks.
 - Type ``` or ~~~ to expand fenced blocks quickly.
 - Click the area tags in the preview to jump the cursor to that section.
 - Overflow indicators highlight content that does not fit an area.
 - The layout picker shows area tags for each preset.
+- Mermaid helper panel inserts common diagram skeletons.
+- Warnings show on the slide when layout or area markers are mismatched.
 
 ## Keyboard Shortcuts
 

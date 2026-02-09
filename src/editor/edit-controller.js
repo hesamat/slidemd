@@ -31,7 +31,8 @@ export class EditController {
         // Store unsaved changes in memory (per-slide)
         this.unsavedMarkdown = new Map();
         this.lastDiagnostics = new Map();
-        this.editorWarningsEnabled = false;
+        this.editorWarningsEnabled = true;
+        this.pendingSlideWarning = '';
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
@@ -163,12 +164,27 @@ export class EditController {
             this.elements.duplicateSlideBtn.addEventListener('click', () => this.duplicateSlide());
         }
 
+        if (this.elements.toggleMermaidHelperBtn && this.elements.mermaidHelperPanel) {
+            this.elements.toggleMermaidHelperBtn.addEventListener('click', () => this.toggleMermaidHelperPanel());
+        }
+
+        if (this.elements.mermaidHelperPanel) {
+            const templateButtons = this.elements.mermaidHelperPanel.querySelectorAll('[data-mermaid-template]');
+            templateButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const template = button.getAttribute('data-mermaid-template');
+                    this.insertMermaidTemplate(template);
+                });
+            });
+        }
+
         // Initialize layout picker modal
         LayoutPicker.initModal();
 
         // Render initial thumbnails
         this.thumbnails.render();
     }
+
 
     /**
      * Toggle edit mode on/off
@@ -198,6 +214,7 @@ export class EditController {
             this.elements.editorPanel?.classList.add('webdeck-hidden');
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
+            this.hideMermaidHelperPanel();
 
             // Restore presenter panel visibility based on editor role
             if (this.controller.roleManager.isEditorWindow) {
@@ -213,6 +230,39 @@ export class EditController {
 
         // Re-scale the stage to fit the new layout after toggling edit mode
         setTimeout(() => StageScaler.applyStageScale(this.elements), 50);
+    }
+
+    toggleMermaidHelperPanel() {
+        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        const isHidden = this.elements.mermaidHelperPanel.classList.toggle('webdeck-hidden');
+        this.elements.mermaidHelperPanel.setAttribute('aria-hidden', String(isHidden));
+        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', String(!isHidden));
+        this.elements.toggleMermaidHelperBtn.classList.toggle('active', !isHidden);
+    }
+
+    hideMermaidHelperPanel() {
+        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        this.elements.mermaidHelperPanel.classList.add('webdeck-hidden');
+        this.elements.mermaidHelperPanel.setAttribute('aria-hidden', 'true');
+        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', 'false');
+        this.elements.toggleMermaidHelperBtn.classList.remove('active');
+    }
+
+    insertMermaidTemplate(templateName) {
+        if (!this.markdownEditor) return;
+
+        const templates = {
+            flowchart: "```mermaid\nflowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Stop]\n```\n",
+            generic: "```mermaid\nflowchart LR\n    A[Step one] --> B[Step two]\n    B --> C[Step three]\n```\n",
+            sequence: "```mermaid\nsequenceDiagram\n    participant A as User\n    participant B as Service\n    A->>B: Request\n    B-->>A: Response\n```\n",
+            class: "```mermaid\nclassDiagram\n    class SlideDeck {\n        +title\n        +render()\n    }\n    class Slide {\n        +layout\n        +areas\n    }\n    SlideDeck --> Slide\n```\n",
+            state: "```mermaid\nstateDiagram-v2\n    [*] --> Draft\n    Draft --> Review\n    Review --> Published\n    Published --> [*]\n```\n",
+            gantt: "```mermaid\ngantt\n    title Project Timeline\n    dateFormat  YYYY-MM-DD\n    section Prep\n    Draft content      :a1, 2025-01-01, 2025-01-07\n    Review             :a2, 2025-01-08, 2025-01-12\n    section Delivery\n    Finalize slides    :a3, 2025-01-13, 2025-01-16\n```\n",
+        };
+
+        const snippet = templates[templateName] || templates.flowchart;
+        this.markdownEditor.insertText(snippet);
+        this.markdownEditor.focus();
     }
 
     /**
@@ -282,8 +332,49 @@ export class EditController {
         const last = this.lastDiagnostics.get(key) || 0;
         if (now - last < 3000) return;
         this.lastDiagnostics.set(key, now);
-        Notification.warning(message, duration);
+        this.pendingSlideWarning = message;
     }
+
+    showSlideWarning(message) {
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+
+        let banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'editor-slide-warning';
+            slideEl.appendChild(banner);
+        }
+
+        banner.textContent = message;
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+    }
+
+    clearSlideWarning() {
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+        const banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (banner) banner.remove();
+    }
+
+    applyPendingSlideWarning(targetSlideEl = null) {
+        if (!this.pendingSlideWarning) return;
+        const slideEl = targetSlideEl || this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+
+        let banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'editor-slide-warning';
+            slideEl.appendChild(banner);
+        }
+
+        banner.textContent = this.pendingSlideWarning;
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+    }
+
 
     applyAreaGuides(slideEl, slideData) {
         if (!this.isEditMode || !slideEl) return;
@@ -374,6 +465,8 @@ export class EditController {
      */
     async updatePreview() {
         const markdown = this.markdownEditor?.getValue() ?? '';
+        this.clearSlideWarning();
+        this.pendingSlideWarning = '';
 
         try {
             await AssetLoader.ensureMarkdownItLoaded();
@@ -458,6 +551,7 @@ export class EditController {
                 );
                 slideEl.replaceWith(newSlideEl);
 
+                this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
                 // Re-enhance the new slide content (Mermaid, Prism, etc.)
@@ -467,6 +561,8 @@ export class EditController {
                 }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 });
+            } else {
+                this.applyPendingSlideWarning();
             }
         } catch (error) {
             console.error('Failed to update preview:', error);

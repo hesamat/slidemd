@@ -80,7 +80,7 @@ The default view is your presenter dashboard with:
 4. **Press `F`** – Go fullscreen on viewer
 5. **Present** – Use arrow keys or space to navigate
 
-> *Tip: Add speaker notes using HTML comments: `<!-- notes: Your notes here -->`*
+> *Tip: Add speaker notes using HTML comments: `<!--` `notes: Your notes here -->`*
 
 
 
@@ -135,9 +135,11 @@ layout: two-column
 ## Edit Mode Helpers
 
 - **Search inside the current slide** with Ctrl/Cmd+F and jump between matches
-- **Autocomplete for layouts and areas**: start typing `layout:` or `@` and pick from presets
+- **Autocomplete for common directives**: `layout:`, `theme:`, `background:`, `hidden:` and `@area`
+- **Slash commands**: type `/` to insert layout, notes, Mermaid, and area blocks quickly
 - **Fenced block helper**: typing ``` or ~~~ expands a full code block and places the cursor inside
 - **Click area tags in the preview** to jump the cursor to that section in the editor
+- **Mermaid helper panel** inserts common diagram skeletons
 
 @media
 
@@ -146,6 +148,7 @@ layout: two-column
 - Area outlines show the live layout grid
 - Overflow areas get a warning outline so you can trim content early
 - Layout picker shows area tags so you know where content should go
+- Slide warnings appear at the top of the preview when layout or area markers are mismatched
 
 ---
 
@@ -296,6 +299,8 @@ Press `E` to toggle split-screen editing with live preview.
 - **Quick actions** – Add, delete, duplicate, or reorder slides without leaving the editor
 - **Layout Picker** – Choose a preset layout and start with a filled-in template
 - **Area guides** – Click preview tags to jump to the right `@area` in the editor
+- **Mermaid helpers** – Insert diagram scaffolds directly from the editor panel
+- **Inline warnings** – Layout or area mismatches show on the slide itself
 
 @media
 

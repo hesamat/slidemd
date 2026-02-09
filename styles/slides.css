@@ -707,3 +707,72 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
         transition: none !important;
     }
 }
+
+.mermaid-error {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    background: rgba(254, 242, 242, 0.9);
+    color: rgba(127, 29, 29, 0.95);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.slide[data-theme="dark"] .mermaid-error {
+    background: rgba(69, 10, 10, 0.7);
+    color: rgba(254, 226, 226, 0.95);
+    border-color: rgba(248, 113, 113, 0.45);
+}
+
+.mermaid-error__title {
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.mermaid-error__message {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.mermaid-error__details summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: inherit;
+}
+
+.mermaid-error__details pre {
+    margin: 8px 0 0;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.06);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.slide[data-theme="dark"] .mermaid-error__details pre {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.editor-slide-warning {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    background: rgba(254, 242, 242, 0.92);
+    color: rgba(127, 29, 29, 0.95);
+    font-size: 20px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    max-width: calc(100% - 36px);
+    text-align: center;
+}
+
+.slide[data-theme="dark"] .editor-slide-warning {
+    background: rgba(69, 10, 10, 0.8);
+    color: rgba(254, 226, 226, 0.98);
+    border-color: rgba(248, 113, 113, 0.55);
+}

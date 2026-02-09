@@ -28,6 +28,8 @@ export class ElementGatherer {
             fileInput: $("fileInput"),
             editorPanel: $("editorPanel"),
             markdownEditor: $("markdownEditor"),
+            toggleMermaidHelperBtn: $("toggleMermaidHelperBtn"),
+            mermaidHelperPanel: $("mermaidHelperPanel"),
             addSlideBtn: $("addSlideBtn"),
             duplicateSlideBtn: $("duplicateSlideBtn"),
             deleteSlideBtn: $("deleteSlideBtn"),

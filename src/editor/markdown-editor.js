@@ -2,7 +2,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, placeholder } from "@codemirror/view";
 import { history, historyKeymap, indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { autocompletion, completionKeymap, snippetCompletion } from "@codemirror/autocomplete";
+import { autocompletion, completionKeymap, snippetCompletion, startCompletion } from "@codemirror/autocomplete";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -223,6 +223,90 @@ export class MarkdownEditor {
             };
         };
 
+        const directiveCompletionSource = (context) => {
+            const match = context.matchBefore(/(?:^|\n)\s*(background|theme|hidden|hide):\s*[^\n]*$/i);
+            if (!match) return null;
+
+            const directive = match.text.split(":")[0].trim().toLowerCase();
+            let from = match.from + match.text.indexOf(":") + 1;
+            const docText = context.state.doc.sliceString(match.from, match.to);
+            while (from < match.to && /\s/.test(docText[from - match.from])) {
+                from += 1;
+            }
+
+            const optionsByDirective = {
+                theme: [
+                    { label: "light", type: "keyword" },
+                    { label: "dark", type: "keyword" }
+                ],
+                hidden: [
+                    { label: "true", type: "keyword" },
+                    { label: "false", type: "keyword" }
+                ],
+                hide: [
+                    { label: "true", type: "keyword" },
+                    { label: "false", type: "keyword" }
+                ],
+                background: [
+                    snippetCompletion("linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 90%)", { label: "gradient" }),
+                    snippetCompletion("#eeffdd", { label: "solid color" }),
+                    snippetCompletion("url(${})", { label: "image URL" })
+                ]
+            };
+
+            const options = optionsByDirective[directive];
+            if (!options) return null;
+            return { from, options };
+        };
+
+        const notesCompletionSource = (context) => {
+            const match = context.matchBefore(/<!--\s*notes\s*:?\s*[^-]*$/i);
+            if (!match) return null;
+            return {
+                from: match.from,
+                options: [
+                    snippetCompletion("<!-- notes: ${} -->", { label: "notes", type: "keyword" })
+                ]
+            };
+        };
+
+        const createSlashCommand = (label, insertText, triggerCompletion) => ({
+            label,
+            type: "keyword",
+            apply: (view, _completion, from, to) => {
+                view.dispatch({
+                    changes: { from, to, insert: insertText },
+                    selection: { anchor: from + insertText.length }
+                });
+                if (triggerCompletion) {
+                    startCompletion(view);
+                }
+            }
+        });
+
+        const slashCommandSource = (context) => {
+            const match = context.matchBefore(/(?:^|\s)\/[a-z-]*$/i);
+            if (!match) return null;
+
+            const start = match.from + match.text.lastIndexOf("/");
+            return {
+                from: start,
+                options: [
+                    createSlashCommand("/layout", "layout: ", true),
+                    createSlashCommand("/theme", "theme: ", true),
+                    createSlashCommand("/background", "background: ", true),
+                    createSlashCommand("/hidden", "hidden: ", true),
+                    createSlashCommand("/main", "@main\n", false),
+                    createSlashCommand("/header", "@header\n", false),
+                    createSlashCommand("/media", "@media\n", false),
+                    createSlashCommand("/sidebar", "@sidebar\n", false),
+                    createSlashCommand("/footer", "@footer\n", false),
+                    createSlashCommand("/mermaid", "```mermaid\n\n```", false),
+                    createSlashCommand("/notes", "<!-- notes:  -->", false)
+                ]
+            };
+        };
+
         const areaCompletionSource = (context) => {
             const match = context.matchBefore(/@[a-z0-9_-]*$/i);
             if (!match) return null;
@@ -325,7 +409,7 @@ export class MarkdownEditor {
             highlightSelectionMatches(),
             autocompletion({
                 activateOnTyping: true,
-                override: [layoutCompletionSource, areaCompletionSource, fenceCompletionSource]
+                override: [slashCommandSource, layoutCompletionSource, directiveCompletionSource, notesCompletionSource, areaCompletionSource, fenceCompletionSource]
             }),
             syntaxHighlighting(markdownHighlightStyle, { fallback: true }),
             markdown({ codeLanguages: languages }),

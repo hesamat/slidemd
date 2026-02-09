@@ -54,8 +54,8 @@ export class ContentEnhancer {
       position: fixed;
       left: -10000px;
       top: 0;
-      width: 0;
-      height: 0;
+        width: 1400px;
+        height: 900px;
       overflow: hidden;
       pointer-events: none;
       contain: layout paint style;
@@ -97,7 +97,18 @@ export class ContentEnhancer {
                 el.innerHTML = out.svg;
                 out.bindFunctions?.(el);
             } catch (e) {
-                el.innerHTML = `<div style="color:#d32f2f; padding:1rem;">Error: ${escapeHtml(e.message || 'Mermaid rendering failed')}</div>`;
+                const errorMessage = escapeHtml(e.message || "Mermaid rendering failed");
+                const safeSource = escapeHtml(source);
+                el.innerHTML = `
+                    <div class="mermaid-error" role="alert">
+                        <div class="mermaid-error__title">Mermaid error</div>
+                        <div class="mermaid-error__message">${errorMessage}</div>
+                        <details class="mermaid-error__details">
+                            <summary>Show source</summary>
+                            <pre>${safeSource}</pre>
+                        </details>
+                    </div>
+                `;
             }
             el.dataset.mermaidProcessed = "1";
         }

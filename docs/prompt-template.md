@@ -8,7 +8,7 @@
 
 **Basic Structure:**
 - Slides are separated by `---` (three dashes on a line by themselves)
-- Each slide begins with frontmatter: `layout: "grid definition" / "columns" / "alignment"`
+- Each slide begins with frontmatter: `layout: preset-name` or `layout: "grid definition" / columns`
 - Content areas are marked with `@area-name` (e.g., `@header`, `@main`, `@media`, `@sidebar`)
 - Content before the first `@area` flows into `@main`
 
@@ -16,19 +16,19 @@
 
 ```markdown
 # Title slide (centered)
-layout: "title" / 1fr / center
+layout: title-slide
 # Content: @title
 
 # Header + single content
-layout: "header" "main" / auto 1fr
+layout: header-content
 # Content: @header, @main
 
 # Header + two equal columns
-layout: "header header" "main media" / 1fr 1fr
+layout: header-two-column
 # Content: @header, @main, @media
 
 # Two equal columns (no header)
-layout: "main media" / 1fr 1fr
+layout: two-column
 # Content: @main, @media
 
 # Header + main + sidebar (for activities)
