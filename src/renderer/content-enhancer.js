@@ -43,6 +43,27 @@ export class ContentEnhancer {
         return window.__WEBDECK_MERMAID__;
     }
 
+    static getMermaidSandbox() {
+        let box = document.getElementById("mermaid-sandbox");
+        if (!box) {
+            box = document.createElement("div");
+            box.id = "mermaid-sandbox";
+            box.setAttribute("aria-hidden", "true");
+            box.style.cssText = `
+position: fixed;
+left: -10000px;
+top: 0;
+width: 1920px;
+height: 1080px;
+overflow: hidden;
+pointer-events: none;
+contain: layout paint style;
+`;
+            document.body.appendChild(box);
+        }
+        return box;
+    }
+
     /**
      * Renders Mermaid diagrams.
      */
@@ -66,7 +87,18 @@ export class ContentEnhancer {
 
             try {
                 const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                const out = await mermaid.render(id, source);
+                const sandbox = this.getMermaidSandbox();
+
+                // Fonts can affect Mermaid's label measurement (and thus spacing/wrapping)
+                if (document.fonts?.ready) await document.fonts.ready;
+
+                let out;
+                try {
+                    out = await mermaid.render(id, source, sandbox);
+                } catch {
+                    // Fallback for Mermaid builds that don't accept a container arg
+                    out = await mermaid.render(id, source);
+                }
                 const svg = typeof out === "string" ? out : out?.svg;
                 if (svg) el.innerHTML = svg;
                 if (out && typeof out !== "string") out.bindFunctions?.(el);

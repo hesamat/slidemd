@@ -138,6 +138,26 @@ export class AssetLoader {
             return;
         }
 
+        // In exported HTML builds, Mermaid is typically loaded via an ESM CDN <script type="module">.
+        // Module scripts do not block classic scripts, so we can race; avoid trying `import("mermaid")`
+        // (which will fail in a standalone HTML file) and instead wait briefly for `window.mermaid`.
+        if (window.__WEBDECK_EXPORTED__) {
+            const timeoutMs = 8000;
+            const start = performance.now();
+
+            while (performance.now() - start < timeoutMs) {
+                if (window.mermaid && typeof window.mermaid.initialize === "function") {
+                    window.mermaid.initialize(mermaidInitOptions);
+                    window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
+                    return;
+                }
+                await new Promise((r) => setTimeout(r, 50));
+            }
+
+            window.__WEBDECK_MERMAID__ = { mermaid: null };
+            return;
+        }
+
         await this.once("mermaid", async () => {
             const mermaidMod = await import("mermaid");
             const mermaid = mermaidMod?.default || mermaidMod;
