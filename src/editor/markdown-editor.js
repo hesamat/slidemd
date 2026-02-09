@@ -142,6 +142,41 @@ export class MarkdownEditor {
     }
 
     /**
+     * Set the editor value and move cursor to a specific position
+     * @param {string} value - The new value
+     * @param {number} cursorPosition - Index to place the cursor at
+     */
+    setValueWithCursor(value, cursorPosition) {
+        this.value = value || "";
+        if (!this.textarea) return;
+
+        this.textarea.value = this.value;
+        const position = Math.max(0, Math.min(cursorPosition ?? this.textarea.value.length, this.textarea.value.length));
+        this.textarea.selectionStart = position;
+        this.textarea.selectionEnd = position;
+        this.textarea.focus();
+    }
+
+    /**
+     * Insert text at the current cursor position
+     * @param {string} text - Text to insert
+     */
+    insertText(text) {
+        if (!this.textarea) return;
+
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        const value = this.textarea.value;
+
+        this.textarea.value = value.substring(0, start) + text + value.substring(end);
+        const newPosition = start + text.length;
+        this.textarea.selectionStart = newPosition;
+        this.textarea.selectionEnd = newPosition;
+
+        this.textarea.dispatchEvent(new Event("input"));
+    }
+
+    /**
      * Get the editor value
      * @returns {string} The current value
      */

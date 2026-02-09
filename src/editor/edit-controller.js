@@ -9,6 +9,7 @@ import { Notification } from "../renderer/notification.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
 import { LayoutData } from "../data/layout-data.js";
+import { LayoutParser } from "../data/layout-parser.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
@@ -29,6 +30,7 @@ export class EditController {
         this.originalMarkdown = this.cacheOriginalMarkdown();
         // Store unsaved changes in memory (per-slide)
         this.unsavedMarkdown = new Map();
+        this.lastDiagnostics = new Map();
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
@@ -240,6 +242,7 @@ export class EditController {
         this.markdownEditor.setValue(markdown);
         // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
         this.updateSaveButton();
+        this.refreshAreaGuides();
     }
 
     /**
@@ -265,6 +268,105 @@ export class EditController {
         this.updateSaveButton();
     }
 
+    getSlideElementByIndex(index) {
+        const slidesContainer = document.getElementById('slidesContainer');
+        if (!slidesContainer) return null;
+        const allSlides = slidesContainer.querySelectorAll(':scope > .slide');
+        return allSlides[index] || null;
+    }
+
+    showEditorWarning(key, message, duration = 2500) {
+        const now = Date.now();
+        const last = this.lastDiagnostics.get(key) || 0;
+        if (now - last < 3000) return;
+        this.lastDiagnostics.set(key, now);
+        Notification.warning(message, duration);
+    }
+
+    applyAreaGuides(slideEl, slideData) {
+        if (!this.isEditMode || !slideEl) return;
+
+        const areaEls = slideEl.querySelectorAll('.slide__area');
+        areaEls.forEach(areaEl => {
+            const name = areaEl.style.gridArea || areaEl.dataset.areaName || 'main';
+            areaEl.dataset.areaName = name;
+
+            let label = areaEl.querySelector(':scope > .editor-area-label');
+            if (!label) {
+                label = document.createElement('button');
+                label.type = 'button';
+                label.className = 'editor-area-label';
+                areaEl.prepend(label);
+            }
+
+            label.textContent = `@${name}`;
+            label.setAttribute('title', `Click to jump to @${name}`);
+            label.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.navigateToArea(name);
+            };
+        });
+
+        if (slideData?.layout) {
+            slideEl.dataset.layoutName = slideData.layout;
+        }
+    }
+
+    updateAreaOverflow(slideEl) {
+        if (!this.isEditMode || !slideEl) return;
+        const areas = slideEl.querySelectorAll('.slide__area');
+        areas.forEach(area => {
+            const label = area.querySelector(':scope > .editor-area-label');
+            const verticalOverflow = area.scrollHeight - area.clientHeight > 6;
+            const horizontalOverflow = area.scrollWidth - area.clientWidth > 6;
+            const isOverflowing = verticalOverflow || horizontalOverflow;
+
+            area.classList.toggle('editor-area-overflow', isOverflowing);
+            if (label) {
+                label.dataset.overflow = isOverflowing ? '1' : '0';
+                label.setAttribute('aria-label', isOverflowing
+                    ? `@${area.dataset.areaName} is overflowing`
+                    : `@${area.dataset.areaName}`);
+            }
+        });
+    }
+
+    refreshAreaGuides() {
+        if (!this.isEditMode) return;
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        const slideData = this.deck?.slides?.[this.currentSlideIndex];
+        if (!slideEl || !slideData) return;
+
+        this.applyAreaGuides(slideEl, slideData);
+        requestAnimationFrame(() => this.updateAreaOverflow(slideEl));
+    }
+
+    navigateToArea(areaName) {
+        if (!this.markdownEditor) return;
+
+        const name = String(areaName || '').trim().toLowerCase();
+        if (!name) return;
+
+        const markdown = this.markdownEditor.getValue();
+        const regex = new RegExp(`^\\s*@${name}\\s*$`, 'mi');
+        const match = regex.exec(markdown);
+
+        if (match) {
+            const cursorPosition = match.index + match[0].length;
+            this.markdownEditor.setValueWithCursor(markdown, cursorPosition);
+            this.markdownEditor.focus();
+            return;
+        }
+
+        const spacer = markdown.endsWith('\n') ? '' : '\n';
+        const addition = `${spacer}\n@${name}\n`;
+        const updated = `${markdown}${addition}`;
+        const cursorPosition = updated.length;
+        this.markdownEditor.setValueWithCursor(updated, cursorPosition);
+        this.onEditorInput(updated);
+    }
+
     /**
      * Update the preview with the edited markdown
      */
@@ -274,6 +376,14 @@ export class EditController {
         try {
             await AssetLoader.ensureMarkdownItLoaded();
             const parser = new MarkdownParser();
+
+            const slideCount = parser.splitSlides(markdown).length;
+            if (slideCount > 1) {
+                this.showEditorWarning(
+                    'multi-slide-preview',
+                    'This editor previews a single slide. Split slides with --- in the full deck, not inside the editor.'
+                );
+            }
 
             // Parse fragment
             const fullDeckData = parser.parseDeckMarkdown(markdown);
@@ -285,6 +395,41 @@ export class EditController {
             }
 
             const slideData = fullDeckData.slides[0];
+
+            const layoutSpec = (slideData.layout || '').trim();
+            const layoutKey = layoutSpec.toLowerCase();
+            const looksLikeGridSpec = /["']/.test(layoutSpec) || layoutSpec.includes('/');
+            if (layoutSpec && !looksLikeGridSpec && !LayoutData.hasLayout(layoutKey)) {
+                this.showEditorWarning(
+                    `unknown-layout-${layoutKey}`,
+                    `Unknown layout "${layoutSpec}". Pick a preset or use a full grid template.`
+                );
+            }
+
+            const areaNames = Object.keys(slideData.areas || {});
+            const resolvedLayout = LayoutParser.resolvePreset(layoutSpec);
+            const layoutInfo = LayoutParser.parse(resolvedLayout, {
+                fallbackAreas: areaNames.length ? areaNames : ["main"],
+            });
+            const layoutAreas = layoutInfo.orderedAreas || [];
+
+            if (areaNames.length) {
+                const unknownAreas = areaNames.filter(name => !layoutAreas.includes(name));
+                if (unknownAreas.length) {
+                    this.showEditorWarning(
+                        `unknown-areas-${unknownAreas.join('-')}`,
+                        `Areas not in layout: ${unknownAreas.map(name => `@${name}`).join(', ')}.`
+                    );
+                }
+
+                const missingAreas = layoutAreas.filter(name => !areaNames.includes(name));
+                if (missingAreas.length) {
+                    this.showEditorWarning(
+                        `missing-areas-${missingAreas.join('-')}`,
+                        `Layout expects: ${missingAreas.map(name => `@${name}`).join(', ')}.`
+                    );
+                }
+            }
 
             // Update the current slide in the deck object
             this.deck.slides[this.currentSlideIndex] = slideData;
@@ -310,8 +455,13 @@ export class EditController {
                 );
                 slideEl.replaceWith(newSlideEl);
 
+                this.applyAreaGuides(newSlideEl, slideData);
+
                 // Re-enhance the new slide content (Mermaid, Prism, etc.)
-                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
+                ContentEnhancer.enhanceRenderedContent(newSlideEl).then(() => {
+                    this.applyAreaGuides(newSlideEl, slideData);
+                    requestAnimationFrame(() => this.updateAreaOverflow(newSlideEl));
+                }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 });
             }

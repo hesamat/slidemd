@@ -61,6 +61,10 @@ export class LayoutPicker {
             const preview = LayoutData.getPreviewHTML(layout);
             const formattedName = LayoutData.formatLayoutName(layout);
             const gridStyle = this.getGridTemplateStyle(layout);
+            const areas = LayoutData.getAreaNames(layout);
+            const areasMarkup = areas.map(area => `
+                <span class="layout-option__area">@${area}</span>
+            `).join('');
 
             return `
                 <div class="layout-option" data-layout="${layout}" tabindex="0" role="button" aria-label="Select ${layout} layout">
@@ -69,6 +73,9 @@ export class LayoutPicker {
                     </div>
                     <div class="layout-option__name">${formattedName}</div>
                     <div class="layout-option__description">${description}</div>
+                    <div class="layout-option__areas" aria-hidden="true">
+                        ${areasMarkup}
+                    </div>
                 </div>
             `;
         }).join('');

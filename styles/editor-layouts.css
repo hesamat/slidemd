@@ -74,3 +74,19 @@
     color: var(--text-medium);
     text-align: center;
 }
+
+.layout-option__areas {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.layout-option__area {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(var(--color-secondary), 0.12);
+    color: var(--text-medium);
+    border: 1px solid var(--border-subtle);
+}

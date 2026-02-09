@@ -43,6 +43,28 @@ export class LayoutData {
     }
 
     /**
+     * Get ordered area names for a layout
+     */
+    static getAreaNames(layoutName) {
+        const gridTemplate = LAYOUTS.layouts[layoutName]?.gridTemplate;
+        if (!gridTemplate) return ["main"];
+
+        const rowMatches = gridTemplate.match(/"[^"]*"|'[^']*'/g) || [];
+        const areas = [];
+
+        for (const row of rowMatches) {
+            const content = row.slice(1, -1);
+            const names = content.split(/\s+/).filter(Boolean);
+            for (const name of names) {
+                if (/^\.+$/.test(name)) continue;
+                if (!areas.includes(name)) areas.push(name);
+            }
+        }
+
+        return areas.length ? areas : ["main"];
+    }
+
+    /**
      * Get all layout presets as an object (for LayoutParser compatibility)
      */
     static getPresets() {
