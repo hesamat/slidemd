@@ -330,7 +330,7 @@ export class EditController {
         if (!this.editorWarningsEnabled) return;
         const now = Date.now();
         const last = this.lastDiagnostics.get(key) || 0;
-        if (now - last < 3000) return;
+        if (now - last < duration) return;
         this.lastDiagnostics.set(key, now);
         this.pendingSlideWarning = message;
     }
