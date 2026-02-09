@@ -128,6 +128,27 @@ Main content here.
 
 ---
 
+layout: two-column
+
+@main
+
+## Edit Mode Helpers
+
+- **Search inside the current slide** with Ctrl/Cmd+F and jump between matches
+- **Autocomplete for layouts and areas**: start typing `layout:` or `@` and pick from presets
+- **Fenced block helper**: typing ``` or ~~~ expands a full code block and places the cursor inside
+- **Click area tags in the preview** to jump the cursor to that section in the editor
+
+@media
+
+### Visual Guides
+
+- Area outlines show the live layout grid
+- Overflow areas get a warning outline so you can trim content early
+- Layout picker shows area tags so you know where content should go
+
+---
+
 layout: left-heavy
 
 @main
@@ -270,10 +291,11 @@ Press `E` to toggle split-screen editing with live preview.
 
 ### Features
 
-- **Live preview** – See changes instantly as you type
-- **Slide thumbnails** – Jump to any slide instantly
-- **Quick actions** – Add, delete, duplicate, reorder slides
-- **Layout Picker** – Choose from preset layouts when adding slides
+- **Live preview** – See changes instantly on the stage as you type
+- **Slide thumbnails** – Jump to any slide and keep your place while editing
+- **Quick actions** – Add, delete, duplicate, or reorder slides without leaving the editor
+- **Layout Picker** – Choose a preset layout and start with a filled-in template
+- **Area guides** – Click preview tags to jump to the right `@area` in the editor
 
 @media
 

@@ -52,6 +52,16 @@ More layouts, backgrounds, and theming recipes live in [docs/authoring-examples.
 
 ## Layout Presets
 
+## Edit Mode Tips
+
+Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:
+- Search inside the slide with Ctrl/Cmd+F (and Ctrl/Cmd+G to jump results).
+- Autocomplete for `layout:` presets and `@area` markers.
+- Type ``` or ~~~ to expand fenced blocks quickly.
+- Click the area tags in the preview to jump the cursor to that section.
+- Overflow indicators highlight content that does not fit an area.
+- The layout picker shows area tags for each preset.
+
 ## Keyboard Shortcuts
 
 ### Navigation
