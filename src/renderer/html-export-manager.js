@@ -106,7 +106,7 @@ export class HtmlExportManager {
 .viewer { width: 100% !important; height: 100% !important; }
 `;
 
-        // We add a small init script to trigger Prism on load
+        // We add a small init script to trigger Prism and KaTeX on load
         // Use 'load' instead of 'DOMContentLoaded' to ensure CDN scripts are loaded
         const initScript = `
         // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
@@ -121,12 +121,24 @@ export class HtmlExportManager {
             });
         } catch (e) { /* ignore localStorage errors */ }
 
-        // Wait for window.load to ensure all CDN scripts (Prism, etc.) are loaded
+        // Wait for window.load to ensure all CDN scripts (Prism, KaTeX, etc.) are loaded
         window.addEventListener('load', () => {
             // Re-run Prism if it's available (fixes broken snapshots)
             if (window.Prism) {
-                console.log('Export: Re-running Prism highlight...');
                 window.Prism.highlightAll();
+            }
+            // Render KaTeX math if it's available
+            if (window.renderMathInElement) {
+                window.renderMathInElement(document.body, {
+                    delimiters: [
+                        { left: "$$", right: "$$", display: true },
+                        { left: "$", right: "$", display: false },
+                        { left: "\\\\(", right: "\\\\)", display: false },
+                        { left: "\\\\[", right: "\\\\]", display: true }
+                    ],
+                    ignoredClasses: ["no-math", "katex-ignore", "mermaid"],
+                    throwOnError: false
+                });
             }
         });
         `;
@@ -517,6 +529,12 @@ ${initScript}
             scripts.push('    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"base",securityLevel:"loose",flowchart:{curve:"basis",nodeSpacing:60,rankSpacing:60,padding:20},themeVariables:{primaryColor:"#e0d5ff",primaryBorderColor:"#7c3aed",primaryTextColor:"#1f2937",textColor:"#1f2937",lineColor:"#7c3aed",secondaryColor:"#dbeafe",secondaryBorderColor:"#2563eb",secondaryTextColor:"#1f2937",tertiaryColor:"#fef3c7",tertiaryBorderColor:"#f59e0b",tertiaryTextColor:"#1f2937",noteBkgColor:"#fef3c7",noteBorderColor:"#f59e0b",edgeLabelBackground:"#ffffff",clusterBkg:"#f9fafb",clusterBorder:"#d1d5db",fontFamily:"Segoe UI, Roboto, sans-serif",fontSize:"18px",nodeBorder:"2.5px",mainBkg:"#e0d5ff"}});</script>');
         }
 
+        const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
+        if (needsKatex) {
+            scripts.push('    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>');
+            scripts.push('    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>');
+        }
+
         return scripts.join('\n');
     }
 
@@ -555,7 +573,7 @@ ${initScript}
             }
         }
 
-        if (/(\$\$|\\\(|\\begin)/.test(deckHtmlText)) {
+        if (/(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText)) {
             if (useCdn) {
                 links.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">');
             } else {
