@@ -82,8 +82,6 @@ The default view is your presenter dashboard with:
 
 > *Tip: Add speaker notes using HTML comments: `<!--` `notes: Your notes here -->`*
 
-
-
 ---
 
 layout: two-column
@@ -280,11 +278,10 @@ When markdown isn't enough:
 Red text
 </span>
 ```
+
 ---
 
-layout: header-two-column
-
-@header
+layout:left-heavy
 
 ## Edit Mode
 
@@ -305,7 +302,6 @@ Press `E` to toggle split-screen editing with live preview.
 @media
 
 ![Edit mode screenshot](../public/edit-mode.png)
-
 
 ---
 
