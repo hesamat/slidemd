@@ -12,6 +12,7 @@ const prismCssPath = path.join(root, "node_modules", "prismjs", "themes", "prism
 
 const args = process.argv.slice(2);
 const inlineAssets = !args.includes("--no-inline-assets");
+const inlineKatexFontDataUris = !args.includes("--no-inline-katex-fonts");
 
 // Will be set after resolving the deck path
 let deckDir = root;
@@ -19,7 +20,7 @@ let deckDir = root;
 /**
  * Resolve deck file path from arguments.
  *
- * Usage: node build.mjs [deck-path] [--no-inline-assets]
+ * Usage: node build.mjs [deck-path] [--no-inline-assets] [--no-inline-katex-fonts]
  *
  * Arguments:
  *   deck-path - Path to the deck file. Can be:
@@ -27,6 +28,7 @@ let deckDir = root;
  *               - An absolute path (e.g., "/path/to/deck.md" on Unix, "C:\\path\\to\\deck.md" on Windows)
  *               - Defaults to "deck.md" if not provided
  *   --no-inline-assets - Skip inlining images as data URIs (keeps external image references)
+ *   --no-inline-katex-fonts - Keep KaTeX fonts as external files (copies fonts to dist/fonts)
  *
  * Examples:
  *   node build.mjs                          # Use default deck.md
@@ -135,6 +137,25 @@ function inlineKatexFonts(cssText) {
             return match;
         }
     });
+}
+
+function copyDirRecursive(srcDir, destDir) {
+    if (!fs.existsSync(srcDir)) return;
+
+    try {
+        fs.cpSync(srcDir, destDir, { recursive: true });
+        return;
+    } catch {
+        // Fallback: manual copy
+    }
+
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+        const src = path.join(srcDir, entry.name);
+        const dest = path.join(destDir, entry.name);
+        if (entry.isDirectory()) copyDirRecursive(src, dest);
+        else fs.copyFileSync(src, dest);
+    }
 }
 
 function escapeInlineScriptText(jsText) {
@@ -380,7 +401,7 @@ if (usesPrism || usesKatex || usesMermaid) {
 
     if (usesKatex) {
         const katexCssRaw = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.css"));
-        const katexCss = inlineKatexFonts(katexCssRaw);
+        const katexCss = inlineKatexFontDataUris ? inlineKatexFonts(katexCssRaw) : katexCssRaw;
         if (katexCss) vendorCssParts.push(katexCss);
 
         const katexCore = readTextIfExists(path.join(root, "node_modules", "katex", "dist", "katex.min.js"));
@@ -389,6 +410,13 @@ if (usesPrism || usesKatex || usesMermaid) {
         );
         if (katexCore) vendorJsParts.push(katexCore);
         if (katexAutoRender) vendorJsParts.push(katexAutoRender);
+
+        if (!inlineKatexFontDataUris) {
+            const srcFontsDir = path.join(root, "node_modules", "katex", "dist", "fonts");
+            const destFontsDir = path.join(distDir, "fonts");
+            copyDirRecursive(srcFontsDir, destFontsDir);
+            console.log("Externalized KaTeX fonts to dist/fonts (--no-inline-katex-fonts)");
+        }
     }
 
     if (usesMermaid) {
@@ -688,7 +716,7 @@ html = html.replace(
 
 // Inject mermaid CDN script if needed (before closing </head> tag)
 if (usesMermaid) {
-    const mermaidScript = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"base",securityLevel:"loose",flowchart:{curve:"basis",nodeSpacing:60,rankSpacing:60,padding:20},themeVariables:{primaryColor:"#e0d5ff",primaryBorderColor:"#7c3aed",primaryTextColor:"#1f2937",textColor:"#1f2937",lineColor:"#7c3aed",secondaryColor:"#dbeafe",secondaryBorderColor:"#2563eb",secondaryTextColor:"#1f2937",tertiaryColor:"#fef3c7",tertiaryBorderColor:"#f59e0b",tertiaryTextColor:"#1f2937",noteBkgColor:"#fef3c7",noteBorderColor:"#f59e0b",edgeLabelBackground:"#ffffff",clusterBkg:"#f9fafb",clusterBorder:"#d1d5db",fontFamily:"Segoe UI, Roboto, sans-serif",fontSize:"18px",nodeBorder:"2.5px",mainBkg:"#e0d5ff"}});</script>';
+    const mermaidScript = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"base",securityLevel:"loose",flowchart:{curve:"basis",nodeSpacing:60,rankSpacing:60,padding:20},themeVariables:{primaryColor:"#e0d5ff",primaryBorderColor:"#7c3aed",primaryTextColor:"#1f2937",textColor:"#1f2937",lineColor:"#7c3aed",secondaryColor:"#dbeafe",secondaryBorderColor:"#2563eb",secondaryTextColor:"#1f2937",tertiaryColor:"#fef3c7",tertiaryBorderColor:"#f59e0b",tertiaryTextColor:"#1f2937",noteBkgColor:"#fef3c7",noteBorderColor:"#f59e0b",edgeLabelBackground:"#ffffff",clusterBkg:"#f9fafb",clusterBorder:"#d1d5db",fontFamily:"Segoe UI, Roboto, sans-serif",fontSize:"18px",mainBkg:"#e0d5ff"}});</script>';
     html = html.replace(/<\/head>/i, `${mermaidScript}</head>`);
     console.log(`Added mermaid CDN link for diagram rendering`);
 }
@@ -704,4 +732,12 @@ if (usesKatex) {
 html = html.replace(/<\/head>/i, '<script>window.__WEBDECK_EXPORTED__=true;</script></head>');
 
 fs.writeFileSync(outHtml, html, "utf8");
-console.log(`Wrote ${outHtml}${inlineAssets ? " (single-file, images inlined)" : ""}`);
+{
+    const notes = [];
+    if (inlineAssets) notes.push("images inlined");
+    if (usesKatex && inlineKatexFontDataUris) notes.push("KaTeX fonts inlined");
+    if (usesKatex && !inlineKatexFontDataUris) notes.push("KaTeX fonts externalized");
+
+    const suffix = notes.length ? ` (${notes.join(", ")})` : "";
+    console.log(`Wrote ${outHtml}${suffix}`);
+}
