@@ -31,6 +31,7 @@ export class EditController {
         // Store unsaved changes in memory (per-slide)
         this.unsavedMarkdown = new Map();
         this.lastDiagnostics = new Map();
+        this.editorWarningsEnabled = false;
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
@@ -239,7 +240,7 @@ export class EditController {
             this.originalMarkdown[this.currentSlideIndex] ??
             '';
 
-        this.markdownEditor.setValue(markdown);
+        this.markdownEditor.setValue(markdown, { suppressOnChange: true });
         // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
         this.updateSaveButton();
         this.refreshAreaGuides();
@@ -276,6 +277,7 @@ export class EditController {
     }
 
     showEditorWarning(key, message, duration = 2500) {
+        if (!this.editorWarningsEnabled) return;
         const now = Date.now();
         const last = this.lastDiagnostics.get(key) || 0;
         if (now - last < 3000) return;
@@ -354,7 +356,7 @@ export class EditController {
 
         if (match) {
             const cursorPosition = match.index + match[0].length;
-            this.markdownEditor.setValueWithCursor(markdown, cursorPosition);
+            this.markdownEditor.setValueWithCursor(markdown, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
             this.markdownEditor.focus();
             return;
         }
@@ -363,7 +365,7 @@ export class EditController {
         const addition = `${spacer}\n@${name}\n`;
         const updated = `${markdown}${addition}`;
         const cursorPosition = updated.length;
-        this.markdownEditor.setValueWithCursor(updated, cursorPosition);
+        this.markdownEditor.setValueWithCursor(updated, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
         this.onEditorInput(updated);
     }
 
@@ -422,7 +424,8 @@ export class EditController {
                     );
                 }
 
-                const missingAreas = layoutAreas.filter(name => !areaNames.includes(name));
+                const optionalAreas = ["footer"];
+                const missingAreas = layoutAreas.filter(name => !areaNames.includes(name) && !optionalAreas.includes(name));
                 if (missingAreas.length) {
                     this.showEditorWarning(
                         `missing-areas-${missingAreas.join('-')}`,
