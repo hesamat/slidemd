@@ -442,7 +442,8 @@ export class EditController {
         if (!name) return;
 
         const markdown = this.markdownEditor.getValue();
-        const regex = new RegExp(`^\\s*@${name}\\s*$`, 'mi');
+        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^\\s*@${escapedName}\\s*$`, 'mi');
         const match = regex.exec(markdown);
 
         if (match) {
