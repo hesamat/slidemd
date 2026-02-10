@@ -2,12 +2,12 @@
  * Outline Approval Modal Styles
  */
 
-.outline-modal {
+.outline-modal.modal__dialog {
     max-width: 900px;
     max-height: 85vh;
 }
 
-.outline-modal__dialog {
+.outline-modal.modal__dialog {
     display: flex;
     flex-direction: column;
 }

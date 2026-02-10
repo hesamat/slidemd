@@ -47,7 +47,7 @@ export class OutlineApprovalModal {
                 });
                 slidesContainer.appendChild(newSlide);
                 updateSlideCount();
-                updateSlideNumbers();
+                OutlineApprovalModal.updateSlideNumbers(backdrop);
                 newSlide.querySelector('.outline-slide__title-input')?.focus();
             };
 
@@ -399,6 +399,20 @@ export class OutlineApprovalModal {
 
             if (!slide.layout || !LayoutData.hasLayout(slide.layout)) {
                 errors.push(`Slide ${index + 1}: Invalid layout "${slide.layout || '(none)'}"`);
+            } else {
+                // Validate that content contains required @area markers for this layout
+                const requiredAreas = LayoutData.getAreaNames(slide.layout);
+                const content = slide.content || '';
+                
+                // Check each required area (skip if layout only has "main" which doesn't require @area marker)
+                if (requiredAreas.length > 1 || (requiredAreas.length === 1 && requiredAreas[0] !== 'main')) {
+                    for (const area of requiredAreas) {
+                        const areaMarker = `@${area}`;
+                        if (!content.includes(areaMarker)) {
+                            errors.push(`Slide ${index + 1}: Missing required area marker "${areaMarker}" for layout "${slide.layout}"`);
+                        }
+                    }
+                }
             }
 
             if (!slide.content || slide.content.trim() === '') {

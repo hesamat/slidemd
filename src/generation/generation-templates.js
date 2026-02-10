@@ -142,7 +142,7 @@ export class GenerationTemplates {
     static getTwoColumnTemplate() {
         return `layout: two-column
 
-@left
+@main
 
 ## {{title}}
 
@@ -154,7 +154,7 @@ export class GenerationTemplates {
 {{examples}}
 {{/if}}
 
-@right
+@media
 
 {{#if keyPoints}}
 ### Key Points

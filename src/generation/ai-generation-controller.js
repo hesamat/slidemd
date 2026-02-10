@@ -3,7 +3,6 @@
  * Main controller for the AI-powered deck generation workflow
  */
 
-import { CourseProfileManager } from "./course-profile-manager.js";
 import { CourseProfileModal } from "./course-profile-modal.js";
 import { AIConfigModal } from "./ai-config-modal.js";
 import { OutlineGenerator } from "./outline-generator.js";
@@ -143,6 +142,8 @@ export class AIGenerationController {
 
             if (approvedOutline === 'regenerate') {
                 this.abortGeneration();
+                // Reset re-entrancy guard so regeneration can proceed
+                this.isGenerating = false;
                 await this.startGeneration();
                 return;
             }

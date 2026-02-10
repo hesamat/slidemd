@@ -58,7 +58,6 @@ export class OutlineGenerator {
             const response = await AIProviderRegistry.generateCompletion(
                 profile.aiProvider,
                 {
-                    model: profile.aiModel,
                     messages: [
                         { role: 'system', content: this.getSystemPrompt() },
                         { role: 'user', content: prompt }

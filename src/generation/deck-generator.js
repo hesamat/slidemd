@@ -20,14 +20,6 @@ export class DeckGenerator {
             throw new Error('Outline is required');
         }
 
-        // Check API key
-        const apiKey = AIProviderRegistry.getApiKey(profile.aiProvider);
-        if (!apiKey) {
-            const provider = AIProviderRegistry.getProvider(profile.aiProvider);
-            Notification.error(`Please configure your ${provider?.name || profile.aiProvider} API key`);
-            throw new Error('API key not configured');
-        }
-
         try {
             Notification.info('Generating deck...');
 

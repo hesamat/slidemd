@@ -4,14 +4,12 @@
  * Attached to buttons in element-gatherer.js
  */
 
-import { AIGenerationController } from "../generation/ai-generation-controller.js";
-
 export class GenerationActions {
     static controller = null;
 
     /**
      * Initialize generation actions
-     * @param {AIGenerationController} genController - Generation controller instance
+     * @param {Object} genController - Generation controller instance
      */
     static init(genController) {
         this.controller = genController;
