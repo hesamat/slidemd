@@ -233,33 +233,21 @@ export class CourseProfileModal {
 
                         <div class="course-profile-modal__form-group">
                             <label class="course-profile-modal__label">Description</label>
-                            <textarea class="course-profile-modal__textarea" name="description" placeholder="e.g., CS 201 - Fall 2025">${this.escapeHtml(p.description || '')}</textarea>
+                            <textarea class="course-profile-modal__textarea" name="description" placeholder="e.g., CS 201 - Fall 2025" rows="2">${this.escapeHtml(p.description || '')}</textarea>
                         </div>
 
                         <div class="course-profile-modal__form-group">
                             <label class="course-profile-modal__label">
                                 Learning Objectives <span class="course-profile-modal__label-required">*</span>
                             </label>
-                            <div class="course-profile-modal__objectives" data-objectives>
-                                ${(p.learningObjectives || ['']).map(obj => `
-                                    <div class="course-profile-modal__objective-item">
-                                        <input type="text" class="course-profile-modal__objective-input" value="${this.escapeHtml(obj)}" placeholder="Enter a learning objective">
-                                        <button type="button" class="course-profile-modal__objective-remove" title="Remove">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                `).join('')}
-                            </div>
-                            <button type="button" class="course-profile-modal__add-objective">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                                Add Learning Objective
-                            </button>
+                            <textarea class="course-profile-modal__textarea" name="learningObjectives" rows="6" placeholder="Enter each learning objective on a new line. For example:&#10;&#10;• Understand basic algorithm analysis&#10;• Master sorting and searching algorithms&#10;• Learn dynamic programming fundamentals" required>${this.escapeHtml((p.learningObjectives || []).join('\n'))}</textarea>
+                            <div class="course-profile-modal__helper">Enter each learning objective on a new line (you can paste multiple lines at once)</div>
+                        </div>
+
+                        <div class="course-profile-modal__form-group">
+                            <label class="course-profile-modal__label">Topics Previously Covered (Optional)</label>
+                            <textarea class="course-profile-modal__textarea" name="topicsCovered" rows="4" placeholder="List topics that have already been covered in the course. This helps the AI avoid redundancy and build on prior knowledge.&#10;&#10;For example:&#10;• Arrays and linked lists&#10;• Basic data structures&#10;• Time complexity basics">${this.escapeHtml(p.topicsCovered || '')}</textarea>
+                            <div class="course-profile-modal__helper">Optional: Enter topics that have already been covered (one per line)</div>
                         </div>
 
                         <div class="course-profile-modal__row">
@@ -293,9 +281,6 @@ export class CourseProfileModal {
                 </div>
             </div>
         `;
-
-        // Add objective handlers
-        this.attachObjectiveHandlers(backdrop);
 
         // Close button handler
         backdrop.querySelector('.modal__close').onclick = () => {
@@ -394,62 +379,34 @@ export class CourseProfileModal {
     }
 
     /**
-     * Attach event handlers for objective add/remove
-     * @param {HTMLElement} backdrop - Modal backdrop element
-     */
-    static attachObjectiveHandlers(backdrop) {
-        const objectivesContainer = backdrop.querySelector('[data-objectives]');
-        const addBtn = backdrop.querySelector('.course-profile-modal__add-objective');
-
-        // Add objective
-        addBtn.onclick = () => {
-            const div = document.createElement('div');
-            div.className = 'course-profile-modal__objective-item';
-            div.innerHTML = `
-                <input type="text" class="course-profile-modal__objective-input" placeholder="Enter a learning objective">
-                <button type="button" class="course-profile-modal__objective-remove" title="Remove">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            `;
-            objectivesContainer.appendChild(div);
-            div.querySelector('input').focus();
-        };
-
-        // Remove objective
-        objectivesContainer.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('.course-profile-modal__objective-remove');
-            if (removeBtn) {
-                const item = removeBtn.closest('.course-profile-modal__objective-item');
-                const items = objectivesContainer.querySelectorAll('.course-profile-modal__objective-item');
-                if (items.length > 1) {
-                    item.remove();
-                } else {
-                    // Clear the input if it's the last one
-                    item.querySelector('input').value = '';
-                }
-            }
-        });
-    }
-
-    /**
      * Collect form data into profile object
      * @param {HTMLFormElement} form - Form element
      * @returns {Object} Profile object
      */
     static collectFormData(form) {
-        const objectives = Array.from(
-            form.querySelectorAll('.course-profile-modal__objective-input')
-        )
-            .map(input => input.value.trim())
-            .filter(obj => obj !== '');
+        // Parse learning objectives from textarea (one per line)
+        const objectivesText = form.querySelector('[name="learningObjectives"]').value;
+        const objectives = objectivesText
+            .split('\n')
+            .map(line => line.trim())
+            // Remove common bullet point prefixes
+            .map(line => line.replace(/^[\s\-*••]\*/, '').trim())
+            .filter(line => line !== '');
+
+        // Parse topics covered from textarea (one per line)
+        const topicsText = form.querySelector('[name="topicsCovered"]').value;
+        const topics = topicsText
+            .split('\n')
+            .map(line => line.trim())
+            // Remove common bullet point prefixes
+            .map(line => line.replace(/^[\s\-*••]\*/, '').trim())
+            .filter(line => line !== '');
 
         const profile = CourseProfileManager.createProfile({
             name: form.querySelector('[name="name"]').value.trim(),
             description: form.querySelector('[name="description"]').value.trim(),
             learningObjectives: objectives,
+            topicsCovered: topics.length > 0 ? topics.join('\n') : '',
             defaultSlideCount: parseInt(form.querySelector('[name="defaultSlideCount"]').value) || 15,
             includeActivities: form.querySelector('[name="includeActivities"]').checked,
             aiProvider: form.querySelector('[name="aiProvider"]').value

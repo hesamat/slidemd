@@ -234,6 +234,10 @@ export class CourseProfileManager {
             });
         }
 
+        if (profile.topicsCovered && typeof profile.topicsCovered !== 'string') {
+            errors.push('Topics covered must be a string');
+        }
+
         if (profile.defaultSlideCount !== undefined) {
             const count = Number(profile.defaultSlideCount);
             if (isNaN(count) || count < 1 || count > 100) {
@@ -299,6 +303,7 @@ export class CourseProfileManager {
             name: '',
             description: '',
             learningObjectives: [''],
+            topicsCovered: '',
             defaultSlideCount: 15,
             includeActivities: true,
             aiProvider: 'glm', // Default to GLM

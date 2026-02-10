@@ -31,22 +31,13 @@ export class DeckGenerator {
         }
 
         try {
-            const slides = [];
+            Notification.info('Generating deck...');
 
-            for (let i = 0; i < outline.length; i++) {
-                const outlineSlide = outline[i];
-
-                Notification.info(`Generating slide ${i + 1} of ${outline.length}...`);
-
-                const slideMarkdown = await this.generateSlide(profile, outlineSlide, topic, i);
-                slides.push(slideMarkdown);
-            }
-
-            // Combine all slides
-            const markdown = slides.join('\n');
+            // Generate all slides in a single API call
+            const slidesMarkdown = await this.generateAllSlides(profile, outline, topic);
 
             Notification.success('Deck generated successfully!');
-            return markdown;
+            return slidesMarkdown;
         } catch (error) {
             console.error('Deck generation failed:', error);
 
@@ -63,75 +54,146 @@ export class DeckGenerator {
     }
 
     /**
-     * Generate markdown for a single slide
+     * Generate all slides in a single API call
      * @param {Object} profile - Course profile
-     * @param {Object} outlineSlide - Outline slide object
-     * @param {string} topic - Overall topic
-     * @param {number} index - Slide index
-     * @returns {Promise<string>} Slide markdown
+     * @param {Array<Object>} outline - Approved outline
+     * @param {string} topic - Topic
+     * @returns {Promise<string>} Complete markdown
      */
-    static async generateSlide(profile, outlineSlide, topic, index) {
-        const template = GenerationTemplates.getTemplate(profile, outlineSlide.type);
+    static async generateAllSlides(profile, outline, topic) {
+        const prompt = this.buildFullDeckPrompt(profile, outline, topic);
 
-        // Generate content for the slide using AI
-        const content = await this.generateSlideContent(profile, outlineSlide, topic, index);
+        const response = await AIProviderRegistry.generateCompletion(
+            profile.aiProvider,
+            {
+                model: profile.aiModel,
+                messages: [
+                    { role: 'system', content: this.getSystemPrompt() },
+                    { role: 'user', content: prompt }
+                ],
+                maxTokens: 8000,
+                temperature: 0.7
+            }
+        );
 
-        // Render template with variables
-        const variables = {
-            topic,
-            title: outlineSlide.title,
-            layout: outlineSlide.layout,
-            content,
-            keyPoints: outlineSlide.keyPoints,
-            instructions: content,
-            task: this.extractTask(content),
-            examples: this.extractExamples(content),
-            notes: '',
-            teacherNotes: '',
-            summary: content,
-            keyTakeaways: outlineSlide.keyPoints,
-            subtitle: index === 0 ? `Course: ${profile.name}` : '',
-            presenter: profile.description || ''
-        };
-
-        return GenerationTemplates.renderTemplate(template, variables);
+        // Parse the response to extract individual slides
+        return this.parseSlideResponse(response, outline, profile, topic);
     }
 
     /**
-     * Generate content for a slide using AI
+     * Parse the AI response and combine with templates
+     * @param {string} response - AI response
+     * @param {Array<Object>} outline - Original outline
      * @param {Object} profile - Course profile
-     * @param {Object} outlineSlide - Outline slide
-     * @param {string} topic - Overall topic
-     * @param {number} index - Slide index
-     * @returns {Promise<string>} Generated content
+     * @param {string} topic - Topic
+     * @returns {string} Complete markdown
      */
-    static async generateSlideContent(profile, outlineSlide, topic, index) {
-        const prompt = this.buildSlidePrompt(profile, outlineSlide, topic, index);
+    static parseSlideResponse(response, outline, profile, topic) {
+        // The response should be structured as slide content blocks
+        // Try to parse as JSON array first
+        let slideContents;
 
         try {
-            const response = await AIProviderRegistry.generateCompletion(
-                profile.aiProvider,
-                {
-                    model: profile.aiModel,
-                    messages: [
-                        { role: 'system', content: this.getSystemPrompt() },
-                        { role: 'user', content: prompt }
-                    ],
-                    maxTokens: 1500,
-                    temperature: 0.7
-                }
-            );
+            // Try to extract JSON from the response
+            let jsonStr = response.trim();
+            jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-            return response.trim();
-        } catch (error) {
-            console.error('Failed to generate slide content:', error);
-            // Return basic content based on key points
-            return outlineSlide.keyPoints.map(kp => `- ${kp}`).join('\n');
+            const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+            if (arrayMatch) {
+                jsonStr = arrayMatch[0];
+            }
+
+            slideContents = JSON.parse(jsonStr);
+        } catch {
+            // Fallback: split by slide markers
+            slideContents = this.splitSlideContent(response);
         }
+
+        // Generate markdown for each slide
+        const slides = slideContents.map((content, index) => {
+            const outlineSlide = outline[index] || outline[outline.length - 1];
+            const template = GenerationTemplates.getTemplate(profile, outlineSlide.type);
+
+            const variables = {
+                topic,
+                title: outlineSlide.title,
+                layout: outlineSlide.layout,
+                content: content.main || content.content || '',
+                keyPoints: outlineSlide.keyPoints,
+                instructions: content.instructions || content.main || '',
+                task: content.task || this.extractTaskFromContent(content),
+                examples: content.examples || this.extractExamplesFromContent(content),
+                notes: content.notes || '',
+                teacherNotes: content.teacherNotes || content.notes || '',
+                summary: content.summary || content.main || '',
+                keyTakeaways: content.keyTakeaways || outlineSlide.keyPoints,
+                subtitle: index === 0 ? `Course: ${profile.name}` : '',
+                presenter: profile.description || ''
+            };
+
+            return GenerationTemplates.renderTemplate(template, variables);
+        });
+
+        return slides.join('\n');
     }
 
     /**
-     * Get system prompt for slide generation
+     * Split response content into slide sections
+     * @param {string} response - AI response
+     * @returns {Array<Object>} Slide content objects
+     */
+    static splitSlideContent(response) {
+        const slides = [];
+        const sections = response.split(/###?\s*Slide \d+:/);
+
+        for (const section of sections) {
+            if (section.trim()) {
+                slides.push({
+                    main: section.trim()
+                });
+            }
+        }
+
+        // If no slides found, treat entire response as one slide
+        if (slides.length === 0) {
+            slides.push({ main: response.trim() });
+        }
+
+        return slides;
+    }
+
+    /**
+     * Extract task from content object
+     * @param {Object} content - Content object
+     * @returns {string} Task text
+     */
+    static extractTaskFromContent(content) {
+        if (content.task) return content.task;
+        if (content.main) {
+            const match = content.main.match(/###?\s*Task\s*\n([\s\S]*?)(?=\n###|\n\n|$)/i);
+            if (match) return match[1].trim();
+        }
+        return 'Complete the exercise below';
+    }
+
+    /**
+     * Extract examples from content object
+     * @param {Object} content - Content object
+     * @returns {string} Examples text
+     */
+    static extractExamplesFromContent(content) {
+        if (content.examples) return content.examples;
+        if (content.main) {
+            const match = content.main.match(/###?\s*Example\s*\n([\s\S]*?)(?=\n###|\n\n|$)/i);
+            if (match) return match[1].trim();
+            const codeMatch = content.main.match(/```[\w]*\n([\s\S]*?)```/);
+            if (codeMatch) return codeMatch[1].trim();
+        }
+        return '';
+    }
+
+    /**
+     * Get system prompt for deck generation
      * @returns {string} System prompt
      */
     static getSystemPrompt() {
@@ -139,78 +201,87 @@ export class DeckGenerator {
 
 Your content should:
 - Be clear and concise
-- Use appropriate formatting (bullet points, numbered lists, code blocks, etc.)
+- Use appropriate markdown formatting (bullet points, numbered lists, code blocks, etc.)
 - Include relevant examples
 - Be accurate and well-structured
 - Match the learning objectives of the course`;
     }
 
     /**
-     * Build prompt for generating a single slide
+     * Build prompt for generating all slides at once
      * @param {Object} profile - Course profile
-     * @param {Object} outlineSlide - Outline slide
-     * @param {string} topic - Overall topic
-     * @param {number} index - Slide index
+     * @param {Array<Object>} outline - Outline
+     * @param {string} topic - Topic
      * @returns {string} Prompt
      */
-    static buildSlidePrompt(profile, outlineSlide, topic, index) {
-        const isTitle = outlineSlide.type === 'title' || index === 0;
-        const isActivity = outlineSlide.type === 'activity';
-        const isSummary = outlineSlide.type === 'summary';
+    static buildFullDeckPrompt(profile, outline, topic) {
+        let prompt = `Generate complete content for a ${outline.length}-slide presentation deck.
 
-        let prompt = `Generate content for slide ${index + 1}.
-
-## Context
+## Course Context
 Course: ${profile.name}
-Topic: ${topic}
-Learning Objectives:
+${profile.description ? `Description: ${profile.description}` : ''}
+${profile.topicsCovered ? `Topics Previously Covered:\n${profile.topicsCovered}\n` : ''}
+
+## Learning Objectives
 ${profile.learningObjectives.map(obj => `- ${obj}`).join('\n')}
 
-## Slide Details
-Title: ${outlineSlide.title}
-Type: ${outlineSlide.type}
-Layout: ${outlineSlide.layout}
+## Presentation Topic
+${topic}
 
-## Key Points to Cover
-${outlineSlide.keyPoints.map(kp => `- ${kp}`).join('\n')}
+## Instructions
 
-`;
+Generate content for ALL ${outline.length} slides in a single response. Return a JSON array where each element contains the content for one slide.
 
-        if (isTitle) {
-            prompt += `Generate a brief subtitle or description for this title slide (1-2 sentences).
+### Response Format
 
-Respond with only the subtitle text, no other formatting.`;
-        } else if (isActivity) {
-            prompt += `Generate an in-class activity for this slide.
+\`\`\`json
+[
+    {
+        "main": "Content for lecture slide (explanation, examples, etc.)",
+        "instructions": "Activity instructions (for activity slides)",
+        "task": "Specific task for students (for activity slides)",
+        "examples": "Code examples or solutions (if applicable)",
+        "notes": "Teacher notes (optional)",
+        "summary": "Summary text (for summary slides)",
+        "keyTakeaways": ["Takeaway 1", "Takeaway 2"]
+    }
+]
+\`\`\`
 
-Include:
-1. Brief instructions for the activity
-2. A specific task or exercise for students
-3. An example solution or starter code (if applicable)
+## Slide Outline
 
-Keep it practical and engaging. Students should be able to complete this in 5-10 minutes.
+${outline.map((slide, index) => `
+### Slide ${index + 1}: ${slide.title}
+- Type: ${slide.type}
+- Layout: ${slide.layout}
+- Key Points: ${slide.keyPoints.join(', ')}
+${index === 0 ? '- Generate a subtitle/description for this title slide' : ''}
+${slide.type === 'activity' ? '- Include activity instructions and a practical task' : ''}
+${slide.type === 'summary' ? '- Include key takeaways' : ''}
+`).join('\n')}
 
-Format your response clearly with headers for "Instructions", "Task", and "Example".`;
-        } else if (isSummary) {
-            prompt += `Generate a summary for this slide.
+## Content Guidelines
 
-Include:
-1. A brief recap of the main concepts (2-3 sentences)
-2. Key takeaways formatted as bullet points
+**For Title Slides:**
+- Generate a brief subtitle (1-2 sentences) describing the presentation
 
-Keep it concise and focused on the most important points.`;
-        } else {
-            prompt += `Generate detailed content for this lecture slide.
+**For Lecture Slides:**
+- 2-3 paragraphs explaining the key points
+- Include relevant examples or code snippets
+- Use markdown: bullet points, \`code\`, \`\`\`code blocks\`\`\`
+- Target 100-150 words per slide
 
-Include:
-1. Explanation of the key points (2-3 paragraphs)
-2. Relevant examples or code snippets where appropriate
-3. Use markdown formatting: bullet points, bold/italic for emphasis, \`\`\`code blocks\`\`\` for code
+**For Activity Slides:**
+- Clear instructions for the activity
+- A specific, practical task for students
+- An example solution or starter code
+- Should be completable in 5-10 minutes
 
-Keep it concise but informative. Target ~100-150 words.
+**For Summary Slides:**
+- Brief recap of main concepts (2-3 sentences)
+- Key takeaways as bullet points
 
-Response should be well-formatted markdown ready to use in a slide.`;
-        }
+Generate ALL ${outline.length} slides now. Return ONLY the JSON array.`;
 
         return prompt;
     }
