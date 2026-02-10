@@ -32,19 +32,8 @@ export class AIGenerationController {
      * Show course profile manager modal
      */
     async showProfileManager() {
-        // Ensure profiles directory is set
-        const initialized = await CourseProfileManager.init();
-        if (!initialized) {
-            const shouldSelect = await Notification.confirm(
-                'No course profiles directory selected. Would you like to select one now?'
-            );
-            if (shouldSelect) {
-                await CourseProfileManager.selectProfilesDirectory();
-            } else {
-                return;
-            }
-        }
-
+        // Just show the profile list - it will handle empty state gracefully
+        // Directory is only needed when creating/saving profiles
         const profile = await CourseProfileModal.showList();
         if (profile) {
             this.currentProfile = profile;
@@ -443,7 +432,7 @@ export class AIGenerationController {
     async loadMarkdown(markdown) {
         try {
             // Parse the markdown
-            const deckData = await DeckLoader.parseDeckMarkdown(markdown);
+            const deckData = await DeckLoader.parseMarkdown(markdown);
 
             // Update the current deck
             Object.assign(this.deck.meta, deckData.meta);

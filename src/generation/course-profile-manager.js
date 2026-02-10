@@ -79,8 +79,8 @@ export class CourseProfileManager {
      * @returns {Promise<Array<Object>>} Array of course profile objects
      */
     static async loadAllProfiles() {
-        const dirHandle = this.directoryHandle || await this._ensureDirectory();
-        if (!dirHandle) return [];
+        const dirHandle = this.directoryHandle;
+        if (!dirHandle) return []; // No directory set, return empty array without prompting
 
         try {
             const profiles = [];
