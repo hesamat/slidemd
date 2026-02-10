@@ -9,6 +9,7 @@ import { AIConfigModal } from "./ai-config-modal.js";
 import { OutlineGenerator } from "./outline-generator.js";
 import { OutlineApprovalModal } from "./outline-approval-modal.js";
 import { DeckGenerator } from "./deck-generator.js";
+import { AIProviderRegistry } from "./ai-provider-registry.js";
 import { Notification } from "../renderer/notification.js";
 import { DeckLoader } from "../data/deck-loader.js";
 
@@ -19,6 +20,8 @@ export class AIGenerationController {
         this.elements = elements;
         this.currentProfile = null;
         this.currentOutline = null;
+        this.isGenerating = false;
+        this.abortController = null;
     }
 
     /**
@@ -55,44 +58,81 @@ export class AIGenerationController {
      * Start deck generation workflow
      */
     async startGeneration() {
+        if (this.isGenerating) {
+            Notification.info('Generation already in progress');
+            return;
+        }
+
+        this.isGenerating = true;
+        this.abortController = new AbortController();
+
+        let topic = null;
+        let options = null;
+
         // Step 1: Ensure we have a profile
-        if (!this.currentProfile) {
-            await this.showProfileManager();
+        try {
             if (!this.currentProfile) {
+                await this.showProfileManager();
+                if (!this.currentProfile) {
+                    return; // User cancelled
+                }
+            }
+
+            // Step 2: Ensure AI is configured
+            const apiKey = this.getApiKey(this.currentProfile.aiProvider);
+            if (!apiKey) {
+                Notification.info('Please configure your AI settings first');
+                await this.showAIConfig();
+                if (!this.getApiKey(this.currentProfile.aiProvider)) {
+                    return; // User cancelled or didn't configure
+                }
+            }
+
+            // Step 3: Get topic from user
+            topic = await this.promptForTopic();
+            if (!topic) {
                 return; // User cancelled
             }
-        }
 
-        // Step 2: Ensure AI is configured
-        const apiKey = this.getApiKey(this.currentProfile.aiProvider);
-        if (!apiKey) {
-            Notification.info('Please configure your AI settings first');
-            await this.showAIConfig();
-            if (!this.getApiKey(this.currentProfile.aiProvider)) {
-                return; // User cancelled or didn't configure
+            // Step 4: Get generation options
+            options = await this.promptForOptions();
+            if (!options) {
+                return; // User cancelled
             }
-        }
 
-        // Step 3: Get topic from user
-        const topic = await this.promptForTopic();
-        if (!topic) {
-            return; // User cancelled
-        }
-
-        // Step 4: Get generation options
-        const options = await this.promptForOptions();
-        if (!options) {
-            return; // User cancelled
-        }
-
-        try {
             // Step 5: Generate outline
-            Notification.info('Generating outline...');
-            this.currentOutline = await OutlineGenerator.generateOutline(
-                this.currentProfile,
-                topic,
-                options
-            );
+            const loadingModal = this.showLoadingModal('Generating outline with AI...', {
+                allowCancel: true,
+                onCancel: () => this.abortGeneration()
+            });
+
+            let outline = null;
+            try {
+                outline = await OutlineGenerator.generateOutline(
+                    this.currentProfile,
+                    topic,
+                    { ...options, signal: this.abortController?.signal, useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json' }
+                );
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    Notification.info('Generation cancelled');
+                    return;
+                }
+
+                if (error.rawResponse) {
+                    outline = await this.showOutlineParseError(error, topic, options);
+                    if (!outline) {
+                        return;
+                    }
+                } else {
+                    await this.showGenerationError(error);
+                    return;
+                }
+            } finally {
+                this.hideLoadingModal(loadingModal);
+            }
+
+            this.currentOutline = outline;
 
             // Step 6: Review and approve outline
             const approvedOutline = await OutlineApprovalModal.show(
@@ -101,7 +141,7 @@ export class AIGenerationController {
             );
 
             if (approvedOutline === 'regenerate') {
-                // User wants to regenerate
+                this.abortGeneration();
                 await this.startGeneration();
                 return;
             }
@@ -114,18 +154,35 @@ export class AIGenerationController {
             this.currentOutline = approvedOutline;
 
             // Step 7: Generate full deck
-            Notification.info('Generating deck...');
-            const markdown = await DeckGenerator.generateDeck(
-                this.currentProfile,
-                this.currentOutline,
-                topic
-            );
-
-            // Step 8: Show preview and options
-            await this.showDeckPreview(markdown, topic);
+            const deckLoadingModal = this.showLoadingModal('Generating deck markdown...');
+            try {
+                const markdown = await DeckGenerator.generateDeck(
+                    this.currentProfile,
+                    this.currentOutline,
+                    topic
+                );
+                // Step 8: Show preview and options
+                await this.showDeckPreview(markdown, topic);
+            } finally {
+                this.hideLoadingModal(deckLoadingModal);
+            }
         } catch (error) {
             console.error('Generation failed:', error);
-            // Error notifications are already shown by the individual components
+            if (error.name !== 'AbortError') {
+                await this.showGenerationError(error);
+            }
+        } finally {
+            this.isGenerating = false;
+            this.abortController = null;
+        }
+    }
+
+    /**
+     * Abort the current generation flow
+     */
+    abortGeneration() {
+        if (this.abortController) {
+            this.abortController.abort();
         }
     }
 
@@ -374,10 +431,9 @@ export class AIGenerationController {
      * Load generated deck into editor
      * @param {string} markdown - Generated markdown
      */
-    loadIntoEditor(markdown) {
+    async loadIntoEditor(markdown) {
         // Load the markdown into the deck
-        this.loadMarkdown(markdown);
-        Notification.success('Deck loaded into editor');
+        await this.loadMarkdown(markdown);
     }
 
     /**
@@ -434,23 +490,37 @@ export class AIGenerationController {
             // Parse the markdown
             const deckData = await DeckLoader.parseMarkdown(markdown);
 
-            // Update the current deck
-            Object.assign(this.deck.meta, deckData.meta);
-            this.deck.slides = deckData.slides;
-
-            // Reload the presentation
-            if (this.controller?.reload) {
-                this.controller.reload();
+            if (!deckData || !deckData.slides) {
+                throw new Error('Failed to parse markdown: no slides generated');
             }
 
-            // If editor is open, update it
+            // Update the current deck using the reload manager if available
+            if (this.controller?.reloadManager?.replaceDeck) {
+                await this.controller.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+            } else {
+                Object.assign(this.deck.meta, deckData.meta);
+                this.deck.slides = deckData.slides;
+
+                const slidesContainer = document.getElementById('slidesContainer');
+                if (slidesContainer) {
+                    slidesContainer.innerHTML = '';
+                }
+
+                if (this.controller?.render) {
+                    this.controller.render();
+                }
+            }
+
+            // Update editor if open
             const editor = document.getElementById('markdownEditor');
             if (editor && editor.CodeMirror) {
                 editor.CodeMirror.setValue(markdown);
             }
+
+            Notification.success('Deck loaded into editor!');
         } catch (error) {
             console.error('Failed to load markdown:', error);
-            Notification.error('Failed to load deck');
+            Notification.error(`Failed to load deck: ${error.message}`);
         }
     }
 
@@ -460,10 +530,225 @@ export class AIGenerationController {
      * @returns {string|null} API key
      */
     getApiKey(providerId) {
-        // Import dynamically to avoid circular dependency
-        import('./ai-provider-registry.js').then(module => {
-            return module.AIProviderRegistry.getApiKey(providerId);
+        // Use the registry directly (already imported at top of file)
+        return AIProviderRegistry.getApiKey(providerId);
+    }
+
+    /**
+     * Show a loading modal during generation
+     * @param {string} message - Message to display
+     * @returns {HTMLElement} Modal element
+     */
+    showLoadingModal(message, { allowCancel = false, onCancel = null } = {}) {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal loading-modal';
+
+        const cancelHtml = allowCancel
+            ? `<button type="button" class="btn btn--sm loading-modal__cancel">Cancel</button>`
+            : '';
+
+        backdrop.innerHTML = `
+            <div class="modal__overlay"></div>
+            <div class="modal__dialog loading-modal__dialog">
+                <div class="loading-modal__content">
+                    <div class="loading-modal__spinner"></div>
+                    <div class="loading-modal__message">${message}</div>
+                    <div class="loading-modal__hint">This may take a moment...</div>
+                    ${cancelHtml}
+                </div>
+            </div>
+        `;
+        document.body.appendChild(backdrop);
+
+        if (allowCancel) {
+            const cancelBtn = backdrop.querySelector('.loading-modal__cancel');
+            if (cancelBtn) {
+                cancelBtn.onclick = () => {
+                    if (typeof onCancel === 'function') {
+                        onCancel();
+                    }
+                };
+            }
+        }
+
+        // Trigger animation
+        requestAnimationFrame(() => {
+            backdrop.classList.add('show');
         });
-        return localStorage.getItem(`webdeck_ai_api_keys`)?.[providerId] || null;
+
+        return backdrop;
+    }
+
+    /**
+     * Hide the loading modal
+     * @param {HTMLElement} modal - Modal element to hide
+     */
+    hideLoadingModal(modal) {
+        if (!modal || !modal.parentNode) return;
+
+        modal.classList.remove('show');
+        modal.classList.add('hide');
+
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.remove();
+            }
+        }, 200);
+    }
+
+    /**
+     * Show a detailed parse error modal with raw AI response
+     * @param {Error} error - Parse error from outline generation
+     * @param {string} topic - Deck topic
+     * @param {Object} options - Generation options
+     * @returns {Promise<Array<Object>|null>} Fallback outline or null
+     */
+    async showOutlineParseError(error, topic, options) {
+        return new Promise((resolve) => {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal';
+
+            const rawResponse = error.rawResponse || '';
+            const jsonPayload = error.jsonPayload || '';
+
+            backdrop.innerHTML = `
+                <div class="modal__overlay"></div>
+                <div class="modal__dialog" style="max-width: 720px;">
+                    <div class="modal__header">
+                        <h2 class="modal__title">Outline Parsing Failed</h2>
+                        <button class="modal__close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="modal__body" style="display: grid; gap: 12px;">
+                        <div style="color: var(--text-high);">
+                            The AI response could not be parsed as JSON. You can copy the raw output or continue with a basic outline.
+                        </div>
+                        <label style="font-size: 12px; color: var(--text-medium);">Raw Response</label>
+                        <textarea class="course-profile-modal__input" style="min-height: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(rawResponse)}</textarea>
+                        ${jsonPayload ? `<label style="font-size: 12px; color: var(--text-medium);">Extracted JSON (best effort)</label>
+                        <textarea class="course-profile-modal__input" style="min-height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(jsonPayload)}</textarea>` : ''}
+                    </div>
+                    <div class="modal__footer" style="display: flex; justify-content: space-between; align-items: center;">
+                        <button type="button" class="btn btn--sm" id="copyResponseBtn">Copy Raw Response</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn--sm" id="cancelBtn">Close</button>
+                            <button type="button" class="btn btn--sm btn--primary" id="fallbackBtn">Use Basic Outline</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(backdrop);
+
+            const closeBtn = backdrop.querySelector('.modal__close');
+            const overlay = backdrop.querySelector('.modal__overlay');
+            const cancelBtn = backdrop.querySelector('#cancelBtn');
+            const fallbackBtn = backdrop.querySelector('#fallbackBtn');
+            const copyResponseBtn = backdrop.querySelector('#copyResponseBtn');
+
+            const cleanup = () => {
+                backdrop.classList.add('hide');
+                setTimeout(() => backdrop.remove(), 200);
+            };
+
+            const resolveWith = (value) => {
+                cleanup();
+                resolve(value);
+            };
+
+            closeBtn.onclick = () => resolveWith(null);
+            overlay.onclick = () => resolveWith(null);
+            cancelBtn.onclick = () => resolveWith(null);
+            fallbackBtn.onclick = () => {
+                const slideCount = options?.slideCount || this.currentProfile?.defaultSlideCount || 5;
+                const fallback = OutlineGenerator.generateFallbackOutline(topic, slideCount);
+                resolveWith(fallback);
+            };
+
+            copyResponseBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(rawResponse);
+                    Notification.success('Raw response copied');
+                } catch {
+                    Notification.error('Failed to copy response');
+                }
+            };
+        });
+    }
+
+    /**
+     * Show a detailed error modal during generation
+     * @param {Error} error - Generation error
+     */
+    async showGenerationError(error) {
+        return new Promise((resolve) => {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal';
+
+            const message = error?.message || 'Generation failed.';
+            const details = error?.stack || String(error);
+
+            backdrop.innerHTML = `
+                <div class="modal__overlay"></div>
+                <div class="modal__dialog" style="max-width: 640px;">
+                    <div class="modal__header">
+                        <h2 class="modal__title">Generation Error</h2>
+                        <button class="modal__close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="modal__body" style="display: grid; gap: 12px;">
+                        <div style="color: var(--text-high);">${this.escapeHtml(message)}</div>
+                        <label style="font-size: 12px; color: var(--text-medium);">Details</label>
+                        <textarea class="course-profile-modal__input" style="min-height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(details)}</textarea>
+                    </div>
+                    <div class="modal__footer" style="display: flex; justify-content: space-between; align-items: center;">
+                        <button type="button" class="btn btn--sm" id="copyErrorBtn">Copy Error Details</button>
+                        <button type="button" class="btn btn--sm" id="closeBtn">Close</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(backdrop);
+
+            const closeBtn = backdrop.querySelector('.modal__close');
+            const overlay = backdrop.querySelector('.modal__overlay');
+            const footerCloseBtn = backdrop.querySelector('#closeBtn');
+            const copyErrorBtn = backdrop.querySelector('#copyErrorBtn');
+
+            const cleanup = () => {
+                backdrop.classList.add('hide');
+                setTimeout(() => backdrop.remove(), 200);
+            };
+
+            const resolveWith = () => {
+                cleanup();
+                resolve();
+            };
+
+            closeBtn.onclick = resolveWith;
+            overlay.onclick = resolveWith;
+            footerCloseBtn.onclick = resolveWith;
+
+            copyErrorBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(details);
+                    Notification.success('Error details copied');
+                } catch {
+                    Notification.error('Failed to copy error details');
+                }
+            };
+        });
+    }
+
+    /**
+     * Escape HTML for safe injection in modals
+     * @param {string} unsafe - Raw string
+     * @returns {string} Escaped string
+     */
+    escapeHtml(unsafe) {
+        return String(unsafe)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 }

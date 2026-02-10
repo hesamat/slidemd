@@ -24,6 +24,8 @@ export class OutlineApprovalModal {
             const cancelBtn = backdrop.querySelector('.outline-modal__btn--secondary');
             const regenerateBtn = backdrop.querySelector('.outline-modal__btn--regenerate');
             const addSlideBtn = backdrop.querySelector('.outline-modal__add-slide');
+            const closeBtn = backdrop.querySelector('.modal__close');
+            const overlay = backdrop.querySelector('.modal__overlay');
 
             // Update slide count
             const updateSlideCount = () => {
@@ -41,7 +43,7 @@ export class OutlineApprovalModal {
                     title: 'New Slide',
                     layout: 'focus',
                     type: 'lecture',
-                    keyPoints: ['Enter key point 1', 'Enter key point 2', 'Enter key point 3']
+                    content: '# New Slide\n\nAdd your content here'
                 });
                 slidesContainer.appendChild(newSlide);
                 updateSlideCount();
@@ -66,6 +68,17 @@ export class OutlineApprovalModal {
 
             // Cancel
             cancelBtn.onclick = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            // Close button or overlay
+            closeBtn.onclick = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            overlay.onclick = () => {
                 cleanup();
                 resolve(null);
             };
@@ -146,18 +159,6 @@ export class OutlineApprovalModal {
         // Attach slide event handlers
         this.attachSlideHandlers(backdrop);
 
-        // Close button handler
-        backdrop.querySelector('.modal__close').onclick = () => {
-            backdrop.classList.add('hide');
-            setTimeout(() => backdrop.remove(), 200);
-        };
-
-        // Overlay click to close
-        backdrop.querySelector('.modal__overlay').onclick = () => {
-            backdrop.classList.add('hide');
-            setTimeout(() => backdrop.remove(), 200);
-        };
-
         return backdrop;
     }
 
@@ -168,10 +169,13 @@ export class OutlineApprovalModal {
      * @returns {string} HTML string
      */
     static createSlideHtml(slide, index) {
-        const layouts = Array.from(LayoutData.getAllLayouts().keys());
+        const layouts = LayoutData.getAllLayouts();
         const layoutOptions = layouts.map(l =>
             `<option value="${l}" ${slide.layout === l ? 'selected' : ''}>${l}</option>`
         ).join('');
+
+        // Use content if available, otherwise fall back to keyPoints for backward compatibility
+        const content = slide.content || (slide.keyPoints || []).join('\n');
 
         return `
             <div class="outline-slide" draggable="true" data-slide-index="${index}">
@@ -198,8 +202,8 @@ export class OutlineApprovalModal {
                         <option value="title" ${slide.type === 'title' ? 'selected' : ''}>Title</option>
                     </select>
                 </div>
-                <div class="outline-slide__keypoints-label">Key Points (one per line)</div>
-                <textarea class="outline-slide__keypoints" placeholder="• Point 1&#10;• Point 2&#10;• Point 3">${this.escapeHtml((slide.keyPoints || []).join('\n'))}</textarea>
+                <div class="outline-slide__content-label">Slide Content (Markdown)</div>
+                <textarea class="outline-slide__content" placeholder="# Slide Title&#10;&#10;Your slide content in markdown format...&#10;&#10;- Bullet point 1&#10;- Bullet point 2">${this.escapeHtml(content)}</textarea>
                 <div class="outline-slide__actions">
                     <button type="button" class="outline-slide__btn outline-slide__btn--move-up" title="Move up">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -361,18 +365,14 @@ export class OutlineApprovalModal {
      * @returns {Object} Slide data
      */
     static collectSlideData(slideEl, index = null) {
-        const keypointsText = slideEl.querySelector('.outline-slide__keypoints').value;
-        const keyPoints = keypointsText
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line !== '');
+        const content = slideEl.querySelector('.outline-slide__content').value.trim();
 
         return {
             slideNumber: index !== null ? index + 1 : parseInt(slideEl.dataset.slideIndex) + 1,
             title: slideEl.querySelector('.outline-slide__title-input').value.trim(),
             layout: slideEl.querySelector('.outline-slide__layout-select').value,
             type: slideEl.querySelector('.outline-slide__type-select').value,
-            keyPoints: keyPoints.length > 0 ? keyPoints : ['Enter key points']
+            content: content || '# Slide Title\n\nAdd your content here'
         };
     }
 
@@ -401,8 +401,8 @@ export class OutlineApprovalModal {
                 errors.push(`Slide ${index + 1}: Invalid layout "${slide.layout || '(none)'}"`);
             }
 
-            if (!slide.keyPoints || !Array.isArray(slide.keyPoints)) {
-                errors.push(`Slide ${index + 1}: Missing key points`);
+            if (!slide.content || slide.content.trim() === '') {
+                errors.push(`Slide ${index + 1}: Missing content`);
             }
         });
 

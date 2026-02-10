@@ -132,6 +132,11 @@ export class AIProviderRegistry {
      * @param {Array<Object>} options.messages - Chat messages
      * @param {number} options.maxTokens - Maximum tokens to generate
      * @param {number} options.temperature - Temperature (0-1)
+     * @param {number} options.topP - Nucleus sampling (0-1)
+     * @param {boolean} options.reasoning - Enable reasoning mode (OpenRouter)
+     * @param {Object} options.chatTemplateKwargs - Provider-specific chat template options
+    * @param {number} options.timeoutMs - Request timeout in milliseconds
+     * @param {AbortSignal} options.signal - Abort signal
      * @returns {Promise<string>} Generated content
      */
     static async generateCompletion(providerId, options) {
@@ -146,12 +151,17 @@ export class AIProviderRegistry {
         }
 
         const model = options.model || this.getModel(providerId) || provider.models[0].id;
+        const mergedOptions = {
+            ...provider.defaultOptions,
+            ...options,
+            model
+        };
 
         try {
             if (provider.openaiCompatible) {
-                return await this._openAICompatibleRequest(provider.baseUrl, apiKey, model, options);
+                return await this._openAICompatibleRequest(provider.baseUrl, apiKey, mergedOptions);
             } else if (provider.customRequest) {
-                return await provider.customRequest(apiKey, model, options);
+                return await provider.customRequest(apiKey, model, mergedOptions);
             } else {
                 throw new Error(`Provider ${providerId} has no request implementation`);
             }
@@ -165,8 +175,36 @@ export class AIProviderRegistry {
      * Make an OpenAI-compatible API request
      * @private
      */
-    static async _openAICompatibleRequest(baseUrl, apiKey, model, options) {
-        const { messages, maxTokens = 2000, temperature = 0.7 } = options;
+    static async _openAICompatibleRequest(baseUrl, apiKey, options) {
+        const {
+            model,
+            messages,
+            maxTokens = 131072,
+            temperature = 1.0,
+            topP = 0.95,
+            reasoning,
+            chatTemplateKwargs,
+            signal,
+            timeoutMs
+        } = options;
+
+        const payload = {
+            model,
+            messages,
+            max_tokens: maxTokens,
+            temperature,
+            top_p: topP
+        };
+
+        if (typeof reasoning === 'boolean') {
+            payload.reasoning = reasoning;
+        }
+
+        if (chatTemplateKwargs && typeof chatTemplateKwargs === 'object') {
+            payload.chat_template_kwargs = chatTemplateKwargs;
+        }
+
+        const { requestSignal, cleanupTimeout } = this.createRequestSignal(signal, timeoutMs);
 
         const response = await fetch(`${baseUrl}/chat/completions`, {
             method: 'POST',
@@ -174,12 +212,10 @@ export class AIProviderRegistry {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({
-                model,
-                messages,
-                max_tokens: maxTokens,
-                temperature
-            })
+            signal: requestSignal,
+            body: JSON.stringify(payload)
+        }).finally(() => {
+            cleanupTimeout();
         });
 
         if (!response.ok) {
@@ -199,6 +235,45 @@ export class AIProviderRegistry {
 
         const data = await response.json();
         return data.choices[0].message.content;
+    }
+
+    /**
+     * Combine abort signal with an optional timeout
+     * @param {AbortSignal|undefined} signal - External signal
+     * @param {number|undefined} timeoutMs - Timeout in milliseconds
+     * @returns {{requestSignal: AbortSignal|undefined, cleanupTimeout: Function}}
+     */
+    static createRequestSignal(signal, timeoutMs) {
+        const hasTimeout = typeof timeoutMs === 'number' && timeoutMs > 0;
+        if (!hasTimeout && !signal) {
+            return { requestSignal: undefined, cleanupTimeout: () => {} };
+        }
+
+        const controller = new AbortController();
+        let timeoutId = null;
+
+        if (signal) {
+            if (signal.aborted) {
+                controller.abort(signal.reason);
+            } else {
+                signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+            }
+        }
+
+        if (hasTimeout) {
+            timeoutId = setTimeout(() => {
+                controller.abort(new DOMException('Request timed out', 'AbortError'));
+            }, timeoutMs);
+        }
+
+        return {
+            requestSignal: controller.signal,
+            cleanupTimeout: () => {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
+        };
     }
 
     /**
@@ -250,14 +325,18 @@ export function initializeDefaultProviders() {
     AIProviderRegistry.registerProvider('glm', {
         name: 'GLM (Zhipu AI)',
         models: [
-            { id: 'glm-4.7', name: 'GLM-4.7', maxTokens: 128000 },
-            { id: 'glm-4.7-flash', name: 'GLM-4.7-Flash', maxTokens: 128000 }
+            { id: 'zai/glm-4.7', name: 'GLM-4.7', maxTokens: 131072 }
         ],
         apiKeyPattern: /^[a-z0-9]{32,}/,
         baseUrl: 'https://api.z.ai/api/coding/paas/v4',
         openaiCompatible: true,
         requiresAuth: true,
-        isDefault: true
+        isDefault: true,
+        defaultOptions: {
+            temperature: 1.0,
+            topP: 0.95,
+            maxTokens: 131072
+        }
     });
 
     // Alternative: OpenRouter
@@ -270,6 +349,9 @@ export function initializeDefaultProviders() {
         baseUrl: 'https://openrouter.ai/api/v1',
         openaiCompatible: true,
         requiresAuth: true,
-        isDefault: false
+        isDefault: false,
+        defaultOptions: {
+            reasoning: true
+        }
     });
 }

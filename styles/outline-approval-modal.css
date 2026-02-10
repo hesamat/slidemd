@@ -158,19 +158,19 @@
     border-color: rgba(var(--color-primary), 0.5);
 }
 
-.outline-slide__keypoints-label {
+.outline-slide__content-label {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-medium);
     margin-bottom: 6px;
 }
 
-.outline-slide__keypoints {
+.outline-slide__content {
     width: 100%;
-    min-height: 90px;
+    min-height: 180px;
     padding: 10px 12px;
     font-size: 13px;
-    font-family: inherit;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
     line-height: 1.5;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
@@ -181,11 +181,11 @@
     transition: border-color 0.15s;
 }
 
-.outline-slide__keypoints:focus {
+.outline-slide__content:focus {
     border-color: rgba(var(--color-primary), 0.5);
 }
 
-.outline-slide__keypoints::placeholder {
+.outline-slide__content::placeholder {
     color: var(--text-low);
 }
 

@@ -83,7 +83,9 @@ export class CourseProfileModal {
             // Handle create new
             const createBtn = backdrop.querySelector('.course-profile-list-modal__create');
             const importBtn = backdrop.querySelector('.course-profile-list-modal__import');
-            const cancelBtn = backdrop.querySelector('.course-profile-modal__btn--secondary');
+            // Get cancel button by finding the button in actions that's not create/import
+            const cancelBtn = Array.from(backdrop.querySelectorAll('.course-profile-list-modal__actions .course-profile-modal__btn'))
+                .find(btn => !btn.classList.contains('course-profile-list-modal__create') && !btn.classList.contains('course-profile-list-modal__import'));
 
             createBtn.onclick = async () => {
                 backdrop.classList.add('hide');
@@ -108,10 +110,13 @@ export class CourseProfileModal {
                 const imported = await CourseProfileManager.importProfile();
                 if (imported) {
                     const saved = await CourseProfileManager.saveProfile(imported);
-                    if (saved) {
-                        cleanup();
-                        resolve(imported);
+                    if (!saved) {
+                        return;
                     }
+
+                    cleanup();
+                    const result = await this.showList();
+                    resolve(result);
                 }
             };
 

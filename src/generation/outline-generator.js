@@ -15,6 +15,8 @@ export class OutlineGenerator {
      * @param {Object} options - Generation options
      * @param {number} options.slideCount - Number of slides to generate
      * @param {boolean} options.includeActivities - Include in-class activities
+     * @param {boolean} options.useMockResponse - Use the mock outline response
+     * @param {string} options.mockResponseUrl - Override URL for mock response
      * @returns {Promise<Array<Object>>} Array of outline slide objects
      */
     static async generateOutline(profile, topic, options = {}) {
@@ -22,6 +24,18 @@ export class OutlineGenerator {
         if (!topic || topic.trim() === '') {
             Notification.error('Please enter a topic');
             throw new Error('Topic is required');
+        }
+
+        if (options.useMockResponse) {
+            Notification.info('Using mock outline response...');
+            const outline = await this.loadMockOutline(options.mockResponseUrl);
+            const validation = this.validateOutline(outline);
+            if (!validation.valid) {
+                Notification.warning('Mock outline has issues: ' + validation.errors.join(', '));
+            } else {
+                Notification.success('Mock outline loaded successfully!');
+            }
+            return outline;
         }
 
         // Check API key
@@ -34,6 +48,7 @@ export class OutlineGenerator {
 
         const slideCount = options.slideCount || profile.defaultSlideCount || 15;
         const includeActivities = options.includeActivities !== undefined ? options.includeActivities : profile.includeActivities;
+        const signal = options.signal;
 
         try {
             const prompt = this.buildOutlinePrompt(profile, topic, { slideCount, includeActivities });
@@ -48,8 +63,9 @@ export class OutlineGenerator {
                         { role: 'system', content: this.getSystemPrompt() },
                         { role: 'user', content: prompt }
                     ],
-                    maxTokens: 4000,
-                    temperature: 0.7
+                    maxTokens: 20000,
+                    timeoutMs: 160000,
+                    signal
                 }
             );
 
@@ -67,6 +83,15 @@ export class OutlineGenerator {
         } catch (error) {
             console.error('Outline generation failed:', error);
 
+            if (error.name === 'AbortError') {
+                throw error;
+            }
+
+            if (error.rawResponse) {
+                Notification.error('Failed to parse AI response. Review details and try again.');
+                throw error;
+            }
+
             // Provide helpful error messages
             if (error.message.includes('401')) {
                 Notification.error('Invalid API key. Please check your AI configuration.');
@@ -83,6 +108,24 @@ export class OutlineGenerator {
     }
 
     /**
+     * Load outline data from a local mock JSON file
+     * @param {string} mockResponseUrl - Optional URL override
+     * @returns {Promise<Array<Object>>} Normalized outline
+     */
+    static async loadMockOutline(mockResponseUrl) {
+        const url = mockResponseUrl || new URL('./mock-outline.json', import.meta.url);
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to load mock outline: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error('Mock outline response must be an array');
+        }
+        return this.normalizeOutline(data);
+    }
+
+    /**
      * Get the system prompt for outline generation
      * @returns {string} System prompt
      */
@@ -93,8 +136,7 @@ Your outlines should:
 - Be pedagogically sound and logically organized
 - Include appropriate slide types (title slides, lectures, activities, summaries)
 - Suggest layouts that work well with the content
-- Provide 3-5 key points per slide
-- Be concise and focused on learning outcomes`;
+- Be focused on learning outcomes`;
     }
 
     /**
@@ -129,38 +171,171 @@ The deck should follow this flow:
 1. Title slide (type: title, layout: title-slide)
 2. Introduction/overview (1-2 slides, type: lecture)
 3. Main content (${Math.max(3, slideCount - 6)} slides, type: lecture)
-${includeActivities ? `4. In-class activities (1-2 slides, type: activity)` : ''}
+${includeActivities ? `4. In-class activities (~${slideCount / 4}, type: activity)` : ''}
 ${includeActivities ? `5. More content (1-2 slides, type: lecture)` : ''}
 6. Summary/conclusion (1 slide, type: summary, layout: focus)
 
-## Available Layouts
-${Array.from(LayoutData.getAllLayouts().keys()).map(l => `- ${l}`).join('\n')}
-
 ## Response Format
 
-Return ONLY a JSON array. Do not include any other text:
+Return ONLY JSON in a fenced code block with language json. Do not add any commentary before or after.
 
 \`\`\`json
 [
     {
-        "slideNumber": 1,
         "title": "Slide Title",
         "layout": "focus",
-        "type": "lecture",
-        "keyPoints": ["Key point 1", "Key point 2", "Key point 3"]
+        "content": "# Slide Title\n\nYour complete slide content in markdown format.\n\n- Bullet point\n- Another point\n\nUse **bold**, \`code\`, math like $E = mc^2$, and more."
     }
 ]
 \`\`\`
 
+## Valid Layout Names
+
+You MUST use only these layout names:
+- **title-slide**: Full-screen centered title slide
+- **focus**: Single column content area (most common)
+- **two-column**: Equal two columns
+- **left-heavy**: Two columns (2:1 ratio - left is wider)
+- **right-heavy**: Two columns (1:2 ratio - right is wider)
+- **header-content**: Header, content, and footer stacked
+- **header-two-column**: Header with two columns and footer
+- **sidebar-content**: Fixed sidebar (300px) with flexible content
+- **content-sidebar**: Flexible content with fixed sidebar (300px)
+
+
+## Content Support
+- **Markdown**: Use headings, bullet points, bold, italics, code
+- **Math**: LaTeX math with $...$ for inline or $$...$$ for display (KaTeX)
+- **Diagrams**: Mermaid code blocks for flowcharts, sequence diagrams, etc.
+- **Code**: Syntax-highlighted code blocks with language tags no longer than 10 lines (e.g. \`\`\`python\`)
+- **Area Markers**: When a layout uses multiple columns (two-column, left-heavy, header-two-column, etc.), include area markers in the content:
+  - For "two-column": Start with "@main" for the left content, then "@media" for the right.
+  - For "left-heavy": Use "@main" for the wider left section, "@media" for the right.
+  - For "header-content": Use "@header" for the header section, "@main" for the body, optionally "@footer".
+  - For "header-two-column": Use "@header", then "@main" and "@media" for the two columns.
+  - For "sidebar-content" or "content-sidebar": Use "@sidebar" and "@main" as appropriate.
+  - For single-column layouts (focus, title-slide): No area markers needed; just write the content.
+
 ## Guidelines
 - Start with an engaging title slide
 - Build concepts progressively
-- Include practical examples where relevant
-- For activities, suggest interactive exercises
+- Include practical code examples where relevant
+- For activities, suggest interactive exercises with instructions
 - End with a clear summary and key takeaways
-- Ensure smooth transitions between slides`;
+- Ensure smooth transitions between slides
+- Write complete markdown content, not just outlines
+- **CRITICAL**: For multi-area layouts, always include the area markers (@main, @media, etc.) in the content itself`;
 
         return prompt;
+    }
+
+    /**
+     * Extract the most likely JSON payload from a response
+     * @param {string} responseText - Raw AI response
+     * @returns {string} Extracted JSON string
+     */
+    static extractJsonPayload(responseText) {
+        const trimmed = responseText.trim();
+
+        const fenceStart = trimmed.search(/```json\s*/i);
+        if (fenceStart !== -1) {
+            const afterStart = trimmed.slice(fenceStart).replace(/^```json\s*/i, '');
+            const fenceEndIndex = afterStart.lastIndexOf('```');
+            if (fenceEndIndex !== -1) {
+                return afterStart.slice(0, fenceEndIndex).trim();
+            }
+
+            return afterStart.trim();
+        }
+
+        const sentinelMatch = trimmed.match(/BEGIN_JSON([\s\S]*?)END_JSON/i);
+        if (sentinelMatch) {
+            return sentinelMatch[1].trim();
+        }
+
+        const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+            return arrayMatch[0];
+        }
+
+        return trimmed;
+    }
+
+    /**
+     * Sanitize JSON string by handling common AI generation issues
+     * @param {string} str - String to sanitize
+     * @returns {string} Sanitized string
+     */
+    static sanitizeJSON(str) {
+        // This handles cases where AI generates literal newlines/tabs inside JSON strings
+        // We need to escape them, but only within string literals, not outside
+
+        let result = '';
+        let inString = false;
+        let escapeNext = false;
+
+        for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+
+            if (escapeNext) {
+                // Already escaped, just add the character
+                result += char;
+                escapeNext = false;
+            } else if (char === '\\') {
+                // Start of escape sequence
+                result += char;
+                escapeNext = true;
+            } else if (char === '"') {
+                // Toggle string state
+                inString = !inString;
+                result += char;
+            } else if (inString) {
+                // Inside a string literal - escape control characters
+                if (char === '\n') {
+                    result += '\\n';
+                } else if (char === '\r') {
+                    result += '\\r';
+                } else if (char === '\t') {
+                    result += '\\t';
+                } else {
+                    result += char;
+                }
+            } else {
+                // Outside strings - keep as is
+                result += char;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Normalize layout names to valid presets
+     * @param {string} layout - Layout name from AI
+     * @returns {string} Valid layout name
+     */
+    static normalizeLayout(layout) {
+        const validLayouts = [
+            'title-slide', 'focus', 'two-column', 'left-heavy', 'right-heavy',
+            'header-content', 'header-two-column', 'three-column',
+            'sidebar-content', 'content-sidebar'
+        ];
+
+        // If already valid, return as-is
+        if (validLayouts.includes(layout)) {
+            return layout;
+        }
+
+        // Map common AI-generated names to valid layouts
+        const layoutMap = {
+            'standard': 'focus',
+            'default': 'focus',
+            'simple': 'focus',
+            'basic': 'focus',
+            'split': 'two-column'
+        };
+
+        return layoutMap[layout] || 'focus';
     }
 
     /**
@@ -169,71 +344,69 @@ Return ONLY a JSON array. Do not include any other text:
      * @returns {Array<Object>} Parsed outline slides
      */
     static parseOutlineResponse(aiResponse) {
-        // Try to extract JSON from the response
-        let jsonStr = aiResponse.trim();
-
-        // Remove markdown code blocks if present
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-
-        // Try to find JSON array in the response
-        const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-            jsonStr = arrayMatch[0];
-        }
+        const jsonStr = this.extractJsonPayload(aiResponse);
+        const sanitized = this.sanitizeJSON(jsonStr);
 
         try {
-            const outline = JSON.parse(jsonStr);
+            const outline = JSON.parse(sanitized);
 
             if (!Array.isArray(outline)) {
                 throw new Error('Response is not an array');
             }
 
-            // Normalize slide data
-            return outline.map((slide, index) => ({
-                slideNumber: slide.slideNumber || index + 1,
-                title: slide.title || `Slide ${index + 1}`,
-                layout: slide.layout || 'focus',
-                type: slide.type || 'lecture',
-                keyPoints: Array.isArray(slide.keyPoints) ? slide.keyPoints : []
-            }));
+            return this.normalizeOutline(outline);
         } catch (error) {
             console.error('Failed to parse outline response:', error);
-
-            // Fallback: create a basic outline based on the response text
-            Notification.warning('Could not parse AI response as JSON. Creating basic outline.');
-
-            const lines = aiResponse.split('\n').filter(line => line.trim());
-            const outline = [];
-
-            lines.forEach((line, index) => {
-                // Try to extract slide structure from numbered lines
-                const match = line.match(/^(\d+)[.\)]\s+(.+)$/);
-                if (match) {
-                    outline.push({
-                        slideNumber: index + 1,
-                        title: match[2],
-                        layout: 'focus',
-                        type: 'lecture',
-                        keyPoints: ['Discuss key concepts', 'Provide examples', 'Check understanding']
-                    });
-                }
-            });
-
-            // If still empty, create a minimal outline
-            if (outline.length === 0) {
-                for (let i = 0; i < 5; i++) {
-                    outline.push({
-                        slideNumber: i + 1,
-                        title: i === 0 ? 'Introduction' : i === 4 ? 'Summary' : `Content ${i}`,
-                        layout: 'focus',
-                        type: i === 0 ? 'title' : i === 4 ? 'summary' : 'lecture',
-                        keyPoints: ['Key point 1', 'Key point 2', 'Key point 3']
-                    });
-                }
-            }
-
-            return outline;
+            const parseError = new Error('Failed to parse AI response as JSON.');
+            parseError.rawResponse = aiResponse;
+            parseError.jsonPayload = jsonStr;
+            throw parseError;
         }
+    }
+
+    /**
+     * Normalize slide structure to a consistent shape
+     * @param {Array<Object>} outline - Raw outline array
+     * @returns {Array<Object>} Normalized outline
+     */
+    static normalizeOutline(outline) {
+        return outline.map((slide, index) => {
+            const content = typeof slide.content === 'string'
+                ? slide.content
+                : Array.isArray(slide.keyPoints)
+                    ? slide.keyPoints.join('\n')
+                    : '';
+
+            return {
+                slideNumber: index + 1,
+                title: slide.title || `Slide ${index + 1}`,
+                layout: this.normalizeLayout(slide.layout || 'focus'),
+                type: slide.type || this.inferTypeFromContent(content),
+                content,
+                keyPoints: Array.isArray(slide.keyPoints) ? slide.keyPoints : []
+            };
+        });
+    }
+
+    /**
+     * Infer slide type from content
+     * @param {string} content - Slide content
+     * @returns {string} Slide type
+     */
+    static inferTypeFromContent(content) {
+        if (!content) return 'lecture';
+
+        const lower = content.toLowerCase();
+        if (lower.includes('activity') || lower.includes('exercise') || lower.includes('task')) {
+            return 'activity';
+        }
+        if (lower.includes('summary') || lower.includes('conclusion') || lower.includes('key takeaway')) {
+            return 'summary';
+        }
+        if (lower.includes('introduction') || lower.includes('overview')) {
+            return 'title';
+        }
+        return 'lecture';
     }
 
     /**
@@ -261,10 +434,8 @@ Return ONLY a JSON array. Do not include any other text:
                 errors.push(`Slide ${index + 1}: Invalid layout "${slide.layout || '(none)'}"`);
             }
 
-            if (!slide.keyPoints || !Array.isArray(slide.keyPoints)) {
-                errors.push(`Slide ${index + 1}: Missing key points`);
-            } else if (slide.keyPoints.length === 0) {
-                errors.push(`Slide ${index + 1}: No key points defined`);
+            if (!slide.content || typeof slide.content !== 'string') {
+                errors.push(`Slide ${index + 1}: Missing or invalid content`);
             }
         });
 
