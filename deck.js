@@ -10,6 +10,10 @@ import { ThemeManager } from "./src/renderer/theme-manager.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
+import { initializeDefaultProviders } from "./src/generation/ai-provider-registry.js";
+
+// Initialize AI providers on startup
+initializeDefaultProviders();
 
 (() => {
     "use strict";
