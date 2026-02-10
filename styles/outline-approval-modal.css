@@ -5,9 +5,6 @@
 .outline-modal.modal__dialog {
     max-width: 900px;
     max-height: 85vh;
-}
-
-.outline-modal.modal__dialog {
     display: flex;
     flex-direction: column;
 }

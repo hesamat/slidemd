@@ -394,7 +394,7 @@ export class CourseProfileModal {
             .split('\n')
             .map(line => line.trim())
             // Remove common bullet point prefixes
-            .map(line => line.replace(/^[\s\-*•]+/, '').trim())
+            .map(line => line.replace(/^[-\s*•]+/, '').trim())
             .filter(line => line !== '');
 
         // Parse topics covered from textarea (one per line)
@@ -403,7 +403,7 @@ export class CourseProfileModal {
             .split('\n')
             .map(line => line.trim())
             // Remove common bullet point prefixes
-            .map(line => line.replace(/^[\s\-*•]+/, '').trim())
+            .map(line => line.replace(/^[-\s*•]+/, '').trim())
             .filter(line => line !== '');
 
         const profile = CourseProfileManager.createProfile({
