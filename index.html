@@ -157,6 +157,21 @@
                 <div class="editor__body">
                     <div class="editor__body-header">
                         <h2 class="editor__title">Edit Slide</h2>
+                        <div class="editor__helper-actions">
+                            <button id="toggleMermaidHelperBtn" class="btn btn--sm" type="button" aria-expanded="false" aria-controls="mermaidHelperPanel" title="Insert Mermaid diagram">Mermaid</button>
+                        </div>
+                    </div>
+                    <div id="mermaidHelperPanel" class="editor__helper-panel webdeck-hidden" aria-hidden="true">
+                        <div class="editor__helper-title">Mermaid helpers</div>
+                        <div class="editor__helper-grid">
+                            <button class="btn btn--sm" type="button" data-mermaid-template="flowchart">Flowchart</button>
+                            <button class="btn btn--sm" type="button" data-mermaid-template="erDiagram">ER</button>
+                            <button class="btn btn--sm" type="button" data-mermaid-template="sequence">Sequence</button>
+                            <button class="btn btn--sm" type="button" data-mermaid-template="class">Class</button>
+                            <button class="btn btn--sm" type="button" data-mermaid-template="state">State</button>
+                            <button class="btn btn--sm" type="button" data-mermaid-template="gantt">Gantt</button>
+                        </div>
+                        <div class="editor__helper-note">Inserts a Mermaid code block at the cursor.</div>
                     </div>
                     <div id="markdownEditor" class="markdown-editor-container"></div>
                 </div>

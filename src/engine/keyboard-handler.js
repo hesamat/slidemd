@@ -46,8 +46,13 @@ export class KeyboardHandler {
      * @param {KeyboardEvent} e - The keyboard event
      */
     handleKeyboard(e) {
-        // Ignore keyboard events when typing in input or textarea
-        if (["input", "textarea"].includes(e.target.tagName.toLowerCase())) {
+        // Ignore keyboard events when typing in input, textarea, or contenteditable/CodeMirror
+        const target = e.target;
+        const tagName = target?.tagName?.toLowerCase?.() || "";
+        const isEditable = target?.isContentEditable;
+        const inCodeMirror = !!target?.closest?.(".cm-editor, .markdown-editor-codemirror");
+
+        if (["input", "textarea"].includes(tagName) || isEditable || inCodeMirror) {
             return;
         }
 

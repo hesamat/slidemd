@@ -21,6 +21,12 @@ These examples show common patterns when editing slide decks.
 - Any text before the first `@area` marker flows into `@main`
 - Layouts control how content is arranged on each slide
 
+**Edit Mode Helpers:**
+- Autocomplete for `layout:`, `theme:`, `background:`, `hidden:`, and `@area`
+- Slash commands (type `/`) to insert common directives and blocks
+- Click area tags in the preview to jump the cursor to that section
+- Inline warnings appear on the slide when layout or area markers are mismatched
+
 ---
 
 layout: header-two-column

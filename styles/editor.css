@@ -16,11 +16,47 @@
 .editor__body-header {
     background: var(--surface-elevated) !important;
     border-bottom: 1px solid var(--border-medium) !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .editor__body-header .editor__title {
     color: var(--text-high) !important;
     font-weight: 700 !important;
+}
+
+.editor__helper-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+
+.editor__helper-panel {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-medium);
+    background: var(--surface-bg);
+    display: grid;
+    gap: 8px;
+}
+
+.editor__helper-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-high);
+}
+
+.editor__helper-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+}
+
+.editor__helper-note {
+    font-size: 11px;
+    color: var(--text-medium);
 }
 
 /* Markdown Editor */
@@ -60,6 +96,131 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
+}
+
+.markdown-editor-codemirror {
+    height: 100%;
+}
+
+.markdown-editor-codemirror .cm-editor {
+    height: 100%;
+}
+
+.markdown-editor-codemirror .cm-content {
+    caret-color: var(--text-high);
+}
+
+.markdown-editor-codemirror .cm-cursor,
+.markdown-editor-codemirror .cm-dropCursor {
+    border-left-color: var(--text-high);
+}
+
+.markdown-editor-codemirror {
+    --cm-token-heading: rgba(2, 132, 199, 0.95);
+    --cm-token-strong: rgba(15, 23, 42, 0.95);
+    --cm-token-emphasis: rgba(71, 85, 105, 0.9);
+    --cm-token-keyword: rgba(79, 70, 229, 0.9);
+    --cm-token-atom: rgba(217, 119, 6, 0.9);
+    --cm-token-string: rgba(22, 163, 74, 0.9);
+    --cm-token-comment: rgba(100, 116, 139, 0.75);
+    --cm-token-link: rgba(37, 99, 235, 0.9);
+    --cm-token-url: rgba(37, 99, 235, 0.9);
+    --cm-token-code: rgba(219, 39, 119, 0.85);
+    --cm-token-list: rgba(15, 23, 42, 0.9);
+    --cm-token-quote: rgba(71, 85, 105, 0.85);
+    --cm-token-meta: rgba(234, 88, 12, 0.9);
+}
+
+[data-theme="dark"] .markdown-editor-codemirror {
+    --cm-token-heading: rgba(125, 211, 252, 0.98);
+    --cm-token-strong: rgba(226, 232, 240, 0.98);
+    --cm-token-emphasis: rgba(148, 163, 184, 0.98);
+    --cm-token-keyword: rgba(196, 181, 253, 0.98);
+    --cm-token-atom: rgba(253, 230, 138, 0.98);
+    --cm-token-string: rgba(134, 239, 172, 0.98);
+    --cm-token-comment: rgba(148, 163, 184, 0.8);
+    --cm-token-link: rgba(147, 197, 253, 0.98);
+    --cm-token-url: rgba(96, 165, 250, 0.98);
+    --cm-token-code: rgba(251, 113, 133, 0.98);
+    --cm-token-list: rgba(226, 232, 240, 0.98);
+    --cm-token-quote: rgba(148, 163, 184, 0.9);
+    --cm-token-meta: rgba(253, 186, 116, 0.98);
+}
+
+.markdown-editor-codemirror .cm-header,
+.markdown-editor-codemirror .cm-heading {
+    color: var(--cm-token-heading);
+    font-weight: 700;
+}
+
+.markdown-editor-codemirror .cm-strong {
+    color: var(--cm-token-strong);
+    font-weight: 700;
+}
+
+.markdown-editor-codemirror .cm-em,
+.markdown-editor-codemirror .cm-emphasis {
+    color: var(--cm-token-emphasis);
+}
+
+.markdown-editor-codemirror .cm-link,
+.markdown-editor-codemirror .cm-linkText {
+    color: var(--cm-token-link);
+}
+
+.markdown-editor-codemirror .cm-url {
+    color: var(--cm-token-url);
+    text-decoration: underline;
+}
+
+.markdown-editor-codemirror .cm-comment,
+.markdown-editor-codemirror .cm-meta,
+.markdown-editor-codemirror .cm-processingInstruction,
+.markdown-editor-codemirror .cm-documentMeta {
+    color: var(--cm-token-comment);
+    font-style: italic;
+}
+
+.markdown-editor-codemirror .cm-meta {
+    color: var(--cm-token-meta);
+}
+
+.markdown-editor-codemirror .cm-quote,
+.markdown-editor-codemirror .cm-blockquote {
+    color: var(--cm-token-quote);
+}
+
+.markdown-editor-codemirror .cm-list,
+.markdown-editor-codemirror .cm-listMark {
+    color: var(--cm-token-list);
+}
+
+.markdown-editor-codemirror .cm-inlineCode,
+.markdown-editor-codemirror .cm-monospace,
+.markdown-editor-codemirror .cm-code {
+    color: var(--cm-token-code);
+}
+
+.markdown-editor-codemirror .cm-keyword {
+    color: var(--cm-token-keyword);
+}
+
+.markdown-editor-codemirror .cm-atom,
+.markdown-editor-codemirror .cm-number {
+    color: var(--cm-token-atom);
+}
+
+.markdown-editor-codemirror .cm-string,
+.markdown-editor-codemirror .cm-string-2 {
+    color: var(--cm-token-string);
+}
+
+.markdown-editor-codemirror .cm-tag {
+    color: var(--cm-token-keyword);
+}
+
+.markdown-editor-codemirror .cm-attribute {
+    color: var(--cm-token-atom);
 }
 
 .markdown-editor-textarea {

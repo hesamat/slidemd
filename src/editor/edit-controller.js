@@ -9,6 +9,7 @@ import { Notification } from "../renderer/notification.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
 import { LayoutData } from "../data/layout-data.js";
+import { LayoutParser } from "../data/layout-parser.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
@@ -29,6 +30,9 @@ export class EditController {
         this.originalMarkdown = this.cacheOriginalMarkdown();
         // Store unsaved changes in memory (per-slide)
         this.unsavedMarkdown = new Map();
+        this.lastDiagnostics = new Map();
+        this.editorWarningsEnabled = true;
+        this.pendingSlideWarning = '';
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
@@ -160,12 +164,27 @@ export class EditController {
             this.elements.duplicateSlideBtn.addEventListener('click', () => this.duplicateSlide());
         }
 
+        if (this.elements.toggleMermaidHelperBtn && this.elements.mermaidHelperPanel) {
+            this.elements.toggleMermaidHelperBtn.addEventListener('click', () => this.toggleMermaidHelperPanel());
+        }
+
+        if (this.elements.mermaidHelperPanel) {
+            const templateButtons = this.elements.mermaidHelperPanel.querySelectorAll('[data-mermaid-template]');
+            templateButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const template = button.getAttribute('data-mermaid-template');
+                    this.insertMermaidTemplate(template);
+                });
+            });
+        }
+
         // Initialize layout picker modal
         LayoutPicker.initModal();
 
         // Render initial thumbnails
         this.thumbnails.render();
     }
+
 
     /**
      * Toggle edit mode on/off
@@ -195,6 +214,7 @@ export class EditController {
             this.elements.editorPanel?.classList.add('webdeck-hidden');
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
+            this.hideMermaidHelperPanel();
 
             // Restore presenter panel visibility based on editor role
             if (this.controller.roleManager.isEditorWindow) {
@@ -210,6 +230,39 @@ export class EditController {
 
         // Re-scale the stage to fit the new layout after toggling edit mode
         setTimeout(() => StageScaler.applyStageScale(this.elements), 50);
+    }
+
+    toggleMermaidHelperPanel() {
+        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        const isHidden = this.elements.mermaidHelperPanel.classList.toggle('webdeck-hidden');
+        this.elements.mermaidHelperPanel.setAttribute('aria-hidden', String(isHidden));
+        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', String(!isHidden));
+        this.elements.toggleMermaidHelperBtn.classList.toggle('active', !isHidden);
+    }
+
+    hideMermaidHelperPanel() {
+        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        this.elements.mermaidHelperPanel.classList.add('webdeck-hidden');
+        this.elements.mermaidHelperPanel.setAttribute('aria-hidden', 'true');
+        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', 'false');
+        this.elements.toggleMermaidHelperBtn.classList.remove('active');
+    }
+
+    insertMermaidTemplate(templateName) {
+        if (!this.markdownEditor) return;
+
+        const templates = {
+            flowchart: "```mermaid\nflowchart TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do the thing]\n    B -->|No| D[Stop]\n```\n",
+            erDiagram: "```mermaid\nerDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains\n    PRODUCT ||--o{ LINE_ITEM : includes\n    CUSTOMER {\n        string name\n        string email\n    }\n    ORDER {\n        string id\n        date orderDate\n    }\n    PRODUCT {\n        string sku\n        string title\n    }\n```\n",
+            sequence: "```mermaid\nsequenceDiagram\n    participant A as User\n    participant B as Service\n    A->>B: Request\n    B-->>A: Response\n```\n",
+            class: "```mermaid\nclassDiagram\n    class SlideDeck {\n        +title\n        +render()\n    }\n    class Slide {\n        +layout\n        +areas\n    }\n    SlideDeck --> Slide\n```\n",
+            state: "```mermaid\nstateDiagram-v2\n    [*] --> Draft\n    Draft --> Review\n    Review --> Published\n    Published --> [*]\n```\n",
+            gantt: "```mermaid\ngantt\n    title Project Timeline\n    dateFormat  YYYY-MM-DD\n    section Prep\n    Draft content      :a1, 2025-01-01, 2025-01-07\n    Review             :a2, 2025-01-08, 2025-01-12\n    section Delivery\n    Finalize slides    :a3, 2025-01-13, 2025-01-16\n```\n",
+        };
+
+        const snippet = templates[templateName] || templates.flowchart;
+        this.markdownEditor.insertText(snippet);
+        this.markdownEditor.focus();
     }
 
     /**
@@ -237,9 +290,10 @@ export class EditController {
             this.originalMarkdown[this.currentSlideIndex] ??
             '';
 
-        this.markdownEditor.setValue(markdown);
+        this.markdownEditor.setValue(markdown, { suppressOnChange: true });
         // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
         this.updateSaveButton();
+        this.refreshAreaGuides();
     }
 
     /**
@@ -265,15 +319,167 @@ export class EditController {
         this.updateSaveButton();
     }
 
+    getSlideElementByIndex(index) {
+        const slidesContainer = document.getElementById('slidesContainer');
+        if (!slidesContainer) return null;
+        const allSlides = slidesContainer.querySelectorAll(':scope > .slide');
+        return allSlides[index] || null;
+    }
+
+    showEditorWarning(key, message, duration = 2500) {
+        if (!this.editorWarningsEnabled) return;
+        const now = Date.now();
+        const last = this.lastDiagnostics.get(key) || 0;
+        if (now - last < duration) return;
+        this.lastDiagnostics.set(key, now);
+        this.pendingSlideWarning = message;
+    }
+
+    showSlideWarning(message) {
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+
+        let banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'editor-slide-warning';
+            slideEl.appendChild(banner);
+        }
+
+        banner.textContent = message;
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+    }
+
+    clearSlideWarning() {
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+        const banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (banner) banner.remove();
+    }
+
+    applyPendingSlideWarning(targetSlideEl = null) {
+        if (!this.pendingSlideWarning) return;
+        const slideEl = targetSlideEl || this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+
+        let banner = slideEl.querySelector(':scope > .editor-slide-warning');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'editor-slide-warning';
+            slideEl.appendChild(banner);
+        }
+
+        banner.textContent = this.pendingSlideWarning;
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+    }
+
+
+    applyAreaGuides(slideEl, slideData) {
+        if (!this.isEditMode || !slideEl) return;
+
+        const areaEls = slideEl.querySelectorAll('.slide__area');
+        areaEls.forEach(areaEl => {
+            const name = areaEl.style.gridArea || areaEl.dataset.areaName || 'main';
+            areaEl.dataset.areaName = name;
+
+            let label = areaEl.querySelector(':scope > .editor-area-label');
+            if (!label) {
+                label = document.createElement('button');
+                label.type = 'button';
+                label.className = 'editor-area-label';
+                areaEl.prepend(label);
+            }
+
+            label.textContent = `@${name}`;
+            label.setAttribute('title', `Click to jump to @${name}`);
+            label.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.navigateToArea(name);
+            };
+        });
+
+        if (slideData?.layout) {
+            slideEl.dataset.layoutName = slideData.layout;
+        }
+    }
+
+    updateAreaOverflow(slideEl) {
+        if (!this.isEditMode || !slideEl) return;
+        const areas = slideEl.querySelectorAll('.slide__area');
+        areas.forEach(area => {
+            const label = area.querySelector(':scope > .editor-area-label');
+            const verticalOverflow = area.scrollHeight - area.clientHeight > 6;
+            const horizontalOverflow = area.scrollWidth - area.clientWidth > 6;
+            const isOverflowing = verticalOverflow || horizontalOverflow;
+
+            area.classList.toggle('editor-area-overflow', isOverflowing);
+            if (label) {
+                label.dataset.overflow = isOverflowing ? '1' : '0';
+                label.setAttribute('aria-label', isOverflowing
+                    ? `@${area.dataset.areaName} is overflowing`
+                    : `@${area.dataset.areaName}`);
+            }
+        });
+    }
+
+    refreshAreaGuides() {
+        if (!this.isEditMode) return;
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        const slideData = this.deck?.slides?.[this.currentSlideIndex];
+        if (!slideEl || !slideData) return;
+
+        this.applyAreaGuides(slideEl, slideData);
+        requestAnimationFrame(() => this.updateAreaOverflow(slideEl));
+    }
+
+    navigateToArea(areaName) {
+        if (!this.markdownEditor) return;
+
+        const name = String(areaName || '').trim().toLowerCase();
+        if (!name) return;
+
+        const markdown = this.markdownEditor.getValue();
+        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^\\s*@${escapedName}\\s*$`, 'mi');
+        const match = regex.exec(markdown);
+
+        if (match) {
+            const cursorPosition = match.index + match[0].length;
+            this.markdownEditor.setValueWithCursor(markdown, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
+            this.markdownEditor.focus();
+            return;
+        }
+
+        const spacer = markdown.endsWith('\n') ? '' : '\n';
+        const addition = `${spacer}\n@${name}\n`;
+        const updated = `${markdown}${addition}`;
+        const cursorPosition = updated.length;
+        this.markdownEditor.setValueWithCursor(updated, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
+        this.onEditorInput(updated);
+    }
+
     /**
      * Update the preview with the edited markdown
      */
     async updatePreview() {
         const markdown = this.markdownEditor?.getValue() ?? '';
+        this.clearSlideWarning();
+        this.pendingSlideWarning = '';
 
         try {
             await AssetLoader.ensureMarkdownItLoaded();
             const parser = new MarkdownParser();
+
+            const slideCount = parser.splitSlides(markdown).length;
+            if (slideCount > 1) {
+                this.showEditorWarning(
+                    'multi-slide-preview',
+                    'This editor previews a single slide. Split slides with --- in the full deck, not inside the editor.'
+                );
+            }
 
             // Parse fragment
             const fullDeckData = parser.parseDeckMarkdown(markdown);
@@ -285,6 +491,42 @@ export class EditController {
             }
 
             const slideData = fullDeckData.slides[0];
+
+            const layoutSpec = (slideData.layout || '').trim();
+            const layoutKey = layoutSpec.toLowerCase();
+            const looksLikeGridSpec = /["']/.test(layoutSpec) || layoutSpec.includes('/');
+            if (layoutSpec && !looksLikeGridSpec && !LayoutData.hasLayout(layoutKey)) {
+                this.showEditorWarning(
+                    `unknown-layout-${layoutKey}`,
+                    `Unknown layout "${layoutSpec}". Pick a preset or use a full grid template.`
+                );
+            }
+
+            const areaNames = Object.keys(slideData.areas || {});
+            const resolvedLayout = LayoutParser.resolvePreset(layoutSpec);
+            const layoutInfo = LayoutParser.parse(resolvedLayout, {
+                fallbackAreas: areaNames.length ? areaNames : ["main"],
+            });
+            const layoutAreas = layoutInfo.orderedAreas || [];
+
+            if (areaNames.length) {
+                const unknownAreas = areaNames.filter(name => !layoutAreas.includes(name));
+                if (unknownAreas.length) {
+                    this.showEditorWarning(
+                        `unknown-areas-${unknownAreas.join('-')}`,
+                        `Areas not in layout: ${unknownAreas.map(name => `@${name}`).join(', ')}.`
+                    );
+                }
+
+                const optionalAreas = ["footer"];
+                const missingAreas = layoutAreas.filter(name => !areaNames.includes(name) && !optionalAreas.includes(name));
+                if (missingAreas.length) {
+                    this.showEditorWarning(
+                        `missing-areas-${missingAreas.join('-')}`,
+                        `Layout expects: ${missingAreas.map(name => `@${name}`).join(', ')}.`
+                    );
+                }
+            }
 
             // Update the current slide in the deck object
             this.deck.slides[this.currentSlideIndex] = slideData;
@@ -310,10 +552,18 @@ export class EditController {
                 );
                 slideEl.replaceWith(newSlideEl);
 
+                this.applyPendingSlideWarning(newSlideEl);
+                this.applyAreaGuides(newSlideEl, slideData);
+
                 // Re-enhance the new slide content (Mermaid, Prism, etc.)
-                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
+                ContentEnhancer.enhanceRenderedContent(newSlideEl).then(() => {
+                    this.applyAreaGuides(newSlideEl, slideData);
+                    requestAnimationFrame(() => this.updateAreaOverflow(newSlideEl));
+                }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 });
+            } else {
+                this.applyPendingSlideWarning();
             }
         } catch (error) {
             console.error('Failed to update preview:', error);

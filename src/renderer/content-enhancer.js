@@ -43,7 +43,6 @@ export class ContentEnhancer {
         return window.__WEBDECK_MERMAID__;
     }
 
-    // add somewhere in ContentEnhancer
     static getMermaidSandbox() {
         let box = document.getElementById("mermaid-sandbox");
         if (!box) {
@@ -51,15 +50,15 @@ export class ContentEnhancer {
             box.id = "mermaid-sandbox";
             box.setAttribute("aria-hidden", "true");
             box.style.cssText = `
-      position: fixed;
-      left: -10000px;
-      top: 0;
-      width: 0;
-      height: 0;
-      overflow: hidden;
-      pointer-events: none;
-      contain: layout paint style;
-    `;
+position: fixed;
+left: -10000px;
+top: 0;
+width: 1920px;
+height: 1080px;
+overflow: hidden;
+pointer-events: none;
+contain: layout paint style;
+`;
             document.body.appendChild(box);
         }
         return box;
@@ -90,14 +89,32 @@ export class ContentEnhancer {
                 const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 const sandbox = this.getMermaidSandbox();
 
-                // (Optional but helps avoid a second reflow due to font swapping)
+                // Fonts can affect Mermaid's label measurement (and thus spacing/wrapping)
                 if (document.fonts?.ready) await document.fonts.ready;
 
-                const out = await mermaid.render(id, source, sandbox);
-                el.innerHTML = out.svg;
-                out.bindFunctions?.(el);
+                let out;
+                try {
+                    out = await mermaid.render(id, source, sandbox);
+                } catch {
+                    // Fallback for Mermaid builds that don't accept a container arg
+                    out = await mermaid.render(id, source);
+                }
+                const svg = typeof out === "string" ? out : out?.svg;
+                if (svg) el.innerHTML = svg;
+                if (out && typeof out !== "string") out.bindFunctions?.(el);
             } catch (e) {
-                el.innerHTML = `<div style="color:#d32f2f; padding:1rem;">Error: ${escapeHtml(e.message || 'Mermaid rendering failed')}</div>`;
+                const errorMessage = escapeHtml(e.message || "Mermaid rendering failed");
+                const safeSource = escapeHtml(source);
+                el.innerHTML = `
+                    <div class="mermaid-error" role="alert">
+                        <div class="mermaid-error__title">Mermaid error</div>
+                        <div class="mermaid-error__message">${errorMessage}</div>
+                        <details class="mermaid-error__details">
+                            <summary>Show source</summary>
+                            <pre>${safeSource}</pre>
+                        </details>
+                    </div>
+                `;
             }
             el.dataset.mermaidProcessed = "1";
         }

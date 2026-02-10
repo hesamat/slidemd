@@ -148,25 +148,6 @@ export class Notification {
     }
 
     /**
-     * Show an alert dialog with a custom action button
-     * @param {string} title - The dialog title
-     * @param {string} message - The message to display
-     * @param {string} actionLabel - Label for the action button
-     * @param {Function} onAction - Callback when action button is clicked
-     */
-    static alertWithAction(title, message, actionLabel, onAction) {
-        this.showModalNonBlocking({
-            title,
-            message,
-            buttons: [
-                { label: actionLabel, isPrimary: true, onClick: onAction },
-                { label: 'Close', isPrimary: false, onClick: () => {} }
-            ],
-            focusPrimary: true
-        });
-    }
-
-    /**
      * Show a dialog asking user to choose between re-uploading or using cached version
      * @param {string} title - The dialog title
      * @param {string} message - The message to display
@@ -312,60 +293,5 @@ export class Notification {
             };
             document.addEventListener('keydown', escapeHandler);
         });
-    }
-
-    /**
-     * Show a modal dialog that doesn't return a promise (fire-and-forget)
-     * @param {Object} config - Modal configuration
-     */
-    static showModalNonBlocking(config) {
-        const { backdrop, buttons } = this.createModal({
-            ...config,
-            buttons: config.buttons.map(btn => ({
-                ...btn,
-                onClick: () => {
-                    cleanup();
-                    btn.onClick?.();
-                }
-            }))
-        });
-
-        document.body.appendChild(backdrop);
-
-        const primaryButton = buttons.find(b => b.isPrimary);
-        const buttonToFocus = config.focusPrimary && primaryButton
-            ? primaryButton.element
-            : buttons[0].element;
-
-        requestAnimationFrame(() => buttonToFocus?.focus());
-
-        let escapeHandler;
-        const cleanup = () => {
-            backdrop.classList.add('notification-modal-backdrop--hide');
-            setTimeout(() => {
-                if (backdrop.parentNode) {
-                    backdrop.remove();
-                }
-            }, 200);
-            if (escapeHandler) {
-                document.removeEventListener('keydown', escapeHandler);
-                escapeHandler = null;
-            }
-        };
-
-        // Close on backdrop click
-        backdrop.onclick = (e) => {
-            if (e.target === backdrop) {
-                cleanup();
-            }
-        };
-
-        // Close on Escape key
-        escapeHandler = (e) => {
-            if (e.key === 'Escape') {
-                cleanup();
-            }
-        };
-        document.addEventListener('keydown', escapeHandler);
     }
 }

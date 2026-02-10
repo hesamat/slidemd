@@ -45,8 +45,8 @@ export class WheelHandler {
         const thumbnailsPanel = e.target.closest('.slide-thumbnails, .editor__thumbnails');
         if (thumbnailsPanel) return true;
 
-        // Check if the wheel event is over the markdown editor textarea
-        const markdownEditorArea = e.target.closest('#markdown-editor-textarea');
+        // Check if the wheel event is over the markdown editor area/container (#markdownEditor)
+        const markdownEditorArea = e.target.closest('#markdownEditor');
         if (markdownEditorArea) return true;
 
         return false;
