@@ -111,7 +111,7 @@ export class AIGenerationController {
                 outline = await OutlineGenerator.generateOutline(
                     this.currentProfile,
                     topic,
-                    { ...options, signal: this.abortController?.signal}
+                    { ...options, signal: this.abortController?.signal, useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json'}
                     //  useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json' 
                 );
             } catch (error) {
@@ -414,7 +414,7 @@ export class AIGenerationController {
 
             editBtn.onclick = () => {
                 cleanup();
-                this.loadIntoEditor(markdown);
+                this.loadIntoEditor(markdown, topic);
             };
 
             saveBtn.onclick = () => {
@@ -432,9 +432,19 @@ export class AIGenerationController {
      * Load generated deck into editor
      * @param {string} markdown - Generated markdown
      */
-    async loadIntoEditor(markdown) {
+    async loadIntoEditor(markdown, topic = '') {
         // Load the markdown into the deck
-        await this.loadMarkdown(markdown);
+        const fileName = this.buildDeckFileName(topic);
+        await this.loadMarkdown(markdown, { fileName });
+    }
+
+    buildDeckFileName(topic) {
+        const fallback = 'ai-generated.md';
+        const cleanTopic = String(topic || '').toLowerCase().trim();
+        if (!cleanTopic) return fallback;
+        const slug = cleanTopic.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if (!slug) return fallback;
+        return `${slug}.md`;
     }
 
     /**
@@ -486,13 +496,24 @@ export class AIGenerationController {
      * Load markdown into the current deck
      * @param {string} markdown - Markdown content
      */
-    async loadMarkdown(markdown) {
+    async loadMarkdown(markdown, options = {}) {
         try {
             // Parse the markdown
             const deckData = await DeckLoader.parseMarkdown(markdown);
 
             if (!deckData || !deckData.slides) {
                 throw new Error('Failed to parse markdown: no slides generated');
+            }
+
+            const { fileName } = options;
+
+            if (markdown) {
+                localStorage.setItem("webdeck_local_file", markdown);
+                localStorage.setItem("webdeck_local_file_type", "md");
+                if (fileName) {
+                    localStorage.setItem("webdeck_local_file_name", fileName);
+                }
+                localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
             }
 
             // Update the current deck using the reload manager if available
