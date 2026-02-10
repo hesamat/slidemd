@@ -183,8 +183,9 @@ Return ONLY JSON in a fenced code block with language json. Do not add any comme
 [
     {
         "title": "Slide Title",
+        "type": "lecture",
         "layout": "focus",
-        "content": "# Slide Title\n\nYour complete slide content in markdown format.\n\n- Bullet point\n- Another point\n\nUse **bold**, \`code\`, math like $E = mc^2$, and more."
+        "content": "@main\n\n# Slide Title\n\nYour complete slide content in markdown format.\n\n- Bullet point\n- Another point\n\nUse **bold**, \`code\`, math like $E = mc^2$, and more."
     }
 ]
 \`\`\`
@@ -199,6 +200,7 @@ You MUST use only these layout names:
 - **right-heavy**: Two columns (1:2 ratio - right is wider)
 - **header-content**: Header, content, and footer stacked
 - **header-two-column**: Header with two columns and footer
+- **three-column**: Three equal columns
 - **sidebar-content**: Fixed sidebar (300px) with flexible content
 - **content-sidebar**: Flexible content with fixed sidebar (300px)
 
@@ -207,24 +209,28 @@ You MUST use only these layout names:
 - **Markdown**: Use headings, bullet points, bold, italics, code
 - **Math**: LaTeX math with $...$ for inline or $$...$$ for display (KaTeX)
 - **Diagrams**: Mermaid code blocks for flowcharts, sequence diagrams, etc.
-- **Code**: Syntax-highlighted code blocks with language tags no longer than 10 lines (e.g. \`\`\`python\`)
-- **Area Markers**: When a layout uses multiple columns (two-column, left-heavy, header-two-column, etc.), include area markers in the content:
-  - For "two-column": Start with "@main" for the left content, then "@media" for the right.
-  - For "left-heavy": Use "@main" for the wider left section, "@media" for the right.
-  - For "header-content": Use "@header" for the header section, "@main" for the body, optionally "@footer".
-  - For "header-two-column": Use "@header", then "@main" and "@media" for the two columns.
-  - For "sidebar-content" or "content-sidebar": Use "@sidebar" and "@main" as appropriate.
-  - For single-column layouts (focus, title-slide): No area markers needed; just write the content.
+- **Code**: Syntax-highlighted code blocks with language tags no longer than 10 lines (e.g. \`\`\`python\`\`\`)
+- **Area Markers**: ALWAYS include explicit area markers at the top-level of each slide's content. Do not put headings/content before the first area marker.
+    - For "title-slide": Use "@title" then write the title/subtitle under it.
+    - For "focus": Use "@main" then write the full slide content.
+    - For "two-column" / "left-heavy" / "right-heavy": Use "@main" (left) then "@media" (right).
+    - For "header-content": Use "@header" then "@main" ("@footer" optional).
+    - For "header-two-column": Use "@header" then "@main" and "@media" ("@footer" optional).
+    - For "three-column": Use "@main" then "@media" then "@secondary".
+    - For "sidebar-content": Use "@sidebar" then "@main".
+    - For "content-sidebar": Use "@main" then "@sidebar".
 
 ## Guidelines
 - Start with an engaging title slide
 - Build concepts progressively
 - Include practical code examples where relevant
-- For activities, suggest interactive exercises with instructions
+- For activities, suggest interactive exercises with instructions. Put them every 3-4 slides to break up the lecture and reinforce learning. Use the "activity" type for these slides.
 - End with a clear summary and key takeaways
 - Ensure smooth transitions between slides
 - Write complete markdown content, not just outlines
-- **CRITICAL**: For multi-area layouts, always include the area markers (@main, @media, etc.) in the content itself`;
+- Use a polished teaching-deck style: "Context → Problem → Solution" slides work well
+- Prefer short, scannable lists; avoid wall-of-text paragraphs
+- **CRITICAL**: Every slide MUST start with the correct @area markers for its chosen layout`;
 
         return prompt;
     }
@@ -436,6 +442,14 @@ You MUST use only these layout names:
 
             if (!slide.content || typeof slide.content !== 'string') {
                 errors.push(`Slide ${index + 1}: Missing or invalid content`);
+            } else {
+                const requiredMarkers = this.getRequiredAreaMarkers(slide.layout);
+                for (const marker of requiredMarkers) {
+                    const re = new RegExp(`(^|\\n)\\s*${marker}\\s*(\\n|$)`, 'i');
+                    if (!re.test(slide.content)) {
+                        errors.push(`Slide ${index + 1}: Missing required area marker "${marker}" for layout "${slide.layout}"`);
+                    }
+                }
             }
         });
 
@@ -443,6 +457,38 @@ You MUST use only these layout names:
             valid: errors.length === 0,
             errors
         };
+    }
+
+    /**
+     * Get required @area markers for a given layout preset
+     * @param {string} layoutName
+     * @returns {Array<string>} markers like "@main"
+     */
+    static getRequiredAreaMarkers(layoutName) {
+        const layout = (layoutName || '').toString();
+        switch (layout) {
+            case 'title-slide':
+                return ['@title'];
+            case 'focus':
+                return ['@main'];
+            case 'two-column':
+            case 'left-heavy':
+            case 'right-heavy':
+                return ['@main', '@media'];
+            case 'header-content':
+                return ['@header', '@main'];
+            case 'header-two-column':
+                return ['@header', '@main', '@media'];
+            case 'three-column':
+                return ['@main', '@media', '@secondary'];
+            case 'sidebar-content':
+                return ['@sidebar', '@main'];
+            case 'content-sidebar':
+                return ['@main', '@sidebar'];
+            default:
+                // Unknown/unsupported layouts are validated elsewhere
+                return [];
+        }
     }
 
     /**
