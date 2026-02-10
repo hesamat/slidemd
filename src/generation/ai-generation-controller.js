@@ -111,7 +111,7 @@ export class AIGenerationController {
                 outline = await OutlineGenerator.generateOutline(
                     this.currentProfile,
                     topic,
-                    { ...options, signal: this.abortController?.signal, useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json'}
+                    { ...options, signal: this.abortController?.signal}
                     //  useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json' 
                 );
             } catch (error) {
