@@ -109,8 +109,14 @@ export class MarkdownEditor {
         if (suppressOnChange) this.suppressChange = false;
 
         if (wasFocused) {
+            // Clamp the restored selection to the new document length to avoid
+            // out-of-bounds ranges when the new value is shorter than the old one.
+            const docLength = this.view.state.doc.length;
+            const from = Math.min(selection.from, docLength);
+            const to = Math.min(selection.to, docLength);
+
             this.view.dispatch({
-                selection: EditorSelection.range(selection.from, selection.to),
+                selection: EditorSelection.range(from, to),
                 scrollIntoView: false
             });
             this.view.scrollDOM.scrollTop = scrollTop;
