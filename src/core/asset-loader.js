@@ -56,6 +56,7 @@ export class AssetLoader {
                 () => import("prismjs/components/prism-markdown.js"),
                 () => import("prismjs/components/prism-makefile.js"),
                 () => import("prismjs/components/prism-cmake.js"),
+                () => import("prismjs/components/prism-sql.js"),
             ];
 
             for (const load of loadLangs) {
