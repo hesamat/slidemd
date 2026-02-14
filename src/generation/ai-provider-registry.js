@@ -4,8 +4,6 @@
  * Primary: GLM (Zhipu AI) via OpenAI-compatible API
  */
 
-import { Notification } from "../renderer/notification.js";
-
 export class AIProviderRegistry {
     static providers = new Map();
     static STORAGE_KEY = 'webdeck_ai_api_keys';

@@ -473,7 +473,7 @@ export class CourseProfileManager {
             defaultSlideCount: 15,
             includeActivities: true,
             aiProvider: 'glm', // Default to GLM
-            aiModel: 'glm-4.7',
+            aiModel: 'glm-5',
             templates: this.getDefaultTemplates(),
             createdAt: null, // Will be set on save
             updatedAt: null,

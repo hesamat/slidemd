@@ -265,8 +265,7 @@ export class CourseProfileModal {
                                 <label class="course-profile-modal__label">AI Provider</label>
                                 <select class="course-profile-modal__select" name="aiProvider">
                                     <option value="glm" ${p.aiProvider === 'glm' ? 'selected' : ''}>GLM (Zhipu AI)</option>
-                                    <option value="openai" ${p.aiProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
-                                    <option value="anthropic" ${p.aiProvider === 'anthropic' ? 'selected' : ''}>Anthropic Claude</option>
+                                    <option value="openrouter" ${p.aiProvider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
                                 </select>
                             </div>
                         </div>
@@ -395,7 +394,7 @@ export class CourseProfileModal {
             .split('\n')
             .map(line => line.trim())
             // Remove common bullet point prefixes
-            .map(line => line.replace(/^[\s\-*••]\*/, '').trim())
+            .map(line => line.replace(/^[-\s*•]+/, '').trim())
             .filter(line => line !== '');
 
         // Parse topics covered from textarea (one per line)
@@ -404,7 +403,7 @@ export class CourseProfileModal {
             .split('\n')
             .map(line => line.trim())
             // Remove common bullet point prefixes
-            .map(line => line.replace(/^[\s\-*••]\*/, '').trim())
+            .map(line => line.replace(/^[-\s*•]+/, '').trim())
             .filter(line => line !== '');
 
         const profile = CourseProfileManager.createProfile({
