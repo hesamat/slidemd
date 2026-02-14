@@ -233,6 +233,7 @@ ${initScript}
             markdown: "markdown",
             makefile: "makefile",
             cmake: "cmake",
+            sql: "sql",
         };
         return map[l] || null;
     }

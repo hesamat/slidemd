@@ -8,6 +8,7 @@
 
 **Basic Structure:**
 - Slides are separated by `---` (three dashes on a line by themselves)
+- Optional speaker notes go at the very top of the slide as an HTML comment: `<!-- notes: ... -->`
 - Each slide begins with frontmatter: `layout: preset-name` or `layout: "grid definition" / columns`
 - Content areas are marked with `@area-name` (e.g., `@header`, `@main`, `@media`, `@sidebar`)
 - Content before the first `@area` flows into `@main`
@@ -21,7 +22,7 @@ layout: title-slide
 
 # Header + single content
 layout: header-content
-# Content: @header, @main, @footer (optional)
+# Content: @header, @main (optional: @footer)
 
 # Header + two equal columns
 layout: header-two-column
@@ -34,10 +35,21 @@ layout: two-column
 # Header + main + sidebar (for activities)
 layout: "header header" "main sidebar" / 1fr 300px
 # Content: @header, @main, @sidebar
+
+# Other commonly used presets
+layout: focus
+layout: left-heavy
+layout: right-heavy
+layout: three-column
+layout: sidebar-content
+layout: content-sidebar
 ```
 
 **Slide Options:**
-- Speaker notes: `<!-- notes: Your private notes -->`
+- `theme: dark` or `theme: light`
+- `background: linear-gradient(...)` or `background: #color`
+- `hidden: true` - Slide hidden by default
+- Speaker notes: `<!-- notes: Your private notes -->` (must be the first line of the slide, before `layout:`)
 
 **Built-in Features:**
 - **Code highlighting:** Fenced code blocks with language identifier
@@ -60,7 +72,8 @@ layout: "header header" "main sidebar" / 1fr 300px
 - ALWAYS specify `layout:` at the top of each slide (before any `@area` markers)
 - Place `@area` markers on their own lines
 - Content before first `@area` flows into `@main`
-- Speaker notes with `<!-- notes: -->` BEFORE the first `@area` marker
+- Speaker notes with `<!-- notes: -->` go at the very top of the slide (before `layout:`)
+- Keep each slide self-contained; do not let a fenced code block accidentally span across slide separators
 
 **For Code Examples:**
 - Keep examples under 6 lines
@@ -79,10 +92,10 @@ layout: "header header" "main sidebar" / 1fr 300px
 ### Title Slide
 
 ```markdown
+<!-- notes: Welcome students. Acknowledge the density of today's lecture. We are bridging the gap between basic scripting and software engineering today. -->
+
 layout: title-slide
 background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
-
-<!-- notes: Welcome students. Acknowledge the density of today's lecture. We are bridging the gap between basic scripting and software engineering today. -->
 
 @title
 
@@ -94,9 +107,9 @@ background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
 ### Activity Slide (simple example)
 
 ```markdown
-layout: "header header" "main sidebar" / 1fr 300px
-
 <!-- notes: Give students 3-5 minutes -->
+
+layout: "header header" "main sidebar" / 1fr 300px
 
 @header
 
@@ -117,13 +130,14 @@ print(mystery([1, 2]))
 
 ## Instructions
 
-> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div></br><span style="text-align: center"> Screenshot your answer for the hand-in template.</span>
+> <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div>
+> <br />
+> <span style="text-align: center">Screenshot your answer for the hand-in template.</span>
 ```
 
 **Activity Instructions Guidelines:**
 - Always use the blue callout style shown above
 - Keep instructions brief - hand-in template has details
-- Remind students what to submit (screenshot, code, explanation)
 
 ---
 
