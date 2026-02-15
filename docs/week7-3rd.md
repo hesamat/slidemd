@@ -332,20 +332,21 @@ In SQL, you model for relationships. In Firestore, you **model for queries**.
 
 @media
 
-```text
-❌ Anti-pattern: 
-  Query users where "orders.status" == "shipped" 
-  (Requires joining users & orders)
+❌ **Anti-pattern**
 
-✅ Pattern: 
-  Denormalize: Store "last_shipped_order_id" on user doc
-  OR
-  Query the "orders" collection directly.
-```
+Query users where `orders.status` == `"shipped"`
+*(Requires joining users & orders)*
+
+
+✓ **Pattern**
+
+- **Option 1 — Denormalize:** Store `last_shipped_order_id` on user doc
+
+- **Option 2 — Query orders collection:** Query `"orders"` directly by status
 
 ---
 
-layout: header-two-column
+layout: header-content
 
 @header
 
@@ -365,15 +366,6 @@ If you filter on `A` and sort by `B`, Firestore needs index `(A, B)`.
 - **Dev:** Firestore provides link to create index.
 - **Prod:** Define indexes in `firestore.indexes.json` as code.
 
-@media
-
-```python
-# Requires composite index on (status, created_at)
-query = (db.collection("orders")
-    .where("status", "==", "pending")
-    .order_by("created_at", direction=DESCENDING)
-    .limit(10))
-```
 
 ---
 
