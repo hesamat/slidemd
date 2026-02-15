@@ -24,6 +24,9 @@ layout: header-content
 
 > **Core Concept:** Security is defense in depth—multiple layers that must all pass.
 
+### Why This Matters for EE Students
+Modern embedded systems, IoT devices, and smart grid infrastructure all rely on cloud-connected APIs. Secure API design protects both your hardware and your users' data from remote attacks.
+
 ---
 
 layout: header-two-column
@@ -36,6 +39,8 @@ layout: header-two-column
 
 ### What It Does
 Firebase Auth acts as a trusted **Identity Provider (IdP)**. It handles the complex cryptography of login so you don't have to.
+
+> **JWT (JSON Web Token):** A cryptographically signed string containing user identity.
 
 ### Separation of Concerns
 - **Firebase Auth:** Manages credentials, sessions, and tokens.
@@ -287,7 +292,7 @@ Refactor `PUT /api/users/<uid>` to enforce strict validation.
 2.  **Type & Bounds:** 
     - `display_name`: string, 1-100 chars.
     - `role`: must be in `['user', 'admin']`.
-3.  **Aggregate Errors:** Return `400 Bad Request` with JSON list of *all* failures.
+3.  **Collect All Errors:** Return `400 Bad Request` with JSON list of *all* failures.
 
 @media
 
@@ -423,7 +428,7 @@ layout: header-two-column
 2.  **Identity:** API Keys - Identifies the *client application*.
 3.  **Authentication:** Firebase Tokens - Identifies the *end user*.
 4.  **Authorization:** Business Logic - Determines *permissions*.
-5.  **Rate Limiting:** Prevents abuse and cost spikes.
+5.  **Rate Limiting:** Prevents abuse (e.g., DDoS attacks)
 
 > **Distinction:** API Keys = "Which app is calling?" | Auth Tokens = "Which user is logged in?"
 
@@ -568,7 +573,7 @@ flowchart LR
 
 ---
 
-layout: header-two-column
+layout: header-content
 
 @header
 
@@ -582,11 +587,9 @@ layout: header-two-column
 - **Performance:** Model Firestore data for specific queries. Respect index limits.
 - **Security:** Layer defenses: API Key → Auth Token → Validation → Authorization.
 
-### Next Steps
-- Implement Rate Limiting (Redis/Firebase Extensions).
-- Explore Firestore Security Rules for client-direct access.
-- Add structured logging for security auditing.
-
-@media
+### Further Exploration (Self-Study)
+- Rate limiting infrastructure options (Redis/Firebase Extensions).
+- Firestore Security Rules for client-direct access patterns.
+- Structured logging frameworks for security auditing.
 
 > "Security is a process, not a product." – Bruce Schneier
