@@ -5,6 +5,7 @@
 
 import { Notification } from "../renderer/notification.js";
 import { LayoutData } from "../data/layout-data.js";
+import { OutlineGenerator } from "./outline-generator.js";
 
 export class OutlineApprovalModal {
     static backdrop = null;
@@ -401,16 +402,15 @@ export class OutlineApprovalModal {
                 errors.push(`Slide ${index + 1}: Invalid layout "${slide.layout || '(none)'}"`);
             } else {
                 // Validate that content contains required @area markers for this layout
-                const requiredAreas = LayoutData.getAreaNames(slide.layout);
+                // Note: footer is optional for header-content and header-two-column layouts
+                const requiredAreas = OutlineGenerator.getRequiredAreaMarkers(slide.layout);
                 const content = slide.content || '';
-                
-                // Check each required area (skip if layout only has "main" which doesn't require @area marker)
-                if (requiredAreas.length > 1 || (requiredAreas.length === 1 && requiredAreas[0] !== 'main')) {
-                    for (const area of requiredAreas) {
-                        const areaMarker = `@${area}`;
-                        if (!content.includes(areaMarker)) {
-                            errors.push(`Slide ${index + 1}: Missing required area marker "${areaMarker}" for layout "${slide.layout}"`);
-                        }
+
+                for (const area of requiredAreas) {
+                    const areaMarker = `@${area}`;
+                    const re = new RegExp(`(^|\\n)\\s*${areaMarker}\\b`, 'i');
+                    if (!re.test(content)) {
+                        errors.push(`Slide ${index + 1}: Missing required area marker "${areaMarker}" for layout "${slide.layout}"`);
                     }
                 }
             }

@@ -323,7 +323,7 @@ export function initializeDefaultProviders() {
     AIProviderRegistry.registerProvider('glm', {
         name: 'GLM (Zhipu AI)',
         models: [
-            { id: 'zai/glm-4.7', name: 'GLM-4.7', maxTokens: 131072 }
+            { id: 'glm-5', name: 'GLM-5', maxTokens: 131072 }
         ],
         apiKeyPattern: /^[a-z0-9]{32,}/,
         baseUrl: 'https://api.z.ai/api/coding/paas/v4',

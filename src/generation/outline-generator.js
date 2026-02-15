@@ -15,6 +15,7 @@ export class OutlineGenerator {
      * @param {Object} options - Generation options
      * @param {number} options.slideCount - Number of slides to generate
      * @param {boolean} options.includeActivities - Include in-class activities
+     * @param {string} options.lastWeekSummary - Optional summary of previous session
      * @param {boolean} options.useMockResponse - Use the mock outline response
      * @param {string} options.mockResponseUrl - Override URL for mock response
      * @returns {Promise<Array<Object>>} Array of outline slide objects
@@ -129,13 +130,19 @@ export class OutlineGenerator {
      * @returns {string} System prompt
      */
     static getSystemPrompt() {
-        return `You are an expert educational content designer. Create clear, well-structured slide deck outlines for educational topics.
+        return `You are an expert educational content designer creating slide deck content for a lecture presentation system.
 
-Your outlines should:
-- Be pedagogically sound and logically organized
-- Include appropriate slide types (title slides, lectures, activities, summaries)
-- Suggest layouts that work well with the content
-- Be focused on learning outcomes`;
+Your slides must be:
+- **Focused**: One core concept per slide
+- **Scannable**: Bullet points and short phrases, not paragraphs
+- **Progressive**: Build from simple to complex
+- **Practical**: Include working code examples where relevant
+
+Style guidelines:
+- Use clear, direct language
+- Avoid verbose explanations—slides support the speaker, don't replace them
+- Group related points together under meaningful headings
+- Use code blocks for technical content, not ASCII art boxes`;
     }
 
     /**
@@ -146,7 +153,7 @@ Your outlines should:
      * @returns {string} Prompt
      */
     static buildOutlinePrompt(profile, topic, options) {
-        const { slideCount, includeActivities } = options;
+        const { slideCount, includeActivities, lastWeekSummary } = options;
 
         let prompt = `Generate a slide deck outline for the following topic.
 
@@ -156,6 +163,8 @@ ${profile.description ? `Description: ${profile.description}` : ''}
 
 ## Learning Objectives
 ${profile.learningObjectives.map(obj => `- ${obj}`).join('\n')}
+
+${lastWeekSummary ? `## Previous Session Summary\n${lastWeekSummary}\n` : ''}
 
 ## Topic
 ${topic}
@@ -178,13 +187,41 @@ ${includeActivities ? `5. More content (1-2 slides, type: lecture)` : ''}
 
 Return ONLY JSON in a fenced code block with language json. Do not add any commentary before or after.
 
+**CRITICAL: Every slide's "content" field MUST start with the correct @area marker for its layout.**
+
+Example for different layouts:
+
 \`\`\`json
 [
     {
-        "title": "Slide Title",
+        "title": "Dataclasses (Pythonic OOD)",
         "type": "lecture",
-        "layout": "focus",
-        "content": "@main\n\n# Slide Title\n\nYour complete slide content in markdown format.\n\n- Bullet point\n- Another point\n\nUse **bold**, \`code\`, math like $E = mc^2$, and more."
+        "layout": "header-two-column",
+        "content": "@header\n## Dataclasses (Pythonic OOD)\n\n@main\n### Great for domain records\n- less boilerplate\n- clearer intent\n- supports immutability (\`frozen=True\`)\n\n@media\n\`\`\`py\nfrom dataclasses import dataclass\n\n@dataclass(frozen=True)\nclass Money:\n  cents: int\n\n  def __post_init__(self):\n    if self.cents < 0:\n      raise ValueError(\"Money cannot be negative\")\n\`\`\`"
+    },
+    {
+        "title": "Design for Testability",
+        "type": "lecture",
+        "layout": "header-two-column",
+        "content": "@header\n## Design for Testability\n### Tests need seams\n\n@main\n### Make it easy to replace:\n- network calls\n- filesystem\n- time\n- randomness\n\n### Techniques\n- dependency injection\n- pure functions for rules\n- small protocols\n\n@media\n\`\`\`py\nclass FakeRepo:\n  def __init__(self):\n    self.saved = []\n  def save(self, order):\n    self.saved.append(order)\n\`\`\`"
+    },
+    {
+        "title": "Modules are Design Too",
+        "type": "lecture",
+        "layout": "header-content",
+        "content": "@header\n## Modules are Design Too\n### Organize code like a system\n\n@main\n- package = component boundary\n- limit imports across layers\n- keep domain independent from infrastructure\n\nExample structure:\n- \`domain/\` (entities, rules)\n- \`services/\` (use cases)\n- \`infrastructure/\` (db, http)\n- \`ui/\` (cli/web)"
+    },
+    {
+        "title": "SOLID (Practical Version)",
+        "type": "lecture",
+        "layout": "header-content",
+        "content": "@header\n## SOLID (Practical Version)\n\n@main\n### Five heuristics for better designs\n\n- **S**ingle Responsibility: one reason to change (**SRP**)\n- **O**pen/Closed: extend without editing core logic (**OCP**)\n- **L**iskov Substitution: derived types keep promises (**LSP**)\n- **I**nterface Segregation: small focused interfaces (**ISP**)\n- **D**ependency Inversion: depend on abstractions (**DIP**)"
+    },
+    {
+        "title": "SRP: One Reason to Change",
+        "type": "lecture",
+        "layout": "header-two-column",
+        "content": "@header\n## SRP: One Reason to Change\n### Separate responsibilities by change pressure\n\n@main\n### Smell\n> A class changes for unrelated reasons.\n\n### Example split\n- \`Order\` (domain rules)\n- \`OrderRepository\` (storage)\n- \`OrderReceiptRenderer\` (formatting)\n\n@media\n\`\`\`py\nclass OrderReceiptRenderer:\n  def render_text(self, order: \"Order\") -> str:\n    return \"\\n\".join(\n      [\"Receipt\", f\"items={len(order.items())}\"]\n    )\n\`\`\`"
     }
 ]
 \`\`\`
@@ -199,7 +236,6 @@ You MUST use only these layout names:
 - **right-heavy**: Two columns (1:2 ratio - right is wider)
 - **header-content**: Header, content, and footer stacked
 - **header-two-column**: Header with two columns and footer
-- **three-column**: Three equal columns
 - **sidebar-content**: Fixed sidebar (300px) with flexible content
 - **content-sidebar**: Flexible content with fixed sidebar (300px)
 
@@ -208,28 +244,68 @@ You MUST use only these layout names:
 - **Markdown**: Use headings, bullet points, bold, italics, code
 - **Math**: LaTeX math with $...$ for inline or $$...$$ for display (KaTeX)
 - **Diagrams**: Mermaid code blocks for flowcharts, sequence diagrams, etc.
-- **Code**: Syntax-highlighted code blocks with language tags no longer than 10 lines (e.g. \`\`\`python\`\`\`)
+- **Code**: Syntax-highlighted code blocks with language tags (max 12 lines, e.g. \`\`\`javascript\`\`\`)
+- **Tables**: Use markdown tables for comparisons
 - **Area Markers**: ALWAYS include explicit area markers at the top-level of each slide's content. Do not put headings/content before the first area marker.
     - For "title-slide": Use "@title" then write the title/subtitle under it.
     - For "focus": Use "@main" then write the full slide content.
     - For "two-column" / "left-heavy" / "right-heavy": Use "@main" (left) then "@media" (right).
     - For "header-content": Use "@header" then "@main" ("@footer" optional).
     - For "header-two-column": Use "@header" then "@main" and "@media" ("@footer" optional).
-    - For "three-column": Use "@main" then "@media" then "@secondary".
     - For "sidebar-content": Use "@sidebar" then "@main".
     - For "content-sidebar": Use "@main" then "@sidebar".
 
-## Guidelines
-- Start with an engaging title slide
-- Build concepts progressively
-- Include practical code examples where relevant
-- For activities, suggest interactive exercises with instructions. Put them every 3-4 slides to break up the lecture and reinforce learning. Use the "activity" type for these slides.
-- End with a clear summary and key takeaways
-- Ensure smooth transitions between slides
-- Write complete markdown content, not just outlines
-- Use a polished teaching-deck style: "Context → Problem → Solution" slides work well
-- Prefer short, scannable lists; avoid wall-of-text paragraphs
-- **CRITICAL**: Every slide MUST start with the correct @area markers for its chosen layout`;
+## CRITICAL: Forbidden Syntax
+
+DO NOT use these markdown extensions—they are NOT supported:
+- ❌ \`:::warning\`, \`:::info\`, \`:::tip\`, \`:::danger\` admonition/callout blocks
+- ❌ GitHub-style alerts like \`> [!WARNING]\`
+- ❌ ASCII art boxes or diagrams (use Mermaid instead)
+- Don't use emojis
+
+If you need to emphasize important information:
+- Use **bold text** for key terms
+- Use blockquotes (\`>\`) sparingly for important notes
+- Put critical warnings in the slide content as plain text with bold/emphasis
+
+## Slide Content Guidelines
+
+**Structure each slide around ONE concept:**
+- Clear heading that states the concept
+- Avoid mixing too many elements
+
+**Make content meaningful:**
+- Every bullet point should add value—no filler
+- Code examples should be concise and directly illustrate the point
+- Explain WHY something matters, not just WHAT it is
+- Use concrete examples over abstract descriptions
+
+**For lecture slides:**
+- Start with the problem/motivation before the solution
+- Show code examples with brief explanations
+- Use two-column layouts to compare approaches (old vs new, bad vs good)
+
+**For activity slides:**
+- Clear task description at the top
+- Specific, actionable steps (numbered list)
+- Code template or starter code if applicable
+- Success criteria so students know when they're done
+
+**For summary slides:**
+- Recap the key concepts as a bulleted list
+- No new information
+- Optional: "Next steps"
+
+## Final Checks
+- **CRITICAL**: Every slide's "content" field MUST start with the @area marker
+- The FIRST line of content should be the marker (e.g., "@main", "@title", "@header")
+- Then a blank line, then your actual slide content
+- Review each slide: does the content start with "@main", "@title", etc.?
+- No \`:::\` admonition blocks anywhere
+- Code blocks have language tags
+- Content is scannable at a glance during a presentation
+
+**REMINDER: Content field format = "@marker\\n\\n# Your markdown content"**`;
 
         return prompt;
     }
@@ -444,9 +520,12 @@ You MUST use only these layout names:
             } else {
                 const requiredMarkers = this.getRequiredAreaMarkers(slide.layout);
                 for (const marker of requiredMarkers) {
-                    const re = new RegExp(`(^|\\n)\\s*${marker}\\s*(\\n|$)`, 'i');
+                    // Match marker at start of line or after newline, followed by optional whitespace
+                    // The marker can be followed by anything (not just newlines)
+                    const areaMarker = `@${marker}`;
+                    const re = new RegExp(`(^|\\n)\\s*${areaMarker}\\b`, 'i');
                     if (!re.test(slide.content)) {
-                        errors.push(`Slide ${index + 1}: Missing required area marker "${marker}" for layout "${slide.layout}"`);
+                        errors.push(`Slide ${index + 1}: Missing required area marker "${areaMarker}" for layout "${slide.layout}"`);
                     }
                 }
             }
@@ -467,23 +546,23 @@ You MUST use only these layout names:
         const layout = (layoutName || '').toString();
         switch (layout) {
             case 'title-slide':
-                return ['@title'];
+                return ['title'];
             case 'focus':
-                return ['@main'];
+                return ['main'];
             case 'two-column':
             case 'left-heavy':
             case 'right-heavy':
-                return ['@main', '@media'];
+                return ['main', 'media'];
             case 'header-content':
-                return ['@header', '@main'];
+                return ['header', 'main'];
             case 'header-two-column':
-                return ['@header', '@main', '@media'];
+                return ['header', 'main', 'media'];
             case 'three-column':
-                return ['@main', '@media', '@secondary'];
+                return ['main', 'media', 'secondary'];
             case 'sidebar-content':
-                return ['@sidebar', '@main'];
+                return ['sidebar', 'main'];
             case 'content-sidebar':
-                return ['@main', '@sidebar'];
+                return ['main', 'sidebar'];
             default:
                 // Unknown/unsupported layouts are validated elsewhere
                 return [];

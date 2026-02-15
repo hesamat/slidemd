@@ -66,6 +66,7 @@ export class AIGenerationController {
         this.abortController = new AbortController();
 
         let topic = null;
+        let lastWeekSummary = null;
         let options = null;
 
         // Step 1: Ensure we have a profile
@@ -88,10 +89,12 @@ export class AIGenerationController {
             }
 
             // Step 3: Get topic from user
-            topic = await this.promptForTopic();
-            if (!topic) {
+            const topicInput = await this.promptForTopic();
+            if (!topicInput) {
                 return; // User cancelled
             }
+            topic = topicInput.topic;
+            lastWeekSummary = topicInput.lastWeekSummary;
 
             // Step 4: Get generation options
             options = await this.promptForOptions();
@@ -110,8 +113,8 @@ export class AIGenerationController {
                 outline = await OutlineGenerator.generateOutline(
                     this.currentProfile,
                     topic,
-                    { ...options, signal: this.abortController?.signal}
-                    //  useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json' 
+                    { ...options, lastWeekSummary, signal: this.abortController?.signal }
+                    //  useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json'
                 );
             } catch (error) {
                 if (error.name === 'AbortError') {
@@ -212,9 +215,15 @@ export class AIGenerationController {
                             </div>
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
-                                    Topic <span style="color: #ef4444;">*</span>
+                                    Topics <span style="color: #ef4444;">*</span>
                                 </label>
-                                <input type="text" id="topicInput" class="course-profile-modal__input" placeholder="e.g., Binary Search Trees" required>
+                                <textarea id="topicInput" class="course-profile-modal__input" rows="4" placeholder="e.g., Binary Search Trees, AVL Trees, Red-Black Trees" required></textarea>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
+                                    Last Week's Summary
+                                </label>
+                                <textarea id="lastWeekInput" class="course-profile-modal__input" rows="3" placeholder="Optional: Brief summary of what was covered last week..."></textarea>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                                 <button type="button" class="course-profile-modal__btn course-profile-modal__btn--secondary" id="cancelBtn">Cancel</button>
@@ -229,6 +238,7 @@ export class AIGenerationController {
 
             const form = backdrop.querySelector('#topicForm');
             const input = backdrop.querySelector('#topicInput');
+            const lastWeekInput = backdrop.querySelector('#lastWeekInput');
             const cancelBtn = backdrop.querySelector('#cancelBtn');
             const closeBtn = backdrop.querySelector('.modal__close');
             const overlay = backdrop.querySelector('.modal__overlay');
@@ -243,9 +253,10 @@ export class AIGenerationController {
             form.onsubmit = (e) => {
                 e.preventDefault();
                 const topic = input.value.trim();
+                const lastWeekSummary = lastWeekInput.value.trim();
                 if (topic) {
                     cleanup();
-                    resolve(topic);
+                    resolve({ topic, lastWeekSummary });
                 }
             };
 
