@@ -1,0 +1,271 @@
+/**
+ * AI Configuration Modal Styles
+ */
+
+.ai-config-modal {
+    max-width: 550px;
+}
+
+.ai-config-modal__form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ai-config-modal__form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ai-config-modal__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-medium);
+}
+
+.ai-config-modal__input,
+.ai-config-modal__select,
+.ai-config-modal__textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    background: var(--surface-bg);
+    color: var(--text-high);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ai-config-modal__input:focus,
+.ai-config-modal__select:focus,
+.ai-config-modal__textarea:focus {
+    border-color: rgba(var(--color-primary), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.15);
+}
+
+.ai-config-modal__textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.ai-config-modal__helper {
+    font-size: 12px;
+    color: var(--text-low);
+    margin-top: 2px;
+}
+
+.ai-config-modal__provider-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-elevated);
+    border: 2px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.ai-config-modal__provider-card:hover {
+    background: var(--surface-hover);
+}
+
+.ai-config-modal__provider-card.selected {
+    border-color: rgba(var(--color-primary), 0.5);
+    background: rgba(var(--color-primary), 0.05);
+}
+
+.ai-config-modal__provider-radio {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.ai-config-modal__provider-info {
+    flex: 1;
+}
+
+.ai-config-modal__provider-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-high);
+    margin-bottom: 2px;
+}
+
+.ai-config-modal__provider-description {
+    font-size: 12px;
+    color: var(--text-medium);
+}
+
+.ai-config-modal__provider-badge {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    background: rgba(var(--color-primary), 0.15);
+    color: rgba(var(--color-primary), 0.95);
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ai-config-modal__api-key-group {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.ai-config-modal__api-key-input {
+    flex: 1;
+}
+
+.ai-config-modal__api-key-toggle {
+    flex-shrink: 0;
+    width: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-medium);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ai-config-modal__api-key-toggle:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.ai-config-modal__test-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-high);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+    width: fit-content;
+}
+
+.ai-config-modal__test-btn:hover {
+    background: var(--surface-hover);
+}
+
+.ai-config-modal__test-btn.testing {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.ai-config-modal__test-btn--success {
+    color: #16a34a;
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.ai-config-modal__test-btn--error {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.ai-config-modal__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.ai-config-modal__status--info {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.ai-config-modal__status--success {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.ai-config-modal__status--error {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.ai-config-modal__status-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+
+.ai-config-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.ai-config-modal__btn {
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ai-config-modal__btn--secondary {
+    background: var(--surface-elevated);
+    color: var(--text-high);
+}
+
+.ai-config-modal__btn--secondary:hover {
+    background: var(--surface-hover);
+}
+
+.ai-config-modal__btn--primary {
+    background: rgba(var(--color-primary), 0.95);
+    color: white;
+}
+
+.ai-config-modal__btn--primary:hover {
+    background: rgba(var(--color-primary), 0.85);
+}
+
+.ai-config-modal__btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* OpenAI-compatible Configuration Section */
+.ai-config-modal__custom-config {
+    padding: 16px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+}
+
+.ai-config-modal__custom-config-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-high);
+    margin-bottom: 12px;
+}
+
+.ai-config-modal__custom-config-grid {
+    display: grid;
+    gap: 12px;
+}

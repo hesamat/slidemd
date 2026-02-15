@@ -314,9 +314,11 @@ You can add inline styles to blockquotes for emphasis:
 
 ```markdown
 > **Warning:** Use blockquotes for warnings.
-> You can add <span style="color: #dc2626;">colored text</span> 
-> or other inline styles as needed.
+> You can add <span style="color: #dc2626;">colored text</span> or other inline styles as needed.
 ```
+
+> <span style="color: #dc2626;">**Warning:**</span> Use blockquotes for warnings.
+> You can add <span style="color: #dc2626;">colored text</span> or other inline styles as needed.
 
 ---
 
