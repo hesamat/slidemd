@@ -3,7 +3,7 @@ layout: title-slide
 @title
 
 # Building Secure APIs
-## COMP7855 - Week 7
+## COMP 7855 - Week 7
 ### Instructor: [Name]
 
 ---
@@ -114,8 +114,9 @@ Use the Auth `uid` as the Firestore Document ID.
 
 @media
 
+### Firestore Structure:
+
 ```text
-Firestore Structure:
 users/
   {uid}/  <-- Document ID matches Auth UID
     ├─ email: "user@example.com"
@@ -192,7 +193,8 @@ Implement `GET /api/profile` demonstrating the **Auth → Firestore** link.
 @app.route("/api/profile", methods=["GET"])
 def profile():
     # 1. Verify Trust
-    uid = get_verified_uid(request.headers.get("Authorization"))
+    auth_header = request.headers.get("Authorization")
+    uid = get_verified_uid(auth_header)
     if not uid: 
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -267,7 +269,8 @@ def validate_user_update(data):
         errors.append(f"Unknown fields: {unknown}")
 
     # 2. Validate specific fields
-    if "role" in data and data["role"] not in ["user", "admin"]:
+    valid_roles = ["user", "admin"]
+    if "role" in data and data["role"] not in valid_roles:
         errors.append("Invalid role")
         
     # 3. Return all errors at once
@@ -304,9 +307,12 @@ def update_user(uid):
     # TODO: Validate against whitelist
     # TODO: Check types and bounds
     # TODO: Collect ALL errors
-    # if errors: return jsonify({"errors": errors}), 400
+    
+    if errors:
+        return jsonify({"errors": errors}), 400
     
     # TODO: Apply update
+    
     return jsonify({"status": "updated"}), 200
 ```
 
@@ -332,17 +338,17 @@ In SQL, you model for relationships. In Firestore, you **model for queries**.
 
 @media
 
-❌ **Anti-pattern**
+### **Anti-pattern**
 
 Query users where `orders.status` == `"shipped"`
 *(Requires joining users & orders)*
 
 
-✓ **Pattern**
+### **Pattern**
 
-- **Option 1 — Denormalize:** Store `last_shipped_order_id` on user doc
+- **Option 1 - Denormalize:** Store `last_shipped_order_id` on user doc
 
-- **Option 2 — Query orders collection:** Query `"orders"` directly by status
+- **Option 2 - Query orders collection:** Query `"orders"` directly by status
 
 ---
 
@@ -402,7 +408,8 @@ def search_products():
     
     # Execute and return
     results = query.get()
-    return jsonify([doc.to_dict() for doc in results]), 200
+    products = [doc.to_dict() for doc in results]
+    return jsonify(products), 200
 ```
 
 ---
@@ -422,7 +429,9 @@ layout: header-two-column
 4.  **Authorization:** Business Logic - Determines *permissions*.
 5.  **Rate Limiting:** Prevents abuse (e.g., DDoS attacks)
 
-> **Distinction:** API Keys = "Which app is calling?" | Auth Tokens = "Which user is logged in?"
+> **Distinction:** 
+> API Keys = "Which app is calling?"
+> Auth Tokens = "Which user is logged in?"
 
 @media
 
@@ -471,9 +480,44 @@ def require_api_key(f):
     def decorated(*args, **kwargs):
         key = request.headers.get("X-API-Key")
         if key != API_KEY:
-            return jsonify({"error": "Invalid API Key"}), 401
+            error = {"error": "Invalid API Key"}
+            return jsonify(error), 401
         return f(*args, **kwargs)
     return decorated
+```
+---
+
+
+---
+
+layout: header-two-column
+
+@header
+
+## Rate Limiting: Protecting the Backend
+
+@main
+
+### The IoT Threat Model
+In embedded systems, a firmware bug (e.g., an infinite `while` loop failing to read a sensor) can accidentally turn a single device into a DDoS attack, spamming your API with thousands of requests per second.
+
+### Mitigation Strategies
+- **Token Bucket Algorithm:** Devices get a "bucket" of tokens. Each request costs a token. Tokens refill at a fixed rate.
+- **Throttling:** Delaying responses to slow down the client.
+- **Load Shedding:** Dropping requests (returning `429 Too Many Requests`) when the server is overwhelmed.
+
+> **Rule:** Always implement rate limiting on IoT endpoints to protect cloud resources and billing.
+
+@media
+
+```mermaid
+flowchart TD
+    Req[Device Request] --> Check{Tokens Available?}
+    Check -->|Yes| Consume[Consume 1 Token]
+    Consume --> Process[Process Request]
+    Check -->|No| Reject[429 Too Many Requests]
+    
+    Timer((Refill Timer)) -.->|Add Tokens| Check
 ```
 
 ---
@@ -481,6 +525,7 @@ def require_api_key(f):
 layout: left-heavy
 
 @header
+
 ## Secret Management Principles
 
 @main
