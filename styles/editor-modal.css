@@ -7,13 +7,37 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal.hide {
+    animation: modalFadeOut 0.2s ease-out forwards;
+}
+
+@keyframes modalFadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
 
 .modal__overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     pointer-events: auto;
 }
 
@@ -21,64 +45,121 @@
     position: relative;
     z-index: 1;
     background: var(--surface-bg);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-md);
-    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+        0 25px 50px -12px rgba(0, 0, 0, 0.4),
+        0 12px 24px -8px rgba(0, 0, 0, 0.3);
     max-width: 600px;
     width: 90%;
-    max-height: 80vh;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    animation: modalSlideIn 0.25s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal.hide .modal__dialog {
+    animation: modalSlideOut 0.2s ease-out forwards;
+}
+
+@keyframes modalSlideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
 }
 
 .modal__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-medium);
+    padding: 20px 24px;
+    background: linear-gradient(to bottom, var(--surface-elevated), transparent);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal__title {
     margin: 0;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     color: var(--text-high);
+    letter-spacing: -0.2px;
 }
 
 .modal__close {
-    background: none;
-    border: none;
-    font-size: 28px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    font-size: 24px;
     line-height: 1;
     color: var(--text-medium);
     cursor: pointer;
     padding: 0;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-sm);
-    transition: background 0.15s, color 0.15s;
+    transition: all 0.15s ease;
 }
 
 .modal__close:hover {
     background: var(--surface-hover);
     color: var(--text-high);
+    border-color: var(--border-medium);
+}
+
+.modal__close:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
 }
 
 .modal__body {
-    padding: 20px;
+    padding: 24px;
     overflow-y: auto;
     flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-medium) transparent;
+}
+
+.modal__body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal__body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal__body::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 4px;
+}
+
+.modal__body::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
 }
 
 /* Go to Slide Modal Styles */
 
 .modal__dialog--go-to-slide {
-    max-width: 500px;
+    max-width: 520px;
 }
 
 .modal__dialog--go-to-slide .modal__body {
@@ -96,63 +177,75 @@
 .go-to-slide__input-container {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
 .go-to-slide__label {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-medium);
+    letter-spacing: 0.1px;
 }
 
 .go-to-slide__input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px 14px;
     font-size: 14px;
     font-family: inherit;
     border: 1px solid var(--border-medium);
     border-radius: var(--radius-sm);
-    background: var(--surface-bg);
+    background: var(--surface-elevated);
     color: var(--text-high);
     outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: all 0.15s ease;
+}
+
+.go-to-slide__input:hover {
+    border-color: var(--border-strong);
 }
 
 .go-to-slide__input:focus {
-    border-color: rgba(var(--color-primary), 0.5);
-    box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.15);
+    border-color: rgba(var(--color-primary), 0.6);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.12);
+    background: var(--surface-bg);
+}
+
+.go-to-slide__input::placeholder {
+    color: var(--text-low);
 }
 
 .go-to-slide__divider {
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--text-low);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
     margin-bottom: 12px;
+    padding-left: 4px;
 }
 
 .go-to-slide__list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    max-height: 400px;
+    gap: 6px;
+    max-height: 380px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: 8px;
+    margin-right: -8px;
 }
 
 .go-to-slide__list::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .go-to-slide__list::-webkit-scrollbar-track {
-    background: var(--border-subtle);
-    border-radius: 4px;
+    background: transparent;
 }
 
 .go-to-slide__list::-webkit-scrollbar-thumb {
     background: var(--border-medium);
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 .go-to-slide__list::-webkit-scrollbar-thumb:hover {
@@ -162,57 +255,64 @@
 .go-to-slide__item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 14px;
+    padding: 12px 14px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.15s ease;
     outline: none;
+    border: 1px solid transparent;
 }
 
 .go-to-slide__item:hover {
     background: var(--surface-hover);
+    border-color: var(--border-subtle);
 }
 
 .go-to-slide__item:focus-visible {
     background: var(--surface-hover);
-    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.4);
+    border-color: rgba(var(--color-primary), 0.4);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary), 0.15);
 }
 
 .go-to-slide__item.current {
-    background: rgba(var(--color-primary), 0.1);
+    background: rgba(var(--color-primary), 0.08);
+    border-color: rgba(var(--color-primary), 0.2);
 }
 
 .go-to-slide__item.current:hover {
-    background: rgba(var(--color-primary), 0.15);
+    background: rgba(var(--color-primary), 0.12);
 }
 
 .go-to-slide__item.hidden {
-    opacity: 0.6;
+    opacity: 0.55;
 }
 
 .go-to-slide__number {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-medium);
     background: var(--surface-elevated);
-    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
 }
 
 .go-to-slide__item.current .go-to-slide__number {
-    color: rgba(var(--color-primary), 0.95);
-    background: rgba(var(--color-primary), 0.15);
+    color: rgba(var(--color-primary), 1);
+    background: rgba(var(--color-primary), 0.12);
+    border-color: rgba(var(--color-primary), 0.3);
 }
 
 .go-to-slide__title {
     flex: 1;
     font-size: 14px;
+    font-weight: 500;
     color: var(--text-high);
     white-space: nowrap;
     overflow: hidden;
@@ -224,20 +324,21 @@
 }
 
 .go-to-slide__badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
 }
 
 .go-to-slide__badge.current {
-    background: rgba(var(--color-primary), 0.2);
-    color: rgba(var(--color-primary), 0.95);
+    background: rgba(var(--color-primary), 0.15);
+    color: rgba(var(--color-primary), 1);
 }
 
 .go-to-slide__badge.hidden {
-    background: var(--border-subtle);
+    background: var(--surface-elevated);
     color: var(--text-low);
+    border: 1px solid var(--border-subtle);
 }
