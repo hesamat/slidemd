@@ -446,6 +446,24 @@ ${initScript}
             );
         }
 
+        // 6. Stub AI generation code in deck-controller.js for exports
+        // The generation folder is not bundled, so we need to remove references
+        if (filePath.includes('deck-controller.js')) {
+            // Stub initGenerationManager method with no-op
+            out = out.replace(
+                /initGenerationManager\(\) \{[\s\S]*?\n    \}/,
+                () => `initGenerationManager() { /* AI generation disabled in export */ }`
+            );
+        }
+
+        // 7. Stub deck.js auto-redirect
+        if (filePath === 'deck.js') {
+            out = out.replace(
+                /\/\/ Auto-redirect checks \(optional\)[\s\S]*?window\.location\.href = url\.toString\(\);[\s\S]*?return;[\s\S]*?\}/,
+                () => `/* Auto-redirect disabled in export */`
+            );
+        }
+
         return out;
     }
 

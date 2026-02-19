@@ -560,6 +560,16 @@ function stripEsmSyntax(srcText, filePath) {
         );
     }
 
+    // Stub AI generation code in deck-controller.js for dist builds
+    // The generation folder is not bundled, so we need to remove references
+    if (filePath.includes('deck-controller.js')) {
+        // Stub initGenerationManager method with no-op
+        out = out.replace(
+            /initGenerationManager\(\) \{[\s\S]*?\n    \}/,
+            () => `initGenerationManager() { /* AI generation disabled in dist build */ }`
+        );
+    }
+
     return out;
 }
 
