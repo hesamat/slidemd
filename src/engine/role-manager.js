@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from "../core/utils.js";
+import { StageScaler } from "../renderer/stage-scaler.js";
 
 export class RoleManager extends EventEmitter {
     /**
@@ -16,6 +17,63 @@ export class RoleManager extends EventEmitter {
         this.isEditorWindow = false;
         this.viewerWindowRef = null;
         this._windowCheckInterval = null;
+
+        // Initialize panel resize functionality
+        this.initPanelResize();
+    }
+
+    /**
+     * Initialize presenter panel resize functionality
+     */
+    initPanelResize() {
+        const resizeHandle = document.querySelector('.presenter__resize-handle');
+        const presenterPanel = this.elements.presenterPanel;
+
+        if (!resizeHandle || !presenterPanel) return;
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        const onMouseDown = (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = presenterPanel.offsetWidth;
+            resizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        };
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+
+            // For right-side panel: dragging left decreases width, dragging right increases width
+            const deltaX = startX - e.clientX;
+            const newWidth = startWidth + deltaX;
+
+            // Constrain width between min and max
+            const minWidth = 200;
+            const maxWidth = 600;
+            const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+            presenterPanel.style.width = constrainedWidth + 'px';
+            presenterPanel.style.flex = 'none';
+
+            // Re-scale the stage to fit the new available space
+            StageScaler.applyStageScale(this.elements);
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            resizeHandle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        resizeHandle.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     /**
