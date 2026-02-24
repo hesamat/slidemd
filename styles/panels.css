@@ -100,6 +100,108 @@
     overflow: auto;
 }
 
+.notes-content {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-high);
+}
+
+.notes-content > *:first-child {
+    margin-top: 0;
+}
+
+.notes-content > *:last-child {
+    margin-bottom: 0;
+}
+
+.notes-content h1,
+.notes-content h2,
+.notes-content h3,
+.notes-content h4,
+.notes-content h5,
+.notes-content h6 {
+    margin: 0.5em 0 0.25em;
+    line-height: 1.3;
+    color: var(--text-high);
+}
+
+.notes-content h1 { font-size: 1.4em; }
+.notes-content h2 { font-size: 1.25em; }
+.notes-content h3 { font-size: 1.1em; }
+.notes-content h4, .notes-content h5, .notes-content h6 { font-size: 1em; }
+
+.notes-content p {
+    margin: 0.5em 0;
+}
+
+.notes-content ul,
+.notes-content ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+}
+
+.notes-content li {
+    margin: 0.25em 0;
+}
+
+.notes-content code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--surface-muted);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+}
+
+.notes-content pre {
+    margin: 0.5em 0;
+    padding: 0.5em;
+    background: var(--surface-muted);
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+}
+
+.notes-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.notes-content blockquote {
+    margin: 0.5em 0;
+    padding-left: 1em;
+    border-left: 3px solid var(--border-medium);
+    color: var(--text-muted);
+}
+
+.notes-content a {
+    color: var(--color-link, #3b82f6);
+    text-decoration: none;
+}
+
+.notes-content a:hover {
+    text-decoration: underline;
+}
+
+.notes-content strong {
+    font-weight: 600;
+}
+
+.notes-content em {
+    font-style: italic;
+}
+
+.notes-content hr {
+    border: none;
+    border-top: 1px solid var(--border-medium);
+    margin: 0.75em 0;
+}
+
+.notes-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+}
+
+/* Legacy support for plain text notes */
 .notes pre {
     margin: 0;
     white-space: pre-wrap;
@@ -116,13 +218,6 @@
 
 .presenter code {
     font-family: var(--font-mono);
-}
-
-.notes pre {
-    margin: 0;
-    white-space: pre-wrap;
-    font-size: 12px;
-    line-height: 1.5;
 }
 
 /* Editor Panel */

@@ -308,6 +308,36 @@ export class DeckController extends EventEmitter {
         StageScaler.applyStageScale(this.elements);
     }
 
+    /**
+     * Renders speaker notes as markdown HTML.
+     * @param {string} notes - Raw markdown notes text
+     * @returns {string} Rendered HTML
+     */
+    renderNotes(notes) {
+        if (!notes) return "<p class='notes-empty'>No notes</p>";
+
+        // Use markdown-it if available (loaded via AssetLoader)
+        if (typeof window.markdownit === "function") {
+            try {
+                // Get or create markdown-it instance
+                if (!this._md) {
+                    this._md = window.markdownit({
+                        html: true,
+                        linkify: true,
+                        typographer: false,
+                        breaks: true,
+                    });
+                }
+                return `<div class="notes-content">${this._md.render(notes)}</div>`;
+            } catch (e) {
+                console.warn("Failed to render notes as markdown:", e);
+            }
+        }
+
+        // Fallback to plain text with line breaks
+        return `<div class="notes-content"><pre>${notes}</pre></div>`;
+    }
+
     render() {
         this.elements.slideNumberEl.textContent = String(this.slideNavigator.currentIndex + 1);
         const slides = this.elements.slidesContainer.querySelectorAll(".slide");
@@ -324,7 +354,7 @@ export class DeckController extends EventEmitter {
                 this.elements.nextPreview.textContent = next ? SlideRenderer.getSlideTitleForUi(next, this.slideNavigator.currentIndex + 1) : "(End)";
             }
             if (this.elements.notesContainer) {
-                this.elements.notesContainer.innerHTML = slide?.notes ? `<pre>${slide.notes}</pre>` : "<p>No notes</p>";
+                this.elements.notesContainer.innerHTML = slide?.notes ? this.renderNotes(slide.notes) : "<p class='notes-empty'>No notes</p>";
             }
         }
     }
