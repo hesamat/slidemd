@@ -8,7 +8,8 @@ This is **SlideMD** - a lightweight, browser-based slide deck system that create
 - Markdown-first authoring with layout directives
 
 ## Git Workflow
-- When finishing a task, suggest a git commit command
+- **ALWAYS** suggest a git commit command after completing any code change. Please chack what is staged and what is not before that.
+- Before marking a task complete, ask yourself: "Did I suggest a commit?"
 - The main branch is `main`; feature branches should follow `feature/` or `fix/` convention
 
 ## Available Scripts
@@ -16,7 +17,7 @@ This is **SlideMD** - a lightweight, browser-based slide deck system that create
 npm run dev      # Development server at http://localhost:8000/index.html
 npm run build    # Build single-file HTML to dist/deck.html (inlines assets)
 npm run pdf      # Export to dist/deck.pdf using Playwright (deterministic PDF)
-npm run preview  # Serve built output at http://localhost:8000
+npm run preview  # Serve built output at http://localhost:8001
 ```
 
 ## Export Options
@@ -61,8 +62,9 @@ npm run pdf
 - **core/** - Core utilities (asset-loader, element-gatherer, utils)
 - **data/** - Data parsing (layout-data, layout-parser, markdown-parser, deck-loader)
 - **editor/** - Live editing features (markdown-editor, edit-controller, layout-picker, slide-thumbnails)
-- **engine/** - Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager)
+- **engine/** - Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager, wheel-handler, freeze-manager)
 - **renderer/** - Display logic (slide-renderer, stage-scaler, theme-manager, content-enhancer, html-export-manager, print-manager, notification)
+- **generation/** - AI-powered slide generation (deck-generator, outline-generator, ai-provider-registry, course-profile-manager)
 - **ui/** - UI actions (ui-actions)
 
 ### Entry Points
@@ -158,6 +160,12 @@ $E = mc^2$
 - Live editing: [src/editor/markdown-editor.js](src/editor/markdown-editor.js)
 - Layout picker: [src/editor/layout-picker.js](src/editor/layout-picker.js)
 - Slide thumbnails: [src/editor/slide-thumbnails.js](src/editor/slide-thumbnails.js)
+
+### When Working with AI Generation
+- Deck generation from outlines: [src/generation/deck-generator.js](src/generation/deck-generator.js)
+- Outline generation: [src/generation/outline-generator.js](src/generation/outline-generator.js)
+- AI provider registry: [src/generation/ai-provider-registry.js](src/generation/ai-provider-registry.js)
+- Course profiles: [src/generation/course-profile-manager.js](src/generation/course-profile-manager.js)
 
 ### Keyboard shortcuts
 - `Space`, `ArrowRight`, `ArrowDown`, `PageDown`: Next slide
