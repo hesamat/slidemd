@@ -449,14 +449,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     margin: 0 auto;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-subtle);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-/* Subtle shadow for dark theme slides */
-.slide[data-theme="dark"] .slide__area img,
-.slide[data-theme="dark"] .slide__area video {
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Full-bleed media in paragraphs */
