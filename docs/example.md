@@ -14,10 +14,9 @@ layout: header-two-column
 
 @header
 
-## SlideMD - Markdown-Based Presentations
+## What is SlideMD?
 
 @main
-
 
 An open-source tool for creating and presenting slides using plain Markdown. Built for technical educators who need code highlighting, math notation, and diagrams without the overhead of traditional presentation software.
 
@@ -33,128 +32,89 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="../public/icon.png" alt="SlideMD Icon" style="width: 300px; height: 300px; object-fit: contain;" />
-
-### Quick Start
-
-- **Open File** – Menu (⋮) → Open File
-- **Presenter View** – Press `P`
-- **Export PDF** – Press `Ctrl+P`
-- **Export HTML** – Menu (⋮) → Export HTML
+![SlideMD Icon](../public/icon.png)
 
 ---
 
-layout: header-two-column
-
-<!-- notes: Test speaker notes! -->
+layout: header-content
 
 @header
 
-## Presentation Flow
+## Quick Start
 
 @main
 
-The default view is your presenter dashboard with:
+### Getting Started in 4 Steps
 
-- **Current Slide** – What the audience sees
-- **Next Slide** – Preview of upcoming content
-- **Speaker Notes** – Your private notes (hidden from audience)
-- **Break controls** – Open break slide with a timer
+1. **Open your deck** – Load your `.md` file via Menu (⋮) → Open File
+2. **Press `P`** – Open viewer window for your audience
+3. **Drag to second screen** – Move to projector/external display
+4. **Press `F`** – Go fullscreen on viewer, then present with arrow keys!
 
-### Key Shortcuts
+### Essential Shortcuts
 
 | Key | Action |
 |-----|--------|
 | `P` | Open/close viewer window |
+| `E` | Toggle edit mode |
 | `F` | Toggle fullscreen |
 | `B` | Start break timer |
 | `D` | Toggle dark/light theme |
+| `R` | Reload deck from file |
 
-@media
-
-### Typical Workflow
-
-1. **Open your deck** – Load your `.md` file
-2. **Press `P`** – Open viewer window for your audience
-3. **Drag to second screen** – Move to projector/external display
-4. **Press `F`** – Go fullscreen on viewer
-5. **Present** – Use arrow keys or space to navigate
-
-> *Tip: Add speaker notes using HTML comments: `<!--` `notes: Your notes here -->`*
-
----
-
-layout: two-column
-
-@main
-
-## Slide Structure & Syntax
-
-Slides are separated by `---` and use frontmatter (the layout/theme/background lines at the top of a slide):
-
-```markdown
-layout: header-two-column
-
-@header
-## Slide Title
-
-@main
-Main content here.
-
-@media
-![image.png](image.png)
-```
-
-### Content Areas Examples
-
-- `@header` – Top section (full width)
-- `@main` – Primary content
-- `@media` – Images, diagrams
-
-@media
-
-### Common Layouts
-
-| Layout | Description |
-|--------|-------------|
-| `focus` | Single centered content |
-| `two-column` | Equal columns |
-| `left-heavy` | Wider left column |
-| `header-two-column` | Header + two columns |
-| `content-sidebar` | Main + sidebar |
-| `title-slide` | Centered title |
-
----
-
-layout: two-column
-
-@main
-
-## Edit Mode Helpers
-
-- **Search inside the current slide** with Ctrl/Cmd+F and jump between matches
-- **Autocomplete for common directives**: `layout:`, `theme:`, `background:`, `hidden:` and `@area`
-- **Slash commands**: type `/` to insert layout, notes, Mermaid, and area blocks quickly
-- **Fenced block helper**: typing ``` or ~~~ expands a full code block and places the cursor inside
-- **Click area tags in the preview** to jump the cursor to that section in the editor
-- **Mermaid helper panel** inserts common diagram skeletons
-
-@media
-
-### Visual Guides
-
-- Area outlines show the live layout grid
-- Overflow areas get a warning outline so you can trim content early
-- Layout picker shows area tags so you know where content should go
-- Slide warnings appear at the top of the preview when layout or area markers are mismatched
+> *Tip: Add speaker notes using HTML comments: `<!-- notes: Your notes here -->`*
 
 ---
 
 layout: left-heavy
 
+@header
+
+## Slide Structure & Syntax
+
 @main
 
+Slides are separated by `---`. Use frontmatter for layout, then `@area` markers to place content:
+
+
+### Layout → Areas
+
+| Layout | Areas |
+|--------|-------|
+| `focus` | `@header` `@main` |
+| `two-column` | `@header` `@main` `@media` |
+| `left-heavy` / `right-heavy` | `@header` `@main` `@media` |
+| `header-content` | `@header` `@main` `@footer` |
+| `title-slide` | `@title` |
+| `three-column` | `@header` `@main` `@media` `@secondary` |
+| `header-two-column` | `@header` `@main` `@media` `@footer` |
+
+@media
+
+### Example
+
+```markdown
+layout: two-column
+
+@header
+## Slide Title
+
+@main
+Left column content.
+
+@media
+Right column content.
+```
+
+---
+
+layout: left-heavy
+
+@header
+
 ## Code, Math & Diagrams
+
+@main
 
 ### Code Highlighting
 
@@ -191,12 +151,48 @@ graph TD
 
 ---
 
-layout: two-column
-theme: dark
-background: linear-gradient(135deg, #3d53b6 0%, #46216c 90%)
+layout: header-two-column
+
+@header
+
+## Edit Mode
+
 @main
 
-## Custom Layouts
+Press `E` to toggle split-screen editing with live preview.
+
+### Editor Features
+
+- **Live preview** – See changes instantly as you type
+- **Slide thumbnails** – Jump to any slide while editing
+- **Quick actions** – Add, delete, duplicate, reorder slides
+- **Layout Picker** – Choose presets with filled templates
+- **Autocomplete** – `layout:`, `theme:`, `@area` directives
+- **Slash commands** – Type `/` for quick insertions
+- **Mermaid helpers** – Insert diagram scaffolds
+- **Search** – `Ctrl+F` to find within slides
+
+@media
+
+![Edit mode screenshot](../public/edit-mode.png)
+
+### Visual Guides
+
+- Area outlines show the layout grid
+- Overflow warnings when content is too long
+- Slide warnings for layout/area mismatches
+
+---
+
+layout: two-column
+theme: dark
+background: #3e1d5f
+
+@header
+
+## Custom Layouts & Themes
+
+@main
 
 ### Grid Syntax
 
@@ -206,34 +202,43 @@ Define custom layouts with CSS Grid:
 layout: "header header" "main media" / 2fr 1fr
 ```
 
-**Format:** `"row1" "row2" ... / column-sizes`
-
-### Examples
-
-Two equal columns:
-```markdown
-layout: "left right" / 1fr 1fr
-```
-
-Header and footer:
-```markdown
-layout: "header" "content" "footer" / 1fr
-```
-
-@media
+**Format:** `"row1" "row2" / column-sizes`
 
 ### Slide Options
 
 ```markdown
 layout: focus
 theme: dark
-background: linear-gradient(135deg, #3d53b6 0%, #46216c 90%)
+background: #3e1d5f
 ```
 
 ### Tips
 
 - Use `.` for empty grid cells
-- Column sizes: `fr`, `px`, `%`
+- Column sizes: `fr`, `px`, `%`, `auto`
+- `theme: dark` or `theme: light`
+- Background accepts colors, gradients, or image URLs
+
+@media
+
+### Layout Examples
+
+**Two equal columns:**
+```markdown
+layout: "left right" / 1fr 1fr
+```
+
+**Header, content, footer:**
+```markdown
+layout: "header" "main" "footer" / 1fr
+```
+
+**Three rows, two columns:**
+```markdown
+layout: "header header"
+       "main sidebar"
+       "footer footer" / 3fr 1fr
+```
 
 ---
 
@@ -241,87 +246,108 @@ layout: header-two-column
 
 @header
 
-## Markdown & Styling
+## Markdown Styling
 
 @main
-
-### Blockquotes
-
-Use them for key takeaways, important reminders, and callouts.
-
-> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Add inline `<span>` styles to create highlighted warnings.
 
 ### Text Formatting
 
-- `**Bold**` for important concepts
-- `*Italic*` for definitions or emphasis
-- `` `Code` `` for filenames and commands
+- `**Bold**` for **important concepts**
+- `*Italic*` for *definitions or emphasis*
+- `` `Code` `` for `filenames` and commands
 - `[Links](https://example.com)` for references
-
-@media
+- `~~Strikethrough~~` for ~~removed content~~
 
 ### Lists
 
-**Unordered** (`- item`) – For related points
-- Group related concepts
+**Unordered** – For related points:
 - Keep items parallel
+- Group related concepts
 
-**Ordered** (`1. item`) – For sequences
+**Ordered** – For sequences:
 1. Break into steps
 2. Use consistent verbs
 
-### Custom HTML
-
-When markdown isn't enough:
-```markdown
-<span style="color: #e74c3c;">
-Red text
-</span>
-```
-
----
-
-layout:left-heavy
-
-## Edit Mode
-
-@main
-
-Press `E` to toggle split-screen editing with live preview.
-
-### Features
-
-- **Live preview** – See changes instantly on the stage as you type
-- **Slide thumbnails** – Jump to any slide and keep your place while editing
-- **Quick actions** – Add, delete, duplicate, or reorder slides without leaving the editor
-- **Layout Picker** – Choose a preset layout and start with a filled-in template
-- **Area guides** – Click preview tags to jump to the right `@area` in the editor
-- **Mermaid helpers** – Insert diagram scaffolds directly from the editor panel
-- **Inline warnings** – Layout or area mismatches show on the slide itself
-
 @media
 
-![Edit mode screenshot](../public/edit-mode.png)
+### Tables
+
+| Feature | Support |
+|---------|---------|
+| Code highlighting | Prism.js |
+| Math rendering | KaTeX |
+| Diagrams | Mermaid |
+| Export | PDF, HTML |
+
+
+### Blockquotes
+
+Use for key takeaways and callouts:
+
+> **Pro tip:** Combine markdown with inline HTML for custom styling when needed.
+
 
 ---
 
-layout: header-content
+layout: header-two-column
 
 @header
 
-## Keyboard Shortcuts
+## Presentation Flow
 
 @main
 
+### The Presenter Dashboard
+
+When you open SlideMD, you see the presenter dashboard with:
+
+| Panel | Purpose |
+|-------|---------|
+| **Current Slide** | What the audience sees |
+| **Next Slide** | Preview of upcoming content |
+| **Speaker Notes** | Your private notes |
+| **Break Controls** | Timer for breaks |
+
+@media
+### Typical Workflow
+
+1. **Open your deck** – Load your `.md` file
+2. **Press `P`** – Open viewer window for audience
+3. **Drag to second screen** – Move to projector/display
+4. **Press `F`** – Go fullscreen on viewer
+5. **Present** – Navigate with arrow keys or space
+
+> *The break timer shows your audience when you'll return based on the selected duration (5-15 minutes).*
+
+---
+
+layout: header-two-column
+
+@header
+
+## Keyboard Shortcuts Reference
+
+@main
+
+### Navigation
+
 | Key | Action |
 |-----|--------|
-| `→` / `Space` | Next slide |
-| `←` | Previous slide |
-| `Home` / `End` | First / Last slide |
+| `→` / `Space` / `PageDown` | Next slide |
+| `←` / `PageUp` / `Backspace` | Previous slide |
+| `Home` | First slide |
+| `End` | Last slide |
 | `G` | Go to slide (type number) |
+
+@media
+### Presentation Controls
+
+| Key | Action |
+|-----|--------|
+| `P` | Open/close viewer window |
 | `F` | Toggle fullscreen |
 | `E` | Toggle edit mode |
-| `P` | Open/Close viewer window |
+| `B` | Start break timer |
 | `D` | Toggle dark/light theme |
 | `R` | Reload deck from file |
 
@@ -344,4 +370,5 @@ layout: "main" "footer" / 1fr
 - **GitHub** – Contribute, report issues, or star the project
 
 @footer
+
 Open source • Built for educators • Free forever
