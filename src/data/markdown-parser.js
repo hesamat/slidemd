@@ -96,19 +96,61 @@ export class MarkdownParser {
         return slides;
     }
 
-    extractNotes(markdownText) {
-        const text = safeString(markdownText);
-        const notes = [];
-        const re = /<!--\s*notes\s*:(.*?)-->/gis;
-        let m;
-        while ((m = re.exec(text))) {
-            notes.push(safeString(m[1]).trim());
+    splitFenceAwareSegments(markdownText) {
+        const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+        const segments = [];
+        const plainLines = [];
+        const fence = new FenceTracker();
+
+        const flushPlain = () => {
+            if (plainLines.length === 0) return;
+            segments.push({ inFence: false, text: plainLines.join("\n") });
+            plainLines.length = 0;
+        };
+
+        for (const line of lines) {
+            const isFenceMarker = /^\s*(```+|~~~+)\s*/.test(line);
+
+            if (!fence.isInFence && isFenceMarker) {
+                flushPlain();
+                segments.push({ inFence: true, text: line });
+                fence.toggle(line);
+                continue;
+            }
+
+            if (fence.isInFence) {
+                segments.push({ inFence: true, text: line });
+                if (isFenceMarker) fence.toggle(line);
+                continue;
+            }
+
+            plainLines.push(line);
         }
+
+        flushPlain();
+        return segments;
+    }
+
+    extractNotes(markdownText) {
+        const notes = [];
+
+        for (const segment of this.splitFenceAwareSegments(markdownText)) {
+            if (segment.inFence) continue;
+
+            const re = /<!--\s*notes\s*:(.*?)-->/gis;
+            let m;
+            while ((m = re.exec(segment.text))) {
+                notes.push(safeString(m[1]).trim());
+            }
+        }
+
         return notes.join("\n\n").trim();
     }
 
     stripNotes(markdownText) {
-        return safeString(markdownText).replace(/<!--\s*notes\s*:.*?-->/gis, "");
+        return this.splitFenceAwareSegments(markdownText)
+            .map((segment) => segment.inFence ? segment.text : segment.text.replace(/<!--\s*notes\s*:.*?-->/gis, ""))
+            .join("\n");
     }
 
     extractDirective(markdownText, directiveName) {

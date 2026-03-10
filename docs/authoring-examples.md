@@ -235,7 +235,7 @@ This slide will not appear in the deck by default.
 ---
 
 layout: header-content
-<!-- Speaker notes go at the very top of the slide as an HTML comment -->
+<!-- notes: Speaker notes are only visible in presenter mode - use them for talking points, reminders, or slide context. -->
 
 @header
 ## Speaker Notes
@@ -244,7 +244,7 @@ layout: header-content
 Add HTML comments at the **very top** of a slide (before layout) for speaker notes:
 
 ```
-<!-- This is a speaker note visible only in source -->
+<!-- notes: Add your speaker notes here (visible only in presenter mode) -->
 layout: header-content
 
 @header
