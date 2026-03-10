@@ -402,6 +402,7 @@ export class MarkdownEditor {
         });
 
         const extensions = [
+            EditorView.lineWrapping,
             lineNumbers(),
             highlightActiveLineGutter(),
             history(),
