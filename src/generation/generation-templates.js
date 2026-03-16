@@ -303,10 +303,26 @@ background: {{background}}
             return '';
         });
 
-        // Remove unresolved placeholders to keep output clean.
-        rendered = rendered.replace(/{{\w+}}/g, '');
+        // Remove unresolved placeholders outside fenced code blocks to keep output clean
+        // without corrupting literal mustache-style syntax in code examples.
+        const codeBlockRegex = /```[\s\S]*?```/g;
+        let cleaned = '';
+        let lastIndex = 0;
+        let match;
 
-        return rendered;
+        while ((match = codeBlockRegex.exec(rendered)) !== null) {
+            // Clean placeholders in text before the code block
+            const before = rendered.slice(lastIndex, match.index);
+            cleaned += before.replace(/{{\w+}}/g, '');
+            // Preserve the code block exactly as-is
+            cleaned += match[0];
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Clean placeholders in any remaining text after the last code block
+        cleaned += rendered.slice(lastIndex).replace(/{{\w+}}/g, '');
+
+        return cleaned;
     }
 
     /**
