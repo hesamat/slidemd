@@ -791,7 +791,12 @@ export class AIGenerationController {
             overlay.onclick = () => resolveWith(null);
             cancelBtn.onclick = () => resolveWith(null);
             fallbackBtn.onclick = () => {
-                const slideCount = options?.slideCount || this.currentProfile?.defaultSlideCount || 5;
+                const planEstimatedSlideCount = this.currentLecturePlan?.estimatedSlideCount;
+                const slideCount =
+                    planEstimatedSlideCount ??
+                    options?.slideCount ??
+                    this.currentProfile?.defaultSlideCount ??
+                    5;
                 const fallback = DeckGenerator.generateFallbackDeck(topic, slideCount);
                 resolveWith(fallback);
             };
