@@ -623,11 +623,52 @@ Return only the final markdown deck — no explanations before or after it.`;
 
     /**
      * Count slides using the canonical separator.
+     * Uses the same flexible, fence-aware logic as the markdown parser:
+     *  - Any line matching /^\s*---\s*$/ is a separator
+     *  - Separators inside fenced code blocks are ignored
      * @param {string} markdown - Deck markdown
      * @returns {number} Slide count
      */
     static countSlides(markdown) {
-        return String(markdown || "").trim().split(/\n---\n/).filter(Boolean).length;
+        const text = String(markdown || "").trim();
+        if (!text) {
+            return 0;
+        }
+
+        const lines = text.split(/\r?\n/);
+        let slideCount = 1;
+        let inFence = false;
+        let fenceChar = null; // '`' or '~'
+        let fenceLength = 0;
+
+        for (const line of lines) {
+            // Detect start/end of fenced code blocks (``` or ~~~), optionally indented
+            const fenceMatch = line.match(/^(\s*)(`{3,}|~{3,})/);
+            if (fenceMatch) {
+                const fence = fenceMatch[2];
+                const currentFenceChar = fence[0];
+                const currentFenceLength = fence.length;
+
+                if (!inFence) {
+                    inFence = true;
+                    fenceChar = currentFenceChar;
+                    fenceLength = currentFenceLength;
+                } else if (currentFenceChar === fenceChar && currentFenceLength >= fenceLength) {
+                    // Closing fence: same char, length >= opening
+                    inFence = false;
+                    fenceChar = null;
+                    fenceLength = 0;
+                }
+
+                continue;
+            }
+
+            if (!inFence && /^\s*---\s*$/.test(line)) {
+                slideCount += 1;
+            }
+        }
+
+        return slideCount;
     }
 
     /**
