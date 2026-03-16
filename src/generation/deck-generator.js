@@ -573,6 +573,55 @@ Return only the final markdown deck — no explanations before or after it.`;
     }
 
     /**
+     * Split markdown into slides in a way that is compatible with the main
+     * markdown parser:
+     * - Uses lines matching /^\s*---\s*$/ as slide separators.
+     * - Ignores such separators when they appear inside fenced code blocks.
+     *
+     * @param {string} text - Full deck markdown
+     * @returns {Array<string>} Array of slide markdown strings
+     */
+    static splitSlidesForValidation(text) {
+        const normalized = String(text || "");
+        const lines = normalized.split(/\r?\n/);
+        const slides = [];
+        let currentSlideLines = [];
+        let inFence = false;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+
+            // Toggle fenced code block state on lines starting a fence.
+            // Handles ``` and ~~~ fences with optional language.
+            if (/^(```|~~~)/.test(trimmed)) {
+                inFence = !inFence;
+                currentSlideLines.push(line);
+                continue;
+            }
+
+            // Only treat a line as a slide separator if we're not inside a fence
+            // and the line consists solely of --- with optional surrounding whitespace.
+            if (!inFence && /^\s*---\s*$/.test(line)) {
+                const slideText = currentSlideLines.join("\n").trim();
+                if (slideText) {
+                    slides.push(slideText);
+                }
+                currentSlideLines = [];
+                continue;
+            }
+
+            currentSlideLines.push(line);
+        }
+
+        const lastSlideText = currentSlideLines.join("\n").trim();
+        if (lastSlideText) {
+            slides.push(lastSlideText);
+        }
+
+        return slides;
+    }
+
+    /**
      * Validate generated markdown deck structure.
      * @param {string} markdown - Deck markdown
      * @param {number} expectedSlideCount - Expected number of slides (0 = skip count check)
@@ -588,7 +637,7 @@ Return only the final markdown deck — no explanations before or after it.`;
             return { valid: false, errors, warnings };
         }
 
-        const slides = text.split(/\n---\n/).filter(Boolean);
+        const slides = DeckGenerator.splitSlidesForValidation(text);
         if (slides.length < 2) {
             errors.push("Deck should have at least 2 slides separated by ---");
         }
