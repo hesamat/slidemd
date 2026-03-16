@@ -156,6 +156,10 @@ export class LecturePlanModal {
                 renderValidation();
             });
 
+            function removeEscapeListener() {
+                document.removeEventListener("keydown", onEscape);
+            }
+
             generateBtn.onclick = () => {
                 const approvedPlan = collectPlan();
                 const validation = LecturePlanGenerator.validatePlan(approvedPlan, {
@@ -169,11 +173,13 @@ export class LecturePlanModal {
                     return;
                 }
 
+                removeEscapeListener();
                 cleanup();
                 resolve(approvedPlan);
             };
 
             const close = () => {
+                removeEscapeListener();
                 cleanup();
                 resolve(null);
             };
@@ -184,7 +190,6 @@ export class LecturePlanModal {
 
             const onEscape = (event) => {
                 if (event.key === "Escape") {
-                    document.removeEventListener("keydown", onEscape);
                     close();
                 }
             };
