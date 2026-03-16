@@ -513,7 +513,14 @@ export class AIGenerationController {
             const headerCloseBtn = backdrop.querySelector('.modal__close');
             const overlay = backdrop.querySelector('.modal__overlay');
 
+            const onEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                }
+            };
+
             const cleanup = () => {
+                document.removeEventListener('keydown', onEscape);
                 backdrop.classList.add('hide');
                 setTimeout(() => backdrop.remove(), 200);
                 resolve();
@@ -528,12 +535,6 @@ export class AIGenerationController {
             headerCloseBtn.onclick = cleanup;
             overlay.onclick = cleanup;
 
-            const onEscape = (e) => {
-                if (e.key === 'Escape') {
-                    cleanup();
-                    document.removeEventListener('keydown', onEscape);
-                }
-            };
             document.addEventListener('keydown', onEscape);
         });
     }
