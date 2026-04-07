@@ -94,6 +94,11 @@
     --code-border-color: rgba(255, 255, 255, 0.16);
 }
 
+/* Hide hidden slides by default unless they are active or in edit mode */
+body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:not(.active) {
+    display: none !important;
+}
+
 .slide.active {
     display: grid;
     animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);

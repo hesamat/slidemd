@@ -181,6 +181,11 @@ if (typeof initializeDefaultProviders === 'function') {
             return;
         }
 
+        // Check for showHidden URL parameter
+        if (url.searchParams.has("showHidden") && url.searchParams.get("showHidden") === "1") {
+            document.documentElement.setAttribute("data-show-hidden", "true");
+        }
+
         RoleManager.initRole();
         ThemeManager.initTheme();
         window.__WEBDECK_RELOAD_CHANNEL__ = ReloadManager.initReloadChannel();

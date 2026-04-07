@@ -45,6 +45,20 @@ export class SlideNavigator extends EventEmitter {
     }
 
     /**
+     * Find the first visible slide index (skips hidden slides)
+     * @returns {number} The first visible slide index
+     */
+    findFirstVisibleIndex() {
+        // In edit mode, go to the actual first slide
+        if (this._isEditMode()) return 0;
+        // Otherwise, find the first visible slide
+        for (let i = 0; i < this.deck.slides.length; i++) {
+            if (!this.deck.slides[i]?.hidden) return i;
+        }
+        return 0; // Fallback to first slide even if hidden
+    }
+
+    /**
      * Find the previous visible slide index (skips hidden slides)
      * @param {number} fromIndex - The index to start from
      * @returns {number} The previous visible slide index
@@ -54,6 +68,20 @@ export class SlideNavigator extends EventEmitter {
             if (!this.deck.slides[i]?.hidden) return i;
         }
         return fromIndex; // No previous visible slide, stay on current
+    }
+
+    /**
+     * Find the last visible slide index (skips hidden slides)
+     * @returns {number} The last visible slide index
+     */
+    findLastVisibleIndex() {
+        // In edit mode, go to the actual last slide
+        if (this._isEditMode()) return this.deck.slides.length - 1;
+        // Otherwise, find the last visible slide
+        for (let i = this.deck.slides.length - 1; i >= 0; i--) {
+            if (!this.deck.slides[i]?.hidden) return i;
+        }
+        return 0; // Fallback to first slide if all are hidden
     }
 
     /**
