@@ -314,13 +314,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* --- CONTENT WIDTH CONSTRAINTS --- */
 
-.slide__area p,
-.slide__area blockquote,
-.slide__area ul,
-.slide__area ol {
-    max-width: var(--line-max);
-}
-
 .slide__area--media,
 .slide__area--sidebar,
 .slide__area--secondary {
