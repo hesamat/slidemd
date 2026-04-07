@@ -229,9 +229,11 @@ export class ReloadManager extends EventEmitter {
             );
         });
 
-        UiActions.updateSlideCount(this.elements, newDeck.slides.length);
+        // Count only visible slides for UI
+        const visibleSlideCount = newDeck.slides.filter(s => !s.hidden).length;
+        UiActions.updateSlideCount(this.elements, visibleSlideCount, newDeck);
         if (this.elements.floatSlideCounter) {
-            this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${newDeck.slides.length}`;
+            this.elements.floatSlideCounter.textContent = `${this.slideNavigator.currentIndex + 1} / ${visibleSlideCount}`;
         }
 
         this.initBroadcastChannel();

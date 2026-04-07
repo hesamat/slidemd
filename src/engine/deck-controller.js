@@ -23,7 +23,12 @@ export class DeckController extends EventEmitter {
         UiActions.updateDeckTitle(elements, title);
     }
 
-    static updateSlideCount(elements, count) {
+    static updateSlideCount(elements, count, deck = null) {
+        // If deck is provided, count only visible slides
+        if (deck) {
+            const visibleSlideCount = deck.slides.filter(s => !s.hidden).length;
+            count = visibleSlideCount;
+        }
         UiActions.updateSlideCount(elements, count);
     }
 
@@ -96,8 +101,8 @@ export class DeckController extends EventEmitter {
         this.keyboardHandler = new KeyboardHandler({
             next: () => this.slideNavigator.next(),
             prev: () => this.slideNavigator.prev(),
-            first: () => this.slideNavigator.goTo(0),
-            last: () => this.slideNavigator.goTo(this.deck.slides.length - 1),
+            first: () => this.slideNavigator.goTo(this.slideNavigator.findFirstVisibleIndex()),
+            last: () => this.slideNavigator.goTo(this.slideNavigator.findLastVisibleIndex()),
             goto: () => this.slideNavigator.openGoToPrompt(),
             viewer: () => this.roleManager.togglePresentWindow(),
             edit: () => this.toggleEditMode(),

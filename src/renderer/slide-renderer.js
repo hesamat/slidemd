@@ -23,9 +23,11 @@ export class SlideRenderer {
         wrapper.setAttribute("aria-roledescription", "slide");
 
         const labelTitle = safeString(slide?.title);
+        // Count only visible slides for aria-label
+        const visibleSlideCount = deck.slides.filter(s => !s.hidden).length;
         wrapper.setAttribute(
             "aria-label",
-            `Slide ${index + 1} of ${deck.slides.length}${labelTitle ? `: ${labelTitle.replace(/<[^>]*>/g, "")}` : ""}`
+            `Slide ${index + 1} of ${visibleSlideCount}${labelTitle ? `: ${labelTitle.replace(/<[^>]*>/g, "")}` : ""}`
         );
 
         if (slide?.theme) {

@@ -705,9 +705,10 @@ export class EditController {
         const newSlideMarkdown = '## New Slide\n\nAdd your content here';
         this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
 
-        // Update UI
+        // Update UI - count only visible slides
+        const visibleSlideCount = this.deck.slides.filter(s => !s.hidden).length;
         if (this.elements.slideCountEl) {
-            this.elements.slideCountEl.textContent = String(this.deck.slides.length);
+            this.elements.slideCountEl.textContent = String(visibleSlideCount);
         }
 
         if (this.elements.slidesContainer) {
@@ -750,9 +751,10 @@ export class EditController {
         this.deck.slides.splice(indexToDelete, 1);
         this.originalMarkdown.splice(indexToDelete, 1);
 
-        // Update UI
+        // Update UI - count only visible slides
+        const visibleSlideCount = this.deck.slides.filter(s => !s.hidden).length;
         if (this.elements.slideCountEl) {
-            this.elements.slideCountEl.textContent = String(this.deck.slides.length);
+            this.elements.slideCountEl.textContent = String(visibleSlideCount);
         }
 
         const allSlides = document.querySelectorAll('.slide');
