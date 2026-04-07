@@ -172,18 +172,20 @@ if (typeof initializeDefaultProviders === 'function') {
             window.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true, capture: true });
         }
 
+        // Parse URL once for all URL-based checks
+        const url = new URL(window.location.href);
+
+        // Check for showHidden URL parameter (before auto-redirect so it's preserved)
+        if (url.searchParams.has("showHidden") && url.searchParams.get("showHidden") === "1") {
+            document.documentElement.setAttribute("data-show-hidden", "true");
+        }
+
         // Auto-redirect checks (optional)
         // Skip auto-redirect for exported HTML files (marked with __WEBDECK_EXPORTED__)
-        const url = new URL(window.location.href);
         if (!url.searchParams.has("role") && !url.searchParams.has("noAutoRedirect") && !window.__WEBDECK_EXPORTED__) {
             url.searchParams.set("role", "editor");
             window.location.href = url.toString();
             return;
-        }
-
-        // Check for showHidden URL parameter
-        if (url.searchParams.has("showHidden") && url.searchParams.get("showHidden") === "1") {
-            document.documentElement.setAttribute("data-show-hidden", "true");
         }
 
         RoleManager.initRole();

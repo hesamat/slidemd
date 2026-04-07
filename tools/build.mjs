@@ -552,11 +552,11 @@ function stripEsmSyntax(srcText, filePath) {
     // Remove auto-redirect to presenter mode in dist builds
     // In exported HTML, we don't want to auto-redirect to ?role=presenter
     if (filePath.includes('deck.js')) {
-        // Remove the auto-redirect block entirely
+        // Remove only the auto-redirect if block (not the url definition or showHidden check)
         out = out.replace(
-            // Match from "// Auto-redirect checks" comment to the "return;" statement
-            /\/\/ Auto-redirect checks \(optional\)[\s\S]*?window\.location\.href = url\.toString\(\);[\s\S]*?return;[\s\S]*?\}/,
-            () => `/* Auto-redirect disabled in dist build */`
+            // Match the auto-redirect if statement block
+            /\/\/ Auto-redirect checks \(optional\)[\s\S]*?if \(!url\.searchParams\.has\("role"\)[^}]*\}\s*/,
+            () => `/* Auto-redirect disabled in dist build */\n`
         );
     }
 
