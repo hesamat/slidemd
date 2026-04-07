@@ -237,8 +237,15 @@ export class CourseProfileModal {
                         </div>
 
                         <div class="course-profile-modal__form-group">
-                            <label class="course-profile-modal__label">Description</label>
-                            <textarea class="course-profile-modal__textarea" name="description" placeholder="e.g., CS 201 - Fall 2025" rows="2">${this.escapeHtml(p.description || '')}</textarea>
+                            <label class="course-profile-modal__label">Course Description & Audience</label>
+                            <textarea class="course-profile-modal__textarea" name="description" placeholder="e.g., CS 201 - Fall 2025. Students are 2nd-year undergraduates with Python basics but no prior web development experience." rows="3">${this.escapeHtml(p.description || '')}</textarea>
+                            <div class="course-profile-modal__helper">Describe who this course is for in plain language (no separate audience dropdown).</div>
+                        </div>
+
+                        <div class="course-profile-modal__form-group">
+                            <label class="course-profile-modal__label">Prerequisites (Optional)</label>
+                            <textarea class="course-profile-modal__textarea" name="prerequisites" rows="3" placeholder="e.g., Week 1-7: Python functions/classes, REST basics, Firestore CRUD">${this.escapeHtml(p.prerequisites || '')}</textarea>
+                            <div class="course-profile-modal__helper">Optional: prior knowledge students should already have.</div>
                         </div>
 
                         <div class="course-profile-modal__form-group">
@@ -409,6 +416,7 @@ export class CourseProfileModal {
         const profile = CourseProfileManager.createProfile({
             name: form.querySelector('[name="name"]').value.trim(),
             description: form.querySelector('[name="description"]').value.trim(),
+            prerequisites: form.querySelector('[name="prerequisites"]').value.trim(),
             learningObjectives: objectives,
             topicsCovered: topics.length > 0 ? topics.join('\n') : '',
             defaultSlideCount: parseInt(form.querySelector('[name="defaultSlideCount"]').value) || 15,

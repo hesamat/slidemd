@@ -11,11 +11,16 @@ export class GenerationTemplates {
     static getDefaults() {
         return {
             titleSlide: this.getTitleSlideTemplate(),
-            lecture: this.getLectureTemplate(),
+            roadmap: this.getRoadmapTemplate(),
+            conceptDefinition: this.getConceptDefinitionTemplate(),
+            conceptWithCode: this.getConceptWithCodeTemplate(),
+            comparison: this.getComparisonTemplate(),
             activity: this.getActivityTemplate(),
             summary: this.getSummaryTemplate(),
-            twoColumn: this.getTwoColumnTemplate(),
-            headerContent: this.getHeaderContentTemplate()
+            // Legacy aliases kept for compatibility with existing profiles.
+            lecture: this.getConceptWithCodeTemplate(),
+            twoColumn: this.getComparisonTemplate(),
+            headerContent: this.getConceptDefinitionTemplate()
         };
     }
 
@@ -31,11 +36,15 @@ export class GenerationTemplates {
 # {{topic}}
 
 {{#if subtitle}}
-{{subtitle}}
+## {{subtitle}}
+{{/if}}
+
+{{#if courseWeek}}
+## {{courseWeek}}
 {{/if}}
 
 {{#if presenter}}
-{{presenter}}
+### {{presenter}}
 {{/if}}
 
 ---
@@ -43,34 +52,107 @@ export class GenerationTemplates {
     }
 
     /**
-     * Get lecture slide template
+     * Get roadmap slide template
      * @returns {string} Template markdown
      */
-    static getLectureTemplate() {
-        return `layout: {{layout}}
+    static getRoadmapTemplate() {
+        return `layout: header-two-column
+
+@header
+
+## Today's Roadmap
 
 @main
 
+### Context
+{{context}}
+
+### {{sessionGoalTitle}}
+{{sessionGoalBody}}
+
+@media
+
+### {{roadmapTitle}}
+{{agendaItems}}
+
+---
+`;
+    }
+
+    /**
+     * Get concept definition slide template
+     * @returns {string} Template markdown
+     */
+    static getConceptDefinitionTemplate() {
+        return `layout: header-content
+
+@header
+
 ## {{title}}
+
+@main
+
+{{lead}}
 
 {{content}}
 
-{{#if keyPoints}}
-### Key Points
-
-{{#each keyPoints}}
-- {{this}}
-{{/each}}
+{{#if rule}}
+> **Rule of Thumb:** {{rule}}
 {{/if}}
 
-{{#if examples}}
-### Examples
+---
+`;
+    }
 
-{{examples}}
-{{/if}}
+    /**
+     * Get concept + code slide template
+     * @returns {string} Template markdown
+     */
+    static getConceptWithCodeTemplate() {
+        return `layout: header-two-column
 
-{{#if notes}}
-<!-- notes: {{notes}} -->
+@header
+
+## {{title}}
+
+@main
+
+{{content}}
+
+@media
+
+### {{codeTitle}}
+
+\`\`\`{{codeLang}}
+{{code}}
+\`\`\`
+
+---
+`;
+    }
+
+    /**
+     * Get comparison slide template
+     * @returns {string} Template markdown
+     */
+    static getComparisonTemplate() {
+        return `layout: header-two-column
+
+@header
+
+## {{title}}
+
+@main
+
+{{content}}
+
+@media
+
+### {{comparisonTitle}}
+{{comparisonTable}}
+
+{{#if patternNote}}
+> **Pattern:** {{patternNote}}
 {{/if}}
 
 ---
@@ -82,25 +164,41 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getActivityTemplate() {
-        return `layout: two-column
+        return `layout: header-two-column
+
+{{#if background}}
+background: {{background}}
+{{/if}}
+
+{{#if notes}}
+<!-- notes:
+{{notes}}
+-->
+{{/if}}
+
+@header
+
+## Activity {{activityNumber}}: {{title}}
 
 @main
 
-## Activity: {{title}}
+### {{scenarioTitle}}
+{{scenario}}
 
-{{instructions}}
-
-### Task
-
-{{task}}
+{{#if codeSnippet}}
+\`\`\`{{snippetLang}}
+{{codeSnippet}}
+\`\`\`
+{{/if}}
 
 @media
 
-### Example
+### Task & Discussion
+{{task}}
 
-{{example}}
-
-<!-- notes: {{teacherNotes}} -->
+{{#if hint}}
+*({{hint}})*
+{{/if}}
 
 ---
 `;
@@ -111,90 +209,22 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getSummaryTemplate() {
-        return `layout: focus
-
-@main
-
-## Summary
-
-{{summary}}
-
-### Key Takeaways
-
-{{#each keyTakeaways}}
-- {{this}}
-{{/each}}
-
-{{#if nextSteps}}
-### Next Steps
-
-{{nextSteps}}
-{{/if}}
-
----
-`;
-    }
-
-    /**
-     * Get two-column template
-     * @returns {string} Template markdown
-     */
-    static getTwoColumnTemplate() {
-        return `layout: two-column
-
-@main
-
-## {{title}}
-
-{{content}}
-
-{{#if examples}}
-### Examples
-
-{{examples}}
-{{/if}}
-
-@media
-
-{{#if keyPoints}}
-### Key Points
-
-{{#each keyPoints}}
-- {{this}}
-{{/each}}
-{{/if}}
-
-{{#if notes}}
-### Notes
-
-{{notes}}
-{{/if}}
-
----
-`;
-    }
-
-    /**
-     * Get header-content template
-     * @returns {string} Template markdown
-     */
-    static getHeaderContentTemplate() {
         return `layout: header-content
 
 @header
 
-{{title}}
+## Summary: {{title}}
 
 @main
 
 {{content}}
 
-{{#if keyPoints}}
-### Key Points
+{{#if summaryTable}}
+{{summaryTable}}
+{{/if}}
 
-{{#each keyPoints}}
-- {{this}}
-{{/each}}
+{{#if keyTakeaway}}
+**Remember:** {{keyTakeaway}}
 {{/if}}
 
 ---
@@ -211,13 +241,22 @@ export class GenerationTemplates {
         switch (type) {
             case 'title':
                 return templates.titleSlide;
+            case 'roadmap':
+                return templates.roadmap;
+            case 'concept':
+            case 'definition':
+                return templates.conceptDefinition;
+            case 'conceptWithCode':
+                return templates.conceptWithCode;
+            case 'comparison':
+                return templates.comparison;
             case 'activity':
                 return templates.activity;
             case 'summary':
                 return templates.summary;
             case 'lecture':
             default:
-                return templates.lecture;
+                return templates.conceptWithCode;
         }
     }
 
@@ -230,29 +269,60 @@ export class GenerationTemplates {
     static renderTemplate(template, variables) {
         let rendered = template;
 
+        // Escape nullish variable bags to avoid runtime failures.
+        const safeVariables = variables || {};
+
         // Simple variable substitution {{variableName}}
-        for (const [key, value] of Object.entries(variables)) {
+        for (const [key, value] of Object.entries(safeVariables)) {
             const regex = new RegExp(`{{${key}}}`, 'g');
             rendered = rendered.replace(regex, value || '');
         }
 
         // Handle conditionals {{#if variable}}...{{/if}}
         rendered = rendered.replace(/{{#if\s+(\w+)}}([\s\S]*?){{\/if}}/g, (match, varName, content) => {
-            return variables[varName] ? content : '';
+            return safeVariables[varName] ? content : '';
         });
 
         // Handle each loops {{#each array}}...{{/each}}
         rendered = rendered.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, varName, content) => {
-            const array = variables[varName];
+            const array = safeVariables[varName];
             if (Array.isArray(array)) {
-                return array.map(item => {
-                    return content.replace(/{{this}}/g, item);
+                return array.map((item, index) => {
+                    let row = content.replace(/{{index}}/g, String(index + 1));
+                    if (item && typeof item === 'object') {
+                        for (const [itemKey, itemValue] of Object.entries(item)) {
+                            const itemRegex = new RegExp(`{{${itemKey}}}`, 'g');
+                            row = row.replace(itemRegex, itemValue ?? '');
+                        }
+                        row = row.replace(/{{this}}/g, '');
+                        return row;
+                    }
+                    return row.replace(/{{this}}/g, item ?? '');
                 }).join('\n');
             }
             return '';
         });
 
-        return rendered;
+        // Remove unresolved placeholders outside fenced code blocks to keep output clean
+        // without corrupting literal mustache-style syntax in code examples.
+        const codeBlockRegex = /```[\s\S]*?```/g;
+        let cleaned = '';
+        let lastIndex = 0;
+        let match;
+
+        while ((match = codeBlockRegex.exec(rendered)) !== null) {
+            // Clean placeholders in text before the code block
+            const before = rendered.slice(lastIndex, match.index);
+            cleaned += before.replace(/{{\w+}}/g, '');
+            // Preserve the code block exactly as-is
+            cleaned += match[0];
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Clean placeholders in any remaining text after the last code block
+        cleaned += rendered.slice(lastIndex).replace(/{{\w+}}/g, '');
+
+        return cleaned;
     }
 
     /**

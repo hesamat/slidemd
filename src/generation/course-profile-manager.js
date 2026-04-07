@@ -5,6 +5,7 @@
  */
 
 import { Notification } from "../renderer/notification.js";
+import { GenerationTemplates } from "./generation-templates.js";
 
 export class CourseProfileManager {
     static PROFILES_DIR_KEY = 'webdeck_profiles_directory';
@@ -291,6 +292,10 @@ export class CourseProfileManager {
             errors.push('Description must be a string');
         }
 
+        if (profile.prerequisites && typeof profile.prerequisites !== 'string') {
+            errors.push('Prerequisites must be a string');
+        }
+
         if (!profile.learningObjectives || !Array.isArray(profile.learningObjectives)) {
             errors.push('Learning objectives must be an array');
         } else if (profile.learningObjectives.length === 0) {
@@ -337,7 +342,7 @@ export class CourseProfileManager {
      * @returns {string} UUID v4
      */
     static generateId() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             const r = Math.random() * 16 | 0;
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
@@ -468,6 +473,7 @@ export class CourseProfileManager {
             id: this.generateId(),
             name: '',
             description: '',
+            prerequisites: '',
             learningObjectives: [''],
             topicsCovered: '',
             defaultSlideCount: 15,
@@ -486,74 +492,7 @@ export class CourseProfileManager {
      * @returns {Object} Default templates
      */
     static getDefaultTemplates() {
-        return {
-            titleSlide: `layout: title-slide
-
-@title
-
-# {{topic}}
-
-{{subtitle}}
-
----
-`,
-            lecture: `layout: {{layout}}
-
-@main
-
-## {{title}}
-
-{{content}}
-
-{{#if examples}}
-### Examples
-
-{{examples}}
-{{/if}}
-
-{{#if notes}}
-<!-- notes: {{notes}} -->
-{{/if}}
-
----
-`,
-            activity: `layout: two-column
-
-@main
-
-## Activity: {{title}}
-
-{{instructions}}
-
-### Task
-
-{{task}}
-
-@media
-
-### Example
-
-{{example}}
-
-<!-- notes: {{teacherNotes}} -->
-
----
-`,
-            summary: `layout: focus
-
-@main
-
-## Summary
-
-{{summary}}
-
-### Key Takeaways
-
-{{keyTakeaways}}
-
----
-`
-        };
+        return GenerationTemplates.getDefaults();
     }
 
     /**

@@ -5,9 +5,9 @@
 
 import { CourseProfileModal } from "./course-profile-modal.js";
 import { AIConfigModal } from "./ai-config-modal.js";
-import { OutlineGenerator } from "./outline-generator.js";
-import { OutlineApprovalModal } from "./outline-approval-modal.js";
 import { DeckGenerator } from "./deck-generator.js";
+import { LecturePlanGenerator } from "./lecture-plan-generator.js";
+import { LecturePlanModal } from "./lecture-plan-modal.js";
 import { AIProviderRegistry } from "./ai-provider-registry.js";
 import { Notification } from "../renderer/notification.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -18,7 +18,7 @@ export class AIGenerationController {
         this.controller = controller;
         this.elements = elements;
         this.currentProfile = null;
-        this.currentOutline = null;
+        this.currentLecturePlan = null;
         this.isGenerating = false;
         this.abortController = null;
     }
@@ -102,19 +102,18 @@ export class AIGenerationController {
                 return; // User cancelled
             }
 
-            // Step 5: Generate outline
-            const loadingModal = this.showLoadingModal('Generating outline with AI...', {
+            // Step 5: Generate lecture plan
+            const planLoadingModal = this.showLoadingModal('Drafting lecture plan...', {
                 allowCancel: true,
                 onCancel: () => this.abortGeneration()
             });
 
-            let outline = null;
+            let lecturePlan = null;
             try {
-                outline = await OutlineGenerator.generateOutline(
+                lecturePlan = await LecturePlanGenerator.generatePlan(
                     this.currentProfile,
                     topic,
                     { ...options, lastWeekSummary, signal: this.abortController?.signal }
-                    //  useMockResponse: true, mockResponseUrl: '/src/generation/mock-outline.json'
                 );
             } catch (error) {
                 if (error.name === 'AbortError') {
@@ -123,8 +122,8 @@ export class AIGenerationController {
                 }
 
                 if (error.rawResponse) {
-                    outline = await this.showOutlineParseError(error, topic, options);
-                    if (!outline) {
+                    lecturePlan = await this.showPlanFormatError(error, topic, options);
+                    if (!lecturePlan) {
                         return;
                     }
                 } else {
@@ -132,45 +131,57 @@ export class AIGenerationController {
                     return;
                 }
             } finally {
-                this.hideLoadingModal(loadingModal);
+                this.hideLoadingModal(planLoadingModal);
             }
 
-            this.currentOutline = outline;
+            this.currentLecturePlan = lecturePlan;
 
-            // Step 6: Review and approve outline
-            const approvedOutline = await OutlineApprovalModal.show(
-                this.currentOutline,
-                this.currentProfile
-            );
-
-            if (approvedOutline === 'regenerate') {
-                this.abortGeneration();
-                // Reset re-entrancy guard so regeneration can proceed
-                this.isGenerating = false;
-                await this.startGeneration();
-                return;
-            }
-
-            if (!approvedOutline) {
+            // Step 6: Review and approve lecture plan
+            const approvedPlan = await LecturePlanModal.show(lecturePlan);
+            if (!approvedPlan) {
                 Notification.info('Generation cancelled');
                 return;
             }
 
-            this.currentOutline = approvedOutline;
+            this.currentLecturePlan = approvedPlan;
 
-            // Step 7: Generate full deck
-            const deckLoadingModal = this.showLoadingModal('Generating deck markdown...');
+            // Step 7: Generate deck from approved plan
+            const deckLoadingModal = this.showLoadingModal('Generating deck from approved plan...', {
+                allowCancel: true,
+                onCancel: () => this.abortGeneration()
+            });
+
+            let markdown = null;
             try {
-                const markdown = await DeckGenerator.generateDeck(
+                markdown = await DeckGenerator.generateDeckFromPlan(
                     this.currentProfile,
-                    this.currentOutline,
-                    topic
+                    approvedPlan,
+                    { ...options, lastWeekSummary, signal: this.abortController?.signal }
                 );
-                // Step 8: Show preview and options
-                await this.showDeckPreview(markdown, topic);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    Notification.info('Generation cancelled');
+                    return;
+                }
+
+                if (error.rawResponse) {
+                    markdown = await this.showDeckFormatError(error, topic, options);
+                    if (!markdown) {
+                        return;
+                    }
+                } else {
+                    await this.showGenerationError(error);
+                    return;
+                }
             } finally {
                 this.hideLoadingModal(deckLoadingModal);
             }
+
+            // Step 8: Load deck into presentation view so user can see it rendered
+            await this.loadIntoEditor(markdown, topic);
+
+            // Step 9: Show compact confirmation with save option
+            await this.showDeckPreview(markdown, topic);
         } catch (error) {
             console.error('Generation failed:', error);
             if (error.name !== 'AbortError') {
@@ -203,7 +214,7 @@ export class AIGenerationController {
                 <div class="modal__overlay"></div>
                 <div class="modal__dialog" style="max-width: 500px;">
                     <div class="modal__header">
-                        <h2 class="modal__title">Generate Slide Deck</h2>
+                        <h2 class="modal__title">Plan Lecture</h2>
                         <button class="modal__close" aria-label="Close">&times;</button>
                     </div>
                     <div class="modal__body">
@@ -215,9 +226,10 @@ export class AIGenerationController {
                             </div>
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
-                                    Topics <span style="color: #ef4444;">*</span>
+                                    Topic <span style="color: #ef4444;">*</span>
                                 </label>
-                                <textarea id="topicInput" class="course-profile-modal__input" rows="4" placeholder="e.g., Binary Search Trees, AVL Trees, Red-Black Trees" required></textarea>
+                                <textarea id="topicInput" class="course-profile-modal__input" rows="4" placeholder="e.g., Testing Distributed Software Systems" required></textarea>
+                                <div style="margin-top: 6px; font-size: 12px; color: var(--text-medium);">Start by drafting an editable lecture plan, then generate the deck from that approved plan.</div>
                             </div>
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
@@ -227,7 +239,7 @@ export class AIGenerationController {
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                                 <button type="button" class="course-profile-modal__btn course-profile-modal__btn--secondary" id="cancelBtn">Cancel</button>
-                                <button type="submit" class="course-profile-modal__btn course-profile-modal__btn--primary">Continue</button>
+                                <button type="submit" class="course-profile-modal__btn course-profile-modal__btn--primary">Next</button>
                             </div>
                         </form>
                     </div>
@@ -299,26 +311,34 @@ export class AIGenerationController {
                 <div class="modal__overlay"></div>
                 <div class="modal__dialog" style="max-width: 500px;">
                     <div class="modal__header">
-                        <h2 class="modal__title">Generation Options</h2>
+                        <h2 class="modal__title">Lecture Constraints</h2>
                         <button class="modal__close" aria-label="Close">&times;</button>
                     </div>
                     <div class="modal__body">
                         <form id="optionsForm">
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
-                                    Number of Slides
+                                    Total Lecture Length (minutes)
                                 </label>
-                                <input type="number" id="slideCount" class="course-profile-modal__input" value="${this.currentProfile?.defaultSlideCount || 15}" min="3" max="50">
+                                <input type="number" id="totalMinutes" class="course-profile-modal__input" value="60" min="20" max="240" step="5">
                             </div>
                             <div style="margin-bottom: 16px;">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                    <input type="checkbox" id="includeActivities" ${this.currentProfile?.includeActivities ? 'checked' : ''}>
-                                    <span style="font-size: 14px; color: var(--text-high);">Include in-class activities</span>
+                                <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
+                                    Number of Breaks
                                 </label>
+                                <input type="number" id="breakCount" class="course-profile-modal__input" value="1" min="0" max="6">
+                                <div style="margin-top: 6px; font-size: 12px; color: var(--text-medium);">Breaks appear in the lecture plan table and shape timing, but they do not generate dedicated break slides.</div>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-medium);">
+                                    Conceptual Activity Slides
+                                </label>
+                                <input type="number" id="activityCount" class="course-profile-modal__input" value="${this.currentProfile?.includeActivities ? 1 : 0}" min="0" max="6">
+                                <div style="margin-top: 6px; font-size: 12px; color: var(--text-medium);">Activities are generated outside the lecture plan as conceptual discussion or reflection slides with minimal coding.</div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                                 <button type="button" class="course-profile-modal__btn course-profile-modal__btn--secondary" id="cancelBtn">Cancel</button>
-                                <button type="submit" class="course-profile-modal__btn course-profile-modal__btn--primary">Generate</button>
+                                <button type="submit" class="course-profile-modal__btn course-profile-modal__btn--primary">Draft Plan</button>
                             </div>
                         </form>
                     </div>
@@ -340,8 +360,9 @@ export class AIGenerationController {
             form.onsubmit = (e) => {
                 e.preventDefault();
                 const options = {
-                    slideCount: parseInt(backdrop.querySelector('#slideCount').value) || 15,
-                    includeActivities: backdrop.querySelector('#includeActivities').checked
+                    totalMinutes: parseInt(backdrop.querySelector('#totalMinutes').value) || 60,
+                    breakCount: parseInt(backdrop.querySelector('#breakCount').value) || 0,
+                    activityCount: parseInt(backdrop.querySelector('#activityCount').value) || 0
                 };
                 cleanup();
                 resolve(options);
@@ -375,35 +396,110 @@ export class AIGenerationController {
     }
 
     /**
-     * Show deck preview with options
+     * Show a lecture plan format error modal with raw AI response.
+     * @param {Error} error - Parse/format error from lecture plan generation
+     * @param {string} topic - Deck topic
+     * @param {Object} options - Generation options
+     * @returns {Promise<Object|null>} Fallback lecture plan or null
+     */
+    async showPlanFormatError(error, topic, options) {
+        return new Promise((resolve) => {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal';
+
+            const rawResponse = error.rawResponse || '';
+            const jsonPayload = error.jsonPayload || '';
+
+            backdrop.innerHTML = `
+                <div class="modal__overlay"></div>
+                <div class="modal__dialog" style="max-width: 720px;">
+                    <div class="modal__header">
+                        <h2 class="modal__title">Lecture Plan Formatting Failed</h2>
+                        <button class="modal__close" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="modal__body" style="display: grid; gap: 12px;">
+                        <div style="color: var(--text-high);">
+                            The AI response could not be converted into a valid lecture plan. You can copy the raw output or continue with a basic fallback plan.
+                        </div>
+                        <label style="font-size: 12px; color: var(--text-medium);">Raw Response</label>
+                        <textarea class="course-profile-modal__input" style="min-height: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(rawResponse)}</textarea>
+                        ${jsonPayload ? `<label style="font-size: 12px; color: var(--text-medium);">Extracted JSON (best effort)</label>
+                        <textarea class="course-profile-modal__input" style="min-height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(jsonPayload)}</textarea>` : ''}
+                    </div>
+                    <div class="modal__footer" style="display: flex; justify-content: space-between; align-items: center;">
+                        <button type="button" class="btn btn--sm" id="copyResponseBtn">Copy Raw Response</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn--sm" id="cancelBtn">Close</button>
+                            <button type="button" class="btn btn--sm btn--primary" id="fallbackBtn">Use Fallback Plan</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(backdrop);
+
+            const closeBtn = backdrop.querySelector('.modal__close');
+            const overlay = backdrop.querySelector('.modal__overlay');
+            const cancelBtn = backdrop.querySelector('#cancelBtn');
+            const fallbackBtn = backdrop.querySelector('#fallbackBtn');
+            const copyResponseBtn = backdrop.querySelector('#copyResponseBtn');
+
+            const cleanup = () => {
+                backdrop.classList.add('hide');
+                setTimeout(() => backdrop.remove(), 200);
+            };
+
+            const resolveWith = (value) => {
+                cleanup();
+                resolve(value);
+            };
+
+            closeBtn.onclick = () => resolveWith(null);
+            overlay.onclick = () => resolveWith(null);
+            cancelBtn.onclick = () => resolveWith(null);
+            fallbackBtn.onclick = () => {
+                const fallback = LecturePlanGenerator.generateFallbackPlan(topic, options);
+                resolveWith(fallback);
+            };
+
+            copyResponseBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(rawResponse);
+                    Notification.success('Raw response copied');
+                } catch {
+                    Notification.error('Failed to copy response');
+                }
+            };
+        });
+    }
+
+    /**
+     * Show compact post-generation confirmation (deck is already loaded at this point)
      * @param {string} markdown - Generated markdown
      * @param {string} topic - Topic
      */
     async showDeckPreview(markdown, topic) {
+        const slideCount = markdown.split(/\n---\n/).filter(Boolean).length;
         return new Promise((resolve) => {
             const backdrop = document.createElement('div');
             backdrop.className = 'modal';
             backdrop.innerHTML = `
                 <div class="modal__overlay"></div>
-                <div class="modal__dialog" style="max-width: 500px;">
+                <div class="modal__dialog" style="max-width: 420px;">
                     <div class="modal__header">
-                        <h2 class="modal__title">Deck Generated!</h2>
+                        <h2 class="modal__title">Deck Ready</h2>
                         <button class="modal__close" aria-label="Close">&times;</button>
                     </div>
                     <div class="modal__body">
-                        <div style="text-align: center; margin-bottom: 20px;">
-                            <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
-                            <p style="color: var(--text-high);">Your slide deck has been generated successfully!</p>
-                        </div>
+                        <p style="color: var(--text-high); margin-bottom: 20px;">
+                            ${slideCount} slide${slideCount !== 1 ? 's' : ''} generated and loaded. Review and edit using the editor panel.
+                        </p>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <button id="editBtn" class="course-profile-modal__btn course-profile-modal__btn--primary" style="width: 100%;">
-                                ✏️ Edit in Markdown Editor
-                            </button>
                             <button id="saveBtn" class="course-profile-modal__btn course-profile-modal__btn--secondary" style="width: 100%;">
-                                💾 Save to File
+                                💾 Save as Markdown File
                             </button>
-                            <button id="cancelBtn" class="course-profile-modal__btn course-profile-modal__btn--secondary" style="width: 100%;">
-                                Close
+                            <button id="closeBtn" class="course-profile-modal__btn course-profile-modal__btn--primary" style="width: 100%;">
+                                View Deck
                             </button>
                         </div>
                     </div>
@@ -412,21 +508,22 @@ export class AIGenerationController {
 
             document.body.appendChild(backdrop);
 
-            const editBtn = backdrop.querySelector('#editBtn');
             const saveBtn = backdrop.querySelector('#saveBtn');
-            const cancelBtn = backdrop.querySelector('#cancelBtn');
-            const closeBtn = backdrop.querySelector('.modal__close');
+            const closeBtn = backdrop.querySelector('#closeBtn');
+            const headerCloseBtn = backdrop.querySelector('.modal__close');
             const overlay = backdrop.querySelector('.modal__overlay');
 
+            const onEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                }
+            };
+
             const cleanup = () => {
+                document.removeEventListener('keydown', onEscape);
                 backdrop.classList.add('hide');
                 setTimeout(() => backdrop.remove(), 200);
                 resolve();
-            };
-
-            editBtn.onclick = () => {
-                cleanup();
-                this.loadIntoEditor(markdown, topic);
             };
 
             saveBtn.onclick = () => {
@@ -434,9 +531,11 @@ export class AIGenerationController {
                 this.saveToFile(markdown, topic);
             };
 
-            cancelBtn.onclick = cleanup;
             closeBtn.onclick = cleanup;
+            headerCloseBtn.onclick = cleanup;
             overlay.onclick = cleanup;
+
+            document.addEventListener('keydown', onEscape);
         });
     }
 
@@ -631,13 +730,13 @@ export class AIGenerationController {
     }
 
     /**
-     * Show a detailed parse error modal with raw AI response
-     * @param {Error} error - Parse error from outline generation
+     * Show a detailed deck format error modal with raw AI response
+    * @param {Error} error - Parse/format error from deck generation
      * @param {string} topic - Deck topic
      * @param {Object} options - Generation options
-     * @returns {Promise<Array<Object>|null>} Fallback outline or null
+     * @returns {Promise<string|null>} Fallback markdown deck or null
      */
-    async showOutlineParseError(error, topic, options) {
+    async showDeckFormatError(error, topic, options) {
         return new Promise((resolve) => {
             const backdrop = document.createElement('div');
             backdrop.className = 'modal';
@@ -649,12 +748,12 @@ export class AIGenerationController {
                 <div class="modal__overlay"></div>
                 <div class="modal__dialog" style="max-width: 720px;">
                     <div class="modal__header">
-                        <h2 class="modal__title">Outline Parsing Failed</h2>
+                        <h2 class="modal__title">Deck Formatting Failed</h2>
                         <button class="modal__close" aria-label="Close">&times;</button>
                     </div>
                     <div class="modal__body" style="display: grid; gap: 12px;">
                         <div style="color: var(--text-high);">
-                            The AI response could not be parsed as JSON. You can copy the raw output or continue with a basic outline.
+                            The AI response could not be converted into valid deck markdown. You can copy the raw output or continue with a basic fallback deck.
                         </div>
                         <label style="font-size: 12px; color: var(--text-medium);">Raw Response</label>
                         <textarea class="course-profile-modal__input" style="min-height: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" readonly>${this.escapeHtml(rawResponse)}</textarea>
@@ -665,7 +764,7 @@ export class AIGenerationController {
                         <button type="button" class="btn btn--sm" id="copyResponseBtn">Copy Raw Response</button>
                         <div style="display: flex; gap: 10px;">
                             <button type="button" class="btn btn--sm" id="cancelBtn">Close</button>
-                            <button type="button" class="btn btn--sm btn--primary" id="fallbackBtn">Use Basic Outline</button>
+                            <button type="button" class="btn btn--sm btn--primary" id="fallbackBtn">Use Fallback Deck</button>
                         </div>
                     </div>
                 </div>
@@ -693,8 +792,13 @@ export class AIGenerationController {
             overlay.onclick = () => resolveWith(null);
             cancelBtn.onclick = () => resolveWith(null);
             fallbackBtn.onclick = () => {
-                const slideCount = options?.slideCount || this.currentProfile?.defaultSlideCount || 5;
-                const fallback = OutlineGenerator.generateFallbackOutline(topic, slideCount);
+                const planEstimatedSlideCount = this.currentLecturePlan?.estimatedSlideCount;
+                const slideCount =
+                    planEstimatedSlideCount ??
+                    options?.slideCount ??
+                    this.currentProfile?.defaultSlideCount ??
+                    5;
+                const fallback = DeckGenerator.generateFallbackDeck(topic, slideCount);
                 resolveWith(fallback);
             };
 
