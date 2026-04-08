@@ -36,7 +36,8 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 ---
 
-layout: header-content
+layout: header-two-column
+<!-- notes: Your talking points! -->
 
 @header
 
@@ -44,25 +45,23 @@ layout: header-content
 
 @main
 
-### Getting Started in 4 Steps
+### Getting Started
 
-1. **Open your deck** – Load your `.md` file via Menu (⋮) → Open File
+1. **Open your deck** – Load your `.md` file via Menu (⋮)
 2. **Press `P`** – Open viewer window for your audience
-3. **Drag to second screen** – Move to projector/external display
-4. **Press `F`** – Go fullscreen on viewer, then present with arrow keys!
+3. **Move viewer** – Drag it to projector/external display
+4. **Press `F`** – Go fullscreen on viewer
 
+@media
 ### Essential Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `P` | Open/close viewer window |
-| `E` | Toggle edit mode |
-| `F` | Toggle fullscreen |
-| `B` | Start break timer |
-| `D` | Toggle dark/light theme |
-| `R` | Reload deck from file |
-
-> *Tip: Add speaker notes using HTML comments: `<!-- notes: Your notes here -->`*
+- Press **`E`** to toggle Edit Mode
+- Navigate with **Arrow Keys** or **Space** or mouse scroll
+- You can add speaker notes using HTML comments context after the `layout` tag:
+  ```html
+  <!-- notes: Your talking points here -->
+  ```
+- Notes appear only on your presenter dashboard.
 
 ---
 
@@ -80,14 +79,14 @@ Slides are separated by `---`. Use frontmatter for layout, then `@area` markers 
 ### Layout → Areas
 
 | Layout | Areas |
-|--------|-------|
-| `focus` | `@header` `@main` |
-| `two-column` | `@header` `@main` `@media` |
-| `left-heavy` / `right-heavy` | `@header` `@main` `@media` |
+|------|-------|
 | `header-content` | `@header` `@main` `@footer` |
 | `title-slide` | `@title` |
-| `three-column` | `@header` `@main` `@media` `@secondary` |
-| `header-two-column` | `@header` `@main` `@media` `@footer` |
+| `focus` | `@header` `@main` `@footer` |
+| `two-column` | `@header` `@main` `@media` `@footer` |
+| `left-heavy` | `@header` `@main` `@media` `@footer` |
+| `right-heavy` | `@header` `@main` `@media` `@footer` |
+| `three-column` | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
 
@@ -105,6 +104,10 @@ Left column content.
 @media
 Right column content.
 ```
+
+@footer
+
+- `hidden: true` or `hide: true` skips a slide by default. Add `?showHidden=1` in the URL to override.
 
 ---
 
@@ -184,7 +187,7 @@ Press `E` to toggle split-screen editing with live preview.
 
 ---
 
-layout: two-column
+layout: header-two-column
 theme: dark
 background: #3e1d5f
 
@@ -194,50 +197,39 @@ background: #3e1d5f
 
 @main
 
-### Grid Syntax
+### CSS Grid Syntax
 
-Define custom layouts with CSS Grid:
+Define custom layouts with Grid. Add `minmax(0, 1fr)` to content Rows.
 
 ```markdown
 layout: "header header" "main media" / 2fr 1fr
-```
-
-**Format:** `"row1" "row2" / column-sizes`
-
-### Slide Options
-
-```markdown
-layout: focus
-theme: dark
-background: #3e1d5f
 ```
 
 ### Tips
 
 - Use `.` for empty grid cells
 - Column sizes: `fr`, `px`, `%`, `auto`
-- `theme: dark` or `theme: light`
-- Background accepts colors, gradients, or image URLs
+- Theme modes: `theme: dark` or `theme: light`
+- Background: `#hex`, `linear-gradient(...)`, or `url(...)`
 
 @media
 
-### Layout Examples
+### Examples
 
 **Two equal columns:**
-```markdown
+```yaml
 layout: "left right" / 1fr 1fr
 ```
 
-**Header, content, footer:**
-```markdown
-layout: "header" "main" "footer" / 1fr
+**Fixed Width Centered:**
+```yaml
+layout: "header" auto "main" 1fr / 800px
 ```
 
-**Three rows, two columns:**
-```markdown
-layout: "header header"
-       "main sidebar"
-       "footer footer" / 3fr 1fr
+**Hidden Slide:**
+```yaml
+layout: focus
+hidden: true
 ```
 
 ---
@@ -250,6 +242,7 @@ layout: header-two-column
 
 @main
 
+
 ### Text Formatting
 
 - `**Bold**` for **important concepts**
@@ -260,13 +253,11 @@ layout: header-two-column
 
 ### Lists
 
-**Unordered** – For related points:
-- Keep items parallel
-- Group related concepts
+**Unordered** – Use for related points:
+- Use - at the beginning of the line
 
 **Ordered** – For sequences:
-1. Break into steps
-2. Use consistent verbs
+1. Use item number followed by dot at the beginning of the line. Example: 1.
 
 @media
 
@@ -353,20 +344,47 @@ layout: header-two-column
 
 ---
 
+layout: header-content
+
+@header
+
+## Quick Authoring Reference
+
+@main
+
+### Rules & Features
+
+1. Default Layout is `focus`
+2. First `@area` defaults to `@main`. Text placed before an area also goes to `@main`.
+3. Slash commands in Edit mode (`E`): Type `/` to insert layouts, areas, Mermaid diagrams, or `<!-- notes: -->` tags.
+4. Auto-completion happens automatically on directives.
+5. Export your presentation via Developer tools, or right click `Print PDF`. Make sure to close the edit mode before printing.
+
+### Hidden Features
+
+```markdown
+layout: focus
+hidden: true
+
+@main
+This slide won't show in the viewer unless `?showHidden=1` is in the URL.
+```
+
+---
+
 layout: "main" "footer" / 1fr
 
 @main
 
 ## Ready to Present!
 
-1. **Press `E`** – Enter edit mode to experiment
-2. **Press `P`** – Open viewer window for dual-screen
-3. **Press `F`** – Go fullscreen and present!
-
+1. **Press `E`** – Validate slide flow and fit
+2. **Press `P`** – Open viewer on your presentation display
+3. **Press `F`** – Go fullscreen and deliver
 
 ### Learn More
 
-- **`docs/authoring-examples.md`** – Advanced examples & recipes
+- **`docs/example.md`** – Authoring guide, examples, and recipes
 - **GitHub** – Contribute, report issues, or star the project
 
 @footer
