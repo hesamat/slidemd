@@ -10,7 +10,7 @@ This project prioritizes:
 
 ## Run Locally
 
-Because the runtime fetches and parses `decks/deck.md` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
+Because the runtime fetches and parses `docs/example.md` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
 
 ```powershell
 npm install
@@ -23,14 +23,14 @@ Opens automatically at http://localhost:8000/index.html.
 
 - `index.html` - main deck page
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
-- `decks/deck.md` - deck content (Markdown with `layout:` and `@area` markers)
+- `docs/example.md` - default deck content (Markdown with `layout:` and `@area` markers)
 - `tools/` - build and export scripts
-- `dist/deck.html` - generated single-file deck for sharing (build output)
-- `dist/deck.pdf` - generated deterministic PDF (optional)
+- `dist/example.html` - generated single-file deck for sharing (build output)
+- `dist/example.pdf` - generated deterministic PDF (optional)
 
-## Authoring decks/deck.md
+## Authoring docs/example.md
 
-- Slides are separated by `---`; the default input file is `decks/deck.md`.
+- Slides are separated by `---`; the default input file is `docs/example.md`.
 - Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
@@ -48,7 +48,7 @@ layout: header-content
 - Point B
 ```
 
-More layouts, backgrounds, and theming recipes live in [docs/authoring-examples.md](docs/authoring-examples.md).
+More layouts, backgrounds, and theming recipes live in [docs/example.md](docs/example.md).
 
 ## Layout Presets
 
@@ -105,7 +105,7 @@ Use preset names instead of full CSS grid strings:
 
 - Syntax highlighting via Prism; the build inlines assets so it works offline.
 - Math via KaTeX auto-render. Inline: `$...$` or `\(...\)`; display: `$$...$$` or `\[...\]`.
-- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/authoring-examples.md](docs/authoring-examples.md#mermaid-diagrams) for syntax guide.
+- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/example.md](docs/example.md) for syntax guide.
 
 ### Math Formatting (KaTeX)
 
@@ -137,15 +137,15 @@ $$E = mc^2$$
 ## Build and Export
 
 - Development server: `npm run dev` (opens http://localhost:8000/index.html)
-- Single-file HTML: `npm run build` (outputs `dist/deck.html` with assets inlined)
-- Preview built output: `npm run preview` (serves `dist/deck.html`)
-- Deterministic PDF: `npm run pdf` (outputs `dist/deck.pdf`)
+- Single-file HTML: `npm run build` (outputs `dist/example.html` with assets inlined)
+- Preview built output: `npm run preview` (serves `dist/example.html`)
+- Deterministic PDF: `npm run pdf` (outputs `dist/example.pdf`)
 
 ## Multiple Decks / Lecture Backup
 
-The `decks/` folder includes alternatives. To build or preview a different source, swap it in the build.mjs `decks/deck.md`:
+The `decks/` folder includes alternatives. To build a different source, pass it as an argument to the build script (for example: `node tools/build.mjs decks/deck.md`).
 
 ## Tips
 - Images/videos: Use absolute URLs or relative paths served from the same local server.
 - Optional fields: Omit what you do not need; the renderer handles missing fields.
-- When printing to PDF: if `dist/deck.pdf` is open in a viewer, the exporter writes a timestamped alternative file.
+- When printing to PDF: if `dist/example.pdf` is open in a viewer, the exporter writes a timestamped alternative file.
