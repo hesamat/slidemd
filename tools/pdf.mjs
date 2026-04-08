@@ -221,6 +221,19 @@ await page.evaluate(async () => {
 
 console.log("Fonts/images settled (or timed out)");
 
+// Prevent trailing blank page: remove non-essential body content and constrain
+// body height to exactly fit the slides.
+await page.evaluate(() => {
+    // Remove elements appended to body by JS (notification containers, modals, etc.)
+    const app = document.getElementById("app");
+    if (app) {
+        Array.from(document.body.children).forEach(child => {
+            if (child !== app && child.tagName !== "SCRIPT") child.remove();
+        });
+    }
+});
+console.log("DOM cleaned for PDF output");
+
 // Deterministic 16:9 page size; matches styles.css @page and print rules.
 const pdfOptions = {
     printBackground: true,
