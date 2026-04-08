@@ -91,10 +91,10 @@ export class DeckLoader {
         return await this.getWelcomeDeck();
     }
 
-    static async getWelcomeDeck() {
+    static async getWelcomeDeck({ cacheBust = false } = {}) {
         try {
             await AssetLoader.ensureMarkdownItLoaded();
-            const exampleText = await this.fetchText("docs/example.md", { cache: "default" });
+            const exampleText = await this.fetchText("docs/example.md", { cache: cacheBust ? "no-cache" : "default" });
             const deck = new MarkdownParser().parseDeckMarkdown(exampleText);
 
             // Store in localStorage so the markdown editor can access it
@@ -103,6 +103,7 @@ export class DeckLoader {
             localStorage.setItem("webdeck_local_file_type", "md");
             localStorage.setItem("webdeck_local_file_name", "example.md");
             localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+            localStorage.setItem("webdeck_source_url", "docs/example.md");
 
             return deck;
         } catch (e) {
@@ -149,6 +150,7 @@ export class DeckLoader {
                     localStorage.setItem("webdeck_local_file_type", "md");
                     localStorage.setItem("webdeck_local_file_name", file.name);
                     localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                    localStorage.removeItem("webdeck_source_url");
 
                     const loadEvent = new CustomEvent('webdeck-load-local', {
                         detail: { text: rawText, fileType: "md", fileName: file.name }
@@ -180,6 +182,7 @@ export class DeckLoader {
                 localStorage.setItem("webdeck_local_file_type", "md");
                 localStorage.setItem("webdeck_local_file_name", file.name);
                 localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                localStorage.removeItem("webdeck_source_url");
 
                 const loadEvent = new CustomEvent('webdeck-load-local', {
                     detail: { text, fileType: "md", fileName: file.name }

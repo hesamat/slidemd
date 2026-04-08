@@ -5,6 +5,8 @@
 
 import { EventEmitter } from "../core/utils.js";
 import { DeckLoader } from "../data/deck-loader.js";
+import { MarkdownParser } from "../data/markdown-parser.js";
+import { AssetLoader } from "../core/asset-loader.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { UiActions } from "../ui/ui-actions.js";
@@ -107,7 +109,7 @@ export class ReloadManager extends EventEmitter {
                 }
             }
 
-            // Try localStorage if file handle fails, or if File System API isn't supported
+            // Try to re-fetch the original source before falling back to localStorage
             if (!raw) {
                 const hasLocalData = localStorage.getItem("webdeck_local_file");
 
@@ -116,6 +118,27 @@ export class ReloadManager extends EventEmitter {
                     console.log('[Reload] No file loaded, reloading page to get default deck');
                     window.location.reload();
                     return;
+                }
+
+                // Try to re-fetch the original source for fresh content
+                if (!preferLocalStorage) {
+                    const sourceUrl = localStorage.getItem("webdeck_source_url");
+                    if (sourceUrl) {
+                        try {
+                            console.log('[Reload] Re-fetching from source URL:', sourceUrl);
+                            const freshText = await DeckLoader.fetchText(sourceUrl, { cache: "no-cache" });
+                            await AssetLoader.ensureMarkdownItLoaded();
+                            const newDeck = new MarkdownParser().parseDeckMarkdown(freshText);
+                            // Update localStorage with fresh content
+                            localStorage.setItem("webdeck_local_file", freshText);
+                            localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+                            const processed = await DeckLoader.processRawData(newDeck);
+                            await this.replaceDeck(processed);
+                            return;
+                        } catch (e) {
+                            console.warn('[Reload] Source URL fetch failed, falling back to cache:', e.message);
+                        }
+                    }
                 }
 
                 const isFileSystemAPINotSupported = !DeckLoader.supportsFileSystemAPI;
