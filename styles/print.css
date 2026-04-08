@@ -44,6 +44,12 @@
         padding-top: 0 !important;
     }
 
+    /* Hide body-level overlays (notification toasts, modal backdrops,
+       measurement boxes, download anchors, etc.) that cause trailing blank pages. */
+    body > *:not(#app):not(script) {
+        display: none !important;
+    }
+
     .topbar,
     .footer,
     .presenterPanel,

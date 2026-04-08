@@ -64,15 +64,6 @@ export class PrintManager {
             }
 
             document.title = deckTitle;
-
-            // Remove non-essential body content to prevent trailing blank pages
-            // (notification containers, modals, etc. appended by JS).
-            const app = document.getElementById("app");
-            if (app) {
-                Array.from(document.body.children).forEach(child => {
-                    if (child !== app && child.tagName !== "SCRIPT") child.remove();
-                });
-            }
         } finally {
             PrintManager._isPrinting = false;
         }
