@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
 import { minify } from "terser";
+import { buildMermaidScriptTag } from "../src/core/mermaid-config.js";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -727,7 +728,7 @@ html = html.replace(
 
 // Inject mermaid CDN script if needed (before closing </head> tag)
 if (usesMermaid) {
-    const mermaidScript = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.esm.min.mjs";window.mermaid=mermaid;mermaid.initialize({startOnLoad:false,theme:"base",securityLevel:"loose",flowchart:{curve:"basis",nodeSpacing:60,rankSpacing:60,padding:20},themeVariables:{primaryColor:"#e0d5ff",primaryBorderColor:"#7c3aed",primaryTextColor:"#1f2937",textColor:"#1f2937",lineColor:"#7c3aed",secondaryColor:"#dbeafe",secondaryBorderColor:"#2563eb",secondaryTextColor:"#1f2937",tertiaryColor:"#fef3c7",tertiaryBorderColor:"#f59e0b",tertiaryTextColor:"#1f2937",noteBkgColor:"#fef3c7",noteBorderColor:"#f59e0b",edgeLabelBackground:"#ffffff",clusterBkg:"#f9fafb",clusterBorder:"#d1d5db",fontFamily:"Segoe UI, Roboto, sans-serif",fontSize:"18px",mainBkg:"#e0d5ff"}});</script>';
+    const mermaidScript = buildMermaidScriptTag();
     html = html.replace(/<\/head>/i, `${mermaidScript}</head>`);
     console.log(`Added mermaid CDN link for diagram rendering`);
 }
