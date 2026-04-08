@@ -481,16 +481,16 @@ function makeMarkdownRenderer() {
 function resolveLayoutPreset(layoutSpec) {
     const key = safeString(layoutSpec).trim().toLowerCase();
     const presets = {
-        focus: '"main" / 1fr',
-        "two-column": '"main media" / 1fr 1fr',
-        "left-heavy": '"main media" / 2fr 1fr',
-        "right-heavy": '"main media" / 1fr 2fr',
+        focus: '"header" "main" "footer" / auto 1fr auto',
+        "two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
+        "left-heavy": '"header header" "main media" "footer footer" / 2fr 1fr',
+        "right-heavy": '"header header" "main media" "footer footer" / 1fr 2fr',
         "header-content": '"header" "main" "footer" / 1fr',
         "header-two-column": '"header header" "main media" "footer footer" / 1fr 1fr',
         "title-slide": '"title" / 1fr',
-        "three-column": '"main media secondary" / 1fr 1fr 1fr',
-        "sidebar-content": '"sidebar main" / 300px 1fr',
-        "content-sidebar": '"main sidebar" / 1fr 300px',
+        "three-column": '"header header header" "main media secondary" "footer footer footer" / 1fr 1fr 1fr',
+        "sidebar-content": '"header header" "sidebar main" "footer footer" / 300px 1fr',
+        "content-sidebar": '"header header" "main sidebar" "footer footer" / 1fr 300px',
     };
     return presets[key] || layoutSpec;
 }
