@@ -187,7 +187,7 @@ export class DeckGenerator {
      * @returns {string} System prompt
      */
     static getSystemPrompt() {
-        return "You are an expert instructional designer writing complete markdown slide decks for a 16:9 presentation system.";
+        return "You are an expert instructional designer creating markdown slide decks for a 16:9 presentation system. Each slide uses a named layout that determines its grid structure. Choose layouts strategically to match each slide's content purpose and maintain visual variety across the deck. Write concise, visual slides — avoid walls of text.";
     }
 
     static buildPlanDrivenPrompt(profile, lecturePlan, options) {
@@ -233,20 +233,111 @@ ${planRows}
 - Use slide separator exactly as a line containing only: ---
 
 ## Allowed Layouts
-| Layout | Area Markers | Use for |
+| Layout | Area Markers | When to use |
 |---|---|---|
-| title-slide | @title | Opening title slide |
-| header-content | @header, @main, @footer | Explanatory single-column content |
-| header-two-column | @header, @main, @media, @footer | Concepts with examples, code, or diagrams |
-| two-column | @header, @main, @media | Balanced comparisons |
-| three-column | @header, @main, @media, @secondary | Multi-part comparisons |
+| title-slide | @title | Opening slide only |
+| header-content | @header, @main, @footer | Text-heavy definitions, lists, or single-concept explanations |
+| focus | @header, @main | Emphasis: key quote, critical insight, or transition moment |
+| header-two-column | @header, @main, @media, @footer | Concept paired with code, diagram, or visual example |
+| two-column | @header, @main, @media | Balanced comparison — pros/cons, before/after, A vs B |
+| left-heavy | @header, @main, @media, @footer | Text-driven: main explanation with a smaller supporting visual |
+| right-heavy | @header, @main, @media, @footer | Visual-driven: large code or diagram with brief context |
+| three-column | @header, @main, @media, @secondary | Three parallel categories, stages, or examples |
+| sidebar-content | @header, @sidebar, @main, @footer | Navigation sidebar (agenda, TOC) with detailed content |
+| content-sidebar | @header, @main, @sidebar, @footer | Main content with reference sidebar (key terms, formulas) |
+
+## Layout Selection Strategy
+- Vary layouts across the deck. Avoid using the same layout for 3+ consecutive slides.
+- Use header-content for definitions and terminology slides.
+- Use header-two-column when code or a diagram directly illustrates the concept.
+- Use left-heavy when text is the focus and a visual/code supports it. Use right-heavy when the code or diagram is the star.
+- Use focus sparingly for emphasis moments — key takeaways, provocative questions, or transitions.
+- Use two-column for direct A/B comparisons where both sides get equal weight.
+- Use three-column only when you genuinely have three parallel items.
+- @footer is optional. Use it for source citations or brief cross-references. Omit it when unused.
+
+## Title Slide Example
+\`\`\`
+layout: title-slide
+
+@title
+
+# Short Lecture Title
+## Optional Subtitle
+## COMP 7855 - Week N
+### Instructor Name
+\`\`\`
+
+## Text-Driven Slide Example (left-heavy)
+\`\`\`
+layout: left-heavy
+
+@header
+
+## Why Type Safety Matters
+
+@main
+
+### The Problem
+JavaScript coerces types silently: \`"5" + 3\` gives \`"53"\`, not \`8\`.
+
+### The Solution
+TypeScript adds a compile-time type layer that catches these at build time.
+
+- Catches 15% more bugs than plain JS
+- Self-documenting function signatures
+- Better IDE autocompletion
+
+@media
+
+\`\`\`typescript
+function add(a: number, b: number): number {
+  return a + b;
+}
+add("5", 3); // Error!
+\`\`\`
+\`\`\`
+
+## Activity Slide Example (header-two-column)
+\`\`\`
+layout: header-two-column
+background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)
+
+<!-- notes:
+**Answer key:**
+1. CSR is required for sub-second updates.
+2. Idempotent PUT is safer than relative commands.
+-->
+
+@header
+
+## Activity: Control Panel Design
+
+@main
+
+### Scenario
+You are building a motor control panel for a factory floor.
+
+- **Req A:** Operators need sub-second speed feedback.
+- **Req B:** A "Set Speed" API replaces an old "Increase Speed" API.
+
+@media
+
+### Discussion
+1. Should the speed gauge use SSR or CSR? Why?
+2. Is \`POST /motor/increase_speed\` idempotent? Redesign the API.
+\`\`\`
 
 ## Writing Rules
 - Do not invent new layout names or area markers.
-- Use bullet lists over long paragraphs.
-- Code blocks must include language tags and stay concise.
-- Use Mermaid only when it genuinely clarifies a process or relationship.
+- Use bullet lists over long paragraphs. Keep slides concise: 3-5 bullet points per area.
+- Code blocks must include language tags and stay concise (at most 7 lines).
+- Use Mermaid only when it genuinely clarifies a process or relationship. Always use a valid diagram type as the first line inside the block (flowchart TD, flowchart LR, sequenceDiagram, classDiagram, stateDiagram-v2).
+- Never invent shorthand diagram types like triangle, pyramid, tree, or chart.
 - Keep one teaching goal per slide.
+- Use markdown tables for structured comparisons when appropriate.
+- Speaker notes go in HTML comments: \`<!-- notes: your notes here -->\`
+- DO NOT write meta-authoring labels like "Left:", "Right:", "Main:", "Media:", "Sidebar:", "Secondary:".
 
 Return only the final markdown deck.`;
     }
@@ -283,14 +374,18 @@ ${topic}
 ## Available Layouts and Their Area Markers
 Only use the layouts and markers listed here. Do not invent new layout names.
 
-| Layout               | Area Markers                                  | Use for                                      |
-|----------------------|-----------------------------------------------|----------------------------------------------|
-| title-slide          | @title                                                | Opening title slide                          |
-| header-content       | @header, @main, @footer                               | Single-column lecture slide with a heading   |
-| header-two-column    | @header, @main (left col), @media (right col), @footer | Concept + code/diagram side-by-side          |
-| two-column           | @header, @main, @media                                | Two equal columns with optional header       |
-| three-column         | @header, @main, @media, @secondary                    | Three parallel concepts                      |
-| focus                | @header, @main                                        | Full-bleed emphasis or quote                 |
+| Layout            | Area Markers                               | When to use                                              |
+|-------------------|--------------------------------------------|----------------------------------------------------------|
+| title-slide       | @title                                     | Opening slide only                                       |
+| header-content    | @header, @main, @footer                    | Text-heavy definitions, lists, or single-concept explanations |
+| focus             | @header, @main                             | Emphasis: key quote, critical insight, or transition moment |
+| header-two-column | @header, @main, @media, @footer            | Concept paired with code, diagram, or visual example     |
+| two-column        | @header, @main, @media                     | Balanced comparison — pros/cons, before/after, A vs B    |
+| left-heavy        | @header, @main, @media, @footer            | Text-driven: main explanation with a smaller supporting visual |
+| right-heavy       | @header, @main, @media, @footer            | Visual-driven: large code or diagram with brief context  |
+| three-column      | @header, @main, @media, @secondary         | Three parallel categories, stages, or examples           |
+| sidebar-content   | @header, @sidebar, @main, @footer          | Navigation sidebar (agenda, TOC) with detailed content   |
+| content-sidebar   | @header, @main, @sidebar, @footer          | Main content with reference sidebar (key terms, formulas) |
 
 ## Output Format Rules
 - Return ONLY markdown deck content — no explanations, no JSON wrapper.
@@ -298,7 +393,7 @@ Only use the layouts and markers listed here. Do not invent new layout names.
 - Every slide must begin with a layout directive on its own line: layout: <name>
 - An optional background declaration may follow: background: <css value>
 - Area markers are bare words on their own line, e.g. @header
-- DO NOT write meta-authoring labels like "Left:", "Right:", "Main:", "Media:", "Mermaid diagram:", "Key insight:".
+- DO NOT write meta-authoring labels like "Left:", "Right:", "Main:", "Media:", "Sidebar:", "Secondary:", "Mermaid diagram:", "Key insight:".
 - Pedagogical order: motivation/context first, then concept, then code/application.
 - Code blocks: at most 7 lines per block, always include a language tag (e.g. \`\`\`python).
 - Use a Mermaid diagram when architecture, data flow, or a process benefits from a visual.
@@ -306,10 +401,20 @@ Only use the layouts and markers listed here. Do not invent new layout names.
 - Never invent shorthand diagram types like: triangle, pyramid, tree, chart.
 - For comparison hierarchies like a testing pyramid, use flowchart TD with nodes and arrows, not a custom shape keyword.
 - Avoid duplicating the same idea in two areas of the same slide.
-- Avoid long paragraphs — prefer bullet lists.
+- Avoid long paragraphs — prefer bullet lists. Keep slides concise: 3-5 bullet points per area.
 - Each slide should focus on one teaching goal.
+- Use markdown tables for structured comparisons when appropriate.
+- Speaker notes go in HTML comments: \`<!-- notes: your notes here -->\`
 - Include 1 summary slide at the end.
 ${includeActivities ? "- Include 1–2 activity slides with practical discussion tasks." : ""}
+
+## Layout Selection Strategy
+- Vary layouts across the deck. Avoid using the same layout for 3+ consecutive slides.
+- Use header-content for definitions and terminology slides.
+- Use left-heavy when text is the focus and a visual supports it. Use right-heavy when code/diagram is the star.
+- Use focus sparingly for emphasis moments — key takeaways, provocative questions.
+- Use two-column for balanced A/B comparisons. Use three-column for three parallel items.
+- @footer is optional — use it for citations or cross-references. Omit when unused.
 
 ## Title Slide Example
 \`\`\`
@@ -409,6 +514,21 @@ flowchart TD
     E2E["E2E Tests\n(10% - High Cost)"] --> INT["Integration Tests\n(20% - Mid Cost)"]
     INT --> UNIT["Unit Tests\n(70% - Low Cost)"]
 \`\`\`
+\`\`\`
+
+## Emphasis Slide Example (focus)
+\`\`\`
+layout: focus
+
+@header
+
+## Key Insight
+
+@main
+
+> "The best error message is the one that never shows up." — Thomas Fuchs
+
+Good UX is invisible. When users notice the interface, something went wrong.
 \`\`\`
 
 ## Activity Slide Example
@@ -557,7 +677,7 @@ Return only the final markdown deck — no explanations before or after it.`;
         const cleaned = [];
 
         const bannedPrefixes = [
-            /^\s*(left|right|main|media)\s*:/i,
+            /^\s*(left|right|main|media|sidebar|secondary|header|footer|title)\s*:/i,
             /^\s*mermaid\s+diagram\s*:/i,
             /^\s*(key\s+insight|practical\s+template|core\s+principles\s+to\s+remember|essential\s+components)\s*:/i
         ];
