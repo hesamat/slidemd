@@ -59,7 +59,20 @@ const url = urlObj.toString();
 
 console.log(`Loading ${url}`);
 
-const browser = await chromium.launch();
+let browser;
+try {
+    browser = await chromium.launch();
+} catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("Executable doesn't exist") || message.includes("executable doesn't exist")) {
+        throw new Error(
+            `${message}\n\nPlaywright Chromium is not installed. Run: npx playwright install chromium\nThen re-run: npm run pdf`
+        );
+    }
+
+    throw err;
+}
+
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 
 await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });

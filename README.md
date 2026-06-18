@@ -140,6 +140,7 @@ $$E = mc^2$$
 - Single-file HTML: `npm run build` (outputs `dist/example.html` with assets inlined)
 - Preview built output: `npm run preview` (serves `dist/example.html`)
 - Deterministic PDF: `npm run pdf` (outputs `dist/example.pdf`)
+- If Chromium is missing after `npm update`, run `npx playwright install chromium` once; `npm run pdf` also runs that install step automatically.
 
 ## Multiple Decks / Lecture Backup
 
