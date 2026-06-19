@@ -5,12 +5,14 @@
  * tabs:
  *   1. Solid color — a curated palette + native color input.
  *   2. Gradient   — preset linear gradients.
- *   3. Custom CSS — a textarea that accepts any CSS `background:` value.
+ *   3. Custom CSS — a textarea that accepts any CSS `background` value.
  *
  * The chosen value is emitted as a plain CSS string (e.g. "#ff0000" or
  * "linear-gradient(...)").  The caller is responsible for writing it into
  * the slide markdown via `updateBackgroundDirective`.
  */
+
+import { DeckImagesResolver } from './deck-images-resolver.js';
 
 const COLOR_SWATCHES = [
     { name: 'White', value: '#ffffff' },
@@ -30,7 +32,6 @@ const COLOR_SWATCHES = [
     { name: 'Slate-100', value: '#f1f5f9' },
     { name: 'Slate-800', value: '#1e293b' },
     { name: 'Slate-900', value: '#0f172a' },
-    { name: 'Transparent', value: 'transparent' },
 ];
 
 const GRADIENT_PRESETS = [
@@ -87,6 +88,9 @@ export class BackgroundPicker {
     /** Background position / size for image backgrounds. */
     static bgImagePosition = 'center';
     static bgImageSize = 'cover';
+
+    /** Dark overlay opacity for image backgrounds (0–100). */
+    static bgImageOverlay = 40;
 
     /** Currently selected image path (relative, e.g. "images/foo.png"). */
     static selectedImage = '';
@@ -163,6 +167,9 @@ export class BackgroundPicker {
                             Remove image
                         </button>
                     </div>
+                    <div id="bgPickerImagePreview" class="bg-picker-image-preview">
+                        <div id="bgPickerImagePreviewBg" class="bg-picker-image-preview-bg"></div>
+                    </div>
                     <div class="bg-picker-image-options">
                         <div class="bg-picker-option-group">
                             <span class="bg-picker-option-label">Position</span>
@@ -180,6 +187,14 @@ export class BackgroundPicker {
                                 <button type="button" class="bg-picker-size-btn active" data-size="cover" title="Cover (fill, may crop)">Cover</button>
                                 <button type="button" class="bg-picker-size-btn" data-size="contain" title="Contain (fit, may letterbox)">Contain</button>
                                 <button type="button" class="bg-picker-size-btn" data-size="auto" title="Auto (natural size)">Auto</button>
+                            </div>
+                        </div>
+                        <div class="bg-picker-option-group bg-picker-option-group--full">
+                            <span class="bg-picker-option-label">Dark overlay</span>
+                            <div class="bg-picker-overlay-row">
+                                <input id="bgPickerOverlaySlider" type="range" min="0" max="100" value="40"
+                                    class="bg-picker-overlay-slider" />
+                                <span id="bgPickerOverlayValue" class="bg-picker-overlay-value">40%</span>
                             </div>
                         </div>
                     </div>
@@ -221,8 +236,12 @@ export class BackgroundPicker {
         this.pickImageBtn = wrapper.querySelector('#bgPickerPickImageBtn');
         this.clearImageBtn = wrapper.querySelector('#bgPickerClearImageBtn');
         this.imageStatusEl = wrapper.querySelector('#bgPickerImageStatus');
+        this.imagePreviewEl = wrapper.querySelector('#bgPickerImagePreview');
+        this.imagePreviewBg = wrapper.querySelector('#bgPickerImagePreviewBg');
         this.posButtons = wrapper.querySelectorAll('.bg-picker-pos-btn');
         this.bgSizeButtons = wrapper.querySelectorAll('.bg-picker-size-btn');
+        this.overlaySlider = wrapper.querySelector('#bgPickerOverlaySlider');
+        this.overlayValueEl = wrapper.querySelector('#bgPickerOverlayValue');
     }
 
     static _wireEvents() {
@@ -313,6 +332,15 @@ export class BackgroundPicker {
             });
         });
 
+        // Overlay slider
+        if (this.overlaySlider) {
+            this.overlaySlider.addEventListener('input', () => {
+                this.bgImageOverlay = parseInt(this.overlaySlider.value, 10);
+                if (this.overlayValueEl) this.overlayValueEl.textContent = this.bgImageOverlay + '%';
+                if (this.selectedImage) this._refreshImageBackground();
+            });
+        }
+
         // Clear
         this.clearBtn.addEventListener('click', () => {
             this._setSelection('');
@@ -360,12 +388,17 @@ export class BackgroundPicker {
             this.selectedImage = detected.path;
             this.bgImagePosition = detected.position;
             this.bgImageSize = detected.size;
+            this.bgImageOverlay = detected.overlay;
             this._refreshImageButtonsActive();
             this._renderImageStatus();
+            this._syncOverlaySlider();
         } else {
             this.selectedImage = '';
+            this.bgImageOverlay = 40;
             this._renderImageStatus();
+            this._syncOverlaySlider();
         }
+        this._updateImagePreview();
         this._syncApplyButton();
         // Default to Color tab
         this.tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === 'color'));
@@ -380,6 +413,18 @@ export class BackgroundPicker {
     static _setSelection(value) {
         this.selectedValue = String(value || '').trim();
         this._syncApplyButton();
+        this._syncDarkThemeCheckbox();
+    }
+
+    /**
+     * Auto-toggle the dark theme checkbox based on the selected background.
+     * Light colors → unchecked, dark colors / gradients / images → checked.
+     */
+    static _syncDarkThemeCheckbox() {
+        if (!this.darkThemeCheckbox) return;
+        const v = this.selectedValue;
+        if (!v) return; // don't touch the checkbox when cleared
+        this.darkThemeCheckbox.checked = isColorDark(v);
     }
 
     static _syncApplyButton() {
@@ -413,17 +458,23 @@ export class BackgroundPicker {
     static _refreshImageBackground() {
         if (!this.selectedImage) {
             this._setSelection('');
+            this._updateImagePreview();
             return;
         }
         const css = this._buildImageBackground(this.selectedImage);
         this._setSelection(css);
+        this._updateImagePreview();
     }
 
     static _buildImageBackground(imagePath) {
         const url = `url('${String(imagePath).replace(/'/g, "\\'")}')`;
         const pos = this.bgImagePosition || 'center';
         const size = this.bgImageSize || 'cover';
-        return `${url} ${pos} / ${size} no-repeat`;
+        const imageLayer = `${url} ${pos} / ${size} no-repeat`;
+        const opacity = this.bgImageOverlay / 100;
+        if (opacity <= 0) return imageLayer;
+        const overlayLayer = `linear-gradient(rgba(0,0,0,${opacity}),rgba(0,0,0,${opacity}))`;
+        return `${overlayLayer}, ${imageLayer}`;
     }
 
     static _renderImageStatus() {
@@ -451,13 +502,54 @@ export class BackgroundPicker {
         }
     }
 
+    static _syncOverlaySlider() {
+        if (this.overlaySlider) {
+            this.overlaySlider.value = this.bgImageOverlay;
+        }
+        if (this.overlayValueEl) {
+            this.overlayValueEl.textContent = this.bgImageOverlay + '%';
+        }
+    }
+
+    static async _updateImagePreview() {
+        if (!this.imagePreviewEl || !this.imagePreviewBg) return;
+        if (!this.selectedImage) {
+            this.imagePreviewEl.style.display = 'none';
+            return;
+        }
+        this.imagePreviewEl.style.display = '';
+        const resolved = await DeckImagesResolver.resolvePreviewSrc(this.selectedImage);
+        const imgSrc = resolved || this.selectedImage;
+        const url = `url('${String(imgSrc).replace(/'/g, "\\'")}')`;
+        const opacity = this.bgImageOverlay / 100;
+        if (opacity > 0) {
+            const overlayLayer = `linear-gradient(rgba(0,0,0,${opacity}),rgba(0,0,0,${opacity}))`;
+            this.imagePreviewBg.style.background = `${overlayLayer}, ${url}`;
+            this.imagePreviewBg.style.backgroundSize = 'auto, cover';
+        } else {
+            this.imagePreviewBg.style.background = url;
+            this.imagePreviewBg.style.backgroundSize = 'auto, cover';
+        }
+    }
+
     /**
      * Parse an existing `background:` value to detect a single-image
-     * shorthand and recover its path / position / size.  Returns null when
-     * no image is found.
+     * shorthand and recover its path / position / size / overlay.
+     * Returns null when no image is found.
      */
     static _parseBackgroundImage(cssValue) {
         if (!cssValue) return null;
+
+        let overlay = 40; // default
+
+        // Detect a solid black overlay gradient layer (our format)
+        const overlayMatch = cssValue.match(
+            /linear-gradient\(\s*rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*([\d.]+)\s*\)\s*,\s*rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*[\d.]+\s*\)\s*\)/
+        );
+        if (overlayMatch) {
+            overlay = Math.round(parseFloat(overlayMatch[1]) * 100);
+        }
+
         // Find the first url(...) argument, ignore escaped quotes inside.
         const urlMatch = cssValue.match(/url\(\s*(['"]?)(.+?)\1\s*\)/i);
         if (!urlMatch) return null;
@@ -477,7 +569,7 @@ export class BackgroundPicker {
         const sizeMatch = cssValue.match(/\/\s*(cover|contain|auto)/i);
         if (sizeMatch) size = sizeMatch[1].toLowerCase();
 
-        return { path: urlMatch[2], position, size };
+        return { path: urlMatch[2], position, size, overlay };
     }
 }
 
@@ -492,4 +584,89 @@ function escapeAttr(text) {
     return String(text)
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Parse a single CSS color token (hex, rgb, rgba, hsl, hsla) and return
+ * [r, g, b] or null if unparseable.
+ */
+function parseColorToken(token) {
+    const s = String(token).trim().toLowerCase();
+
+    // Hex: #rgb, #rgba, #rrggbb, #rrggbbaa
+    const hexMatch = s.match(/^#([0-9a-f]{3,8})$/);
+    if (hexMatch) {
+        const hex = hexMatch[1];
+        if (hex.length <= 4) {
+            // 3 or 4 digit hex — expand each channel
+            const r = parseInt(hex[0].repeat(2), 16);
+            const g = parseInt(hex[1].repeat(2), 16);
+            const b = parseInt(hex[2].repeat(2), 16);
+            return [r, g, b];
+        }
+        // 6 or 8 digit hex — read pairs
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return [r, g, b];
+    }
+
+    // rgb / rgba
+    const rgbMatch = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+    if (rgbMatch) return [+rgbMatch[1], +rgbMatch[2], +rgbMatch[3]];
+
+    // hsl / hsla — convert to rgb
+    const hslMatch = s.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+    if (hslMatch) {
+        const h = +hslMatch[1] / 360;
+        const sl = +hslMatch[2] / 100;
+        const l = +hslMatch[3] / 100;
+        if (sl === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1; if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        };
+        const q = l < 0.5 ? l * (1 + sl) : l + sl - l * sl;
+        const p = 2 * l - q;
+        return [
+            Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+            Math.round(hue2rgb(p, q, h) * 255),
+            Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+        ];
+    }
+
+    return null;
+}
+
+/**
+ * Determine whether a CSS color (or the first color found in a gradient /
+ * background shorthand) is dark.  Returns true when the color's relative
+ * luminance is below 0.5 (i.e. needs light text → dark theme).
+ *
+ * Non-color values (url(), transparent, complex layered backgrounds) return
+ * true (dark) as a safe default.
+ */
+function isColorDark(cssValue) {
+    const v = String(cssValue || '').trim().toLowerCase();
+    if (!v) return true;
+
+    // Extract the first color token from gradients or complex values
+    // Matches hex, rgb(), rgba(), hsl(), hsla()
+    const colorTokenRe = /(?:#([0-9a-f]{3,8})|rgba?\(\s*[\d.]+(?:\s*,\s*[\d.]+){2,3}\s*\)|hsla?\(\s*[\d.]+(?:\s*,\s*[\d.]+%){2,3}(?:\s*,\s*[\d.]+)?\s*\))/i;
+    const m = v.match(colorTokenRe);
+    if (!m) return true; // no parseable color → default dark
+
+    const rgb = parseColorToken(m[0]);
+    if (!rgb) return true;
+
+    // Rec. 709 relative luminance
+    const [r, g, b] = rgb.map((c) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luminance < 0.5;
 }
