@@ -122,7 +122,7 @@ export function imageUploadPlugin() {
                     }
 
                     const savedName = `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
-                    fs.writeFileSync(path.join(IMAGES_DIR, savedName), data);
+                    await fs.promises.writeFile(path.join(IMAGES_DIR, savedName), data);
 
                     const relativePath = `images/${savedName}`;
 
