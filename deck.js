@@ -118,6 +118,35 @@ if (typeof initializeDefaultProviders === 'function') {
             openExampleBtn.addEventListener("click", () => DeckLoader.openExampleFile());
         }
 
+        // 5c. Wire up footer shortcut buttons
+        document.querySelectorAll('.footer-shortcut').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.shortcut;
+                if (action === 'prev') controller.slideNavigator.prev();
+                else if (action === 'next') controller.slideNavigator.next();
+                else if (action === 'present') controller.roleManager.togglePresentWindow();
+                else if (action === 'edit') controller.toggleEditMode();
+                else if (action === 'reload') controller.reloadManager.handleReloadDeck();
+                else if (action === 'theme') ThemeManager.toggleTheme();
+                else if (action === 'fullscreen') controller.toggleFullscreen();
+                else if (action === 'goto') controller.slideNavigator.openGoToPrompt();
+            });
+        });
+
+        // 5d. Sync footer theme toggle icon on every slide change
+        const syncFooterThemeIcon = () => {
+            const slide = controller.deck.slides[controller.slideNavigator.currentIndex];
+            const theme = slide?.theme || '';
+            const btn = document.getElementById('toggleThemeMenuItem');
+            if (!btn) return;
+            const sunIcon = btn.querySelector('.theme-icon-light');
+            const moonIcon = btn.querySelector('.theme-icon-dark');
+            if (sunIcon) sunIcon.style.display = theme === 'dark' ? '' : 'none';
+            if (moonIcon) moonIcon.style.display = theme === 'dark' ? 'none' : '';
+        };
+        controller.addEventListener('slidechange', syncFooterThemeIcon);
+        syncFooterThemeIcon();
+
         // 6. Initialize Editor (Optional)
         try {
             const editController = new EditController(deck, controller, elements);

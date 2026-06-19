@@ -63,6 +63,35 @@ a:hover {
     color: var(--text-low);
 }
 
+.footer-shortcut {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-high);
+    font: inherit;
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.footer-shortcut:hover {
+    background: var(--bg-hover, rgba(0,0,0,0.08));
+    color: var(--accent);
+}
+
+.footer-shortcut:active {
+    background: var(--bg-active, rgba(0,0,0,0.14));
+}
+
+.footer-sep {
+    color: var(--text-low);
+    user-select: none;
+}
+
 /* ========================================================================
    Responsive Layout (Mobile)
    ======================================================================== */

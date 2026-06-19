@@ -14,7 +14,7 @@ import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
-import { updateLayoutDirective } from "./directive-utils.js";
+import { updateLayoutDirective, updateThemeDirective } from "./directive-utils.js";
 import { SlideOperations } from "./slide-operations.js";
 import { ImageBackgroundHandler } from "./image-background-handler.js";
 import { AreaNavigation } from "./area-navigation.js";
@@ -303,6 +303,8 @@ export class EditController {
                     this.toggleMermaidHelperPanel();
                 } else if (action === 'background') {
                     this.pickBackground();
+                } else if (action === 'theme') {
+                    this.toggleSlideTheme();
                 }
             });
         });
@@ -694,6 +696,27 @@ export class EditController {
 
     async pickAndInsertImage() {
         return this.imageBg.pickAndInsertImage();
+    }
+
+    toggleSlideTheme() {
+        if (!this.markdownEditor) return;
+        const markdown = this.markdownEditor.getValue();
+        const parser = new MarkdownParser();
+        const currentTheme = parser.extractDirective(markdown, 'theme').value?.toLowerCase() || '';
+        const next = currentTheme === 'dark' ? 'light' : 'dark';
+        const updated = updateThemeDirective(markdown, next);
+        this.markdownEditor.setValue(updated, { suppressOnChange: false });
+        this.deck.slides[this.currentSlideIndex].theme = next;
+        this._syncThemeMenuItemIcon(next);
+    }
+
+    _syncThemeMenuItemIcon(theme) {
+        const btn = document.getElementById('toggleThemeMenuItem');
+        if (!btn) return;
+        const sunIcon = btn.querySelector('.theme-icon-light');
+        const moonIcon = btn.querySelector('.theme-icon-dark');
+        if (sunIcon) sunIcon.style.display = theme === 'dark' ? '' : 'none';
+        if (moonIcon) moonIcon.style.display = theme === 'dark' ? 'none' : '';
     }
 
     // ─── Image Toolbar (restyle inline images) ──────────────────────────────
