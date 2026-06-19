@@ -112,6 +112,12 @@ if (typeof initializeDefaultProviders === 'function') {
         const controller = new DeckController(deck, elements);
         await controller.init();
 
+        // 5b. Wire up Welcome Slide "Open Example" button (if present)
+        const openExampleBtn = document.getElementById("openExampleBtn");
+        if (openExampleBtn) {
+            openExampleBtn.addEventListener("click", () => DeckLoader.openExampleFile());
+        }
+
         // 6. Initialize Editor (Optional)
         try {
             const editController = new EditController(deck, controller, elements);

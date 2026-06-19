@@ -87,47 +87,56 @@ export class DeckLoader {
             }
         }
 
-        // 3. Default Welcome Deck (load example.md)
-        return await this.getWelcomeDeck();
+        // 3. Default — return an empty deck (no file loaded)
+        //    Clear any stale localStorage from a previous session so the
+        //    title bar doesn't show a leftover file name.
+        localStorage.removeItem("webdeck_local_file");
+        localStorage.removeItem("webdeck_local_file_type");
+        localStorage.removeItem("webdeck_local_file_name");
+        localStorage.removeItem("webdeck_local_file_timestamp");
+        localStorage.removeItem("webdeck_source_url");
+
+        await AssetLoader.ensureMarkdownItLoaded();
+        return new MarkdownParser().parseDeckMarkdown(
+`# Welcome to SlideMD
+
+Markdown-based presentations made simple.
+
+### What you can do
+
+- **Open a .md file** to start presenting
+- **Press \`E\`** to toggle edit mode with live preview
+- **Press \`P\`** to open a viewer for your audience
+- **Press \`D\`** to switch between dark and light themes
+
+<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>
+
+*Loads \`docs/example.md\` — covers layouts, themes, code, math, and more.*`
+        );
     }
 
-    static async getWelcomeDeck({ cacheBust = false } = {}) {
+    /**
+     * Loads the bundled example.md from docs/ via HTTP fetch.
+     * No file picker needed — the file is served by the dev server / host.
+     */
+    static async openExampleFile() {
         try {
-            await AssetLoader.ensureMarkdownItLoaded();
-            const exampleText = await this.fetchText("docs/example.md", { cache: cacheBust ? "no-cache" : "default" });
-            const deck = new MarkdownParser().parseDeckMarkdown(exampleText);
+            const res = await fetch("docs/example.md");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const rawText = await res.text();
 
-            // Store in localStorage so the markdown editor can access it
-            // This makes the welcome deck behave as if it was opened as a file by the user
-            localStorage.setItem("webdeck_local_file", exampleText);
+            localStorage.setItem("webdeck_local_file", rawText);
             localStorage.setItem("webdeck_local_file_type", "md");
             localStorage.setItem("webdeck_local_file_name", "example.md");
             localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-            localStorage.setItem("webdeck_source_url", "docs/example.md");
+            localStorage.removeItem("webdeck_source_url");
 
-            return deck;
+            window.dispatchEvent(new CustomEvent('webdeck-load-local', {
+                detail: { text: rawText, fileType: "md", fileName: "example.md" }
+            }));
         } catch (e) {
-            console.error("Failed to load example.md:", e);
-            // Fallback to minimal deck if example.md fails to load
-            return {
-                meta: {
-                    title: "SlideMD",
-                    aspect: "16:9",
-                    stage: { ...DESIGN_SIZE },
-                },
-                slides: [
-                    {
-                        id: "welcome",
-                        title: "Welcome",
-                        areas: {
-                            main: `<div style="text-align: center; padding: 2rem;">
-    <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to SlideMD</h1>
-    <p style="font-size: 1.5rem; color: var(--color-fg-muted);">Create beautiful presentations with Markdown</p>
-</div>`,
-                        },
-                    },
-                ],
-            };
+            console.error("Failed to load example deck:", e);
+            Notification.error("Could not load example deck");
         }
     }
 

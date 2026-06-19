@@ -133,6 +133,7 @@ export class DeckImagesResolver {
             const src = img.getAttribute('src');
             if (!src || src.startsWith('blob:') || src.startsWith('data:')) continue;
             if (!/^images\//.test(src)) continue;
+            img.dataset.originalSrc = src;
             tasks.push((async () => {
                 const resolved = await this.resolvePreviewSrc(src);
                 if (resolved !== src) img.src = resolved;

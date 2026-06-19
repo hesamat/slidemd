@@ -103,15 +103,15 @@ export class ImagePicker {
                             <span class="image-picker-option-label">Size</span>
                             <div class="image-picker-presets" role="group" aria-label="Size preset">
                                 <button type="button" class="image-picker-preset-btn" data-w="" data-h="">Auto</button>
-                                <button type="button" class="image-picker-preset-btn" data-w="50" data-h="220">Small</button>
-                                <button type="button" class="image-picker-preset-btn" data-w="70" data-h="220">Medium</button>
-                                <button type="button" class="image-picker-preset-btn" data-w="90" data-h="220">Large</button>
+                                <button type="button" class="image-picker-preset-btn" data-w="50" data-h="320">Small</button>
+                                <button type="button" class="image-picker-preset-btn" data-w="70" data-h="320">Medium</button>
+                                <button type="button" class="image-picker-preset-btn" data-w="90" data-h="320">Large</button>
                                 <button type="button" class="image-picker-preset-btn" data-w="100" data-h="">Full</button>
                             </div>
                             <div class="image-picker-custom-size">
                                 <input id="imagePickerWidth" type="number" class="image-picker-size-input" min="1" max="100" placeholder="auto" title="Width as percentage of slide" />
                                 <span class="image-picker-size-label">% ×</span>
-                                <input id="imagePickerHeight" type="number" class="image-picker-size-input" min="1" max="2000" placeholder="220" title="Max-height in pixels (aspect ratio is preserved)" />
+                                <input id="imagePickerHeight" type="number" class="image-picker-size-input" min="1" max="2000" placeholder="320" title="Max-height in pixels (aspect ratio is preserved)" />
                                 <span class="image-picker-size-label" title="Max-height in pixels (aspect ratio is preserved)">px max</span>
                             </div>
                         </div>
@@ -333,9 +333,9 @@ export class ImagePicker {
         this._deckDirMode = deckDirMode;
         this._pathOnly = !!pathOnly;
         this.selectedPath = '';
-        // Default sizing: 70% wide × 220px tall, centered.  Users can override.
+        // Default sizing: 70% wide × 320px tall, centered.  Users can override.
         this.widthInput.value = '70';
-        this.heightInput.value = '220';
+        this.heightInput.value = '320';
         this.selectedAlign = 'center';
         if (this.alignButtons) {
             this.alignButtons.forEach((b) => b.classList.toggle('active', b.dataset.align === 'center'));
@@ -591,16 +591,11 @@ export class ImagePicker {
         // empty or the chosen preset has no height (Auto / Full).
         if (!Number.isFinite(h) || h <= 0) {
             if (align === 'full') h = null; // let it scale freely
-            else h = 220;
+            else h = 320;
         }
 
         const hasW = Number.isFinite(w) && w > 0;
         const hasH = Number.isFinite(h) && h > 0;
-
-        // HTML attributes — `width` as a percentage hint; no raw `height`
-        // attribute because it would stretch the image.
-        const attrs = [];
-        if (hasW) attrs.push(`width="${w}%"`);
 
         // Inline style — alignment + dimensions, with aspect-ratio preserved.
         const styleParts = [
@@ -619,15 +614,12 @@ export class ImagePicker {
             styleParts.push(`width: ${w}%`);
         }
         if (hasH) {
-            // `max-height` caps the image without forcing it to that size;
-            // `height: auto` plus `object-fit: contain` keeps the aspect ratio.
             styleParts.push(`max-height: ${h}px`);
         } else if (align !== 'full') {
             styleParts.push('max-height: 480px');
         }
 
-        const attrStr = attrs.length ? ' ' + attrs.join(' ') : '';
-        return `<img src="${src}" alt="${alt}" style="${styleParts.join('; ')}"${attrStr} />`;
+        return `<img src="${src}" alt="${alt}" style="${styleParts.join('; ')}" />`;
     }
 
     /**

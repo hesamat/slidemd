@@ -21,6 +21,7 @@ import { AreaNavigation } from "./area-navigation.js";
 import { ImagePicker } from "./image-picker.js";
 import { BackgroundPicker } from "./background-picker.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
+import { ImageToolbar } from "./image-toolbar.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -143,6 +144,7 @@ export class EditController {
         // Listen for slide navigation events
         this.controller.addEventListener('slidechange', () => {
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+            ImageToolbar.hide();
             this.loadSlideIntoEditor();
         });
 
@@ -156,9 +158,13 @@ export class EditController {
             this.updateSaveButton();
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
-            // Clear the cached deck directory handle so the user is prompted
-            // again for the new deck's folder (prevents using the wrong folder)
-            this.clearDeckDirectoryHandle();
+            // Reset the in-memory directory handle cache so the next image
+            // insert re-checks permission.  The persisted IndexedDB handle
+            // is NOT cleared here — the browser will re-prompt only if
+            // permission was revoked, so the user doesn't have to re-pick
+            // the same folder every time they load a file.
+            this.imageBg.deckDirectoryHandle = null;
+            this.imageBg._deckDirMode = null;
         });
 
         // Set up save button
@@ -203,6 +209,9 @@ export class EditController {
         // Initialize background picker modal
         BackgroundPicker.init();
 
+        // Image toolbar — click on <img> in slide preview to restyle
+        this._initImageToolbar();
+
         // Render initial thumbnails
         this.thumbnails.render();
     }
@@ -212,6 +221,12 @@ export class EditController {
      * Toggle edit mode on/off
      */
     toggleEditMode() {
+        // Prevent entering edit mode when no file has been loaded
+        if (!this.isEditMode && !localStorage.getItem("webdeck_local_file")) {
+            Notification.warning("Open a markdown file first to enable the editor");
+            return;
+        }
+
         this.isEditMode = !this.isEditMode;
 
         // Notify the controller so it can adjust navigation
@@ -237,6 +252,7 @@ export class EditController {
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
             this.hideMermaidHelperPanel();
+            ImageToolbar.hide();
             this.placeholderDialogEl?.remove();
             this.placeholderDialogEl = null;
 
@@ -612,6 +628,12 @@ export class EditController {
                 this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
+                // Eagerly tag <img> elements with data-original-src so the
+                // image toolbar can re-acquire them after re-renders.
+                newSlideEl.querySelectorAll('img[src^="images/"]').forEach(img => {
+                    if (!img.dataset.originalSrc) img.dataset.originalSrc = img.getAttribute('src');
+                });
+
                 // Rewrite `images/foo.png` srcs and background url()s to blob
                 // URLs the browser can render in the preview (since the deck
                 // file lives outside the project root, the dev server can't
@@ -672,20 +694,96 @@ export class EditController {
         return this.areaNav.getAreaAtCursor(markdown, position);
     }
 
-    buildPlaceholderSnippet(config) {
-        const label = String(config?.label || 'Image').replace(/"/g, '&quot;');
-        const width = config?.widthValue !== undefined ? `${config.widthValue}${config.widthUnit}` : '80%';
-        const height = config?.heightValue !== undefined ? `${config.heightValue}${config.heightUnit}` : '220px';
-
-        return [
-            ``,
-            `<img src="images/placeholder.svg" alt="${label}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto; border-radius: 8px;" />`,
-            ``
-        ].join('\n');
-    }
-
     async pickAndInsertImage() {
         return this.imageBg.pickAndInsertImage();
+    }
+
+    // ─── Image Toolbar (restyle inline images) ──────────────────────────────
+
+    _initImageToolbar() {
+        const slidesContainer = this.elements.slidesContainer;
+        if (!slidesContainer) return;
+
+        slidesContainer.addEventListener('click', (e) => {
+            if (!this.isEditMode) return;
+            const img = e.target.closest('img');
+            if (!img) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Ignore area labels and other editor UI
+            if (img.closest('.editor-area-label, .editor-slide-warning')) return;
+
+            this._showImageToolbar(img);
+        });
+    }
+
+    _showImageToolbar(img) {
+        const originalSrc = img.dataset.originalSrc || img.getAttribute('src');
+        if (!originalSrc) return;
+
+        ImageToolbar.show(img, (newStyle) => {
+            if (newStyle === null) {
+                // Deletion requested
+                this._removeImageFromMarkdown(originalSrc);
+                return;
+            }
+            this._updateImageInMarkdown(originalSrc, newStyle);
+        });
+    }
+
+    /**
+     * Replace the style attribute of an <img> tag in the markdown source.
+     * Matches by src path (e.g. "images/foo.png").
+     */
+    _updateImageInMarkdown(srcPath, newStyle) {
+        if (!this.markdownEditor) return;
+        const markdown = this.markdownEditor.getValue();
+        const escapedSrc = srcPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Step 1: Find the <img> tag with matching src
+        const tagRe = new RegExp(
+            `<img\\b([^>]*?src=["']${escapedSrc}["'][^>]*?)>`,
+            'i'
+        );
+        const tagMatch = markdown.match(tagRe);
+        if (!tagMatch) return;
+
+        let newTag = tagMatch[0];
+
+        // Step 2: Remove any stale HTML width attribute (style handles it now)
+        newTag = newTag.replace(/\s+width="[^"]*"/gi, '');
+
+        // Step 3: Replace or insert style attribute
+        const styleRe = /\bstyle\s*=\s*(["'])([^"']*)\1/i;
+        if (styleRe.test(newTag)) {
+            newTag = newTag.replace(styleRe, `style="${newStyle}"`);
+        } else {
+            newTag = newTag.replace(/>$/, ` style="${newStyle}">`);
+        }
+
+        const updated = markdown.replace(tagMatch[0], newTag);
+        if (updated !== markdown) {
+            this.markdownEditor.setValue(updated, { suppressOnChange: false });
+        }
+    }
+
+    /**
+     * Remove an <img> tag from the markdown source by src path.
+     */
+    _removeImageFromMarkdown(srcPath) {
+        if (!this.markdownEditor) return;
+        const markdown = this.markdownEditor.getValue();
+        const escapedSrc = srcPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Remove the entire <img ... /> tag, plus surrounding blank lines if any
+        const re = new RegExp(`\\n*\\s*<img\\b[^>]*?src=["']${escapedSrc}["'][^>]*/?>\\s*\\n*`, 'gi');
+        const updated = markdown.replace(re, '\n');
+
+        if (updated !== markdown) {
+            this.markdownEditor.setValue(updated, { suppressOnChange: false });
+        }
     }
 
     async _resolveDeckDirectoryHandle() {

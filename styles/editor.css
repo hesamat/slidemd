@@ -274,3 +274,173 @@
 .markdown-editor-textarea:focus {
     background: var(--surface-elevated);
 }
+
+/* ── Image Toolbar (restyle popover) ─────────────────────────────────────── */
+
+.image-toolbar {
+    position: absolute;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface-elevated, #1e1e2e);
+    border: 1px solid var(--border-medium, rgba(148, 163, 184, 0.25));
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-high, #f0f2f5);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.image-toolbar.webdeck-hidden {
+    display: none;
+}
+
+.image-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.image-toolbar-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted, rgba(246, 242, 240, 0.6));
+    margin-right: 2px;
+}
+
+.image-toolbar-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border-medium, rgba(148, 163, 184, 0.2));
+    margin: 0 2px;
+}
+
+/* Preset buttons */
+.image-toolbar-preset {
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.15));
+    border-radius: 4px;
+    color: var(--text-medium, rgba(246, 242, 240, 0.85));
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.image-toolbar-preset:hover {
+    background: var(--accent-light, rgba(2, 132, 199, 0.15));
+    color: var(--text-high, #f0f2f5);
+}
+
+.image-toolbar-preset.active {
+    background: var(--accent, rgba(2, 132, 199, 0.95));
+    color: #fff;
+    border-color: transparent;
+}
+
+/* Align buttons */
+.image-toolbar-align {
+    display: flex;
+    gap: 2px;
+}
+
+.image-toolbar-align-btn {
+    width: 26px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.15));
+    border-radius: 4px;
+    color: var(--text-medium, rgba(246, 242, 240, 0.85));
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.image-toolbar-align-btn:hover {
+    background: var(--accent-light, rgba(2, 132, 199, 0.15));
+    color: var(--text-high, #f0f2f5);
+}
+
+.image-toolbar-align-btn.active {
+    background: var(--accent, rgba(2, 132, 199, 0.95));
+    color: #fff;
+    border-color: transparent;
+}
+
+/* Custom size inputs */
+.image-toolbar-custom {
+    gap: 3px;
+}
+
+.image-toolbar-input {
+    width: 48px;
+    padding: 3px 5px;
+    background: var(--surface-bg, rgba(15, 23, 42, 0.6));
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.15));
+    border-radius: 4px;
+    color: var(--text-high, #f0f2f5);
+    font-size: 11px;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+}
+
+.image-toolbar-input::-webkit-outer-spin-button,
+.image-toolbar-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.image-toolbar-input:focus {
+    border-color: var(--accent, rgba(2, 132, 199, 0.95));
+}
+
+.image-toolbar-x {
+    color: var(--text-muted, rgba(246, 242, 240, 0.5));
+    font-size: 10px;
+}
+
+/* Delete button */
+.image-toolbar-delete {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-muted, rgba(246, 242, 240, 0.5));
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    margin-left: 2px;
+}
+
+.image-toolbar-delete:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Make images in the slide preview clickable in edit mode */
+[data-edit-mode="true"] .slides .slide img {
+    cursor: pointer;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color 0.15s ease;
+}
+
+[data-edit-mode="true"] .slides .slide img:hover {
+    outline-color: var(--accent, rgba(2, 132, 199, 0.5));
+}

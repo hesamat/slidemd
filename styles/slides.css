@@ -1002,3 +1002,32 @@ body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
 .slide[data-theme="dark"] .slide__area .image-placeholder__inner {
     color: rgba(226, 232, 240, 0.9);
 }
+
+/* Welcome slide button */
+.welcome-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.welcome-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.slide[data-theme="dark"] .welcome-btn {
+    background: rgba(56, 189, 248, 0.85);
+    color: #0f172a;
+}
+
+.slide[data-theme="dark"] .welcome-btn:hover {
+    background: rgba(56, 189, 248, 1);
+}
