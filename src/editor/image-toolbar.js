@@ -1,56 +1,154 @@
 /**
  * ImageToolbar
  *
- * A floating popover that appears when an <img> element is clicked in the
- * slide preview during edit mode.  Provides quick controls for resizing,
- * aligning, and removing inline images.
+ * Floating popover for restyling inline images in the slide preview.
+ *
+ * Design principle: the markdown source is the single source of truth.
+ * We never read styles from the rendered DOM — we always parse them from
+ * the markdown, apply the change, and write back.  This avoids stale-
+ * reference bugs after preview re-renders.
+ *
+ * Supports two image formats:
+ *   - HTML:    <img src="..." style="..." />
+ *   - Markdown: ![alt](src)
+ *     On first edit, markdown images are converted to <img> HTML so the
+ *     full style controls become available.
  */
 
 export class ImageToolbar {
     static el = null;
-    static activeImg = null;
-    static activeCallback = null;
     static _wired = false;
 
-    /** The original markdown src path (e.g. "images/foo.png") for the active image. */
-    static _originalSrc = '';
+    /** Callback to get the current markdown for the slide being edited. */
+    static _getMarkdown = null;
+    /** Callback to set the updated markdown for the slide being edited. */
+    static _setMarkdown = null;
+    /** The 0-based index of the <img> element that was clicked (among all imgs in the slide). */
+    static _imgIndex = -1;
+    /** The original src path (e.g. "images/foo.png") of the clicked image. */
+    static _srcPath = '';
 
     /**
-     * Find the live <img> element by original src path.
-     * Always queries the DOM fresh to avoid stale references.
+     * Initialize with callbacks that read/write the slide markdown.
+     * @param {function} getMarkdown - Returns the current slide's markdown
+     * @param {function} setMarkdown - Sets the updated slide markdown
      */
-    static _getLiveImg() {
-        if (!this._originalSrc) return this.activeImg;
-        return document.querySelector(
-            `#slidesContainer img[data-original-src="${CSS.escape(this._originalSrc)}"]`
-        ) || this.activeImg;
+    static init(getMarkdown, setMarkdown) {
+        this._getMarkdown = getMarkdown;
+        this._setMarkdown = setMarkdown;
     }
 
     /**
-     * Parse an <img> element's inline style to extract the current settings.
-     * @param {HTMLImageElement} img
+     * Find the image at the given click position in the rendered slide,
+     * parse its current settings from markdown, and show the toolbar.
+     *
+     * @param {MouseEvent} e - The click event on an <img> element
+     */
+    static handleImageClick(e) {
+        const img = e.target.closest('img');
+        if (!img) return;
+        if (img.closest('.editor-area-label, .editor-slide-warning')) return;
+
+        const md = this._getMarkdown?.();
+        if (!md) return;
+
+        // Find which image was clicked by index among all <img> in the slide
+        const slidesContainer = document.getElementById('slidesContainer');
+        if (!slidesContainer) return;
+        const activeSlide = slidesContainer.querySelector('.slide.active, .slide[data-active]');
+        if (!activeSlide) return;
+
+        const allImgs = activeSlide.querySelectorAll('img');
+        const idx = Array.from(allImgs).indexOf(img);
+        if (idx < 0) return;
+
+        this._imgIndex = idx;
+
+        // Find all image entries in the markdown (both <img> and ![alt](src))
+        const entries = this._findAllImages(md);
+        if (idx >= entries.length) return;
+
+        const entry = entries[idx];
+        this._srcPath = entry.src;
+
+        const settings = entry.type === 'html'
+            ? this._parseHtmlImgStyle(entry.fullTag)
+            : { width: '', maxHeight: '', align: 'center' };
+
+        this._show(img, settings);
+    }
+
+    // ── Markdown parsing ──────────────────────────────────────────────────
+
+    /**
+     * Find all images in the markdown, returning their positions and metadata.
+     * @param {string} md
+     * @returns {Array<{type:'html'|'md', src:string, fullMatch:string, fullTag:string, start:number, end:number}>}
+     */
+    static _findAllImages(md) {
+        const results = [];
+
+        // HTML <img> tags
+        const htmlRe = /<img\b([^>]*?)>/gi;
+        let m;
+        while ((m = htmlRe.exec(md)) !== null) {
+            const tag = m[0];
+            const attrs = m[1];
+            const srcMatch = attrs.match(/src=["']([^"']*)["']/i);
+            if (!srcMatch) continue;
+            results.push({
+                type: 'html',
+                src: srcMatch[1],
+                fullMatch: m[0],
+                fullTag: tag,
+                start: m.index,
+                end: m.index + m[0].length,
+            });
+        }
+
+        // Markdown ![alt](src) or ![alt](src "title")
+        const mdRe = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
+        while ((m = mdRe.exec(md)) !== null) {
+            results.push({
+                type: 'md',
+                src: m[2],
+                fullMatch: m[0],
+                fullTag: m[0],
+                start: m.index,
+                end: m.index + m[0].length,
+            });
+        }
+
+        // Sort by position in the markdown
+        results.sort((a, b) => a.start - b.start);
+        return results;
+    }
+
+    /**
+     * Parse an <img> tag's inline style to extract current settings.
+     * @param {string} tag - The full <img ... /> tag
      * @returns {{ width: string, maxHeight: string, align: string }}
      */
-    static parseImgStyle(img) {
-        const style = img.getAttribute('style') || '';
+    static _parseHtmlImgStyle(tag) {
+        const styleMatch = tag.match(/style\s*=\s*(["'])([^"']*)\1/i);
+        const style = styleMatch ? styleMatch[2] : '';
+
         let width = '';
         let maxHeight = '';
         let align = 'center';
 
-        // Width
         const wMatch = style.match(/(?:^|;)\s*width:\s*(\d+)%/);
         if (wMatch) width = wMatch[1];
 
-        // Max-height
         const hMatch = style.match(/max-height:\s*(\d+)px/);
         if (hMatch) maxHeight = hMatch[1];
 
-        // Alignment via margin — be careful not to match 'max-width: 100%'
+        // Alignment: width:100% (but not max-width) with no side margins
         if (/(?:^|;)\s*width:\s*100%/.test(style)) {
             align = 'full';
-        } else if (style.includes('margin: 10px auto 10px 0') || style.includes('margin:10px auto 10px 0')) {
+        } else if (/margin:\s*10px\s+auto\s+10px\s+0/.test(style)) {
             align = 'left';
-        } else if (style.includes('margin: 10px 0 10px auto') || style.includes('margin:10px 0 10px auto')) {
+        } else if (/margin:\s*10px\s+0\s+10px\s+auto/.test(style)) {
             align = 'right';
         } else {
             align = 'center';
@@ -60,11 +158,45 @@ export class ImageToolbar {
     }
 
     /**
-     * Build the inline style string from the given settings.
-     * @param {{ width: string, maxHeight: string, align: string }} opts
-     * @returns {string}
+     * Build an <img> HTML tag from settings.
      */
-    static buildStyleString({ width, maxHeight, align }) {
+    static _buildHtmlTag(src, alt, { width, maxHeight, align }) {
+        const styleParts = [
+            'display: block',
+            'border: none',
+            'max-width: 100%',
+            'height: auto',
+            'object-fit: contain',
+        ];
+
+        if (align === 'full') {
+            styleParts.push('margin: 10px 0');
+            styleParts.push('width: 100%');
+        } else if (align === 'left') {
+            styleParts.push('margin: 10px auto 10px 0');
+        } else if (align === 'right') {
+            styleParts.push('margin: 10px 0 10px auto');
+        } else {
+            styleParts.push('margin: 10px auto');
+        }
+
+        if (align !== 'full' && width) {
+            styleParts.push(`width: ${width}%`);
+        }
+
+        if (maxHeight) {
+            styleParts.push(`max-height: ${maxHeight}px`);
+        } else if (align !== 'full') {
+            styleParts.push('max-height: 480px');
+        }
+
+        return `<img src="${src}" alt="${alt || ''}" style="${styleParts.join('; ')}" />`;
+    }
+
+    /**
+     * Build the style string from settings (for preview and comparison).
+     */
+    static _buildStyleString({ width, maxHeight, align }) {
         const parts = [
             'display: block',
             'border: none',
@@ -73,7 +205,6 @@ export class ImageToolbar {
             'object-fit: contain',
         ];
 
-        // Alignment + margin
         if (align === 'full') {
             parts.push('margin: 10px 0');
             parts.push('width: 100%');
@@ -85,12 +216,10 @@ export class ImageToolbar {
             parts.push('margin: 10px auto');
         }
 
-        // Width (non-full only)
         if (align !== 'full' && width) {
             parts.push(`width: ${width}%`);
         }
 
-        // Max-height
         if (maxHeight) {
             parts.push(`max-height: ${maxHeight}px`);
         } else if (align !== 'full') {
@@ -100,31 +229,20 @@ export class ImageToolbar {
         return parts.join('; ');
     }
 
-    /**
-     * Show the toolbar for the given <img> element.
-     * @param {HTMLImageElement} img - The clicked image element
-     * @param {function} onUpdate - Callback invoked with the new style string
-     */
-    static show(img, onUpdate) {
-        this.activeImg = img;
-        this.activeCallback = onUpdate;
-        this._originalSrc = img.dataset.originalSrc || '';
+    // ── Toolbar UI ────────────────────────────────────────────────────────
 
+    static _show(anchorEl, settings) {
         if (!this.el) this._buildDom();
-
-        const settings = this.parseImgStyle(img);
         this._syncUI(settings);
         this.el.classList.remove('webdeck-hidden');
 
-        // Position below the image
-        const rect = img.getBoundingClientRect();
+        const rect = anchorEl.getBoundingClientRect();
         const toolbarH = this.el.offsetHeight || 44;
         const toolbarW = this.el.offsetWidth || 280;
 
         let top = rect.bottom + window.scrollY + 6;
         let left = rect.left + window.scrollX + (rect.width - toolbarW) / 2;
 
-        // Keep within viewport
         left = Math.max(8, Math.min(left, window.innerWidth - toolbarW - 8));
         if (top + toolbarH > window.innerHeight + window.scrollY) {
             top = rect.top + window.scrollY - toolbarH - 6;
@@ -134,20 +252,17 @@ export class ImageToolbar {
         this.el.style.left = `${left}px`;
     }
 
-    /** Hide the toolbar. */
     static hide() {
         if (this.el) this.el.classList.add('webdeck-hidden');
-        this.activeImg = null;
-        this.activeCallback = null;
-        this._originalSrc = '';
+        this._imgIndex = -1;
+        this._srcPath = '';
     }
 
-    /** Is the toolbar currently visible? */
     static isVisible() {
         return this.el && !this.el.classList.contains('webdeck-hidden');
     }
 
-    // ── Private ─────────────────────────────────────────────────────────────
+    // ── Private: DOM + Events ─────────────────────────────────────────────
 
     static _buildDom() {
         const el = document.createElement('div');
@@ -195,108 +310,133 @@ export class ImageToolbar {
         if (this._wired) return;
         this._wired = true;
 
-        // Close on outside click
         document.addEventListener('mousedown', (e) => {
             if (!this.isVisible()) return;
             if (this.el.contains(e.target)) return;
-            if (this.activeImg && this.activeImg.contains(e.target)) return;
             this.hide();
         });
 
-        // Close on Escape
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.isVisible()) {
-                this.hide();
-            }
+            if (e.key === 'Escape' && this.isVisible()) this.hide();
         });
 
-        // Preset buttons — only change width, preserve current height
+        // Preset buttons
         this.el.querySelectorAll('.image-toolbar-preset').forEach((btn) => {
             btn.addEventListener('click', () => {
-                const w = btn.dataset.w;
-                const liveImg = this._getLiveImg();
-                if (!liveImg || !this.activeCallback) return;
-                this.activeImg = liveImg;
-                const current = this.parseImgStyle(liveImg);
-                const merged = { ...current, width: w };
-                this._syncUI(merged);
-                this.activeCallback(this.buildStyleString(merged));
+                const current = this._readCurrentSettings();
+                this._applyChange({ ...current, width: btn.dataset.w });
             });
         });
 
         // Align buttons
         this.el.querySelectorAll('.image-toolbar-align-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
-                const liveImg = this._getLiveImg();
-                if (!liveImg || !this.activeCallback) return;
-                this.activeImg = liveImg;
-                const current = this.parseImgStyle(liveImg);
-                const merged = { ...current, align: btn.dataset.align };
-                this._syncUI(merged);
-                this.activeCallback(this.buildStyleString(merged));
+                const current = this._readCurrentSettings();
+                this._applyChange({ ...current, align: btn.dataset.align });
             });
         });
 
         // Custom inputs
         this.el.querySelectorAll('.image-toolbar-input').forEach((input) => {
             input.addEventListener('change', () => {
-                const liveImg = this._getLiveImg();
-                if (!liveImg || !this.activeCallback) return;
-                this.activeImg = liveImg;
-                const current = this.parseImgStyle(liveImg);
-                const merged = { ...current, [input.dataset.field]: input.value };
-                this._syncUI(merged);
-                this.activeCallback(this.buildStyleString(merged));
+                const current = this._readCurrentSettings();
+                this._applyChange({ ...current, [input.dataset.field]: input.value });
             });
         });
 
-        // Delete button
+        // Delete
         this.el.querySelector('.image-toolbar-delete').addEventListener('click', () => {
-            if (!this.activeImg || !this.activeCallback) return;
-            this.activeCallback(null); // null signals deletion
-            this.hide();
+            this._deleteImage();
         });
     }
 
     /**
-     * Apply partial settings changes and re-emit the updated style.
-     * @param {object} partial - Partial settings to merge
+     * Read the current settings for the active image directly from markdown.
+     * This is always fresh — no stale DOM references.
      */
-    static _applySettings(partial) {
-        this._refreshActiveImg();
-        if (!this.activeImg || !this.activeCallback) return;
+    static _readCurrentSettings() {
+        const md = this._getMarkdown?.();
+        if (!md) return { width: '', maxHeight: '', align: 'center' };
 
-        const current = this.parseImgStyle(this.activeImg);
-        const merged = { ...current, ...partial };
+        const entries = this._findAllImages(md);
+        const entry = entries[this._imgIndex];
+        if (!entry) return { width: '', maxHeight: '', align: 'center' };
 
-        // Sync the UI to reflect merged state
-        this._syncUI(merged);
+        if (entry.type === 'html') {
+            return this._parseHtmlImgStyle(entry.fullTag);
+        }
+        // Markdown images have no style — return defaults
+        return { width: '', maxHeight: '', align: 'center' };
+    }
 
-        // Build and emit new style
-        const newStyle = this.buildStyleString(merged);
-        this.activeCallback(newStyle);
+    /**
+     * Apply updated settings to the active image in the markdown.
+     * If the image is markdown ![alt](src), converts it to <img> HTML first.
+     */
+    static _applyChange(settings) {
+        const md = this._getMarkdown?.();
+        if (!md) return;
+
+        const entries = this._findAllImages(md);
+        const entry = entries[this._imgIndex];
+        if (!entry) return;
+
+        let newTag;
+        if (entry.type === 'md') {
+            // Convert markdown image to <img> HTML
+            const alt = entry.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || '';
+            newTag = this._buildHtmlTag(entry.src, alt, settings);
+        } else {
+            // Replace existing <img> style (and strip stale width attr)
+            const alt = entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] || '';
+            let tag = entry.fullTag.replace(/\s+width="[^"]*"/gi, '');
+            const styleRe = /\bstyle\s*=\s*(["'])([^"']*)\1/i;
+            if (styleRe.test(tag)) {
+                tag = tag.replace(styleRe, `style="${this._buildStyleString(settings)}"`);
+            } else {
+                tag = tag.replace(/>$/, ` style="${this._buildStyleString(settings)}">`);
+            }
+            newTag = tag;
+        }
+
+        const updated = md.slice(0, entry.start) + newTag + md.slice(entry.end);
+        this._setMarkdown?.(updated);
+        this._syncUI(settings);
+    }
+
+    /**
+     * Delete the active image from the markdown.
+     */
+    static _deleteImage() {
+        const md = this._getMarkdown?.();
+        if (!md) return;
+
+        const entries = this._findAllImages(md);
+        const entry = entries[this._imgIndex];
+        if (!entry) return;
+
+        // Remove the image tag and any surrounding blank lines
+        const before = md.slice(0, entry.start);
+        const after = md.slice(entry.end);
+        const updated = before.replace(/\n\s*$/, '\n') + after.replace(/^\s*\n/, '\n');
+        this._setMarkdown?.(updated);
+        this.hide();
     }
 
     /**
      * Sync the toolbar UI to reflect the given settings.
-     * @param {{ width: string, maxHeight: string, align: string }} settings
      */
     static _syncUI({ width, maxHeight, align }) {
         if (!this.el) return;
 
-        // Preset buttons — match by width only
         this.el.querySelectorAll('.image-toolbar-preset').forEach((btn) => {
-            const bw = btn.dataset.w;
-            const isMatch = bw === width;
-            btn.classList.toggle('active', isMatch);
+            btn.classList.toggle('active', btn.dataset.w === width);
         });
 
-        // Align buttons
         this.el.querySelectorAll('.image-toolbar-align-btn').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.align === align);
         });
 
-        // Custom inputs
         const wInput = this.el.querySelector('[data-field="width"]');
         const hInput = this.el.querySelector('[data-field="maxHeight"]');
         if (wInput) wInput.value = width || '';

@@ -210,6 +210,10 @@ export class EditController {
         BackgroundPicker.init();
 
         // Image toolbar — click on <img> in slide preview to restyle
+        ImageToolbar.init(
+            () => this.markdownEditor?.getValue() ?? '',
+            (updated) => this.markdownEditor?.setValue(updated, { suppressOnChange: false })
+        );
         this._initImageToolbar();
 
         // Render initial thumbnails
@@ -628,12 +632,6 @@ export class EditController {
                 this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
-                // Eagerly tag <img> elements with data-original-src so the
-                // image toolbar can re-acquire them after re-renders.
-                newSlideEl.querySelectorAll('img[src^="images/"]').forEach(img => {
-                    if (!img.dataset.originalSrc) img.dataset.originalSrc = img.getAttribute('src');
-                });
-
                 // Rewrite `images/foo.png` srcs and background url()s to blob
                 // URLs the browser can render in the preview (since the deck
                 // file lives outside the project root, the dev server can't
@@ -708,82 +706,13 @@ export class EditController {
             if (!this.isEditMode) return;
             const img = e.target.closest('img');
             if (!img) return;
+            if (img.closest('.editor-area-label, .editor-slide-warning')) return;
 
             e.preventDefault();
             e.stopPropagation();
 
-            // Ignore area labels and other editor UI
-            if (img.closest('.editor-area-label, .editor-slide-warning')) return;
-
-            this._showImageToolbar(img);
+            ImageToolbar.handleImageClick(e);
         });
-    }
-
-    _showImageToolbar(img) {
-        const originalSrc = img.dataset.originalSrc || img.getAttribute('src');
-        if (!originalSrc) return;
-
-        ImageToolbar.show(img, (newStyle) => {
-            if (newStyle === null) {
-                // Deletion requested
-                this._removeImageFromMarkdown(originalSrc);
-                return;
-            }
-            this._updateImageInMarkdown(originalSrc, newStyle);
-        });
-    }
-
-    /**
-     * Replace the style attribute of an <img> tag in the markdown source.
-     * Matches by src path (e.g. "images/foo.png").
-     */
-    _updateImageInMarkdown(srcPath, newStyle) {
-        if (!this.markdownEditor) return;
-        const markdown = this.markdownEditor.getValue();
-        const escapedSrc = srcPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        // Step 1: Find the <img> tag with matching src
-        const tagRe = new RegExp(
-            `<img\\b([^>]*?src=["']${escapedSrc}["'][^>]*?)>`,
-            'i'
-        );
-        const tagMatch = markdown.match(tagRe);
-        if (!tagMatch) return;
-
-        let newTag = tagMatch[0];
-
-        // Step 2: Remove any stale HTML width attribute (style handles it now)
-        newTag = newTag.replace(/\s+width="[^"]*"/gi, '');
-
-        // Step 3: Replace or insert style attribute
-        const styleRe = /\bstyle\s*=\s*(["'])([^"']*)\1/i;
-        if (styleRe.test(newTag)) {
-            newTag = newTag.replace(styleRe, `style="${newStyle}"`);
-        } else {
-            newTag = newTag.replace(/>$/, ` style="${newStyle}">`);
-        }
-
-        const updated = markdown.replace(tagMatch[0], newTag);
-        if (updated !== markdown) {
-            this.markdownEditor.setValue(updated, { suppressOnChange: false });
-        }
-    }
-
-    /**
-     * Remove an <img> tag from the markdown source by src path.
-     */
-    _removeImageFromMarkdown(srcPath) {
-        if (!this.markdownEditor) return;
-        const markdown = this.markdownEditor.getValue();
-        const escapedSrc = srcPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        // Remove the entire <img ... /> tag, plus surrounding blank lines if any
-        const re = new RegExp(`\\n*\\s*<img\\b[^>]*?src=["']${escapedSrc}["'][^>]*/?>\\s*\\n*`, 'gi');
-        const updated = markdown.replace(re, '\n');
-
-        if (updated !== markdown) {
-            this.markdownEditor.setValue(updated, { suppressOnChange: false });
-        }
     }
 
     async _resolveDeckDirectoryHandle() {
