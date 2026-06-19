@@ -9,6 +9,7 @@ import { Notification } from "../renderer/notification.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
 import { ImagePicker } from "./image-picker.js";
+import { BackgroundPicker } from "./background-picker.js";
 import { LayoutData } from "../data/layout-data.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
@@ -16,7 +17,8 @@ import { MarkdownEditor } from "./markdown-editor.js";
 import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
-import { attachGridResizer, buildLayoutSpec, updateLayoutDirective } from "./grid-resizer.js";
+import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
+import { updateLayoutDirective, updateBackgroundDirective } from "./directive-utils.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -150,6 +152,9 @@ export class EditController {
             this.updateSaveButton();
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             this.loadSlideIntoEditor();
+            // Clear the cached deck directory handle so the user is prompted
+            // again for the new deck's folder (prevents using the wrong folder)
+            this.clearDeckDirectoryHandle();
         });
 
         // Set up save button
@@ -190,6 +195,9 @@ export class EditController {
 
         // Initialize image picker modal
         ImagePicker.init();
+
+        // Initialize background picker modal
+        BackgroundPicker.init();
 
         // Render initial thumbnails
         this.thumbnails.render();
@@ -269,6 +277,8 @@ export class EditController {
                     this.pickAndInsertImage();
                 } else if (action === 'mermaid') {
                     this.toggleMermaidHelperPanel();
+                } else if (action === 'background') {
+                    this.pickBackground();
                 }
             });
         });
@@ -620,11 +630,15 @@ export class EditController {
                 this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
-                // Rewrite `images/foo.png` srcs to blob URLs the browser can
-                // render in the preview (since the deck file lives outside
-                // the project root, the dev server can't serve them).
+                // Rewrite `images/foo.png` srcs and background url()s to blob
+                // URLs the browser can render in the preview (since the deck
+                // file lives outside the project root, the dev server can't
+                // serve them).
                 DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch((err) => {
                     console.warn('Image rewrite failed:', err);
+                });
+                DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch((err) => {
+                    console.warn('Background image rewrite failed:', err);
                 });
 
                 const attachPreviewOverlays = () => {
@@ -640,6 +654,7 @@ export class EditController {
                     this.applyAreaGuides(newSlideEl, slideData);
                     // Re-rewrite after enhancement (which may inject more imgs).
                     DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => { });
+                    DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch(() => { });
                 }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 }).finally(() => {
@@ -1491,6 +1506,61 @@ export class EditController {
         }
 
         return areas;
+    }
+
+    /**
+     * Open the Background Picker modal and apply the chosen CSS background
+     * value to the current slide's `background:` directive.
+     */
+    pickBackground() {
+        if (!this.markdownEditor) return;
+
+        // Pull the current background (if any) so the picker can pre-select it.
+        const parser = new MarkdownParser();
+        const currentMarkdown = this.markdownEditor.getValue();
+        const currentBg = parser.extractDirective(currentMarkdown, 'background').value || '';
+
+        BackgroundPicker.show(
+            (newValue) => {
+                const updated = updateBackgroundDirective(this.markdownEditor.getValue(), newValue);
+                this.markdownEditor.setValue(updated, { suppressOnChange: false });
+                this.markdownEditor.focus();
+            },
+            {
+                currentValue: currentBg,
+                onPickImage: () => this._pickBackgroundImage(),
+            }
+        );
+    }
+
+    /**
+     * Open the Image Picker in "path-only" mode so the user can pick an
+     * image to use as a slide background.  The chosen path is fed back into
+     * the Background Picker via `BackgroundPicker.setImageSelection()`.
+     */
+    async _pickBackgroundImage() {
+        const deckDirHandle = await this._resolveDeckDirectoryHandle();
+        console.log('[BackgroundPicker] Deck directory handle:', deckDirHandle?.name, 'mode:', this.deckDirMode);
+        DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
+
+        ImagePicker.show(
+            (path) => {
+                // `path` is a relative path like "images/foo.png" (pathOnly mode).
+                console.log('[BackgroundPicker] Selected image path:', path);
+                BackgroundPicker.setImageSelection(path);
+            },
+            {
+                deckDirHandle,
+                deckDirMode: this.deckDirMode,
+                pathOnly: true,
+                onChangeFolder: async () => {
+                    await this.clearDeckDirectoryHandle();
+                    const next = await this._resolveDeckDirectoryHandle();
+                    if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
+                    return next ? { handle: next, mode: this.deckDirMode } : null;
+                },
+            }
+        );
     }
 
     /**

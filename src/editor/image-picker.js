@@ -321,13 +321,17 @@ export class ImagePicker {
      *   handle points to.
      * @param {() => Promise<{handle: FileSystemDirectoryHandle, mode: 'parent'|'images'}|null>} [options.onChangeFolder]
      *   Called when the user clicks "Change folder" in the modal.
+     * @param {boolean} [options.pathOnly=false] - When true, the picker
+     *   hides size/alignment/insert controls and calls `onSelect(path)`
+     *   with the chosen path string instead of a full `<img>` snippet.
      */
-    static async show(onSelect, { deckDirHandle = null, deckDirMode = 'parent', onChangeFolder = null } = {}) {
+    static async show(onSelect, { deckDirHandle = null, deckDirMode = 'parent', onChangeFolder = null, pathOnly = false } = {}) {
         this.init();
         this.onSelectCallback = onSelect;
         this.onChangeFolderCallback = onChangeFolder;
         this._deckDirHandle = deckDirHandle;
         this._deckDirMode = deckDirMode;
+        this._pathOnly = !!pathOnly;
         this.selectedPath = '';
         // Default sizing: 70% wide × 220px tall, centered.  Users can override.
         this.widthInput.value = '70';
@@ -338,6 +342,8 @@ export class ImagePicker {
         }
         this.urlInput.value = '';
         this.urlPreview.style.display = 'none';
+        // Toggle UI mode
+        this.modal.classList.toggle('image-picker-modal--path-only', this._pathOnly);
         this._syncInsertButton();
         this._syncPresetActive();
         this._renderFolderLabel();
@@ -545,9 +551,14 @@ export class ImagePicker {
 
     static _confirm() {
         if (!this.selectedPath || !this.onSelectCallback) return;
-        const snippet = this._buildSnippet(this.selectedPath);
         const cb = this.onSelectCallback;
         this.hide();
+        if (this._pathOnly) {
+            // Caller wants just the relative path.
+            cb(this.selectedPath);
+            return;
+        }
+        const snippet = this._buildSnippet(this.selectedPath);
         cb(snippet);
     }
 

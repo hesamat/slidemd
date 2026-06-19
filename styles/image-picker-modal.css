@@ -4,6 +4,17 @@
     max-width: 720px;
 }
 
+/* When opened from another modal (e.g. background picker), float above. */
+.image-picker-modal--path-only {
+    z-index: 1100;
+}
+
+/* In path-only mode, hide the size/alignment controls — caller just wants the path.
+   Keep the Insert button visible so the user can confirm their selection. */
+.image-picker-modal--path-only .image-picker-options {
+    display: none;
+}
+
 /* ── Tabs ── */
 .image-picker-tabs {
     display: flex;

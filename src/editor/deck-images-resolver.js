@@ -140,4 +140,39 @@ export class DeckImagesResolver {
         }
         await Promise.all(tasks);
     }
+
+    /**
+     * Walk a slide element and rewrite any `background` style `url('images/...')`
+     * references to blob URLs the browser can render.  This mirrors
+     * `rewriteImgSrcs` but for CSS background-image shorthand values.
+     *
+     * @param {HTMLElement} rootEl
+     */
+    static async rewriteBackgroundUrls(rootEl) {
+        if (!this._dirHandle || !rootEl) return;
+        const IMAGE_RE = /url\(\s*(['"]?)images\/([^'")]+)\1\s*\)/i;
+        const candidates = [rootEl, ...rootEl.querySelectorAll('[style]')];
+        const tasks = [];
+
+        for (const el of candidates) {
+            const bg = el.style.background;
+            if (!bg || !/images\//.test(bg)) continue;
+            tasks.push((async () => {
+                const matches = [...bg.matchAll(new RegExp(IMAGE_RE.source, 'gi'))];
+                let resolved = bg;
+                for (const m of matches) {
+                    const relPath = `images/${m[2]}`;
+                    const blobUrl = await this.resolvePreviewSrc(relPath);
+                    if (blobUrl !== relPath) {
+                        resolved = resolved.replace(m[0], m[0].replace(
+                            `images/${m[2]}`,
+                            blobUrl,
+                        ));
+                    }
+                }
+                if (resolved !== bg) el.style.background = resolved;
+            })());
+        }
+        await Promise.all(tasks);
+    }
 }

@@ -8,7 +8,6 @@
  * handles.  Fixed `px` and `auto` tracks are left alone.
  */
 
-import { MarkdownParser } from '../data/markdown-parser.js';
 import { DESIGN_SIZE } from '../core/utils.js';
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
@@ -73,19 +72,6 @@ export function buildLayoutSpec(layoutInfo, newCols, newRows) {
     }
 
     return `${parts.join(' ')} / ${cols}`;
-}
-
-/**
- * Replace (or insert) the `layout:` directive in a slide's markdown text.
- *
- * @param {string} markdown       - The slide's full markdown source.
- * @param {string} newLayoutValue - The new layout value (spec string or preset name).
- * @returns {string} Updated markdown with the `layout:` line replaced/inserted.
- */
-export function updateLayoutDirective(markdown, newLayoutValue) {
-    const parser = new MarkdownParser();
-    const { markdown: stripped } = parser.extractDirective(markdown, 'layout');
-    return `layout: ${newLayoutValue}\n${stripped}`;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
