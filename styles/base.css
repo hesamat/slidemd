@@ -131,4 +131,5 @@ html[data-embedded="true"] body {
     --accent-bg: rgba(var(--color-primary), 0.15);
     --accent-border: rgba(var(--color-primary), 0.40);
     --accent-text: rgba(var(--color-primary), 0.90);
+    --accent: rgba(186, 205, 222, 0.85);
 }
