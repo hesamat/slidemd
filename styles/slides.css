@@ -885,6 +885,53 @@ body[data-edit-mode="true"] .grid-resize-handle--row:active::after {
     background: rgba(2, 132, 199, 0.14);
 }
 
+/* ── Dark-theme slide overrides (more visible handles) ── */
+.slide[data-theme="dark"] .grid-resize-handle--col {
+    background: linear-gradient(to right, rgba(125, 211, 252, 0.14), rgba(125, 211, 252, 0.04));
+    border-left-color: rgba(125, 211, 252, 0.40);
+    border-right-color: rgba(125, 211, 252, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--col::after {
+    background: rgba(125, 211, 252, 0.70);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.40), 0 0 0 4px rgba(125, 211, 252, 0.16);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--col::before {
+    background: rgba(15, 23, 42, 0.90);
+    border-color: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row {
+    background: linear-gradient(to bottom, rgba(125, 211, 252, 0.14), rgba(125, 211, 252, 0.04));
+    border-top-color: rgba(125, 211, 252, 0.40);
+    border-bottom-color: rgba(125, 211, 252, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row::after {
+    background: rgba(125, 211, 252, 0.70);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.40), 0 0 0 4px rgba(125, 211, 252, 0.16);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row::before {
+    background: rgba(15, 23, 42, 0.90);
+    border-color: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.40);
+}
+
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--col:hover::after,
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--col:active::after {
+    background: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.25);
+}
+
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--row:hover::after,
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--row:active::after {
+    background: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.25);
+}
+
 /* ==========================================================================
    9. Image Placeholder Workflow (Edit Mode)
    ========================================================================== */

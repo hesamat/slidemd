@@ -369,7 +369,11 @@ export class DeckController extends EventEmitter {
     }
 
     toggleEditMode() {
-        window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode();
+        try {
+            window.__WEBDECK_EDIT_CONTROLLER__.toggleEditMode();
+        } catch (error) {
+            console.error('Error: __WEBDECK_EDIT_CONTROLLER__ not found', error);
+        }
         // Notify the navigator that edit mode has changed
         this.slideNavigator.onEditModeChanged();
     }

@@ -117,7 +117,7 @@ if (typeof initializeDefaultProviders === 'function') {
             const editController = new EditController(deck, controller, elements);
             window.__WEBDECK_EDIT_CONTROLLER__ = editController;
         } catch (e) {
-            // Editor skipped. Likely not in editor mode.;
+            console.error("EditController initialization failed:", e);
         }
 
         // 7. PRELOAD / WARMUP ENHANCERS

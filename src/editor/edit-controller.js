@@ -8,17 +8,19 @@ import { AssetLoader } from "../core/asset-loader.js";
 import { Notification } from "../renderer/notification.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
-import { ImagePicker } from "./image-picker.js";
-import { BackgroundPicker } from "./background-picker.js";
-import { LayoutData } from "../data/layout-data.js";
 import { LayoutParser } from "../data/layout-parser.js";
+import { LayoutData } from "../data/layout-data.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
-import { DirectoryHandleStore } from "../core/directory-handle-store.js";
-import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
-import { updateLayoutDirective, updateBackgroundDirective } from "./directive-utils.js";
+import { updateLayoutDirective } from "./directive-utils.js";
+import { SlideOperations } from "./slide-operations.js";
+import { ImageBackgroundHandler } from "./image-background-handler.js";
+import { AreaNavigation } from "./area-navigation.js";
+import { ImagePicker } from "./image-picker.js";
+import { BackgroundPicker } from "./background-picker.js";
+import { DeckImagesResolver } from "./deck-images-resolver.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -32,9 +34,6 @@ export class EditController {
 
         this.markdownEditor = null; // Will be initialized when edit mode is enabled
 
-        // Cached directory handle for saving images next to the deck file (FS API)
-        this.deckDirectoryHandle = null;
-
         // Cache original markdown from localStorage
         this.originalMarkdown = this.cacheOriginalMarkdown();
         // Store unsaved changes in memory (per-slide)
@@ -46,6 +45,11 @@ export class EditController {
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
+
+        // Sub-modules extracted to keep this file manageable
+        this.slideOps = new SlideOperations(this);
+        this.imageBg = new ImageBackgroundHandler(this);
+        this.areaNav = new AreaNavigation(this);
 
         this.init();
     }
@@ -511,29 +515,7 @@ export class EditController {
     }
 
     navigateToArea(areaName) {
-        if (!this.markdownEditor) return;
-
-        const name = String(areaName || '').trim().toLowerCase();
-        if (!name) return;
-
-        const markdown = this.markdownEditor.getValue();
-        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`^\\s*@${escapedName}\\s*$`, 'mi');
-        const match = regex.exec(markdown);
-
-        if (match) {
-            const cursorPosition = match.index + match[0].length;
-            this.markdownEditor.setValueWithCursor(markdown, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
-            this.markdownEditor.focus();
-            return;
-        }
-
-        const spacer = markdown.endsWith('\n') ? '' : '\n';
-        const addition = `${spacer}\n@${name}\n`;
-        const updated = `${markdown}${addition}`;
-        const cursorPosition = updated.length;
-        this.markdownEditor.setValueWithCursor(updated, cursorPosition, { suppressOnChange: true, scrollIntoView: true });
-        this.onEditorInput(updated);
+        this.areaNav.navigateToArea(areaName);
     }
 
     /**
@@ -687,23 +669,7 @@ export class EditController {
     }
 
     _getAreaAtCursor(markdown, position) {
-        const text = String(markdown || '').replace(/\r\n?/g, '\n');
-        const lines = text.split('\n');
-        const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-
-        let currentArea = 'main';
-        let currentOffset = 0;
-
-        for (const line of lines) {
-            const match = line.match(markerRegex);
-            if (match) {
-                if (position >= currentOffset) {
-                    currentArea = match[1].toLowerCase();
-                }
-            }
-            currentOffset += line.length + 1;
-        }
-        return currentArea;
+        return this.areaNav.getAreaAtCursor(markdown, position);
     }
 
     buildPlaceholderSnippet(config) {
@@ -719,226 +685,31 @@ export class EditController {
     }
 
     async pickAndInsertImage() {
-        if (!this.markdownEditor) return;
-
-        // Resolve the deck directory so the picker reads & writes images
-        // next to the user's .md file (not the project images/ folder).
-        // This is cached + persisted after the first call so it only prompts once.
-        const deckDirHandle = await this._resolveDeckDirectoryHandle();
-
-        // Tell the preview resolver where the deck folder lives, so images
-        // referenced as `images/foo.png` in the slide preview render via
-        // blob URLs the browser can load.
-        DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
-
-        // Open the image picker modal — three tabs: existing images,
-        // upload new file, or paste a URL/local path.
-        ImagePicker.show(
-            (snippet) => {
-                const current = this.markdownEditor.getValue();
-                const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
-                // Always wrap the snippet with blank lines so it stands
-                // alone as a block — required for markdown to render a
-                // raw <img> tag as a block element rather than inline text.
-                // We do this with exactly "\n\n<snippet>\n\n" and let the
-                // surrounding text's existing newlines decide whether to
-                // collapse the boundary (the markdown parser treats multiple
-                // blank lines as one).
-                const isAtStart = selection.from === 0;
-                const isAtEnd = selection.from >= current.length;
-                const prevChar = isAtStart ? '\n' : current[selection.from - 1];
-                const nextChar = isAtEnd ? '\n' : current[selection.from];
-
-                // Add at minimum one "\n" before; if the previous char isn't
-                // already a newline, prepend an extra one for a blank line.
-                const before = prevChar === '\n' ? '' : '\n\n';
-                // Always append "\n\n" after — ensures a blank line follows.
-                // If we're at end-of-doc, no need to add trailing newlines.
-                const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
-
-                // Avoid leading blank line at the very start of the file.
-                const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
-
-                this.markdownEditor.replaceRange(
-                    selection.from,
-                    selection.from,
-                    `${leadTrim}${snippet}${after}`
-                );
-                this.markdownEditor.focus();
-            },
-            {
-                deckDirHandle,
-                deckDirMode: this.deckDirMode,
-                onChangeFolder: async () => {
-                    await this.clearDeckDirectoryHandle();
-                    const next = await this._resolveDeckDirectoryHandle();
-                    if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
-                    return next ? { handle: next, mode: this.deckDirMode } : null;
-                },
-            }
-        );
+        return this.imageBg.pickAndInsertImage();
     }
 
-    /**
-     * Resolve the directory where images should be saved — the folder
-     * containing the deck .md file.  The handle is persisted in IndexedDB so
-     * the user only has to grant it once.
-     *
-     * @returns {Promise<FileSystemDirectoryHandle|null>}
-     */
     async _resolveDeckDirectoryHandle() {
-        if (this.deckDirectoryHandle) return this.deckDirectoryHandle;
-        if (!window.showDirectoryPicker) return null;
-
-        // 1. Try the previously persisted handle (the user only grants once).
-        const { handle: stored, mode } = await DirectoryHandleStore.load();
-        if (stored) {
-            const perm = await stored.queryPermission({ mode: 'readwrite' });
-            if (perm === 'granted' || (await stored.requestPermission({ mode: 'readwrite' })) === 'granted') {
-                this.deckDirectoryHandle = stored;
-                this._deckDirMode = mode;
-                return stored;
-            }
-        }
-
-        // 2. Prompt the user to pick a folder.  Prefer starting from the
-        //    deck file's directory when we have its file handle.
-        let startInHint = 'documents';
-        try {
-            const fileName = localStorage.getItem('webdeck_local_file_name');
-            if (fileName) {
-                const registry = window.__WEBDECK_FILE_HANDLE_REGISTRY__;
-                const fileHandle = registry?.get(fileName);
-                if (fileHandle) startInHint = fileHandle;
-            }
-        } catch (_) { /* ignore */ }
-
-        try {
-            const picked = await window.showDirectoryPicker({
-                id: 'deck-images',
-                mode: 'readwrite',
-                startIn: startInHint,
-            });
-
-            // Detect mode: does `picked` already contain image files (it's
-            // the images folder) or does it contain an `images/` subdirectory
-            // (it's the parent)?  Default to "parent".
-            const detectedMode = await this._detectDeckDirMode(picked);
-            await DirectoryHandleStore.save(picked, detectedMode);
-            this.deckDirectoryHandle = picked;
-            this._deckDirMode = detectedMode;
-            return picked;
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.warn('Could not open deck directory:', err);
-            }
-            return null;
-        }
+        return this.imageBg._resolveDeckDirectoryHandle();
     }
 
-    /**
-     * Inspect a picked directory to decide whether it's the images folder
-     * itself or the deck's parent directory.
-     *
-     *  - Contains an `images` subdirectory          → "parent"
-     *  - Contains image files at top level          → "images"
-     *  - Otherwise (empty / no matches)             → "parent" (we'll create images/)
-     *
-     * @param {FileSystemDirectoryHandle} dir
-     * @returns {Promise<'parent'|'images'>}
-     */
     async _detectDeckDirMode(dir) {
-        const IMAGE_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
-        try {
-            for await (const [name, handle] of dir.entries()) {
-                if (handle.kind === 'directory' && name === 'images') return 'parent';
-                if (handle.kind === 'file' && IMAGE_RE.test(name)) return 'images';
-            }
-        } catch (_) { /* ignore */ }
-        return 'parent';
+        return this.imageBg._detectDeckDirMode(dir);
     }
 
-    /** Current mode of `_deckDirectoryHandle` ('parent' | 'images' | null). */
     get deckDirMode() {
-        return this._deckDirMode || 'parent';
+        return this.imageBg.deckDirMode;
     }
 
-    /**
-     * Reset the persisted directory handle — used by the picker's "Change folder" button.
-     */
     async clearDeckDirectoryHandle() {
-        this.deckDirectoryHandle = null;
-        this._deckDirMode = null;
-        await DirectoryHandleStore.clear();
+        return this.imageBg.clearDeckDirectoryHandle();
     }
 
-    /**
-     * Upload an image next to the deck file and return a relative path
-     * string for the markdown.
-     *
-     * The image is always saved via the Vite dev server upload endpoint
-     * (into the project's `images/` folder) so the path resolves over
-     * HTTP during preview.  If the browser supports the File System
-     * Access API, we also write a copy next to the deck file itself,
-     * keeping the filesystem folder self-contained for build/export.
-     *
-     * @param {File} file
-     * @returns {Promise<string>} Relative path usable in markdown (e.g. `images/abc.png`)
-     */
     async uploadImage(file) {
-        // ── Always save via the Vite dev server so images/ is browsable ──
-        let serverPath = null;
-        try {
-            const formData = new FormData();
-            formData.append('image', file);
-
-            const response = await fetch('/api/upload-image', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                serverPath = result.path; // e.g. "images/1781852391929-e74de50d.png"
-            }
-        } catch (_) { /* server unavailable */ }
-
-        const relativePath = serverPath || `images/${Date.now()}-${Math.random().toString(36).slice(2, 10)}${(file.name.match(/\.[^.]+$/)?.[0] || '.png')}`;
-
-        // ── Also save next to the deck file via FS Access API ──
-        try {
-            const dirHandle = await this._resolveDeckDirectoryHandle();
-            if (dirHandle) {
-                const imagesDir = await dirHandle.getDirectoryHandle('images', { create: true });
-                const fileName = relativePath.split('/').pop();
-                const fh = await imagesDir.getFileHandle(fileName, { create: true });
-                const writable = await fh.createWritable();
-                await writable.write(file);
-                await writable.close();
-            }
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.warn('Could not save image next to deck file:', err);
-            }
-        }
-
-        return relativePath;
+        return this.imageBg.uploadImage(file);
     }
 
     _resolveAreaInsertPositionByRatio(markdown, areaName, ratioY = 1) {
-        const text = String(markdown || '').replace(/\r\n?/g, '\n');
-        const range = this._getAreaContentRange(text, areaName);
-        const segment = text.slice(range.from, range.to);
-        if (!segment.length) return range.from;
-
-        const lines = segment.split('\n');
-        const lineIndex = Math.max(0, Math.min(lines.length - 1, Math.floor((Number(ratioY) || 0) * lines.length)));
-
-        let offset = 0;
-        for (let i = 0; i < lineIndex; i++) {
-            offset += lines[i].length + 1;
-        }
-        return Math.min(range.to, range.from + offset);
+        return this.areaNav.resolveAreaInsertPositionByRatio(markdown, areaName, ratioY);
     }
 
     /**
@@ -947,45 +718,7 @@ export class EditController {
      * marker or the end of the document.
      */
     _getAreaContentRange(markdown, areaName) {
-        const text = String(markdown || '').replace(/\r\n?/g, '\n');
-        const lines = text.split('\n');
-        const target = String(areaName || 'main').trim().toLowerCase();
-
-        const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-        let areaMarkerIdx = -1;
-        let nextMarkerIdx = lines.length;
-
-        for (let i = 0; i < lines.length; i++) {
-            const match = lines[i].match(markerRegex);
-            if (!match) continue;
-            if (match[1].toLowerCase() === target) {
-                areaMarkerIdx = i;
-            } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
-                nextMarkerIdx = i;
-                break;
-            }
-        }
-
-        // Create the area marker when it does not exist yet.
-        if (areaMarkerIdx < 0) {
-            return {
-                from: text.length,
-                to: text.length,
-            };
-        }
-
-        const lineToChar = (lineIndex) => {
-            let pos = 0;
-            for (let i = 0; i < lineIndex; i++) {
-                pos += lines[i].length + 1;
-            }
-            return pos;
-        };
-
-        return {
-            from: lineToChar(areaMarkerIdx + 1),
-            to: lineToChar(nextMarkerIdx),
-        };
+        return this.areaNav.getAreaContentRange(markdown, areaName);
     }
 
     // ─── Save button ────────────────────────────────────────────────────────────
@@ -1069,338 +802,42 @@ export class EditController {
      * @param {string} newSlideMarkdown - Markdown for the new slide (optional)
      */
     _rebuildUnsavedMarkdownMap(insertAtIndex = -1, deleteAtIndex = -1, newSlideIndex = -1, newSlideMarkdown = '') {
-        const newUnsavedMarkdown = new Map();
-
-        for (const [index, content] of this.unsavedMarkdown) {
-            let newIndex = index;
-
-            // Adjust index based on delete
-            if (deleteAtIndex >= 0 && index > deleteAtIndex) {
-                newIndex = index - 1;
-            }
-
-            // Adjust index based on insert (after delete adjustment)
-            if (insertAtIndex >= 0 && newIndex >= insertAtIndex) {
-                newIndex = newIndex + 1;
-            }
-
-            // Skip if this was the deleted slide
-            if (deleteAtIndex >= 0 && index === deleteAtIndex) {
-                continue;
-            }
-
-            newUnsavedMarkdown.set(newIndex, content);
-        }
-
-        // Add new slide as unsaved if specified
-        if (newSlideIndex >= 0 && newSlideMarkdown) {
-            newUnsavedMarkdown.set(newSlideIndex, newSlideMarkdown);
-        }
-
-        this.unsavedMarkdown = newUnsavedMarkdown;
-        this.hasUnsavedChanges = this.unsavedMarkdown.size > 0;
-        this.updateSaveButton();
+        return this.slideOps.rebuildUnsavedMarkdownMap(insertAtIndex, deleteAtIndex, newSlideIndex, newSlideMarkdown);
     }
 
     /**
      * Add a new slide after the current one
      */
     addSlide() {
-        if (this.deck.slides.length === 0) return;
-
-        const currentSlide = this.deck.slides[this.currentSlideIndex];
-        const newSlide = {
-            id: Date.now(),
-            title: 'New Slide',
-            notes: '',
-            layout: currentSlide.layout || '',
-            areas: { main: '<h2>New Slide</h2>\n\nAdd your content here' }
-        };
-
-        const insertIndex = this.currentSlideIndex + 1;
-
-        // Update data models
-        this.deck.slides.splice(insertIndex, 0, newSlide);
-        const newSlideMarkdown = '## New Slide\n\nAdd your content here';
-        this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
-
-        // Update UI - count only visible slides
-        const visibleSlideCount = this.deck.slides.filter(s => !s.hidden).length;
-        if (this.elements.slideCountEl) {
-            this.elements.slideCountEl.textContent = String(visibleSlideCount);
-        }
-
-        if (this.elements.slidesContainer) {
-            const newSlideEl = SlideRenderer.createSlideElement(
-                this.deck,
-                newSlide,
-                insertIndex,
-                false
-            );
-
-            const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
-            if (allSlides[this.currentSlideIndex]) {
-                allSlides[this.currentSlideIndex].after(newSlideEl);
-            } else {
-                this.elements.slidesContainer.appendChild(newSlideEl);
-            }
-        }
-
-        // Navigate to new slide
-        this.controller.slideNavigator.goTo(insertIndex);
+        return this.slideOps.addSlide();
     }
 
     /**
      * Delete the current slide
      */
     async deleteSlide() {
-        if (this.deck.slides.length <= 1) {
-            Notification.warning('Cannot delete the only slide');
-            return;
-        }
-
-        const confirmed = await Notification.confirm('Are you sure you want to delete this slide?');
-        if (!confirmed) {
-            return;
-        }
-
-        const indexToDelete = this.currentSlideIndex;
-
-        // Remove from data models
-        this.deck.slides.splice(indexToDelete, 1);
-        this.originalMarkdown.splice(indexToDelete, 1);
-
-        // Update UI - count only visible slides
-        const visibleSlideCount = this.deck.slides.filter(s => !s.hidden).length;
-        if (this.elements.slideCountEl) {
-            this.elements.slideCountEl.textContent = String(visibleSlideCount);
-        }
-
-        const allSlides = document.querySelectorAll('.slide');
-        if (allSlides[indexToDelete]) {
-            allSlides[indexToDelete].remove();
-        }
-
-        // Navigate: stay on the same index if possible (which now holds what was the next slide)
-        // unless deleting the last slide, in which case go to the new last slide
-        const newIndex = indexToDelete >= this.deck.slides.length
-            ? this.deck.slides.length - 1
-            : indexToDelete;
-        this.controller.slideNavigator.goTo(newIndex);
-
-        // Rebuild unsaved markdown map with adjusted indices
-        this._rebuildUnsavedMarkdownMap(-1, indexToDelete);
-
-        // Mark as unsaved to enable save button for structural change
-        if (this.unsavedMarkdown.size === 0) {
-            // Add a marker to indicate unsaved structural changes
-            this.unsavedMarkdown.set(0, this.originalMarkdown[0] || '');
-        }
-        this.hasUnsavedChanges = true;
-        this.updateSaveButton();
-
-        // Refresh thumbnails after deleting slide
-        this.thumbnails.refresh();
+        return this.slideOps.deleteSlide();
     }
 
     /**
      * Move the current slide up by one position
      */
     moveSlideUp() {
-        if (this.currentSlideIndex <= 0) {
-            Notification.warning('Cannot move the first slide up');
-            return;
-        }
-
-        const currentIndex = this.currentSlideIndex;
-        const targetIndex = currentIndex - 1;
-
-        // Swap in data models
-        // Swap deck.slides
-        [this.deck.slides[currentIndex], this.deck.slides[targetIndex]] =
-            [this.deck.slides[targetIndex], this.deck.slides[currentIndex]];
-        // Swap originalMarkdown
-        [this.originalMarkdown[currentIndex], this.originalMarkdown[targetIndex]] =
-            [this.originalMarkdown[targetIndex], this.originalMarkdown[currentIndex]];
-
-        // Get the DOM elements
-        const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
-        const currentSlideEl = allSlides[currentIndex];
-        const targetSlideEl = allSlides[targetIndex];
-
-        if (currentSlideEl && targetSlideEl) {
-            // Swap DOM elements
-            const currentClone = currentSlideEl.cloneNode(true);
-            const targetClone = targetSlideEl.cloneNode(true);
-
-            targetSlideEl.replaceWith(currentClone);
-            currentSlideEl.replaceWith(targetClone);
-
-            // Update active class
-            targetClone.classList.remove('active');
-            currentClone.classList.add('active');
-        }
-
-        // Rebuild unsaved markdown map - just swap the two indices
-        const newUnsavedMarkdown = new Map();
-        for (const [index, content] of this.unsavedMarkdown) {
-            if (index === currentIndex) {
-                newUnsavedMarkdown.set(targetIndex, content);
-            } else if (index === targetIndex) {
-                newUnsavedMarkdown.set(currentIndex, content);
-            } else {
-                newUnsavedMarkdown.set(index, content);
-            }
-        }
-        this.unsavedMarkdown = newUnsavedMarkdown;
-        this.hasUnsavedChanges = true;
-        this.updateSaveButton();
-
-        // Navigate to the new position
-        this.controller.slideNavigator.goTo(targetIndex);
-
-        // Refresh thumbnails after moving slide
-        this.thumbnails.refresh();
-
-        Notification.success('Slide moved up');
+        return this.slideOps.moveSlideUp();
     }
 
     /**
      * Move the current slide down by one position
      */
     moveSlideDown() {
-        if (this.currentSlideIndex >= this.deck.slides.length - 1) {
-            Notification.warning('Cannot move the last slide down');
-            return;
-        }
-
-        const currentIndex = this.currentSlideIndex;
-        const targetIndex = currentIndex + 1;
-
-        // Swap in data models
-        // Swap deck.slides
-        [this.deck.slides[currentIndex], this.deck.slides[targetIndex]] =
-            [this.deck.slides[targetIndex], this.deck.slides[currentIndex]];
-        // Swap originalMarkdown
-        [this.originalMarkdown[currentIndex], this.originalMarkdown[targetIndex]] =
-            [this.originalMarkdown[targetIndex], this.originalMarkdown[currentIndex]];
-
-        // Get the DOM elements
-        const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
-        const currentSlideEl = allSlides[currentIndex];
-        const targetSlideEl = allSlides[targetIndex];
-
-        if (currentSlideEl && targetSlideEl) {
-            // Swap DOM elements
-            const currentClone = currentSlideEl.cloneNode(true);
-            const targetClone = targetSlideEl.cloneNode(true);
-
-            targetSlideEl.replaceWith(currentClone);
-            currentSlideEl.replaceWith(targetClone);
-
-            // Update active class
-            targetClone.classList.remove('active');
-            currentClone.classList.add('active');
-        }
-
-        // Rebuild unsaved markdown map - just swap the two indices
-        const newUnsavedMarkdown = new Map();
-        for (const [index, content] of this.unsavedMarkdown) {
-            if (index === currentIndex) {
-                newUnsavedMarkdown.set(targetIndex, content);
-            } else if (index === targetIndex) {
-                newUnsavedMarkdown.set(currentIndex, content);
-            } else {
-                newUnsavedMarkdown.set(index, content);
-            }
-        }
-        this.unsavedMarkdown = newUnsavedMarkdown;
-        this.hasUnsavedChanges = true;
-        this.updateSaveButton();
-
-        // Navigate to the new position
-        this.controller.slideNavigator.goTo(targetIndex);
-
-        // Refresh thumbnails after moving slide
-        this.thumbnails.refresh();
-
-        Notification.success('Slide moved down');
+        return this.slideOps.moveSlideDown();
     }
 
     /**
      * Duplicate the current slide
      */
     async duplicateSlide() {
-        const sourceIndex = this.currentSlideIndex;
-        const insertIndex = sourceIndex + 1;
-
-        // Get the markdown for the current slide (prefer unsaved changes)
-        const markdown = this.unsavedMarkdown.get(sourceIndex) ??
-            this.originalMarkdown[sourceIndex] ?? '';
-
-        if (!markdown) {
-            Notification.warning('Cannot duplicate empty slide');
-            return;
-        }
-
-        // Parse the markdown to get slide data
-        try {
-            await AssetLoader.ensureMarkdownItLoaded();
-            const parser = new MarkdownParser();
-            const deckData = parser.parseDeckMarkdown(markdown);
-
-            if (!deckData.slides || deckData.slides.length === 0) {
-                Notification.warning('Failed to parse slide for duplication');
-                return;
-            }
-
-            // Create a copy of the slide with a new ID
-            const newSlide = { ...deckData.slides[0], id: Date.now() };
-
-            // Update data models
-            this.deck.slides.splice(insertIndex, 0, newSlide);
-            this.originalMarkdown.splice(insertIndex, 0, markdown);
-
-            // Update UI
-            if (this.elements.slideCountEl) {
-                this.elements.slideCountEl.textContent = String(this.deck.slides.length);
-            }
-
-            if (this.elements.slidesContainer) {
-                const newSlideEl = SlideRenderer.createSlideElement(
-                    this.deck,
-                    newSlide,
-                    insertIndex,
-                    false
-                );
-
-                const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
-                if (allSlides[sourceIndex]) {
-                    allSlides[sourceIndex].after(newSlideEl);
-                } else {
-                    this.elements.slidesContainer.appendChild(newSlideEl);
-                }
-
-                // Enhance the new slide
-                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
-                    console.warn("Failed to enhance duplicated slide:", err);
-                });
-            }
-
-            // Rebuild unsaved markdown map with adjusted indices
-            this._rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, markdown);
-
-            // Navigate to new slide
-            this.controller.slideNavigator.goTo(insertIndex);
-
-            // Refresh thumbnails after duplicating slide
-            this.thumbnails.refresh();
-
-            Notification.success('Slide duplicated successfully');
-        } catch (error) {
-            console.error('Failed to duplicate slide:', error);
-            Notification.error('Failed to duplicate slide: ' + (error.message || 'Unknown error'));
-        }
+        return this.slideOps.duplicateSlide();
     }
 
     /**
@@ -1513,127 +950,17 @@ export class EditController {
      * value to the current slide's `background:` directive.
      */
     pickBackground() {
-        if (!this.markdownEditor) return;
-
-        // Pull the current background (if any) so the picker can pre-select it.
-        const parser = new MarkdownParser();
-        const currentMarkdown = this.markdownEditor.getValue();
-        const currentBg = parser.extractDirective(currentMarkdown, 'background').value || '';
-
-        BackgroundPicker.show(
-            (newValue) => {
-                const updated = updateBackgroundDirective(this.markdownEditor.getValue(), newValue);
-                this.markdownEditor.setValue(updated, { suppressOnChange: false });
-                this.markdownEditor.focus();
-            },
-            {
-                currentValue: currentBg,
-                onPickImage: () => this._pickBackgroundImage(),
-            }
-        );
+        return this.imageBg.pickBackground();
     }
 
-    /**
-     * Open the Image Picker in "path-only" mode so the user can pick an
-     * image to use as a slide background.  The chosen path is fed back into
-     * the Background Picker via `BackgroundPicker.setImageSelection()`.
-     */
     async _pickBackgroundImage() {
-        const deckDirHandle = await this._resolveDeckDirectoryHandle();
-        console.log('[BackgroundPicker] Deck directory handle:', deckDirHandle?.name, 'mode:', this.deckDirMode);
-        DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
-
-        ImagePicker.show(
-            (path) => {
-                // `path` is a relative path like "images/foo.png" (pathOnly mode).
-                console.log('[BackgroundPicker] Selected image path:', path);
-                BackgroundPicker.setImageSelection(path);
-            },
-            {
-                deckDirHandle,
-                deckDirMode: this.deckDirMode,
-                pathOnly: true,
-                onChangeFolder: async () => {
-                    await this.clearDeckDirectoryHandle();
-                    const next = await this._resolveDeckDirectoryHandle();
-                    if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
-                    return next ? { handle: next, mode: this.deckDirMode } : null;
-                },
-            }
-        );
+        return this.imageBg._pickBackgroundImage();
     }
 
     /**
      * Add a new slide with the selected layout
      */
     addSlideWithLayout(layoutName) {
-        if (this.deck.slides.length === 0) return;
-
-        const template = LayoutData.getTemplate(layoutName);
-        const insertIndex = this.currentSlideIndex + 1;
-
-        try {
-            // Parse the template to get slide data
-            const parser = new MarkdownParser();
-            const deckData = parser.parseDeckMarkdown(template);
-
-            if (!deckData.slides || deckData.slides.length === 0) {
-                // Fallback: create basic slide if parsing fails
-                const newSlide = {
-                    id: Date.now(),
-                    title: 'New Slide',
-                    notes: '',
-                    layout: layoutName,
-                    areas: { main: '<h2>New Slide</h2>\n\nAdd your content here' }
-                };
-                this.deck.slides.splice(insertIndex, 0, newSlide);
-                this.originalMarkdown.splice(insertIndex, 0, template);
-            } else {
-                // Use parsed slide from template
-                const newSlide = deckData.slides[0];
-                this.deck.slides.splice(insertIndex, 0, newSlide);
-                this.originalMarkdown.splice(insertIndex, 0, template);
-            }
-
-            // Update UI
-            if (this.elements.slideCountEl) {
-                this.elements.slideCountEl.textContent = String(this.deck.slides.length);
-            }
-
-            if (this.elements.slidesContainer) {
-                const newSlideEl = SlideRenderer.createSlideElement(
-                    this.deck,
-                    this.deck.slides[insertIndex],
-                    insertIndex,
-                    false
-                );
-
-                const allSlides = this.elements.slidesContainer.querySelectorAll('.slide');
-                if (allSlides[this.currentSlideIndex]) {
-                    allSlides[this.currentSlideIndex].after(newSlideEl);
-                } else {
-                    this.elements.slidesContainer.appendChild(newSlideEl);
-                }
-
-                // Enhance the new slide
-                ContentEnhancer.enhanceRenderedContent(newSlideEl).catch(err => {
-                    console.warn("Failed to enhance new slide:", err);
-                });
-            }
-
-            // Navigate to new slide and load into editor
-            this.controller.slideNavigator.goTo(insertIndex);
-
-            // Rebuild unsaved markdown map with adjusted indices
-            this._rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, template);
-
-            // Refresh thumbnails after adding slide
-            this.thumbnails.refresh();
-
-            Notification.success(`Added new slide with "${layoutName}" layout`);
-        } catch (error) {
-            console.error('Failed to create slide from template:', error);
-            Notification.error('Failed to create slide: ' + (error.message || 'Unknown error'));
-        }
+        return this.slideOps.addSlideWithLayout(layoutName);
     }
 }

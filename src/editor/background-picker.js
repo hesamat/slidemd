@@ -194,7 +194,13 @@ export class BackgroundPicker {
 
                 <div class="bg-picker-footer">
                     <button id="bgPickerClearBtn" class="bg-picker-clear-btn" type="button">Clear background</button>
-                    <button id="bgPickerApplyBtn" class="bg-picker-apply-btn" type="button" disabled>Apply</button>
+                    <div class="bg-picker-footer-right">
+                        <label class="bg-picker-theme-toggle" title="Switch to dark theme for better contrast with this background">
+                            <input id="bgPickerDarkTheme" type="checkbox" checked />
+                            <span class="bg-picker-theme-toggle__label">Dark theme</span>
+                        </label>
+                        <button id="bgPickerApplyBtn" class="bg-picker-apply-btn" type="button" disabled>Apply</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -211,6 +217,7 @@ export class BackgroundPicker {
         this.colorText = wrapper.querySelector('#bgPickerColorText');
         this.clearBtn = wrapper.querySelector('#bgPickerClearBtn');
         this.applyBtn = wrapper.querySelector('#bgPickerApplyBtn');
+        this.darkThemeCheckbox = wrapper.querySelector('#bgPickerDarkTheme');
         this.pickImageBtn = wrapper.querySelector('#bgPickerPickImageBtn');
         this.clearImageBtn = wrapper.querySelector('#bgPickerClearImageBtn');
         this.imageStatusEl = wrapper.querySelector('#bgPickerImageStatus');
@@ -319,15 +326,17 @@ export class BackgroundPicker {
      * Open the picker.  If `currentValue` is provided, it's used as the
      * initial selection.
      *
-     * @param {(value: string) => void} onApply - Called with the chosen CSS
-     *   value, or empty string if the user clicked Clear.
+     * @param {(value: string, theme: string) => void} onApply - Called with
+     *   the chosen CSS value and theme ('dark' or ''), or empty string if
+     *   the user clicked Clear.
      * @param {object} [options]
      * @param {string} [options.currentValue=''] - Initial CSS background.
+     * @param {string} [options.currentTheme=''] - Current theme ('dark' or '').
      * @param {() => void} [options.onPickImage] - Called when user clicks
      *   "Pick image…" in the Image tab.  The caller is expected to open the
      *   foreground Image Picker and then call `setImageSelection(path)`.
      */
-    static show(onApply, { currentValue = '', onPickImage = null } = {}) {
+    static show(onApply, { currentValue = '', currentTheme = '', onPickImage = null } = {}) {
         this.init();
         this.onApplyCallback = onApply;
         this.onPickImageCallback = onPickImage;
@@ -338,6 +347,11 @@ export class BackgroundPicker {
             this.colorInput.value = this.selectedValue.startsWith('#')
                 ? this.selectedValue
                 : '#0ea5e9';
+        }
+        // Seed dark theme checkbox: default ON when there's no existing
+        // background, or match the current theme when there is one.
+        if (this.darkThemeCheckbox) {
+            this.darkThemeCheckbox.checked = currentTheme !== 'light';
         }
         // Try to detect an existing image in the background value and seed
         // the image tab.
@@ -374,9 +388,10 @@ export class BackgroundPicker {
 
     static _confirm() {
         const value = this.selectedValue || '';
+        const theme = this.darkThemeCheckbox?.checked ? 'dark' : '';
         const cb = this.onApplyCallback;
         this.hide();
-        if (cb) cb(value);
+        if (cb) cb(value, theme);
     }
 
     // ─── Image tab ─────────────────────────────────────────────────────────────

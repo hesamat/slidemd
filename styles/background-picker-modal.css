@@ -236,6 +236,34 @@
     border-top: 1px solid var(--border-subtle);
 }
 
+.bg-picker-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.bg-picker-theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.bg-picker-theme-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.bg-picker-theme-toggle__label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-medium);
+    white-space: nowrap;
+}
+
 .bg-picker-clear-btn {
     background: none;
     border: none;
