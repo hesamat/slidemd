@@ -160,6 +160,31 @@ export class MarkdownEditor {
     }
 
     /**
+     * Replace a range of text in the editor and place the caret at the end of the inserted text.
+     * @param {number} from - Start position.
+     * @param {number} to - End position.
+     * @param {string} text - Replacement text.
+     */
+    replaceRange(from, to, text) {
+        if (!this.view) return;
+        const start = Math.max(0, Math.min(from, this.view.state.doc.length));
+        const end = Math.max(start, Math.min(to, this.view.state.doc.length));
+        const insert = String(text || '');
+        this.view.dispatch({
+            changes: { from: start, to: end, insert },
+            selection: { anchor: start + insert.length, head: start + insert.length }
+        });
+    }
+
+    /**
+     * Get the current primary selection range.
+     * @returns {{ from: number, to: number }}
+     */
+    getSelection() {
+        return this.view ? { ...this.view.state.selection.main } : { from: 0, to: 0 };
+    }
+
+    /**
      * Get the editor value
      * @returns {string} The current value
      */

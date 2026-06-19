@@ -28,6 +28,10 @@ const MIN_TRACK_PX = 80;
 export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) {
     if (!slideEl || !layoutInfo) return;
 
+    // The slide DOM can be reused in edit mode (e.g. navigating without rerender),
+    // so clear any previous injected handles before attaching fresh ones.
+    slideEl.querySelectorAll('.grid-resize-handle').forEach((el) => el.remove());
+
     const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || '1fr');
     const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || 'minmax(0, 1fr)');
     const scale = _getScale(stageEl);
@@ -140,6 +144,50 @@ function _getScale(stageEl) {
     return isFinite(val) && val > 0 ? val : 1;
 }
 
+function _getGridElement(slideEl) {
+    return slideEl.querySelector('.slide__grid') || slideEl.firstElementChild || slideEl;
+}
+
+function _parsePxList(value) {
+    return _parseTrackList(value).map(token => {
+        const match = token.raw.match(/^(-?[\d.]+)px$/i);
+        return match ? parseFloat(match[1]) : 0;
+    });
+}
+
+function _getRenderedTrackMetrics(slideEl, scale = 1) {
+    const grid = _getGridElement(slideEl);
+    const gridStyle = window.getComputedStyle(grid);
+    const slideRect = slideEl.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const normalizedScale = scale > 0 ? scale : 1;
+
+    return {
+        // DOMRect values are in viewport pixels (post-transform). Convert to
+        // slide design-space coordinates so absolute handle positions align.
+        leftOffset: (gridRect.left - slideRect.left) / normalizedScale,
+        topOffset: (gridRect.top - slideRect.top) / normalizedScale,
+        columns: _parsePxList(gridStyle.gridTemplateColumns),
+        rows: _parsePxList(gridStyle.gridTemplateRows),
+        columnGap: parseFloat(gridStyle.columnGap || gridStyle.gap || '0') || 0,
+        rowGap: parseFloat(gridStyle.rowGap || gridStyle.gap || '0') || 0,
+        grid,
+    };
+}
+
+function _getBoundaryPositions(sizes, gap) {
+    const positions = [0];
+    let cursor = 0;
+    for (let i = 0; i < sizes.length; i++) {
+        cursor += sizes[i];
+        positions.push(cursor);
+        if (i < sizes.length - 1) {
+            cursor += gap;
+        }
+    }
+    return positions;
+}
+
 /**
  * Collect the unique left-edges of all `.slide__area` elements (in design px),
  * sorted ascending.  These correspond to column-track boundaries.
@@ -185,35 +233,30 @@ function _collectRowBoundaries(slideEl, scale) {
 // ─── Column handles ───────────────────────────────────────────────────────────
 
 function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
-    const totalFr = colTracks.reduce((s, t) => s + (t.isFr ? t.frValue : 0), 0);
-    if (totalFr === 0) return; // No fr columns — nothing to resize
+    if (colTracks.length < 2) return;
 
-    const boundaries = _collectColumnBoundaries(slideEl, scale);
+    const metrics = _getRenderedTrackMetrics(slideEl, scale);
+    const boundaries = _getBoundaryPositions(metrics.columns, metrics.columnGap);
+    const totalGridHeight = boundaries.length ? (_getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0) : 0;
 
-    // Internal boundaries only (not 0 or full width)
-    const internal = boundaries.slice(1, -1);
-
-    // For each internal boundary, determine the column index it falls between
-    internal.forEach((xDesign, gapIdx) => {
-        const leftTrackIdx = gapIdx;       // track to the left of this gap
-        const rightTrackIdx = gapIdx + 1;  // track to the right
-
-        // Only inject a handle if BOTH adjacent tracks are fr-based
-        const leftTrack = colTracks[leftTrackIdx];
-        const rightTrack = colTracks[rightTrackIdx];
-        if (!leftTrack?.isFr || !rightTrack?.isFr) return;
+    for (let i = 0; i < colTracks.length - 1; i++) {
+        const xDesign = metrics.leftOffset + boundaries[i + 1];
+        const leftTrackIdx = i;
+        const rightTrackIdx = i + 1;
 
         const handle = document.createElement('div');
         handle.className = 'grid-resize-handle grid-resize-handle--col';
         handle.setAttribute('aria-label', 'Resize column');
         handle.style.left = `${xDesign}px`;
+        handle.style.top = `${metrics.topOffset}px`;
+        handle.style.height = `${totalGridHeight}px`;
         slideEl.appendChild(handle);
 
-        _attachColDragLogic(handle, slideEl, colTracks, leftTrackIdx, rightTrackIdx, scale, layoutInfo, onLayoutChange);
-    });
+        _attachColDragLogic(handle, slideEl, colTracks, leftTrackIdx, rightTrackIdx, scale, layoutInfo, onLayoutChange, metrics);
+    }
 }
 
-function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scale, layoutInfo, onLayoutChange) {
+function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scale, layoutInfo, onLayoutChange, metrics) {
     let startClientX = 0;
     let startLeftPx = 0;
     let startRightPx = 0;
@@ -224,20 +267,10 @@ function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scal
         const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
         const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
 
-        // Recompute fr values proportionally
-        const totalFr = colTracks.reduce((s, t) => s + (t.isFr ? t.frValue : 0), 0);
-
-        const newLeftFr = (newLeftPx / totalWidth) * totalFr;
-        const newRightFr = (newRightPx / totalWidth) * totalFr;
-
-        const newTracks = colTracks.map((t, i) => {
-            if (i === leftIdx) return `${newLeftFr.toFixed(4)}fr`;
-            if (i === rightIdx) return `${newRightFr.toFixed(4)}fr`;
-            return t.raw;
-        });
+        const newTracks = _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
         // Live visual update: set the column template directly on the slide grid
-        const slideGrid = slideEl.querySelector('.slide__grid') || slideEl.firstElementChild;
+        const slideGrid = _getGridElement(slideEl);
         if (slideGrid) slideGrid.style.gridTemplateColumns = newTracks.join(' ');
     };
 
@@ -251,13 +284,7 @@ function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scal
         const deltaDesign = (e.clientX - startClientX) / scale;
         const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
         const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
-        const totalFr = colTracks.reduce((s, t) => s + (t.isFr ? t.frValue : 0), 0);
-
-        const newTracks = colTracks.map((t, i) => {
-            if (i === leftIdx) return `${((newLeftPx / totalWidth) * totalFr).toFixed(4)}fr`;
-            if (i === rightIdx) return `${((newRightPx / totalWidth) * totalFr).toFixed(4)}fr`;
-            return t.raw;
-        });
+        const newTracks = _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
         onLayoutChange({ cols: newTracks.join(' '), rows: null });
     };
@@ -268,23 +295,10 @@ function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scal
 
         startClientX = e.clientX;
 
-        // Measure current rendered widths of the two tracks in design-px
-        const areas = slideEl.querySelectorAll('.slide__area');
-        const slideRect = slideEl.getBoundingClientRect();
-
-        // Group areas by column-index by examining their left-edge position
-        const colBoundaries = _collectColumnBoundaries(slideEl, scale);
-        totalWidth = DESIGN_SIZE.width - colBoundaries[0]; // should be ~1920
-
-        // Estimate each track's rendered width from boundaries
-        const trackWidths = [];
-        for (let i = 0; i < colBoundaries.length - 1; i++) {
-            trackWidths.push(colBoundaries[i + 1] - colBoundaries[i]);
-        }
-
+        const trackWidths = metrics.columns;
         startLeftPx = trackWidths[leftIdx] ?? (DESIGN_SIZE.width / colTracks.length);
         startRightPx = trackWidths[rightIdx] ?? (DESIGN_SIZE.width / colTracks.length);
-        totalWidth = colBoundaries[colBoundaries.length - 1] - colBoundaries[0];
+        totalWidth = startLeftPx + startRightPx;
 
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
@@ -299,38 +313,30 @@ function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scal
 // ─── Row handles ──────────────────────────────────────────────────────────────
 
 function _injectRowHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
-    // Count fr-based rows; auto/minmax rows are also allowed (we measure them at drag start)
-    // We only skip if there's only a single row track
     if (rowTracks.length < 2) return;
 
-    const boundaries = _collectRowBoundaries(slideEl, scale);
-    const internal = boundaries.slice(1, -1);
+    const metrics = _getRenderedTrackMetrics(slideEl, scale);
+    const boundaries = _getBoundaryPositions(metrics.rows, metrics.rowGap);
+    const totalGridWidth = (_getBoundaryPositions(metrics.columns, metrics.columnGap).at(-1) || 0);
 
-    internal.forEach((yDesign, gapIdx) => {
-        const topTrackIdx = gapIdx;
-        const bottomTrackIdx = gapIdx + 1;
-
-        // Both adjacent tracks need to be resizable (fr or minmax-fr or auto/minmax are all ok;
-        // only skip fixed-px tracks where the user set an explicit pixel height)
-        const topTrack = rowTracks[topTrackIdx];
-        const bottomTrack = rowTracks[bottomTrackIdx];
-        if (!topTrack || !bottomTrack) return;
-
-        // Skip if either track is a hard pixel value (e.g. "200px")
-        const isHardPx = t => /^\d+px$/.test(t?.raw);
-        if (isHardPx(topTrack) && isHardPx(bottomTrack)) return;
+    for (let i = 0; i < rowTracks.length - 1; i++) {
+        const yDesign = metrics.topOffset + boundaries[i + 1];
+        const topTrackIdx = i;
+        const bottomTrackIdx = i + 1;
 
         const handle = document.createElement('div');
         handle.className = 'grid-resize-handle grid-resize-handle--row';
         handle.setAttribute('aria-label', 'Resize row');
         handle.style.top = `${yDesign}px`;
+        handle.style.left = `${metrics.leftOffset}px`;
+        handle.style.width = `${totalGridWidth}px`;
         slideEl.appendChild(handle);
 
-        _attachRowDragLogic(handle, slideEl, rowTracks, topTrackIdx, bottomTrackIdx, scale, layoutInfo, onLayoutChange);
-    });
+        _attachRowDragLogic(handle, slideEl, rowTracks, topTrackIdx, bottomTrackIdx, scale, layoutInfo, onLayoutChange, metrics);
+    }
 }
 
-function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scale, layoutInfo, onLayoutChange) {
+function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scale, layoutInfo, onLayoutChange, metrics) {
     let startClientY = 0;
     let startTopPx = 0;
     let startBottomPx = 0;
@@ -341,18 +347,9 @@ function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scal
         const newTopPx = Math.max(MIN_TRACK_PX, startTopPx + deltaDesign);
         const newBottomPx = Math.max(MIN_TRACK_PX, startBottomPx - deltaDesign);
 
-        // Convert to fr relative to total slide height
-        const totalFrRows = _totalFrRows(rowTracks);
-        const newTopFr = (newTopPx / totalHeight) * totalFrRows;
-        const newBottomFr = (newBottomPx / totalHeight) * totalFrRows;
+        const newTracks = _buildResizedTrackList(rowTracks, topIdx, bottomIdx, newTopPx, newBottomPx, totalHeight);
 
-        const newTracks = rowTracks.map((t, i) => {
-            if (i === topIdx) return `${newTopFr.toFixed(4)}fr`;
-            if (i === bottomIdx) return `${newBottomFr.toFixed(4)}fr`;
-            return t.raw;
-        });
-
-        const slideGrid = slideEl.querySelector('.slide__grid') || slideEl.firstElementChild;
+        const slideGrid = _getGridElement(slideEl);
         if (slideGrid) slideGrid.style.gridTemplateRows = newTracks.join(' ');
     };
 
@@ -366,13 +363,7 @@ function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scal
         const deltaDesign = (e.clientY - startClientY) / scale;
         const newTopPx = Math.max(MIN_TRACK_PX, startTopPx + deltaDesign);
         const newBottomPx = Math.max(MIN_TRACK_PX, startBottomPx - deltaDesign);
-        const totalFrRows = _totalFrRows(rowTracks);
-
-        const newTracks = rowTracks.map((t, i) => {
-            if (i === topIdx) return `${((newTopPx / totalHeight) * totalFrRows).toFixed(4)}fr`;
-            if (i === bottomIdx) return `${((newBottomPx / totalHeight) * totalFrRows).toFixed(4)}fr`;
-            return t.raw;
-        });
+        const newTracks = _buildResizedTrackList(rowTracks, topIdx, bottomIdx, newTopPx, newBottomPx, totalHeight);
 
         onLayoutChange({ cols: null, rows: newTracks.join(' ') });
     };
@@ -383,16 +374,10 @@ function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scal
 
         startClientY = e.clientY;
 
-        const rowBoundaries = _collectRowBoundaries(slideEl, scale);
-        totalHeight = rowBoundaries[rowBoundaries.length - 1] - rowBoundaries[0];
-
-        const trackHeights = [];
-        for (let i = 0; i < rowBoundaries.length - 1; i++) {
-            trackHeights.push(rowBoundaries[i + 1] - rowBoundaries[i]);
-        }
-
+        const trackHeights = metrics.rows;
         startTopPx = trackHeights[topIdx] ?? (DESIGN_SIZE.height / rowTracks.length);
         startBottomPx = trackHeights[bottomIdx] ?? (DESIGN_SIZE.height / rowTracks.length);
+        totalHeight = startTopPx + startBottomPx;
 
         document.body.style.cursor = 'row-resize';
         document.body.style.userSelect = 'none';
@@ -404,12 +389,26 @@ function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scal
     });
 }
 
-/** Sum of all fr values in a row track list; defaults to 1 if none. */
-function _totalFrRows(rowTracks) {
-    const sum = rowTracks.reduce((s, t) => {
-        if (t.isFr) return s + t.frValue;
-        // minmax(0, 1fr) style — frValue is already set by _parseTrackList
-        return s;
-    }, 0);
-    return sum > 0 ? sum : 1;
+function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, totalPx) {
+    const pairTotalPx = Math.max(1, totalPx || (firstPx + secondPx));
+    const firstTrack = tracks[firstIdx];
+    const secondTrack = tracks[secondIdx];
+
+    // Keep fr semantics only when both resized tracks are fr-based.
+    if (firstTrack?.isFr && secondTrack?.isFr) {
+        const pairFrBase = (firstTrack.frValue + secondTrack.frValue) || 1;
+        const firstFr = (firstPx / pairTotalPx) * pairFrBase;
+        const secondFr = (secondPx / pairTotalPx) * pairFrBase;
+        return tracks.map((track, index) => {
+            if (index === firstIdx) return `${firstFr.toFixed(4)}fr`;
+            if (index === secondIdx) return `${secondFr.toFixed(4)}fr`;
+            return track.raw;
+        });
+    }
+
+    return tracks.map((track, index) => {
+        if (index === firstIdx) return `${Math.round(firstPx)}px`;
+        if (index === secondIdx) return `${Math.round(secondPx)}px`;
+        return track.raw;
+    });
 }

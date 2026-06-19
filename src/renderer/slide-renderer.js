@@ -47,6 +47,7 @@ export class SlideRenderer {
         const layout = LayoutParser.parse(resolvedLayout, {
             fallbackAreas: areaNamesFromContent.length ? areaNamesFromContent : ["main"],
         });
+        const layoutAreaNames = new Set(layout.orderedAreas);
 
         grid.style.gridTemplateAreas = layout.gridTemplateAreas;
         grid.style.gridTemplateColumns = layout.gridTemplateColumns;
@@ -58,6 +59,12 @@ export class SlideRenderer {
         }
 
         names.forEach((name) => {
+            const isAliasTitle = name === "title" && !layoutAreaNames.has("title");
+            const isAliasHeader = name === "header" && layoutAreaNames.has("title");
+            if (isAliasTitle || isAliasHeader) {
+                return;
+            }
+
             const html = areas[name] || "";
             const area = document.createElement("div");
             area.className = `slide__area slide__area--${name}`;

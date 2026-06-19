@@ -8,10 +8,13 @@ import { AssetLoader } from "../core/asset-loader.js";
 import { Notification } from "../renderer/notification.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { LayoutPicker } from "./layout-picker.js";
+import { ImagePicker } from "./image-picker.js";
 import { LayoutData } from "../data/layout-data.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
+import { DirectoryHandleStore } from "../core/directory-handle-store.js";
+import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
 import { attachGridResizer, buildLayoutSpec, updateLayoutDirective } from "./grid-resizer.js";
 
@@ -27,6 +30,9 @@ export class EditController {
 
         this.markdownEditor = null; // Will be initialized when edit mode is enabled
 
+        // Cached directory handle for saving images next to the deck file (FS API)
+        this.deckDirectoryHandle = null;
+
         // Cache original markdown from localStorage
         this.originalMarkdown = this.cacheOriginalMarkdown();
         // Store unsaved changes in memory (per-slide)
@@ -34,6 +40,7 @@ export class EditController {
         this.lastDiagnostics = new Map();
         this.editorWarningsEnabled = true;
         this.pendingSlideWarning = '';
+        this.placeholderDialogEl = null;
 
         // Initialize slide thumbnails
         this.thumbnails = new SlideThumbnails(deck, controller, elements);
@@ -165,9 +172,8 @@ export class EditController {
             this.elements.duplicateSlideBtn.addEventListener('click', () => this.duplicateSlide());
         }
 
-        if (this.elements.toggleMermaidHelperBtn && this.elements.mermaidHelperPanel) {
-            this.elements.toggleMermaidHelperBtn.addEventListener('click', () => this.toggleMermaidHelperPanel());
-        }
+        // Insert dropdown (Layout / Image / Mermaid)
+        this.initInsertDropdown();
 
         if (this.elements.mermaidHelperPanel) {
             const templateButtons = this.elements.mermaidHelperPanel.querySelectorAll('[data-mermaid-template]');
@@ -181,6 +187,9 @@ export class EditController {
 
         // Initialize layout picker modal
         LayoutPicker.initModal();
+
+        // Initialize image picker modal
+        ImagePicker.init();
 
         // Render initial thumbnails
         this.thumbnails.render();
@@ -216,6 +225,8 @@ export class EditController {
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
             this.hideMermaidHelperPanel();
+            this.placeholderDialogEl?.remove();
+            this.placeholderDialogEl = null;
 
             // Restore presenter panel visibility based on editor role
             if (this.controller.roleManager.isEditorWindow) {
@@ -233,20 +244,52 @@ export class EditController {
         setTimeout(() => StageScaler.applyStageScale(this.elements), 50);
     }
 
+    initInsertDropdown() {
+        const btn = this.elements.insertDropdownBtn;
+        const content = this.elements.insertDropdownContent;
+        if (!btn || !content) return;
+
+        // Toggle dropdown on button click
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = !content.classList.contains('webdeck-hidden');
+            content.classList.toggle('webdeck-hidden');
+            btn.setAttribute('aria-expanded', String(!isOpen));
+        });
+
+        // Dropdown item actions
+        content.querySelectorAll('[data-insert-action]').forEach((item) => {
+            item.addEventListener('click', () => {
+                content.classList.add('webdeck-hidden');
+                btn.setAttribute('aria-expanded', 'false');
+                const action = item.dataset.insertAction;
+                if (action === 'layout') {
+                    this.showLayoutPickerForCurrentSlide();
+                } else if (action === 'image') {
+                    this.pickAndInsertImage();
+                } else if (action === 'mermaid') {
+                    this.toggleMermaidHelperPanel();
+                }
+            });
+        });
+
+        // Close on outside click
+        document.addEventListener('click', () => {
+            content.classList.add('webdeck-hidden');
+            btn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
     toggleMermaidHelperPanel() {
-        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        if (!this.elements.mermaidHelperPanel) return;
         const isHidden = this.elements.mermaidHelperPanel.classList.toggle('webdeck-hidden');
         this.elements.mermaidHelperPanel.setAttribute('aria-hidden', String(isHidden));
-        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', String(!isHidden));
-        this.elements.toggleMermaidHelperBtn.classList.toggle('active', !isHidden);
     }
 
     hideMermaidHelperPanel() {
-        if (!this.elements.mermaidHelperPanel || !this.elements.toggleMermaidHelperBtn) return;
+        if (!this.elements.mermaidHelperPanel) return;
         this.elements.mermaidHelperPanel.classList.add('webdeck-hidden');
         this.elements.mermaidHelperPanel.setAttribute('aria-hidden', 'true');
-        this.elements.toggleMermaidHelperBtn.setAttribute('aria-expanded', 'false');
-        this.elements.toggleMermaidHelperBtn.classList.remove('active');
     }
 
     insertMermaidTemplate(templateName) {
@@ -405,9 +448,6 @@ export class EditController {
         if (slideData?.layout) {
             slideEl.dataset.layoutName = slideData.layout;
         }
-
-        // Attach image drop zones to each area
-        this.initImageDropZones(slideEl);
     }
 
     updateAreaOverflow(slideEl) {
@@ -436,7 +476,28 @@ export class EditController {
         if (!slideEl || !slideData) return;
 
         this.applyAreaGuides(slideEl, slideData);
-        requestAnimationFrame(() => this.updateAreaOverflow(slideEl));
+        requestAnimationFrame(() => {
+            this.updateAreaOverflow(slideEl);
+            this.attachGridResizerForSlide(slideEl, slideData);
+        });
+    }
+
+    attachGridResizerForSlide(slideEl, slideData) {
+        if (!slideEl || !slideData) return;
+
+        const layoutSpec = (slideData.layout || '').trim();
+        const resolvedLayout = LayoutParser.resolvePreset(layoutSpec);
+        const areaNames = Object.keys(slideData.areas || {});
+        const layoutInfo = LayoutParser.parse(resolvedLayout, {
+            fallbackAreas: areaNames.length ? areaNames : ["main"],
+        });
+
+        attachGridResizer(
+            slideEl,
+            layoutInfo,
+            this.elements.deckStage,
+            (change) => this._onGridResize(change, layoutInfo)
+        );
     }
 
     navigateToArea(areaName) {
@@ -559,22 +620,26 @@ export class EditController {
                 this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
+                // Rewrite `images/foo.png` srcs to blob URLs the browser can
+                // render in the preview (since the deck file lives outside
+                // the project root, the dev server can't serve them).
+                DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch((err) => {
+                    console.warn('Image rewrite failed:', err);
+                });
+
                 const attachPreviewOverlays = () => {
                     // Attach overlays after paint so layout geometry is measurable.
                     requestAnimationFrame(() => {
                         this.updateAreaOverflow(newSlideEl);
-                        attachGridResizer(
-                            newSlideEl,
-                            layoutInfo,
-                            this.elements.deckStage,
-                            (change) => this._onGridResize(change, layoutInfo)
-                        );
+                        this.attachGridResizerForSlide(newSlideEl, slideData);
                     });
                 };
 
                 // Re-enhance the new slide content (Mermaid, Prism, etc.)
                 ContentEnhancer.enhanceRenderedContent(newSlideEl).then(() => {
                     this.applyAreaGuides(newSlideEl, slideData);
+                    // Re-rewrite after enhancement (which may inject more imgs).
+                    DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => { });
                 }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
                 }).finally(() => {
@@ -606,240 +671,306 @@ export class EditController {
         this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
     }
 
-    // ─── Image Drag-and-Drop ────────────────────────────────────────────────────
+    _getAreaAtCursor(markdown, position) {
+        const text = String(markdown || '').replace(/\r\n?/g, '\n');
+        const lines = text.split('\n');
+        const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
 
-    /**
-     * Attach drag-and-drop image listeners to every `.slide__area` in the slide.
-     * Safe to call after every updatePreview() because it operates on the fresh DOM.
-     *
-     * @param {HTMLElement} slideEl
-     */
-    initImageDropZones(slideEl) {
-        if (!slideEl) return;
-        slideEl.querySelectorAll('.slide__area').forEach(areaEl => {
-            areaEl.addEventListener('dragenter', (e) => {
-                if (!this._hasDragFiles(e)) return;
-                e.preventDefault();
-                e.stopPropagation();
-                areaEl.classList.add('drag-over');
-            });
+        let currentArea = 'main';
+        let currentOffset = 0;
 
-            areaEl.addEventListener('dragover', (e) => {
-                if (!this._hasDragFiles(e)) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-            });
-
-            areaEl.addEventListener('dragleave', (e) => {
-                // Only remove the class when the pointer truly leaves the area
-                if (areaEl.contains(e.relatedTarget)) return;
-                areaEl.classList.remove('drag-over');
-            });
-
-            areaEl.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                areaEl.classList.remove('drag-over');
-                this._handleImageDrop(e, areaEl);
-            });
-        });
-    }
-
-    /** Returns true when the drag event carries at least one File. */
-    _hasDragFiles(e) {
-        return e.dataTransfer?.types?.includes('Files') ?? false;
-    }
-
-    /**
-     * Filter dropped files to images and kick off the insert dialog for each.
-     *
-     * @param {DragEvent}   e
-     * @param {HTMLElement} areaEl - The `.slide__area` that received the drop.
-     */
-    _handleImageDrop(e, areaEl) {
-        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-        if (!files.length) {
-            Notification.warning('Only image files can be dropped here');
-            return;
+        for (const line of lines) {
+            const match = line.match(markerRegex);
+            if (match) {
+                if (position >= currentOffset) {
+                    currentArea = match[1].toLowerCase();
+                }
+            }
+            currentOffset += line.length + 1;
         }
-
-        // Process each image sequentially (normally just one)
-        files.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                this._showImageInsertDialog(file, areaEl.dataset.areaName || 'main', reader.result);
-            };
-            reader.readAsDataURL(file);
-        });
+        return currentArea;
     }
 
-    /**
-     * Show a small dialog letting the user choose between embedding (base64) or
-     * providing a relative path.
-     *
-     * @param {File}   file     - The dropped image file.
-     * @param {string} areaName - Target area name (e.g. 'main', 'media').
-     * @param {string} dataURL  - Base64 data URI produced by FileReader.
-     */
-    _showImageInsertDialog(file, areaName, dataURL) {
-        // Remove any existing dialog
-        document.querySelector('.image-drop-dialog')?.remove();
+    buildPlaceholderSnippet(config) {
+        const label = String(config?.label || 'Image').replace(/"/g, '&quot;');
+        const width = config?.widthValue !== undefined ? `${config.widthValue}${config.widthUnit}` : '80%';
+        const height = config?.heightValue !== undefined ? `${config.heightValue}${config.heightUnit}` : '220px';
 
-        const altText = file.name.replace(/\.[^.]+$/, '');
-        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-        const isLarge = file.size > 512 * 1024;
-
-        const dialog = document.createElement('div');
-        dialog.className = 'image-drop-dialog';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        dialog.setAttribute('aria-label', 'Insert image');
-
-        dialog.innerHTML = `
-            <div class="image-drop-dialog__overlay"></div>
-            <div class="image-drop-dialog__card">
-                <div class="image-drop-dialog__header">
-                    <span class="image-drop-dialog__title">Insert Image</span>
-                    <button class="image-drop-dialog__close" aria-label="Cancel" type="button">✕</button>
-                </div>
-                <div class="image-drop-dialog__body">
-                    <div class="image-drop-dialog__preview">
-                        <img src="${dataURL}" alt="${altText}" />
-                    </div>
-                    ${isLarge ? `<p class="image-drop-dialog__warning">⚠ Large image (${sizeMB} MB) — consider using a file path.</p>` : ''}
-                    <div class="image-drop-dialog__options">
-                        <label class="image-drop-dialog__option">
-                            <input type="radio" name="img-src-type" value="path" checked />
-                            Relative path
-                        </label>
-                        <input type="text" class="image-drop-dialog__path-input"
-                               value="./images/${file.name}"
-                               placeholder="./images/filename.png"
-                               aria-label="Relative image path" />
-                        <label class="image-drop-dialog__option">
-                            <input type="radio" name="img-src-type" value="base64" />
-                            Embed as base64 ${isLarge ? `(${sizeMB} MB)` : ''}
-                        </label>
-                    </div>
-                </div>
-                <div class="image-drop-dialog__footer">
-                    <button class="image-drop-dialog__btn image-drop-dialog__btn--cancel" type="button">Cancel</button>
-                    <button class="image-drop-dialog__btn image-drop-dialog__btn--insert" type="button">Insert</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(dialog);
-
-        const pathInput = dialog.querySelector('.image-drop-dialog__path-input');
-        const radios = dialog.querySelectorAll('input[name="img-src-type"]');
-
-        // Focus path input by default
-        setTimeout(() => pathInput?.focus(), 50);
-
-        // Enable/disable path input based on radio selection
-        radios.forEach(radio => {
-            radio.addEventListener('change', () => {
-                pathInput.disabled = radio.value === 'base64';
-                if (radio.value === 'path') pathInput.focus();
-            });
-        });
-
-        const dismiss = () => dialog.remove();
-
-        const confirm = () => {
-            const useBase64 = dialog.querySelector('input[name="img-src-type"]:checked')?.value === 'base64';
-            const src = useBase64 ? dataURL : (pathInput.value.trim() || `./images/${file.name}`);
-            dismiss();
-            this._insertImageReference(areaName, altText, src);
-        };
-
-        dialog.querySelector('.image-drop-dialog__close').addEventListener('click', dismiss);
-        dialog.querySelector('.image-drop-dialog__btn--cancel').addEventListener('click', dismiss);
-        dialog.querySelector('.image-drop-dialog__btn--insert').addEventListener('click', confirm);
-        dialog.querySelector('.image-drop-dialog__overlay').addEventListener('click', dismiss);
-
-        // Keyboard: Enter to confirm, Escape to dismiss
-        dialog.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.stopPropagation(); dismiss(); }
-            if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); confirm(); }
-        });
+        return [
+            ``,
+            `<img src="images/placeholder.svg" alt="${label}" style="width: ${width}; height: ${height}; display: block; margin: 10px auto; border-radius: 8px;" />`,
+            ``
+        ].join('\n');
     }
 
-    /**
-     * Insert a Markdown reference-style image into the active area and append
-     * the reference definition at the end of the slide markdown.
-     *
-     * @param {string} areaName - Target area in the editor.
-     * @param {string} altText  - Alt attribute / description.
-     * @param {string} src      - URL or base64 data URI.
-     */
-    _insertImageReference(areaName, altText, src) {
+    async pickAndInsertImage() {
         if (!this.markdownEditor) return;
 
-        const refId = `img-${Date.now()}`;
+        // Resolve the deck directory so the picker reads & writes images
+        // next to the user's .md file (not the project images/ folder).
+        // This is cached + persisted after the first call so it only prompts once.
+        const deckDirHandle = await this._resolveDeckDirectoryHandle();
 
-        // Reference definitions must live in the same parsed area block because each
-        // @area is rendered independently.
-        const inlineRef = `![${altText}][${refId}]`;
-        const refDef = `[${refId}]: ${src}`;
-        const current = this.markdownEditor.getValue();
-        const updated = this._appendImageRefToArea(current, areaName, inlineRef, refDef);
+        // Tell the preview resolver where the deck folder lives, so images
+        // referenced as `images/foo.png` in the slide preview render via
+        // blob URLs the browser can load.
+        DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
 
-        this.markdownEditor.setValue(updated, { suppressOnChange: false });
+        // Open the image picker modal — three tabs: existing images,
+        // upload new file, or paste a URL/local path.
+        ImagePicker.show(
+            (snippet) => {
+                const current = this.markdownEditor.getValue();
+                const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
+                // Always wrap the snippet with blank lines so it stands
+                // alone as a block — required for markdown to render a
+                // raw <img> tag as a block element rather than inline text.
+                // We do this with exactly "\n\n<snippet>\n\n" and let the
+                // surrounding text's existing newlines decide whether to
+                // collapse the boundary (the markdown parser treats multiple
+                // blank lines as one).
+                const isAtStart = selection.from === 0;
+                const isAtEnd = selection.from >= current.length;
+                const prevChar = isAtStart ? '\n' : current[selection.from - 1];
+                const nextChar = isAtEnd ? '\n' : current[selection.from];
+
+                // Add at minimum one "\n" before; if the previous char isn't
+                // already a newline, prepend an extra one for a blank line.
+                const before = prevChar === '\n' ? '' : '\n\n';
+                // Always append "\n\n" after — ensures a blank line follows.
+                // If we're at end-of-doc, no need to add trailing newlines.
+                const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
+
+                // Avoid leading blank line at the very start of the file.
+                const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
+
+                this.markdownEditor.replaceRange(
+                    selection.from,
+                    selection.from,
+                    `${leadTrim}${snippet}${after}`
+                );
+                this.markdownEditor.focus();
+            },
+            {
+                deckDirHandle,
+                deckDirMode: this.deckDirMode,
+                onChangeFolder: async () => {
+                    await this.clearDeckDirectoryHandle();
+                    const next = await this._resolveDeckDirectoryHandle();
+                    if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
+                    return next ? { handle: next, mode: this.deckDirMode } : null;
+                },
+            }
+        );
     }
 
     /**
-     * Append an image reference and its definition at the end of the target area
-     * block so markdown-it resolves the reference correctly.
+     * Resolve the directory where images should be saved — the folder
+     * containing the deck .md file.  The handle is persisted in IndexedDB so
+     * the user only has to grant it once.
+     *
+     * @returns {Promise<FileSystemDirectoryHandle|null>}
      */
-    _appendImageRefToArea(markdown, areaName, inlineRef, refDef) {
+    async _resolveDeckDirectoryHandle() {
+        if (this.deckDirectoryHandle) return this.deckDirectoryHandle;
+        if (!window.showDirectoryPicker) return null;
+
+        // 1. Try the previously persisted handle (the user only grants once).
+        const { handle: stored, mode } = await DirectoryHandleStore.load();
+        if (stored) {
+            const perm = await stored.queryPermission({ mode: 'readwrite' });
+            if (perm === 'granted' || (await stored.requestPermission({ mode: 'readwrite' })) === 'granted') {
+                this.deckDirectoryHandle = stored;
+                this._deckDirMode = mode;
+                return stored;
+            }
+        }
+
+        // 2. Prompt the user to pick a folder.  Prefer starting from the
+        //    deck file's directory when we have its file handle.
+        let startInHint = 'documents';
+        try {
+            const fileName = localStorage.getItem('webdeck_local_file_name');
+            if (fileName) {
+                const registry = window.__WEBDECK_FILE_HANDLE_REGISTRY__;
+                const fileHandle = registry?.get(fileName);
+                if (fileHandle) startInHint = fileHandle;
+            }
+        } catch (_) { /* ignore */ }
+
+        try {
+            const picked = await window.showDirectoryPicker({
+                id: 'deck-images',
+                mode: 'readwrite',
+                startIn: startInHint,
+            });
+
+            // Detect mode: does `picked` already contain image files (it's
+            // the images folder) or does it contain an `images/` subdirectory
+            // (it's the parent)?  Default to "parent".
+            const detectedMode = await this._detectDeckDirMode(picked);
+            await DirectoryHandleStore.save(picked, detectedMode);
+            this.deckDirectoryHandle = picked;
+            this._deckDirMode = detectedMode;
+            return picked;
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn('Could not open deck directory:', err);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Inspect a picked directory to decide whether it's the images folder
+     * itself or the deck's parent directory.
+     *
+     *  - Contains an `images` subdirectory          → "parent"
+     *  - Contains image files at top level          → "images"
+     *  - Otherwise (empty / no matches)             → "parent" (we'll create images/)
+     *
+     * @param {FileSystemDirectoryHandle} dir
+     * @returns {Promise<'parent'|'images'>}
+     */
+    async _detectDeckDirMode(dir) {
+        const IMAGE_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
+        try {
+            for await (const [name, handle] of dir.entries()) {
+                if (handle.kind === 'directory' && name === 'images') return 'parent';
+                if (handle.kind === 'file' && IMAGE_RE.test(name)) return 'images';
+            }
+        } catch (_) { /* ignore */ }
+        return 'parent';
+    }
+
+    /** Current mode of `_deckDirectoryHandle` ('parent' | 'images' | null). */
+    get deckDirMode() {
+        return this._deckDirMode || 'parent';
+    }
+
+    /**
+     * Reset the persisted directory handle — used by the picker's "Change folder" button.
+     */
+    async clearDeckDirectoryHandle() {
+        this.deckDirectoryHandle = null;
+        this._deckDirMode = null;
+        await DirectoryHandleStore.clear();
+    }
+
+    /**
+     * Upload an image next to the deck file and return a relative path
+     * string for the markdown.
+     *
+     * The image is always saved via the Vite dev server upload endpoint
+     * (into the project's `images/` folder) so the path resolves over
+     * HTTP during preview.  If the browser supports the File System
+     * Access API, we also write a copy next to the deck file itself,
+     * keeping the filesystem folder self-contained for build/export.
+     *
+     * @param {File} file
+     * @returns {Promise<string>} Relative path usable in markdown (e.g. `images/abc.png`)
+     */
+    async uploadImage(file) {
+        // ── Always save via the Vite dev server so images/ is browsable ──
+        let serverPath = null;
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const response = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                serverPath = result.path; // e.g. "images/1781852391929-e74de50d.png"
+            }
+        } catch (_) { /* server unavailable */ }
+
+        const relativePath = serverPath || `images/${Date.now()}-${Math.random().toString(36).slice(2, 10)}${(file.name.match(/\.[^.]+$/)?.[0] || '.png')}`;
+
+        // ── Also save next to the deck file via FS Access API ──
+        try {
+            const dirHandle = await this._resolveDeckDirectoryHandle();
+            if (dirHandle) {
+                const imagesDir = await dirHandle.getDirectoryHandle('images', { create: true });
+                const fileName = relativePath.split('/').pop();
+                const fh = await imagesDir.getFileHandle(fileName, { create: true });
+                const writable = await fh.createWritable();
+                await writable.write(file);
+                await writable.close();
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn('Could not save image next to deck file:', err);
+            }
+        }
+
+        return relativePath;
+    }
+
+    _resolveAreaInsertPositionByRatio(markdown, areaName, ratioY = 1) {
+        const text = String(markdown || '').replace(/\r\n?/g, '\n');
+        const range = this._getAreaContentRange(text, areaName);
+        const segment = text.slice(range.from, range.to);
+        if (!segment.length) return range.from;
+
+        const lines = segment.split('\n');
+        const lineIndex = Math.max(0, Math.min(lines.length - 1, Math.floor((Number(ratioY) || 0) * lines.length)));
+
+        let offset = 0;
+        for (let i = 0; i < lineIndex; i++) {
+            offset += lines[i].length + 1;
+        }
+        return Math.min(range.to, range.from + offset);
+    }
+
+    /**
+     * Return the character range for the content inside a named @area block.
+     * The range excludes the @area marker line itself and ends at the next area
+     * marker or the end of the document.
+     */
+    _getAreaContentRange(markdown, areaName) {
         const text = String(markdown || '').replace(/\r\n?/g, '\n');
         const lines = text.split('\n');
         const target = String(areaName || 'main').trim().toLowerCase();
 
         const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
         let areaMarkerIdx = -1;
-        const markerIndices = [];
+        let nextMarkerIdx = lines.length;
 
         for (let i = 0; i < lines.length; i++) {
             const match = lines[i].match(markerRegex);
             if (!match) continue;
-            markerIndices.push(i);
             if (match[1].toLowerCase() === target) {
                 areaMarkerIdx = i;
+            } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
+                nextMarkerIdx = i;
+                break;
             }
         }
 
         // Create the area marker when it does not exist yet.
         if (areaMarkerIdx < 0) {
-            const padded = text.trimEnd();
-            const prefix = padded ? `${padded}\n\n` : '';
-            return `${prefix}@${target}\n\n${inlineRef}\n\n${refDef}\n`;
+            return {
+                from: text.length,
+                to: text.length,
+            };
         }
 
-        const markerPos = markerIndices.indexOf(areaMarkerIdx);
-        const areaStart = areaMarkerIdx + 1;
-        const areaEnd = markerPos >= 0 && markerPos < markerIndices.length - 1
-            ? markerIndices[markerPos + 1]
-            : lines.length;
+        const lineToChar = (lineIndex) => {
+            let pos = 0;
+            for (let i = 0; i < lineIndex; i++) {
+                pos += lines[i].length + 1;
+            }
+            return pos;
+        };
 
-        const before = lines.slice(0, areaStart);
-        const areaLines = lines.slice(areaStart, areaEnd);
-        const after = lines.slice(areaEnd);
-
-        // Keep existing content, then append the image reference and definition.
-        while (areaLines.length && !areaLines[areaLines.length - 1].trim()) {
-            areaLines.pop();
-        }
-
-        if (areaLines.length) areaLines.push('');
-        areaLines.push(inlineRef);
-        areaLines.push('');
-        areaLines.push(refDef);
-        areaLines.push('');
-
-        return [...before, ...areaLines, ...after].join('\n');
+        return {
+            from: lineToChar(areaMarkerIdx + 1),
+            to: lineToChar(nextMarkerIdx),
+        };
     }
 
     // ─── Save button ────────────────────────────────────────────────────────────
@@ -1262,6 +1393,104 @@ export class EditController {
      */
     showLayoutPicker() {
         LayoutPicker.show((layoutName) => this.addSlideWithLayout(layoutName));
+    }
+
+    showLayoutPickerForCurrentSlide() {
+        LayoutPicker.show((layoutName) => this.applyLayoutToCurrentSlide(layoutName));
+    }
+
+    async applyLayoutToCurrentSlide(layoutName) {
+        if (!this.markdownEditor) return;
+
+        const markdown = this.markdownEditor.getValue();
+        const warning = this.getLayoutCompatibilityWarning(markdown, layoutName);
+        if (warning) {
+            const confirmed = await Notification.showModal({
+                title: 'Layout may break this slide',
+                message: warning,
+                buttons: [
+                    { label: 'Cancel', isPrimary: false, resolvesTo: false },
+                    { label: 'Apply anyway', isPrimary: true, resolvesTo: true },
+                ],
+                focusPrimary: true,
+                closeResolvesTo: false,
+            });
+
+            if (!confirmed) return;
+        }
+
+        let updatedMarkdown = updateLayoutDirective(markdown, layoutName);
+
+        // Auto-add missing required areas (e.g. @secondary for three-column)
+        const parser = new MarkdownParser();
+        const currentAreas = parser.parseAreas(updatedMarkdown);
+        const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
+            fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
+        });
+        const requiredAreas = resolvedLayout.orderedAreas || [];
+
+        let appendedContent = '';
+        const areaPlaceholders = {
+            secondary: '\n@secondary\n\n### Column Three\n\nContent for third column\n',
+            media: '\n@media\n\n### Column Two\n\nContent for second column\n',
+            sidebar: '\n@sidebar\n\n### Sidebar\n\nSidebar content\n',
+            main: '\n@main\n\n### Main Content\n\nContent here\n'
+        };
+
+        for (const area of requiredAreas) {
+            // Skip title/header checks as they are symmetric
+            if (area === 'header' || area === 'title' || area === 'footer') continue;
+
+            if (!currentAreas[area] && areaPlaceholders[area]) {
+                appendedContent += areaPlaceholders[area];
+            }
+        }
+
+        if (appendedContent) {
+            updatedMarkdown = updatedMarkdown.trim() + '\n' + appendedContent;
+        }
+
+        this.markdownEditor.setValue(updatedMarkdown, { suppressOnChange: false });
+        Notification.success(`Layout changed to "${layoutName}"`);
+    }
+
+    getLayoutCompatibilityWarning(markdown, layoutName) {
+        const currentAreas = this._normalizeAreasForLayout(markdown, layoutName);
+        const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
+            fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
+        });
+        const allowedAreas = new Set(resolvedLayout.orderedAreas);
+        const unsupportedAreas = Object.entries(currentAreas)
+            .filter(([areaName, content]) => content && !allowedAreas.has(areaName))
+            .map(([areaName]) => `@${areaName}`);
+
+        if (!unsupportedAreas.length) return '';
+
+        const renderedList = unsupportedAreas.join(', ');
+        return `This layout does not include ${renderedList}. Their content may be moved, hidden, or rendered as extra blocks after the layout change.`;
+    }
+
+    _normalizeAreasForLayout(markdown, layoutName) {
+        const parser = new MarkdownParser();
+        const areas = parser.parseAreas(markdown);
+        const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
+            fallbackAreas: Object.keys(areas).length ? Object.keys(areas) : ["main"],
+        });
+
+        const allowsTitle = resolvedLayout.orderedAreas.includes('title');
+        if (allowsTitle) {
+            if (!areas.title && areas.header) {
+                areas.title = areas.header;
+            }
+            delete areas.header;
+        } else {
+            if (!areas.header && areas.title) {
+                areas.header = areas.title;
+            }
+            delete areas.title;
+        }
+
+        return areas;
     }
 
     /**

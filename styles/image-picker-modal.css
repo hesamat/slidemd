@@ -1,0 +1,370 @@
+/* Image Picker Modal */
+
+.image-picker-modal .modal__dialog {
+    max-width: 720px;
+}
+
+/* ── Tabs ── */
+.image-picker-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-elevated);
+}
+
+.image-picker-tab {
+    padding: 10px 18px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-medium);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.image-picker-tab:hover {
+    color: var(--text-high);
+}
+
+.image-picker-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.image-picker-folder-label {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.image-picker-change-folder-btn {
+    margin-left: 8px;
+    padding: 5px 10px;
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-medium);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.image-picker-change-folder-btn:hover {
+    color: var(--text-high);
+    border-color: var(--accent);
+    background: var(--surface-hover);
+}
+
+/* ── Tab panels ── */
+.image-picker-tab-panel {
+    display: none;
+    padding: 20px 24px;
+}
+
+.image-picker-tab-panel.active {
+    display: block;
+}
+
+/* ── Existing images grid ── */
+.image-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.image-picker-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    border: 2px solid transparent;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--surface-bg);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.image-picker-item:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.image-picker-item.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.image-picker-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.image-picker-item-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── URL input ── */
+.image-picker-url-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.image-picker-url-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-high);
+    font-size: 13px;
+    font-family: monospace;
+    transition: border-color 0.15s ease;
+}
+
+.image-picker-url-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.image-picker-url-preview {
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    background: var(--surface-bg);
+    border: 1px solid var(--border-subtle);
+}
+
+/* ── Upload zone ── */
+.image-picker-upload-zone {
+    border: 2px dashed var(--border-medium);
+    border-radius: var(--radius-md);
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-medium);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.image-picker-upload-zone:hover {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb, 100, 149, 237), 0.05);
+}
+
+.image-picker-upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb, 100, 149, 237), 0.1);
+}
+
+.image-picker-upload-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+}
+
+/* ── Size controls ── */
+.image-picker-size-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+/* New footer layout: two option groups (Size + Align) + Insert button */
+.image-picker-options {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.image-picker-option-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-picker-option-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 4px;
+}
+
+.image-picker-presets {
+    display: inline-flex;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-bg);
+}
+
+.image-picker-preset-btn {
+    padding: 5px 10px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text-medium);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.image-picker-preset-btn:last-child {
+    border-right: none;
+}
+
+.image-picker-preset-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.image-picker-preset-btn.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.image-picker-custom-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.image-picker-size-input {
+    width: 56px;
+    padding: 5px 6px;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-high);
+    font-size: 12px;
+    text-align: center;
+}
+
+.image-picker-size-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.image-picker-size-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-medium);
+    white-space: nowrap;
+}
+
+/* Alignment buttons */
+.image-picker-align-group {
+    display: inline-flex;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-bg);
+}
+
+.image-picker-align-btn {
+    padding: 5px 10px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text-medium);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    min-width: 32px;
+}
+
+.image-picker-align-btn:last-child {
+    border-right: none;
+}
+
+.image-picker-align-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.image-picker-align-btn.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+/* ── Empty state ── */
+.image-picker-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.image-picker-empty-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+    opacity: 0.4;
+}
+
+/* ── Insert button ── */
+.image-picker-insert-btn {
+    padding: 8px 20px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.image-picker-insert-btn:hover {
+    opacity: 0.9;
+}
+
+.image-picker-insert-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Modal footer ── */
+.image-picker-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-elevated);
+}
