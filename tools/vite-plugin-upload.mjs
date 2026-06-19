@@ -96,6 +96,8 @@ export function imageUploadPlugin() {
         name: 'vite-plugin-upload',
         configureServer(server) {
             server.middlewares.use('/api/upload-image', async (req, res) => {
+                res.setHeader('Content-Type', 'application/json');
+
                 if (req.method !== 'POST') {
                     res.statusCode = 405;
                     res.end(JSON.stringify({ error: 'Method not allowed' }));
