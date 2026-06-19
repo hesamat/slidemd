@@ -96,6 +96,8 @@ export function imageUploadPlugin() {
         name: 'vite-plugin-upload',
         configureServer(server) {
             server.middlewares.use('/api/upload-image', async (req, res) => {
+                res.setHeader('Content-Type', 'application/json');
+
                 if (req.method !== 'POST') {
                     res.statusCode = 405;
                     res.end(JSON.stringify({ error: 'Method not allowed' }));
@@ -122,7 +124,7 @@ export function imageUploadPlugin() {
                     }
 
                     const savedName = `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
-                    fs.writeFileSync(path.join(IMAGES_DIR, savedName), data);
+                    await fs.promises.writeFile(path.join(IMAGES_DIR, savedName), data);
 
                     const relativePath = `images/${savedName}`;
 
