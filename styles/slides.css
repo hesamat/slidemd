@@ -767,3 +767,282 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     color: rgba(254, 226, 226, 0.98);
     border-color: rgba(248, 113, 113, 0.55);
 }
+
+/* ==========================================================================
+   8. Grid Resize Handles (Edit Mode)
+   ========================================================================== */
+
+/* Handles are injected inside .slide by GridResizer and live in design-space
+   (1920×1080), before the CSS scale transform.  Because the slide is
+   position:relative (or the outermost grid element is), the handle is
+   positioned relative to the slide's top-left corner in design pixels. */
+
+.grid-resize-handle {
+    position: absolute;
+    z-index: 10;
+    /* Hidden outside edit mode */
+    display: none;
+}
+
+body[data-edit-mode="true"] .grid-resize-handle {
+    display: block;
+}
+
+/* ── Column handle (vertical bar) ── */
+.grid-resize-handle--col {
+    width: 12px;
+    top: 0;
+    bottom: 0;
+    cursor: col-resize;
+    transform: translateX(-50%);
+}
+
+.grid-resize-handle--col::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 10%;
+    width: 2px;
+    height: 80%;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    background: rgba(2, 132, 199, 0.35);
+    transition: background 0.15s ease;
+}
+
+body[data-edit-mode="true"] .grid-resize-handle--col:hover::after,
+body[data-edit-mode="true"] .grid-resize-handle--col:active::after {
+    background: rgba(2, 132, 199, 0.85);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* ── Row handle (horizontal bar) ── */
+.grid-resize-handle--row {
+    height: 12px;
+    left: 0;
+    right: 0;
+    cursor: row-resize;
+    transform: translateY(-50%);
+}
+
+.grid-resize-handle--row::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    height: 2px;
+    width: 80%;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: rgba(2, 132, 199, 0.35);
+    transition: background 0.15s ease;
+}
+
+body[data-edit-mode="true"] .grid-resize-handle--row:hover::after,
+body[data-edit-mode="true"] .grid-resize-handle--row:active::after {
+    background: rgba(2, 132, 199, 0.85);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* ==========================================================================
+   9. Image Drag-and-Drop (Edit Mode)
+   ========================================================================== */
+
+body[data-edit-mode="true"] .slide__area.drag-over {
+    outline: 2px dashed rgba(2, 132, 199, 0.85) !important;
+    background-image: linear-gradient(120deg, rgba(2, 132, 199, 0.12), rgba(2, 132, 199, 0.06)) !important;
+    outline-offset: -4px;
+}
+
+/* ── Image insert dialog ── */
+
+.image-drop-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: modalFadeIn 0.18s ease-out;
+}
+
+.image-drop-dialog__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.image-drop-dialog__card {
+    position: relative;
+    z-index: 1;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+        0 20px 40px -8px rgba(0, 0, 0, 0.35);
+    width: 420px;
+    max-width: 92vw;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+.image-drop-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: linear-gradient(to bottom, var(--surface-elevated), transparent);
+}
+
+.image-drop-dialog__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-high);
+}
+
+.image-drop-dialog__close {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-medium);
+    font-size: 16px;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s ease;
+}
+
+.image-drop-dialog__close:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.image-drop-dialog__body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.image-drop-dialog__preview {
+    width: 100%;
+    max-height: 160px;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-drop-dialog__preview img {
+    max-width: 100%;
+    max-height: 160px;
+    object-fit: contain;
+    border-radius: 0;
+    border: none;
+    margin: 0;
+}
+
+.image-drop-dialog__warning {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-medium);
+    background: rgba(234, 179, 8, 0.12);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+}
+
+.image-drop-dialog__options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.image-drop-dialog__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-high);
+    cursor: pointer;
+    user-select: none;
+}
+
+.image-drop-dialog__path-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-high);
+    box-sizing: border-box;
+    transition: border-color 0.12s ease;
+    margin-left: 20px;
+    width: calc(100% - 20px);
+}
+
+.image-drop-dialog__path-input:focus {
+    outline: none;
+    border-color: rgba(2, 132, 199, 0.7);
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.image-drop-dialog__path-input:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.image-drop-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-elevated);
+}
+
+.image-drop-dialog__btn {
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.12s ease;
+}
+
+.image-drop-dialog__btn--cancel {
+    background: var(--surface-bg);
+    border-color: var(--border-medium);
+    color: var(--text-medium);
+}
+
+.image-drop-dialog__btn--cancel:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.image-drop-dialog__btn--insert {
+    background: rgba(2, 132, 199, 0.9);
+    color: #fff;
+    border-color: rgba(2, 132, 199, 0.5);
+}
+
+.image-drop-dialog__btn--insert:hover {
+    background: rgba(2, 132, 199, 1);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}

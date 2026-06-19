@@ -13,6 +13,7 @@ import { LayoutParser } from "../data/layout-parser.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { StageScaler } from "../renderer/stage-scaler.js";
+import { attachGridResizer, buildLayoutSpec, updateLayoutDirective } from "./grid-resizer.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -404,6 +405,9 @@ export class EditController {
         if (slideData?.layout) {
             slideEl.dataset.layoutName = slideData.layout;
         }
+
+        // Attach image drop zones to each area
+        this.initImageDropZones(slideEl);
     }
 
     updateAreaOverflow(slideEl) {
@@ -555,12 +559,26 @@ export class EditController {
                 this.applyPendingSlideWarning(newSlideEl);
                 this.applyAreaGuides(newSlideEl, slideData);
 
+                const attachPreviewOverlays = () => {
+                    // Attach overlays after paint so layout geometry is measurable.
+                    requestAnimationFrame(() => {
+                        this.updateAreaOverflow(newSlideEl);
+                        attachGridResizer(
+                            newSlideEl,
+                            layoutInfo,
+                            this.elements.deckStage,
+                            (change) => this._onGridResize(change, layoutInfo)
+                        );
+                    });
+                };
+
                 // Re-enhance the new slide content (Mermaid, Prism, etc.)
                 ContentEnhancer.enhanceRenderedContent(newSlideEl).then(() => {
                     this.applyAreaGuides(newSlideEl, slideData);
-                    requestAnimationFrame(() => this.updateAreaOverflow(newSlideEl));
                 }).catch(err => {
                     console.warn("Failed to enhance slide preview:", err);
+                }).finally(() => {
+                    attachPreviewOverlays();
                 });
             } else {
                 this.applyPendingSlideWarning();
@@ -570,6 +588,261 @@ export class EditController {
             Notification.error('Failed to parse markdown: ' + (error.message || 'Unknown error'));
         }
     }
+
+    // ─── Grid Resizer ───────────────────────────────────────────────────────────
+
+    /**
+     * Called by GridResizer when the user finishes dragging a column or row handle.
+     * Writes the new proportions back into the editor markdown as a custom grid spec.
+     *
+     * @param {{ cols: string|null, rows: string|null }} change
+     * @param {object} layoutInfo - The `LayoutParser.parse()` result before the drag.
+     */
+    _onGridResize(change, layoutInfo) {
+        if (!this.markdownEditor) return;
+        const newSpec = buildLayoutSpec(layoutInfo, change.cols, change.rows);
+        const markdown = this.markdownEditor.getValue();
+        const newMarkdown = updateLayoutDirective(markdown, newSpec);
+        this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
+    }
+
+    // ─── Image Drag-and-Drop ────────────────────────────────────────────────────
+
+    /**
+     * Attach drag-and-drop image listeners to every `.slide__area` in the slide.
+     * Safe to call after every updatePreview() because it operates on the fresh DOM.
+     *
+     * @param {HTMLElement} slideEl
+     */
+    initImageDropZones(slideEl) {
+        if (!slideEl) return;
+        slideEl.querySelectorAll('.slide__area').forEach(areaEl => {
+            areaEl.addEventListener('dragenter', (e) => {
+                if (!this._hasDragFiles(e)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                areaEl.classList.add('drag-over');
+            });
+
+            areaEl.addEventListener('dragover', (e) => {
+                if (!this._hasDragFiles(e)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+            });
+
+            areaEl.addEventListener('dragleave', (e) => {
+                // Only remove the class when the pointer truly leaves the area
+                if (areaEl.contains(e.relatedTarget)) return;
+                areaEl.classList.remove('drag-over');
+            });
+
+            areaEl.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                areaEl.classList.remove('drag-over');
+                this._handleImageDrop(e, areaEl);
+            });
+        });
+    }
+
+    /** Returns true when the drag event carries at least one File. */
+    _hasDragFiles(e) {
+        return e.dataTransfer?.types?.includes('Files') ?? false;
+    }
+
+    /**
+     * Filter dropped files to images and kick off the insert dialog for each.
+     *
+     * @param {DragEvent}   e
+     * @param {HTMLElement} areaEl - The `.slide__area` that received the drop.
+     */
+    _handleImageDrop(e, areaEl) {
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+        if (!files.length) {
+            Notification.warning('Only image files can be dropped here');
+            return;
+        }
+
+        // Process each image sequentially (normally just one)
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                this._showImageInsertDialog(file, areaEl.dataset.areaName || 'main', reader.result);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /**
+     * Show a small dialog letting the user choose between embedding (base64) or
+     * providing a relative path.
+     *
+     * @param {File}   file     - The dropped image file.
+     * @param {string} areaName - Target area name (e.g. 'main', 'media').
+     * @param {string} dataURL  - Base64 data URI produced by FileReader.
+     */
+    _showImageInsertDialog(file, areaName, dataURL) {
+        // Remove any existing dialog
+        document.querySelector('.image-drop-dialog')?.remove();
+
+        const altText = file.name.replace(/\.[^.]+$/, '');
+        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+        const isLarge = file.size > 512 * 1024;
+
+        const dialog = document.createElement('div');
+        dialog.className = 'image-drop-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-label', 'Insert image');
+
+        dialog.innerHTML = `
+            <div class="image-drop-dialog__overlay"></div>
+            <div class="image-drop-dialog__card">
+                <div class="image-drop-dialog__header">
+                    <span class="image-drop-dialog__title">Insert Image</span>
+                    <button class="image-drop-dialog__close" aria-label="Cancel" type="button">✕</button>
+                </div>
+                <div class="image-drop-dialog__body">
+                    <div class="image-drop-dialog__preview">
+                        <img src="${dataURL}" alt="${altText}" />
+                    </div>
+                    ${isLarge ? `<p class="image-drop-dialog__warning">⚠ Large image (${sizeMB} MB) — consider using a file path.</p>` : ''}
+                    <div class="image-drop-dialog__options">
+                        <label class="image-drop-dialog__option">
+                            <input type="radio" name="img-src-type" value="path" checked />
+                            Relative path
+                        </label>
+                        <input type="text" class="image-drop-dialog__path-input"
+                               value="./images/${file.name}"
+                               placeholder="./images/filename.png"
+                               aria-label="Relative image path" />
+                        <label class="image-drop-dialog__option">
+                            <input type="radio" name="img-src-type" value="base64" />
+                            Embed as base64 ${isLarge ? `(${sizeMB} MB)` : ''}
+                        </label>
+                    </div>
+                </div>
+                <div class="image-drop-dialog__footer">
+                    <button class="image-drop-dialog__btn image-drop-dialog__btn--cancel" type="button">Cancel</button>
+                    <button class="image-drop-dialog__btn image-drop-dialog__btn--insert" type="button">Insert</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        const pathInput = dialog.querySelector('.image-drop-dialog__path-input');
+        const radios = dialog.querySelectorAll('input[name="img-src-type"]');
+
+        // Focus path input by default
+        setTimeout(() => pathInput?.focus(), 50);
+
+        // Enable/disable path input based on radio selection
+        radios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                pathInput.disabled = radio.value === 'base64';
+                if (radio.value === 'path') pathInput.focus();
+            });
+        });
+
+        const dismiss = () => dialog.remove();
+
+        const confirm = () => {
+            const useBase64 = dialog.querySelector('input[name="img-src-type"]:checked')?.value === 'base64';
+            const src = useBase64 ? dataURL : (pathInput.value.trim() || `./images/${file.name}`);
+            dismiss();
+            this._insertImageReference(areaName, altText, src);
+        };
+
+        dialog.querySelector('.image-drop-dialog__close').addEventListener('click', dismiss);
+        dialog.querySelector('.image-drop-dialog__btn--cancel').addEventListener('click', dismiss);
+        dialog.querySelector('.image-drop-dialog__btn--insert').addEventListener('click', confirm);
+        dialog.querySelector('.image-drop-dialog__overlay').addEventListener('click', dismiss);
+
+        // Keyboard: Enter to confirm, Escape to dismiss
+        dialog.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.stopPropagation(); dismiss(); }
+            if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); confirm(); }
+        });
+    }
+
+    /**
+     * Insert a Markdown reference-style image into the active area and append
+     * the reference definition at the end of the slide markdown.
+     *
+     * @param {string} areaName - Target area in the editor.
+     * @param {string} altText  - Alt attribute / description.
+     * @param {string} src      - URL or base64 data URI.
+     */
+    _insertImageReference(areaName, altText, src) {
+        if (!this.markdownEditor) return;
+
+        const refId = `img-${Date.now()}`;
+
+        // Reference definitions must live in the same parsed area block because each
+        // @area is rendered independently.
+        const inlineRef = `![${altText}][${refId}]`;
+        const refDef = `[${refId}]: ${src}`;
+        const current = this.markdownEditor.getValue();
+        const updated = this._appendImageRefToArea(current, areaName, inlineRef, refDef);
+
+        this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    }
+
+    /**
+     * Append an image reference and its definition at the end of the target area
+     * block so markdown-it resolves the reference correctly.
+     */
+    _appendImageRefToArea(markdown, areaName, inlineRef, refDef) {
+        const text = String(markdown || '').replace(/\r\n?/g, '\n');
+        const lines = text.split('\n');
+        const target = String(areaName || 'main').trim().toLowerCase();
+
+        const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+        let areaMarkerIdx = -1;
+        const markerIndices = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const match = lines[i].match(markerRegex);
+            if (!match) continue;
+            markerIndices.push(i);
+            if (match[1].toLowerCase() === target) {
+                areaMarkerIdx = i;
+            }
+        }
+
+        // Create the area marker when it does not exist yet.
+        if (areaMarkerIdx < 0) {
+            const padded = text.trimEnd();
+            const prefix = padded ? `${padded}\n\n` : '';
+            return `${prefix}@${target}\n\n${inlineRef}\n\n${refDef}\n`;
+        }
+
+        const markerPos = markerIndices.indexOf(areaMarkerIdx);
+        const areaStart = areaMarkerIdx + 1;
+        const areaEnd = markerPos >= 0 && markerPos < markerIndices.length - 1
+            ? markerIndices[markerPos + 1]
+            : lines.length;
+
+        const before = lines.slice(0, areaStart);
+        const areaLines = lines.slice(areaStart, areaEnd);
+        const after = lines.slice(areaEnd);
+
+        // Keep existing content, then append the image reference and definition.
+        while (areaLines.length && !areaLines[areaLines.length - 1].trim()) {
+            areaLines.pop();
+        }
+
+        if (areaLines.length) areaLines.push('');
+        areaLines.push(inlineRef);
+        areaLines.push('');
+        areaLines.push(refDef);
+        areaLines.push('');
+
+        return [...before, ...areaLines, ...after].join('\n');
+    }
+
+    // ─── Save button ────────────────────────────────────────────────────────────
 
     /**
      * Update the save button state
