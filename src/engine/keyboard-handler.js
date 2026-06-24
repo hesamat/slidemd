@@ -65,6 +65,11 @@ export class KeyboardHandler {
         const action = KeyboardHandler.#KEYBOARD_ACTIONS[e.key];
         if (!action) return;
 
+        // Skip navigation actions when an image is selected in edit mode
+        if (this.actions.isImageSelected?.() && ["next", "prev", "first", "last"].includes(action)) {
+            return;
+        }
+
         // If break mode is active, any navigation key ends the break
         if (this.actions.isBreakActive?.() && ["next", "prev", "first", "last", "goto"].includes(action)) {
             e.preventDefault();

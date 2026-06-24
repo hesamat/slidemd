@@ -333,13 +333,9 @@ export class ImagePicker {
         this._deckDirMode = deckDirMode;
         this._pathOnly = !!pathOnly;
         this.selectedPath = '';
-        // Default sizing: 70% wide × 320px tall, centered.  Users can override.
-        this.widthInput.value = '70';
-        this.heightInput.value = '320';
-        this.selectedAlign = 'center';
-        if (this.alignButtons) {
-            this.alignButtons.forEach((b) => b.classList.toggle('active', b.dataset.align === 'center'));
-        }
+        // Default sizing: 800px wide, centered.  Users can override.
+        this.widthInput.value = '320';
+        this.heightInput.value = '';
         this.urlInput.value = '';
         this.urlPreview.style.display = 'none';
         // Toggle UI mode
@@ -578,45 +574,21 @@ export class ImagePicker {
 
         let w = parseInt(this.widthInput.value, 10);
         let h = parseInt(this.heightInput.value, 10);
-        const align = this.selectedAlign || 'center';
 
-        // Apply alignment defaults when the user hasn't entered a width.
-        if (!Number.isFinite(w) || w <= 0) {
-            if (align === 'left' || align === 'right') w = 50;
-            else if (align === 'full') w = 100;
-            else w = 70; // center default
-        }
+        if (!Number.isFinite(w) || w <= 0) w = 800;
 
-        // Default max-height — applies whenever the user leaves the field
-        // empty or the chosen preset has no height (Auto / Full).
-        if (!Number.isFinite(h) || h <= 0) {
-            if (align === 'full') h = null; // let it scale freely
-            else h = 320;
-        }
-
-        const hasW = Number.isFinite(w) && w > 0;
-        const hasH = Number.isFinite(h) && h > 0;
-
-        // Inline style — alignment + dimensions, with aspect-ratio preserved.
         const styleParts = [
-            'display: block',
+            'position: relative',
+            'left: 0px',
+            'top: 0px',
+            `width: ${w}px`,
             'border: none',
-            'max-width: 100%',
-            'height: auto',
             'object-fit: contain',
+            'cursor: move',
         ];
-        if (align === 'left') styleParts.push('margin: 10px auto 10px 0');
-        else if (align === 'right') styleParts.push('margin: 10px 0 10px auto');
-        else if (align === 'full') styleParts.push('margin: 10px 0', 'width: 100%');
-        else styleParts.push('margin: 10px auto');
 
-        if (align !== 'full' && hasW) {
-            styleParts.push(`width: ${w}%`);
-        }
-        if (hasH) {
-            styleParts.push(`max-height: ${h}px`);
-        } else if (align !== 'full') {
-            styleParts.push('max-height: 480px');
+        if (Number.isFinite(h) && h > 0) {
+            styleParts.push(`height: ${h}px`);
         }
 
         return `<img src="${src}" alt="${alt}" style="${styleParts.join('; ')}" />`;

@@ -444,3 +444,72 @@
 [data-edit-mode="true"] .slides .slide img:hover {
     outline-color: var(--accent, rgba(2, 132, 199, 0.5));
 }
+
+/* ── Image Selection Overlay ───────────────────────────────────────────────── */
+
+/* Make slide grid a positioning context for absolute images */
+[data-edit-mode="true"] .slides .slide .slide__grid {
+    position: relative;
+}
+
+/* The overlay tracks the selected image's position/size */
+.image-overlay {
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    border: 2px solid rgba(34, 197, 94, 0.95);
+    border-radius: 2px;
+}
+
+/* Edge resize handles */
+.image-overlay .oh-l,
+.image-overlay .oh-r,
+.image-overlay .oh-t,
+.image-overlay .oh-b {
+    position: absolute;
+    pointer-events: auto;
+    z-index: 21;
+}
+
+.image-overlay .oh-l,
+.image-overlay .oh-r {
+    top: 0;
+    width: 10px;
+    height: 100%;
+    cursor: ew-resize;
+}
+.image-overlay .oh-l { left: -5px; }
+.image-overlay .oh-r { right: -5px; }
+
+.image-overlay .oh-t,
+.image-overlay .oh-b {
+    left: 0;
+    width: 100%;
+    height: 10px;
+    cursor: ns-resize;
+}
+.image-overlay .oh-t { top: -5px; }
+.image-overlay .oh-b { bottom: -5px; }
+
+/* Corner resize handles */
+.image-overlay .oh-tl,
+.image-overlay .oh-tr,
+.image-overlay .oh-bl,
+.image-overlay .oh-br {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(34, 197, 94, 0.95);
+    pointer-events: auto;
+    z-index: 22;
+}
+.image-overlay .oh-tl { top: -6px; left: -6px; cursor: nwse-resize; }
+.image-overlay .oh-tr { top: -6px; right: -6px; cursor: nesw-resize; }
+.image-overlay .oh-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.image-overlay .oh-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+/* Selected image gets move cursor */
+[data-edit-mode="true"] .slides .slide img.image-selected {
+    cursor: move;
+}

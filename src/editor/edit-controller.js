@@ -21,7 +21,7 @@ import { AreaNavigation } from "./area-navigation.js";
 import { ImagePicker } from "./image-picker.js";
 import { BackgroundPicker } from "./background-picker.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
-import { ImageToolbar } from "./image-toolbar.js";
+import { ImageInteractionHandler } from "./image-interaction-handler.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -144,7 +144,7 @@ export class EditController {
         // Listen for slide navigation events
         this.controller.addEventListener('slidechange', () => {
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-            ImageToolbar.hide();
+            ImageInteractionHandler.deactivate();
             this.loadSlideIntoEditor();
         });
 
@@ -209,10 +209,19 @@ export class EditController {
         // Initialize background picker modal
         BackgroundPicker.init();
 
-        // Image toolbar — click on <img> in slide preview to restyle
-        ImageToolbar.init(
+        // Image interaction — drag/resize
+        ImageInteractionHandler.init(
             () => this.markdownEditor?.getValue() ?? '',
-            (updated) => this.markdownEditor?.setValue(updated, { suppressOnChange: false })
+            (updated) => {
+                this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+                this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+                this.updateUnsavedChangesFlag();
+            },
+            {
+                onDelete: (updated) => {
+                    this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+                },
+            }
         );
         this._initImageToolbar();
 
@@ -256,7 +265,7 @@ export class EditController {
             this.elements.toggleEditModeBtn.classList.remove('active');
             document.body.removeAttribute('data-edit-mode');
             this.hideMermaidHelperPanel();
-            ImageToolbar.hide();
+            ImageInteractionHandler.deactivate();
             this.placeholderDialogEl?.remove();
             this.placeholderDialogEl = null;
 
@@ -515,6 +524,16 @@ export class EditController {
         requestAnimationFrame(() => {
             this.updateAreaOverflow(slideEl);
             this.attachGridResizerForSlide(slideEl, slideData);
+            // Activate image drag/resize on the current slide's grid.  This is
+            // needed because updatePreview() (which normally calls activate) is
+            // skipped when loadSlideIntoEditor() runs with suppressOnChange —
+            // e.g. when entering edit mode or navigating slides.  Without this,
+            // existing images can only be moved via keyboard arrows, not dragged
+            // or resized.
+            const grid = slideEl.querySelector('.slide__grid');
+            if (grid) {
+                ImageInteractionHandler.activate(grid);
+            }
         });
     }
 
@@ -650,6 +669,11 @@ export class EditController {
                     requestAnimationFrame(() => {
                         this.updateAreaOverflow(newSlideEl);
                         this.attachGridResizerForSlide(newSlideEl, slideData);
+                        // Re-activate image drag/resize on the new slide element
+                        const grid = newSlideEl.querySelector('.slide__grid');
+                        if (grid) {
+                            ImageInteractionHandler.activate(grid);
+                        }
                     });
                 };
 
@@ -734,7 +758,7 @@ export class EditController {
             e.preventDefault();
             e.stopPropagation();
 
-            ImageToolbar.handleImageClick(e);
+            ImageInteractionHandler.select(img);
         });
     }
 

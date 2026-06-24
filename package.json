@@ -19,6 +19,7 @@
     "@codemirror/search": "^6.5.7",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.28.1",
+    "interactjs": "^1.10.27",
     "mermaid": "^11.14.0"
   },
   "devDependencies": {

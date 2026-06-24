@@ -112,6 +112,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     gap: 22px 48px;
     min-width: 0;
     min-height: 0;
+    position: relative;
 }
 
 /* Content area container */
@@ -448,6 +449,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     margin: 0 auto;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-subtle);
+}
+
+/* Relatively positioned images (edit mode drag/resize) */
+.slide__area img[style*="position: relative"],
+.slide__area img.image-selected {
+    margin: 0;
+    border-radius: 0;
+    max-width: none !important;
+    height: auto;
 }
 
 /* Full-bleed media in paragraphs */
