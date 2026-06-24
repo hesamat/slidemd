@@ -337,6 +337,81 @@
     --cm-token-meta: rgba(253, 186, 116, 0.98);
 }
 
+/* ── CodeMirror Autocomplete Tooltip ──────────────────────────────────────── */
+
+.markdown-editor-codemirror .cm-tooltip {
+    background: var(--surface-elevated, #f8fafc);
+    border: 1px solid var(--border-medium, rgba(148, 163, 184, 0.35));
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    color: var(--text-high, rgba(15, 23, 42, 0.95));
+    font-family: var(--font-mono);
+    font-size: 13px;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .markdown-editor-codemirror .cm-tooltip {
+    background: rgb(30, 41, 59);
+    border-color: rgba(148, 163, 184, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    color: var(--text-high, rgba(226, 232, 240, 0.98));
+}
+
+.markdown-editor-codemirror .cm-tooltip-autocomplete ul {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+}
+
+.markdown-editor-codemirror .cm-tooltip-autocomplete li {
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: inherit;
+}
+
+.markdown-editor-codemirror .cm-tooltip-autocomplete li[aria-selected] {
+    background: var(--accent-bg, rgba(2, 132, 199, 0.12));
+    color: var(--accent-text, rgba(2, 132, 199, 0.95));
+}
+
+.markdown-editor-codemirror .cm-completionLabel {
+    color: inherit;
+}
+
+.markdown-editor-codemirror .cm-completionDetail {
+    color: var(--text-low, rgba(15, 23, 42, 0.5));
+    font-style: italic;
+    margin-left: 8px;
+}
+
+[data-theme="dark"] .markdown-editor-codemirror .cm-completionDetail {
+    color: var(--text-low, rgba(148, 163, 184, 0.6));
+}
+
+.markdown-editor-codemirror .cm-completionMatchedText {
+    color: var(--accent, rgba(2, 132, 199, 0.95));
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.markdown-editor-codemirror .cm-completionIcon {
+    color: var(--text-medium, rgba(15, 23, 42, 0.7));
+    margin-right: 6px;
+}
+
+[data-theme="dark"] .markdown-editor-codemirror .cm-completionIcon {
+    color: var(--text-medium, rgba(148, 163, 184, 0.8));
+}
+
+.markdown-editor-codemirror .cm-tooltip.cm-tooltip-above {
+    bottom: auto;
+}
+
+.markdown-editor-codemirror .cm-tooltip.cm-tooltip-below {
+    top: auto;
+}
+
 .markdown-editor-codemirror .cm-header,
 .markdown-editor-codemirror .cm-heading {
     color: var(--cm-token-heading);
