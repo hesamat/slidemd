@@ -97,29 +97,6 @@
     flex-shrink: 0;
 }
 
-/* Toggle segment (Resize Grid) — uses aria-pressed as the active state */
-.segmented__btn--toggle[aria-pressed="false"] {
-    color: var(--text-low);
-}
-
-.segmented__btn--toggle[aria-pressed="false"] .segmented__icon {
-    opacity: 0.55;
-}
-
-.segmented__btn--toggle[aria-pressed="true"] {
-    background: var(--accent, rgba(2, 132, 199, 0.95));
-    color: #fff;
-}
-
-.segmented__btn--toggle[aria-pressed="true"] .segmented__icon {
-    opacity: 1;
-}
-
-.segmented__btn--toggle[aria-pressed="true"]:hover {
-    background: var(--accent, rgba(2, 132, 199, 0.95));
-    filter: brightness(1.05);
-}
-
 /* Dropdown segment — keep relative for the menu */
 .insert-dropdown {
     position: relative;
@@ -202,6 +179,28 @@
     flex: 1;
 }
 
+.insert-dropdown__content .menu-item:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.insert-dropdown__content .menu-item:disabled:hover {
+    background: transparent;
+}
+
+.insert-dropdown__content .menu-item:disabled svg {
+    opacity: 0.4;
+}
+
+.insert-dropdown__content .menu-item.active {
+    background: var(--accent-bg, rgba(var(--color-primary), 0.12));
+    color: var(--accent, rgba(2, 132, 199, 0.95));
+}
+
+.insert-dropdown__content .menu-item.active svg {
+    opacity: 1;
+}
+
 .insert-dropdown__hint {
     flex-shrink: 0;
     padding: 1px 6px;
@@ -216,7 +215,6 @@
 
 /* Narrow editor: collapse labels, keep icons + dropdown label */
 @media (max-width: 520px) {
-    .segmented__btn--toggle .segmented__label,
     .segmented__btn--dropdown .segmented__label {
         display: none;
     }

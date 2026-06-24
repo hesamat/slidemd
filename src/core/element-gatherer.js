@@ -30,7 +30,7 @@ export class ElementGatherer {
             markdownEditor: $("markdownEditor"),
             insertDropdownBtn: $("insertDropdownBtn"),
             insertDropdownContent: $("insertDropdownContent"),
-            toggleGridResizerBtn: $("toggleGridResizerBtn"),
+            adjustColumnsMenuItem: $("adjustColumnsMenuItem"),
             mermaidHelperPanel: $("mermaidHelperPanel"),
             addSlideBtn: $("addSlideBtn"),
             duplicateSlideBtn: $("duplicateSlideBtn"),

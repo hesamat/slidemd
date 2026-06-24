@@ -218,17 +218,7 @@
                         <h2 class="editor__title">Edit Slide</h2>
                         <div class="editor__helper-actions">
                             <div class="segmented insert-dropdown" role="group" aria-label="Editor actions">
-                                <button id="toggleGridResizerBtn" class="segmented__btn segmented__btn--toggle" type="button" aria-pressed="true"
-                                    title="Toggle column/row resize handles">
-                                    <svg class="segmented__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect x="3" y="3" width="7" height="7" rx="1" />
-                                        <rect x="14" y="3" width="7" height="7" rx="1" />
-                                        <rect x="3" y="14" width="7" height="7" rx="1" />
-                                        <rect x="14" y="14" width="7" height="7" rx="1" />
-                                    </svg>
-                                    <span class="segmented__label">Resize</span>
-                                </button><span class="segmented__divider" aria-hidden="true"></span><button
+                                <button
                                     id="insertDropdownBtn" class="segmented__btn segmented__btn--dropdown insert-dropdown__btn" type="button" aria-expanded="false"
                                     aria-controls="insertDropdownContent" title="Insert content or change layout">
                                     <svg class="segmented__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -255,6 +245,15 @@
                                             </svg>
                                             <span>Change Layout</span>
                                             <kbd class="insert-dropdown__hint">Layout</kbd>
+                                        </button>
+                                        <button id="adjustColumnsMenuItem" type="button" class="menu-item" data-insert-action="adjust-columns" disabled>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <rect x="3" y="3" width="7" height="18" rx="1" />
+                                                <rect x="14" y="3" width="7" height="18" rx="1" />
+                                            </svg>
+                                            <span>Adjust Columns</span>
                                         </button>
                                         <button type="button" class="menu-item" data-insert-action="background">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"

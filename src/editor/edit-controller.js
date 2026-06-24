@@ -129,6 +129,8 @@ export class EditController {
      * Initialize the edit controller
      */
     init() {
+        this._gridResizerVisible = false;
+
         // Set up panel resize functionality
         this.initPanelResize();
 
@@ -191,12 +193,6 @@ export class EditController {
         // Insert dropdown (Layout / Image / Mermaid)
         this.initInsertDropdown();
 
-        // Toggle grid resizer handles on/off
-        this._gridResizerVisible = true;
-        if (this.elements.toggleGridResizerBtn) {
-            this.elements.toggleGridResizerBtn.addEventListener('click', () => this.toggleGridResizer());
-        }
-
         if (this.elements.mermaidHelperPanel) {
             const templateButtons = this.elements.mermaidHelperPanel.querySelectorAll('[data-mermaid-template]');
             templateButtons.forEach((button) => {
@@ -258,12 +254,6 @@ export class EditController {
             this.elements.toggleEditModeBtn.classList.add('active');
             document.body.setAttribute('data-edit-mode', 'true');
 
-            // Reset grid resizer toggle to visible when entering edit mode
-            this._gridResizerVisible = true;
-            if (this.elements.toggleGridResizerBtn) {
-                this.elements.toggleGridResizerBtn.setAttribute('aria-pressed', 'true');
-            }
-
             // Initialize the markdown editor if not already initialized
             if (!this.markdownEditor && this.elements.markdownEditor) {
                 this.markdownEditor = new MarkdownEditor(this.elements.markdownEditor, {
@@ -319,6 +309,8 @@ export class EditController {
                 const action = item.dataset.insertAction;
                 if (action === 'layout') {
                     this.showLayoutPickerForCurrentSlide();
+                } else if (action === 'adjust-columns') {
+                    this.toggleGridResizer();
                 } else if (action === 'image') {
                     this.pickAndInsertImage();
                 } else if (action === 'mermaid') {
@@ -567,26 +559,66 @@ export class EditController {
             (change) => this._onGridResize(change, layoutInfo)
         );
 
-        // Respect the grid resizer toggle state
-        if (!this._gridResizerVisible) {
-            slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => h.style.display = 'none');
-        }
+        // Always hide handles on new slide — toggle resets per-slide
+        slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => h.style.display = 'none');
+        this._gridResizerVisible = false;
+        this._updateAdjustColumnsToggleUI();
+
+        this.updateAdjustColumnsState(layoutInfo);
     }
 
     /**
-     * Toggle the grid column/row resize handles on all slides.
+     * Enable or disable the "Adjust Columns" menu item based on whether
+     * the current slide has multiple column tracks.
+     */
+    updateAdjustColumnsState(layoutInfo) {
+        const btn = this.elements.adjustColumnsMenuItem;
+        if (!btn) return;
+
+        const colStr = layoutInfo?.gridTemplateColumns || '1fr';
+        let depth = 0;
+        let count = 0;
+        let hasToken = false;
+        for (const ch of colStr) {
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            else if (ch === ' ' && depth === 0) {
+                if (hasToken) count++;
+                hasToken = false;
+            } else {
+                hasToken = true;
+            }
+        }
+        if (hasToken) count++;
+
+        const multiColumn = count >= 2;
+        btn.disabled = !multiColumn;
+        btn.title = multiColumn ? 'Toggle column resize handles' : 'Multiple columns required';
+    }
+
+    /**
+     * Toggle column resize handles on the current slide only.
      */
     toggleGridResizer() {
-        this._gridResizerVisible = !this._gridResizerVisible;
-        const btn = this.elements.toggleGridResizerBtn;
-        if (btn) btn.setAttribute('aria-pressed', String(this._gridResizerVisible));
+        const btn = this.elements.adjustColumnsMenuItem;
+        if (btn && btn.disabled) return;
 
-        const slides = document.querySelectorAll('#slidesContainer > .slide');
-        slides.forEach((slide) => {
-            slide.querySelectorAll('.grid-resize-handle').forEach((h) => {
+        this._gridResizerVisible = !this._gridResizerVisible;
+
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (slideEl) {
+            slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => {
                 h.style.display = this._gridResizerVisible ? '' : 'none';
             });
-        });
+        }
+
+        this._updateAdjustColumnsToggleUI();
+    }
+
+    _updateAdjustColumnsToggleUI() {
+        const btn = this.elements.adjustColumnsMenuItem;
+        if (!btn) return;
+        btn.classList.toggle('active', this._gridResizerVisible);
     }
 
     navigateToArea(areaName) {
