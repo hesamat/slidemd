@@ -749,11 +749,30 @@
     cursor: pointer;
     transition: all 0.12s ease;
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .image-properties-panel__btn:hover {
     background: var(--accent-light, rgba(2, 132, 199, 0.15));
     color: var(--text-high, #f0f2f5);
+}
+
+/* Shortcut hint inside a button (e.g. "Replace image… R").  Visually
+   subdued so it doesn't compete with the action label. */
+.image-properties-panel__hint {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-low, rgba(148, 163, 184, 0.6));
+    background: var(--surface-elevated, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+    border-radius: 3px;
 }
 
 .image-properties-panel__btn--danger {

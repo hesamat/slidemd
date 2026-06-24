@@ -10,9 +10,14 @@
  * We always parse styles from the markdown, apply changes, and write back.
  *
  * Tabs:
- *   • Size     — W×H, aspect-ratio lock, presets (Small/Medium/Large/Full/Center/Fit)
+ *   • Size     — Replace / Delete at the top (the two most-used
+ *                actions), then W×H, aspect-ratio lock, presets
+ *                (Small/Medium/Large/Full/Center/Fit)
  *   • Position — X/Y, z-order (bring to front / send to back)
- *   • Style    — opacity, border-radius, shadow, rotation, alt-text, Replace
+ *   • Style    — opacity, border-radius, shadow, rotation, alt-text
+ *
+ * Keyboard shortcuts are shown next to the buttons that own them
+ * (Replace → R, Delete → Del) so the user can discover them.
  */
 
 const SHADOW_PRESETS = [
@@ -94,6 +99,16 @@ export class ImagePropertiesPanel {
                 <!-- Size tab -->
                 <div class="image-properties-panel__panel active" data-panel="size">
                     <div class="image-properties-panel__row">
+                        <button type="button" class="image-properties-panel__btn" data-action="replace">
+                            <span>Replace image…</span>
+                            <kbd class="image-properties-panel__hint">R</kbd>
+                        </button>
+                        <button type="button" class="image-properties-panel__btn image-properties-panel__btn--danger" data-action="delete">
+                            <span>Delete</span>
+                            <kbd class="image-properties-panel__hint">Del</kbd>
+                        </button>
+                    </div>
+                    <div class="image-properties-panel__row">
                         <label class="image-properties-panel__field">
                             <span class="image-properties-panel__field-label">Width</span>
                             <input type="number" class="image-properties-panel__input" data-field="width" min="20" max="1920" placeholder="W" />
@@ -168,10 +183,6 @@ export class ImagePropertiesPanel {
                             <span class="image-properties-panel__field-label">Alt text</span>
                             <input type="text" class="image-properties-panel__text" data-field="alt" placeholder="Describe the image" />
                         </label>
-                    </div>
-                    <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__btn" data-action="replace">Replace image…</button>
-                        <button type="button" class="image-properties-panel__btn image-properties-panel__btn--danger" data-action="delete">Delete</button>
                     </div>
                 </div>
             </div>
