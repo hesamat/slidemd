@@ -111,6 +111,11 @@ export class DeckController extends EventEmitter {
             fullscreen: () => this.toggleFullscreen(),
             reload: () => this.reloadManager.handleReloadDeck(),
             theme: () => ThemeManager.toggleTheme(),
+            styles: () => {
+                try { window.__WEBDECK_EDIT_CONTROLLER__?.openSlideStylePanel?.(); }
+                catch {}
+            },
+            isEditMode: () => this.isEditMode(),
             isBreakActive: () => this.breakManager.isActive,
             endBreak: () => this.breakManager.setActive(false),
             isEditorWindow: () => this.roleManager.isEditorWindow,

@@ -43,9 +43,10 @@ export class GridResizerManager {
             (change) => this._onGridResize(change, layoutInfo)
         );
 
-        // Always hide handles on new slide — toggle resets per-slide
-        slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => h.style.display = 'none');
-        this._gridResizerVisible = false;
+        // Apply current toggle state to handles
+        slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => {
+            h.style.display = this._gridResizerVisible ? '' : 'none';
+        });
         this._updateAdjustColumnsToggleUI();
 
         this.updateAdjustColumnsState(layoutInfo);

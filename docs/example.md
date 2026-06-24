@@ -75,8 +75,6 @@ layout: left-heavy
 
 Use --- to separate slides. Define the layout first, then place content with @area markers.
 
-### Layout → Areas
-
 | Layout | Areas |
 |------|-------|
 | `header-content` | `@header` `@main` `@footer` |

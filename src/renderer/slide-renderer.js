@@ -16,6 +16,25 @@ export class SlideRenderer {
         return /<(img|video|iframe)\b/i.test(html);
     }
 
+    /**
+     * Apply a CSS declaration string to an area element, setting each property
+     * individually so existing inline styles (e.g. grid-area) are preserved.
+     * @param {HTMLElement} areaEl
+     * @param {string} cssText - e.g. "border: 2px solid red; padding: 12px"
+     */
+    static _applyAreaStyle(areaEl, cssText) {
+        const decls = safeString(cssText).split(";").map(s => s.trim()).filter(Boolean);
+        for (const decl of decls) {
+            const idx = decl.indexOf(":");
+            if (idx === -1) continue;
+            const prop = decl.slice(0, idx).trim();
+            const val = decl.slice(idx + 1).trim();
+            if (prop && val) {
+                areaEl.style.setProperty(prop, val);
+            }
+        }
+    }
+
     static createSlideElement(deck, slide, index, isActive) {
         const wrapper = document.createElement("div");
         wrapper.className = `slide${isActive ? " active" : ""}${slide?.hidden ? " slide--hidden" : ""}`;
@@ -58,6 +77,8 @@ export class SlideRenderer {
             if (!names.includes(extra)) names.push(extra);
         }
 
+        const areaStyle = safeString(slide?.areaStyle);
+
         names.forEach((name) => {
             const isAliasTitle = name === "title" && !layoutAreaNames.has("title");
             const isAliasHeader = name === "header" && layoutAreaNames.has("title");
@@ -76,6 +97,10 @@ export class SlideRenderer {
 
             if (this.areaLooksLikeMediaAsset(html)) {
                 area.classList.add("media");
+            }
+
+            if (areaStyle && name !== "footer") {
+                this._applyAreaStyle(area, areaStyle);
             }
 
             area.innerHTML = html;
@@ -106,7 +131,8 @@ export class SlideRenderer {
             title: "",
             notes: "",
             layout: "",
-            areas: { main: "" }
+            areas: { main: "" },
+            areaStyle: "",
         };
         const d = deck && typeof deck === "object" ? deck : DeckLoader.normalizeDeck({
             meta: { id: "webdeck", title: "", course: "", aspect: "16:9", stage: { ...DESIGN_SIZE } },
@@ -116,6 +142,7 @@ export class SlideRenderer {
                 notes: normalizedSlide.notes ?? "",
                 layout: normalizedSlide.layout ?? "",
                 areas: normalizedSlide.areas && typeof normalizedSlide.areas === "object" ? normalizedSlide.areas : { main: "" },
+                areaStyle: safeString(normalizedSlide.areaStyle),
             }],
         });
 

@@ -40,7 +40,7 @@ export class AreaGuideManager {
             }
 
             label.textContent = `@${name}`;
-            label.setAttribute('title', `Click to jump to @${name}`);
+            label.setAttribute('title', `Jump to @${name}`);
             label.onclick = (event) => {
                 event.preventDefault();
                 event.stopPropagation();

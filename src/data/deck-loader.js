@@ -296,6 +296,7 @@ Markdown-based presentations made simple.
                 theme: safeString(s.theme),
                 hidden: Boolean(s.hidden),
                 areas: s.areas || {},
+                areaStyle: safeString(s.areaStyle),
             };
         });
 

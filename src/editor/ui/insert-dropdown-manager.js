@@ -47,6 +47,8 @@ export class InsertDropdownManager {
                     this.ctrl.pickBackground();
                 } else if (action === 'theme') {
                     this.ctrl.themeManager.toggle();
+                } else if (action === 'area-style') {
+                    this.ctrl.openSlideStylePanel();
                 }
             });
         });

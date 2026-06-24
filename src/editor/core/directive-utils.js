@@ -58,6 +58,23 @@ export function updateThemeDirective(markdown, themeValue) {
 }
 
 /**
+ * Replace (or insert) the `area-style:` directive in a slide's markdown.
+ * The value is a plain CSS string applied to all areas uniformly.
+ *
+ * @param {string} markdown       - Slide markdown source.
+ * @param {string} cssText        - CSS declaration string (e.g. "border: 2px solid red; padding: 12px").
+ *                                  Empty string removes the directive entirely.
+ * @returns {string} Updated markdown.
+ */
+export function updateAreaStyleDirective(markdown, cssText) {
+    const parser = new MarkdownParser();
+    const { markdown: stripped } = parser.extractDirective(markdown, 'area-style');
+    const trimmed = String(cssText || '').trim();
+    if (!trimmed) return stripped;
+    return `area-style: ${trimmed}\n${stripped}`;
+}
+
+/**
  * Parse a CSS background string and return a friendly preview description.
  * Returns `{ type, value, preview }` where `preview` is a CSS string suitable
  * for inline `style="background: ..."`.

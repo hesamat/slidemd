@@ -14,7 +14,8 @@ export class KeyboardHandler {
         "f": "fullscreen", "F": "fullscreen",
         "r": "reload", "R": "reload",
         "p": "viewer", "P": "viewer",
-        "d": "theme", "D": "theme"
+        "d": "theme", "D": "theme",
+        "s": "styles", "S": "styles"
     };
 
     /**
@@ -31,6 +32,8 @@ export class KeyboardHandler {
      * @param {Function} actions.fullscreen - Toggle fullscreen mode
      * @param {Function} actions.reload - Reload the deck
      * @param {Function} actions.theme - Toggle theme
+     * @param {Function} styles.theme - Toggle slide styles panel (edit mode only)
+     * @param {Function} actions.isEditMode - Callback to check if edit mode is active
      * @param {Function} actions.shouldPreventDefault - Optional callback to check if default should be prevented
      * @param {Function} actions.isBreakActive - Callback to check if break mode is active
      * @param {Function} actions.endBreak - Callback to end break mode
@@ -112,6 +115,10 @@ export class KeyboardHandler {
             case "theme":
                 if (this.actions.isEditorWindow?.()) {
                     this.actions.theme?.();
+                } break;
+            case "styles":
+                if (this.actions.isEditorWindow?.() && this.actions.isEditMode?.()) {
+                    this.actions.styles?.();
                 } break;
         }
     }

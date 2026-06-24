@@ -1,0 +1,170 @@
+/* ==========================================================================
+   Slide Style Panel — friendly floating toolbar for slide-wide CSS editing
+   ========================================================================== */
+
+.slide-style-panel {
+    position: fixed;
+    z-index: 200;
+    width: 300px;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
+    font-family: var(--font-sans);
+    font-size: var(--ui-font-size);
+    color: var(--text-high);
+    user-select: none;
+}
+
+.slide-style-panel.webdeck-hidden { display: none; }
+
+.slide-style-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: grab;
+}
+
+.slide-style-panel__header:active { cursor: grabbing; }
+
+.slide-style-panel__title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-medium);
+}
+
+.slide-style-panel__close {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: color 0.12s ease, background 0.12s ease;
+}
+
+.slide-style-panel__close:hover {
+    color: var(--text-high);
+    background: var(--surface-hover);
+}
+
+.slide-style-panel__body {
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.slide-style-panel__section {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 6px;
+}
+
+.slide-style-panel__section:first-child { margin-top: 0; }
+
+.slide-style-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Color picker ── */
+.slide-style-panel__color {
+    width: 32px;
+    height: 28px;
+    padding: 2px;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex: 0 0 32px;
+    background: var(--surface-elevated);
+}
+
+/* ── Range slider ── */
+.slide-style-panel__range {
+    flex: 1;
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border-medium);
+    border-radius: 999px;
+    cursor: pointer;
+    outline: none;
+}
+
+.slide-style-panel__range--grow { flex: 1; }
+
+.slide-style-panel__range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--surface-bg);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+    cursor: grab;
+}
+
+.slide-style-panel__range::-webkit-slider-thumb:active { cursor: grabbing; }
+
+.slide-style-panel__range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--surface-bg);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+    cursor: grab;
+}
+
+/* ── Value label ── */
+.slide-style-panel__value {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-medium);
+    flex: 0 0 42px;
+    text-align: right;
+}
+
+/* ── Footer ── */
+.slide-style-panel__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.slide-style-panel__btn {
+    appearance: none;
+    border: 1px solid var(--border-medium);
+    background: var(--surface-bg);
+    color: var(--text-high);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.slide-style-panel__btn:hover { background: var(--surface-elevated); }
+
+.slide-style-panel__btn--danger {
+    color: rgba(220, 38, 38, 0.9);
+    border-color: rgba(220, 38, 38, 0.3);
+}
+
+.slide-style-panel__btn--danger:hover { background: rgba(220, 38, 38, 0.08); }
