@@ -5,7 +5,7 @@ import { ContentEnhancer } from "./src/renderer/content-enhancer.js";
 import { DeckLoader } from "./src/data/deck-loader.js";
 import { DeckController } from "./src/engine/deck-controller.js";
 import { SlideRenderer } from "./src/renderer/slide-renderer.js";
-import { EditController } from "./src/editor/edit-controller.js";
+import { EditController } from "./src/editor/core/edit-controller.js";
 import { ThemeManager } from "./src/renderer/theme-manager.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
@@ -112,12 +112,47 @@ if (typeof initializeDefaultProviders === 'function') {
         const controller = new DeckController(deck, elements);
         await controller.init();
 
+        // 5b. Wire up Welcome Slide "Open Example" button (if present)
+        const openExampleBtn = document.getElementById("openExampleBtn");
+        if (openExampleBtn) {
+            openExampleBtn.addEventListener("click", () => DeckLoader.openExampleFile());
+        }
+
+        // 5c. Wire up footer shortcut buttons
+        document.querySelectorAll('.footer-shortcut').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.shortcut;
+                if (action === 'prev') controller.slideNavigator.prev();
+                else if (action === 'next') controller.slideNavigator.next();
+                else if (action === 'present') controller.roleManager.togglePresentWindow();
+                else if (action === 'edit') controller.toggleEditMode();
+                else if (action === 'reload') controller.reloadManager.handleReloadDeck();
+                else if (action === 'theme') ThemeManager.toggleTheme();
+                else if (action === 'fullscreen') controller.toggleFullscreen();
+                else if (action === 'goto') controller.slideNavigator.openGoToPrompt();
+            });
+        });
+
+        // 5d. Sync footer theme toggle icon on every slide change
+        const syncFooterThemeIcon = () => {
+            const slide = controller.deck.slides[controller.slideNavigator.currentIndex];
+            const theme = slide?.theme || '';
+            const btn = document.getElementById('toggleThemeMenuItem');
+            if (!btn) return;
+            const sunIcon = btn.querySelector('.theme-icon-light');
+            const moonIcon = btn.querySelector('.theme-icon-dark');
+            if (sunIcon) sunIcon.style.display = theme === 'dark' ? '' : 'none';
+            if (moonIcon) moonIcon.style.display = theme === 'dark' ? 'none' : '';
+        };
+        controller.addEventListener('slidechange', syncFooterThemeIcon);
+        syncFooterThemeIcon();
+
         // 6. Initialize Editor (Optional)
         try {
             const editController = new EditController(deck, controller, elements);
             window.__WEBDECK_EDIT_CONTROLLER__ = editController;
         } catch (e) {
-            // Editor skipped. Likely not in editor mode.;
+            console.error("EditController initialization failed:", e);
         }
 
         // 7. PRELOAD / WARMUP ENHANCERS

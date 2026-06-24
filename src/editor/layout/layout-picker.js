@@ -4,8 +4,8 @@
  * Handles modal display, grid rendering, and user interactions.
  */
 
-import { LayoutData } from '../data/layout-data.js';
-import LAYOUTS from '../data/layouts.json' with { type: 'json' };
+import { LayoutData } from '../../data/layout-data.js';
+import LAYOUTS from '../../data/layouts.json' with { type: 'json' };
 
 export class LayoutPicker {
     static modal = null;
@@ -172,7 +172,9 @@ export class LayoutPicker {
                 }
 
                 // Each row definition needs a height
-                const rowsWithHeights = rowDefinitions.map(rowDef => `${rowDef} 1fr`).join(' ');
+                const rowsWithHeights = rowDefinitions
+                    .map(rowDef => `${rowDef} ${rowDef.includes("main") || rowDef.includes("media") ? '2fr' : '1fr'}`)
+                    .join(' ');
                 return `grid: ${rowsWithHeights} / ${cols};`;
             }
             // Convert any double quotes to single quotes for HTML compatibility

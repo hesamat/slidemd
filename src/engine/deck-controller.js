@@ -16,6 +16,7 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { AIGenerationController } from "../generation/ai-generation-controller.js";
 import { GenerationActions } from "../ui/generation-actions.js";
+import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 
 export class DeckController extends EventEmitter {
 
@@ -113,7 +114,8 @@ export class DeckController extends EventEmitter {
             isBreakActive: () => this.breakManager.isActive,
             endBreak: () => this.breakManager.setActive(false),
             isEditorWindow: () => this.roleManager.isEditorWindow,
-            isEmbedded: isEmbedded
+            isEmbedded: isEmbedded,
+            isImageSelected: () => ImageInteractionHandler.isSelected()
         });
     }
 
@@ -243,6 +245,7 @@ export class DeckController extends EventEmitter {
         listen(this.elements.menuBtn, "click", () => this.toggleMenu());
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
+        listen(this.elements.menuToggleEditModeBtn, "click", () => { this.toggleEditMode(); this.closeMenu(); });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
         listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });
 
@@ -369,7 +372,11 @@ export class DeckController extends EventEmitter {
     }
 
     toggleEditMode() {
-        window.__WEBDECK_EDIT_CONTROLLER__?.toggleEditMode();
+        try {
+            window.__WEBDECK_EDIT_CONTROLLER__.toggleEditMode();
+        } catch (error) {
+            console.error('Error: __WEBDECK_EDIT_CONTROLLER__ not found', error);
+        }
         // Notify the navigator that edit mode has changed
         this.slideNavigator.onEditModeChanged();
     }

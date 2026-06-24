@@ -5,13 +5,15 @@
 :root {
     /* --- THEME COLORS --- */
     --slide-bg-light: #ffffff;
-    --slide-ink-light: rgba(15, 23, 42, 0.90);
-    --slide-muted-light: rgba(15, 23, 42, 0.68);
-    --slide-secondary-light: rgba(15, 23, 42, 0.55);
+    --slide-ink-light: rgba(15, 23, 42, 0.92);
+    --slide-body-light: rgba(15, 23, 42, 0.80);
+    --slide-muted-light: rgba(15, 23, 42, 0.60);
+    --slide-secondary-light: rgba(15, 23, 42, 0.50);
 
     --slide-bg-dark: #0f172a;
     --slide-ink-dark: #f0f2f5;
-    --slide-muted-dark: rgba(246, 242, 240, 0.78);
+    --slide-body-dark: rgba(246, 242, 240, 0.92);
+    --slide-muted-dark: rgba(246, 242, 240, 0.75);
     --slide-secondary-dark: rgba(226, 232, 240, 0.55);
 
     /* --- ACCENT COLORS --- */
@@ -73,6 +75,7 @@
 .slide[data-theme="light"] {
     --slide-bg: var(--slide-bg-light);
     --slide-ink: var(--slide-ink-light);
+    --slide-body: var(--slide-body-light);
     --slide-muted: var(--slide-muted-light);
     --slide-secondary: var(--slide-secondary-light);
 
@@ -85,11 +88,12 @@
 .slide[data-theme="dark"] {
     --slide-bg: var(--slide-bg-dark);
     --slide-ink: var(--slide-ink-dark);
+    --slide-body: var(--slide-body-dark);
     --slide-muted: var(--slide-muted-dark);
     --slide-secondary: var(--slide-secondary-dark);
 
     /* Code surface (dark slides) */
-    --code-surface: rgba(0, 0, 0, 0.22);
+    --code-surface: rgba(0, 0, 0, 0.45);
     --code-ink: rgba(240, 242, 245, 0.95);
     --code-border-color: rgba(255, 255, 255, 0.16);
 }
@@ -109,9 +113,10 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 22px 48px;
+    gap: 16px 24px;
     min-width: 0;
     min-height: 0;
+    position: relative;
 }
 
 /* Content area container */
@@ -126,14 +131,31 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     position: relative;
 }
 
-body[data-edit-mode="true"] .slide__area {
-    outline: 2px dashed rgba(2, 132, 199, 0.6);
-    outline-offset: -3px;
-    background-image: linear-gradient(120deg, rgba(2, 132, 199, 0.06), rgba(2, 132, 199, 0));
+/* Title and header get a bottom separator to visually separate from content below. */
+.slide__area--header,
+.slide__area--title {
+    border-bottom: 1px solid rgba(2, 132, 199, 0.22);
+    padding: 16px 24px;
+}
+
+.slide[data-theme="dark"] .slide__area--header,
+.slide[data-theme="dark"] .slide__area--title {
+    border-bottom-color: rgba(125, 211, 252, 0.08);
 }
 
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
-    outline-color: rgba(220, 38, 38, 0.85);
+    outline: 2px solid rgba(220, 38, 38, 0.7);
+    outline-offset: -3px;
+}
+
+/* When an image is selected, hide the editor-area-label and grid-resize-handles
+   to reduce visual clutter, but keep the area borders visible. */
+body[data-edit-mode="true"] .slide:has(img.image-selected) .editor-area-label {
+    display: none;
+}
+
+body[data-edit-mode="true"] .slide:has(img.image-selected) .grid-resize-handle {
+    display: none;
 }
 
 .editor-area-label {
@@ -141,13 +163,13 @@ body[data-edit-mode="true"] .slide__area.editor-area-overflow {
     top: 6px;
     right: 6px;
     z-index: 3;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     padding: 3px 10px;
     border-radius: 999px;
     border: 2px solid rgba(2, 132, 199, 0.75);
-    background: rgba(2, 132, 199, 0.22);
-    color: rgba(2, 6, 23, 0.95);
+    background: rgba(2, 132, 199, 0.45);
+    color: var(--slide-ink);
     box-shadow: 0 6px 18px rgba(2, 6, 23, 0.18);
     display: none;
     cursor: pointer;
@@ -169,7 +191,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area--header {
     align-content: start;
     gap: var(--spacing-xs);
-    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area--title {
@@ -185,7 +206,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     font-size: 24px;
     line-height: 1.4;
     color: var(--slide-muted);
-    margin-top: auto;
     align-items: center;
 }
 
@@ -219,42 +239,62 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* --- HEADING STYLES --- */
 
 .slide__area h1 {
-    font-size: 58px;
+    font-size: 56px;
+    line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
     color: var(--slide-ink);
+    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area h2 {
-    font-size: 40px;
-    line-height: 1.3;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-size: 42px;
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     color: var(--slide-ink);
-    margin-top: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area h3 {
-    font-size: 32px;
+    font-size: 34px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--slide-ink);
+    margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.slide__area h4 {
+    font-size: 30px;
     line-height: 1.35;
     font-weight: 600;
     letter-spacing: -0.005em;
     color: var(--slide-ink);
     margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
 }
 
-.slide__area h4 {
-    font-size: 26px;
-    line-height: 1.4;
-    font-weight: 600;
-    color: var(--slide-ink);
+/* Remove top margin from first child in an area */
+.slide__area>h1:first-child,
+.slide__area>h2:first-child,
+.slide__area>h3:first-child,
+.slide__area>h4:first-child,
+.slide__area>p:first-child,
+.slide__area>ul:first-child,
+.slide__area>ol:first-child,
+.slide__area>pre:first-child,
+.slide__area>blockquote:first-child {
+    margin-top: 0;
 }
 
 /* --- PARAGRAPH & TEXT STYLES --- */
 
 .slide__area p:not(.nodeLabel > p) {
-    line-height: 1.6;
-    color: var(--slide-muted);
+    line-height: 1.55;
+    color: var(--slide-body);
     margin-top: var(--spacing-xs);
 }
 
@@ -278,14 +318,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area ul,
 .slide__area ol {
     display: grid;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
     line-height: 1.5;
     padding-left: 1.5em;
     margin-top: var(--spacing-xs);
 }
 
 .slide__area li {
-    color: var(--slide-muted);
+    color: var(--slide-body);
     max-width: var(--line-max);
 }
 
@@ -359,7 +399,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     box-shadow: var(--code-shadow);
     max-width: 100%;
     margin: var(--spacing-sm) 0;
-    line-height: 1.15;
+    line-height: 1.5;
     color: var(--code-ink);
     text-shadow: none;
     /* Prism themes sometimes set backgrounds; force our slide look */
@@ -370,12 +410,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"]>code,
 .slide__area pre>code[class*="language-"] {
     font-family: var(--font-mono);
-    font-size: 1.4rem;
-    line-height: inherit;
+    font-size: 20px;
+    line-height: 1.5;
     background: transparent !important;
     padding: 0;
     color: inherit;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
+    text-shadow: none;
 }
 
 /* Keep operators and symbols consistent with main code color */
@@ -447,6 +488,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     margin: 0 auto;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-subtle);
+}
+
+/* Relatively positioned images (edit mode drag/resize) */
+.slide__area img[style*="position: relative"],
+.slide__area img.image-selected {
+    margin: 0;
+    border-radius: 0;
+    max-width: none !important;
+    height: auto;
 }
 
 /* Full-bleed media in paragraphs */
@@ -534,8 +584,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .slide__area blockquote p {
     font-size: 1em;
-    line-height: 1.6;
-    color: var(--slide-muted);
+    line-height: 1.55;
+    color: var(--slide-body);
     margin: 0;
 }
 
@@ -587,7 +637,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area tbody td {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-subtle);
-    color: var(--slide-muted);
+    color: var(--slide-body);
     vertical-align: top;
     white-space: normal;
     word-break: break-word;
@@ -766,4 +816,264 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     background: rgba(69, 10, 10, 0.8);
     color: rgba(254, 226, 226, 0.98);
     border-color: rgba(248, 113, 113, 0.55);
+}
+
+/* ==========================================================================
+   8. Grid Resize Handles (Edit Mode)
+   ========================================================================== */
+
+/* Handles are injected inside .slide by GridResizer and live in design-space
+   (1920×1080), before the CSS scale transform.  Because the slide is
+   position:relative (or the outermost grid element is), the handle is
+   positioned relative to the slide's top-left corner in design pixels. */
+
+.grid-resize-handle {
+    position: absolute;
+    z-index: 40;
+    display: none;
+    pointer-events: auto;
+}
+
+body[data-edit-mode="true"] .grid-resize-handle {
+    display: block;
+}
+
+/* ── Column handle (vertical bar) ── */
+.grid-resize-handle--col {
+    width: 22px;
+    cursor: col-resize;
+    transform: translateX(-50%);
+    background: linear-gradient(to right, rgba(2, 132, 199, 0.08), rgba(2, 132, 199, 0.02));
+    border-left: 1px solid rgba(2, 132, 199, 0.22);
+    border-right: 1px solid rgba(2, 132, 199, 0.22);
+    border-radius: 999px;
+}
+
+.grid-resize-handle--col::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 4px;
+    height: 98%;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(2, 132, 199, 0.55);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 0 4px rgba(2, 132, 199, 0.10);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.grid-resize-handle--col::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid rgba(2, 132, 199, 0.95);
+    box-shadow: 0 2px 8px rgba(2, 6, 23, 0.18);
+}
+
+body[data-edit-mode="true"] .grid-resize-handle--col:hover::after,
+body[data-edit-mode="true"] .grid-resize-handle--col:active::after {
+    background: rgba(2, 132, 199, 0.85);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* ── Row handle (horizontal bar) ── */
+.grid-resize-handle--row {
+    height: 22px;
+    cursor: row-resize;
+    transform: translateY(-50%);
+    background: linear-gradient(to bottom, rgba(2, 132, 199, 0.08), rgba(2, 132, 199, 0.02));
+    border-top: 1px solid rgba(2, 132, 199, 0.22);
+    border-bottom: 1px solid rgba(2, 132, 199, 0.22);
+    border-radius: 999px;
+}
+
+.grid-resize-handle--row::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    height: 4px;
+    width: 100%;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: rgba(2, 132, 199, 0.55);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 0 4px rgba(2, 132, 199, 0.10);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.grid-resize-handle--row::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid rgba(2, 132, 199, 0.95);
+    box-shadow: 0 2px 8px rgba(2, 6, 23, 0.18);
+}
+
+body[data-edit-mode="true"] .grid-resize-handle--row:hover::after,
+body[data-edit-mode="true"] .grid-resize-handle--row:active::after {
+    background: rgba(2, 132, 199, 0.85);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.grid-resize-handle:hover,
+.grid-resize-handle:active {
+    background: rgba(2, 132, 199, 0.14);
+}
+
+/* ── Dark-theme slide overrides (more visible handles) ── */
+.slide[data-theme="dark"] .grid-resize-handle--col {
+    background: linear-gradient(to right, rgba(125, 211, 252, 0.14), rgba(125, 211, 252, 0.04));
+    border-left-color: rgba(125, 211, 252, 0.40);
+    border-right-color: rgba(125, 211, 252, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--col::after {
+    background: rgba(125, 211, 252, 0.70);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.40), 0 0 0 4px rgba(125, 211, 252, 0.16);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--col::before {
+    background: rgba(15, 23, 42, 0.90);
+    border-color: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row {
+    background: linear-gradient(to bottom, rgba(125, 211, 252, 0.14), rgba(125, 211, 252, 0.04));
+    border-top-color: rgba(125, 211, 252, 0.40);
+    border-bottom-color: rgba(125, 211, 252, 0.40);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row::after {
+    background: rgba(125, 211, 252, 0.70);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.40), 0 0 0 4px rgba(125, 211, 252, 0.16);
+}
+
+.slide[data-theme="dark"] .grid-resize-handle--row::before {
+    background: rgba(15, 23, 42, 0.90);
+    border-color: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.40);
+}
+
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--col:hover::after,
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--col:active::after {
+    background: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.25);
+}
+
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--row:hover::after,
+body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--row:active::after {
+    background: rgba(125, 211, 252, 0.95);
+    box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.25);
+}
+
+/* ==========================================================================
+   9. Image Placeholder Workflow (Edit Mode)
+   ========================================================================== */
+
+/* Rendered placeholder block inside slide content */
+.slide__area .image-placeholder {
+    border: 2px dashed rgba(2, 132, 199, 0.55);
+    border-radius: 12px;
+    background: repeating-linear-gradient(45deg,
+            rgba(2, 132, 199, 0.08),
+            rgba(2, 132, 199, 0.08) 10px,
+            rgba(2, 132, 199, 0.02) 10px,
+            rgba(2, 132, 199, 0.02) 20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin: 12px auto;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+body[data-edit-mode="true"] .slide__area .image-placeholder--editable {
+    cursor: move;
+    z-index: 4;
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.18);
+}
+
+body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(2, 132, 199, 0.45);
+    pointer-events: none;
+}
+
+.image-placeholder__resize-handle {
+    position: absolute;
+    right: -8px;
+    bottom: -8px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(2, 132, 199, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 4px 10px rgba(2, 6, 23, 0.26);
+    cursor: nwse-resize;
+    z-index: 2;
+}
+
+.slide__area .image-placeholder__inner {
+    font-size: 18px;
+    font-weight: 700;
+    color: rgba(2, 6, 23, 0.78);
+    text-align: center;
+    padding: 0 12px;
+}
+
+.slide[data-theme="dark"] .slide__area .image-placeholder {
+    border-color: rgba(56, 189, 248, 0.62);
+    background: repeating-linear-gradient(45deg,
+            rgba(56, 189, 248, 0.12),
+            rgba(56, 189, 248, 0.12) 10px,
+            rgba(56, 189, 248, 0.04) 10px,
+            rgba(56, 189, 248, 0.04) 20px);
+}
+
+.slide[data-theme="dark"] .slide__area .image-placeholder__inner {
+    color: rgba(226, 232, 240, 0.9);
+}
+
+/* Welcome slide button */
+.welcome-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.welcome-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.slide[data-theme="dark"] .welcome-btn {
+    background: rgba(56, 189, 248, 0.85);
+    color: #0f172a;
+}
+
+.slide[data-theme="dark"] .welcome-btn:hover {
+    background: rgba(56, 189, 248, 1);
 }

@@ -238,8 +238,7 @@ ${planRows}
 | title-slide | @title | Opening slide only |
 | header-content | @header, @main, @footer | Text-heavy definitions, lists, or single-concept explanations |
 | focus | @header, @main | Emphasis: key quote, critical insight, or transition moment |
-| header-two-column | @header, @main, @media, @footer | Concept paired with code, diagram, or visual example |
-| two-column | @header, @main, @media | Balanced comparison — pros/cons, before/after, A vs B |
+| two-column | @header, @main, @media, @footer | Balanced comparisons, or text/concept paired with code, diagram, or side-by-side visual examples |
 | left-heavy | @header, @main, @media, @footer | Text-driven: main explanation with a smaller supporting visual |
 | right-heavy | @header, @main, @media, @footer | Visual-driven: large code or diagram with brief context |
 | three-column | @header, @main, @media, @secondary | Three parallel categories, stages, or examples |
@@ -249,10 +248,9 @@ ${planRows}
 ## Layout Selection Strategy
 - Vary layouts across the deck. Avoid using the same layout for 3+ consecutive slides.
 - Use header-content for definitions and terminology slides.
-- Use header-two-column when code or a diagram directly illustrates the concept.
+- Use two-column when code, balanced A/B comparisons, or a diagram directly illustrates the concept side-by-side with text.
 - Use left-heavy when text is the focus and a visual/code supports it. Use right-heavy when the code or diagram is the star.
 - Use focus sparingly for emphasis moments — key takeaways, provocative questions, or transitions.
-- Use two-column for direct A/B comparisons where both sides get equal weight.
 - Use three-column only when you genuinely have three parallel items.
 - @footer is optional. Use it for source citations or brief cross-references. Omit it when unused.
 
@@ -298,9 +296,9 @@ add("5", 3); // Error!
 \`\`\`
 \`\`\`
 
-## Activity Slide Example (header-two-column)
+## Activity Slide Example (two-column)
 \`\`\`
-layout: header-two-column
+layout: two-column
 background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)
 
 <!-- notes:
@@ -379,8 +377,7 @@ Only use the layouts and markers listed here. Do not invent new layout names.
 | title-slide       | @title                                     | Opening slide only                                       |
 | header-content    | @header, @main, @footer                    | Text-heavy definitions, lists, or single-concept explanations |
 | focus             | @header, @main                             | Emphasis: key quote, critical insight, or transition moment |
-| header-two-column | @header, @main, @media, @footer            | Concept paired with code, diagram, or visual example     |
-| two-column        | @header, @main, @media                     | Balanced comparison — pros/cons, before/after, A vs B    |
+| two-column        | @header, @main, @media, @footer            | Balanced comparisons, or text/concept paired with code, diagram, or side-by-side visual examples |
 | left-heavy        | @header, @main, @media, @footer            | Text-driven: main explanation with a smaller supporting visual |
 | right-heavy       | @header, @main, @media, @footer            | Visual-driven: large code or diagram with brief context  |
 | three-column      | @header, @main, @media, @secondary         | Three parallel categories, stages, or examples           |
@@ -428,9 +425,9 @@ layout: title-slide
 ### Instructor Name
 \`\`\`
 
-## Content + Code Slide Example (header-two-column)
+## Content + Code Slide Example (two-column)
 \`\`\`
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -463,9 +460,9 @@ setInterval(refresh, 2000);
 \`\`\`
 \`\`\`
 
-## Diagram Slide Example (header-two-column)
+## Diagram Slide Example (two-column)
 \`\`\`
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -492,7 +489,7 @@ flowchart TD
 
 ## Testing Strategy: The Pyramid Example
 \`\`\`
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -533,7 +530,7 @@ Good UX is invisible. When users notice the interface, something went wrong.
 
 ## Activity Slide Example
 \`\`\`
-layout: header-two-column
+layout: two-column
 background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)
 
 <!-- notes:

@@ -73,8 +73,7 @@ layout: left-heavy
 
 @main
 
-Slides are separated by `---`. Use frontmatter for layout, then `@area` markers to place content:
-
+Use --- to separate slides. Define the layout first, then place content with @area markers.
 
 ### Layout → Areas
 
@@ -154,6 +153,7 @@ graph TD
 
 ---
 
+background: linear-gradient(135deg, #c7d2fe 0%, #f5d0fe 100%)
 layout: header-two-column
 
 @header
@@ -277,7 +277,6 @@ Use for key takeaways and callouts:
 
 > **Pro tip:** Combine markdown with inline HTML for custom styling when needed.
 
-
 ---
 
 layout: header-two-column
@@ -360,7 +359,7 @@ layout: header-content
 4. Auto-completion happens automatically on directives.
 5. Export your presentation via Developer tools, or right click `Print PDF`. Make sure to close the edit mode before printing.
 
-### Hidden Features
+### Hidding slides
 
 ```markdown
 layout: focus
@@ -372,11 +371,14 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: "main" "footer" / 1fr
+layout: header-content
 
-@main
+
+@title
 
 ## Ready to Present!
+
+@main
 
 1. **Press `E`** – Validate slide flow and fit
 2. **Press `P`** – Open viewer on your presentation display

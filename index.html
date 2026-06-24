@@ -10,7 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="icon" type="image/png" sizes="500x500" href="/icon.png" />
     <link rel="apple-touch-icon" sizes="500x500" href="/icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -51,6 +52,14 @@
                             </svg>
                             <span>Reload Deck</span>
                         </button>
+                        <button id="menuToggleEditModeBtn" class="menu-item" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            <span>Toggle Edit Mode</span>
+                        </button>
                         <div class="menu-divider"></div>
                         <button id="menuPrintBtn" class="menu-item" type="button">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -85,12 +94,20 @@
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path>
                                 <path d="M12 16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"></path>
-                                <path d="M4.93 4.93a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0L4.93 7.76a2 2 0 0 1 0-2.83z"></path>
-                                <path d="M14.83 14.83a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-1.41-1.41a2 2 0 0 1 0-2.83z"></path>
+                                <path
+                                    d="M4.93 4.93a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0L4.93 7.76a2 2 0 0 1 0-2.83z">
+                                </path>
+                                <path
+                                    d="M14.83 14.83a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-1.41-1.41a2 2 0 0 1 0-2.83z">
+                                </path>
                                 <path d="M2 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"></path>
                                 <path d="M16 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"></path>
-                                <path d="M4.93 19.07a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z"></path>
-                                <path d="M14.83 9.17a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z"></path>
+                                <path
+                                    d="M4.93 19.07a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z">
+                                </path>
+                                <path
+                                    d="M14.83 9.17a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z">
+                                </path>
                             </svg>
                             <span>AI Configuration</span>
                         </button>
@@ -200,13 +217,111 @@
                     <div class="editor__body-header">
                         <h2 class="editor__title">Edit Slide</h2>
                         <div class="editor__helper-actions">
-                            <button id="toggleMermaidHelperBtn" class="btn btn--sm" type="button" aria-expanded="false" aria-controls="mermaidHelperPanel" title="Insert Mermaid diagram">Mermaid</button>
+                            <div class="segmented insert-dropdown" role="group" aria-label="Editor actions">
+                                <button
+                                    id="insertDropdownBtn" class="segmented__btn segmented__btn--dropdown insert-dropdown__btn" type="button" aria-expanded="false"
+                                    aria-controls="insertDropdownContent" title="Insert content or change layout">
+                                    <svg class="segmented__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19" />
+                                        <line x1="5" y1="12" x2="19" y2="12" />
+                                    </svg>
+                                    <span class="segmented__label">Insert / Update</span>
+                                    <svg class="insert-dropdown__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div id="insertDropdownContent" class="insert-dropdown__content webdeck-hidden">
+                                    <div class="insert-dropdown__group">
+                                        <span class="insert-dropdown__group-label">Slide</span>
+                                        <button type="button" class="menu-item" data-insert-action="layout">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                                <line x1="3" y1="9" x2="21" y2="9" />
+                                                <line x1="9" y1="21" x2="9" y2="9" />
+                                            </svg>
+                                            <span>Change Layout</span>
+                                            <kbd class="insert-dropdown__hint">Layout</kbd>
+                                        </button>
+                                        <button id="adjustColumnsMenuItem" type="button" class="menu-item" data-insert-action="adjust-columns" disabled>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <rect x="3" y="3" width="7" height="18" rx="1" />
+                                                <rect x="14" y="3" width="7" height="18" rx="1" />
+                                            </svg>
+                                            <span>Adjust Columns</span>
+                                        </button>
+                                        <button type="button" class="menu-item" data-insert-action="background">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <path d="M12 2a10 10 0 0 0 0 20 6 6 0 0 1 0-12 6 6 0 0 0 0-8z"
+                                                    fill="currentColor" stroke="none" />
+                                            </svg>
+                                            <span>Background</span>
+                                        </button>
+                                        <button type="button" class="menu-item" data-insert-action="theme" id="toggleThemeMenuItem">
+                                            <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round" style="display:none">
+                                                <circle cx="12" cy="12" r="5"></circle>
+                                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                            </svg>
+                                            <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                                            </svg>
+                                            <span>Toggle Theme</span>
+                                        </button>
+                                    </div>
+                                    <div class="insert-dropdown__group">
+                                        <span class="insert-dropdown__group-label">Content</span>
+                                        <button type="button" class="menu-item" data-insert-action="image">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                                <path d="M21 15l-5-5L5 21" />
+                                            </svg>
+                                            <span>Image</span>
+                                        </button>
+                                        <button type="button" class="menu-item" data-insert-action="mermaid">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <rect x="3" y="3" width="6" height="6" rx="1" />
+                                                <rect x="15" y="15" width="6" height="6" rx="1" />
+                                                <rect x="15" y="3" width="6" height="6" rx="1" />
+                                                <path d="M9 6h6" />
+                                                <path d="M18 9v6" />
+                                                <path d="M6 9v6a3 3 0 0 0 3 3h6" />
+                                            </svg>
+                                            <span>Mermaid Diagram</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div id="mermaidHelperPanel" class="editor__helper-panel webdeck-hidden" aria-hidden="true">
                         <div class="editor__helper-title">Mermaid helpers</div>
                         <div class="editor__helper-grid">
-                            <button class="btn btn--sm" type="button" data-mermaid-template="flowchart">Flowchart</button>
+                            <button class="btn btn--sm" type="button"
+                                data-mermaid-template="flowchart">Flowchart</button>
                             <button class="btn btn--sm" type="button" data-mermaid-template="erDiagram">ER</button>
                             <button class="btn btn--sm" type="button" data-mermaid-template="sequence">Sequence</button>
                             <button class="btn btn--sm" type="button" data-mermaid-template="class">Class</button>
@@ -261,7 +376,9 @@
                         <div class="presenter__sectionHeader">
                             <h3 class="presenter__sectionTitle">Viewer Control</h3>
                             <button id="freezeBtn" class="btn btn--sm" title="Freeze Viewer" aria-pressed="false">
-                                <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                                 </svg>
@@ -284,21 +401,22 @@
         <footer id="footerBar" class="footer">
             <div class="footer__left">
                 <strong>Shortcuts:</strong>
-                <span><b>Arrows, Space, PgUp/Dn</b>: Prev/Next</span>
+                <button type="button" class="footer-shortcut" data-shortcut="prev" title="Previous slide">← Prev</button>
+                <button type="button" class="footer-shortcut" data-shortcut="next" title="Next slide">Next →</button>
                 <span id="editorOnlyControls">
-                    <span>•</span>
-                    <span style="padding: 0 6px;"><b>P</b> Present</span>
-                    <span>•</span>
-                    <span style="padding: 0 6px;"><b>E</b> Edit Mode</span>
-                    <span>•</span>
-                    <span style="padding-left: 6px;"><b>R</b> Reload</span>
-                    <span>•</span>
-                    <span style="padding-left: 6px;"><b>D</b> Switch Theme</span>
+                    <span class="footer-sep">•</span>
+                    <button type="button" class="footer-shortcut" data-shortcut="present" title="Open presenter view">P (Present)</button>
+                    <span class="footer-sep">•</span>
+                    <button type="button" class="footer-shortcut" data-shortcut="edit" title="Toggle edit mode">E (Edit Mode)</button>
+                    <span class="footer-sep">•</span>
+                    <button type="button" class="footer-shortcut" data-shortcut="reload" title="Reload deck">R (Reload)</button>
+                    <span class="footer-sep">•</span>
+                    <button type="button" class="footer-shortcut" data-shortcut="theme" title="Toggle dark/light theme">D (Switch Theme)</button>
                 </span>
-                <span>•</span>
-                <span><b>F</b> Full Screen</span>
-                <span>•</span>
-                <span><b>G</b>: Go to slide</span>
+                <span class="footer-sep">•</span>
+                <button type="button" class="footer-shortcut" data-shortcut="fullscreen" title="Toggle fullscreen">F (Full Screen)</button>
+                <span class="footer-sep">•</span>
+                <button type="button" class="footer-shortcut" data-shortcut="goto" title="Go to slide number">G (Go to slide)</button>
             </div>
             <div class="footer__right">Slide Deck</div>
         </footer>

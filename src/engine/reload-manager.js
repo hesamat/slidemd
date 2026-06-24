@@ -104,7 +104,7 @@ export class ReloadManager extends EventEmitter {
                     const deckId = this.getDeckId(this.deck);
                     raw = await DeckLoader.reloadFromFileHandle(deckId);
                 } catch (e) {
-                    console.log('[Reload] File handle check failed:', e.message);
+                    console.warn('[Reload] File handle check failed:', e.message);
                     raw = null;
                 }
             }

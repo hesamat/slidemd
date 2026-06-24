@@ -56,7 +56,7 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getRoadmapTemplate() {
-        return `layout: header-two-column
+        return `layout: two-column
 
 @header
 
@@ -109,7 +109,7 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getConceptWithCodeTemplate() {
-        return `layout: header-two-column
+        return `layout: two-column
 
 @header
 
@@ -136,7 +136,7 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getComparisonTemplate() {
-        return `layout: header-two-column
+        return `layout: two-column
 
 @header
 
@@ -164,7 +164,7 @@ export class GenerationTemplates {
      * @returns {string} Template markdown
      */
     static getActivityTemplate() {
-        return `layout: header-two-column
+        return `layout: two-column
 
 {{#if background}}
 background: {{background}}

@@ -4,6 +4,7 @@
  */
 // Markdown parsing and slide extraction
 import { safeString, slugifyTitle, DESIGN_SIZE, escapeHtml } from "../core/utils.js";
+import { LayoutParser } from "./layout-parser.js";
 
 class FenceTracker {
     constructor() {
@@ -307,6 +308,26 @@ export class MarkdownParser {
             cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
             const areasMd = this.parseAreas(cleaned);
+
+            const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
+                fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
+            });
+            const layoutAreas = new Set(resolvedLayout.orderedAreas);
+            const hasTitleArea = layoutAreas.has("title");
+
+            // Treat @title and @header as aliases, but keep only the area the layout can actually render.
+            if (hasTitleArea) {
+                if (!areasMd.title && areasMd.header) {
+                    areasMd.title = areasMd.header;
+                }
+                delete areasMd.header;
+            } else {
+                if (!areasMd.header && areasMd.title) {
+                    areasMd.header = areasMd.title;
+                }
+                delete areasMd.title;
+            }
+
             const areas = {};
             for (const [name, src] of Object.entries(areasMd)) {
                 let html = this.md.render(src);
