@@ -298,21 +298,6 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
     opacity: 0.7;
 }
 
-/* Trailing kbd hint inside a top-bar menu item (e.g. "Save … Ctrl+S"). */
-.menu-item > .menu-item__hint,
-.menu-item kbd.menu-item__hint {
-    margin-left: auto;
-    padding: 1px 6px;
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 600;
-    color: var(--text-low);
-    background: var(--surface-elevated);
-    line-height: 1.2;
-}
-
 .menu-divider {
     height: 1px;
     margin: 6px 0;

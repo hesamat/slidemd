@@ -92,20 +92,6 @@ a:hover {
     user-select: none;
 }
 
-/* Hide footer items in edit mode (e.g. Break timer — the break is for the
-   presenter view, not for editing).  Both the button and the leading "•"
-   separator share the class so the trailing separator also disappears,
-   avoiding a dangling bullet when the group is hidden. */
-.footer-hide-in-edit {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-body[data-edit-mode="true"] .footer-hide-in-edit {
-    display: none;
-}
-
 /* ========================================================================
    Responsive Layout (Mobile)
    ======================================================================== */

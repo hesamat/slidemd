@@ -57,10 +57,6 @@ export class ImageInteractionHandler {
             // input handle arrows/Escape/Delete naturally.
             if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
 
-            // Ignore modified keystrokes — the global keyboard handler manages
-            // Ctrl+/Alt+ shortcuts, and we don't want to consume them here.
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-
             if (e.key === 'Escape') {
                 this.deselect();
                 return;
@@ -81,40 +77,6 @@ export class ImageInteractionHandler {
                 this._selectedImg.style[prop] = `${cur + dir * step}px`;
                 this._updateOverlay();
                 this._syncToMarkdown();
-                return;
-            }
-
-            // Contextual shortcuts (only when an image is selected)
-            const key = e.key;
-            if (key === 'c' || key === 'C') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                this.centerOnSlide();
-                return;
-            }
-            if (key === 'w' || key === 'W') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                this.fitToWidth();
-                return;
-            }
-            if (key === ']') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                this.bringToFront();
-                return;
-            }
-            if (key === '[') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                this.sendToBack();
-                return;
-            }
-            if (key === 'r' || key === 'R') {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                ImagePropertiesPanel._openReplacePicker?.();
-                return;
             }
         });
     }

@@ -23,6 +23,11 @@
     overflow: visible;
 }
 
+.editor__body-header .editor__title {
+    color: var(--text-high) !important;
+    font-weight: 700 !important;
+}
+
 .editor__helper-actions {
     display: flex;
     align-items: center;

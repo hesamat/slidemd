@@ -136,6 +136,11 @@ export class EditController {
             this.imageBg._deckDirMode = null;
         });
 
+        // Set up save button
+        if (this.elements.saveSlideBtn) {
+            this.elements.saveSlideBtn.addEventListener('click', () => this.saveChanges());
+        }
+
         // Set up add slide button - show layout picker
         if (this.elements.addSlideBtn) {
             this.elements.addSlideBtn.addEventListener('click', () => this.showLayoutPicker());

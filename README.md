@@ -77,73 +77,15 @@ Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork
 ### Stage Controls (all windows)
 - `F`: Toggle fullscreen for the stage
 
-### Editor Window (work in both viewing and edit mode)
+### Presenter Panel Only
+- `P`: Toggle viewer window (present)
 - `E`: Toggle edit mode
-- `R`: Reload the deck
-- `T`: Toggle the **app** theme (light/dark UI chrome)
-
-### Editor Window — Viewing Mode Only
-- `P`: Toggle viewer window (present) — hidden in the footer when in edit mode
-
-### Editor Window — Edit Mode Only (also hidden in footer)
 - `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
+- `R`: Reload the deck
+- `D`: Toggle theme
 
 Notes:
-- `B` (break) and `P` (present) are intentionally disabled in edit mode — the break is for the presenter view, not for editing, and the presenter window is only useful when presenting, not when writing. Both buttons are also hidden from the footer in edit mode.
 - The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
-
-### Edit Mode
-Edit mode (toggled with `E`) is the slide-editing workspace. All edit-mode shortcuts are discoverable in the **Format** dropdown and in the right-click context menu on slide thumbnails.
-
-**Format dropdown** (in the editor body header) — modify the current slide:
-
-- **Layout** — Layout, Columns
-- **Appearance** — Background, Styles, Theme
-- **Insert** — Image, Diagram
-
-**Slide operations** — done from the slide-thumbnails sidebar:
-
-- **Right-click** any slide thumbnail for a context menu with:
-  - **New slide after** (Alt+N)
-  - **Duplicate slide** (Alt+D)
-  - **Delete slide** (Alt+⌫)
-- **"+ Add Slide"** button pinned below the thumbnail list — appends a new slide to the end of the deck.
-
-The context menu is keyboard-driven too: the same Alt+N / Alt+D / Alt+⌫ shortcuts work anywhere in edit mode, not just from the menu.
-
-There are two distinct themes and two distinct shortcuts:
-
-- **`T` (single key)** toggles the global **app theme** — the light/dark chrome around the slides (top bar, editor, footer). The top-bar theme toggle button is an alternative.
-- **`Alt+T` (modifier)** toggles the current **slide's theme** — the `theme:` directive on the current slide, which controls the slide's own light/dark background. This is the same as the "Theme" item in the Format dropdown.
-
-**Saving changes** is done from the main app menu (top-bar dropdown, under "Toggle Edit Mode"). The menu also shows the `Ctrl+S` shortcut. Save is only meaningful in edit mode — clicking it from viewing mode shows a notification asking you to enter edit mode first.
-
-Structural (work even while typing in the editor):
-- `Ctrl+S`: Save changes
-- `Alt+N`: New slide (opens the layout picker)
-- `Alt+D`: Duplicate current slide
-- `Alt+Backspace`: Delete current slide (with confirmation)
-
-Insert content (work even while typing in the editor):
-- `Alt+I`: Insert image
-- `Alt+L`: Open layout picker for the current slide
-- `Alt+A`: Toggle column resize handles (Adjust Columns)
-- `Alt+M`: Toggle the Mermaid helper panel
-- `Alt+B`: Pick slide background
-- `Alt+T`: Toggle the current slide's theme (per-slide `theme:` directive)
-- `Alt+S`: Toggle the slide styles panel
-
-Image selected (contextual — only the image overlay is active):
-- `C`: Center image on slide
-- `W`: Fit image to area width
-- `]`: Bring to front
-- `[`: Send to back
-- `R`: Replace image (opens the picker)
-- Arrow keys / `Shift+Arrow`: move 1px / 10px
-- `Escape`: deselect
-- `Delete`: delete image from the slide
-
-Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`) because those `Ctrl` combinations are reserved by the browser for "new window" and "bookmark" and cannot be intercepted by web pages.
 
 
 Use preset names instead of full CSS grid strings:

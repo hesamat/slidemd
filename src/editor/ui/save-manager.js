@@ -20,14 +20,12 @@ export class SaveManager {
     get originalMarkdown() { return this.ctrl.originalMarkdown; }
 
     /**
-     * Update the save state.  The save action is now triggered from the
-     * main app menu (top-bar dropdown) rather than a button next to the
-     * markdown editor, so this method is currently a no-op kept for API
-     * compatibility.  The main menu item is enabled/disabled implicitly by
-     * the user's edit-mode state — see DeckController.
+     * Update the save button state.
      */
     updateButton() {
-        // no-op (save button removed from editor body header; lives in main menu)
+        if (this.elements.saveSlideBtn) {
+            this.elements.saveSlideBtn.disabled = !this.hasUnsavedChanges;
+        }
     }
 
     /**
