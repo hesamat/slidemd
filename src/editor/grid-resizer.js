@@ -226,6 +226,7 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
     const totalGridHeight = boundaries.length ? (_getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0) : 0;
 
     for (let i = 0; i < colTracks.length - 1; i++) {
+        if (!colTracks[i].isFr || !colTracks[i + 1].isFr) continue;
         const xDesign = metrics.leftOffset + boundaries[i + 1];
         const leftTrackIdx = i;
         const rightTrackIdx = i + 1;
@@ -306,6 +307,7 @@ function _injectRowHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onL
     const totalGridWidth = (_getBoundaryPositions(metrics.columns, metrics.columnGap).at(-1) || 0);
 
     for (let i = 0; i < rowTracks.length - 1; i++) {
+        if (!rowTracks[i].isFr || !rowTracks[i + 1].isFr) continue;
         const yDesign = metrics.topOffset + boundaries[i + 1];
         const topTrackIdx = i;
         const bottomTrackIdx = i + 1;
