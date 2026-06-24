@@ -266,7 +266,7 @@
     gap: 6px;
     padding: 8px 10px;
     background: transparent;
-    border: 1px dashed var(--border-medium, rgba(148, 163, 184, 0.45));
+    border: 1px dashed var(--border-medium);
     border-radius: var(--radius-sm);
     color: var(--text-medium);
     font-family: var(--font-sans);
@@ -281,7 +281,7 @@
 .slide-thumbnails__add-btn:hover {
     background: var(--surface-hover);
     color: var(--text-high);
-    border-color: var(--accent, rgba(var(--color-primary), 0.6));
+    border-color: var(--accent);
     border-style: solid;
 }
 
@@ -350,7 +350,7 @@
 .slide-context-menu__hint {
     flex-shrink: 0;
     padding: 2px 6px;
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
     background: var(--surface-bg);
     color: var(--text-low);

@@ -27,10 +27,6 @@ export class KeyboardHandler {
         "p": "viewer", "P": "viewer"
     };
 
-    // Edit-mode-only single-key actions (require isEditMode === true). Only
-    // fire when the markdown editor does not have focus.
-    static #EDIT_MODE_ACTIONS = {};
-
     // Edit-mode actions that work even while the user is typing in the
     // markdown editor. Each entry encodes the exact key combo that must match.
     // Conventions:
@@ -87,7 +83,6 @@ export class KeyboardHandler {
      * @param {Function} actions.pickBackground - Open background picker (edit mode only, Alt+B)
      * @param {Function} actions.adjustColumns - Toggle column resize handles (edit mode only, Alt+A)
      * @param {Function} actions.isEditMode - Callback to check if edit mode is active
-     * @param {Function} actions.shouldPreventDefault - Optional callback to check if default should be prevented
      * @param {Function} actions.isBreakActive - Callback to check if break mode is active
      * @param {Function} actions.endBreak - Callback to end break mode
      * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
@@ -120,6 +115,18 @@ export class KeyboardHandler {
      */
     #isInCodeMirror(e) {
         return !!e.target?.closest?.(".cm-editor, .markdown-editor-codemirror");
+    }
+
+    /**
+     * Check if the event originated inside the slide-thumbnails sidebar.
+     * Used to gate keys (currently Backspace) that would otherwise fire
+     * globally and interfere with browser back-navigation or with the
+     * focused thumbnail's own controls.
+     * @param {KeyboardEvent} e
+     * @returns {boolean}
+     */
+    #isInThumbnails(e) {
+        return !!e.target?.closest?.("#slideThumbnails");
     }
 
     /**
@@ -179,11 +186,17 @@ export class KeyboardHandler {
         const plainKey = e.key;
         const singleAction =
             KeyboardHandler.#KEYBOARD_ACTIONS[plainKey] ||
-            (isEditMode ? KeyboardHandler.#EDIT_MODE_ACTIONS[plainKey] : null) ||
             KeyboardHandler.#VIEWING_ACTIONS[plainKey] ||
             null;
 
         if (!singleAction) return;
+
+        // Backspace → prev is gated to the slide-thumbnails container so it
+        // doesn't fire globally (where it could trigger the browser's back
+        // navigation) and doesn't fire when a thumbnail is focused for
+        // keyboard interaction (where the user is using Tab/Enter, not
+        // Backspace, to navigate).
+        if (e.key === "Backspace" && !this.#isInThumbnails(e)) return;
 
         // Skip navigation actions when an image is selected in edit mode
         if (this.actions.isImageSelected?.() && ["next", "prev", "first", "last"].includes(singleAction)) {
@@ -197,10 +210,9 @@ export class KeyboardHandler {
             return;
         }
 
-        // Check if we should prevent default (for actions that want it)
-        // For "reload" action, don't prevent default to allow browser's Ctrl+R/F5 to work
-        const shouldPrevent = this.actions.shouldPreventDefault?.(singleAction) !== false;
-        if (shouldPrevent && singleAction !== "reload") {
+        // Prevent the browser's default for all handled actions except
+        // "reload" — for reload we want Ctrl+R / F5 to still work.
+        if (singleAction !== "reload") {
             e.preventDefault();
         }
 

@@ -4,6 +4,16 @@
  * Drag-and-drop repositioning and resize handles for images in edit mode.
  * Works directly on <img> elements with a selection overlay.
  * No wrappers — the overlay tracks the image's position/size.
+ *
+ * Also owns the image-mode keyboard shortcuts (only fire when an image
+ * is selected in the slide editor):
+ *   C           center image on slide
+ *   W           fit image to area width
+ *   ] / [       bring to front / send to back (z-order)
+ *   R           replace image (opens picker)
+ *   Arrow keys  move 1px (Shift+Arrow = 10px)
+ *   Delete      remove image from slide
+ *   Escape      deselect
  */
 import interact from 'interactjs';
 import { ImagePropertiesPanel } from './image-properties-panel.js';

@@ -22,7 +22,7 @@ export class SlideThumbnails {
         if (!this._container) return;
 
         // Cache the add-slide button (last child of the list) so we can
-        // re-insert it after clearing/rendering the thumbnails.
+        // keep it in place when the thumbnails are re-rendered.
         this._addBtn = this._container.querySelector('.slide-thumbnails__add-btn');
 
         // Listen for slide changes to update current thumbnail highlight
@@ -126,8 +126,18 @@ export class SlideThumbnails {
 
         thumbnail.appendChild(actionsContainer);
 
-        // Click handler to navigate to slide
+        // Long-press support (touch devices) and the click suppression flag
+        // are declared here so the click handler below can see them.
+        let longPressTimer = null;
+        let longPressTriggered = false;
+
+        // Click handler to navigate to slide.  Suppressed after a
+        // long-press so the touchend that follows doesn't also navigate.
         thumbnail.addEventListener('click', () => {
+            if (longPressTriggered) {
+                longPressTriggered = false;
+                return;
+            }
             this._controller.slideNavigator.goTo(index);
         });
 
@@ -137,6 +147,33 @@ export class SlideThumbnails {
             this._controller.slideNavigator.goTo(index);
             this._contextMenu.open(e.clientX, e.clientY, index);
         });
+
+        // Long-press on touch devices opens the same context menu.  The
+        // `contextmenu` event only fires for mouse/pen, so without this
+        // tablet users would lose access to new/duplicate/delete.
+        const startLongPress = (touch) => {
+            longPressTriggered = false;
+            longPressTimer = window.setTimeout(() => {
+                longPressTimer = null;
+                longPressTriggered = true;
+                this._controller.slideNavigator.goTo(index);
+                this._contextMenu.open(touch.clientX, touch.clientY, index);
+                if (navigator.vibrate) navigator.vibrate(10);
+            }, 650);
+        };
+        const cancelLongPress = () => {
+            if (longPressTimer !== null) {
+                window.clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        };
+        thumbnail.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            if (touch) startLongPress(touch);
+        }, { passive: true });
+        thumbnail.addEventListener('touchend', cancelLongPress);
+        thumbnail.addEventListener('touchmove', cancelLongPress);
+        thumbnail.addEventListener('touchcancel', cancelLongPress);
 
         return thumbnail;
     }
