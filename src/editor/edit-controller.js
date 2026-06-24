@@ -22,6 +22,7 @@ import { ImagePicker } from "./image-picker.js";
 import { BackgroundPicker } from "./background-picker.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { ImageInteractionHandler } from "./image-interaction-handler.js";
+import { ImagePropertiesPanel } from "./image-properties-panel.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -190,6 +191,12 @@ export class EditController {
         // Insert dropdown (Layout / Image / Mermaid)
         this.initInsertDropdown();
 
+        // Toggle grid resizer handles on/off
+        this._gridResizerVisible = true;
+        if (this.elements.toggleGridResizerBtn) {
+            this.elements.toggleGridResizerBtn.addEventListener('click', () => this.toggleGridResizer());
+        }
+
         if (this.elements.mermaidHelperPanel) {
             const templateButtons = this.elements.mermaidHelperPanel.querySelectorAll('[data-mermaid-template]');
             templateButtons.forEach((button) => {
@@ -223,7 +230,7 @@ export class EditController {
                 },
             }
         );
-        this._initImageToolbar();
+        this._initImagePropertiesPanel();
 
         // Render initial thumbnails
         this.thumbnails.render();
@@ -250,6 +257,12 @@ export class EditController {
             this.elements.presenterPanel?.classList.add('webdeck-hidden');
             this.elements.toggleEditModeBtn.classList.add('active');
             document.body.setAttribute('data-edit-mode', 'true');
+
+            // Reset grid resizer toggle to visible when entering edit mode
+            this._gridResizerVisible = true;
+            if (this.elements.toggleGridResizerBtn) {
+                this.elements.toggleGridResizerBtn.setAttribute('aria-pressed', 'true');
+            }
 
             // Initialize the markdown editor if not already initialized
             if (!this.markdownEditor && this.elements.markdownEditor) {
@@ -553,6 +566,27 @@ export class EditController {
             this.elements.deckStage,
             (change) => this._onGridResize(change, layoutInfo)
         );
+
+        // Respect the grid resizer toggle state
+        if (!this._gridResizerVisible) {
+            slideEl.querySelectorAll('.grid-resize-handle').forEach((h) => h.style.display = 'none');
+        }
+    }
+
+    /**
+     * Toggle the grid column/row resize handles on all slides.
+     */
+    toggleGridResizer() {
+        this._gridResizerVisible = !this._gridResizerVisible;
+        const btn = this.elements.toggleGridResizerBtn;
+        if (btn) btn.setAttribute('aria-pressed', String(this._gridResizerVisible));
+
+        const slides = document.querySelectorAll('#slidesContainer > .slide');
+        slides.forEach((slide) => {
+            slide.querySelectorAll('.grid-resize-handle').forEach((h) => {
+                h.style.display = this._gridResizerVisible ? '' : 'none';
+            });
+        });
     }
 
     navigateToArea(areaName) {
@@ -745,7 +779,18 @@ export class EditController {
 
     // ─── Image Toolbar (restyle inline images) ──────────────────────────────
 
-    _initImageToolbar() {
+    _initImagePropertiesPanel() {
+        // Initialize the floating image toolbar with markdown access so it can
+        // drive applySettings / updateAttribute via ImageInteractionHandler.
+        ImagePropertiesPanel.init(
+            () => this.markdownEditor?.getValue() ?? '',
+            (updated) => {
+                this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+                this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+                this.updateUnsavedChangesFlag();
+            }
+        );
+
         const slidesContainer = this.elements.slidesContainer;
         if (!slidesContainer) return;
 

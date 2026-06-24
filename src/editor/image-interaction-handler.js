@@ -6,9 +6,26 @@
  * No wrappers — the overlay tracks the image's position/size.
  */
 import interact from 'interactjs';
+import { ImagePropertiesPanel } from './image-properties-panel.js';
 
 const SLIDE_W = 1920;
 const SLIDE_H = 1080;
+
+const DEFAULT_STYLE = {
+    position: 'relative',
+    left: 0,
+    top: 0,
+    width: 320,
+    height: null,
+    opacity: 1,
+    borderRadius: 0,
+    boxShadow: 'none',
+    rotation: 0,
+    zIndex: 0,
+    border: 'none',
+    objectFit: 'contain',
+    cursor: 'move',
+};
 
 export class ImageInteractionHandler {
     static _initialized = false;
@@ -20,6 +37,7 @@ export class ImageInteractionHandler {
     static _overlay = null;
     static _resizeState = null;
     static _pendingSelectSrc = null;
+    static _aspectLocked = false;
 
     static init(getMarkdown, setMarkdown, { onDelete } = {}) {
         if (this._initialized) return;
@@ -29,13 +47,18 @@ export class ImageInteractionHandler {
         this._onDelete = onDelete || null;
 
         document.addEventListener('mousedown', (e) => {
-            if (this._selectedImg && !e.target.closest('.image-overlay') && !e.target.closest('img')) {
+            if (this._selectedImg && !e.target.closest('.image-overlay') && !e.target.closest('img') && !e.target.closest('.image-properties-panel')) {
                 this.deselect();
             }
         });
 
         document.addEventListener('keydown', (e) => {
             if (!this._selectedImg) return;
+
+            // Don't intercept keys when the user is interacting with an input
+            // (e.g. typing a width value in the properties panel).  Let the
+            // input handle arrows/Escape/Delete naturally.
+            if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
 
             if (e.key === 'Escape') {
                 this.deselect();
@@ -71,25 +94,6 @@ export class ImageInteractionHandler {
         // position the overlay on it now that the overlay exists.
         if (this._selectedImg) {
             this._updateOverlay();
-        }
-
-        // Restore selection if we navigated away and back to the same slide
-        if (this._pendingSelectSrc) {
-            const src = this._pendingSelectSrc;
-            setTimeout(() => {
-                // If already selected by another path, bail
-                if (this._selectedImg) { this._pendingSelectSrc = null; return; }
-                const slide = slideContainer.closest('.slide');
-                if (!slide) return;
-                const imgs = slide.querySelectorAll('.slide__area img');
-                for (const img of imgs) {
-                    if (img.src === src || img.getAttribute('src') === src) {
-                        this._pendingSelectSrc = null;
-                        this.select(img);
-                        return;
-                    }
-                }
-            }, 100);
         }
     }
 
@@ -155,7 +159,11 @@ export class ImageInteractionHandler {
     // ── Selection ───────────────────────────────────────────────────────────
 
     static select(img) {
-        if (this._selectedImg === img) return;
+        if (this._selectedImg === img) {
+            this._updateOverlay();
+            ImagePropertiesPanel.show(img, this._readSettings(img));
+            return;
+        }
         this.deselect();
 
         // If this is a markdown image (no position style), convert to HTML
@@ -167,17 +175,18 @@ export class ImageInteractionHandler {
         this._selectedImg = img;
         img.classList.add('image-selected');
         this._updateOverlay();
+        ImagePropertiesPanel.show(img, this._readSettings(img));
     }
 
     static deselect() {
         if (this._selectedImg) {
-            this._pendingSelectSrc = this._selectedImg.src || null;
             this._selectedImg.classList.remove('image-selected');
             this._selectedImg = null;
         }
         if (this._overlay) {
             this._overlay.style.display = 'none';
         }
+        ImagePropertiesPanel.hide();
     }
 
     static isSelected() { return !!this._selectedImg; }
@@ -198,12 +207,27 @@ export class ImageInteractionHandler {
                     const left = parseFloat(img.style.left) || 0;
                     const top = parseFloat(img.style.top) || 0;
 
-                    img.style.left = `${left + e.dx}px`;
-                    img.style.top = `${top + e.dy}px`;
+                    let newLeft = left + e.dx;
+                    let newTop = top + e.dy;
+
+                    // Snapping (disabled while Alt is held)
+                    if (!e.altKey) {
+                        const snap = this._computeSnap(img, newLeft, newTop);
+                        if (snap.x != null) newLeft = snap.x;
+                        if (snap.y != null) newTop = snap.y;
+                        this._renderSnapGuides(snap.guides);
+                    } else {
+                        this._clearSnapGuides();
+                    }
+
+                    img.style.left = `${newLeft}px`;
+                    img.style.top = `${newTop}px`;
 
                     this._updateOverlay();
+                    ImagePropertiesPanel._syncUI(this._readSettings(img));
                 },
                 end: () => {
+                    this._clearSnapGuides();
                     this._syncToMarkdown();
                 },
             },
@@ -234,6 +258,8 @@ export class ImageInteractionHandler {
                 startTop: parseFloat(img.style.top) || 0,
                 startW: img.offsetWidth,
                 startH: img.offsetHeight,
+                ratio: img.offsetWidth / (img.offsetHeight || 1),
+                shiftHeld: e.shiftKey,
             };
 
             const onMove = (ev) => {
@@ -252,10 +278,33 @@ export class ImageInteractionHandler {
                 let newW = s.startW;
                 let newH = s.startH;
 
+                const isCorner = s.edge.length > 4; // top-left, top-right, etc.
+                const lockRatio = this._aspectLocked || (ev.shiftKey && isCorner);
+
                 if (s.edge.includes('right'))  newW = Math.max(50, s.startW + sdx);
                 if (s.edge.includes('left'))  { newW = Math.max(50, s.startW - sdx); newLeft = s.startLeft + s.startW - newW; }
                 if (s.edge.includes('bottom')) newH = Math.max(50, s.startH + sdy);
                 if (s.edge.includes('top'))    { newH = Math.max(50, s.startH - sdy); newTop = s.startTop + s.startH - newH; }
+
+                // Aspect-ratio lock: derive the unfixed dimension from the fixed one.
+                // For corner drags we let the dominant axis (the one with the larger
+                // mouse delta) drive; for edge drags we adjust the cross axis.
+                if (lockRatio && s.startH) {
+                    if (isCorner) {
+                        if (Math.abs(sdx) >= Math.abs(sdy)) {
+                            newH = newW / s.ratio;
+                        } else {
+                            newW = newH * s.ratio;
+                        }
+                        // Re-anchor left/top for left/top edges after ratio adjust
+                        if (s.edge.includes('left'))  newLeft = s.startLeft + s.startW - newW;
+                        if (s.edge.includes('top'))   newTop = s.startTop + s.startH - newH;
+                    } else if (s.edge === 'left' || s.edge === 'right') {
+                        newH = newW / s.ratio;
+                    } else if (s.edge === 'top' || s.edge === 'bottom') {
+                        newW = newH * s.ratio;
+                    }
+                }
 
                 img.style.left = `${Math.max(0, newLeft)}px`;
                 img.style.top = `${Math.max(0, newTop)}px`;
@@ -263,6 +312,7 @@ export class ImageInteractionHandler {
                 img.style.height = `${newH}px`;
 
                 this._updateOverlay();
+                ImagePropertiesPanel._syncUI(this._readSettings(img));
             };
 
             const onUp = () => {
@@ -284,6 +334,129 @@ export class ImageInteractionHandler {
         if (!transform || transform === 'none') return 1;
         const match = transform.match(/matrix\(([^,]+),/);
         return match ? parseFloat(match[1]) : 1;
+    }
+
+    // ── Snapping ────────────────────────────────────────────────────────────
+
+    static _SNAP_THRESHOLD = 6; // design px
+
+    /**
+     * Compute snap-adjusted left/top for the dragged image.
+     * Returns { x, y, guides } where x/y are snapped positions (or null) and
+     * guides is a list of { axis, pos } for rendering guide lines.
+     */
+    static _computeSnap(img, newLeft, newTop) {
+        const grid = this._slideContainer;
+        if (!grid) return { x: null, y: null, guides: [] };
+
+        const w = img.offsetWidth;
+        const h = img.offsetHeight;
+        const imgCenterX = newLeft + w / 2;
+        const imgCenterY = newTop + h / 2;
+
+        // Candidate snap targets in design coordinates.
+        const xTargets = [
+            { v: 0, kind: 'edge' },                  // slide left
+            { v: SLIDE_W / 2, kind: 'center' },      // slide center X
+            { v: SLIDE_W, kind: 'edge' },            // slide right
+        ];
+        const yTargets = [
+            { v: 0, kind: 'edge' },
+            { v: SLIDE_H / 2, kind: 'center' },
+            { v: SLIDE_H, kind: 'edge' },
+        ];
+
+        // Add other images' centers/edges on the same slide
+        const slide = img.closest('.slide');
+        if (slide) {
+            slide.querySelectorAll('img').forEach((other) => {
+                if (other === img) return;
+                const oL = parseFloat(other.style.left) || 0;
+                const oT = parseFloat(other.style.top) || 0;
+                const oW = other.offsetWidth;
+                const oH = other.offsetHeight;
+                xTargets.push({ v: oL, kind: 'edge' });
+                xTargets.push({ v: oL + oW / 2, kind: 'center' });
+                xTargets.push({ v: oL + oW, kind: 'edge' });
+                yTargets.push({ v: oT, kind: 'edge' });
+                yTargets.push({ v: oT + oH / 2, kind: 'center' });
+                yTargets.push({ v: oT + oH, kind: 'edge' });
+            });
+        }
+
+        // For each of the image's three vertical reference lines (left, center, right),
+        // try to snap to any target.  Same for horizontal (top, center, bottom).
+        const xRefs = [
+            { ref: newLeft, offset: 0 },
+            { ref: imgCenterX, offset: w / 2 },
+            { ref: newLeft + w, offset: w },
+        ];
+        const yRefs = [
+            { ref: newTop, offset: 0 },
+            { ref: imgCenterY, offset: h / 2 },
+            { ref: newTop + h, offset: h },
+        ];
+
+        let snappedX = null;
+        let snappedXGuide = null;
+        for (const ref of xRefs) {
+            for (const t of xTargets) {
+                if (Math.abs(ref.ref - t.v) <= this._SNAP_THRESHOLD) {
+                    snappedX = t.v - ref.offset;
+                    snappedXGuide = { axis: 'v', pos: t.v };
+                    break;
+                }
+            }
+            if (snappedX != null) break;
+        }
+
+        let snappedY = null;
+        let snappedYGuide = null;
+        for (const ref of yRefs) {
+            for (const t of yTargets) {
+                if (Math.abs(ref.ref - t.v) <= this._SNAP_THRESHOLD) {
+                    snappedY = t.v - ref.offset;
+                    snappedYGuide = { axis: 'h', pos: t.v };
+                    break;
+                }
+            }
+            if (snappedY != null) break;
+        }
+
+        const guides = [];
+        if (snappedXGuide) guides.push(snappedXGuide);
+        if (snappedYGuide) guides.push(snappedYGuide);
+
+        return { x: snappedX, y: snappedY, guides };
+    }
+
+    static _renderSnapGuides(guides) {
+        this._clearSnapGuides();
+        const grid = this._slideContainer;
+        if (!grid) return;
+        for (const g of guides) {
+            const el = document.createElement('div');
+            el.className = 'image-snap-guide';
+            el.dataset.axis = g.axis;
+            if (g.axis === 'v') {
+                el.style.left = `${g.pos}px`;
+                el.style.top = '0';
+                el.style.width = '1px';
+                el.style.height = '100%';
+            } else {
+                el.style.top = `${g.pos}px`;
+                el.style.left = '0';
+                el.style.height = '1px';
+                el.style.width = '100%';
+            }
+            grid.appendChild(el);
+        }
+    }
+
+    static _clearSnapGuides() {
+        const grid = this._slideContainer;
+        if (!grid) return;
+        grid.querySelectorAll('.image-snap-guide').forEach((el) => el.remove());
     }
 
     // ── Delete ──────────────────────────────────────────────────────────────
@@ -320,26 +493,36 @@ export class ImageInteractionHandler {
 
         const img = this._selectedImg;
         const entry = entries[idx];
-        const alt = this._extractAlt(entry);
+        const alt = img.getAttribute('alt') ?? this._extractAlt(entry);
+        const src = img.getAttribute('src') ?? entry.src;
 
-        const left = Math.round(parseFloat(img.style.left) || 0);
-        const top = Math.round(parseFloat(img.style.top) || 0);
-        const w = parseInt(img.style.width, 10);
-        const h = parseInt(img.style.height, 10);
+        const style = this._buildStyleString(img);
+        const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
+        this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
+    }
 
-        const style = [
+    /**
+     * Build the inline `style` string for the selected image from its DOM state.
+     * Preserves all supported style properties.
+     */
+    static _buildStyleString(img) {
+        const s = this._readSettings(img);
+        const parts = [
             'position: relative',
-            `left: ${left}px`,
-            `top: ${top}px`,
-            `width: ${w}px`,
-            h ? `height: ${h}px` : '',
+            `left: ${Math.round(s.left)}px`,
+            `top: ${Math.round(s.top)}px`,
+            `width: ${Math.round(s.width)}px`,
+            s.height ? `height: ${Math.round(s.height)}px` : '',
+            s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : '',
+            s.borderRadius ? `border-radius: ${s.borderRadius}px` : '',
+            s.boxShadow && s.boxShadow !== 'none' ? `box-shadow: ${s.boxShadow}` : '',
+            s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : '',
+            s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : '',
             'border: none',
             'object-fit: contain',
             'cursor: move',
-        ].filter(Boolean).join('; ');
-
-        const newTag = `<img src="${entry.src}" alt="${alt}" style="${style}" />`;
-        this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
+        ];
+        return parts.filter(Boolean).join('; ');
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -380,6 +563,202 @@ export class ImageInteractionHandler {
         img.style.border = 'none';
         img.style.objectFit = 'contain';
         img.style.cursor = 'move';
+    }
+
+    // ── Settings API (used by ImagePropertiesPanel) ─────────────────────────────────
+
+    /**
+     * Read the current style settings of an img element into a structured object.
+     * @param {HTMLElement} img
+     */
+    static _readSettings(img) {
+        const style = img.style;
+        const transform = style.transform || '';
+        const rotMatch = transform.match(/rotate\(([-\d.]+)deg\)/i);
+        return {
+            left: parseFloat(style.left) || 0,
+            top: parseFloat(style.top) || 0,
+            width: parseFloat(style.width) || img.offsetWidth || 320,
+            height: parseFloat(style.height) || null,
+            opacity: style.opacity !== '' ? parseFloat(style.opacity) : 1,
+            borderRadius: parseFloat(style.borderRadius) || 0,
+            boxShadow: style.boxShadow || 'none',
+            rotation: rotMatch ? parseFloat(rotMatch[1]) : 0,
+            zIndex: parseInt(style.zIndex, 10) || 0,
+            alt: img.getAttribute('alt') || '',
+        };
+    }
+
+    /**
+     * Apply a partial settings object to the currently selected image.
+     * Updates DOM styles/attributes, the overlay, the toolbar UI, and syncs
+     * the change back to the markdown source.
+     * @param {object} settings
+     */
+    static applySettings(settings) {
+        const img = this._selectedImg;
+        if (!img) return;
+        const s = settings || {};
+
+        if (s.left != null) img.style.left = `${Math.round(s.left)}px`;
+        if (s.top != null) img.style.top = `${Math.round(s.top)}px`;
+        if (s.width != null) img.style.width = `${Math.round(s.width)}px`;
+        if (s.height != null) img.style.height = `${Math.round(s.height)}px`;
+        if (s.opacity != null) img.style.opacity = String(s.opacity);
+        if (s.borderRadius != null) img.style.borderRadius = `${Math.round(s.borderRadius)}px`;
+        if (s.boxShadow != null) img.style.boxShadow = s.boxShadow;
+        if (s.rotation != null) {
+            img.style.transform = s.rotation ? `rotate(${Math.round(s.rotation)}deg)` : '';
+        }
+        if (s.zIndex != null) img.style.zIndex = String(Math.round(s.zIndex));
+        if (s.alt != null) img.setAttribute('alt', s.alt);
+
+        this._updateOverlay();
+        ImagePropertiesPanel._syncUI(this._readSettings(img));
+        this._syncToMarkdown();
+    }
+
+    /**
+     * Update a single HTML attribute (e.g. `src`, `alt`) on the selected
+     * image and sync it back to markdown.  Used by Replace image and alt-text.
+     */
+    static updateAttribute(name, value) {
+        const img = this._selectedImg;
+        if (!img) return;
+        img.setAttribute(name, value);
+
+        // Rewrite src via the deck image resolver so the preview can show it
+        if (name === 'src') {
+            import('./deck-images-resolver.js').then(({ DeckImagesResolver }) => {
+                DeckImagesResolver.rewriteImgSrcs(img.closest('.slide')).catch(() => {});
+            });
+        }
+
+        ImagePropertiesPanel._syncUI(this._readSettings(img));
+        this._syncToMarkdown();
+    }
+
+    static setAspectLock(locked) {
+        this._aspectLocked = !!locked;
+    }
+
+    // ── Position presets ───────────────────────────────────────────────────
+
+    /**
+     * Center the selected image within its containing `.slide__area`.
+     * Uses a delta-based approach that works with `position: relative`:
+     * compute how far the image's current center is from the area's center,
+     * then add that delta to the existing left/top offsets.
+     */
+    static centerOnSlide() {
+        const img = this._selectedImg;
+        if (!img) return;
+        const area = img.closest('.slide__area');
+        if (!area) return;
+
+        const scale = this._getStageScale();
+        const areaRect = area.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
+
+        const currentCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
+        const currentCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
+
+        const areaCenterX = (areaRect.width / scale) / 2;
+        const areaCenterY = (areaRect.height / scale) / 2;
+
+        const deltaX = areaCenterX - currentCenterX;
+        const deltaY = areaCenterY - currentCenterY;
+
+        const curLeft = parseFloat(img.style.left) || 0;
+        const curTop = parseFloat(img.style.top) || 0;
+
+        this.applySettings({
+            left: Math.round(curLeft + deltaX),
+            top: Math.round(curTop + deltaY),
+        });
+    }
+
+    /**
+     * Fit the selected image to the full width of its containing
+     * `.slide__area`, left-aligned and vertically centered within the area.
+     */
+    static fitToWidth() {
+        const img = this._selectedImg;
+        if (!img) return;
+        const area = img.closest('.slide__area');
+        if (!area) return;
+
+        const scale = this._getStageScale();
+        const areaRect = area.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
+
+        const areaWidthDesign = areaRect.width / scale;
+        const currentLeft = (imgRect.left - areaRect.left) / scale;
+        const currentCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
+        const areaCenterY = (areaRect.height / scale) / 2;
+
+        const deltaX = 0 - currentLeft;
+        const deltaY = areaCenterY - currentCenterY;
+
+        const curLeft = parseFloat(img.style.left) || 0;
+        const curTop = parseFloat(img.style.top) || 0;
+
+        this.applySettings({
+            width: Math.round(areaWidthDesign),
+            left: Math.round(curLeft + deltaX),
+            top: Math.round(curTop + deltaY),
+        });
+    }
+
+    static bringToFront() {
+        const img = this._selectedImg;
+        if (!img) return;
+        const slide = img.closest('.slide');
+        if (!slide) return;
+        let max = 0;
+        slide.querySelectorAll('img').forEach((i) => {
+            const z = parseInt(getComputedStyle(i).zIndex, 10) || 0;
+            if (z > max) max = z;
+        });
+        this.applySettings({ zIndex: max + 1 });
+    }
+
+    static sendToBack() {
+        const img = this._selectedImg;
+        if (!img) return;
+        const slide = img.closest('.slide');
+        if (!slide) return;
+        let min = 0;
+        slide.querySelectorAll('img').forEach((i) => {
+            if (i === img) return;
+            const z = parseInt(getComputedStyle(i).zIndex, 10) || 0;
+            if (z < min) min = z;
+        });
+        this.applySettings({ zIndex: min - 1 });
+    }
+
+    /**
+     * Rotate the selected image by `delta` degrees (typically ±90).
+     * For 90°/270° increments, swap width/height so the bounding box stays
+     * consistent.  Free rotation just adjusts the transform.
+     */
+    static rotateBy(delta) {
+        const img = this._selectedImg;
+        if (!img) return;
+        const s = this._readSettings(img);
+        const newRot = (Math.round(s.rotation) + delta) % 360;
+
+        const settings = { rotation: newRot };
+
+        // For 90°/270° swaps, the visible bounding box swaps W/H.  Keep the
+        // stored width/height matching the rotated box so resize handles
+        // remain sensible.
+        if (Math.abs(newRot) % 180 === 90 && s.height) {
+            settings.width = s.height;
+            settings.height = s.width;
+        }
+
+        this.applySettings(settings);
     }
 
     static _getImageIndex(img) {

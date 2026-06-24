@@ -455,7 +455,7 @@ export class ImagePicker {
                 thumbSrc = img.path;
             }
             return `
-                <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}">
+                <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
                     <img src="${escapeAttr(thumbSrc)}" alt="${escapeAttr(img.name)}" loading="lazy" />
                     <div class="image-picker-item-name">${escapeText(img.name)}</div>
                 </div>
@@ -468,6 +468,17 @@ export class ImagePicker {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     this._selectExisting(el);
+                }
+            });
+            // Drag-to-insert: carry the path so the slide drop handler can
+            // build an <img> snippet at the cursor position.
+            el.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/x-webdeck-image', el.dataset.path);
+                e.dataTransfer.effectAllowed = 'copy';
+                // Use the thumbnail as the drag image for nicer feedback.
+                const thumb = el.querySelector('img');
+                if (thumb) {
+                    try { e.dataTransfer.setDragImage(thumb, 24, 24); } catch (_) { /* ignore */ }
                 }
             });
         });
