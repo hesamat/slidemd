@@ -7,6 +7,7 @@ import { DeckController } from "./src/engine/deck-controller.js";
 import { SlideRenderer } from "./src/renderer/slide-renderer.js";
 import { EditController } from "./src/editor/core/edit-controller.js";
 import { ThemeManager } from "./src/renderer/theme-manager.js";
+import { Notification } from "./src/renderer/notification.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
@@ -130,6 +131,13 @@ if (typeof initializeDefaultProviders === 'function') {
                 else if (action === 'theme') ThemeManager.toggleTheme();
                 else if (action === 'fullscreen') controller.toggleFullscreen();
                 else if (action === 'goto') controller.slideNavigator.openGoToPrompt();
+                else if (action === 'break') {
+                    if (controller.isEditMode()) {
+                        Notification.info('Break is unavailable in edit mode');
+                    } else {
+                        controller.breakManager.toggle();
+                    }
+                }
             });
         });
 
