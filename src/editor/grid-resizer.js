@@ -36,7 +36,6 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
     const scale = _getScale(stageEl);
 
     _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
-    _injectRowHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
 }
 
 /**
@@ -226,7 +225,7 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
     const totalGridHeight = boundaries.length ? (_getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0) : 0;
 
     for (let i = 0; i < colTracks.length - 1; i++) {
-        if (!colTracks[i].isFr || !colTracks[i + 1].isFr) continue;
+        if (!colTracks[i].isFr && !colTracks[i + 1].isFr) continue;
         const xDesign = metrics.leftOffset + boundaries[i + 1];
         const leftTrackIdx = i;
         const rightTrackIdx = i + 1;
@@ -297,86 +296,6 @@ function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scal
     });
 }
 
-// ─── Row handles ──────────────────────────────────────────────────────────────
-
-function _injectRowHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
-    if (rowTracks.length < 2) return;
-
-    const metrics = _getRenderedTrackMetrics(slideEl, scale);
-    const boundaries = _getBoundaryPositions(metrics.rows, metrics.rowGap);
-    const totalGridWidth = (_getBoundaryPositions(metrics.columns, metrics.columnGap).at(-1) || 0);
-
-    for (let i = 0; i < rowTracks.length - 1; i++) {
-        if (!rowTracks[i].isFr || !rowTracks[i + 1].isFr) continue;
-        const yDesign = metrics.topOffset + boundaries[i + 1];
-        const topTrackIdx = i;
-        const bottomTrackIdx = i + 1;
-
-        const handle = document.createElement('div');
-        handle.className = 'grid-resize-handle grid-resize-handle--row';
-        handle.setAttribute('aria-label', 'Resize row');
-        handle.style.top = `${yDesign}px`;
-        handle.style.left = `${metrics.leftOffset}px`;
-        handle.style.width = `${totalGridWidth}px`;
-        slideEl.appendChild(handle);
-
-        _attachRowDragLogic(handle, slideEl, rowTracks, topTrackIdx, bottomTrackIdx, scale, layoutInfo, onLayoutChange, metrics);
-    }
-}
-
-function _attachRowDragLogic(handle, slideEl, rowTracks, topIdx, bottomIdx, scale, layoutInfo, onLayoutChange, metrics) {
-    let startClientY = 0;
-    let startTopPx = 0;
-    let startBottomPx = 0;
-    let totalHeight = 0;
-
-    const onMouseMove = (e) => {
-        const deltaDesign = (e.clientY - startClientY) / scale;
-        const newTopPx = Math.max(MIN_TRACK_PX, startTopPx + deltaDesign);
-        const newBottomPx = Math.max(MIN_TRACK_PX, startBottomPx - deltaDesign);
-
-        const newTracks = _buildResizedTrackList(rowTracks, topIdx, bottomIdx, newTopPx, newBottomPx, totalHeight);
-
-        const slideGrid = _getGridElement(slideEl);
-        if (slideGrid) slideGrid.style.gridTemplateRows = newTracks.join(' ');
-    };
-
-    const onMouseUp = (e) => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        slideEl.style.pointerEvents = '';
-
-        const deltaDesign = (e.clientY - startClientY) / scale;
-        const newTopPx = Math.max(MIN_TRACK_PX, startTopPx + deltaDesign);
-        const newBottomPx = Math.max(MIN_TRACK_PX, startBottomPx - deltaDesign);
-        const newTracks = _buildResizedTrackList(rowTracks, topIdx, bottomIdx, newTopPx, newBottomPx, totalHeight);
-
-        onLayoutChange({ cols: null, rows: newTracks.join(' ') });
-    };
-
-    handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        startClientY = e.clientY;
-
-        const trackHeights = metrics.rows;
-        startTopPx = trackHeights[topIdx] ?? (DESIGN_SIZE.height / rowTracks.length);
-        startBottomPx = trackHeights[bottomIdx] ?? (DESIGN_SIZE.height / rowTracks.length);
-        totalHeight = startTopPx + startBottomPx;
-
-        document.body.style.cursor = 'row-resize';
-        document.body.style.userSelect = 'none';
-        slideEl.style.pointerEvents = 'none';
-        handle.style.pointerEvents = 'auto';
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
-}
-
 function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, totalPx) {
     const pairTotalPx = Math.max(1, totalPx || (firstPx + secondPx));
     const firstTrack = tracks[firstIdx];
@@ -395,8 +314,8 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
     }
 
     return tracks.map((track, index) => {
-        if (index === firstIdx) return `${Math.round(firstPx)}px`;
-        if (index === secondIdx) return `${Math.round(secondPx)}px`;
+        if (index === firstIdx) return firstTrack?.isFr ? `${(firstPx / totalPx * (firstTrack.frValue || 1)).toFixed(4)}fr` : track.raw;
+        if (index === secondIdx) return secondTrack?.isFr ? `${(secondPx / totalPx * (secondTrack.frValue || 1)).toFixed(4)}fr` : track.raw;
         return track.raw;
     });
 }
