@@ -32,6 +32,7 @@ import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
+import { SlideStylePanel } from "../ui/slide-style-panel.js";
 
 export class EditController {
     constructor(deck, controller, elements) {
@@ -112,6 +113,7 @@ export class EditController {
         this.controller.addEventListener('slidechange', () => {
             this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
             ImageInteractionHandler.deactivate();
+            SlideStylePanel.hide();
             this.loadSlideIntoEditor();
         });
 
@@ -183,6 +185,15 @@ export class EditController {
         );
         this._initImagePropertiesPanel();
 
+        // Slide style panel — for styling all areas uniformly
+        SlideStylePanel.init(
+            () => this.markdownEditor?.getValue() ?? '',
+            (updated) => {
+                this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+            },
+            (cssString) => this._applySlideStyleToAll(cssString)
+        );
+
         // Render initial thumbnails
         this.thumbnails.render();
     }
@@ -224,6 +235,7 @@ export class EditController {
             document.body.removeAttribute('data-edit-mode');
             this.mermaidHelper.hide();
             ImageInteractionHandler.deactivate();
+            SlideStylePanel.hide();
             this.placeholderDialogEl?.remove();
             this.placeholderDialogEl = null;
 
@@ -559,6 +571,48 @@ export class EditController {
 
     pickBackground() {
         return this.imageBg.pickBackground();
+    }
+
+    openSlideStylePanel() {
+        SlideStylePanel.toggle();
+    }
+
+    async _applySlideStyleToAll(cssString) {
+        const parser = new MarkdownParser();
+        await AssetLoader.ensureMarkdownItLoaded();
+        const total = this.originalMarkdown.length;
+        for (let i = 0; i < total; i++) {
+            const current = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? '';
+            const { markdown: stripped } = parser.extractDirective(current, 'area-style');
+            const trimmed = String(cssString || '').trim();
+            const updated = trimmed ? `area-style: ${trimmed}\n${stripped}` : stripped;
+            this.unsavedMarkdown.set(i, updated);
+        }
+        this.hasUnsavedChanges = true;
+        this.updateSaveButton();
+
+        // Re-render every slide element so styles apply visually
+        const slidesContainer = document.getElementById('slidesContainer');
+        if (slidesContainer) {
+            const allSlideEls = slidesContainer.querySelectorAll(':scope > .slide');
+            for (let i = 0; i < allSlideEls.length; i++) {
+                const md = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? '';
+                const fullDeckData = parser.parseDeckMarkdown(md);
+                const slideData = fullDeckData.slides?.[0];
+                if (!slideData) continue;
+                this.deck.slides[i] = slideData;
+                const wasActive = allSlideEls[i].classList.contains('active');
+                const newEl = SlideRenderer.createSlideElement(this.deck, slideData, i, wasActive);
+                allSlideEls[i].replaceWith(newEl);
+            }
+        }
+
+        // Refresh the editor with the current slide's markdown
+        this.markdownEditor?.setValue(
+            this.unsavedMarkdown.get(this.currentSlideIndex) ?? '',
+            { suppressOnChange: true }
+        );
+        Notification.success('Style applied to all slides');
     }
 
     async _pickBackgroundImage() {

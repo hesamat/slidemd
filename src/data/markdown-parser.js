@@ -294,6 +294,9 @@ export class MarkdownParser {
             const { value: theme, markdown: withoutTheme } = this.extractDirective(cleaned, "theme");
             cleaned = withoutTheme;
 
+            const { value: areaStyle, markdown: withoutAreaStyle } = this.extractDirective(cleaned, "area-style");
+            cleaned = withoutAreaStyle;
+
             // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
             const { value: hiddenValue, found: hiddenFound, markdown: withoutHidden } = this.extractDirective(cleaned, "hidden");
             cleaned = withoutHidden;
@@ -367,6 +370,7 @@ export class MarkdownParser {
                 theme: themeNormalized,
                 hidden,
                 areas,
+                areaStyle: areaStyle || "",
             };
         });
 

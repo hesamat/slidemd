@@ -113,7 +113,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 16px 24px;
+    gap: 6px 12px;
     min-width: 0;
     min-height: 0;
     position: relative;
@@ -129,13 +129,14 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     row-gap: var(--spacing-sm);
     max-width: 100%;
     position: relative;
+    padding: 10px;
 }
 
 /* Title and header get a bottom separator to visually separate from content below. */
 .slide__area--header,
 .slide__area--title {
     border-bottom: 1px solid rgba(2, 132, 199, 0.22);
-    padding: 16px 24px;
+    padding: 12px 16px;
 }
 
 .slide[data-theme="dark"] .slide__area--header,
@@ -207,6 +208,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     line-height: 1.4;
     color: var(--slide-muted);
     align-items: center;
+    justify-content: center;
+    min-height: 40px;
 }
 
 .slide__area--footer p,
@@ -244,21 +247,21 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--slide-ink);
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
 }
 
 .slide__area h2 {
     font-size: 42px;
-    line-height: 1.25;
-    font-weight: 600;
+    line-height: 1.2;
+    font-weight: 650;
     letter-spacing: -0.015em;
     color: var(--slide-ink);
     margin-top: var(--spacing-md);
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
 }
 
 .slide__area h3 {
-    font-size: 34px;
+    font-size: 32px;
     line-height: 1.3;
     font-weight: 600;
     letter-spacing: -0.01em;
@@ -398,8 +401,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     overflow: auto;
     box-shadow: var(--code-shadow);
     max-width: 100%;
-    margin: var(--spacing-sm) 0;
-    line-height: 1.5;
+    margin: var(--spacing-xs) 0;
+    line-height: 1.1;
     color: var(--code-ink);
     text-shadow: none;
     /* Prism themes sometimes set backgrounds; force our slide look */
@@ -410,8 +413,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"]>code,
 .slide__area pre>code[class*="language-"] {
     font-family: var(--font-mono);
-    font-size: 20px;
-    line-height: 1.5;
+    font-size: 18px;
+    line-height: inherit;
     background: transparent !important;
     padding: 0;
     color: inherit;
