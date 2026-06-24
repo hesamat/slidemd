@@ -514,20 +514,34 @@ export class ImagePicker {
         const targetPath = `images/${safeName}`;
 
         try {
-            // Write directly into the deck's folder via FS Access API so the
-            // image stays next to the deck file (not in the project folder).
-            if (!this._deckDirHandle) {
-                throw new Error('No deck folder is set. Please pick a folder first.');
+            if (this._deckDirHandle) {
+                // Write via FS Access API so the image stays next to the deck file
+                const targetDir = this._deckDirMode === 'images'
+                    ? this._deckDirHandle
+                    : await this._deckDirHandle.getDirectoryHandle('images', { create: true });
+
+                const fh = await targetDir.getFileHandle(safeName, { create: true });
+                const writable = await fh.createWritable();
+                await writable.write(file);
+                await writable.close();
+            } else {
+                // No FS Access API — fall back to the dev server endpoint
+                const formData = new FormData();
+                formData.append('image', file);
+                const res = await fetch('/api/upload-image', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+                const result = await res.json();
+                this.selectedPath = result.path;
+                this._availableImages.push({ name: file.name, path: result.path });
+                await this._refreshGrid();
+                this.uploadZone.innerHTML = `
+                    <div class="image-picker-upload-icon">✓</div>
+                    <div>Uploaded ${escapeText(file.name)}</div>
+                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
+                `;
+                this._syncInsertButton();
+                return;
             }
-
-            const targetDir = this._deckDirMode === 'images'
-                ? this._deckDirHandle
-                : await this._deckDirHandle.getDirectoryHandle('images', { create: true });
-
-            const fh = await targetDir.getFileHandle(safeName, { create: true });
-            const writable = await fh.createWritable();
-            await writable.write(file);
-            await writable.close();
 
             this.selectedPath = targetPath;
             this._availableImages.push({ name: safeName, path: targetPath });
