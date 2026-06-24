@@ -30,13 +30,10 @@ export class ElementGatherer {
             markdownEditor: $("markdownEditor"),
             insertDropdownBtn: $("insertDropdownBtn"),
             insertDropdownContent: $("insertDropdownContent"),
+            addSlideFooterBtn: $("addSlideFooterBtn"),
+            toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
             adjustColumnsMenuItem: $("adjustColumnsMenuItem"),
             mermaidHelperPanel: $("mermaidHelperPanel"),
-            addSlideBtn: $("addSlideBtn"),
-            duplicateSlideBtn: $("duplicateSlideBtn"),
-            deleteSlideBtn: $("deleteSlideBtn"),
-            saveSlideBtn: $("saveSlideBtn"),
-            toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
 
             // Presenter / Modes
             presenterPanel: $("presenterPanel"),
@@ -57,6 +54,7 @@ export class ElementGatherer {
             menuOpenFileBtn: $("menuOpenFileBtn"),
             menuReloadDeckBtn: $("menuReloadDeckBtn"),
             menuToggleEditModeBtn: $("menuToggleEditModeBtn"),
+            menuSaveBtn: $("menuSaveBtn"),
             menuPrintBtn: $("menuPrintBtn"),
             menuExportHtmlBtn: $("menuExportHtmlBtn"),
             menuCourseProfilesBtn: $("menuCourseProfilesBtn"),

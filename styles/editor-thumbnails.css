@@ -1,10 +1,40 @@
-/* Slide Thumbnails Sidebar */
+/* =============================================================================
+   Slide Thumbnails Sidebar
+   -----------------------------------------------------------------------------
+   Editor sidebar that contains:
+     • Header with section title and collapse toggle
+     • Scrollable thumbnail list (one per slide + trailing "+ Add Slide"
+       item, so no separate footer slot is reserved)
+     • Right-click context menu (created in JS, styles here)
 
+   Design tokens (use these instead of raw values):
+     --font-sans          font family
+     --font-mono          monospace (kbd hints, badges)
+     --ui-font-size: 13px default body text
+     --ui-line-height: 1.5 default body line-height
+     --radius-sm / --radius-md / --radius-lg  corner radii
+     --text-high / --text-medium / --text-low  text colors
+     --border-subtle / --border-medium / --border-strong
+     --surface-bg / --surface-elevated / --surface-hover
+
+   Spacing scale: 4 / 6 / 8 / 10 / 12  (4px increments)
+   ============================================================================= */
+
+/* ── Container ─────────────────────────────────────────────────────────────── */
 .editor__thumbnails {
+    display: flex;
+    flex-direction: column;
     border-bottom: 1px solid var(--border-medium);
     background: var(--surface-bg);
     overflow: hidden;
+    /* Sized to show at least three full thumbnails + the "+ Add Slide"
+       item: header (~45px) + list (~180px) + buffer.  Any slides beyond
+       the visible window are still scrollable within .slide-thumbnails. */
     max-height: 220px;
+    font-family: var(--font-sans);
+    font-size: var(--ui-font-size);
+    line-height: var(--ui-line-height);
+    color: var(--text-high);
     transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
@@ -17,22 +47,26 @@
     pointer-events: none;
 }
 
-/* Thumbnails header */
+/* ── Header ───────────────────────────────────────────────────────────────── */
 .editor__thumbnails-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--border-medium);
     background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border-medium);
+    flex-shrink: 0;
 }
 
 .editor__thumbnails-title {
+    font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-high);
+    line-height: 1.3;
 }
 
 .editor__thumbnails-toggle {
@@ -47,7 +81,7 @@
     border-radius: var(--radius-sm);
     color: var(--text-medium);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
 .editor__thumbnails-toggle:hover {
@@ -63,15 +97,21 @@
     transform: rotate(180deg);
 }
 
+/* ── Scrollable thumbnail list ──────────────────────────────────────────── */
 .slide-thumbnails {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 8px 8px 12px 8px;
-    max-height: 200px;
+    gap: 4px;
+    padding: 8px;
+    /* The "+ Add Slide" item lives inside this list (it scrolls along
+       with the thumbnails, no fixed footer slot is reserved).  Sized
+       to show at least three full thumbnails plus the add button. */
+    max-height: 180px;
     overflow-y: auto;
     overflow-x: hidden;
     background-color: var(--theme-bg);
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 /* Custom scrollbar for thumbnails */
@@ -85,23 +125,25 @@
 
 .slide-thumbnails::-webkit-scrollbar-thumb {
     background: var(--border-medium);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
 }
 
 .slide-thumbnails::-webkit-scrollbar-thumb:hover {
     background: var(--border-strong);
 }
 
+/* ── Individual thumbnail ─────────────────────────────────────────────────── */
 .slide-thumbnail {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
     border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all 0.4s ease;
-    border: 1px solid transparent;
     background: var(--surface-elevated);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    flex-shrink: 0;
 }
 
 .slide-thumbnail:hover {
@@ -122,29 +164,34 @@
 
 .slide-thumbnail__number {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
     color: var(--text-high);
-    background: var(--surface-elevated);
-    border-radius: var(--radius-sm);
+    background: var(--surface-bg);
     border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
 }
 
 .slide-thumbnail__title {
     flex: 1;
     min-width: 0;
+    font-family: var(--font-sans);
     font-size: var(--ui-font-size);
     font-weight: 500;
+    line-height: 1.4;
     color: var(--text-high);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    line-height: 1.3;
 }
 
 .slide-thumbnail.current .slide-thumbnail__title {
@@ -152,7 +199,7 @@
     font-weight: 600;
 }
 
-/* Action buttons container (move up/down) */
+/* ── Action buttons (move up / down, shown on the current slide) ─────────── */
 .slide-thumbnail__actions {
     display: flex;
     gap: 4px;
@@ -168,14 +215,19 @@
     height: 28px;
     padding: 0;
     margin: 0;
-    background: var(--surface-elevated);
+    background: var(--surface-bg);
     border: 1px solid var(--border-medium);
     border-radius: var(--radius-sm);
     color: var(--text-high);
     cursor: pointer;
-    transition: all 0.2s ease;
-    opacity: 1;
+    opacity: 0;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+.slide-thumbnail:hover .slide-thumbnail__action-btn,
+.slide-thumbnail.current .slide-thumbnail__action-btn {
+    opacity: 1;
 }
 
 .slide-thumbnail__action-btn:hover {
@@ -204,4 +256,106 @@
 
 .slide-thumbnail.current .slide-thumbnail__action-btn:hover {
     background: var(--accent-bg-hover);
+}
+
+/* ── "+ Add Slide" trailing list item ─────────────────────────────────────── */
+.slide-thumbnails__add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px dashed var(--border-medium, rgba(148, 163, 184, 0.45));
+    border-radius: var(--radius-sm);
+    color: var(--text-medium);
+    font-family: var(--font-sans);
+    font-size: var(--ui-font-size);
+    font-weight: 600;
+    line-height: 1.3;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, border-style 0.15s ease;
+}
+
+.slide-thumbnails__add-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+    border-color: var(--accent, rgba(var(--color-primary), 0.6));
+    border-style: solid;
+}
+
+.slide-thumbnails__add-btn:active {
+    background: var(--surface-elevated);
+}
+
+.slide-thumbnails__add-btn svg {
+    flex-shrink: 0;
+}
+
+/* ── Right-click context menu ───────────────────────────────────────────────
+   Created on demand by `SlideContextMenu` and appended to document.body. */
+.slide-context-menu {
+    position: fixed;
+    z-index: 2000;
+    min-width: 200px;
+    padding: 6px;
+    background: var(--surface-elevated);
+    background-color: rgb(248, 250, 252);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    font-family: var(--font-sans);
+    font-size: var(--ui-font-size);
+    line-height: var(--ui-line-height);
+    color: var(--text-high);
+    animation: menuFadeIn 0.12s ease;
+}
+
+[data-theme="dark"] .slide-context-menu {
+    background-color: rgb(30, 41, 59);
+}
+
+.slide-context-menu__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-high);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 500;
+    line-height: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.slide-context-menu__item:hover,
+.slide-context-menu__item:focus-visible {
+    background: var(--surface-hover);
+    outline: none;
+}
+
+.slide-context-menu__label {
+    flex: 1;
+    min-width: 0;
+}
+
+.slide-context-menu__hint {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+    border-radius: var(--radius-sm);
+    background: var(--surface-bg);
+    color: var(--text-low);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
 }
