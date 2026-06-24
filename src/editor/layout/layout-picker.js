@@ -4,8 +4,8 @@
  * Handles modal display, grid rendering, and user interactions.
  */
 
-import { LayoutData } from '../data/layout-data.js';
-import LAYOUTS from '../data/layouts.json' with { type: 'json' };
+import { LayoutData } from '../../data/layout-data.js';
+import LAYOUTS from '../../data/layouts.json' with { type: 'json' };
 
 export class LayoutPicker {
     static modal = null;

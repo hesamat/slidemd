@@ -6,12 +6,12 @@
  * image insertion, background selection, and file uploads.
  */
 
-import { MarkdownParser } from '../data/markdown-parser.js';
+import { MarkdownParser } from '../../data/markdown-parser.js';
 import { ImagePicker } from './image-picker.js';
-import { BackgroundPicker } from './background-picker.js';
+import { BackgroundPicker } from '../ui/background-picker.js';
 import { DeckImagesResolver } from './deck-images-resolver.js';
-import { DirectoryHandleStore } from '../core/directory-handle-store.js';
-import { updateBackgroundDirective, updateThemeDirective } from './directive-utils.js';
+import { DirectoryHandleStore } from '../../core/directory-handle-store.js';
+import { updateBackgroundDirective, updateThemeDirective } from '../core/directive-utils.js';
 
 export class ImageBackgroundHandler {
     /** @param {import('./edit-controller.js').EditController} ctrl */

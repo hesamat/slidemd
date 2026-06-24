@@ -6,13 +6,13 @@
  * (or accesses via `ctrl`) the shared editor state it needs.
  */
 
-import { MarkdownParser } from '../data/markdown-parser.js';
-import { AssetLoader } from '../core/asset-loader.js';
-import { SlideRenderer } from '../renderer/slide-renderer.js';
-import { ContentEnhancer } from '../renderer/content-enhancer.js';
-import { Notification } from '../renderer/notification.js';
-import { LayoutData } from '../data/layout-data.js';
-import { LayoutParser } from '../data/layout-parser.js';
+import { MarkdownParser } from '../../data/markdown-parser.js';
+import { AssetLoader } from '../../core/asset-loader.js';
+import { SlideRenderer } from '../../renderer/slide-renderer.js';
+import { ContentEnhancer } from '../../renderer/content-enhancer.js';
+import { Notification } from '../../renderer/notification.js';
+import { LayoutData } from '../../data/layout-data.js';
+import { LayoutParser } from '../../data/layout-parser.js';
 import { updateLayoutDirective } from './directive-utils.js';
 
 export class SlideOperations {

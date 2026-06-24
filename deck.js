@@ -5,7 +5,7 @@ import { ContentEnhancer } from "./src/renderer/content-enhancer.js";
 import { DeckLoader } from "./src/data/deck-loader.js";
 import { DeckController } from "./src/engine/deck-controller.js";
 import { SlideRenderer } from "./src/renderer/slide-renderer.js";
-import { EditController } from "./src/editor/edit-controller.js";
+import { EditController } from "./src/editor/core/edit-controller.js";
 import { ThemeManager } from "./src/renderer/theme-manager.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";

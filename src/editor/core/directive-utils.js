@@ -5,7 +5,7 @@
  * (layout, background, etc.) in markdown source text.
  */
 
-import { MarkdownParser } from '../data/markdown-parser.js';
+import { MarkdownParser } from '../../data/markdown-parser.js';
 
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.

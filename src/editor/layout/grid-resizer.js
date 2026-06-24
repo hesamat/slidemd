@@ -8,7 +8,7 @@
  * handles.  Fixed `px` and `auto` tracks are left alone.
  */
 
-import { DESIGN_SIZE } from '../core/utils.js';
+import { DESIGN_SIZE } from '../../core/utils.js';
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
 const MIN_TRACK_PX = 80;

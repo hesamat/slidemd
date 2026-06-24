@@ -12,7 +12,7 @@
  * the slide markdown via `updateBackgroundDirective`.
  */
 
-import { DeckImagesResolver } from './deck-images-resolver.js';
+import { DeckImagesResolver } from '../image/deck-images-resolver.js';
 
 const COLOR_SWATCHES = [
     { name: 'White', value: '#ffffff' },

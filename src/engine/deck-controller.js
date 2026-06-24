@@ -16,7 +16,7 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { AIGenerationController } from "../generation/ai-generation-controller.js";
 import { GenerationActions } from "../ui/generation-actions.js";
-import { ImageInteractionHandler } from "../editor/image-interaction-handler.js";
+import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 
 export class DeckController extends EventEmitter {
 

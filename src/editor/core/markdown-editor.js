@@ -7,7 +7,7 @@ import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { tags } from "@lezer/highlight";
-import { LayoutData } from "../data/layout-data.js";
+import { LayoutData } from "../../data/layout-data.js";
 
 /**
  * MarkdownEditor
