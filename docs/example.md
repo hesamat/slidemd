@@ -153,6 +153,7 @@ graph TD
 
 ---
 
+background: linear-gradient(135deg, #c7d2fe 0%, #f5d0fe 100%)
 layout: header-two-column
 
 @header
@@ -275,7 +276,6 @@ layout: header-two-column
 Use for key takeaways and callouts:
 
 > **Pro tip:** Combine markdown with inline HTML for custom styling when needed.
-
 
 ---
 
