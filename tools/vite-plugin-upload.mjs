@@ -139,12 +139,13 @@ export function imageUploadPlugin() {
 
             // ── GET /api/images — list existing images in images/ ──
             server.middlewares.use('/api/images', (req, res) => {
+                res.setHeader('Content-Type', 'application/json');
+
                 if (req.method !== 'GET') {
                     res.statusCode = 405;
                     res.end(JSON.stringify({ error: 'Method not allowed' }));
                     return;
                 }
-
                 try {
                     if (!fs.existsSync(IMAGES_DIR)) {
                         res.setHeader('Content-Type', 'application/json');
