@@ -41,21 +41,36 @@ export class ImageBackgroundHandler {
         ImagePicker.show(
             (snippet) => {
                 const current = this.markdownEditor.getValue();
-                const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
-                const isAtStart = selection.from === 0;
-                const isAtEnd = selection.from >= current.length;
-                const prevChar = isAtStart ? '\n' : current[selection.from - 1];
-                const nextChar = isAtEnd ? '\n' : current[selection.from];
+                const editorHasFocus = this.markdownEditor.view?.hasFocus;
 
-                const before = prevChar === '\n' ? '' : '\n\n';
-                const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
-                const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
+                let insertPos;
+                let afterSnippet;
 
-                this.markdownEditor.replaceRange(
-                    selection.from,
-                    selection.from,
-                    `${leadTrim}${snippet}${after}`
-                );
+                if (editorHasFocus) {
+                    const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
+                    const isAtStart = selection.from === 0;
+                    const isAtEnd = selection.from >= current.length;
+                    const prevChar = isAtStart ? '\n' : current[selection.from - 1];
+                    const nextChar = isAtEnd ? '\n' : current[selection.from];
+
+                    const before = prevChar === '\n' ? '' : '\n\n';
+                    const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
+                    const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
+
+                    insertPos = selection.from;
+                    afterSnippet = `${leadTrim}${snippet}${after}`;
+                } else {
+                    const footerIdx = current.search(/^@footer\b/m);
+                    if (footerIdx > 0) {
+                        insertPos = footerIdx;
+                        afterSnippet = `${snippet}\n\n`;
+                    } else {
+                        insertPos = current.length;
+                        afterSnippet = `\n\n${snippet}\n`;
+                    }
+                }
+
+                this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
                 this.markdownEditor.focus();
             },
             {
