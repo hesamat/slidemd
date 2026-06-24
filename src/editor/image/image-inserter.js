@@ -22,29 +22,32 @@ export class ImageInserter {
     async pickAndInsert() {
         if (!this.markdownEditor) return;
 
+        // Capture cursor position before the modal steals focus
+        const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
+
         const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
         DeckImagesResolver.setDeckDir(deckDirHandle, this.imageBg.deckDirMode);
 
         ImagePicker.show(
             (snippet) => {
                 const current = this.markdownEditor.getValue();
-                const editorHasFocus = this.markdownEditor.view?.hasFocus;
+                const hasSavedPosition = savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length;
 
                 let insertPos;
                 let afterSnippet;
 
-                if (editorHasFocus) {
-                    const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
-                    const isAtStart = selection.from === 0;
-                    const isAtEnd = selection.from >= current.length;
-                    const prevChar = isAtStart ? '\n' : current[selection.from - 1];
-                    const nextChar = isAtEnd ? '\n' : current[selection.from];
+                if (hasSavedPosition) {
+                    const pos = savedCursorPos;
+                    const isAtStart = pos === 0;
+                    const isAtEnd = pos >= current.length;
+                    const prevChar = isAtStart ? '\n' : current[pos - 1];
+                    const nextChar = isAtEnd ? '\n' : current[pos];
 
                     const before = prevChar === '\n' ? '' : '\n\n';
                     const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
                     const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
 
-                    insertPos = selection.from;
+                    insertPos = pos;
                     afterSnippet = `${leadTrim}${snippet}${after}`;
                 } else {
                     const footerIdx = current.search(/^@footer\b/m);
