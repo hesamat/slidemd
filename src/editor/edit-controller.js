@@ -805,6 +805,114 @@ export class EditController {
 
             ImageInteractionHandler.select(img);
         });
+
+        this._initDropAndPaste(slidesContainer);
+    }
+
+    /**
+     * Wire up drag-drop (from picker grid or desktop) and clipboard paste
+     * to insert images at the cursor position on the slide.
+     */
+    _initDropAndPaste(slidesContainer) {
+        // ── Drag-over: allow drop when image data or image files are present
+        slidesContainer.addEventListener('dragover', (e) => {
+            if (!this.isEditMode) return;
+            const types = [...(e.dataTransfer?.types || [])];
+            const items = [...(e.dataTransfer?.items || [])];
+            const hasImagePath = types.includes('text/x-webdeck-image');
+            const hasImageFile = items.some((i) => i.kind === 'file' && i.type.startsWith('image/'));
+            if (hasImagePath || hasImageFile) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+            }
+        });
+
+        // ── Drop: insert image from picker grid or desktop file
+        slidesContainer.addEventListener('drop', async (e) => {
+            if (!this.isEditMode) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Ensure the deck directory is resolved so uploads land in the right place
+            const dirHandle = await this._resolveDeckDirectoryHandle();
+            if (dirHandle) {
+                DeckImagesResolver.setDeckDir(dirHandle, this.deckDirMode);
+            }
+
+            // Resolve the image path — either from picker drag or file upload
+            let imgPath = e.dataTransfer.getData('text/x-webdeck-image');
+            if (!imgPath) {
+                const file = [...e.dataTransfer.files].find((f) => f.type.startsWith('image/'));
+                if (file) {
+                    imgPath = await this.uploadImage(file);
+                }
+            }
+            if (!imgPath) return;
+
+            this._insertImageAtDropPosition(imgPath, e.clientX, e.clientY, e.target);
+        });
+
+        // ── Paste: insert image from clipboard
+        slidesContainer.addEventListener('paste', async (e) => {
+            if (!this.isEditMode) return;
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) {
+                        const dirHandle = await this._resolveDeckDirectoryHandle();
+                        if (dirHandle) {
+                            DeckImagesResolver.setDeckDir(dirHandle, this.deckDirMode);
+                        }
+                        const imgPath = await this.uploadImage(file);
+                        if (imgPath) {
+                            // Insert at center of the active slide's main area
+                            const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+                            const grid = slideEl?.querySelector('.slide__grid');
+                            if (grid) {
+                                const rect = grid.getBoundingClientRect();
+                                this._insertImageAtDropPosition(imgPath, rect.left + rect.width / 2, rect.top + rect.height / 2, slideEl);
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+        });
+    }
+
+    /**
+     * Insert an image at the given screen coordinates, computing design-space
+     * position relative to the slide grid.
+     */
+    _insertImageAtDropPosition(imgPath, clientX, clientY, eventTarget) {
+        const slideEl = eventTarget.closest?.('.slide') || this.getSlideElementByIndex(this.currentSlideIndex);
+        if (!slideEl) return;
+        const grid = slideEl.querySelector('.slide__grid');
+        if (!grid) return;
+
+        // Read stage scale from the CSS variable on #deckStage
+        const scale = parseFloat(this.elements.deckStage?.style.getPropertyValue('--stage-scale')) || 1;
+        const gridRect = grid.getBoundingClientRect();
+
+        const x = Math.round((clientX - gridRect.left) / scale);
+        const y = Math.round((clientY - gridRect.top) / scale);
+
+        // Determine which area the drop landed in
+        const areaEl = eventTarget.closest?.('.slide__area');
+        const areaName = areaEl?.dataset.areaName || 'main';
+
+        // Build the <img> snippet with position
+        const alt = imgPath.split('/').pop().replace(/\.[^.]+$/, '').replace(/^\d+[-_]?/, '') || 'image';
+        const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${x}px; top: ${y}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
+
+        // Insert into markdown at the end of the target area's content
+        const markdown = this.markdownEditor?.getValue() ?? '';
+        const range = this.areaNav.getAreaContentRange(markdown, areaName);
+        const insertText = `${snippet}\n`;
+        this.markdownEditor?.replaceRange(range.to, range.to, insertText);
     }
 
     async _resolveDeckDirectoryHandle() {

@@ -17,6 +17,7 @@
     --text-high: rgba(var(--color-slate), 0.95);
     --text-medium: rgba(var(--color-slate), 0.75);
     --text-low: rgba(var(--color-slate), 0.55);
+    --text-muted: rgba(var(--color-slate), 0.45);
 
     /* --- BORDERS --- */
     --border-subtle: rgba(var(--color-slate), 0.08);
@@ -30,6 +31,7 @@
     --theme-bg: rgba(var(--color-primary), 0.08);
 
     /* --- ACCENT STATES --- */
+    --accent: rgba(var(--color-primary), 0.95);
     --accent-bg: rgba(var(--color-primary), 0.12);
     --accent-border: rgba(var(--color-primary), 0.35);
     --accent-text: rgba(var(--color-primary), 0.95);
@@ -113,6 +115,7 @@ html[data-embedded="true"] body {
     --text-high: rgba(var(--color-slate), 0.95);
     --text-medium: rgba(var(--color-slate), 0.75);
     --text-low: rgba(var(--color-slate), 0.55);
+    --text-muted: rgba(var(--color-slate), 0.45);
 
     /* Borders - lighter and more visible on dark */
     --border-subtle: rgba(255, 255, 255, 0.10);

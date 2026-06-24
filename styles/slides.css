@@ -5,13 +5,15 @@
 :root {
     /* --- THEME COLORS --- */
     --slide-bg-light: #ffffff;
-    --slide-ink-light: rgba(15, 23, 42, 0.90);
-    --slide-muted-light: rgba(15, 23, 42, 0.68);
-    --slide-secondary-light: rgba(15, 23, 42, 0.55);
+    --slide-ink-light: rgba(15, 23, 42, 0.92);
+    --slide-body-light: rgba(15, 23, 42, 0.80);
+    --slide-muted-light: rgba(15, 23, 42, 0.60);
+    --slide-secondary-light: rgba(15, 23, 42, 0.50);
 
     --slide-bg-dark: #0f172a;
     --slide-ink-dark: #f0f2f5;
-    --slide-muted-dark: rgba(246, 242, 240, 0.85);
+    --slide-body-dark: rgba(246, 242, 240, 0.92);
+    --slide-muted-dark: rgba(246, 242, 240, 0.75);
     --slide-secondary-dark: rgba(226, 232, 240, 0.55);
 
     /* --- ACCENT COLORS --- */
@@ -73,6 +75,7 @@
 .slide[data-theme="light"] {
     --slide-bg: var(--slide-bg-light);
     --slide-ink: var(--slide-ink-light);
+    --slide-body: var(--slide-body-light);
     --slide-muted: var(--slide-muted-light);
     --slide-secondary: var(--slide-secondary-light);
 
@@ -85,6 +88,7 @@
 .slide[data-theme="dark"] {
     --slide-bg: var(--slide-bg-dark);
     --slide-ink: var(--slide-ink-dark);
+    --slide-body: var(--slide-body-dark);
     --slide-muted: var(--slide-muted-dark);
     --slide-secondary: var(--slide-secondary-dark);
 
@@ -127,54 +131,16 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     position: relative;
 }
 
-/* Content areas get a subtle rounded border that is always visible. */
-.slide__area--main,
-.slide__area--media,
-.slide__area--sidebar,
-.slide__area--secondary,
-.slide__area--cards,
-.slide__area--content {
-    border: 1px solid rgba(2, 132, 199, 0.12);
-    border-radius: 12px;
-    padding: 20px 28px;
-}
-
-.slide[data-theme="dark"] .slide__area--main,
-.slide[data-theme="dark"] .slide__area--media,
-.slide[data-theme="dark"] .slide__area--sidebar,
-.slide[data-theme="dark"] .slide__area--secondary,
-.slide[data-theme="dark"] .slide__area--cards,
-.slide[data-theme="dark"] .slide__area--content {
-    border-color: rgba(125, 211, 252, 0.10);
-}
-
-/* Header / title / footer get subtle separators instead of full borders,
-   with moderate padding. */
+/* Title and header get a bottom separator to visually separate from content below. */
 .slide__area--header,
 .slide__area--title {
-    border-bottom: 1px solid rgba(2, 132, 199, 0.10);
+    border-bottom: 1px solid rgba(2, 132, 199, 0.22);
     padding: 16px 24px;
 }
-.slide__area--footer {
-    border-top: 1px solid rgba(2, 132, 199, 0.10);
-    padding: 16px 24px;
-}
+
 .slide[data-theme="dark"] .slide__area--header,
 .slide[data-theme="dark"] .slide__area--title {
     border-bottom-color: rgba(125, 211, 252, 0.08);
-}
-.slide[data-theme="dark"] .slide__area--footer {
-    border-top-color: rgba(125, 211, 252, 0.08);
-}
-
-/* In edit mode, boost the content-area borders slightly for clarity. */
-body[data-edit-mode="true"] .slide__area--main,
-body[data-edit-mode="true"] .slide__area--media,
-body[data-edit-mode="true"] .slide__area--sidebar,
-body[data-edit-mode="true"] .slide__area--secondary,
-body[data-edit-mode="true"] .slide__area--cards,
-body[data-edit-mode="true"] .slide__area--content {
-    border-color: rgba(2, 132, 199, 0.20);
 }
 
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
@@ -187,6 +153,7 @@ body[data-edit-mode="true"] .slide__area.editor-area-overflow {
 body[data-edit-mode="true"] .slide:has(img.image-selected) .editor-area-label {
     display: none;
 }
+
 body[data-edit-mode="true"] .slide:has(img.image-selected) .grid-resize-handle {
     display: none;
 }
@@ -272,42 +239,62 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* --- HEADING STYLES --- */
 
 .slide__area h1 {
-    font-size: 58px;
+    font-size: 56px;
+    line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
     color: var(--slide-ink);
+    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area h2 {
-    font-size: 40px;
-    line-height: 1.3;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-size: 42px;
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     color: var(--slide-ink);
-    margin-top: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
 }
 
 .slide__area h3 {
-    font-size: 32px;
+    font-size: 34px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--slide-ink);
+    margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.slide__area h4 {
+    font-size: 30px;
     line-height: 1.35;
     font-weight: 600;
     letter-spacing: -0.005em;
     color: var(--slide-ink);
     margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
 }
 
-.slide__area h4 {
-    font-size: 26px;
-    line-height: 1.4;
-    font-weight: 600;
-    color: var(--slide-ink);
+/* Remove top margin from first child in an area */
+.slide__area>h1:first-child,
+.slide__area>h2:first-child,
+.slide__area>h3:first-child,
+.slide__area>h4:first-child,
+.slide__area>p:first-child,
+.slide__area>ul:first-child,
+.slide__area>ol:first-child,
+.slide__area>pre:first-child,
+.slide__area>blockquote:first-child {
+    margin-top: 0;
 }
 
 /* --- PARAGRAPH & TEXT STYLES --- */
 
 .slide__area p:not(.nodeLabel > p) {
-    line-height: 1.6;
-    color: var(--slide-muted);
+    line-height: 1.55;
+    color: var(--slide-body);
     margin-top: var(--spacing-xs);
 }
 
@@ -331,14 +318,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area ul,
 .slide__area ol {
     display: grid;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
     line-height: 1.5;
     padding-left: 1.5em;
     margin-top: var(--spacing-xs);
 }
 
 .slide__area li {
-    color: var(--slide-muted);
+    color: var(--slide-body);
     max-width: var(--line-max);
 }
 
@@ -412,7 +399,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     box-shadow: var(--code-shadow);
     max-width: 100%;
     margin: var(--spacing-sm) 0;
-    line-height: 1.15;
+    line-height: 1.5;
     color: var(--code-ink);
     text-shadow: none;
     /* Prism themes sometimes set backgrounds; force our slide look */
@@ -423,12 +410,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"]>code,
 .slide__area pre>code[class*="language-"] {
     font-family: var(--font-mono);
-    font-size: 1.4rem;
-    line-height: inherit;
+    font-size: 20px;
+    line-height: 1.5;
     background: transparent !important;
     padding: 0;
     color: inherit;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
     text-shadow: none;
 }
 
@@ -597,8 +584,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .slide__area blockquote p {
     font-size: 1em;
-    line-height: 1.6;
-    color: var(--slide-muted);
+    line-height: 1.55;
+    color: var(--slide-body);
     margin: 0;
 }
 
@@ -650,7 +637,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area tbody td {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-subtle);
-    color: var(--slide-muted);
+    color: var(--slide-body);
     vertical-align: top;
     white-space: normal;
     word-break: break-word;
