@@ -897,16 +897,35 @@ export class EditController {
         const scale = parseFloat(this.elements.deckStage?.style.getPropertyValue('--stage-scale')) || 1;
         const gridRect = grid.getBoundingClientRect();
 
-        const x = Math.round((clientX - gridRect.left) / scale);
-        const y = Math.round((clientY - gridRect.top) / scale);
+        const dropGridX = (clientX - gridRect.left) / scale;
+        const dropGridY = (clientY - gridRect.top) / scale;
 
         // Determine which area the drop landed in
         const areaEl = eventTarget.closest?.('.slide__area');
         const areaName = areaEl?.dataset.areaName || 'main';
 
+        // The image is rendered with `position: relative` inside the target
+        // area, so its `left`/`top` styles are offsets from the image's normal
+        // flow position in that area (which starts at the area's content-box
+        // top-left).  Translate the grid-relative drop point into the area's
+        // own coordinate space so the image visually lands where the user
+        // dropped it.
+        let left = Math.round(dropGridX);
+        let top = Math.round(dropGridY);
+        if (areaEl) {
+            const areaRect = areaEl.getBoundingClientRect();
+            const areaStyle = getComputedStyle(areaEl);
+            const padLeft = parseFloat(areaStyle.paddingLeft) || 0;
+            const padTop = parseFloat(areaStyle.paddingTop) || 0;
+            const areaContentLeft = (areaRect.left + padLeft - gridRect.left) / scale;
+            const areaContentTop = (areaRect.top + padTop - gridRect.top) / scale;
+            left = Math.round(dropGridX - areaContentLeft);
+            top = Math.round(dropGridY - areaContentTop);
+        }
+
         // Build the <img> snippet with position
         const alt = imgPath.split('/').pop().replace(/\.[^.]+$/, '').replace(/^\d+[-_]?/, '') || 'image';
-        const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${x}px; top: ${y}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
+        const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${left}px; top: ${top}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
 
         // Insert into markdown at the end of the target area's content
         const markdown = this.markdownEditor?.getValue() ?? '';
