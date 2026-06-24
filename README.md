@@ -104,7 +104,7 @@ Edit mode (toggled with `E`) is the slide-editing workspace. All edit-mode short
 **Slide operations** — done from the slide-thumbnails sidebar:
 
 - **Right-click** any slide thumbnail for a context menu with:
-  - **New slide after** (Alt+N)
+  - **New slide** (Alt+N) — adds a new slide immediately after the right-clicked slide
   - **Duplicate slide** (Alt+D)
   - **Delete slide** (Alt+⌫)
 - **"+ Add Slide"** button pinned below the thumbnail list — appends a new slide to the end of the deck.

@@ -5,6 +5,14 @@
  * right-click context menu, and the pinned "Add Slide" footer button.
  */
 
+// Touch long-press: how long (in ms) the user must hold a thumbnail
+// before the context menu opens, and how long the optional haptic
+// pulse lasts.  Both are well above the OS double-tap threshold
+// (≈ 300 ms) and well below the "press and hold to drag" threshold
+// on most tablets, so they sit in the dead zone between the two.
+const LONG_PRESS_MS = 650;
+const LONG_PRESS_HAPTIC_MS = 10;
+
 export class SlideThumbnails {
     constructor(deck, controller, elements) {
         this._deck = deck;
@@ -50,8 +58,18 @@ export class SlideThumbnails {
 
         // Remove only the dynamically-generated thumbnails; keep the
         // add-slide button (and any other static children) intact.
+        // We also clear any pending long-press timers on the old
+        // thumbnails so a touch in progress doesn't fire a callback
+        // bound to a now-stale element/index.
         Array.from(this._container.querySelectorAll('.slide-thumbnail'))
-            .forEach((node) => node.remove());
+            .forEach((node) => {
+                const pending = node.dataset?.longPressTimer;
+                if (pending) {
+                    window.clearTimeout(Number(pending));
+                    delete node.dataset.longPressTimer;
+                }
+                node.remove();
+            });
 
         this._deck.slides.forEach((slide, index) => {
             const thumbnail = this.createThumbnail(slide, index);
@@ -126,9 +144,8 @@ export class SlideThumbnails {
 
         thumbnail.appendChild(actionsContainer);
 
-        // Long-press support (touch devices) and the click suppression flag
-        // are declared here so the click handler below can see them.
-        let longPressTimer = null;
+        // Long-press support and the click-suppression flag are declared
+        // here so the click handler below can see them.
         let longPressTriggered = false;
 
         // Click handler to navigate to slide.  Suppressed after a
@@ -151,20 +168,26 @@ export class SlideThumbnails {
         // Long-press on touch devices opens the same context menu.  The
         // `contextmenu` event only fires for mouse/pen, so without this
         // tablet users would lose access to new/duplicate/delete.
+        // The pending timer is stored on the element's dataset so
+        // `render()` can cancel it when the thumbnail is removed; without
+        // that, a re-render mid-touch would leave a callback firing
+        // against a now-stale index.
         const startLongPress = (touch) => {
             longPressTriggered = false;
-            longPressTimer = window.setTimeout(() => {
-                longPressTimer = null;
+            const timer = window.setTimeout(() => {
+                delete thumbnail.dataset.longPressTimer;
                 longPressTriggered = true;
                 this._controller.slideNavigator.goTo(index);
                 this._contextMenu.open(touch.clientX, touch.clientY, index);
-                if (navigator.vibrate) navigator.vibrate(10);
-            }, 650);
+                if (navigator.vibrate) navigator.vibrate(LONG_PRESS_HAPTIC_MS);
+            }, LONG_PRESS_MS);
+            thumbnail.dataset.longPressTimer = String(timer);
         };
         const cancelLongPress = () => {
-            if (longPressTimer !== null) {
-                window.clearTimeout(longPressTimer);
-                longPressTimer = null;
+            const pending = thumbnail.dataset?.longPressTimer;
+            if (pending) {
+                window.clearTimeout(Number(pending));
+                delete thumbnail.dataset.longPressTimer;
             }
         };
         thumbnail.addEventListener('touchstart', (e) => {
@@ -209,7 +232,9 @@ export class SlideThumbnails {
      * Create a new slide via the edit controller's layout picker.
      * Used by the right-click menu ("New" → after this index) and the
      * footer "+ Add Slide" button (which appends to the end).
-     * @param {number} [afterIndex] insert after this index, default = end
+     * @param {number} [afterIndex] insert after this index.  When
+     *   omitted, the new slide is appended to the end of the deck
+     *   (the footer button's contract).
      */
     _addNewSlide(afterIndex) {
         const editController = window.__WEBDECK_EDIT_CONTROLLER__;
@@ -219,6 +244,11 @@ export class SlideThumbnails {
         }
         if (typeof afterIndex === 'number') {
             this._controller.slideNavigator.goTo(afterIndex);
+        } else {
+            // Footer button: navigate to the last slide so the layout
+            // picker (which inserts "after current") appends to the end.
+            const lastIndex = Math.max(0, (this._deck?.slides?.length ?? 1) - 1);
+            this._controller.slideNavigator.goTo(lastIndex);
         }
         editController.showLayoutPicker();
     }
@@ -344,7 +374,7 @@ class SlideContextMenu {
         menu.style.top = `${clientY}px`;
 
         const items = [
-            { label: 'New slide after', kbd: 'Alt+N', action: () => this._newAfter() },
+            { label: 'New slide', kbd: 'Alt+N', action: (index) => this._newAfter(index) },
             { label: 'Duplicate slide', kbd: 'Alt+D', action: () => this._duplicate() },
             { label: 'Delete slide', kbd: 'Alt+⌫', action: () => this._delete() },
         ];
@@ -360,8 +390,12 @@ class SlideContextMenu {
             `;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                // Capture the slide index BEFORE close() resets it to -1;
+                // otherwise the action receives -1 and the new slide is
+                // inserted next to the wrong slide.
+                const index = this._index;
                 this.close();
-                item.action();
+                item.action(index);
             });
             menu.appendChild(btn);
         }
@@ -385,10 +419,13 @@ class SlideContextMenu {
         }
     }
 
-    _newAfter() {
-        // Show the layout picker so the user can pick a layout for the new
-        // slide.  The current slide is already the one we right-clicked on.
-        this._thumbnails._addNewSlide(this._index);
+    _newAfter(index) {
+        // Add a new slide immediately after the right-clicked slide.  The
+        // layout picker (which inserts "after current") does the heavy
+        // lifting; we just navigate to the target slide first.  The
+        // `index` is captured by the click handler before close() runs,
+        // so it's the real right-clicked slide index (not -1).
+        this._thumbnails._addNewSlide(index);
     }
 
     _duplicate() {
