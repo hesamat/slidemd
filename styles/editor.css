@@ -20,6 +20,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    overflow: visible;
 }
 
 .editor__body-header .editor__title {
@@ -31,40 +32,197 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
-/* Grid resizer toggle button */
-#toggleGridResizerBtn[aria-pressed="false"] {
-    opacity: 0.5;
+/* ── Segmented control ──────────────────────────────────────────────────── */
+/* A connected bar of segments sharing a single border, with thin internal   */
+/* dividers between segments. Used for Resize Grid + Insert/Update.          */
+.segmented {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg);
+    overflow: visible;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-#toggleGridResizerBtn[aria-pressed="true"] {
+.segmented__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-high);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.14s ease, color 0.14s ease;
+}
+
+.segmented__btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.segmented__btn:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--accent-border, rgba(var(--color-primary), 0.4));
+}
+
+.segmented__btn:active {
+    background: rgba(var(--color-slate), 0.12);
+}
+
+.segmented__icon {
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.segmented__label {
+    pointer-events: none;
+}
+
+/* Divider between segments */
+.segmented__divider {
+    width: 1px;
+    align-self: center;
+    height: 60%;
+    background: var(--border-medium);
+    flex-shrink: 0;
+}
+
+/* Toggle segment (Resize Grid) — uses aria-pressed as the active state */
+.segmented__btn--toggle[aria-pressed="false"] {
+    color: var(--text-low);
+}
+
+.segmented__btn--toggle[aria-pressed="false"] .segmented__icon {
+    opacity: 0.55;
+}
+
+.segmented__btn--toggle[aria-pressed="true"] {
     background: var(--accent, rgba(2, 132, 199, 0.95));
     color: #fff;
 }
 
-/* Insert dropdown */
+.segmented__btn--toggle[aria-pressed="true"] .segmented__icon {
+    opacity: 1;
+}
+
+.segmented__btn--toggle[aria-pressed="true"]:hover {
+    background: var(--accent, rgba(2, 132, 199, 0.95));
+    filter: brightness(1.05);
+}
+
+/* Dropdown segment — keep relative for the menu */
 .insert-dropdown {
     position: relative;
 }
 
+.segmented__btn--dropdown {
+    padding-right: 7px;
+}
+
+.insert-dropdown__chevron {
+    flex-shrink: 0;
+    margin-left: 1px;
+    opacity: 0.65;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.segmented__btn--dropdown[aria-expanded="true"] {
+    background: var(--accent-bg, rgba(var(--color-primary), 0.12));
+    color: var(--accent-text, rgba(var(--color-primary), 0.95));
+}
+
+.segmented__btn--dropdown[aria-expanded="true"] .insert-dropdown__chevron {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+
+/* ── Insert dropdown menu ────────────────────────────────────────────────── */
 .insert-dropdown__content {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     right: 0;
-    min-width: 200px;
-    background: var(--surface-bg);
+    min-width: 230px;
+    background: var(--surface-elevated);
+    background-color: rgb(248, 250, 252);
     border: 1px solid var(--border-medium);
     border-radius: var(--radius-md);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
     padding: 6px;
-    z-index: 100;
+    z-index: 1000;
     animation: menuFadeIn 0.15s ease;
+}
+
+[data-theme="dark"] .insert-dropdown__content {
+    background-color: rgb(30, 41, 59);
+}
+
+.insert-dropdown__group + .insert-dropdown__group {
+    margin-top: 2px;
+    padding-top: 2px;
+    border-top: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.2));
+}
+
+.insert-dropdown__group-label {
+    display: block;
+    padding: 6px 10px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-low);
+    user-select: none;
+}
+
+.insert-dropdown__content .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
 }
 
 .insert-dropdown__content .menu-item svg {
     flex-shrink: 0;
     color: var(--text-medium);
+    opacity: 0.9;
+}
+
+.insert-dropdown__content .menu-item span {
+    flex: 1;
+}
+
+.insert-dropdown__hint {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-low);
+    background: var(--surface-elevated);
+}
+
+/* Narrow editor: collapse labels, keep icons + dropdown label */
+@media (max-width: 520px) {
+    .segmented__btn--toggle .segmented__label,
+    .segmented__btn--dropdown .segmented__label {
+        display: none;
+    }
+    .segmented__btn {
+        padding: 7px 9px;
+    }
 }
 
 
