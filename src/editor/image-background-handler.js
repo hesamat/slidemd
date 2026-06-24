@@ -30,62 +30,6 @@ export class ImageBackgroundHandler {
         return this._deckDirMode || 'parent';
     }
 
-    // ─── Image insertion ──────────────────────────────────────────────────
-
-    async pickAndInsertImage() {
-        if (!this.markdownEditor) return;
-
-        const deckDirHandle = await this._resolveDeckDirectoryHandle();
-        DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
-
-        ImagePicker.show(
-            (snippet) => {
-                const current = this.markdownEditor.getValue();
-                const editorHasFocus = this.markdownEditor.view?.hasFocus;
-
-                let insertPos;
-                let afterSnippet;
-
-                if (editorHasFocus) {
-                    const selection = this.markdownEditor.getSelection?.() || { from: 0, to: 0 };
-                    const isAtStart = selection.from === 0;
-                    const isAtEnd = selection.from >= current.length;
-                    const prevChar = isAtStart ? '\n' : current[selection.from - 1];
-                    const nextChar = isAtEnd ? '\n' : current[selection.from];
-
-                    const before = prevChar === '\n' ? '' : '\n\n';
-                    const after = isAtEnd ? '' : (nextChar === '\n' ? '\n' : '\n\n');
-                    const leadTrim = isAtStart ? before.replace(/^\n+/, '') : before;
-
-                    insertPos = selection.from;
-                    afterSnippet = `${leadTrim}${snippet}${after}`;
-                } else {
-                    const footerIdx = current.search(/^@footer\b/m);
-                    if (footerIdx > 0) {
-                        insertPos = footerIdx;
-                        afterSnippet = `${snippet}\n\n`;
-                    } else {
-                        insertPos = current.length;
-                        afterSnippet = `\n\n${snippet}\n`;
-                    }
-                }
-
-                this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
-                this.markdownEditor.focus();
-            },
-            {
-                deckDirHandle,
-                deckDirMode: this.deckDirMode,
-                onChangeFolder: async () => {
-                    await this.clearDeckDirectoryHandle();
-                    const next = await this._resolveDeckDirectoryHandle();
-                    if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
-                    return next ? { handle: next, mode: this.deckDirMode } : null;
-                },
-            }
-        );
-    }
-
     // ─── Background picker ────────────────────────────────────────────────
 
     pickBackground() {
