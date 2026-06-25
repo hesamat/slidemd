@@ -2,8 +2,10 @@
  * InsertDropdownManager
  *
  * Manages the editor-header dropdowns:
- *   • "Slide"  — modify the current slide (Layout, Columns, Appearance, Insert)
- *   • "Slides" — slide lifecycle (New, Duplicate, Delete)
+ *   • Slide actions  — icon-only trigger; New / Duplicate / Delete on the
+ *                      current slide
+ *   • "Format"       — modify the current slide (Layout, Columns,
+ *                      Appearance, Insert)
  *
  * Each dropdown is a `<button>` paired with a `<div>` content panel.  Both
  * follow the same DOM pattern (`.segmented.insert-dropdown` with a button
@@ -22,16 +24,25 @@ export class InsertDropdownManager {
     get elements() { return this.ctrl.elements; }
 
     /**
-     * Initialize the editor's "Format" dropdown (modify the current slide).
+     * Initialize the editor's header dropdowns.
      *
-     * The slide-lifecycle dropdown used to live here too but has been
-     * replaced by a right-click context menu on the slide thumbnails plus
-     * a pinned "+ Add Slide" button below the thumbnail list — see
-     * `slide-thumbnails.js`.
+     * The slide-lifecycle menu (New / Duplicate / Delete) is also
+     * reachable from the right-click context menu on slide thumbnails
+     * and from the keyboard shortcuts (Alt+N / Alt+D / Alt+⌫) — this
+     * dropdown is the in-panel UI surface for the same actions.
      */
     init() {
         this._dropdowns = [
-            { btn: this.elements.insertDropdownBtn, content: this.elements.insertDropdownContent },
+            {
+                btn: this.elements.slideActionsDropdownBtn,
+                content: this.elements.slideActionsDropdownContent,
+                attr: "data-slide-action",
+            },
+            {
+                btn: this.elements.insertDropdownBtn,
+                content: this.elements.insertDropdownContent,
+                attr: "data-insert-action",
+            },
         ].filter((d) => d.btn && d.content);
 
         this._wireDropdowns();
@@ -53,7 +64,7 @@ export class InsertDropdownManager {
      */
     _wireDropdowns() {
         for (const d of this._dropdowns) {
-            const { btn, content } = d;
+            const { btn, content, attr } = d;
 
             // Toggle open/closed when the trigger is clicked.  We close every
             // other dropdown first so only one panel is visible at a time.
@@ -68,12 +79,16 @@ export class InsertDropdownManager {
             });
 
             // Wire up every item in this dropdown to its edit-controller
-            // action.  Picking an item always closes the panel.
-            content.querySelectorAll('[data-insert-action]').forEach((item) => {
+            // action.  Picking an item always closes the panel.  Each
+            // dropdown's items are identified by its own data-* attribute
+            // (data-insert-action for Format, data-slide-action for the
+            // slide-management menu) so the two menus can share a single
+            // dispatcher without name collisions.
+            content.querySelectorAll(`[${attr}]`).forEach((item) => {
                 item.addEventListener('click', () => {
                     content.classList.add('webdeck-hidden');
                     btn.setAttribute('aria-expanded', 'false');
-                    this._dispatch(item.dataset.insertAction);
+                    this._dispatch(item.getAttribute(attr));
                 });
             });
         }
@@ -83,12 +98,14 @@ export class InsertDropdownManager {
     }
 
     /**
-     * Map a `data-insert-action` value to the corresponding edit-controller
-     * method.  Centralized here so the dropdown shares one action table.
+     * Map a dropdown action value to the corresponding edit-controller
+     * method.  Centralized here so the two dropdowns share one action
+     * table.
      * @param {string} action
      */
     _dispatch(action) {
         switch (action) {
+            // Format dropdown
             case 'layout':
                 this.ctrl.showLayoutPickerForCurrentSlide();
                 break;
@@ -110,6 +127,22 @@ export class InsertDropdownManager {
                 break;
             case 'area-style':
                 this.ctrl.openSlideStylePanel();
+                break;
+            // Slide-management dropdown
+            case 'new':
+                // Show the layout picker so the user can pick a layout.
+                // The new slide is inserted after the current one (the
+                // standard `addSlideWithLayout` behaviour).  This is
+                // different from the footer "+ Add Slide" button, which
+                // navigates to the last slide first so the new slide
+                // ends up at the end of the deck.
+                this.ctrl.showLayoutPicker();
+                break;
+            case 'duplicate':
+                this.ctrl.duplicateSlide();
+                break;
+            case 'delete':
+                this.ctrl.deleteSlide();
                 break;
         }
     }

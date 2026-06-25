@@ -97,6 +97,20 @@
     transform: rotate(180deg);
 }
 
+/* The slide-actions dropdown in the thumbnails header uses the
+   same `.segmented.insert-dropdown` pattern as the Format
+   dropdown in the editor body header, so the existing
+   `.insert-dropdown__btn` / `.insert-dropdown__content` rules
+   (defined in styles/editor.css) apply without modification.
+
+   Header order: Slides title (left) · Slide dropdown · Collapse
+   toggle (right).  The collapse toggle keeps its right-edge
+   anchor; the dropdown wrapper needs `margin-left: auto` so
+   it's pushed to the right alongside the toggle. */
+.editor__thumbnails-header .insert-dropdown {
+    margin-left: auto;
+}
+
 /* ── Scrollable thumbnail list ──────────────────────────────────────────── */
 .slide-thumbnails {
     display: flex;
