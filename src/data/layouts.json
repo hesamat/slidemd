@@ -4,7 +4,7 @@
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Single column content area with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: focus\n\n@header\n## Section Title\n\n@main\nYour main content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+      "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\nYour main content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "two-column": {
       "gridTemplate": "\"main media\" \"footer footer\" / 1fr 1fr",
@@ -16,19 +16,19 @@
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 2fr 1fr",
       "description": "Left side 2x larger with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: left-heavy\n\n@header\n## Section Title\n\n@main\n## Main Content\n\nPrimary content with more space\n\n* First major point\n* Second major point\n* Third major point\n\n@media\n## Sidebar\n\nSupporting details\n\n@footer\nAdditional context or reference"
+      "template": "layout: left-heavy\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nPrimary content with more space\n\n* First major point\n* Second major point\n* Third major point\n\n@media\n## Sidebar\n\nSupporting details\n\n@footer\nAdditional context or reference"
     },
     "right-heavy": {
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 2fr",
       "description": "Right side 2x larger with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: right-heavy\n\n@header\n## Section Title\n\n@main\n## Introduction\n\nBrief intro or bullet points\n\n@media\n## Deep Dive\n\nMain content with more space\n\nDetailed explanation goes here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+      "template": "layout: right-heavy\n\n@header\n## Slide Title\n\n@main\n## Introduction\n\nBrief intro or bullet points\n\n@media\n## Deep Dive\n\nMain content with more space\n\nDetailed explanation goes here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "header-content": {
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Header, content, footer stacked",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: header-content\n\n@header\n## Section Title\n\n@main\n### Main Content\n\nYour slide content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+      "template": "layout: header-content\n\n@header\n## Slide Title\n\n@main\n### Main Content\n\nYour slide content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "header-two-column": {
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
@@ -46,25 +46,25 @@
       "gridTemplate": "\"header header header\" \"main media secondary\" \"footer footer footer\" / 1fr 1fr 1fr",
       "description": "Three equal columns with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: secondary\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: three-column\n\n@header\n## Section Title\n\n@main\n## Column One\n\nFirst column content\n\n@media\n## Column Two\n\nSecond column content\n\n@secondary\n## Column Three\n\nThird column content\n\n@footer\nAdditional context or reference"
+      "template": "layout: three-column\n\n@header\n## Slide Title\n\n@main\n## Column One\n\nFirst column content\n\n@media\n## Column Two\n\nSecond column content\n\n@secondary\n## Column Three\n\nThird column content\n\n@footer\nAdditional context or reference"
     },
     "sidebar-content": {
       "gridTemplate": "\"header header\" \"sidebar main\" \"footer footer\" / 300px 1fr",
       "description": "Fixed sidebar with main content and optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: sidebar\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: sidebar-content\n\n@header\n## Section Title\n\n@sidebar\n## Menu\n\n* Item 1\n* Item 2\n* Item 3\n\n@main\n## Main Content\n\nYour primary content here\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit.\n\n@footer\nAdditional context or reference"
+      "template": "layout: sidebar-content\n\n@header\n## Slide Title\n\n@sidebar\n## Menu\n\n* Item 1\n* Item 2\n* Item 3\n\n@main\n## Main Content\n\nYour primary content here\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit.\n\n@footer\nAdditional context or reference"
     },
     "content-sidebar": {
       "gridTemplate": "\"header header\" \"main sidebar\" \"footer footer\" / 1fr 300px",
       "description": "Main content with sidebar and optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: sidebar\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: content-sidebar\n\n@header\n## Section Title\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context\n\n@footer\nAdditional context or reference"
+      "template": "layout: content-sidebar\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context\n\n@footer\nAdditional context or reference"
     },
     "default": {
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Default single column layout with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: default\n\n@header\n## Section Title\n\n@main\n## New Slide\n\nAdd your content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+      "template": "layout: default\n\n@header\n## Slide Title\n\n@main\n## New Slide\n\nAdd your content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     }
   }
 }

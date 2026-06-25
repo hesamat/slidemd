@@ -6,6 +6,7 @@ import { StageScaler } from "../renderer/stage-scaler.js";
 import { BreakManager } from "./break-manager.js";
 import { FreezeManager } from "./freeze-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
+import { Notification } from "../renderer/notification.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
@@ -99,6 +100,7 @@ export class DeckController extends EventEmitter {
     }
 
     initKeyboardHandler() {
+        const edit = () => window.__WEBDECK_EDIT_CONTROLLER__;
         this.keyboardHandler = new KeyboardHandler({
             next: () => this.slideNavigator.next(),
             prev: () => this.slideNavigator.prev(),
@@ -110,10 +112,57 @@ export class DeckController extends EventEmitter {
             break: () => this.breakManager.toggle(),
             fullscreen: () => this.toggleFullscreen(),
             reload: () => this.reloadManager.handleReloadDeck(),
-            theme: () => ThemeManager.toggleTheme(),
+            theme: () => {
+                // T → global app theme (light/dark).  Independent of the
+                // current slide's `theme:` directive.
+                ThemeManager.toggleTheme();
+            },
+            slideTheme: () => {
+                // Alt+T → per-slide theme (the `theme:` directive on the
+                // current slide).  Edit-mode only; the modifier shortcut
+                // guard in the keyboard handler already ensures this.
+                try { edit()?.themeManager?.toggle?.(); }
+                catch (e) { console.warn('Slide theme shortcut failed:', e); }
+            },
             styles: () => {
-                try { window.__WEBDECK_EDIT_CONTROLLER__?.openSlideStylePanel?.(); }
+                try { edit()?.openSlideStylePanel?.(); }
                 catch {}
+            },
+            save: () => {
+                try { edit()?.saveChanges?.(); }
+                catch (e) { console.warn('Save shortcut failed:', e); }
+            },
+            newSlide: () => {
+                try { edit()?.showLayoutPicker?.(); }
+                catch (e) { console.warn('New slide shortcut failed:', e); }
+            },
+            duplicateSlide: () => {
+                try { edit()?.duplicateSlide?.(); }
+                catch (e) { console.warn('Duplicate slide shortcut failed:', e); }
+            },
+            deleteSlide: () => {
+                try { edit()?.deleteSlide?.(); }
+                catch (e) { console.warn('Delete slide shortcut failed:', e); }
+            },
+            insertImage: () => {
+                try { edit()?.pickAndInsertImage?.(); }
+                catch (e) { console.warn('Insert image shortcut failed:', e); }
+            },
+            openLayout: () => {
+                try { edit()?.showLayoutPickerForCurrentSlide?.(); }
+                catch (e) { console.warn('Open layout shortcut failed:', e); }
+            },
+            toggleMermaid: () => {
+                try { edit()?.toggleMermaidHelperPanel?.(); }
+                catch (e) { console.warn('Toggle Mermaid shortcut failed:', e); }
+            },
+            pickBackground: () => {
+                try { edit()?.pickBackground?.(); }
+                catch (e) { console.warn('Pick background shortcut failed:', e); }
+            },
+            adjustColumns: () => {
+                try { edit()?.toggleGridResizer?.(); }
+                catch (e) { console.warn('Adjust columns shortcut failed:', e); }
             },
             isEditMode: () => this.isEditMode(),
             isBreakActive: () => this.breakManager.isActive,
@@ -251,6 +300,15 @@ export class DeckController extends EventEmitter {
         listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
         listen(this.elements.menuReloadDeckBtn, "click", () => { this.handleReloadDeck(); this.closeMenu(); });
         listen(this.elements.menuToggleEditModeBtn, "click", () => { this.toggleEditMode(); this.closeMenu(); });
+        listen(this.elements.menuSaveBtn, "click", () => {
+            const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+            if (this.isEditMode() && editCtrl?.saveChanges) {
+                editCtrl.saveChanges();
+            } else {
+                Notification.info('Open edit mode (E) to save changes');
+            }
+            this.closeMenu();
+        });
         listen(this.elements.menuPrintBtn, "click", () => { this.handlePrint(); this.closeMenu(); });
         listen(this.elements.menuExportHtmlBtn, "click", () => { this.handleHtmlExport(); this.closeMenu(); });
 

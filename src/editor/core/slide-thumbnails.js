@@ -1,8 +1,17 @@
 /**
  * SlideThumbnails
  * Manages the slide thumbnails sidebar in the editor.
- * Renders thumbnails of all slides and handles navigation via thumbnail clicks.
+ * Renders thumbnails of all slides and handles navigation via thumbnail clicks,
+ * right-click context menu, and the pinned "Add Slide" footer button.
  */
+
+// Touch long-press: how long (in ms) the user must hold a thumbnail
+// before the context menu opens, and how long the optional haptic
+// pulse lasts.  Both are well above the OS double-tap threshold
+// (≈ 300 ms) and well below the "press and hold to drag" threshold
+// on most tablets, so they sit in the dead zone between the two.
+const LONG_PRESS_MS = 650;
+const LONG_PRESS_HAPTIC_MS = 10;
 
 export class SlideThumbnails {
     constructor(deck, controller, elements) {
@@ -11,6 +20,7 @@ export class SlideThumbnails {
         this._elements = elements;
         this._container = null;
         this._currentIndex = 0;
+        this._contextMenu = null;
 
         this.init();
     }
@@ -18,6 +28,10 @@ export class SlideThumbnails {
     init() {
         this._container = document.getElementById('slideThumbnails');
         if (!this._container) return;
+
+        // Cache the add-slide button (last child of the list) so we can
+        // keep it in place when the thumbnails are re-rendered.
+        this._addBtn = this._container.querySelector('.slide-thumbnails__add-btn');
 
         // Listen for slide changes to update current thumbnail highlight
         this._controller.addEventListener('slidechange', () => this.updateCurrentSlide());
@@ -27,19 +41,45 @@ export class SlideThumbnails {
             this._deck = data.deck;
             this.render();
         });
+
+        this._contextMenu = new SlideContextMenu(this);
+        this._contextMenu.init();
+
+        this._bindAddSlideFooter();
     }
 
     /**
-     * Render all slide thumbnails
+     * Render all slide thumbnails.  The add-slide button is the last child
+     * of the list and is preserved across renders so it always appears at
+     * the end of the thumbnail list.
      */
     render() {
         if (!this._container) return;
 
-        this._container.innerHTML = '';
+        // Remove only the dynamically-generated thumbnails; keep the
+        // add-slide button (and any other static children) intact.
+        // We also clear any pending long-press timers on the old
+        // thumbnails so a touch in progress doesn't fire a callback
+        // bound to a now-stale element/index.
+        Array.from(this._container.querySelectorAll('.slide-thumbnail'))
+            .forEach((node) => {
+                const pending = node.dataset?.longPressTimer;
+                if (pending) {
+                    window.clearTimeout(Number(pending));
+                    delete node.dataset.longPressTimer;
+                }
+                node.remove();
+            });
 
         this._deck.slides.forEach((slide, index) => {
             const thumbnail = this.createThumbnail(slide, index);
-            this._container.appendChild(thumbnail);
+            // Insert before the add button so it always ends up at the end
+            // of the visible list (and after the most recent slide).
+            if (this._addBtn && this._addBtn.parentNode === this._container) {
+                this._container.insertBefore(thumbnail, this._addBtn);
+            } else {
+                this._container.appendChild(thumbnail);
+            }
         });
 
         this.updateCurrentSlide();
@@ -51,36 +91,36 @@ export class SlideThumbnails {
     createThumbnail(slide, index) {
         const thumbnail = document.createElement('div');
         thumbnail.className = 'slide-thumbnail';
-        thumbnail.dataset.slideIndex = index;
+        thumbnail.dataset.slideIndex = String(index);
         thumbnail.setAttribute('role', 'button');
         thumbnail.setAttribute('aria-label', `Go to slide ${index + 1}`);
+        thumbnail.setAttribute('tabindex', '0');
 
         // Slide number
         const number = document.createElement('div');
         number.className = 'slide-thumbnail__number';
-        number.textContent = index + 1;
+        number.textContent = String(index + 1);
 
         // Slide title
         const title = document.createElement('div');
         title.className = 'slide-thumbnail__title';
-        title.textContent = slide.title || `Slide ${index}`;
+        title.textContent = slide.title || `Slide ${index + 1}`;
 
         thumbnail.appendChild(number);
         thumbnail.appendChild(title);
 
-        // Action buttons container (shown only for current slide)
+        // Action buttons (move up / down) — revealed on hover or for the
+        // current slide via CSS (no JS display toggling needed).
         const actionsContainer = document.createElement('div');
         actionsContainer.className = 'slide-thumbnail__actions';
-        actionsContainer.style.display = 'none'; // Hidden by default
 
         // Move up button
         if (index > 0) {
-            const moveUpBtn = document.createElement('button');
-            moveUpBtn.className = 'slide-thumbnail__action-btn';
-            moveUpBtn.type = 'button';
-            moveUpBtn.setAttribute('aria-label', 'Move slide up');
-            moveUpBtn.setAttribute('title', 'Move slide up');
-            moveUpBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>';
+            const moveUpBtn = this._createActionBtn(
+                'Move slide up',
+                'Move slide up',
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>'
+            );
             moveUpBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this._moveSlide(index, 'up');
@@ -90,12 +130,11 @@ export class SlideThumbnails {
 
         // Move down button
         if (index < this._deck.slides.length - 1) {
-            const moveDownBtn = document.createElement('button');
-            moveDownBtn.className = 'slide-thumbnail__action-btn';
-            moveDownBtn.type = 'button';
-            moveDownBtn.setAttribute('aria-label', 'Move slide down');
-            moveDownBtn.setAttribute('title', 'Move slide down');
-            moveDownBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+            const moveDownBtn = this._createActionBtn(
+                'Move slide down',
+                'Move slide down',
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'
+            );
             moveDownBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this._moveSlide(index, 'down');
@@ -105,12 +144,113 @@ export class SlideThumbnails {
 
         thumbnail.appendChild(actionsContainer);
 
-        // Click handler to navigate to slide
+        // Long-press support and the click-suppression flag are declared
+        // here so the click handler below can see them.
+        let longPressTriggered = false;
+
+        // Click handler to navigate to slide.  Suppressed after a
+        // long-press so the touchend that follows doesn't also navigate.
         thumbnail.addEventListener('click', () => {
+            if (longPressTriggered) {
+                longPressTriggered = false;
+                return;
+            }
             this._controller.slideNavigator.goTo(index);
         });
 
+        // Right-click → open the slide context menu
+        thumbnail.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this._controller.slideNavigator.goTo(index);
+            this._contextMenu.open(e.clientX, e.clientY, index);
+        });
+
+        // Long-press on touch devices opens the same context menu.  The
+        // `contextmenu` event only fires for mouse/pen, so without this
+        // tablet users would lose access to new/duplicate/delete.
+        // The pending timer is stored on the element's dataset so
+        // `render()` can cancel it when the thumbnail is removed; without
+        // that, a re-render mid-touch would leave a callback firing
+        // against a now-stale index.
+        const startLongPress = (touch) => {
+            longPressTriggered = false;
+            const timer = window.setTimeout(() => {
+                delete thumbnail.dataset.longPressTimer;
+                longPressTriggered = true;
+                this._controller.slideNavigator.goTo(index);
+                this._contextMenu.open(touch.clientX, touch.clientY, index);
+                if (navigator.vibrate) navigator.vibrate(LONG_PRESS_HAPTIC_MS);
+            }, LONG_PRESS_MS);
+            thumbnail.dataset.longPressTimer = String(timer);
+        };
+        const cancelLongPress = () => {
+            const pending = thumbnail.dataset?.longPressTimer;
+            if (pending) {
+                window.clearTimeout(Number(pending));
+                delete thumbnail.dataset.longPressTimer;
+            }
+        };
+        thumbnail.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            if (touch) startLongPress(touch);
+        }, { passive: true });
+        thumbnail.addEventListener('touchend', cancelLongPress);
+        thumbnail.addEventListener('touchmove', cancelLongPress);
+        thumbnail.addEventListener('touchcancel', cancelLongPress);
+
         return thumbnail;
+    }
+
+    /**
+     * Build a small action button for the visible-on-current-slide controls.
+     * @param {string} ariaLabel
+     * @param {string} title
+     * @param {string} svg  inline SVG markup
+     * @returns {HTMLButtonElement}
+     */
+    _createActionBtn(ariaLabel, title, svg) {
+        const btn = document.createElement('button');
+        btn.className = 'slide-thumbnail__action-btn';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', ariaLabel);
+        btn.setAttribute('title', title);
+        btn.innerHTML = svg;
+        return btn;
+    }
+
+    /**
+     * Bind the pinned "Add Slide" footer button (below the scrollable list).
+     */
+    _bindAddSlideFooter() {
+        const btn = this._elements.addSlideFooterBtn
+            || document.getElementById('addSlideFooterBtn');
+        if (!btn) return;
+        btn.addEventListener('click', () => this._addNewSlide());
+    }
+
+    /**
+     * Create a new slide via the edit controller's layout picker.
+     * Used by the right-click menu ("New" → after this index) and the
+     * footer "+ Add Slide" button (which appends to the end).
+     * @param {number} [afterIndex] insert after this index.  When
+     *   omitted, the new slide is appended to the end of the deck
+     *   (the footer button's contract).
+     */
+    _addNewSlide(afterIndex) {
+        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (!editController) {
+            console.warn('Edit controller not available');
+            return;
+        }
+        if (typeof afterIndex === 'number') {
+            this._controller.slideNavigator.goTo(afterIndex);
+        } else {
+            // Footer button: navigate to the last slide so the layout
+            // picker (which inserts "after current") appends to the end.
+            const lastIndex = Math.max(0, (this._deck?.slides?.length ?? 1) - 1);
+            this._controller.slideNavigator.goTo(lastIndex);
+        }
+        editController.showLayoutPicker();
     }
 
     /**
@@ -124,23 +264,16 @@ export class SlideThumbnails {
         const thumbnails = this._container.querySelectorAll('.slide-thumbnail');
 
         thumbnails.forEach((thumbnail, index) => {
-            const actionsContainer = thumbnail.querySelector('.slide-thumbnail__actions');
-
             if (index === currentIndex) {
                 thumbnail.classList.add('current');
                 thumbnail.setAttribute('aria-current', 'true');
-                // Show action buttons for current slide
-                if (actionsContainer) {
-                    actionsContainer.style.display = 'flex';
-                }
             } else {
                 thumbnail.classList.remove('current');
                 thumbnail.removeAttribute('aria-current');
-                // Hide action buttons for other slides
-                if (actionsContainer) {
-                    actionsContainer.style.display = 'none';
-                }
             }
+            // Action buttons (move up / down) are revealed via CSS when
+            // the thumbnail is hovered or has the .current class — no JS
+            // toggling required.
         });
 
         // Scroll current thumbnail into view
@@ -195,5 +328,115 @@ export class SlideThumbnails {
      */
     refresh() {
         this.render();
+    }
+}
+
+/**
+ * SlideContextMenu
+ *
+ * A minimal right-click context menu for slide thumbnails.  Rendered into
+ * `document.body` on `open()` and removed on any outside click or Escape
+ * keypress.  Lives in the same file as `SlideThumbnails` because it has
+ * to call back into it for "New after this slide".
+ */
+class SlideContextMenu {
+    constructor(thumbnails) {
+        this._thumbnails = thumbnails;
+        this._menuEl = null;
+        this._index = -1;
+    }
+
+    init() {
+        // Global handlers — close the menu on any outside click, scroll,
+        // resize, or Escape.  Registered once at startup.
+        document.addEventListener('click', () => this.close());
+        document.addEventListener('scroll', () => this.close(), true);
+        window.addEventListener('resize', () => this.close());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.close();
+        });
+    }
+
+    /**
+     * Open the menu at (x, y) screen coordinates for the given slide index.
+     * @param {number} clientX
+     * @param {number} clientY
+     * @param {number} index
+     */
+    open(clientX, clientY, index) {
+        this.close();
+        this._index = index;
+
+        const menu = document.createElement('div');
+        menu.className = 'slide-context-menu';
+        menu.setAttribute('role', 'menu');
+        menu.style.left = `${clientX}px`;
+        menu.style.top = `${clientY}px`;
+
+        const items = [
+            { label: 'New slide', kbd: 'Alt+N', action: (index) => this._newAfter(index) },
+            { label: 'Duplicate slide', kbd: 'Alt+D', action: () => this._duplicate() },
+            { label: 'Delete slide', kbd: 'Alt+⌫', action: () => this._delete() },
+        ];
+
+        for (const item of items) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'slide-context-menu__item';
+            btn.setAttribute('role', 'menuitem');
+            btn.innerHTML = `
+                <span class="slide-context-menu__label">${item.label}</span>
+                <kbd class="slide-context-menu__hint">${item.kbd}</kbd>
+            `;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Capture the slide index BEFORE close() resets it to -1;
+                // otherwise the action receives -1 and the new slide is
+                // inserted next to the wrong slide.
+                const index = this._index;
+                this.close();
+                item.action(index);
+            });
+            menu.appendChild(btn);
+        }
+
+        document.body.appendChild(menu);
+        this._menuEl = menu;
+
+        // If the menu would overflow the viewport, shift it back into bounds.
+        const rect = menu.getBoundingClientRect();
+        const overflowX = rect.right - window.innerWidth;
+        const overflowY = rect.bottom - window.innerHeight;
+        if (overflowX > 0) menu.style.left = `${Math.max(4, clientX - overflowX - 4)}px`;
+        if (overflowY > 0) menu.style.top = `${Math.max(4, clientY - overflowY - 4)}px`;
+    }
+
+    close() {
+        if (this._menuEl) {
+            this._menuEl.remove();
+            this._menuEl = null;
+            this._index = -1;
+        }
+    }
+
+    _newAfter(index) {
+        // Add a new slide immediately after the right-clicked slide.  The
+        // layout picker (which inserts "after current") does the heavy
+        // lifting; we just navigate to the target slide first.  The
+        // `index` is captured by the click handler before close() runs,
+        // so it's the real right-clicked slide index (not -1).
+        this._thumbnails._addNewSlide(index);
+    }
+
+    _duplicate() {
+        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (!editController) return;
+        editController.duplicateSlide();
+    }
+
+    _delete() {
+        const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (!editController) return;
+        editController.deleteSlide();
     }
 }

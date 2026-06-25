@@ -23,11 +23,6 @@
     overflow: visible;
 }
 
-.editor__body-header .editor__title {
-    color: var(--text-high) !important;
-    font-weight: 700 !important;
-}
-
 .editor__helper-actions {
     display: flex;
     align-items: center;
@@ -522,13 +517,13 @@
     position: absolute;
     z-index: 1000;
     width: 300px;
-    background: var(--surface-elevated, #f8fafc);
-    border: 1px solid var(--border-medium, rgba(148, 163, 184, 0.35));
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-medium);
     border-radius: 10px;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
     font-family: inherit;
     font-size: 12px;
-    color: var(--text-high, rgba(15, 23, 42, 0.95));
+    color: var(--text-high);
     user-select: none;
     overflow: hidden;
 }
@@ -540,37 +535,36 @@
 /* Tab strip */
 .image-properties-panel__tabs {
     display: flex;
-    border-bottom: 1px solid var(--border-medium, rgba(148, 163, 184, 0.35));
-    background: var(--surface-bg, rgba(255, 255, 255, 0.95));
+    border-bottom: 1px solid var(--border-medium);
+    background: var(--surface-bg);
 }
 
 .image-properties-panel__tab {
     flex: 1;
-    padding: 8px 10px;
+    padding: 9px 10px;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    color: var(--text-medium, rgba(15, 23, 42, 0.75));
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    color: var(--text-low);
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
     transition: color 0.12s ease, border-color 0.12s ease;
 }
 
 .image-properties-panel__tab:hover {
-    color: var(--text-high, rgba(15, 23, 42, 0.95));
+    color: var(--text-medium);
 }
 
 .image-properties-panel__tab.active {
-    color: var(--text-high, rgba(15, 23, 42, 0.95));
-    border-bottom-color: var(--accent, rgba(2, 132, 199, 0.95));
+    color: var(--text-high);
+    border-bottom-color: var(--accent);
 }
 
 /* Panel body */
 .image-properties-panel__body {
     padding: 10px 12px;
+    background: var(--surface-elevated);
 }
 
 .image-properties-panel__panel {
@@ -608,23 +602,22 @@
 
 .image-properties-panel__field-label {
     font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted, rgba(15, 23, 42, 0.45));
+    font-weight: 600;
+    color: var(--text-low);
 }
 
 /* Inputs */
 .image-properties-panel__input {
     width: 100%;
     padding: 5px 7px;
-    background: var(--surface-bg, rgba(255, 255, 255, 0.95));
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.12));
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
     border-radius: 5px;
-    color: var(--text-high, rgba(15, 23, 42, 0.95));
+    color: var(--text-high);
     font-size: 12px;
     text-align: left;
     outline: none;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
     -moz-appearance: textfield;
 }
 
@@ -635,42 +628,45 @@
 }
 
 .image-properties-panel__input:focus {
-    border-color: var(--accent, rgba(2, 132, 199, 0.95));
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-bg);
 }
 
 .image-properties-panel__text {
     width: 100%;
     padding: 5px 7px;
-    background: var(--surface-bg, rgba(255, 255, 255, 0.95));
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.12));
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
     border-radius: 5px;
-    color: var(--text-high, rgba(15, 23, 42, 0.95));
+    color: var(--text-high);
     font-size: 12px;
     outline: none;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .image-properties-panel__text:focus {
-    border-color: var(--accent, rgba(2, 132, 199, 0.95));
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-bg);
 }
 
 .image-properties-panel__range {
     width: 100%;
     padding: 0;
     background: transparent;
-    accent-color: var(--accent, rgba(2, 132, 199, 0.95));
+    accent-color: var(--accent);
 }
 
 .image-properties-panel__range--grow {
     flex: 1;
 }
 
-/* Icon buttons (small square) */
+/* Icon buttons (small square, e.g. lock, front/back, rotation) */
 .image-properties-panel__icon-btn {
     padding: 5px 8px;
-    background: transparent;
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
     border-radius: 5px;
-    color: var(--text-medium, rgba(246, 242, 240, 0.85));
+    color: var(--text-medium);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -679,23 +675,24 @@
 }
 
 .image-properties-panel__icon-btn:hover {
-    background: var(--accent-light, rgba(2, 132, 199, 0.15));
-    color: var(--text-high, #f0f2f5);
+    background: var(--accent-bg);
+    color: var(--text-high);
+    border-color: var(--accent-border);
 }
 
 .image-properties-panel__icon-btn[aria-pressed="true"] {
-    background: var(--accent, rgba(2, 132, 199, 0.95));
-    color: #fff;
+    background: var(--accent);
+    color: var(--surface-elevated);
     border-color: transparent;
 }
 
-/* Chip buttons (presets) */
+/* Chip buttons (presets: Small/Medium/Large/Full/Center/Fit/Pill) */
 .image-properties-panel__chip {
     padding: 4px 10px;
-    background: transparent;
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
     border-radius: 999px;
-    color: var(--text-medium, rgba(246, 242, 240, 0.85));
+    color: var(--text-medium);
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -703,14 +700,15 @@
 }
 
 .image-properties-panel__chip:hover {
-    background: var(--accent-light, rgba(2, 132, 199, 0.15));
-    color: var(--text-high, #f0f2f5);
+    background: var(--accent-bg);
+    color: var(--text-high);
+    border-color: var(--accent-border);
 }
 
 /* Segmented group (shadow presets) */
 .image-properties-panel__seg {
     display: inline-flex;
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+    border: 1px solid var(--border-medium);
     border-radius: 5px;
     overflow: hidden;
     flex: 1;
@@ -719,10 +717,10 @@
 .image-properties-panel__seg-btn {
     flex: 1;
     padding: 4px 6px;
-    background: none;
+    background: var(--surface-bg);
     border: none;
-    border-right: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
-    color: var(--text-medium, rgba(246, 242, 240, 0.85));
+    border-right: 1px solid var(--border-medium);
+    color: var(--text-medium);
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -734,41 +732,62 @@
 }
 
 .image-properties-panel__seg-btn:hover {
-    background: var(--surface-hover, rgba(148, 163, 184, 0.1));
+    background: var(--accent-bg);
+    color: var(--text-high);
 }
 
 .image-properties-panel__seg-btn.active {
-    background: var(--accent, rgba(2, 132, 199, 0.95));
-    color: #fff;
+    background: var(--accent);
+    color: var(--surface-elevated);
 }
 
-/* Generic buttons */
+/* Generic buttons (Replace / Delete) */
 .image-properties-panel__btn {
-    padding: 6px 10px;
-    background: var(--surface-bg, rgba(15, 23, 42, 0.6));
-    border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+    padding: 7px 10px;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-medium);
     border-radius: 5px;
-    color: var(--text-medium, rgba(246, 242, 240, 0.85));
-    font-size: 11px;
+    color: var(--text-medium);
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.12s ease;
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .image-properties-panel__btn:hover {
-    background: var(--accent-light, rgba(2, 132, 199, 0.15));
-    color: var(--text-high, #f0f2f5);
+    background: var(--accent-bg);
+    color: var(--text-high);
+    border-color: var(--accent-border);
+}
+
+/* Shortcut hint inside a button (e.g. "Replace image… R").  Visually
+   subdued so it doesn't compete with the action label. */
+.image-properties-panel__hint {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-low);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
 }
 
 .image-properties-panel__btn--danger {
-    color: rgba(239, 68, 68, 0.85);
+    color: #dc2626;
 }
 
 .image-properties-panel__btn--danger:hover {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(220, 38, 38, 0.08);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.35);
 }
 
 /* Make images in the slide preview clickable in edit mode */

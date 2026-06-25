@@ -92,6 +92,35 @@ a:hover {
     user-select: none;
 }
 
+/* Hide footer items in edit mode (e.g. Break timer — the break is for the
+   presenter view, not for editing).  Both the button and the leading "•"
+   separator share the class so the trailing separator also disappears,
+   avoiding a dangling bullet when the group is hidden. */
+.footer-hide-in-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Two separate `.footer-hide-in-edit` groups hide in edit mode but they
+   have different scopes:
+     • The "P (Present)" group opens the presenter window — a window-open
+       action, not a state change.
+     • The "B (Break)" group toggles the break timer — a state change in
+       the editor itself.
+   They're kept as two groups so they can be re-shown independently if
+   the editing workflow ever needs either of them. */
+body[data-edit-mode="true"] .footer-hide-in-edit {
+    display: none;
+}
+
+/* Menu items that only make sense in edit mode (e.g. Save) are hidden
+   when not in edit mode.  The `body:not([data-edit-mode="true"])`
+   selector matches both viewing mode and the initial state. */
+body:not([data-edit-mode="true"]) .menu-hide-in-viewing {
+    display: none;
+}
+
 /* ========================================================================
    Responsive Layout (Mobile)
    ======================================================================== */

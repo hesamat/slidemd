@@ -4,6 +4,16 @@
  * Drag-and-drop repositioning and resize handles for images in edit mode.
  * Works directly on <img> elements with a selection overlay.
  * No wrappers — the overlay tracks the image's position/size.
+ *
+ * Also owns the image-mode keyboard shortcuts (only fire when an image
+ * is selected in the slide editor):
+ *   C           center image on slide
+ *   W           fit image to area width
+ *   ] / [       bring to front / send to back (z-order)
+ *   R           replace image (opens picker)
+ *   Arrow keys  move 1px (Shift+Arrow = 10px)
+ *   Delete      remove image from slide
+ *   Escape      deselect
  */
 import interact from 'interactjs';
 import { ImagePropertiesPanel } from './image-properties-panel.js';
@@ -57,6 +67,10 @@ export class ImageInteractionHandler {
             // input handle arrows/Escape/Delete naturally.
             if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
 
+            // Ignore modified keystrokes — the global keyboard handler manages
+            // Ctrl+/Alt+ shortcuts, and we don't want to consume them here.
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
             if (e.key === 'Escape') {
                 this.deselect();
                 return;
@@ -77,6 +91,40 @@ export class ImageInteractionHandler {
                 this._selectedImg.style[prop] = `${cur + dir * step}px`;
                 this._updateOverlay();
                 this._syncToMarkdown();
+                return;
+            }
+
+            // Contextual shortcuts (only when an image is selected)
+            const key = e.key;
+            if (key === 'c' || key === 'C') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this.centerOnSlide();
+                return;
+            }
+            if (key === 'w' || key === 'W') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this.fitToWidth();
+                return;
+            }
+            if (key === ']') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this.bringToFront();
+                return;
+            }
+            if (key === '[') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this.sendToBack();
+                return;
+            }
+            if (key === 'r' || key === 'R') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                ImagePropertiesPanel._openReplacePicker?.();
+                return;
             }
         });
     }
