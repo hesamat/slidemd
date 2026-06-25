@@ -89,15 +89,6 @@
     color: var(--text-high);
 }
 
-/* The collapse toggle and the slide-actions dropdown both sit on
-   the right side of the header (the title is the only left-side
-   element).  `margin-left: auto` on the toggle pushes the toggle
-   AND every sibling after it to the right edge under the flex
-   row's `justify-content: space-between` layout. */
-.editor__thumbnails-toggle#toggleThumbnailsBtn {
-    margin-left: auto;
-}
-
 .editor__thumbnails-toggle svg {
     transition: transform 0.3s ease;
 }
@@ -122,28 +113,32 @@
     color: var(--text-high);
 }
 
-/* The slide-actions dropdown opens UPWARD (above the header)
-   instead of downward, because the parent .editor__thumbnails
-   container has `overflow: hidden` to support the collapse
-   animation — a downward-opening menu would be clipped by the
-   container's bottom edge and visually disappear behind the
-   slide list.  Opening upward also keeps it on top of the
-   thumbnails at all times. */
-.topbar-dropdown--open-up .menu-dropdown__content {
-    top: auto;
-    bottom: calc(100% + 8px);
-    animation-name: menuFadeInUp;
+/* Border around the slide-actions trigger so it reads as a
+   distinct control from the plain collapse toggle next to it. */
+.editor__thumbnails-action {
+    border: 1px solid var(--border-medium);
 }
 
-@keyframes menuFadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+/* The slide-actions dropdown opens DOWNWARD and to the LEFT
+   (panel's right edge aligns with the trigger's right edge, so
+   the panel extends leftward into the header area).  The panel
+   is positioned with `position: fixed` in JS so it escapes the
+   parent .editor__thumbnails container's `overflow: hidden`
+   (needed for the collapse animation) — without that escape the
+   downward-opening menu would be clipped by the container's
+   bottom edge and visually disappear behind the slide list. */
+.topbar-dropdown--down-left .menu-dropdown__content {
+    left: auto;
+    right: 0;
+    z-index: 3000;
+}
+
+/* The header uses flex with `justify-content: space-between`,
+   so the dropdown wrapper needs `margin-left: auto` to push it
+   (and the collapse toggle after it) to the right edge.  The
+   title stays on the left. */
+.topbar-dropdown--down-left {
+    margin-left: auto;
 }
 
 /* ── Scrollable thumbnail list ──────────────────────────────────────────── */
