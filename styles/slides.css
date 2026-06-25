@@ -132,19 +132,22 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     padding: 10px;
 }
 
-/* Title and header get a hairline separator at the bottom of the
-   left half of the slide — a full-width border felt too heavy
-   for what's meant to be a subtle section divider.  The line is
-   drawn with a pseudo-element so we can size it independently of
-   the area's padding/width. */
-.slide__area--header,
-.slide__area--title {
+/* Header areas get a hairline separator at the bottom of the left
+   half — a full-width border felt too heavy for what's meant to be
+   a subtle section divider.  The line is drawn with a
+   pseudo-element so we can size it independently of the area's
+   padding/width.
+
+   `.slide__area--title` is intentionally excluded: it's the
+   centered, large-title style used for title slides
+   (`text-align: center`, `max-width: var(--line-max)`), and a
+   short left-aligned line under it looks out of place. */
+.slide__area--header {
     position: relative;
     padding: 12px 16px;
 }
 
-.slide__area--header::after,
-.slide__area--title::after {
+.slide__area--header::after {
     content: "";
     position: absolute;
     left: 16px;
@@ -154,8 +157,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     background: rgba(23, 32, 39, 0.52);
 }
 
-.slide[data-theme="dark"] .slide__area--header::after,
-.slide[data-theme="dark"] .slide__area--title::after {
+.slide[data-theme="dark"] .slide__area--header::after {
     background: rgba(225, 211, 252, 0.8);
 }
 
