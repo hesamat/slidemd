@@ -89,6 +89,15 @@
     color: var(--text-high);
 }
 
+/* The collapse toggle and the slide-actions dropdown both sit on
+   the right side of the header (the title is the only left-side
+   element).  `margin-left: auto` on the toggle pushes the toggle
+   AND every sibling after it to the right edge under the flex
+   row's `justify-content: space-between` layout. */
+.editor__thumbnails-toggle#toggleThumbnailsBtn {
+    margin-left: auto;
+}
+
 .editor__thumbnails-toggle svg {
     transition: transform 0.3s ease;
 }
