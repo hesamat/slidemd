@@ -149,9 +149,9 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     position: absolute;
     left: 16px;
     bottom: 0;
-    width: 50%;
+    width: 55%;
     height: 1px;
-    background: rgba(2, 32, 39, 0.32);
+    background: rgba(23, 32, 39, 0.52);
 }
 
 .slide[data-theme="dark"] .slide__area--header::after,
