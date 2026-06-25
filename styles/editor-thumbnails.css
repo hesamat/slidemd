@@ -97,6 +97,22 @@
     transform: rotate(180deg);
 }
 
+/* The kebab button (slide actions dropdown) in the same header
+   reuses the toggle's shape/size but its SVG should NOT rotate
+   when the panel collapses — only the collapse chevron should. */
+.editor__thumbnails-action svg {
+    transition: none;
+}
+
+.editor__thumbnails.collapsed .editor__thumbnails-action svg {
+    transform: none;
+}
+
+.editor__thumbnails-action[aria-expanded="true"] {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
 /* ── Scrollable thumbnail list ──────────────────────────────────────────── */
 .slide-thumbnails {
     display: flex;
