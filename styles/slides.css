@@ -132,16 +132,31 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     padding: 10px;
 }
 
-/* Title and header get a bottom separator to visually separate from content below. */
+/* Title and header get a hairline separator at the bottom of the
+   left half of the slide — a full-width border felt too heavy
+   for what's meant to be a subtle section divider.  The line is
+   drawn with a pseudo-element so we can size it independently of
+   the area's padding/width. */
 .slide__area--header,
 .slide__area--title {
-    border-bottom: 0.5px solid rgba(2, 32, 39, 0.32);
+    position: relative;
     padding: 12px 16px;
 }
 
-.slide[data-theme="dark"] .slide__area--header,
-.slide[data-theme="dark"] .slide__area--title {
-    border-bottom-color: rgba(125, 211, 252, 0.08);
+.slide__area--header::after,
+.slide__area--title::after {
+    content: "";
+    position: absolute;
+    left: 16px;
+    bottom: 0;
+    width: 50%;
+    height: 1px;
+    background: rgba(2, 32, 39, 0.32);
+}
+
+.slide[data-theme="dark"] .slide__area--header::after,
+.slide[data-theme="dark"] .slide__area--title::after {
+    background: rgba(125, 211, 252, 0.08);
 }
 
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
