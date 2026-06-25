@@ -21,10 +21,10 @@
  */
 
 const SHADOW_PRESETS = [
-    { key: 'none',    label: 'None',    value: 'none' },
-    { key: 'subtle',  label: 'Subtle',  value: '0 2px 6px rgba(0,0,0,0.25)' },
-    { key: 'medium',  label: 'Medium',  value: '0 6px 16px rgba(0,0,0,0.35)' },
-    { key: 'strong',  label: 'Strong',  value: '0 12px 32px rgba(0,0,0,0.5)' },
+    { key: 'none', label: 'None', value: 'none' },
+    { key: 'subtle', label: 'Subtle', value: '0 2px 6px rgba(0,0,0,0.25)' },
+    { key: 'medium', label: 'Medium', value: '0 6px 16px rgba(0,0,0,0.35)' },
+    { key: 'strong', label: 'Strong', value: '0 12px 32px rgba(0,0,0,0.5)' },
 ];
 
 export class ImagePropertiesPanel {
@@ -32,7 +32,6 @@ export class ImagePropertiesPanel {
     static _wired = false;
     static _getMarkdown = null;
     static _setMarkdown = null;
-    static _activeTab = 'size';
     static _aspectLocked = false;
     static _lastRatio = null;
 
@@ -46,12 +45,17 @@ export class ImagePropertiesPanel {
 
     /**
      * Show the panel for the given image with its current settings.
+     * The panel always opens on the first tab (Size) — the two most-used
+     * actions (Replace / Delete) live there, so a fresh open should
+     * surface them immediately rather than resuming whatever the user
+     * had selected last time.
      * @param {HTMLElement} img
      * @param {object} settings - Parsed style settings (see ImageInteractionHandler._readSettings).
      */
     static show(img, settings) {
         if (!this.el) this._buildDom();
         this._syncUI(settings);
+        this._activateTab('size');
         this.el.classList.remove('webdeck-hidden');
 
         const rect = img.getBoundingClientRect();
@@ -100,7 +104,7 @@ export class ImagePropertiesPanel {
                 <div class="image-properties-panel__panel active" data-panel="size">
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__btn" data-action="replace">
-                            <span>Replace image…</span>
+                            <span>Replace</span>
                             <kbd class="image-properties-panel__hint">R</kbd>
                         </button>
                         <button type="button" class="image-properties-panel__btn image-properties-panel__btn--danger" data-action="delete">
@@ -193,6 +197,20 @@ export class ImagePropertiesPanel {
         this._wireEvents();
     }
 
+    /**
+     * Activate one of the panel's tabs (and matching content panel).
+     * The active state lives entirely in the DOM `.active` class — we
+     * don't remember it across show/hide so the panel always opens
+     * back on the first tab (the one with Replace / Delete).
+     */
+    static _activateTab(name) {
+        if (!this.el) return;
+        this.el.querySelectorAll('.image-properties-panel__tab')
+            .forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+        this.el.querySelectorAll('.image-properties-panel__panel')
+            .forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
+    }
+
     static _wireEvents() {
         if (this._wired) return;
         this._wired = true;
@@ -212,12 +230,7 @@ export class ImagePropertiesPanel {
 
         // Tab switching
         this.el.querySelectorAll('.image-properties-panel__tab').forEach((tab) => {
-            tab.addEventListener('click', () => {
-                const target = tab.dataset.tab;
-                this._activeTab = target;
-                this.el.querySelectorAll('.image-properties-panel__tab').forEach((t) => t.classList.toggle('active', t === tab));
-                this.el.querySelectorAll('.image-properties-panel__panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === target));
-            });
+            tab.addEventListener('click', () => this._activateTab(tab.dataset.tab));
         });
 
         // Number/text/range inputs that map directly to settings fields
@@ -262,17 +275,17 @@ export class ImagePropertiesPanel {
                 btn.textContent = this._aspectLocked ? '🔒' : '🔓';
                 ImageInteractionHandler.setAspectLock(this._aspectLocked);
                 break;
-            case 'small':  this._applyPreset({ width: 240 }); break;
+            case 'small': this._applyPreset({ width: 240 }); break;
             case 'medium': this._applyPreset({ width: 480 }); break;
-            case 'large':  this._applyPreset({ width: 720 }); break;
-            case 'full':   ImageInteractionHandler.fitToWidth(); break;
+            case 'large': this._applyPreset({ width: 720 }); break;
+            case 'full': ImageInteractionHandler.fitToWidth(); break;
             case 'center': ImageInteractionHandler.centerOnSlide(); break;
-            case 'fit':    ImageInteractionHandler.fitToWidth(); break;
-            case 'front':  ImageInteractionHandler.bringToFront(); break;
-            case 'back':   ImageInteractionHandler.sendToBack(); break;
-            case 'rot-left':  ImageInteractionHandler.rotateBy(-90); break;
+            case 'fit': ImageInteractionHandler.fitToWidth(); break;
+            case 'front': ImageInteractionHandler.bringToFront(); break;
+            case 'back': ImageInteractionHandler.sendToBack(); break;
+            case 'rot-left': ImageInteractionHandler.rotateBy(-90); break;
             case 'rot-right': ImageInteractionHandler.rotateBy(90); break;
-            case 'pill':   ImageInteractionHandler.applySettings({ borderRadius: 999 }); break;
+            case 'pill': ImageInteractionHandler.applySettings({ borderRadius: 999 }); break;
             case 'delete': ImageInteractionHandler.deleteSelected(); this.hide(); break;
             case 'replace': this._openReplacePicker(); break;
         }
