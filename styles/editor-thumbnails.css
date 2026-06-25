@@ -122,6 +122,30 @@
     color: var(--text-high);
 }
 
+/* The slide-actions dropdown opens UPWARD (above the header)
+   instead of downward, because the parent .editor__thumbnails
+   container has `overflow: hidden` to support the collapse
+   animation — a downward-opening menu would be clipped by the
+   container's bottom edge and visually disappear behind the
+   slide list.  Opening upward also keeps it on top of the
+   thumbnails at all times. */
+.topbar-dropdown--open-up .menu-dropdown__content {
+    top: auto;
+    bottom: calc(100% + 8px);
+    animation-name: menuFadeInUp;
+}
+
+@keyframes menuFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* ── Scrollable thumbnail list ──────────────────────────────────────────── */
 .slide-thumbnails {
     display: flex;
