@@ -156,7 +156,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 
 .slide[data-theme="dark"] .slide__area--header::after,
 .slide[data-theme="dark"] .slide__area--title::after {
-    background: rgba(125, 211, 252, 0.08);
+    background: rgba(225, 211, 252, 0.8);
 }
 
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
