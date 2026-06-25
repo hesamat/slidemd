@@ -189,6 +189,9 @@ export class EditController {
             (cssString) => this._applySlideStyleToAll(cssString)
         );
 
+        // Source-jump: click text in slide → jump to markdown source
+        this._initSourceJumpHandler();
+
         // Render initial thumbnails
         this.thumbnails.render();
     }
@@ -489,6 +492,70 @@ export class EditController {
         });
 
         this.imageInserter.initDropAndPaste(slidesContainer);
+    }
+
+    /**
+     * Initialize click-to-jump: clicking a text element in the slide preview
+     * jumps the CodeMirror cursor to the corresponding markdown source line.
+     */
+    _initSourceJumpHandler() {
+        const slidesContainer = this.elements.slidesContainer;
+        if (!slidesContainer) return;
+
+        slidesContainer.addEventListener('click', (e) => {
+            if (!this.isEditMode) return;
+            if (e.target.closest('.editor-area-label, .editor-slide-warning, .image-overlay, .image-properties-panel, .grid-resize-handle')) return;
+            if (e.target.closest('img')) return;
+
+            const areaEl = e.target.closest('.slide__area');
+            if (!areaEl) return;
+
+            const blockEl = e.target.closest('[data-source-line]');
+            if (!blockEl) return;
+
+            const areaName = areaEl.dataset.areaName || 'main';
+            const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
+            if (isNaN(sourceLine)) return;
+
+            const editorMarkdown = this.markdownEditor?.getValue() ?? '';
+            const lines = editorMarkdown.split('\n');
+
+            // Find the @area marker line in the editor content
+            const escapedName = areaName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const areaRegex = new RegExp(`^\\s*@${escapedName}\\s*$`, 'mi');
+            const areaMatch = areaRegex.exec(editorMarkdown);
+
+            let targetLine;
+            if (areaMatch) {
+                const markerLine = editorMarkdown.substring(0, areaMatch.index).split('\n').length - 1;
+                targetLine = markerLine + sourceLine;
+            } else {
+                // Fallback for implicit main (no @main marker): count directive lines
+                let contentStart = 0;
+                for (let i = 0; i < lines.length; i++) {
+                    if (/^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(lines[i])) {
+                        contentStart = i + 1;
+                    } else if (lines[i].trim() !== '') {
+                        break;
+                    }
+                }
+                targetLine = contentStart + sourceLine - 1;
+            }
+
+            targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
+
+            let pos = 0;
+            for (let i = 0; i < targetLine; i++) {
+                pos += lines[i].length + 1;
+            }
+            pos = Math.min(pos, editorMarkdown.length);
+
+            this.markdownEditor.setValueWithCursor(editorMarkdown, pos, {
+                suppressOnChange: true,
+                scrollIntoView: true,
+            });
+            this.markdownEditor.highlightLine(targetLine);
+        });
     }
 
     async _resolveDeckDirectoryHandle() {

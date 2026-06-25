@@ -57,6 +57,10 @@ export class SlideRenderer {
             wrapper.style.background = slide.background;
         }
 
+        if (slide?._areaOffsets) {
+            wrapper.dataset.areaOffsets = JSON.stringify(slide._areaOffsets);
+        }
+
         const grid = document.createElement("div");
         grid.className = "slide__grid";
 

@@ -911,3 +911,21 @@
     pointer-events: none;
     background: rgba(239, 68, 68, 0.9);
 }
+
+/* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
+
+[data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.15s ease;
+}
+
+[data-edit-mode="true"] .slides .slide .slide__area [data-source-line]:hover {
+    background-color: rgba(2, 132, 199, 0.08);
+}
+
+/* ── CodeMirror temporary line highlight ─────────────────────────────────── */
+
+.cm-highlighted-line {
+    background: rgba(2, 132, 199, 0.18) !important;
+}

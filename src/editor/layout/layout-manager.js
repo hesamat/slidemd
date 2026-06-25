@@ -62,7 +62,7 @@ export class LayoutManager {
 
         // Auto-add missing required areas (e.g. @secondary for three-column)
         const parser = new MarkdownParser();
-        const currentAreas = parser.parseAreas(updatedMarkdown);
+        const { areas: currentAreas } = parser.parseAreas(updatedMarkdown);
         const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
             fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
         });
@@ -114,7 +114,7 @@ export class LayoutManager {
 
     _normalizeAreasForLayout(markdown, layoutName) {
         const parser = new MarkdownParser();
-        const areas = parser.parseAreas(markdown);
+        const { areas } = parser.parseAreas(markdown);
         const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
             fallbackAreas: Object.keys(areas).length ? Object.keys(areas) : ["main"],
         });

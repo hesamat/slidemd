@@ -73,6 +73,16 @@ export class MarkdownParser {
             typographer: false,
             breaks: true,
         });
+
+        // Source-map plugin: add data-source-line to block-level opening tags
+        const originalRenderToken = this.md.renderer.renderToken.bind(this.md.renderer);
+        this.md.renderer.renderToken = function (tokens, idx, options) {
+            const token = tokens[idx];
+            if (token.map && token.level === 0 && token.type.endsWith("_open")) {
+                token.attrPush(["data-source-line", String(token.map[0] + 1)]);
+            }
+            return originalRenderToken(tokens, idx, options);
+        };
     }
 
     splitSlides(markdownText) {
@@ -227,6 +237,7 @@ export class MarkdownParser {
     parseAreas(markdownText) {
         const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
         const areas = {};
+        const areaOffsets = {};
         let current = "main";
         const fence = new FenceTracker();
 
@@ -235,6 +246,7 @@ export class MarkdownParser {
         };
 
         ensure(current);
+        let lineIdx = 0;
 
         for (const line of lines) {
             fence.toggle(line);
@@ -243,10 +255,13 @@ export class MarkdownParser {
                 if (m) {
                     current = m[1].toLowerCase();
                     ensure(current);
+                    areaOffsets[current] = lineIdx;
+                    lineIdx++;
                     continue;
                 }
             }
             areas[current].push(line);
+            lineIdx++;
         }
 
         const out = {};
@@ -255,7 +270,7 @@ export class MarkdownParser {
             if (text) out[name] = text;
         }
 
-        return out;
+        return { areas: out, areaOffsets };
     }
 
     convertMermaidCodeBlocksToDiv(htmlText) {
@@ -310,7 +325,7 @@ export class MarkdownParser {
 
             cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
-            const areasMd = this.parseAreas(cleaned);
+            const { areas: areasMd, areaOffsets } = this.parseAreas(cleaned);
 
             const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
                 fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
@@ -371,6 +386,7 @@ export class MarkdownParser {
                 hidden,
                 areas,
                 areaStyle: areaStyle || "",
+                _areaOffsets: areaOffsets,
             };
         });
 
