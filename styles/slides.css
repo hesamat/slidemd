@@ -135,7 +135,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 /* Title and header get a bottom separator to visually separate from content below. */
 .slide__area--header,
 .slide__area--title {
-    border-bottom: 1px solid rgba(2, 32, 39, 0.32);
+    border-bottom: 1px solid rgba(2, 32, 39, 0.18);
     padding: 12px 16px;
 }
 
