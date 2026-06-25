@@ -313,6 +313,40 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
     line-height: 1.2;
 }
 
+/* Top-bar dropdown trigger with icon + label (e.g. "Slides").
+   Reuses the existing `icon-btn` shape but adds room for the
+   label and a trailing chevron. */
+.topbar-dropdown__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px 0 6px;
+    height: 32px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-medium);
+}
+
+.topbar-dropdown__label {
+    line-height: 1;
+}
+
+.topbar-dropdown__chevron {
+    flex-shrink: 0;
+    opacity: 0.6;
+    margin-left: 2px;
+    transition: transform 0.18s ease;
+}
+
+.topbar-dropdown__btn[aria-expanded="true"] {
+    background: var(--surface-hover);
+    color: var(--text-high);
+}
+
+.topbar-dropdown__btn[aria-expanded="true"] .topbar-dropdown__chevron {
+    transform: rotate(180deg);
+}
+
 .menu-divider {
     height: 1px;
     margin: 6px 0;

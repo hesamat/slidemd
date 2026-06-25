@@ -101,13 +101,6 @@
     padding-right: 7px;
 }
 
-/* Icon-only variant: square button, no label.  Used by the
-   slide-management dropdown trigger in the editor body header. */
-.segmented__btn--dropdown.insert-dropdown__btn--icon-only {
-    padding: 5px 6px;
-    gap: 4px;
-}
-
 .insert-dropdown__chevron {
     flex-shrink: 0;
     margin-left: 1px;
