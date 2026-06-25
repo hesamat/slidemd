@@ -97,47 +97,17 @@
     transform: rotate(180deg);
 }
 
-/* The kebab button (slide actions dropdown) in the same header
-   reuses the toggle's shape/size but its SVG should NOT rotate
-   when the panel collapses — only the collapse chevron should. */
-.editor__thumbnails-action svg {
-    transition: none;
-}
+/* The slide-actions dropdown in the thumbnails header uses the
+   same `.segmented.insert-dropdown` pattern as the Format
+   dropdown in the editor body header, so the existing
+   `.insert-dropdown__btn` / `.insert-dropdown__content` rules
+   (defined in styles/editor.css) apply without modification.
 
-.editor__thumbnails.collapsed .editor__thumbnails-action svg {
-    transform: none;
-}
-
-.editor__thumbnails-action[aria-expanded="true"] {
-    background: var(--surface-hover);
-    color: var(--text-high);
-}
-
-/* Border around the slide-actions trigger so it reads as a
-   distinct control from the plain collapse toggle next to it. */
-.editor__thumbnails-action {
-    border: 1px solid var(--border-medium);
-}
-
-/* The slide-actions dropdown opens DOWNWARD and to the LEFT
-   (panel's right edge aligns with the trigger's right edge, so
-   the panel extends leftward into the header area).  The panel
-   is positioned with `position: fixed` in JS so it escapes the
-   parent .editor__thumbnails container's `overflow: hidden`
-   (needed for the collapse animation) — without that escape the
-   downward-opening menu would be clipped by the container's
-   bottom edge and visually disappear behind the slide list. */
-.topbar-dropdown--down-left .menu-dropdown__content {
-    left: auto;
-    right: 0;
-    z-index: 3000;
-}
-
-/* The header uses flex with `justify-content: space-between`,
-   so the dropdown wrapper needs `margin-left: auto` to push it
-   (and the collapse toggle after it) to the right edge.  The
-   title stays on the left. */
-.topbar-dropdown--down-left {
+   Header order: Slides title (left) · Slide dropdown · Collapse
+   toggle (right).  The collapse toggle keeps its right-edge
+   anchor; the dropdown wrapper needs `margin-left: auto` so
+   it's pushed to the right alongside the toggle. */
+.editor__thumbnails-header .insert-dropdown {
     margin-left: auto;
 }
 

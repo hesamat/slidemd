@@ -75,7 +75,6 @@ export class InsertDropdownManager {
                 if (!wasOpen) {
                     content.classList.remove('webdeck-hidden');
                     btn.setAttribute('aria-expanded', 'true');
-                    this._positionContent(btn, content);
                 }
             });
 
@@ -96,59 +95,6 @@ export class InsertDropdownManager {
 
         // Close on any click that lands outside a managed dropdown.
         document.addEventListener('click', () => this._closeAll());
-
-        // Re-position any open dropdowns when the window resizes so they
-        // stay anchored to their triggers.
-        window.addEventListener('resize', () => this._repositionOpen());
-    }
-
-    /**
-     * Position a dropdown's content panel.  The default behaviour
-     * is `position: absolute` against the nearest positioned ancestor
-     * (the `.menu-dropdown` wrapper), which works for most dropdowns.
-     *
-     * For dropdowns that need to escape an ancestor's `overflow: hidden`
-     * — currently the slide-actions dropdown in the editor__thumbnails
-     * header, whose parent clips for the collapse animation — the
-     * wrapper carries the `.topbar-dropdown--down-left` modifier and
-     * we switch the content to `position: fixed` and compute its
-     * coordinates from the trigger's bounding rect.  This way the
-     * panel renders above everything (the thumbnails list, the slide
-     * preview, etc.) and isn't clipped.
-     */
-    _positionContent(btn, content) {
-        const wrapper = btn.closest('.menu-dropdown');
-        if (!wrapper?.classList.contains('topbar-dropdown--down-left')) {
-            // Default behaviour: absolute positioning, nothing to do.
-            content.style.position = '';
-            content.style.top = '';
-            content.style.right = '';
-            content.style.left = '';
-            return;
-        }
-
-        const rect = btn.getBoundingClientRect();
-        // Open downward: panel's top edge sits 8px below the trigger's
-        // bottom.  Open to the left: panel's right edge aligns with the
-        // trigger's right edge so the panel extends leftward into the
-        // header area instead of off the right edge of the viewport.
-        const GAP = 8;
-        content.style.position = 'fixed';
-        content.style.top = `${rect.bottom + GAP}px`;
-        content.style.right = `${window.innerWidth - rect.right}px`;
-        content.style.left = 'auto';
-    }
-
-    /**
-     * Re-position every open dropdown.  Called on window resize so
-     * `position: fixed` panels stay anchored to their triggers.
-     */
-    _repositionOpen() {
-        for (const d of this._dropdowns) {
-            if (!d.content.classList.contains('webdeck-hidden')) {
-                this._positionContent(d.btn, d.content);
-            }
-        }
     }
 
     /**
