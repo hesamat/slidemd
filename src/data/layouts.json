@@ -4,7 +4,7 @@
       "gridTemplate": "\"title\" / 1fr",
       "description": "Full-screen centered title",
       "preview": "<div style=\"grid-area: title\"></div>",
-      "template": "layout: title-slide\n\n@title\n# Your Title Here\n\n## Subtitle or Tagline\n\n---\n\n**Author Name**\n\nDate or Event"
+      "template": "layout: title-slide\n\n@title\n# Your Title Here\n\n## Subtitle or Tagline\n\n**Author Name**\n\nDate or Event"
     },
     "two-column": {
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
@@ -14,7 +14,7 @@
     },
     "header-content": {
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
-      "description": "Header, content, footer stacked",
+      "description": "One main column with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: header-content\n\n@header\n## Slide Title\n\n@main\n### Main Content\n\nYour slide content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
@@ -54,7 +54,7 @@
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: sidebar\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: content-sidebar\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context\n\n@footer\nAdditional context or reference"
     },
-        "focus": {
+    "focus": {
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Single column content area with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
