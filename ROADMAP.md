@@ -50,16 +50,16 @@ Goal: Establish quality infrastructure and fix all documentation before making f
 
 ---
 
-## Phase 2: Build Modernization
+## Phase 2: Build Modernization ✅
 
 Goal: Replace the fragile custom build script with a proper bundler.
 
 | Task                                  | Effort   | Details                                                   |
 | ------------------------------------- | -------- | --------------------------------------------------------- |
-| Migrate `tools/build.mjs` to esbuild  | 2-3 days | Replace regex-based ESM stripping with esbuild bundler    |
-| Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
-| Verify all assets inline correctly    | 0.5 day  | KaTeX fonts, Prism themes, CSS                            |
-| Update build pipeline for source maps | 0.5 day  | Optional but helpful for debugging dist builds            |
+| [x] Migrate `tools/build.mjs` to esbuild  | 2-3 days | Replace regex-based ESM stripping with esbuild bundler    |
+| [ ] Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
+| [x] Verify all assets inline correctly    | 0.5 day  | KaTeX fonts, Prism themes, CSS                            |
+| [ ] Update build pipeline for source maps | 0.5 day  | Optional but helpful for debugging dist builds            |
 
 **Effort estimate:** 3-4 days
 
@@ -142,16 +142,16 @@ Goal: Ship the improvements.
 | Phase                               | Effort         | Status           |
 | ----------------------------------- | -------------- | ---------------- |
 | Phase 1: Safety Net + Documentation | 7-9 days       | ✅ Complete      |
-| Phase 2: Build Modernization        | 3-4 days       | Not started      |
+| Phase 2: Build Modernization        | 3-4 days       | ✅ Complete      |
 | Phase 3: Packaging                  | 2-3 days       | Not started      |
 | Phase 4: Quality & Polish           | 8-10 days      | Not started      |
 | Phase 5: Release v0.2.0             | 2-3 days       | Not started      |
-| **Total**                           | **~7-9 weeks** | **Phase 1 done** |
+| **Total**                           | **~7-9 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 → Phase 3 → Phase 4 → Phase 5
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5
 ```
 
 Phase 4 includes the AI generation overhaul as a major component. Within Phase 4, the recommended order is: bug fixes → cleanup → reliability → token tracking → streaming → polish.
