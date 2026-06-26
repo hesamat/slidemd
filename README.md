@@ -55,6 +55,19 @@ More layouts, backgrounds, and theming recipes live in [docs/example.md](docs/ex
 
 ## Layout Presets
 
+Use preset names instead of full CSS grid strings:
+
+- `focus` - Single column content area
+- `two-column` - Equal two-column layout
+- `left-heavy` - Two columns with left side larger (2:1)
+- `right-heavy` - Two columns with right side larger (1:2)
+- `header-content` - Header, content, footer stacked
+- `header-two-column` - Header row with two columns and footer
+- `title-slide` - Full-screen centered content
+- `three-column` - Three equal columns
+- `sidebar-content` - Fixed sidebar (300px) with flexible content
+- `content-sidebar` - Flexible content with fixed sidebar (300px)
+
 ## Edit Mode Tips
 
 Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:
@@ -159,19 +172,6 @@ Image selected (contextual — only the image overlay is active):
 
 Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`) because those `Ctrl` combinations are reserved by the browser for "new window" and "bookmark" and cannot be intercepted by web pages.
 
-Use preset names instead of full CSS grid strings:
-
-- `focus` - Single column content area
-- `two-column` - Equal two-column layout
-- `left-heavy` - Two columns with left side larger (2:1)
-- `right-heavy` - Two columns with right side larger (1:2)
-- `header-content` - Header, content, footer stacked
-- `header-two-column` - Header row with two columns and footer
-- `title-slide` - Full-screen centered content
-- `three-column` - Three equal columns
-- `sidebar-content` - Fixed sidebar (300px) with flexible content
-- `content-sidebar` - Flexible content with fixed sidebar (300px)
-
 ## Rendering Features
 
 - Syntax highlighting via Prism; the build inlines assets so it works offline.
@@ -215,6 +215,31 @@ $$E = mc^2$$
 - Preview built output: `npm run preview` (serves `dist/example.html`)
 - Deterministic PDF: `npm run pdf` (outputs `dist/example.pdf`)
 - If Chromium is missing after `npm update`, run `npx playwright install chromium` once; `npm run pdf` also runs that install step automatically.
+
+## AI Generation
+
+SlideMD includes AI-powered deck generation from course profiles and lecture topics.
+
+### Setup
+
+1. Open the app menu and go to **AI Configuration**
+2. Enter your API key (supports GLM/Zhipu AI or OpenRouter)
+3. Create a **Course Profile** with your course details
+
+### Usage
+
+1. Open the app menu and click **Generate Deck**
+2. Select a course profile
+3. Enter a topic and optional summary of previous lectures
+4. Review the generated lecture plan
+5. The AI generates a complete Markdown deck
+
+### Features
+
+- Course profile management (create, edit, delete, import/export)
+- Lecture plan generation with customizable slide counts
+- Full Markdown deck generation with layouts, code blocks, and diagrams
+- Configurable AI providers (GLM, OpenRouter)
 
 ## Multiple Decks / Lecture Backup
 
