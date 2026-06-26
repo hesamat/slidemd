@@ -501,6 +501,11 @@ html = html.replace(
     () => `<style>\n${vendorCss}\n\n${css}\n</style>`
 );
 
+// Remove manifest and icon link tags that use absolute paths (fail under file:// protocol)
+html = html.replace(/<link\s+rel="manifest"\s+href="\/site\.webmanifest"\s*\/?\s*>\s*\n?/gi, "");
+html = html.replace(/<link\s+rel="icon"[^>]*>\s*\n?/gi, "");
+html = html.replace(/<link\s+rel="apple-touch-icon"[^>]*>\s*\n?/gi, "");
+
 // Always remove presenter mode elements from the output
 // Remove elements with id 'presenterPanel', 'editorOnlyControls', 'controlBar' from the HTML
 // This function handles nested tags correctly by counting depth
@@ -587,7 +592,7 @@ if (usesMermaid) {
 
 // Initialize KaTeX auto-render for dist builds (needed since ensureKatexLoaded is stubbed out)
 if (usesKatex) {
-    const katexInitScript = '<script>window.renderMathInElement=window.renderMathInElement||function(e,t){var n={delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredClasses:["no-math","katex-ignore","mermaid"],throwOnError:!1,...t};if("object"==typeof katex&&"function"==typeof renderMathInElement)renderMathInElement(e,n);else console.warn("KaTeX auto-render not available");};</script>';
+    const katexInitScript = '<script>window.addEventListener("DOMContentLoaded",function(){if(typeof renderMathInElement==="function"){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredClasses:["no-math","katex-ignore","mermaid"],throwOnError:!1});}});</script>';
     html = html.replace(/<\/head>/i, `${katexInitScript}</head>`);
     console.log(`Added KaTeX auto-render initialization`);
 }

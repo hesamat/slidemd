@@ -54,8 +54,8 @@ Goal: Establish quality infrastructure and fix all documentation before making f
 
 Goal: Replace the fragile custom build script with a proper bundler.
 
-| Task                                  | Effort   | Details                                                   |
-| ------------------------------------- | -------- | --------------------------------------------------------- |
+| Task                                      | Effort   | Details                                                   |
+| ----------------------------------------- | -------- | --------------------------------------------------------- |
 | [x] Migrate `tools/build.mjs` to esbuild  | 2-3 days | Replace regex-based ESM stripping with esbuild bundler    |
 | [ ] Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
 | [x] Verify all assets inline correctly    | 0.5 day  | KaTeX fonts, Prism themes, CSS                            |
@@ -139,13 +139,13 @@ Goal: Ship the improvements.
 
 ## Summary
 
-| Phase                               | Effort         | Status           |
-| ----------------------------------- | -------------- | ---------------- |
-| Phase 1: Safety Net + Documentation | 7-9 days       | ✅ Complete      |
-| Phase 2: Build Modernization        | 3-4 days       | ✅ Complete      |
-| Phase 3: Packaging                  | 2-3 days       | Not started      |
-| Phase 4: Quality & Polish           | 8-10 days      | Not started      |
-| Phase 5: Release v0.2.0             | 2-3 days       | Not started      |
+| Phase                               | Effort         | Status             |
+| ----------------------------------- | -------------- | ------------------ |
+| Phase 1: Safety Net + Documentation | 7-9 days       | ✅ Complete        |
+| Phase 2: Build Modernization        | 3-4 days       | ✅ Complete        |
+| Phase 3: Packaging                  | 2-3 days       | Not started        |
+| Phase 4: Quality & Polish           | 8-10 days      | Not started        |
+| Phase 5: Release v0.2.0             | 2-3 days       | Not started        |
 | **Total**                           | **~7-9 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
