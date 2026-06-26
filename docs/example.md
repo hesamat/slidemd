@@ -202,13 +202,12 @@ layout: two-column
 Place an HTML comment as the **first line** of any slide, before the `layout:` directive:
 
 ```markdown
-<!-- notes: Remember to mention the trade-offs here.
-Also ask the class about their experience with this pattern. -->
+<!-- notes: Your talking points here -->
 
 layout: two-column
 
 @main
-Slide content here...
+Slide content...
 ```
 
 ### Where Notes Appear
@@ -240,29 +239,21 @@ layout: two-column
 
 ### Inserting Images
 
-**Drag and drop** an image directly onto a slide in Edit Mode, or use the image picker:
+**Drag and drop** an image directly onto a slide in Edit Mode, or use the image picker from the toolbar.
 
-```markdown
-layout: two-column
-
-@main
-![Alt text](../public/screenshot.png)
-```
-
-### Resizing
+### Resizing & Positioning
 
 - Drag corner handles to resize
 - Double-click to reset to original size
 - Use the properties panel for precise dimensions
+- Images can be placed in any `@area` column
 
 ### Background Images
 
-```markdown
-layout: header-content
-background: url(../public/hero.png)
+Add `background: url(...)` to slide frontmatter for full-slide backgrounds:
 
-@main
-Content overlays the background image.
+```yaml
+background: url(../public/hero.png)
 ```
 
 @media
@@ -272,7 +263,13 @@ Content overlays the background image.
 - Use `../public/` for project images
 - Supported formats: PNG, JPG, SVG, GIF
 - Images auto-scale to fit the slide area
-- Use `background:` for full-slide backgrounds
+- Combine with `theme: dark` for overlay effects
+
+### Supported Sources
+
+- **Local files** – Drag from file explorer
+- **URLs** – `![alt](https://example.com/img.png)`
+- **Relative paths** – `![alt](../public/image.png)`
 
 ---
 
@@ -414,13 +411,13 @@ layout: two-column
 
 ### Navigation
 
-| Key                          | Action                    |
-| ---------------------------- | ------------------------- |
-| `→` / `Space` / `PageDown`   | Next slide                |
-| `←` / `PageUp` / `Backspace` | Previous slide            |
-| `Home`                       | First slide               |
-| `End`                        | Last slide                |
-| `G`                          | Go to slide (type number) |
+| Key               | Action                    |
+| ----------------- | ------------------------- |
+| `→` / `Space`     | Next slide                |
+| `←` / `Backspace` | Previous slide            |
+| `Home`            | First slide               |
+| `End`             | Last slide                |
+| `G`               | Go to slide (type number) |
 
 @media
 
@@ -437,7 +434,7 @@ layout: two-column
 
 ---
 
-layout: header-content
+layout: two-column
 
 @header
 
