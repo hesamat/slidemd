@@ -69,7 +69,7 @@ export class MarkdownParser {
     }
     this.md = window.markdownit({
       html: true,
-      linkify: true,
+      linkify: false,
       typographer: false,
       breaks: true,
     });

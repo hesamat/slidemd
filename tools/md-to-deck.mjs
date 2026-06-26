@@ -472,7 +472,7 @@ function escapeKatexBracketDelimiters(markdownText) {
 function makeMarkdownRenderer() {
     return new MarkdownIt({
         html: true,
-        linkify: true,
+        linkify: false,
         typographer: false,
         breaks: true,
     });
@@ -493,6 +493,24 @@ function resolveLayoutPreset(layoutSpec) {
         "content-sidebar": '"header header" "main sidebar" "footer footer" / 1fr 300px',
     };
     return presets[key] || layoutSpec;
+}
+
+function extractAreaNamesFromGridTemplate(gridTemplate) {
+    const spec = safeString(gridTemplate).trim();
+    if (!spec) return [];
+    const parts = spec.split("/");
+    const left = safeString(parts[0]).trim();
+    const rowMatches = left.match(/"[^"]*"|'[^']*'/g) || [];
+    const names = [];
+    for (const row of rowMatches) {
+        const content = row.slice(1, -1);
+        for (const name of content.split(/\s+/)) {
+            if (name && !/^\.+$/.test(name) && !names.includes(name)) {
+                names.push(name);
+            }
+        }
+    }
+    return names;
 }
 
 export function parseDeckMarkdown(markdownText) {
@@ -528,6 +546,22 @@ export function parseDeckMarkdown(markdownText) {
 
             const areasMd = parseAreas(cleaned);
 
+            const resolvedLayout = resolveLayoutPreset(layout || "");
+            const layoutAreaNames = extractAreaNamesFromGridTemplate(resolvedLayout);
+            const hasTitleArea = layoutAreaNames.includes("title");
+
+            if (hasTitleArea) {
+                if (!areasMd.title && areasMd.header) {
+                    areasMd.title = areasMd.header;
+                }
+                delete areasMd.header;
+            } else {
+                if (!areasMd.header && areasMd.title) {
+                    areasMd.header = areasMd.title;
+                }
+                delete areasMd.title;
+            }
+
             /** @type {Record<string, string>} */
             const areasHtml = {};
             for (const [area, src] of Object.entries(areasMd)) {
@@ -553,7 +587,6 @@ export function parseDeckMarkdown(markdownText) {
             usedIds.set(id, n);
             if (n > 1) id = `${id}-${n}`;
 
-            const resolvedLayout = resolveLayoutPreset(layout || "");
             const themeSafe = safeString(theme).toLowerCase();
             const themeNormalized = themeSafe === "dark" ? "dark" : themeSafe === "light" ? "light" : "";
 
