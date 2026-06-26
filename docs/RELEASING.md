@@ -52,6 +52,7 @@ gh release create vX.Y.Z --title "vX.Y.Z" --notes-file CHANGELOG.md
 ## Branch Protection Rules
 
 Main branch requires:
+
 - Pull request for all changes
 - 1 approving review
 - Build status check to pass
