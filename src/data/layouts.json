@@ -19,6 +19,7 @@
       "template": "layout: header-content\n\n@header\n## Slide Title\n\n@main\n### Main Content\n\nYour slide content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "header-two-column": {
+      "_note": "Hidden from modal. Kept for backwards compatibility — merged into two-column which now has optional header.",
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
       "description": "Header with two columns and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
@@ -43,24 +44,28 @@
       "template": "layout: three-column\n\n@header\n## Slide Title\n\n@main\n## Column One\n\nFirst column content\n\n@media\n## Column Two\n\nSecond column content\n\n@secondary\n## Column Three\n\nThird column content\n\n@footer\nAdditional context or reference"
     },
     "sidebar-content": {
+      "_note": "Hidden from modal for simplicity.",
       "gridTemplate": "\"header header\" \"sidebar main\" \"footer footer\" / 300px 1fr",
       "description": "Fixed sidebar with main content and optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: sidebar\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: sidebar-content\n\n@header\n## Slide Title\n\n@sidebar\n## Menu\n\n* Item 1\n* Item 2\n* Item 3\n\n@main\n## Main Content\n\nYour primary content here\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit.\n\n@footer\nAdditional context or reference"
     },
     "content-sidebar": {
+      "_note": "Hidden from modal for simplicity.",
       "gridTemplate": "\"header header\" \"main sidebar\" \"footer footer\" / 1fr 300px",
       "description": "Main content with sidebar and optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: sidebar\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: content-sidebar\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context\n\n@footer\nAdditional context or reference"
     },
     "focus": {
+      "_note": "Hidden from modal. Duplicate of header-content.",
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Single column content area with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\nYour main content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "default": {
+      "_note": "Hidden from modal. Used as fallback when no layout is specified.",
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
       "description": "Default single column layout with optional header and footer",
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
