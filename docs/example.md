@@ -202,13 +202,12 @@ layout: two-column
 Place an HTML comment as the **first line** of any slide, before the `layout:` directive:
 
 ```markdown
-<!-- notes: Remember to mention the trade-offs here.
-Also ask the class about their experience with this pattern. -->
+<!-- notes: Your talking points here -->
 
 layout: two-column
 
 @main
-Slide content here...
+Slide content...
 ```
 
 ### Where Notes Appear
@@ -414,13 +413,13 @@ layout: two-column
 
 ### Navigation
 
-| Key                          | Action                    |
-| ---------------------------- | ------------------------- |
-| `→` / `Space` / `PageDown`   | Next slide                |
-| `←` / `PageUp` / `Backspace` | Previous slide            |
-| `Home`                       | First slide               |
-| `End`                        | Last slide                |
-| `G`                          | Go to slide (type number) |
+| Key           | Action                    |
+| ------------- | ------------------------- |
+| `→` / `Space` | Next slide                |
+| `←` / `Backspace` | Previous slide        |
+| `Home`        | First slide               |
+| `End`         | Last slide                |
+| `G`           | Go to slide (type number) |
 
 @media
 
