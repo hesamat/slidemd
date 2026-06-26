@@ -117,27 +117,21 @@ Goal: Comprehensive testing, AI generation improvements, and production hardenin
 | Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
 | Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
 
-**Effort estimate:** 8-10 days
-
----
-
-## Phase 5: Release v0.2.0 ✅
-
-Goal: Ship the improvements.
+### Release
 
 | Task                                  | Effort  | Details                        |
 | ------------------------------------- | ------- | ------------------------------ |
-| [x] Update CHANGELOG.md with v0.2.0 entry | 0.5 day | Document all Phase 2-4 changes |
-| [x] Update package.json version to 0.2.0  | 5 min   |                                |
-| [x] Final QA pass                         | 0.5 day | Manual testing of all features |
-| [x] Create release branch and PR          | 0.5 day | Same process as v0.1.0         |
-| [x] Tag v0.2.0 and create GitHub release  | 15 min  |                                |
+| Update CHANGELOG.md                   | 0.5 day | Document all changes           |
+| Update package.json version           | 5 min   |                                |
+| Final QA pass                         | 0.5 day | Manual testing of all features |
+| Create release branch and PR          | 0.5 day | Same process as previous       |
+| Tag release and create GitHub release | 15 min  |                                |
 
-**Effort estimate:** 2-3 days
+**Effort estimate:** 10-13 days
 
 ---
 
-## Phase 6: Cloud Mode
+## Phase 5: Cloud Mode
 
 Goal: Enable multi-device editing, cloud image storage, and authenticated access.
 
@@ -200,22 +194,21 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ## Summary
 
-| Phase                               | Effort         | Status             |
-| ----------------------------------- | -------------- | ------------------ |
-| Phase 1: Safety Net + Documentation | 7-9 days       | ✅ Complete        |
-| Phase 2: Build Modernization        | 3-4 days       | ✅ Complete        |
-| Phase 3: Packaging                  | 2-3 days       | Not started        |
-| Phase 4: Quality & Polish           | 8-10 days      | Not started        |
-| Phase 5: Release v0.2.0             | 2-3 days       | ✅ Complete        |
-| Phase 6: Cloud Mode                 | 25-35 days     | Not started        |
-| **Total**                           | **~12-16 weeks** | **Phase 1-2, 5 done** |
+| Phase                        | Effort         | Status      |
+| ---------------------------- | -------------- | ----------- |
+| Phase 1: Safety Net          | 7-9 days       | ✅ Complete |
+| Phase 2: Build Modernization | 3-4 days       | ✅ Complete |
+| Phase 3: Packaging           | 2-3 days       | Not started |
+| Phase 4: Quality & Polish    | 10-13 days     | Not started |
+| Phase 5: Cloud Mode          | 25-35 days     | Not started |
+| **Total**                    | **~12-16 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 5 ✅ → Phase 3 → Phase 4 → Phase 6
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5
 ```
 
-Phase 4 includes the AI generation overhaul as a major component. Within Phase 4, the recommended order is: bug fixes → cleanup → reliability → token tracking → streaming → polish.
+Phase 4 includes the AI generation overhaul and a release. Within Phase 4, the recommended order is: bug fixes → cleanup → reliability → token tracking → streaming → polish → release.
 
-Phase 6 (Cloud Mode) is the long-term vision. It should be tackled after the core product is polished (Phase 3-4). The storage adapter pattern means local-first still works — cloud is an optional layer.
+Phase 5 (Cloud Mode) is the long-term vision. It should be tackled after the core product is polished (Phase 3-4). The storage adapter pattern means local-first still works — cloud is an optional layer.
