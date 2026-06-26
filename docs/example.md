@@ -411,13 +411,13 @@ layout: two-column
 
 ### Navigation
 
-| Key           | Action                    |
-| ------------- | ------------------------- |
-| `→` / `Space` | Next slide                |
-| `←` / `Backspace` | Previous slide        |
-| `Home`        | First slide               |
-| `End`         | Last slide                |
-| `G`           | Go to slide (type number) |
+| Key               | Action                    |
+| ----------------- | ------------------------- |
+| `→` / `Space`     | Next slide                |
+| `←` / `Backspace` | Previous slide            |
+| `Home`            | First slide               |
+| `End`             | Last slide                |
+| `G`               | Go to slide (type number) |
 
 @media
 
