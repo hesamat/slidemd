@@ -69,23 +69,13 @@ Goal: Replace the fragile custom build script with a proper bundler.
 
 Goal: Make the app easy to download and install. Not a library — no npm.
 
-### Release Strategy
-
 | Task                                             | Effort  | Details                                          |
 | ------------------------------------------------ | ------- | ------------------------------------------------ |
-| GitHub Releases with dist zip                    | 0.5 day | Automated via CI on tag push                     |
+| CI release workflow on tag push (`v*`)           | 1 day   | Build dist/, create GitHub Release, attach zip   |
 | Download page in README                          | 0.5 day | Direct link to latest release zip                |
-| Auto-build CI on tag push                        | 1 day   | Build dist/ and attach artifacts to release      |
-
-### Optional Distribution
-
-| Task                                             | Effort  | Details                                          |
-| ------------------------------------------------ | ------- | ------------------------------------------------ |
-| Homebrew tap (macOS/Linux)                       | 1 day   | `brew install hesamat/slidemd/slidemd`           |
-| Standalone binary via pkg/nexe                   | 2-3 days| Single file, no Node needed, ~50MB              |
 | Docker image                                     | 1 day   | `docker run -p 8080:80 slidemd`                  |
 
-**Effort estimate:** 2-5 days
+**Effort estimate:** 2-3 days
 
 ---
 
@@ -212,11 +202,11 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | ---------------------------- | -------------- | ----------- |
 | Phase 1: Safety Net          | 7-9 days       | ✅ Complete |
 | Phase 2: Build Modernization | 3-4 days       | ✅ Complete |
-| Phase 3: Distribution        | 2-5 days       | Not started |
+| Phase 3: Distribution        | 2-3 days       | Not started |
 | Phase 4: Testing & Polish    | 8-12 days      | Not started |
 | Phase 5: AI Generation       | 3-4 days       | Not started |
 | Phase 6: Cloud Mode          | 25-35 days     | Not started |
-| **Total**                    | **~14-18 weeks** | **Phase 1-2 done** |
+| **Total**                    | **~13-17 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
 
