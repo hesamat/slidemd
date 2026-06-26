@@ -9,6 +9,7 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 - Never include `Co-Authored-By:` trailer in commit messages.
 - The main branch is `main`; feature branches should follow `feature/` or `fix/` convention.
 - All changes to `main` require a pull request (branch protection enabled).
+- **Do NOT automatically merge PRs.** Always wait for the user to review and merge.
 
 ## Quality Gates
 
