@@ -29,6 +29,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 - **Math rendering** via KaTeX
 - **Diagrams** via Mermaid
 - **Export** to PDF or standalone HTML
+- **AI-powered** deck generation
 
 @media
 
@@ -38,7 +39,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 layout: two-column
 
-<!-- notes: Your talking points! -->
+<!-- notes: Your talking points! Speaker notes appear only in the presenter view, not on the audience screen. -->
 
 @header
 
@@ -59,7 +60,7 @@ layout: two-column
 
 - Press **`E`** to toggle Edit Mode
 - Navigate with **Arrow Keys** or **Space** or mouse scroll
-- You can add speaker notes using HTML comments context after the `layout` tag:
+- Add speaker notes using HTML comments before the `layout` tag:
   ```html
   <!-- notes: Your talking points here -->
   ```
@@ -75,7 +76,7 @@ layout: left-heavy
 
 @main
 
-Use --- to separate slides. Define the layout first, then place content with @area markers.
+Use `---` to separate slides. Define the layout first, then place content with `@area` markers.
 
 | Layout           | Areas                                             |
 | ---------------- | ------------------------------------------------- |
@@ -174,6 +175,7 @@ Press `E` to toggle split-screen editing with live preview.
 - **Slash commands** – Type `/` for quick insertions
 - **Mermaid helpers** – Insert diagram scaffolds
 - **Search** – `Ctrl+F` to find within slides
+- **Context menu** – Right-click thumbnails for slide operations
 
 @media
 
@@ -184,6 +186,93 @@ Press `E` to toggle split-screen editing with live preview.
 - Area outlines show the layout grid
 - Overflow warnings when content is too long
 - Slide warnings for layout/area mismatches
+
+---
+
+layout: two-column
+
+@header
+
+## Speaker Notes
+
+@main
+
+### Adding Notes
+
+Place an HTML comment as the **first line** of any slide, before the `layout:` directive:
+
+```markdown
+<!-- notes: Remember to mention the trade-offs here.
+Also ask the class about their experience with this pattern. -->
+
+layout: two-column
+
+@main
+Slide content here...
+```
+
+### Where Notes Appear
+
+- **Presenter view** (press `P`) – Shows notes alongside current and next slide
+- **Audience view** – Notes are never visible
+- **PDF export** – Notes are excluded by default
+
+@media
+
+### Presenter Dashboard
+
+| Panel              | Purpose                     |
+| ------------------ | --------------------------- |
+| **Current Slide**  | What the audience sees      |
+| **Next Slide**     | Preview of upcoming content |
+| **Speaker Notes**  | Your private notes          |
+| **Break Controls** | Timer for breaks            |
+
+---
+
+layout: two-column
+
+@header
+
+## Images & Media
+
+@main
+
+### Inserting Images
+
+**Drag and drop** an image directly onto a slide in Edit Mode, or use the image picker:
+
+```markdown
+layout: two-column
+
+@main
+![Alt text](../public/screenshot.png)
+```
+
+### Resizing
+
+- Drag corner handles to resize
+- Double-click to reset to original size
+- Use the properties panel for precise dimensions
+
+### Background Images
+
+```markdown
+layout: header-content
+background: url(../public/hero.png)
+
+@main
+Content overlays the background image.
+```
+
+@media
+
+### Image Tips
+
+- Use `../public/` for project images
+- Supported formats: PNG, JPG, SVG, GIF
+- Images auto-scale to fit the slide area
+- Use `background:` for full-slide backgrounds
 
 ---
 
@@ -231,7 +320,7 @@ layout: "header" auto "main" 1fr / 800px
 **Hidden Slide:**
 
 ```yaml
-layout: focus
+layout: header-content
 hidden: true
 ```
 
@@ -257,11 +346,11 @@ layout: two-column
 
 **Unordered** – Use for related points:
 
-- Use - at the beginning of the line
+- Use `-` at the beginning of the line
 
 **Ordered** – For sequences:
 
-1. Use item number followed by dot at the beginning of the line. Example: 1.
+1. Use item number followed by dot at the beginning of the line
 
 @media
 
@@ -352,22 +441,59 @@ layout: header-content
 
 @header
 
+## AI Generation
+
+@main
+
+### Overview
+
+SlideMD includes AI-powered deck generation. Create course profiles, generate lecture plans, and produce complete slide decks from a topic description.
+
+### Workflow
+
+1. **Create a Course Profile** – Define your course, learning objectives, and defaults
+2. **Configure AI Provider** – Enter your API key (GLM/Zhipu AI or OpenRouter)
+3. **Generate Deck** – Enter a topic, review the lecture plan, and generate
+
+@media
+
+### Features
+
+- **Course profiles** – Save course details for reuse
+- **Lecture plans** – AI generates a structured plan before writing slides
+- **Two-pass generation** – Plan review ensures quality before deck creation
+- **Token tracking** – Monitor API usage costs
+
+### Access
+
+Open the Menu (⋮) and select:
+
+- **Course Profiles** – Manage your profiles
+- **AI Configuration** – Set up API keys
+- **Generate Deck** – Start generation
+
+---
+
+layout: header-content
+
+@header
+
 ## Quick Authoring Reference
 
 @main
 
 ### Rules & Features
 
-1. Default Layout is `focus`
+1. Default Layout is `header-content`
 2. First `@area` defaults to `@main`. Text placed before an area also goes to `@main`.
 3. Slash commands in Edit mode (`E`): Type `/` to insert layouts, areas, Mermaid diagrams, or `<!-- notes: -->` tags.
 4. Auto-completion happens automatically on directives.
-5. Export your presentation via Developer tools, or right click `Print PDF`. Make sure to close the edit mode before printing.
+5. Export your presentation via Menu (⋮) → Export → PDF or HTML. Make sure to close edit mode before printing.
 
 ### Hiding slides
 
 ```markdown
-layout: focus
+layout: header-content
 hidden: true
 
 @main
@@ -390,7 +516,7 @@ layout: header-content
 
 ### Learn More
 
-- **`docs/example.md`** – Authoring guide, examples, and recipes
+- **README.md** – Installation and setup
 - **GitHub** – Contribute, report issues, or star the project
 
 @footer
