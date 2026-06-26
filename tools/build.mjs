@@ -254,6 +254,12 @@ function inlineImagesInDeck(deck) {
 
 if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
 
+// Clean stale intermediate files from previous builds
+for (const f of ["deck.bundle.js", "deck.bundle.js.map", "deck.bundle.css", "deck.bundle.css.map"]) {
+    const p = path.join(distDir, f);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+}
+
 // Validate deck file exists
 if (!fs.existsSync(inDeck)) {
     console.error(`Error: Deck file not found: ${inDeck}`);
@@ -435,7 +441,7 @@ const deckTag = `<script type="application/json" id="deckData">${escapeJsonForHt
 async function buildBundleJs() {
     const deckJsPath = path.join(root, "deck.js");
     
-    await esbuild({
+    const result = await esbuild({
         entryPoints: [deckJsPath],
         bundle: true,
         format: "iife",
@@ -443,7 +449,8 @@ async function buildBundleJs() {
         target: "es2020",
         minify: true,
         sourcemap: true,
-        outfile: path.join(distDir, "deck.bundle.js"),
+        write: false,
+        outdir: distDir,
         // Configure loaders for non-JS assets that might be imported
         loader: {
             ".woff": "dataurl",
@@ -465,8 +472,9 @@ async function buildBundleJs() {
         },
     });
     
-    // Read the bundled output
-    return fs.readFileSync(path.join(distDir, "deck.bundle.js"), "utf8");
+    // Get the JS output from the build result
+    const jsOutput = result.outputFiles.find(f => f.path.endsWith(".js"));
+    return jsOutput ? jsOutput.text : "";
 }
 
 async function processJs() {
