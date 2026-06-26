@@ -57,6 +57,10 @@ export class SlideRenderer {
             wrapper.style.background = slide.background;
         }
 
+        if (slide?._areaOffsets) {
+            wrapper.dataset.areaOffsets = JSON.stringify(slide._areaOffsets);
+        }
+
         const grid = document.createElement("div");
         grid.className = "slide__grid";
 
@@ -90,6 +94,7 @@ export class SlideRenderer {
             const area = document.createElement("div");
             area.className = `slide__area slide__area--${name}`;
             area.style.gridArea = name;
+            area.dataset.areaName = name;
 
             if (name === "cards") {
                 area.classList.add("slide__area--cards");

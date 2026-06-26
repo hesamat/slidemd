@@ -10,25 +10,6 @@ Create beautiful slides with plain Markdown. No installation, no accounts, no bu
 
 ---
 
-layout: header-content
-
-@header
-## Slide Title
-
-@main
-### Main Content
-
-Your slide content here
-
-* Point one
-* Point two
-* Point three
-
-@footer
-Additional context or reference
-
----
-
 layout: header-two-column
 
 @header

@@ -1,5 +1,5 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, placeholder } from "@codemirror/view";
+import { EditorSelection, EditorState, StateField, StateEffect } from "@codemirror/state";
+import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, placeholder, Decoration } from "@codemirror/view";
 import { history, historyKeymap, indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap, snippetCompletion, startCompletion } from "@codemirror/autocomplete";
@@ -8,6 +8,34 @@ import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { tags } from "@lezer/highlight";
 import { LayoutData } from "../../data/layout-data.js";
+
+// ── Line highlight for click-to-jump ────────────────────────────────────────
+const addHighlight = StateEffect.define();
+const removeHighlight = StateEffect.define();
+const highlightLineDeco = Decoration.line({ attributes: { class: "cm-highlighted-line" } });
+const highlightField = StateField.define({
+    create() { return Decoration.none; },
+    update(deco, tr) {
+        if (tr.effects.length) {
+            let d = deco;
+            for (const e of tr.effects) {
+                if (e.is(addHighlight)) {
+                    const doc = tr.state.doc;
+                    let lineNum = e.value + 1;
+                    if (lineNum < 1) lineNum = 1;
+                    if (lineNum > doc.lines) lineNum = doc.lines;
+                    const line = doc.line(lineNum);
+                    d = Decoration.set([highlightLineDeco.range(line.from)]);
+                } else if (e.is(removeHighlight)) {
+                    d = Decoration.none;
+                }
+            }
+            return d;
+        }
+        return deco;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+});
 
 /**
  * MarkdownEditor
@@ -198,6 +226,21 @@ export class MarkdownEditor {
      */
     focus() {
         this.view?.focus();
+    }
+
+    /**
+     * Temporarily highlight a line in the editor (for click-to-jump feedback).
+     * @param {number} lineNumber - 0-indexed line number
+     */
+    highlightLine(lineNumber) {
+        if (!this.view) return;
+        this.view.dispatch({ effects: removeHighlight.of(null) });
+        setTimeout(() => {
+            this.view.dispatch({ effects: addHighlight.of(lineNumber) });
+            setTimeout(() => {
+                this.view.dispatch({ effects: removeHighlight.of(null) });
+            }, 1200);
+        }, 20);
     }
 
     /**
@@ -430,6 +473,7 @@ export class MarkdownEditor {
             EditorView.lineWrapping,
             lineNumbers(),
             highlightActiveLineGutter(),
+            highlightField,
             history(),
             keymap.of([
                 indentWithTab,
