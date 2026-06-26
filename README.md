@@ -9,6 +9,18 @@ This project prioritizes:
 - Offline-friendly builds with no Tailwind or CDN dependencies at runtime
 - Markdown-first authoring with simple directives
 
+## Download
+
+Download the latest release from [GitHub Releases](https://github.com/hesamat/html-presentation/releases/latest). Get `example.html` — a single self-contained file that works offline in any browser.
+
+Alternatively, run with Docker:
+
+```bash
+docker run -p 8080:80 hesamat/html-presentation
+```
+
+Then open http://localhost:8080.
+
 ## Run Locally
 
 Because the runtime fetches and parses `docs/example.md` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
