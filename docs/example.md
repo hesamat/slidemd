@@ -436,7 +436,7 @@ layout: two-column
 
 ---
 
-layout: header-content
+layout: two-column
 
 @header
 
