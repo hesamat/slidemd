@@ -1,4 +1,4 @@
-# Project-Specific Instructions
+# Agent Instructions
 
 User-facing documentation lives in [README.md](README.md) and [docs/example.md](docs/example.md). This file contains only AI-assistant guidance for working on the codebase.
 
@@ -7,7 +7,21 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 - **ALWAYS** suggest a git commit command after completing any code change. Check what is staged and what is not before that.
 - Before marking a task complete, ask yourself: "Did I suggest a commit?"
 - Never include `Co-Authored-By:` trailer in commit messages.
-- The main branch is `main`; feature branches should follow `feature/` or `fix/` convention
+- The main branch is `main`; feature branches should follow `feature/` or `fix/` convention.
+- All changes to `main` require a pull request (branch protection enabled).
+
+## Quality Gates
+
+Before committing, run these checks locally:
+
+```bash
+npm run lint          # ESLint (errors only)
+npm run format:check  # Prettier formatting
+npm run build         # Build script
+npm test              # Vitest unit tests
+```
+
+All four must pass. If `npm run format:check` fails, run `npx prettier --write .` to fix.
 
 ## Code Organization
 
@@ -23,7 +37,7 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
   - **ui/** - Background picker, insert dropdown, mermaid helper, panel resizer, save manager, slide style panel, theme manager
 - **engine/** - Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager, wheel-handler, freeze-manager)
 - **renderer/** - Display logic (slide-renderer, stage-scaler, theme-manager, content-enhancer, html-export-manager, print-manager, notification)
-- **generation/** - AI-powered slide generation (deck-generator, lecture-plan-generator, ai-provider-registry, ai-generation-controller, course-profile-manager, course-profile-modal, lecture-plan-modal, ai-config-modal, generation-templates)
+- **generation/** - AI-powered slide generation (deck-generator, lecture-plan-generator, ai-provider-registry, ai-generation-controller, course-profile-manager, course-profile-modal, lecture-plan-modal, ai-config-modal)
 - **ui/** - UI actions (ui-actions, generation-actions)
 
 ### Entry Points
@@ -77,7 +91,6 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 - Lecture plan generation: [src/generation/lecture-plan-generator.js](src/generation/lecture-plan-generator.js)
 - AI provider registry: [src/generation/ai-provider-registry.js](src/generation/ai-provider-registry.js)
 - Course profiles: [src/generation/course-profile-manager.js](src/generation/course-profile-manager.js)
-- Generation templates: [src/generation/generation-templates.js](src/generation/generation-templates.js)
 
 ## Common Tasks
 
@@ -86,3 +99,9 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 - **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
 - **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
+
+## Known Issues
+
+- **`nul` file on Windows**: The `.gitignore` previously contained `nul` which created an untracked file that cannot be deleted via normal Windows commands (it's a reserved device name). This was removed from `.gitignore` but the file may still appear in `git status`. Ignore it.
+- **PowerShell quoting**: The `gh` CLI and `npm` commands with special characters (parentheses, quotes) fail in PowerShell. Use `cmd /c` wrapper or write content to temp files and use `--body-file`, `-F` flags.
+- **npm via PowerShell**: `npm.ps1` is blocked by execution policy on this system. Use `cmd /c "npm ..."` to run npm commands.
