@@ -85,11 +85,11 @@ Goal: Comprehensive testing and usability improvements.
 
 ### Testing
 
-| Task                                | Effort   | Details                                                                     |
-| ----------------------------------- | -------- | --------------------------------------------------------------------------- |
-| Unit tests for `markdown-parser.js` | 1-2 days | Complex parsing logic, edge cases                                           |
-| Unit tests for `directive-utils.js` | 0.5 day  | Pure functions                                                              |
-| Integration tests for deck pipeline | 2-3 days | Full flow: markdown → parse → render                                        |
+| Task                                | Effort   | Details                              |
+| ----------------------------------- | -------- | ------------------------------------ |
+| Unit tests for `markdown-parser.js` | 1-2 days | Complex parsing logic, edge cases    |
+| Unit tests for `directive-utils.js` | 0.5 day  | Pure functions                       |
+| Integration tests for deck pipeline | 2-3 days | Full flow: markdown → parse → render |
 
 ### New Presentation
 
@@ -132,9 +132,9 @@ Goal: Fix bugs, add reliability, and improve the AI generation experience.
 
 ### Post-Overhaul Testing
 
-| Task                                           | Effort  | Details                                                       |
-| ---------------------------------------------- | ------- | ------------------------------------------------------------- |
-| Unit tests for generation modules              | 2-3 days| `lecture-plan-generator.js`, `deck-generator.js`, `ai-provider-registry.js` |
+| Task                              | Effort   | Details                                                                     |
+| --------------------------------- | -------- | --------------------------------------------------------------------------- |
+| Unit tests for generation modules | 2-3 days | `lecture-plan-generator.js`, `deck-generator.js`, `ai-provider-registry.js` |
 
 **Effort estimate:** 15-22 hrs (~3-4 days) + 2-3 days testing
 
@@ -209,7 +209,7 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
 | Phase 3: Distribution        | 2-3 days         | ✅ Complete        |
 | Phase 4: Testing & Polish    | 8-12 days        | Not started        |
-| Phase 5: AI Generation       | 5-7 days        | Not started        |
+| Phase 5: AI Generation       | 5-7 days         | Not started        |
 | Phase 6: Cloud Mode          | 25-35 days       | Not started        |
 | **Total**                    | **~15-19 weeks** | **Phase 1-3 done** |
 
