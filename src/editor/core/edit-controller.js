@@ -520,28 +520,24 @@ export class EditController {
             const editorMarkdown = this.markdownEditor?.getValue() ?? '';
             const lines = editorMarkdown.split('\n');
 
-            // Find the @area marker line in the editor content
-            const escapedName = areaName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const areaRegex = new RegExp(`^\\s*@${escapedName}\\s*$`, 'mi');
-            const areaMatch = areaRegex.exec(editorMarkdown);
-
-            let targetLine;
-            if (areaMatch) {
-                const markerLine = editorMarkdown.substring(0, areaMatch.index).split('\n').length - 1;
-                targetLine = markerLine + sourceLine;
-            } else {
-                // Fallback for implicit main (no @main marker): count directive lines
-                let contentStart = 0;
-                for (let i = 0; i < lines.length; i++) {
-                    if (/^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(lines[i])) {
-                        contentStart = i + 1;
-                    } else if (lines[i].trim() !== '') {
-                        break;
-                    }
+            // Compute content-start offsets from the current editor markdown.
+            // token.map[0] is a physical line index inside the rendered area
+            // string; adding the area's editor start line gives the absolute
+            // target line. Directives are treated as non-content lines.
+            const parser = new MarkdownParser();
+            const areaOffsets = parser.computeAreaOffsets(editorMarkdown);
+            let areaStart = areaOffsets[areaName];
+            if (areaStart === undefined) {
+                // @title / @header alias handling
+                if (areaName === 'title' && areaOffsets.header !== undefined) {
+                    areaStart = areaOffsets.header;
+                } else if (areaName === 'header' && areaOffsets.title !== undefined) {
+                    areaStart = areaOffsets.title;
                 }
-                targetLine = contentStart + sourceLine - 1;
             }
+            if (areaStart === undefined) areaStart = 0;
 
+            let targetLine = areaStart + sourceLine;
             targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
 
             let pos = 0;

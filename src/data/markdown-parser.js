@@ -74,15 +74,37 @@ export class MarkdownParser {
             breaks: true,
         });
 
-        // Source-map plugin: add data-source-line to block-level opening tags
-        const originalRenderToken = this.md.renderer.renderToken.bind(this.md.renderer);
-        this.md.renderer.renderToken = function (tokens, idx, options) {
-            const token = tokens[idx];
-            if (token.map && token.level === 0 && token.type.endsWith("_open")) {
-                token.attrPush(["data-source-line", String(token.map[0] + 1)]);
+        // Source-map plugin: add data-source-line to all block-level opening tags.
+        // token.map[0] is the 0-indexed physical line inside the rendered area
+        // string (empty lines are counted). The click handler offsets this by the
+        // area's content-start line in the editor to jump to the exact source line.
+        const addSourceLineAttr = (token) => {
+            if (token.map) {
+                token.attrPush(["data-source-line", String(token.map[0])]);
             }
-            return originalRenderToken(tokens, idx, options);
         };
+
+        const originalRenderToken = this.md.renderer.renderToken.bind(this.md.renderer);
+        this.md.renderer.renderToken = function (tokens, idx, options, env) {
+            const token = tokens[idx];
+            if (token.map && token.type.endsWith("_open")) {
+                addSourceLineAttr(token);
+            }
+            return originalRenderToken(tokens, idx, options, env);
+        };
+
+        // fence, code_block and hr use dedicated renderer rules instead of the
+        // generic renderToken path, so wrap those rules too.
+        const blockRules = ["fence", "code_block", "hr"];
+        for (const ruleName of blockRules) {
+            const originalRule = this.md.renderer.rules[ruleName];
+            if (!originalRule) continue;
+            this.md.renderer.rules[ruleName] = function (tokens, idx, options, env, slf) {
+                const token = tokens[idx];
+                addSourceLineAttr(token);
+                return originalRule(tokens, idx, options, env, slf);
+            };
+        }
     }
 
     splitSlides(markdownText) {
@@ -237,7 +259,7 @@ export class MarkdownParser {
     parseAreas(markdownText) {
         const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
         const areas = {};
-        const areaOffsets = {};
+        const areaOffsets = {}; // 0-indexed editor line where each area's content starts
         let current = "main";
         const fence = new FenceTracker();
 
@@ -247,41 +269,116 @@ export class MarkdownParser {
 
         ensure(current);
         let lineIdx = 0;
+        let seenMarker = false;
 
         for (const line of lines) {
             fence.toggle(line);
             if (!fence.isInFence) {
                 const m = line.match(/^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/);
                 if (m) {
+                    seenMarker = true;
                     current = m[1].toLowerCase();
                     ensure(current);
-                    areaOffsets[current] = lineIdx;
+                    // Record the content start line the first time we see this
+                    // area. Keep the earliest start for repeated markers.
+                    if (!(current in areaOffsets)) {
+                        areaOffsets[current] = lineIdx + 1;
+                    }
                     lineIdx++;
                     continue;
                 }
             }
             areas[current].push(line);
+            if (current === "main" && !seenMarker && line.trim() !== "") {
+                areaOffsets.main = 0;
+            }
             lineIdx++;
+        }
+
+        // If main never received content, default it to the top of the slide.
+        if (!("main" in areaOffsets)) {
+            areaOffsets.main = 0;
         }
 
         const out = {};
         for (const [name, buf] of Object.entries(areas)) {
-            const text = buf.join("\n").trim();
-            if (text) out[name] = text;
+            const text = buf.join("\n");
+            if (text.trim()) out[name] = text;
         }
 
         return { areas: out, areaOffsets };
     }
 
+    /**
+     * Compute the 0-indexed editor line where each area's content begins in the
+     * raw slide markdown. Directives (layout, background, etc.) and HTML
+     * comments (e.g. <!-- notes: ... -->) are treated as non-content lines:
+     * they occupy editor lines but do not start an area. This is used for
+     * click-to-source mapping in the editor.
+     */
+    computeAreaOffsets(markdownText) {
+        const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+        const areaOffsets = {};
+        let current = "main";
+        const fence = new FenceTracker();
+        const isDirective = (line) => /^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(line);
+
+        let lineIdx = 0;
+        let seenMarker = false;
+        let inHtmlComment = false;
+
+        for (const line of lines) {
+            fence.toggle(line);
+
+            // Track HTML comments so they don't count as area-start content.
+            const startsComment = /^\s*<!--/.test(line);
+            const endsComment = /-->\s*$/.test(line);
+            if (startsComment) inHtmlComment = true;
+
+            if (!fence.isInFence && !inHtmlComment) {
+                const m = line.match(/^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/);
+                if (m) {
+                    seenMarker = true;
+                    current = m[1].toLowerCase();
+                    if (!(current in areaOffsets)) {
+                        areaOffsets[current] = lineIdx + 1;
+                    }
+                    lineIdx++;
+                    if (endsComment) inHtmlComment = false;
+                    continue;
+                }
+            }
+
+            if (current === "main" && !seenMarker && !inHtmlComment && !isDirective(line) && line.trim() !== "") {
+                areaOffsets.main = lineIdx;
+            }
+
+            lineIdx++;
+            if (endsComment) inHtmlComment = false;
+        }
+
+        if (!("main" in areaOffsets)) {
+            areaOffsets.main = 0;
+        }
+
+        return areaOffsets;
+    }
+
     convertMermaidCodeBlocksToDiv(htmlText) {
         // Convert <pre><code class="language-mermaid">...</code></pre> to <div class="mermaid">...</div>
-        const re = /<pre>\s*<code[^>]*class=["'][^"']*(?:language|lang)-mermaid[^"']*["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
-        return htmlText.replace(re, (match, content) => {
+        // Capture attributes before/after the class so we can preserve data-source-line.
+        const re = /<pre>\s*<code([^>]*)class=["'][^"']*(?:language|lang)-mermaid[^"']*["']([^>]*)>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+        return htmlText.replace(re, (match, beforeAttrs, afterAttrs, content) => {
+            // Extract the source line added by the source-map plugin, if present.
+            const allAttrs = (beforeAttrs || '') + (afterAttrs || '');
+            const sourceLineMatch = allAttrs.match(/data-source-line="(\d+)"/);
+            const sourceAttr = sourceLineMatch ? ` data-source-line="${sourceLineMatch[1]}"` : '';
+
             // For client-side, store Mermaid source in data-mermaid-source and add loading state
             const safeContent = content.replace(/"/g, '&quot;');
 
             // Create a div with a data attribute for client-side rendering
-            return `<div class="mermaid" data-mermaid-source="${safeContent}"></div>`;
+            return `<div class="mermaid"${sourceAttr} data-mermaid-source="${safeContent}"></div>`;
         });
     }
 
@@ -294,6 +391,10 @@ export class MarkdownParser {
         const slides = slideTexts.map((raw, idx) => {
             const notes = this.extractNotes(raw);
             let cleaned = this.stripNotes(raw);
+
+            // Compute raw editor line offsets for click-to-source mapping.
+            // Directives and HTML comments are treated as non-content lines.
+            const rawAreaOffsets = this.computeAreaOffsets(raw);
 
             // Extract all directives
             const { value: layout, markdown: withoutLayout } = this.extractDirective(cleaned, "layout");
@@ -325,7 +426,7 @@ export class MarkdownParser {
 
             cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
-            const { areas: areasMd, areaOffsets } = this.parseAreas(cleaned);
+            const { areas: areasMd } = this.parseAreas(cleaned);
 
             const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
                 fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
@@ -338,12 +439,20 @@ export class MarkdownParser {
                 if (!areasMd.title && areasMd.header) {
                     areasMd.title = areasMd.header;
                 }
+                if (!rawAreaOffsets.title && rawAreaOffsets.header) {
+                    rawAreaOffsets.title = rawAreaOffsets.header;
+                }
                 delete areasMd.header;
+                delete rawAreaOffsets.header;
             } else {
                 if (!areasMd.header && areasMd.title) {
                     areasMd.header = areasMd.title;
                 }
+                if (!rawAreaOffsets.header && rawAreaOffsets.title) {
+                    rawAreaOffsets.header = rawAreaOffsets.title;
+                }
                 delete areasMd.title;
+                delete rawAreaOffsets.title;
             }
 
             const areas = {};
@@ -386,7 +495,7 @@ export class MarkdownParser {
                 hidden,
                 areas,
                 areaStyle: areaStyle || "",
-                _areaOffsets: areaOffsets,
+                _areaOffsets: rawAreaOffsets,
             };
         });
 

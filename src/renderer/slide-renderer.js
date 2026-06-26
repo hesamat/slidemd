@@ -94,6 +94,7 @@ export class SlideRenderer {
             const area = document.createElement("div");
             area.className = `slide__area slide__area--${name}`;
             area.style.gridArea = name;
+            area.dataset.areaName = name;
 
             if (name === "cards") {
                 area.classList.add("slide__area--cards");

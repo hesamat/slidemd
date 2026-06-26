@@ -927,5 +927,6 @@
 /* ── CodeMirror temporary line highlight ─────────────────────────────────── */
 
 .cm-highlighted-line {
-    background: rgba(2, 132, 199, 0.18) !important;
+    background: rgba(2, 132, 199, 0.12) !important;
+    border-left: 3px solid rgba(2, 132, 199, 0.7) !important;
 }

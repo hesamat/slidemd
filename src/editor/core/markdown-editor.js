@@ -12,7 +12,7 @@ import { LayoutData } from "../../data/layout-data.js";
 // ── Line highlight for click-to-jump ────────────────────────────────────────
 const addHighlight = StateEffect.define();
 const removeHighlight = StateEffect.define();
-const highlightMark = Decoration.mark({ attributes: { class: "cm-highlighted-line" } });
+const highlightLineDeco = Decoration.line({ attributes: { class: "cm-highlighted-line" } });
 const highlightField = StateField.define({
     create() { return Decoration.none; },
     update(deco, tr) {
@@ -20,8 +20,12 @@ const highlightField = StateField.define({
             let d = deco;
             for (const e of tr.effects) {
                 if (e.is(addHighlight)) {
-                    const line = tr.state.doc.line(e.value + 1);
-                    d = Decoration.set([highlightMark.range(line.from, line.to)]);
+                    const doc = tr.state.doc;
+                    let lineNum = e.value + 1;
+                    if (lineNum < 1) lineNum = 1;
+                    if (lineNum > doc.lines) lineNum = doc.lines;
+                    const line = doc.line(lineNum);
+                    d = Decoration.set([highlightLineDeco.range(line.from)]);
                 } else if (e.is(removeHighlight)) {
                     d = Decoration.none;
                 }
