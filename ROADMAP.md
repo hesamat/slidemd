@@ -65,25 +65,33 @@ Goal: Replace the fragile custom build script with a proper bundler.
 
 ---
 
-## Phase 3: Packaging
+## Phase 3: Distribution
 
-Goal: Prepare for distribution and clean up package metadata.
+Goal: Make the app easy to download and install. Not a library — no npm.
 
-| Task                                          | Effort  | Details                                     |
-| --------------------------------------------- | ------- | ------------------------------------------- |
-| Add `bin` field to package.json for CLI entry | 0.5 day | `slidemd` command                           |
-| Add `files` field to package.json             | 0.5 day | Only ship dist/, not source                 |
-| Add `prepublishOnly` script                   | 0.5 day | Auto-build before publish                   |
-| Test npm pack / npm publish locally           | 0.5 day | Verify package contents                     |
-| Add engines field (Node >=18)                 | 15 min  | File System Access API requires modern Node |
+### Release Strategy
 
-**Effort estimate:** 2-3 days
+| Task                                             | Effort  | Details                                          |
+| ------------------------------------------------ | ------- | ------------------------------------------------ |
+| GitHub Releases with dist zip                    | 0.5 day | Automated via CI on tag push                     |
+| Download page in README                          | 0.5 day | Direct link to latest release zip                |
+| Auto-build CI on tag push                        | 1 day   | Build dist/ and attach artifacts to release      |
+
+### Optional Distribution
+
+| Task                                             | Effort  | Details                                          |
+| ------------------------------------------------ | ------- | ------------------------------------------------ |
+| Homebrew tap (macOS/Linux)                       | 1 day   | `brew install hesamat/slidemd/slidemd`           |
+| Standalone binary via pkg/nexe                   | 2-3 days| Single file, no Node needed, ~50MB              |
+| Docker image                                     | 1 day   | `docker run -p 8080:80 slidemd`                  |
+
+**Effort estimate:** 2-5 days
 
 ---
 
-## Phase 4: Quality & Polish
+## Phase 4: Testing & Polish
 
-Goal: Comprehensive testing, AI generation improvements, and production hardening.
+Goal: Comprehensive testing and usability improvements.
 
 ### Testing
 
@@ -94,7 +102,30 @@ Goal: Comprehensive testing, AI generation improvements, and production hardenin
 | Unit tests for generation modules   | 2-3 days | `lecture-plan-generator.js`, `deck-generator.js`, `ai-provider-registry.js` |
 | Integration tests for deck pipeline | 2-3 days | Full flow: markdown → parse → render                                        |
 
-### AI Generation Overhaul
+### New Presentation
+
+| Task                                             | Effort  | Details                                          |
+| ------------------------------------------------ | ------- | ------------------------------------------------ |
+| New Presentation modal                           | 1 day   | Theme, style, and template selection             |
+| Theme section: color mode + accent color         | 0.5 day | Light/dark radio cards, accent color grid        |
+| Style section: header style, border, code blocks | 0.5 day | Underline/pill/none, border toggle, rounded code |
+| Template section: blank, standard, lecture       | 0.5 day | Starter deck templates                           |
+| Menu item + wiring                               | 0.5 day | Element references, click handler, CSS           |
+
+### TypeScript Definitions
+
+| Task                                          | Effort   | Details                                      |
+| --------------------------------------------- | -------- | -------------------------------------------- |
+| Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
+| Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
+
+**Effort estimate:** 8-12 days
+
+---
+
+## Phase 5: AI Generation Overhaul
+
+Goal: Fix bugs, add reliability, and improve the AI generation experience.
 
 | Task                                           | Effort  | Details                                                       |
 | ---------------------------------------------- | ------- | ------------------------------------------------------------- |
@@ -110,28 +141,11 @@ Goal: Comprehensive testing, AI generation improvements, and production hardenin
 | Add undo for deck replacement                  | 1-2 hrs | Snapshot + 3s undo notification                               |
 | Add IndexedDB fallback for profiles            | 2-3 hrs | Non-Chromium browser support                                  |
 
-### TypeScript Definitions
-
-| Task                                          | Effort   | Details                                      |
-| --------------------------------------------- | -------- | -------------------------------------------- |
-| Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
-| Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
-
-### Release
-
-| Task                                  | Effort  | Details                        |
-| ------------------------------------- | ------- | ------------------------------ |
-| Update CHANGELOG.md                   | 0.5 day | Document all changes           |
-| Update package.json version           | 5 min   |                                |
-| Final QA pass                         | 0.5 day | Manual testing of all features |
-| Create release branch and PR          | 0.5 day | Same process as previous       |
-| Tag release and create GitHub release | 15 min  |                                |
-
-**Effort estimate:** 10-13 days
+**Effort estimate:** 15-22 hrs (~3-4 days)
 
 ---
 
-## Phase 5: Cloud Mode
+## Phase 6: Cloud Mode
 
 Goal: Enable multi-device editing, cloud image storage, and authenticated access.
 
@@ -198,17 +212,16 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | ---------------------------- | -------------- | ----------- |
 | Phase 1: Safety Net          | 7-9 days       | ✅ Complete |
 | Phase 2: Build Modernization | 3-4 days       | ✅ Complete |
-| Phase 3: Packaging           | 2-3 days       | Not started |
-| Phase 4: Quality & Polish    | 10-13 days     | Not started |
-| Phase 5: Cloud Mode          | 25-35 days     | Not started |
-| **Total**                    | **~12-16 weeks** | **Phase 1-2 done** |
+| Phase 3: Distribution        | 2-5 days       | Not started |
+| Phase 4: Testing & Polish    | 8-12 days      | Not started |
+| Phase 5: AI Generation       | 3-4 days       | Not started |
+| Phase 6: Cloud Mode          | 25-35 days     | Not started |
+| **Total**                    | **~14-18 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5 → Phase 6
 ```
 
-Phase 4 includes the AI generation overhaul and a release. Within Phase 4, the recommended order is: bug fixes → cleanup → reliability → token tracking → streaming → polish → release.
-
-Phase 5 (Cloud Mode) is the long-term vision. It should be tackled after the core product is polished (Phase 3-4). The storage adapter pattern means local-first still works — cloud is an optional layer.
+Phase 4 includes the New Presentation feature and a release. Phase 5 is the AI overhaul. Phase 6 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
