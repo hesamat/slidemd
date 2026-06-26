@@ -448,7 +448,7 @@ export class DeckController extends EventEmitter {
         if (!this._md) {
           this._md = window.markdownit({
             html: true,
-            linkify: true,
+            linkify: false,
             typographer: false,
             breaks: true,
           });

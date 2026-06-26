@@ -472,7 +472,7 @@ function escapeKatexBracketDelimiters(markdownText) {
 function makeMarkdownRenderer() {
     return new MarkdownIt({
         html: true,
-        linkify: true,
+        linkify: false,
         typographer: false,
         breaks: true,
     });
