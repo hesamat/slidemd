@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
-import { minify } from "terser";
+import { build as esbuild } from "esbuild";
 import { buildMermaidScriptTag } from "../src/core/mermaid-config.js";
 
 const root = process.cwd();
@@ -434,212 +434,64 @@ if (usesPrism || usesKatex || usesMermaid) {
 const deckJson = JSON.stringify(deck);
 const deckTag = `<script type="application/json" id="deckData">${escapeJsonForHtmlScriptTag(deckJson)}</script>`;
 
-// --- Inline local project JS (simple ESM bundling) ---
-function stripEsmSyntax(srcText, filePath) {
-    if (!srcText) return "";
-    let out = srcText;
-
-    // Handle JSON imports: find and inline them
-    // Pattern: import NAME from 'path.json' with { type: 'json' };
-    const jsonImportRe = /import\s+(\w+)\s+from\s+['"]([^'"]+\.json)['"]\s+with\s+\{\s*type:\s*['"]json['"]\s*\}\s*;?/g;
-    out = out.replace(jsonImportRe, (_match, importName, jsonPath) => {
-        const resolvedPath = path.resolve(path.dirname(filePath), jsonPath);
-        try {
-            const jsonContent = fs.readFileSync(resolvedPath, "utf8");
-            const jsonObj = JSON.parse(jsonContent);
-            // Inline the JSON as a const declaration
-            return `const ${importName} = ${JSON.stringify(jsonObj)};`;
-        } catch (e) {
-            console.warn(`Warning: Failed to inline JSON import ${jsonPath}: ${e.message}`);
-            return `const ${importName} = null; /* Failed to inline JSON import */`;
-        }
+// --- Bundle JS with esbuild ---
+async function buildBundleJs() {
+    const deckJsPath = path.join(root, "deck.js");
+    
+    await esbuild({
+        entryPoints: [deckJsPath],
+        bundle: true,
+        format: "iife",
+        platform: "browser",
+        target: "es2020",
+        minify: true,
+        outfile: path.join(distDir, "deck.bundle.js"),
+        // Configure loaders for non-JS assets that might be imported
+        loader: {
+            ".woff": "dataurl",
+            ".woff2": "dataurl",
+            ".ttf": "dataurl",
+            ".otf": "dataurl",
+            ".png": "dataurl",
+            ".jpg": "dataurl",
+            ".jpeg": "dataurl",
+            ".gif": "dataurl",
+            ".svg": "dataurl",
+            ".css": "css",
+        },
+        // External packages that shouldn't be bundled
+        external: [],
+        // Define globals if needed
+        define: {
+            "process.env.NODE_ENV": '"production"',
+        },
     });
-
-    // Remove other import lines (including those with 'with' clause for JSON imports)
-    // Matches from 'import' to the next semicolon, handling multi-line imports
-    out = out.replace(/^\s*import\s+[\s\S]*?;\s*$/gm, "");
-    // Convert named exports to plain declarations
-    out = out.replace(/^\s*export\s+(class|function|const|let|var)\s+/gm, (m, kind) => `${kind} `);
-    // Remove 'export {' re-exports (not used in this project)
-    out = out.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "");
-    // Convert 'export default' to plain assignment (rare; not used here)
-    out = out.replace(/^\s*export\s+default\s+/gm, "const __default_export__ = ");
-
-    // Handle internal dynamic imports - since all modules are bundled together,
-    // we replace these with direct references to the already-available classes
-
-    // Pattern: const { AssetLoader } = await import("../core/asset-loader.js")
-    out = out.replace(
-        /const\s*\{\s*AssetLoader\s*\}\s*=\s*await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)/g,
-        () => `{ AssetLoader } = { AssetLoader }`
-    );
-    // Clean up the broken destructuring syntax above to just access AssetLoader directly
-    out = out.replace(
-        /\{\s*AssetLoader\s*\}\s*=\s*\{\s*AssetLoader\s*\}/g,
-        () => `/* AssetLoader already available */`
-    );
-
-    // Pattern: import("../core/asset-loader.js") - standalone import
-    out = out.replace(
-        /import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)/g,
-        () => `Promise.resolve({ AssetLoader })`
-    );
-
-    // Pattern: import("../core/asset-loader.js").then(m => m.AssetLoader)
-    out = out.replace(
-        /import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader/g,
-        () => `Promise.resolve(AssetLoader)`
-    );
-
-    // Pattern: await import("../core/asset-loader.js").then(m => m.AssetLoader.ensureMermaidLoaded())
-    out = out.replace(
-        /await\s+import\(['"](\.\.\/|\.\/)?core\/asset-loader\.js['"]\)\.then\((\w+)\s*=>\s*\2\.AssetLoader\.ensureMermaidLoaded\(\)\)/g,
-        () => `AssetLoader.ensureMermaidLoaded()`
-    );
-
-    // For dist builds, stub out the problematic import() calls in AssetLoader methods
-    // by replacing the entire method with a no-op version
-
-    // Stub ensureKatexLoaded method - replace entire method with no-op
-    // Match from "static async ensureKatexLoaded() {" to "static async ensureMermaidLoaded() {"
-    out = out.replace(
-        /static async ensureKatexLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureMermaidLoaded)/,
-        () => `static async ensureKatexLoaded() { /* KaTeX inlined in dist build */ return; }`
-    );
-
-    // Stub ensureMermaidLoaded method - replace entire method with no-op
-    // Match from "static async ensureMermaidLoaded() {" to "static async ensureRichTextEnhancers() {"
-    out = out.replace(
-        /static async ensureMermaidLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureRichTextEnhancers)/,
-        () => `static async ensureMermaidLoaded() { /* Mermaid bundled in dist build */ return; }`
-    );
-
-    // Also stub ensurePrismLoaded and ensureMarkdownItLoaded for consistency
-    out = out.replace(
-        /static async ensurePrismLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensureKatexLoaded)/,
-        () => `static async ensurePrismLoaded() { /* Prism inlined in dist build */ return; }`
-    );
-
-    out = out.replace(
-        /static async ensureMarkdownItLoaded\(\) \{[\s\S]*?\}(?=\s*static async ensurePrismLoaded)/,
-        () => `static async ensureMarkdownItLoaded() { /* markdown-it not needed in dist build */ return; }`
-    );
-
-    // Stub ContentEnhancer methods that try to access Mermaid at runtime
-    // Since Mermaid is loaded from CDN in dist builds, update initializeMermaid to use it
-    if (filePath.includes('content-enhancer.js')) {
-        // Stub initializeMermaid - replace from method start to renderMermaidDiagrams
-        // We must preserve getMermaidSandbox since renderMermaidDiagrams uses it
-        out = out.replace(
-            /static async initializeMermaid\([^)]*\) \{[\s\S]*?(?=static async renderMermaidDiagrams)/,
-            () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }
-
-    // add somewhere in ContentEnhancer (stubbed for dist build)
-    static getMermaidSandbox() {
-        let box = document.getElementById("mermaid-sandbox");
-        if (!box) {
-            box = document.createElement("div");
-            box.id = "mermaid-sandbox";
-            box.style.cssText = "position:fixed;left:-10000px;width:0;height:0;overflow:hidden;";
-            document.body.appendChild(box);
-        }
-        return box;
-    }
-
-    static async renderMermaidDiagrams`
-        );
-    }
-
-    // Remove auto-redirect to presenter mode in dist builds
-    // In exported HTML, we don't want to auto-redirect to ?role=presenter
-    if (filePath.includes('deck.js')) {
-        // Remove only the auto-redirect if block (not the url definition or showHidden check)
-        out = out.replace(
-            // Match the auto-redirect if statement block
-            /\/\/ Auto-redirect checks \(optional\)[\s\S]*?if \(!url\.searchParams\.has\("role"\)[^}]*\}\s*/,
-            () => `/* Auto-redirect disabled in dist build */\n`
-        );
-    }
-
-    // Stub AI generation code in deck-controller.js for dist builds
-    // The generation folder is not bundled, so we need to remove references
-    if (filePath.includes('deck-controller.js')) {
-        // Stub initGenerationManager method with no-op
-        out = out.replace(
-            /initGenerationManager\(\) \{[^}]*\}/,
-            () => `initGenerationManager() { /* AI generation disabled in dist build */ }`
-        );
-    }
-
-    return out;
+    
+    // Read the bundled output
+    return fs.readFileSync(path.join(distDir, "deck.bundle.js"), "utf8");
 }
-
-function buildBundleJs() {
-    const order = [
-        // Core utilities and helpers
-        path.join(root, "src", "core", "utils.js"),
-        path.join(root, "src", "core", "element-gatherer.js"),
-        path.join(root, "src", "core", "asset-loader.js"),
-        // Data loading and parsing
-        path.join(root, "src", "data", "layout-data.js"),
-        path.join(root, "src", "data", "markdown-parser.js"),
-        path.join(root, "src", "data", "layout-parser.js"),
-        path.join(root, "src", "data", "deck-loader.js"),
-        // Renderer components
-        path.join(root, "src", "renderer", "notification.js"),
-        path.join(root, "src", "renderer", "stage-scaler.js"),
-        path.join(root, "src", "renderer", "content-enhancer.js"),
-        path.join(root, "src", "renderer", "slide-renderer.js"),
-        path.join(root, "src", "renderer", "theme-manager.js"),
-        path.join(root, "src", "renderer", "print-manager.js"),
-        // Engine components
-        path.join(root, "src", "engine", "keyboard-handler.js"),
-        path.join(root, "src", "engine", "wheel-handler.js"),
-        path.join(root, "src", "engine", "role-manager.js"),
-        path.join(root, "src", "engine", "slide-navigator.js"),
-        path.join(root, "src", "engine", "break-manager.js"),
-        path.join(root, "src", "engine", "reload-manager.js"),
-        path.join(root, "src", "engine", "deck-controller.js"),
-        path.join(root, "src", "engine", "freeze-manager.js"),
-        // UI components
-        path.join(root, "src", "ui", "ui-actions.js"),
-        // Entry point
-        path.join(root, "deck.js"),
-    ];
-
-    const parts = order
-        .filter((p) => fs.existsSync(p))
-        .map((p) => {
-            const src = fs.readFileSync(p, "utf8");
-            return `// ${path.relative(root, p)}\n` + stripEsmSyntax(src, p);
-        });
-
-    // Don't wrap in IIFE - deck.js already has one at the end
-    return parts.join("\n\n");
-}
-
-const bundleJs = buildBundleJs();
 
 async function processJs() {
-    // Minify your local bundle
-    const bundleResult = await minify(bundleJs);
-    const minifiedBundleJs = bundleResult.code;
+    // Bundle with esbuild (already minified)
+    const bundleJs = await buildBundleJs();
 
-    // Minify vendor scripts safely
+    // Minify vendor scripts with esbuild
     const minifiedVendorScripts = [];
-
-    // This will now work because vendorJsParts is defined in the outer scope
     for (const src of vendorJsParts) {
-        if (!src) continue; // Safety check
-        const result = await minify(src);
+        if (!src) continue;
+        const result = await esbuild({
+            stdin: { contents: src },
+            minify: true,
+            write: false,
+        });
         minifiedVendorScripts.push(
             `<script>\n${escapeInlineScriptText(result.code)}\n</script>`
         );
     }
 
     return {
-        bundle: minifiedBundleJs,
-        vendor: minifiedVendorScripts.join("\n")
+        bundle: bundleJs,
+        vendor: minifiedVendorScripts.join("\n"),
     };
 }
 

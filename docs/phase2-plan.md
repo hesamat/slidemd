@@ -3,6 +3,7 @@
 ## Current State
 
 `tools/build.mjs` (755 lines) does everything manually:
+
 - Regex-based ESM stripping (`stripEsmSyntax`) — fragile, 100+ lines
 - Manual CSS import resolution
 - Manual image inlining as data URIs
@@ -35,26 +36,30 @@ Use esbuild for JS bundling and minification. Keep everything else as-is.
 ## Implementation Steps
 
 ### Step 1: Install esbuild
+
 ```bash
 npm install --save-dev esbuild
 ```
 
 ### Step 2: Create esbuild config
+
 Create `tools/esbuild.config.mjs`:
+
 ```javascript
-import { build } from 'esbuild';
+import { build } from "esbuild";
 
 await build({
-  entryPoints: ['deck.js'],
+  entryPoints: ["deck.js"],
   bundle: true,
-  format: 'iife',
-  outfile: 'dist/deck.bundle.js',
+  format: "iife",
+  outfile: "dist/deck.bundle.js",
   minify: true,
   // Don't externalize anything — bundle everything
 });
 ```
 
 ### Step 3: Update build.mjs
+
 - Remove `buildBundleJs()` function (lines 577-619)
 - Remove `stripEsmSyntax()` function (lines 438-575)
 - Remove `terser` import and usage
@@ -62,12 +67,15 @@ await build({
 - Keep all other logic unchanged
 
 ### Step 4: Handle generation modules
+
 The current build excludes `src/generation/` from the bundle (it's not in the `order` array). With esbuild, we need to either:
+
 - **Option A**: Add generation modules to the bundle (makes dist builds fully featured)
 - **Option B**: Keep them excluded by marking them as external (current behavior)
 - **Recommended: Option A** — Include generation in dist builds since users may want AI features
 
 ### Step 5: Verify
+
 - Run `npm run build` and verify output
 - Run `npm run pdf` and verify PDF generation
 - Test the dist HTML file manually
@@ -75,12 +83,12 @@ The current build excludes `src/generation/` from the bundle (it's not in the `o
 
 ## Risk Assessment
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                                           | Mitigation                      |
+| ---------------------------------------------- | ------------------------------- |
 | esbuild handles ESM differently than our regex | Test thoroughly, compare output |
-| Generation modules have dynamic imports | esbuild handles these well |
-| Mermaid CDN injection still needed | Keep as post-processing step |
-| CSS inlining unchanged | No risk |
+| Generation modules have dynamic imports        | esbuild handles these well      |
+| Mermaid CDN injection still needed             | Keep as post-processing step    |
+| CSS inlining unchanged                         | No risk                         |
 
 ## Estimated Effort
 
