@@ -3,7 +3,7 @@ dist/
 .cache/
 .DS_Store
 .claude/*
-!.claude/CLAUDE.md
+!.claude/AGENTS.md
 .vscode/
 
 # Optional local overrides
