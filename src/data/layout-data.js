@@ -18,7 +18,7 @@ export class LayoutData {
      * Get all available layout names (excluding default)
      */
     static getAllLayouts() {
-        return Object.keys(LAYOUTS.layouts).filter(key => key !== 'default' && key !== 'header-two-column');
+        return Object.keys(LAYOUTS.layouts).filter(key => key !== 'default');
     }
 
     /**
