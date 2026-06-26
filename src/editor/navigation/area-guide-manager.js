@@ -31,6 +31,13 @@ export class AreaGuideManager {
             const name = areaEl.style.gridArea || areaEl.dataset.areaName || 'main';
             areaEl.dataset.areaName = name;
 
+            // Check if area has meaningful content (text or non-label elements)
+            const hasContent = areaEl.textContent.trim().length > 0 ||
+                               areaEl.querySelectorAll(':scope > *:not(.editor-area-label)').length > 0;
+
+            // Skip adding label to empty optional areas (let CSS collapse them)
+            if (!hasContent && (name === 'header' || name === 'footer')) return;
+
             let label = areaEl.querySelector(':scope > .editor-area-label');
             if (!label) {
                 label = document.createElement('button');
@@ -60,6 +67,18 @@ export class AreaGuideManager {
         if (!this.isEditMode || !slideEl) return;
         const areas = slideEl.querySelectorAll('.slide__area');
         areas.forEach(area => {
+            const name = area.dataset.areaName;
+
+            // Check if area has meaningful content
+            const hasContent = area.textContent.trim().length > 0 ||
+                               area.querySelectorAll(':scope > *:not(.editor-area-label)').length > 0;
+
+            // Skip overflow check for empty optional areas
+            if (!hasContent && (name === 'header' || name === 'footer')) {
+                area.classList.remove('editor-area-overflow');
+                return;
+            }
+
             const label = area.querySelector(':scope > .editor-area-label');
             const verticalOverflow = area.scrollHeight - area.clientHeight > 6;
             const horizontalOverflow = area.scrollWidth - area.clientWidth > 6;
