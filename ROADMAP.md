@@ -69,11 +69,11 @@ Goal: Replace the fragile custom build script with a proper bundler.
 
 Goal: Make the app easy to download and install. Not a library — no npm.
 
-| Task                                             | Effort  | Details                                          |
-| ------------------------------------------------ | ------- | ------------------------------------------------ |
-| CI release workflow on tag push (`v*`)           | 1 day   | Build dist/, create GitHub Release, attach zip   |
-| Download page in README                          | 0.5 day | Direct link to latest release zip                |
-| Docker image                                     | 1 day   | `docker run -p 8080:80 slidemd`                  |
+| Task                                   | Effort  | Details                                        |
+| -------------------------------------- | ------- | ---------------------------------------------- |
+| CI release workflow on tag push (`v*`) | 1 day   | Build dist/, create GitHub Release, attach zip |
+| Download page in README                | 0.5 day | Direct link to latest release zip              |
+| Docker image                           | 1 day   | `docker run -p 8080:80 slidemd`                |
 
 **Effort estimate:** 2-3 days
 
@@ -148,49 +148,49 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ### Image Storage
 
-| Task                                         | Effort  | Details                                            |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| Set up Cloudflare R2 bucket                  | 0.5 day | Free tier: 10GB storage, 10M reads/mo              |
-| Create StorageAdapter interface              | 1 day   | Abstract local vs cloud image paths                |
-| Implement R2StorageAdapter                   | 2-3 days| Upload, delete, URL generation                     |
-| Update image picker to use adapter           | 1 day   | Transparent to user, paths stay relative           |
-| Handle image deletion (cascade from deck)    | 0.5 day | Clean up orphaned images                           |
+| Task                                      | Effort   | Details                                  |
+| ----------------------------------------- | -------- | ---------------------------------------- |
+| Set up Cloudflare R2 bucket               | 0.5 day  | Free tier: 10GB storage, 10M reads/mo    |
+| Create StorageAdapter interface           | 1 day    | Abstract local vs cloud image paths      |
+| Implement R2StorageAdapter                | 2-3 days | Upload, delete, URL generation           |
+| Update image picker to use adapter        | 1 day    | Transparent to user, paths stay relative |
+| Handle image deletion (cascade from deck) | 0.5 day  | Clean up orphaned images                 |
 
 ### Authentication & Access Control
 
-| Task                                         | Effort  | Details                                            |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| Choose auth provider (Clerk, Auth.js, etc.)  | 0.5 day | Prefer self-hosted or edge-compatible              |
-| Implement sign-up / sign-in flow             | 2-3 days| Email + OAuth (Google, GitHub)                     |
-| Add deck sharing with permission levels      | 2-3 days| Owner / editor / viewer roles                      |
-| Add access tokens for API requests           | 1 day   | For programmatic access                            |
+| Task                                        | Effort   | Details                               |
+| ------------------------------------------- | -------- | ------------------------------------- |
+| Choose auth provider (Clerk, Auth.js, etc.) | 0.5 day  | Prefer self-hosted or edge-compatible |
+| Implement sign-up / sign-in flow            | 2-3 days | Email + OAuth (Google, GitHub)        |
+| Add deck sharing with permission levels     | 2-3 days | Owner / editor / viewer roles         |
+| Add access tokens for API requests          | 1 day    | For programmatic access               |
 
 ### Cloud File Sync
 
-| Task                                         | Effort  | Details                                            |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| Design deck storage schema                   | 0.5 day | Deck metadata + markdown + image references        |
-| Implement deck CRUD API                      | 2-3 days| Create, read, update, delete decks                 |
-| Add real-time sync (WebSocket or polling)    | 3-4 days| Multi-device live updates                          |
-| Add offline support (service worker + cache) | 2-3 days| Edit offline, sync when online                     |
+| Task                                         | Effort   | Details                                     |
+| -------------------------------------------- | -------- | ------------------------------------------- |
+| Design deck storage schema                   | 0.5 day  | Deck metadata + markdown + image references |
+| Implement deck CRUD API                      | 2-3 days | Create, read, update, delete decks          |
+| Add real-time sync (WebSocket or polling)    | 3-4 days | Multi-device live updates                   |
+| Add offline support (service worker + cache) | 2-3 days | Edit offline, sync when online              |
 
 ### Deployment
 
-| Task                                         | Effort  | Details                                            |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| Deploy web app to Vercel/Netlify             | 0.5 day | Static frontend                                    |
-| Deploy API (Workers or serverless)           | 1 day   | Cloudflare Workers for edge compute                |
-| Set up custom domain + SSL                   | 0.5 day |                                                    |
-| Add environment config (R2, auth, etc.)      | 0.5 day |                                                    |
+| Task                                    | Effort  | Details                             |
+| --------------------------------------- | ------- | ----------------------------------- |
+| Deploy web app to Vercel/Netlify        | 0.5 day | Static frontend                     |
+| Deploy API (Workers or serverless)      | 1 day   | Cloudflare Workers for edge compute |
+| Set up custom domain + SSL              | 0.5 day |                                     |
+| Add environment config (R2, auth, etc.) | 0.5 day |                                     |
 
 ### UX
 
-| Task                                         | Effort  | Details                                            |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| Add mode switcher (Local / Cloud)            | 0.5 day | On first open, prompt user to choose               |
-| Show cloud status indicator                  | 0.5 day | Syncing / synced / offline badge                   |
-| Update export to resolve cloud image URLs    | 0.5 day | Download images inline for portable HTML           |
-| Add deck sharing UI                          | 1 day   | Share link with permission selection               |
+| Task                                      | Effort  | Details                                  |
+| ----------------------------------------- | ------- | ---------------------------------------- |
+| Add mode switcher (Local / Cloud)         | 0.5 day | On first open, prompt user to choose     |
+| Show cloud status indicator               | 0.5 day | Syncing / synced / offline badge         |
+| Update export to resolve cloud image URLs | 0.5 day | Download images inline for portable HTML |
+| Add deck sharing UI                       | 1 day   | Share link with permission selection     |
 
 **Effort estimate:** 25-35 days
 
@@ -198,14 +198,14 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ## Summary
 
-| Phase                        | Effort         | Status      |
-| ---------------------------- | -------------- | ----------- |
-| Phase 1: Safety Net          | 7-9 days       | ✅ Complete |
-| Phase 2: Build Modernization | 3-4 days       | ✅ Complete |
-| Phase 3: Distribution        | 2-3 days       | Not started |
-| Phase 4: Testing & Polish    | 8-12 days      | Not started |
-| Phase 5: AI Generation       | 3-4 days       | Not started |
-| Phase 6: Cloud Mode          | 25-35 days     | Not started |
+| Phase                        | Effort           | Status             |
+| ---------------------------- | ---------------- | ------------------ |
+| Phase 1: Safety Net          | 7-9 days         | ✅ Complete        |
+| Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
+| Phase 3: Distribution        | 2-3 days         | Not started        |
+| Phase 4: Testing & Polish    | 8-12 days        | Not started        |
+| Phase 5: AI Generation       | 3-4 days         | Not started        |
+| Phase 6: Cloud Mode          | 25-35 days       | Not started        |
 | **Total**                    | **~13-17 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
