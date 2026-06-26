@@ -365,7 +365,7 @@ layout: header-content
 4. Auto-completion happens automatically on directives.
 5. Export your presentation via Developer tools, or right click `Print PDF`. Make sure to close the edit mode before printing.
 
-### Hidding slides
+### Hiding slides
 
 ```markdown
 layout: focus

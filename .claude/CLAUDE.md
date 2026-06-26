@@ -13,18 +13,23 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 
 ### Source Structure ([src/](src))
 
-- **core/** - Core utilities (asset-loader, element-gatherer, utils)
-- **data/** - Data parsing (layout-data, layout-parser, markdown-parser, deck-loader)
-- **editor/** - Live editing features (markdown-editor, edit-controller, layout-picker, slide-thumbnails)
+- **core/** - Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config)
+- **data/** - Data parsing (layout-data, layout-parser, markdown-parser, deck-loader, layouts.json)
+- **editor/** - Live editing features
+  - **core/** - Edit controller, markdown editor, slide thumbnails, slide operations, directive utils, edit state manager
+  - **image/** - Image picker, inserter, interaction handler, properties panel, background handler, deck images resolver
+  - **layout/** - Layout picker, layout manager, grid resizer, grid resizer manager
+  - **navigation/** - Area navigation, area guide manager, slide warning manager
+  - **ui/** - Background picker, insert dropdown, mermaid helper, panel resizer, save manager, slide style panel, theme manager
 - **engine/** - Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager, wheel-handler, freeze-manager)
 - **renderer/** - Display logic (slide-renderer, stage-scaler, theme-manager, content-enhancer, html-export-manager, print-manager, notification)
-- **generation/** - AI-powered slide generation (deck-generator, outline-generator, ai-provider-registry, course-profile-manager)
-- **ui/** - UI actions (ui-actions)
+- **generation/** - AI-powered slide generation (deck-generator, lecture-plan-generator, ai-provider-registry, ai-generation-controller, course-profile-manager, course-profile-modal, lecture-plan-modal, ai-config-modal, generation-templates)
+- **ui/** - UI actions (ui-actions, generation-actions)
 
 ### Entry Points
 
 - [index.html](index.html) - Main deck page (dev mode)
-- [src/main.js](src/main.js) - Application entry point
+- [deck.js](deck.js) - Application entry point and orchestrator
 - [tools/build.mjs](tools/build.mjs) - Build script
 - [tools/pdf.mjs](tools/pdf.mjs) - PDF export script
 
@@ -58,16 +63,21 @@ User-facing documentation lives in [README.md](README.md) and [docs/example.md](
 
 ### When Working with Editor Features
 
-- Live editing: [src/editor/markdown-editor.js](src/editor/markdown-editor.js)
-- Layout picker: [src/editor/layout-picker.js](src/editor/layout-picker.js)
-- Slide thumbnails: [src/editor/slide-thumbnails.js](src/editor/slide-thumbnails.js)
+- Edit controller: [src/editor/core/edit-controller.js](src/editor/core/edit-controller.js)
+- Markdown editor: [src/editor/core/markdown-editor.js](src/editor/core/markdown-editor.js)
+- Layout picker: [src/editor/layout/layout-picker.js](src/editor/layout/layout-picker.js)
+- Slide thumbnails: [src/editor/core/slide-thumbnails.js](src/editor/core/slide-thumbnails.js)
+- Image handling: [src/editor/image/](src/editor/image/)
+- Grid resizer: [src/editor/layout/grid-resizer.js](src/editor/layout/grid-resizer.js)
 
 ### When Working with AI Generation
 
-- Deck generation from outlines: [src/generation/deck-generator.js](src/generation/deck-generator.js)
-- Outline generation: [src/generation/outline-generator.js](src/generation/outline-generator.js)
+- AI generation controller: [src/generation/ai-generation-controller.js](src/generation/ai-generation-controller.js)
+- Deck generation: [src/generation/deck-generator.js](src/generation/deck-generator.js)
+- Lecture plan generation: [src/generation/lecture-plan-generator.js](src/generation/lecture-plan-generator.js)
 - AI provider registry: [src/generation/ai-provider-registry.js](src/generation/ai-provider-registry.js)
 - Course profiles: [src/generation/course-profile-manager.js](src/generation/course-profile-manager.js)
+- Generation templates: [src/generation/generation-templates.js](src/generation/generation-templates.js)
 
 ## Common Tasks
 

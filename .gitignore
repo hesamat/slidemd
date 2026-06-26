@@ -10,7 +10,12 @@ dist/
 decks/
 images/
 deck.md
-nul
+Thumbs.db
+.env
+.env.*
+
+# Build artifacts
+decks/out.md
 
 # Test files
 test-embed.html

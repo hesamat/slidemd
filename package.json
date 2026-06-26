@@ -1,8 +1,29 @@
 {
   "name": "slidemd",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, and diagrams",
+  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, and AI-powered deck generation",
+  "author": "Hesam Alizadeh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hesamat/html-presentation.git"
+  },
+  "homepage": "https://github.com/hesamat/html-presentation#readme",
+  "bugs": {
+    "url": "https://github.com/hesamat/html-presentation/issues"
+  },
+  "keywords": [
+    "markdown",
+    "presentations",
+    "slides",
+    "speaker-view",
+    "code-highlighting",
+    "math",
+    "mermaid",
+    "ai-generation"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "node tools/build.mjs -- docs/example.md",
