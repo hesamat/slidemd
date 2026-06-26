@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 (Unreleased)
+
+### Build Modernization
+
+- Migrated build script from regex-based ESM bundler to esbuild
+- Bundle Mermaid locally (no more CDN dependency in dist builds)
+- Added source maps for dist builds
+- Removed terser dependency (esbuild handles minification)
+- Fixed KaTeX auto-render initialization (deferred until DOM ready)
+- Fixed @title/@header area aliasing in build-time parser
+- Disabled markdown-it linkify to prevent auto-linking filenames
+- Removed manifest/icon link tags from dist (CORS errors under file://)
+
 ## 0.1.0 (2026-06-26)
 
 ### Features
