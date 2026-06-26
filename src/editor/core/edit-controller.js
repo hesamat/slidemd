@@ -375,7 +375,7 @@ export class EditController {
                     );
                 }
 
-                const optionalAreas = ["footer"];
+                const optionalAreas = ["footer", "header"];
                 const missingAreas = layoutAreas.filter(name => !areaNames.includes(name) && !optionalAreas.includes(name));
                 if (missingAreas.length) {
                     this.warnings.showEditorWarning(

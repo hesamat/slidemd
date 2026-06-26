@@ -161,6 +161,10 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
     background: rgba(225, 211, 252, 0.8);
 }
 
+.slide__area--header:empty {
+    display: none;
+}
+
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
     outline: 2px solid rgba(220, 38, 38, 0.7);
     outline-offset: -3px;

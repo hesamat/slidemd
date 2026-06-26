@@ -7,10 +7,10 @@
       "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\nYour main content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "two-column": {
-      "gridTemplate": "\"main media\" \"footer footer\" / 1fr 1fr",
-      "description": "Two equal columns with optional footer",
-      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: two-column\n\n@main\n## Main Content\n\nPrimary content goes here\n\n* Key point\n* Another point\n\n@media\n## Side Content\n\nSupporting information\n\n- Detail one\n- Detail two\n\n@footer\nAdditional context or reference"
+      "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",
+      "description": "Two equal columns with optional header and footer",
+      "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
+      "template": "layout: two-column\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nPrimary content goes here\n\n* Key point\n* Another point\n\n@media\n## Side Content\n\nSupporting information\n\n- Detail one\n- Detail two\n\n@footer\nAdditional context or reference"
     },
     "left-heavy": {
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 2fr 1fr",
