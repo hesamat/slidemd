@@ -7,6 +7,7 @@
 ## SlideMD Syntax Overview
 
 **Basic Structure:**
+
 - Slides are separated by `---` (three dashes on a line by themselves)
 - Optional speaker notes go at the very top of the slide as an HTML comment: `<!-- notes: ... -->`
 - Each slide begins with frontmatter: `layout: preset-name` or `layout: "grid definition" / columns`
@@ -17,26 +18,37 @@
 
 ```markdown
 # Title slide (centered)
+
 layout: title-slide
+
 # Content: @title
 
 # Header + single content
+
 layout: header-content
+
 # Content: @header, @main (optional: @footer)
 
 # Header + two equal columns
+
 layout: header-two-column
+
 # Content: @header, @main, @media
 
 # Two equal columns (no header)
+
 layout: two-column
+
 # Content: @main, @media
 
 # Header + main + sidebar (for activities)
+
 layout: "header header" "main sidebar" / 1fr 300px
+
 # Content: @header, @main, @sidebar
 
 # Other commonly used presets
+
 layout: focus
 layout: left-heavy
 layout: right-heavy
@@ -46,12 +58,14 @@ layout: content-sidebar
 ```
 
 **Slide Options:**
+
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
 - `hidden: true` - Slide hidden by default
 - Speaker notes: `<!-- notes: Your private notes -->` (must be the first line of the slide, before `layout:`)
 
 **Built-in Features:**
+
 - **Code highlighting:** Fenced code blocks with language identifier
 - **Math:** Inline `$x^2$` or block `$$\int$$` using KaTeX
 - **Diagrams:** Mermaid syntax in ```mermaid blocks
@@ -59,6 +73,7 @@ layout: content-sidebar
 - **HTML:** Inline styles for custom formatting
 
 **Activity Guidelines:**
+
 - Each activity takes **2-5 minutes**
 - Students take screenshots and paste into hand-in template with written answers
 
@@ -69,6 +84,7 @@ layout: content-sidebar
 **IMPORTANT: No emojis** - they cause PDF rendering issues. Use text labels or styled HTML spans instead.
 
 **Layout and Syntax Rules:**
+
 - ALWAYS specify `layout:` at the top of each slide (before any `@area` markers)
 - Place `@area` markers on their own lines
 - Content before first `@area` flows into `@main`
@@ -76,9 +92,11 @@ layout: content-sidebar
 - Keep each slide self-contained; do not let a fenced code block accidentally span across slide separators
 
 **For Code Examples:**
+
 - Keep examples under 6 lines
 
 **For Concepts:**
+
 - Start with `##` heading for concept name
 - Use **bold** for key terms on first introduction
 - Use `code font` for syntax elements
@@ -100,13 +118,15 @@ background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
 @title
 
 # Course Topic
+
 ## [Course Code] - Week X
+
 ### Instructor Name
 ```
 
 ### Activity Slide (simple example)
 
-```markdown
+````markdown
 <!-- notes: Give students 3-5 minutes -->
 
 layout: "header header" "main sidebar" / 1fr 300px
@@ -125,6 +145,7 @@ def mystery(x):
 
 print(mystery([1, 2]))
 ```
+````
 
 @sidebar
 
@@ -133,6 +154,7 @@ print(mystery([1, 2]))
 > <div style="padding: 4px 12px; background: rgba(59, 130, 246, 0.12); color: #2563eb; border-radius: 6px; text-align: center"><b>Hand-in update</b></div>
 > <br />
 > <span style="text-align: center">Screenshot your answer for the hand-in template.</span>
+
 ```
 
 **Activity Instructions Guidelines:**
@@ -168,3 +190,4 @@ print(mystery([1, 2]))
 **Output format:**
 1. First, provide the complete slide deck markdown (starting with the first slide's layout declaration)
 2. Do NOT include any explanatory text outside of these two sections
+```

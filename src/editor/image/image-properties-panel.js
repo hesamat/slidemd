@@ -21,78 +21,78 @@
  */
 
 const SHADOW_PRESETS = [
-    { key: 'none', label: 'None', value: 'none' },
-    { key: 'subtle', label: 'Subtle', value: '0 2px 6px rgba(0,0,0,0.25)' },
-    { key: 'medium', label: 'Medium', value: '0 6px 16px rgba(0,0,0,0.35)' },
-    { key: 'strong', label: 'Strong', value: '0 12px 32px rgba(0,0,0,0.5)' },
+  { key: "none", label: "None", value: "none" },
+  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(0,0,0,0.25)" },
+  { key: "medium", label: "Medium", value: "0 6px 16px rgba(0,0,0,0.35)" },
+  { key: "strong", label: "Strong", value: "0 12px 32px rgba(0,0,0,0.5)" },
 ];
 
 export class ImagePropertiesPanel {
-    static el = null;
-    static _wired = false;
-    static _getMarkdown = null;
-    static _setMarkdown = null;
-    static _aspectLocked = false;
-    static _lastRatio = null;
+  static el = null;
+  static _wired = false;
+  static _getMarkdown = null;
+  static _setMarkdown = null;
+  static _aspectLocked = false;
+  static _lastRatio = null;
 
-    /**
-     * Initialize with callbacks that read/write the slide markdown.
-     */
-    static init(getMarkdown, setMarkdown) {
-        this._getMarkdown = getMarkdown;
-        this._setMarkdown = setMarkdown;
+  /**
+   * Initialize with callbacks that read/write the slide markdown.
+   */
+  static init(getMarkdown, setMarkdown) {
+    this._getMarkdown = getMarkdown;
+    this._setMarkdown = setMarkdown;
+  }
+
+  /**
+   * Show the panel for the given image with its current settings.
+   * The panel always opens on the first tab (Size) — the two most-used
+   * actions (Replace / Delete) live there, so a fresh open should
+   * surface them immediately rather than resuming whatever the user
+   * had selected last time.
+   * @param {HTMLElement} img
+   * @param {object} settings - Parsed style settings (see ImageInteractionHandler._readSettings).
+   */
+  static show(img, settings) {
+    if (!this.el) this._buildDom();
+    this._syncUI(settings);
+    this._activateTab("size");
+    this.el.classList.remove("webdeck-hidden");
+
+    const rect = img.getBoundingClientRect();
+    const panelH = this.el.offsetHeight || 220;
+    const panelW = this.el.offsetWidth || 300;
+
+    let top = rect.bottom + window.scrollY + 6;
+    let left = rect.left + window.scrollX + (rect.width - panelW) / 2;
+
+    left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
+    if (top + panelH > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - panelH - 6;
     }
+    if (top < window.scrollY + 8) top = window.scrollY + 8;
 
-    /**
-     * Show the panel for the given image with its current settings.
-     * The panel always opens on the first tab (Size) — the two most-used
-     * actions (Replace / Delete) live there, so a fresh open should
-     * surface them immediately rather than resuming whatever the user
-     * had selected last time.
-     * @param {HTMLElement} img
-     * @param {object} settings - Parsed style settings (see ImageInteractionHandler._readSettings).
-     */
-    static show(img, settings) {
-        if (!this.el) this._buildDom();
-        this._syncUI(settings);
-        this._activateTab('size');
-        this.el.classList.remove('webdeck-hidden');
+    this.el.style.top = `${top}px`;
+    this.el.style.left = `${left}px`;
+  }
 
-        const rect = img.getBoundingClientRect();
-        const panelH = this.el.offsetHeight || 220;
-        const panelW = this.el.offsetWidth || 300;
+  static hide() {
+    if (this.el) this.el.classList.add("webdeck-hidden");
+  }
 
-        let top = rect.bottom + window.scrollY + 6;
-        let left = rect.left + window.scrollX + (rect.width - panelW) / 2;
+  static isVisible() {
+    return this.el && !this.el.classList.contains("webdeck-hidden");
+  }
 
-        left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
-        if (top + panelH > window.innerHeight + window.scrollY) {
-            top = rect.top + window.scrollY - panelH - 6;
-        }
-        if (top < window.scrollY + 8) top = window.scrollY + 8;
+  // ── Panel UI ──────────────────────────────────────────────────────────
 
-        this.el.style.top = `${top}px`;
-        this.el.style.left = `${left}px`;
-    }
+  static _buildDom() {
+    const el = document.createElement("div");
+    el.id = "imagePropertiesPanel";
+    el.className = "image-properties-panel webdeck-hidden";
+    el.setAttribute("role", "toolbar");
+    el.setAttribute("aria-label", "Image properties");
 
-    static hide() {
-        if (this.el) this.el.classList.add('webdeck-hidden');
-    }
-
-    static isVisible() {
-        return this.el && !this.el.classList.contains('webdeck-hidden');
-    }
-
-    // ── Panel UI ──────────────────────────────────────────────────────────
-
-    static _buildDom() {
-        const el = document.createElement('div');
-        el.id = 'imagePropertiesPanel';
-        el.className = 'image-properties-panel webdeck-hidden';
-        el.setAttribute('role', 'toolbar');
-        el.setAttribute('aria-label', 'Image properties');
-
-        el.innerHTML = `
+    el.innerHTML = `
             <div class="image-properties-panel__tabs" role="tablist">
                 <button type="button" class="image-properties-panel__tab active" data-tab="size" role="tab">Size</button>
                 <button type="button" class="image-properties-panel__tab" data-tab="position" role="tab">Position</button>
@@ -172,7 +172,7 @@ export class ImagePropertiesPanel {
                     <div class="image-properties-panel__row">
                         <span class="image-properties-panel__field-label">Shadow</span>
                         <div class="image-properties-panel__seg" role="group" aria-label="Shadow">
-                            ${SHADOW_PRESETS.map((p) => `<button type="button" class="image-properties-panel__seg-btn" data-shadow="${p.key}" title="${p.label}">${p.label}</button>`).join('')}
+                            ${SHADOW_PRESETS.map((p) => `<button type="button" class="image-properties-panel__seg-btn" data-shadow="${p.key}" title="${p.label}">${p.label}</button>`).join("")}
                         </div>
                     </div>
                     <div class="image-properties-panel__row">
@@ -192,211 +192,253 @@ export class ImagePropertiesPanel {
             </div>
         `;
 
-        document.body.appendChild(el);
-        this.el = el;
-        this._wireEvents();
+    document.body.appendChild(el);
+    this.el = el;
+    this._wireEvents();
+  }
+
+  /**
+   * Activate one of the panel's tabs (and matching content panel).
+   * The active state lives entirely in the DOM `.active` class — we
+   * don't remember it across show/hide so the panel always opens
+   * back on the first tab (the one with Replace / Delete).
+   */
+  static _activateTab(name) {
+    if (!this.el) return;
+    this.el
+      .querySelectorAll(".image-properties-panel__tab")
+      .forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+    this.el
+      .querySelectorAll(".image-properties-panel__panel")
+      .forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
+  }
+
+  static _wireEvents() {
+    if (this._wired) return;
+    this._wired = true;
+
+    // Dismiss when clicking outside the panel and outside images
+    document.addEventListener("mousedown", (e) => {
+      if (!this.isVisible()) return;
+      if (this.el.contains(e.target)) return;
+      if (e.target.closest("img")) return;
+      if (e.target.closest(".image-overlay")) return;
+      this.hide();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.isVisible()) this.hide();
+    });
+
+    // Tab switching
+    this.el.querySelectorAll(".image-properties-panel__tab").forEach((tab) => {
+      tab.addEventListener("click", () => this._activateTab(tab.dataset.tab));
+    });
+
+    // Number/text/range inputs that map directly to settings fields
+    this.el.querySelectorAll("[data-field]").forEach((input) => {
+      const handler = () => this._applyFromInput(input);
+      input.addEventListener("change", handler);
+      if (input.type === "range") {
+        input.addEventListener("input", handler);
+      } else if (input.tagName === "INPUT") {
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handler();
+          }
+        });
+      }
+    });
+
+    // Action buttons
+    this.el.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => this._handleAction(btn.dataset.action, btn));
+    });
+
+    // Shadow preset buttons
+    this.el.querySelectorAll("[data-shadow]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.shadow;
+        const preset = SHADOW_PRESETS.find((p) => p.key === key);
+        if (!preset) return;
+        this.el
+          .querySelectorAll("[data-shadow]")
+          .forEach((b) => b.classList.toggle("active", b === btn));
+        import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
+          ImageInteractionHandler.applySettings({ boxShadow: preset.value });
+        });
+      });
+    });
+  }
+
+  static async _handleAction(action, btn) {
+    const { ImageInteractionHandler } = await import("./image-interaction-handler.js");
+
+    switch (action) {
+      case "toggle-lock":
+        this._aspectLocked = !this._aspectLocked;
+        btn.setAttribute("aria-pressed", String(this._aspectLocked));
+        btn.textContent = this._aspectLocked ? "🔒" : "🔓";
+        ImageInteractionHandler.setAspectLock(this._aspectLocked);
+        break;
+      case "small":
+        this._applyPreset({ width: 240 });
+        break;
+      case "medium":
+        this._applyPreset({ width: 480 });
+        break;
+      case "large":
+        this._applyPreset({ width: 720 });
+        break;
+      case "full":
+        ImageInteractionHandler.fitToWidth();
+        break;
+      case "center":
+        ImageInteractionHandler.centerOnSlide();
+        break;
+      case "fit":
+        ImageInteractionHandler.fitToWidth();
+        break;
+      case "front":
+        ImageInteractionHandler.bringToFront();
+        break;
+      case "back":
+        ImageInteractionHandler.sendToBack();
+        break;
+      case "rot-left":
+        ImageInteractionHandler.rotateBy(-90);
+        break;
+      case "rot-right":
+        ImageInteractionHandler.rotateBy(90);
+        break;
+      case "pill":
+        ImageInteractionHandler.applySettings({ borderRadius: 999 });
+        break;
+      case "delete":
+        ImageInteractionHandler.deleteSelected();
+        this.hide();
+        break;
+      case "replace":
+        this._openReplacePicker();
+        break;
+    }
+  }
+
+  static _applyPreset(overrides) {
+    const current = this._collectSettings();
+    const settings = { ...current, ...overrides };
+    import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
+      ImageInteractionHandler.applySettings(settings);
+    });
+  }
+
+  static _applyFromInput(input) {
+    const field = input.dataset.field;
+    let value = input.value;
+    if (input.type === "range" || input.type === "number") {
+      value = parseFloat(input.value);
+      if (!Number.isFinite(value)) value = undefined;
+    }
+    const settings = { [field]: value };
+
+    // Aspect-ratio lock for width/height edits
+    if ((field === "width" || field === "height") && this._aspectLocked) {
+      const ratio = this._lastRatio || null;
+      if (ratio) {
+        if (field === "width") settings.height = Math.round(value / ratio);
+        else settings.width = Math.round(value * ratio);
+      }
     }
 
-    /**
-     * Activate one of the panel's tabs (and matching content panel).
-     * The active state lives entirely in the DOM `.active` class — we
-     * don't remember it across show/hide so the panel always opens
-     * back on the first tab (the one with Replace / Delete).
-     */
-    static _activateTab(name) {
-        if (!this.el) return;
-        this.el.querySelectorAll('.image-properties-panel__tab')
-            .forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-        this.el.querySelectorAll('.image-properties-panel__panel')
-            .forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
+    // Opacity is 0–100 in UI; convert to 0–1
+    if (field === "opacity") {
+      settings.opacity = value / 100;
     }
 
-    static _wireEvents() {
-        if (this._wired) return;
-        this._wired = true;
+    import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
+      ImageInteractionHandler.applySettings(settings);
+    });
+  }
 
-        // Dismiss when clicking outside the panel and outside images
-        document.addEventListener('mousedown', (e) => {
-            if (!this.isVisible()) return;
-            if (this.el.contains(e.target)) return;
-            if (e.target.closest('img')) return;
-            if (e.target.closest('.image-overlay')) return;
-            this.hide();
-        });
+  static _openReplacePicker() {
+    import("./image-picker.js").then(({ ImagePicker }) => {
+      ImagePicker.show(
+        (path) => {
+          import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
+            ImageInteractionHandler.updateAttribute("src", path);
+          });
+        },
+        { pathOnly: true },
+      );
+    });
+  }
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.isVisible()) this.hide();
-        });
+  static _collectSettings() {
+    const settings = {};
+    this.el.querySelectorAll("[data-field]").forEach((input) => {
+      const field = input.dataset.field;
+      if (input.type === "range" || input.type === "number") {
+        const v = parseFloat(input.value);
+        if (Number.isFinite(v)) settings[field] = field === "opacity" ? v / 100 : v;
+      } else if (input.value) {
+        settings[field] = input.value;
+      }
+    });
+    return settings;
+  }
 
-        // Tab switching
-        this.el.querySelectorAll('.image-properties-panel__tab').forEach((tab) => {
-            tab.addEventListener('click', () => this._activateTab(tab.dataset.tab));
-        });
+  static _readWidth() {
+    return parseFloat(this.el.querySelector('[data-field="width"]')?.value) || 400;
+  }
+  static _readHeight() {
+    return parseFloat(this.el.querySelector('[data-field="height"]')?.value) || 300;
+  }
 
-        // Number/text/range inputs that map directly to settings fields
-        this.el.querySelectorAll('[data-field]').forEach((input) => {
-            const handler = () => this._applyFromInput(input);
-            input.addEventListener('change', handler);
-            if (input.type === 'range') {
-                input.addEventListener('input', handler);
-            } else if (input.tagName === 'INPUT') {
-                input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); handler(); }
-                });
-            }
-        });
+  /**
+   * Sync the panel UI to reflect the given settings.
+   * @param {object} s
+   */
+  static _syncUI(s) {
+    if (!this.el) return;
+    const setVal = (field, val) => {
+      const input = this.el.querySelector(`[data-field="${field}"]`);
+      if (!input) return;
+      if (input.type === "range" || input.type === "number") {
+        input.value = Number.isFinite(val) ? val : "";
+      } else {
+        input.value = val ?? "";
+      }
+    };
+    setVal("width", s.width);
+    setVal("height", s.height);
+    setVal("left", s.left);
+    setVal("top", s.top);
+    setVal("borderRadius", s.borderRadius);
+    setVal("alt", s.alt);
+    setVal("opacity", Number.isFinite(s.opacity) ? Math.round(s.opacity * 100) : 100);
+    setVal("rotation", Number.isFinite(s.rotation) ? s.rotation : 0);
 
-        // Action buttons
-        this.el.querySelectorAll('[data-action]').forEach((btn) => {
-            btn.addEventListener('click', () => this._handleAction(btn.dataset.action, btn));
-        });
+    // Display labels
+    const opDisplay = this.el.querySelector('[data-display="opacity"]');
+    if (opDisplay) opDisplay.textContent = `${Math.round((s.opacity ?? 1) * 100)}%`;
+    const rotDisplay = this.el.querySelector('[data-display="rotation"]');
+    if (rotDisplay) rotDisplay.textContent = `${Math.round(s.rotation ?? 0)}°`;
 
-        // Shadow preset buttons
-        this.el.querySelectorAll('[data-shadow]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const key = btn.dataset.shadow;
-                const preset = SHADOW_PRESETS.find((p) => p.key === key);
-                if (!preset) return;
-                this.el.querySelectorAll('[data-shadow]').forEach((b) => b.classList.toggle('active', b === btn));
-                import('./image-interaction-handler.js').then(({ ImageInteractionHandler }) => {
-                    ImageInteractionHandler.applySettings({ boxShadow: preset.value });
-                });
-            });
-        });
-    }
+    // Shadow preset active state
+    this.el
+      .querySelectorAll("[data-shadow]")
+      .forEach((b) =>
+        b.classList.toggle("active", b.dataset.shadow === this._shadowKeyFromValue(s.boxShadow)),
+      );
 
-    static async _handleAction(action, btn) {
-        const { ImageInteractionHandler } = await import('./image-interaction-handler.js');
+    // Track last aspect ratio for lock behaviour
+    if (s.width && s.height) this._lastRatio = s.width / s.height;
+  }
 
-        switch (action) {
-            case 'toggle-lock':
-                this._aspectLocked = !this._aspectLocked;
-                btn.setAttribute('aria-pressed', String(this._aspectLocked));
-                btn.textContent = this._aspectLocked ? '🔒' : '🔓';
-                ImageInteractionHandler.setAspectLock(this._aspectLocked);
-                break;
-            case 'small': this._applyPreset({ width: 240 }); break;
-            case 'medium': this._applyPreset({ width: 480 }); break;
-            case 'large': this._applyPreset({ width: 720 }); break;
-            case 'full': ImageInteractionHandler.fitToWidth(); break;
-            case 'center': ImageInteractionHandler.centerOnSlide(); break;
-            case 'fit': ImageInteractionHandler.fitToWidth(); break;
-            case 'front': ImageInteractionHandler.bringToFront(); break;
-            case 'back': ImageInteractionHandler.sendToBack(); break;
-            case 'rot-left': ImageInteractionHandler.rotateBy(-90); break;
-            case 'rot-right': ImageInteractionHandler.rotateBy(90); break;
-            case 'pill': ImageInteractionHandler.applySettings({ borderRadius: 999 }); break;
-            case 'delete': ImageInteractionHandler.deleteSelected(); this.hide(); break;
-            case 'replace': this._openReplacePicker(); break;
-        }
-    }
-
-    static _applyPreset(overrides) {
-        const current = this._collectSettings();
-        const settings = { ...current, ...overrides };
-        import('./image-interaction-handler.js').then(({ ImageInteractionHandler }) => {
-            ImageInteractionHandler.applySettings(settings);
-        });
-    }
-
-    static _applyFromInput(input) {
-        const field = input.dataset.field;
-        let value = input.value;
-        if (input.type === 'range' || input.type === 'number') {
-            value = parseFloat(input.value);
-            if (!Number.isFinite(value)) value = undefined;
-        }
-        const settings = { [field]: value };
-
-        // Aspect-ratio lock for width/height edits
-        if ((field === 'width' || field === 'height') && this._aspectLocked) {
-            const ratio = this._lastRatio || null;
-            if (ratio) {
-                if (field === 'width') settings.height = Math.round(value / ratio);
-                else settings.width = Math.round(value * ratio);
-            }
-        }
-
-        // Opacity is 0–100 in UI; convert to 0–1
-        if (field === 'opacity') {
-            settings.opacity = value / 100;
-        }
-
-        import('./image-interaction-handler.js').then(({ ImageInteractionHandler }) => {
-            ImageInteractionHandler.applySettings(settings);
-        });
-    }
-
-    static _openReplacePicker() {
-        import('./image-picker.js').then(({ ImagePicker }) => {
-            ImagePicker.show(
-                (path) => {
-                    import('./image-interaction-handler.js').then(({ ImageInteractionHandler }) => {
-                        ImageInteractionHandler.updateAttribute('src', path);
-                    });
-                },
-                { pathOnly: true }
-            );
-        });
-    }
-
-    static _collectSettings() {
-        const settings = {};
-        this.el.querySelectorAll('[data-field]').forEach((input) => {
-            const field = input.dataset.field;
-            if (input.type === 'range' || input.type === 'number') {
-                const v = parseFloat(input.value);
-                if (Number.isFinite(v)) settings[field] = field === 'opacity' ? v / 100 : v;
-            } else if (input.value) {
-                settings[field] = input.value;
-            }
-        });
-        return settings;
-    }
-
-    static _readWidth() { return parseFloat(this.el.querySelector('[data-field="width"]')?.value) || 400; }
-    static _readHeight() { return parseFloat(this.el.querySelector('[data-field="height"]')?.value) || 300; }
-
-    /**
-     * Sync the panel UI to reflect the given settings.
-     * @param {object} s
-     */
-    static _syncUI(s) {
-        if (!this.el) return;
-        const setVal = (field, val) => {
-            const input = this.el.querySelector(`[data-field="${field}"]`);
-            if (!input) return;
-            if (input.type === 'range' || input.type === 'number') {
-                input.value = Number.isFinite(val) ? val : '';
-            } else {
-                input.value = val ?? '';
-            }
-        };
-        setVal('width', s.width);
-        setVal('height', s.height);
-        setVal('left', s.left);
-        setVal('top', s.top);
-        setVal('borderRadius', s.borderRadius);
-        setVal('alt', s.alt);
-        setVal('opacity', Number.isFinite(s.opacity) ? Math.round(s.opacity * 100) : 100);
-        setVal('rotation', Number.isFinite(s.rotation) ? s.rotation : 0);
-
-        // Display labels
-        const opDisplay = this.el.querySelector('[data-display="opacity"]');
-        if (opDisplay) opDisplay.textContent = `${Math.round((s.opacity ?? 1) * 100)}%`;
-        const rotDisplay = this.el.querySelector('[data-display="rotation"]');
-        if (rotDisplay) rotDisplay.textContent = `${Math.round(s.rotation ?? 0)}°`;
-
-        // Shadow preset active state
-        this.el.querySelectorAll('[data-shadow]').forEach((b) => b.classList.toggle('active', b.dataset.shadow === this._shadowKeyFromValue(s.boxShadow)));
-
-        // Track last aspect ratio for lock behaviour
-        if (s.width && s.height) this._lastRatio = s.width / s.height;
-    }
-
-    static _shadowKeyFromValue(value) {
-        if (!value || value === 'none') return 'none';
-        const preset = SHADOW_PRESETS.find((p) => p.value === value);
-        return preset ? preset.key : '';
-    }
+  static _shadowKeyFromValue(value) {
+    if (!value || value === "none") return "none";
+    const preset = SHADOW_PRESETS.find((p) => p.value === value);
+    return preset ? preset.key : "";
+  }
 }

@@ -1,0 +1,6 @@
+dist/
+node_modules/
+tools/
+decks/
+*.mjs
+package-lock.json

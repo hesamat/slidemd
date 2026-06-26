@@ -7,195 +7,203 @@ import { AIProviderRegistry } from "./ai-provider-registry.js";
 import { Notification } from "../renderer/notification.js";
 
 export class DeckGenerator {
-    static async generateDeckFromPlan(profile, lecturePlan, options = {}) {
-        if (!lecturePlan || !Array.isArray(lecturePlan.rows) || lecturePlan.rows.length === 0) {
-            Notification.error("Lecture plan is required");
-            throw new Error("Lecture plan is required");
-        }
-
-        const provider = AIProviderRegistry.getProvider(profile.aiProvider);
-        if (!provider) {
-            Notification.error("AI provider not configured.");
-            throw new Error("AI provider not configured");
-        }
-
-        const estimatedSlideCount = this.estimateSlideCountFromPlan(lecturePlan, options.activityCount);
-
-        try {
-            Notification.info("Generating deck markdown...");
-
-            const response = await AIProviderRegistry.generateCompletion(
-                profile.aiProvider,
-                {
-                    messages: [
-                        { role: "system", content: this.getSystemPrompt() },
-                        {
-                            role: "user",
-                            content: this.buildPlanDrivenPrompt(profile, lecturePlan, {
-                                estimatedSlideCount,
-                                lastWeekSummary: options.lastWeekSummary,
-                                activityCount: Math.max(0, parseInt(options.activityCount, 10) || 0)
-                            })
-                        }
-                    ],
-                    maxTokens: 20000,
-                    timeoutMs: 160000,
-                    signal: options.signal
-                }
-            );
-
-            const text = this.extractResponseText(response);
-            let markdown = this.extractDeckMarkdown(text);
-            markdown = this.sanitizeMarkdown(markdown);
-
-            const validation = this.validateMarkdown(markdown, estimatedSlideCount);
-            if (!validation.valid) {
-                const err = new Error("Generated markdown is missing required slide structure.");
-                err.rawResponse = text;
-                err.validationErrors = validation.errors;
-                err.validationWarnings = validation.warnings;
-                throw err;
-            }
-
-            if (validation.warnings.length > 0) {
-                Notification.warning(validation.warnings.join(" | "));
-            }
-
-            Notification.success("Deck generated successfully!");
-            return markdown;
-        } catch (error) {
-            console.error("Deck generation failed:", error);
-
-            if (error.name === "AbortError") {
-                throw error;
-            }
-
-            if (error.message.includes("401")) {
-                Notification.error("Invalid API key. Please check your AI configuration.");
-            } else if (error.message.includes("429")) {
-                Notification.error("Rate limit exceeded. Please try again later.");
-            } else {
-                Notification.error("Failed to generate deck: " + error.message);
-            }
-
-            throw error;
-        }
+  static async generateDeckFromPlan(profile, lecturePlan, options = {}) {
+    if (!lecturePlan || !Array.isArray(lecturePlan.rows) || lecturePlan.rows.length === 0) {
+      Notification.error("Lecture plan is required");
+      throw new Error("Lecture plan is required");
     }
 
-    /**
-     * Generate full markdown deck in one AI call.
-     * @param {Object} profile - Course profile object
-     * @param {string} topic - Topic for the deck
-     * @param {Object} options - Generation options
-     * @param {number} options.slideCount - Number of slides
-     * @param {boolean} options.includeActivities - Include in-class activities
-     * @param {string} options.lastWeekSummary - Optional summary of previous session
-     * @param {AbortSignal} options.signal - Optional abort signal
-     * @returns {Promise<string>} Complete markdown deck
-     */
-    static async generateDeck(profile, topic, options = {}) {
-        if (!topic || !topic.trim()) {
-            Notification.error("Topic is required");
-            throw new Error("Topic is required");
-        }
-
-        const provider = AIProviderRegistry.getProvider(profile.aiProvider);
-        if (!provider) {
-            Notification.error("AI provider not configured.");
-            throw new Error("AI provider not configured");
-        }
-
-        const slideCount = options.slideCount || profile.defaultSlideCount || 15;
-        const includeActivities = options.includeActivities !== undefined ? options.includeActivities : profile.includeActivities;
-
-        try {
-            Notification.info("Generating deck markdown...");
-
-            const prompt = this.buildSinglePassPrompt(profile, topic, {
-                slideCount,
-                includeActivities,
-                lastWeekSummary: options.lastWeekSummary
-            });
-
-            const response = await AIProviderRegistry.generateCompletion(
-                profile.aiProvider,
-                {
-                    messages: [
-                        { role: "system", content: this.getSystemPrompt() },
-                        { role: "user", content: prompt }
-                    ],
-                    maxTokens: 20000,
-                    timeoutMs: 160000,
-                    signal: options.signal
-                }
-            );
-
-            const text = this.extractResponseText(response);
-            let markdown = this.extractDeckMarkdown(text);
-            markdown = this.sanitizeMarkdown(markdown);
-
-            const validationTrace = [];
-
-            let validation = this.validateMarkdown(markdown, slideCount);
-            validationTrace.push({
-                stage: "initial",
-                valid: validation.valid,
-                errors: [...validation.errors],
-                warnings: [...validation.warnings],
-                slideCountDetected: this.countSlides(markdown)
-            });
-            console.debug("[DeckGenerator][SinglePass] Validation (initial)", validationTrace[validationTrace.length - 1]);
-
-            if (!validation.valid) {
-                const err = new Error("Generated markdown is missing required slide structure.");
-                err.rawResponse = text;
-                err.validationErrors = validation.errors;
-                err.validationWarnings = validation.warnings;
-                err.validationTrace = validationTrace;
-                console.error("[DeckGenerator][SinglePass] Validation failed after retries", validationTrace);
-                throw err;
-            }
-
-            if (validation.warnings.length > 0) {
-                console.warn("[DeckGenerator][SinglePass] Deck generated with warnings:", validation.warnings);
-                Notification.warning(validation.warnings.join(" | "));
-            }
-
-            Notification.success("Deck generated successfully!");
-            return markdown;
-        } catch (error) {
-            console.error("Deck generation failed:", error);
-
-            if (error.name === "AbortError") {
-                throw error;
-            }
-
-            if (error.message.includes("401")) {
-                Notification.error("Invalid API key. Please check your AI configuration.");
-            } else if (error.message.includes("429")) {
-                Notification.error("Rate limit exceeded. Please try again later.");
-            } else {
-                Notification.error("Failed to generate deck: " + error.message);
-            }
-
-            throw error;
-        }
+    const provider = AIProviderRegistry.getProvider(profile.aiProvider);
+    if (!provider) {
+      Notification.error("AI provider not configured.");
+      throw new Error("AI provider not configured");
     }
 
-    /**
-     * System prompt for one-step deck generation.
-     * @returns {string} System prompt
-     */
-    static getSystemPrompt() {
-        return "You are an expert instructional designer creating markdown slide decks for a 16:9 presentation system. Each slide uses a named layout that determines its grid structure. Choose layouts strategically to match each slide's content purpose and maintain visual variety across the deck. Write concise, visual slides — avoid walls of text.";
+    const estimatedSlideCount = this.estimateSlideCountFromPlan(lecturePlan, options.activityCount);
+
+    try {
+      Notification.info("Generating deck markdown...");
+
+      const response = await AIProviderRegistry.generateCompletion(profile.aiProvider, {
+        messages: [
+          { role: "system", content: this.getSystemPrompt() },
+          {
+            role: "user",
+            content: this.buildPlanDrivenPrompt(profile, lecturePlan, {
+              estimatedSlideCount,
+              lastWeekSummary: options.lastWeekSummary,
+              activityCount: Math.max(0, parseInt(options.activityCount, 10) || 0),
+            }),
+          },
+        ],
+        maxTokens: 20000,
+        timeoutMs: 160000,
+        signal: options.signal,
+      });
+
+      const text = this.extractResponseText(response);
+      let markdown = this.extractDeckMarkdown(text);
+      markdown = this.sanitizeMarkdown(markdown);
+
+      const validation = this.validateMarkdown(markdown, estimatedSlideCount);
+      if (!validation.valid) {
+        const err = new Error("Generated markdown is missing required slide structure.");
+        err.rawResponse = text;
+        err.validationErrors = validation.errors;
+        err.validationWarnings = validation.warnings;
+        throw err;
+      }
+
+      if (validation.warnings.length > 0) {
+        Notification.warning(validation.warnings.join(" | "));
+      }
+
+      Notification.success("Deck generated successfully!");
+      return markdown;
+    } catch (error) {
+      console.error("Deck generation failed:", error);
+
+      if (error.name === "AbortError") {
+        throw error;
+      }
+
+      if (error.message.includes("401")) {
+        Notification.error("Invalid API key. Please check your AI configuration.");
+      } else if (error.message.includes("429")) {
+        Notification.error("Rate limit exceeded. Please try again later.");
+      } else {
+        Notification.error("Failed to generate deck: " + error.message);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Generate full markdown deck in one AI call.
+   * @param {Object} profile - Course profile object
+   * @param {string} topic - Topic for the deck
+   * @param {Object} options - Generation options
+   * @param {number} options.slideCount - Number of slides
+   * @param {boolean} options.includeActivities - Include in-class activities
+   * @param {string} options.lastWeekSummary - Optional summary of previous session
+   * @param {AbortSignal} options.signal - Optional abort signal
+   * @returns {Promise<string>} Complete markdown deck
+   */
+  static async generateDeck(profile, topic, options = {}) {
+    if (!topic || !topic.trim()) {
+      Notification.error("Topic is required");
+      throw new Error("Topic is required");
     }
 
-    static buildPlanDrivenPrompt(profile, lecturePlan, options) {
-        const planRows = lecturePlan.rows.map((row, index) => {
-            return `${index + 1}. [${row.type.toUpperCase()}] ${row.durationMinutes} min | target ${row.targetSlides} slide${row.targetSlides === 1 ? "" : "s"} - ${row.title}${row.notes ? `\n   Goal: ${row.notes}` : ""}`;
-        }).join("\n");
+    const provider = AIProviderRegistry.getProvider(profile.aiProvider);
+    if (!provider) {
+      Notification.error("AI provider not configured.");
+      throw new Error("AI provider not configured");
+    }
 
-        return `Generate a COMPLETE markdown slide deck from this approved lecture plan.
+    const slideCount = options.slideCount || profile.defaultSlideCount || 15;
+    const includeActivities =
+      options.includeActivities !== undefined
+        ? options.includeActivities
+        : profile.includeActivities;
+
+    try {
+      Notification.info("Generating deck markdown...");
+
+      const prompt = this.buildSinglePassPrompt(profile, topic, {
+        slideCount,
+        includeActivities,
+        lastWeekSummary: options.lastWeekSummary,
+      });
+
+      const response = await AIProviderRegistry.generateCompletion(profile.aiProvider, {
+        messages: [
+          { role: "system", content: this.getSystemPrompt() },
+          { role: "user", content: prompt },
+        ],
+        maxTokens: 20000,
+        timeoutMs: 160000,
+        signal: options.signal,
+      });
+
+      const text = this.extractResponseText(response);
+      let markdown = this.extractDeckMarkdown(text);
+      markdown = this.sanitizeMarkdown(markdown);
+
+      const validationTrace = [];
+
+      let validation = this.validateMarkdown(markdown, slideCount);
+      validationTrace.push({
+        stage: "initial",
+        valid: validation.valid,
+        errors: [...validation.errors],
+        warnings: [...validation.warnings],
+        slideCountDetected: this.countSlides(markdown),
+      });
+      console.debug(
+        "[DeckGenerator][SinglePass] Validation (initial)",
+        validationTrace[validationTrace.length - 1],
+      );
+
+      if (!validation.valid) {
+        const err = new Error("Generated markdown is missing required slide structure.");
+        err.rawResponse = text;
+        err.validationErrors = validation.errors;
+        err.validationWarnings = validation.warnings;
+        err.validationTrace = validationTrace;
+        console.error(
+          "[DeckGenerator][SinglePass] Validation failed after retries",
+          validationTrace,
+        );
+        throw err;
+      }
+
+      if (validation.warnings.length > 0) {
+        console.warn(
+          "[DeckGenerator][SinglePass] Deck generated with warnings:",
+          validation.warnings,
+        );
+        Notification.warning(validation.warnings.join(" | "));
+      }
+
+      Notification.success("Deck generated successfully!");
+      return markdown;
+    } catch (error) {
+      console.error("Deck generation failed:", error);
+
+      if (error.name === "AbortError") {
+        throw error;
+      }
+
+      if (error.message.includes("401")) {
+        Notification.error("Invalid API key. Please check your AI configuration.");
+      } else if (error.message.includes("429")) {
+        Notification.error("Rate limit exceeded. Please try again later.");
+      } else {
+        Notification.error("Failed to generate deck: " + error.message);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * System prompt for one-step deck generation.
+   * @returns {string} System prompt
+   */
+  static getSystemPrompt() {
+    return "You are an expert instructional designer creating markdown slide decks for a 16:9 presentation system. Each slide uses a named layout that determines its grid structure. Choose layouts strategically to match each slide's content purpose and maintain visual variety across the deck. Write concise, visual slides — avoid walls of text.";
+  }
+
+  static buildPlanDrivenPrompt(profile, lecturePlan, options) {
+    const planRows = lecturePlan.rows
+      .map((row, index) => {
+        return `${index + 1}. [${row.type.toUpperCase()}] ${row.durationMinutes} min | target ${row.targetSlides} slide${row.targetSlides === 1 ? "" : "s"} - ${row.title}${row.notes ? `\n   Goal: ${row.notes}` : ""}`;
+      })
+      .join("\n");
+
+    return `Generate a COMPLETE markdown slide deck from this approved lecture plan.
 
 ## Course Context
 Course: ${profile.name}
@@ -203,7 +211,7 @@ ${profile.description ? `Description: ${profile.description}` : ""}
 ${profile.prerequisites ? `Prerequisites: ${profile.prerequisites}` : ""}
 
 ## Learning Objectives
-${(profile.learningObjectives || []).map(obj => `- ${obj}`).join("\n")}
+${(profile.learningObjectives || []).map((obj) => `- ${obj}`).join("\n")}
 
 ${options.lastWeekSummary ? `## Previous Session Summary\n${options.lastWeekSummary}\n` : ""}
 
@@ -338,19 +346,19 @@ You are building a motor control panel for a factory floor.
 - DO NOT write meta-authoring labels like "Left:", "Right:", "Main:", "Media:", "Sidebar:", "Secondary:".
 
 Return only the final markdown deck.`;
-    }
+  }
 
-    /**
-     * Build single-pass markdown generation prompt.
-     * @param {Object} profile - Course profile
-     * @param {string} topic - Deck topic
-     * @param {Object} options - Generation options
-     * @returns {string} Prompt
-     */
-    static buildSinglePassPrompt(profile, topic, options) {
-        const { slideCount, includeActivities, lastWeekSummary } = options;
+  /**
+   * Build single-pass markdown generation prompt.
+   * @param {Object} profile - Course profile
+   * @param {string} topic - Deck topic
+   * @param {Object} options - Generation options
+   * @returns {string} Prompt
+   */
+  static buildSinglePassPrompt(profile, topic, options) {
+    const { slideCount, includeActivities, lastWeekSummary } = options;
 
-        return `Generate a COMPLETE markdown slide deck in one pass.
+    return `Generate a COMPLETE markdown slide deck in one pass.
 
 ## Course Context
 Course: ${profile.name}
@@ -358,7 +366,7 @@ ${profile.description ? `Description: ${profile.description}` : ""}
 ${profile.prerequisites ? `Prerequisites: ${profile.prerequisites}` : ""}
 
 ## Learning Objectives
-${(profile.learningObjectives || []).map(obj => `- ${obj}`).join("\n")}
+${(profile.learningObjectives || []).map((obj) => `- ${obj}`).join("\n")}
 
 ${lastWeekSummary ? `## Previous Session Summary\n${lastWeekSummary}\n` : ""}
 
@@ -559,296 +567,314 @@ You are building a motor control panel for a factory floor.
 \`\`\`
 
 Return only the final markdown deck — no explanations before or after it.`;
+  }
+
+  static estimateSlideCountFromPlan(lecturePlan, activityCount = 0) {
+    const topicSlides = (lecturePlan.rows || [])
+      .filter((row) => row.type !== "break")
+      .reduce((sum, row) => sum + (parseInt(row.targetSlides, 10) || 0), 0);
+    const structuralSlides = 2;
+    return Math.max(
+      4,
+      topicSlides + structuralSlides + Math.max(0, parseInt(activityCount, 10) || 0),
+    );
+  }
+
+  /**
+   * Extract text from provider response shapes.
+   * @param {string|Object} response - Provider response
+   * @returns {string} Raw text
+   */
+  static extractResponseText(response) {
+    if (typeof response === "string") {
+      const trimmed = response.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return this.extractResponseText(parsed);
+        } catch (_e) {
+          return response;
+        }
+      }
+      return response;
     }
 
-    static estimateSlideCountFromPlan(lecturePlan, activityCount = 0) {
-        const topicSlides = (lecturePlan.rows || [])
-            .filter(row => row.type !== "break")
-            .reduce((sum, row) => sum + (parseInt(row.targetSlides, 10) || 0), 0);
-        const structuralSlides = 2;
-        return Math.max(4, topicSlides + structuralSlides + Math.max(0, parseInt(activityCount, 10) || 0));
+    if (response && typeof response === "object") {
+      const fromChoices = response?.choices?.[0]?.message?.content;
+      if (typeof fromChoices === "string") {
+        return fromChoices;
+      }
+      if (Array.isArray(fromChoices)) {
+        const joined = fromChoices
+          .map((part) => {
+            if (typeof part === "string") return part;
+            if (part && typeof part.text === "string") return part.text;
+            if (part && typeof part.content === "string") return part.content;
+            return "";
+          })
+          .join("")
+          .trim();
+        if (joined) return joined;
+      }
+
+      const fromMessage = response?.message?.content;
+      if (typeof fromMessage === "string") {
+        return fromMessage;
+      }
+      if (Array.isArray(fromMessage)) {
+        const joined = fromMessage
+          .map((part) => {
+            if (typeof part === "string") return part;
+            if (part && typeof part.text === "string") return part.text;
+            if (part && typeof part.content === "string") return part.content;
+            return "";
+          })
+          .join("")
+          .trim();
+        if (joined) return joined;
+      }
     }
 
-    /**
-     * Extract text from provider response shapes.
-     * @param {string|Object} response - Provider response
-     * @returns {string} Raw text
-     */
-    static extractResponseText(response) {
-        if (typeof response === "string") {
-            const trimmed = response.trim();
-            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-                try {
-                    const parsed = JSON.parse(trimmed);
-                    return this.extractResponseText(parsed);
-                } catch (_e) {
-                    return response;
-                }
-            }
-            return response;
-        }
+    throw new Error("Unsupported AI response shape");
+  }
 
-        if (response && typeof response === "object") {
-            const fromChoices = response?.choices?.[0]?.message?.content;
-            if (typeof fromChoices === "string") {
-                return fromChoices;
-            }
-            if (Array.isArray(fromChoices)) {
-                const joined = fromChoices
-                    .map(part => {
-                        if (typeof part === "string") return part;
-                        if (part && typeof part.text === "string") return part.text;
-                        if (part && typeof part.content === "string") return part.content;
-                        return "";
-                    })
-                    .join("")
-                    .trim();
-                if (joined) return joined;
-            }
-
-            const fromMessage = response?.message?.content;
-            if (typeof fromMessage === "string") {
-                return fromMessage;
-            }
-            if (Array.isArray(fromMessage)) {
-                const joined = fromMessage
-                    .map(part => {
-                        if (typeof part === "string") return part;
-                        if (part && typeof part.text === "string") return part.text;
-                        if (part && typeof part.content === "string") return part.content;
-                        return "";
-                    })
-                    .join("")
-                    .trim();
-                if (joined) return joined;
-            }
-        }
-
-        throw new Error("Unsupported AI response shape");
+  /**
+   * Extract markdown deck from response text.
+   * @param {string} text - Raw assistant text
+   * @returns {string} Deck markdown
+   */
+  static extractDeckMarkdown(text) {
+    const source = (text || "").trim();
+    if (!source) {
+      throw new Error("AI returned empty response");
     }
 
-    /**
-     * Extract markdown deck from response text.
-     * @param {string} text - Raw assistant text
-     * @returns {string} Deck markdown
-     */
-    static extractDeckMarkdown(text) {
-        const source = (text || "").trim();
-        if (!source) {
-            throw new Error("AI returned empty response");
+    // Only unwrap when the entire response is a single outer markdown fence.
+    // Do NOT unwrap first matching fence because deck slides can contain many code blocks.
+    const outerFence = source.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/i);
+    const candidate = outerFence && outerFence[1] ? outerFence[1].trim() : source;
+
+    // If model wrapped markdown inside a JSON field, try to recover.
+    if (
+      (candidate.startsWith("{") || candidate.startsWith("[")) &&
+      !candidate.includes("layout:")
+    ) {
+      try {
+        const parsed = JSON.parse(candidate);
+        const maybe =
+          parsed?.markdown ||
+          parsed?.deck ||
+          parsed?.content ||
+          parsed?.choices?.[0]?.message?.content;
+        if (typeof maybe === "string" && maybe.includes("layout:")) {
+          return maybe.trim();
         }
-
-        // Only unwrap when the entire response is a single outer markdown fence.
-        // Do NOT unwrap first matching fence because deck slides can contain many code blocks.
-        const outerFence = source.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/i);
-        const candidate = outerFence && outerFence[1] ? outerFence[1].trim() : source;
-
-        // If model wrapped markdown inside a JSON field, try to recover.
-        if ((candidate.startsWith("{") || candidate.startsWith("[")) && !candidate.includes("layout:")) {
-            try {
-                const parsed = JSON.parse(candidate);
-                const maybe = parsed?.markdown || parsed?.deck || parsed?.content || parsed?.choices?.[0]?.message?.content;
-                if (typeof maybe === "string" && maybe.includes("layout:")) {
-                    return maybe.trim();
-                }
-            } catch (_e) {
-                // ignore and continue
-            }
-        }
-
-        const layoutIndex = candidate.search(/(^|\n)layout:\s*/i);
-        if (layoutIndex > 0) {
-            return candidate.slice(layoutIndex).trim();
-        }
-
-        return candidate;
+      } catch (_e) {
+        // ignore and continue
+      }
     }
 
-    /**
-     * Remove common model meta-noise from generated deck text.
-     * @param {string} markdown - Generated markdown
-     * @returns {string} Clean markdown
-     */
-    static sanitizeMarkdown(markdown) {
-        const lines = String(markdown || "").split(/\r?\n/);
-        const cleaned = [];
-
-        const bannedPrefixes = [
-            /^\s*(left|right|main|media|sidebar|secondary|header|footer|title)\s*:/i,
-            /^\s*mermaid\s+diagram\s*:/i,
-            /^\s*(key\s+insight|practical\s+template|core\s+principles\s+to\s+remember|essential\s+components)\s*:/i
-        ];
-
-        for (const line of lines) {
-            if (bannedPrefixes.some(rx => rx.test(line))) {
-                continue;
-            }
-            cleaned.push(line);
-        }
-
-        return cleaned.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+    const layoutIndex = candidate.search(/(^|\n)layout:\s*/i);
+    if (layoutIndex > 0) {
+      return candidate.slice(layoutIndex).trim();
     }
 
-    /**
-     * Split markdown into slides in a way that is compatible with the main
-     * markdown parser:
-     * - Uses lines matching /^\s*---\s*$/ as slide separators.
-     * - Ignores such separators when they appear inside fenced code blocks.
-     *
-     * @param {string} text - Full deck markdown
-     * @returns {Array<string>} Array of slide markdown strings
-     */
-    static splitSlidesForValidation(text) {
-        const normalized = String(text || "");
-        const lines = normalized.split(/\r?\n/);
-        const slides = [];
-        let currentSlideLines = [];
-        let inFence = false;
+    return candidate;
+  }
 
-        for (const line of lines) {
-            const trimmed = line.trim();
+  /**
+   * Remove common model meta-noise from generated deck text.
+   * @param {string} markdown - Generated markdown
+   * @returns {string} Clean markdown
+   */
+  static sanitizeMarkdown(markdown) {
+    const lines = String(markdown || "").split(/\r?\n/);
+    const cleaned = [];
 
-            // Toggle fenced code block state on lines starting a fence.
-            // Handles ``` and ~~~ fences with optional language.
-            if (/^(```|~~~)/.test(trimmed)) {
-                inFence = !inFence;
-                currentSlideLines.push(line);
-                continue;
-            }
+    const bannedPrefixes = [
+      /^\s*(left|right|main|media|sidebar|secondary|header|footer|title)\s*:/i,
+      /^\s*mermaid\s+diagram\s*:/i,
+      /^\s*(key\s+insight|practical\s+template|core\s+principles\s+to\s+remember|essential\s+components)\s*:/i,
+    ];
 
-            // Only treat a line as a slide separator if we're not inside a fence
-            // and the line consists solely of --- with optional surrounding whitespace.
-            if (!inFence && /^\s*---\s*$/.test(line)) {
-                const slideText = currentSlideLines.join("\n").trim();
-                if (slideText) {
-                    slides.push(slideText);
-                }
-                currentSlideLines = [];
-                continue;
-            }
-
-            currentSlideLines.push(line);
-        }
-
-        const lastSlideText = currentSlideLines.join("\n").trim();
-        if (lastSlideText) {
-            slides.push(lastSlideText);
-        }
-
-        return slides;
+    for (const line of lines) {
+      if (bannedPrefixes.some((rx) => rx.test(line))) {
+        continue;
+      }
+      cleaned.push(line);
     }
 
-    /**
-     * Validate generated markdown deck structure.
-     * @param {string} markdown - Deck markdown
-     * @param {number} expectedSlideCount - Expected number of slides (0 = skip count check)
-     * @returns {{valid: boolean, errors: Array<string>, warnings: Array<string>}} Validation result
-     */
-    static validateMarkdown(markdown, expectedSlideCount = 0) {
-        const errors = [];
-        const warnings = [];
-        const text = String(markdown || "").trim();
+    return (
+      cleaned
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim() + "\n"
+    );
+  }
 
-        if (!text) {
-            errors.push("Deck is empty");
-            return { valid: false, errors, warnings };
+  /**
+   * Split markdown into slides in a way that is compatible with the main
+   * markdown parser:
+   * - Uses lines matching /^\s*---\s*$/ as slide separators.
+   * - Ignores such separators when they appear inside fenced code blocks.
+   *
+   * @param {string} text - Full deck markdown
+   * @returns {Array<string>} Array of slide markdown strings
+   */
+  static splitSlidesForValidation(text) {
+    const normalized = String(text || "");
+    const lines = normalized.split(/\r?\n/);
+    const slides = [];
+    let currentSlideLines = [];
+    let inFence = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Toggle fenced code block state on lines starting a fence.
+      // Handles ``` and ~~~ fences with optional language.
+      if (/^(```|~~~)/.test(trimmed)) {
+        inFence = !inFence;
+        currentSlideLines.push(line);
+        continue;
+      }
+
+      // Only treat a line as a slide separator if we're not inside a fence
+      // and the line consists solely of --- with optional surrounding whitespace.
+      if (!inFence && /^\s*---\s*$/.test(line)) {
+        const slideText = currentSlideLines.join("\n").trim();
+        if (slideText) {
+          slides.push(slideText);
         }
+        currentSlideLines = [];
+        continue;
+      }
 
-        const slides = DeckGenerator.splitSlidesForValidation(text);
-        if (slides.length < 2) {
-            errors.push("Deck should have at least 2 slides separated by ---");
-        }
-
-        slides.forEach((slide, index) => {
-            if (!/\blayout\s*:\s*[a-z0-9-]+/i.test(slide)) {
-                errors.push(`Slide ${index + 1}: Missing layout directive`);
-            }
-        });
-
-        // Detect truncation: last non-empty line of the last slide is an area marker with no content after it
-        if (slides.length > 0) {
-            const lastSlide = slides[slides.length - 1];
-            const nonEmptyLines = lastSlide.split('\n').map(l => l.trim()).filter(Boolean);
-            const lastLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
-            if (/^@[a-z]/i.test(lastLine)) {
-                warnings.push('Deck appears truncated: the last slide ends with an empty area marker');
-            }
-        }
-
-        // Check if significantly fewer slides were generated than requested
-        if (expectedSlideCount > 2 && slides.length < Math.ceil(expectedSlideCount * 0.6)) {
-            warnings.push(`Only ${slides.length} slides generated (expected ~${expectedSlideCount})`);
-        }
-
-        return {
-            valid: errors.length === 0,
-            errors,
-            warnings
-        };
+      currentSlideLines.push(line);
     }
 
-    /**
-     * Count slides using the canonical separator.
-     * Uses the same flexible, fence-aware logic as the markdown parser:
-     *  - Any line matching /^\s*---\s*$/ is a separator
-     *  - Separators inside fenced code blocks are ignored
-     * @param {string} markdown - Deck markdown
-     * @returns {number} Slide count
-     */
-    static countSlides(markdown) {
-        const text = String(markdown || "").trim();
-        if (!text) {
-            return 0;
-        }
-
-        const lines = text.split(/\r?\n/);
-        let slideCount = 1;
-        let inFence = false;
-        let fenceChar = null; // '`' or '~'
-        let fenceLength = 0;
-
-        for (const line of lines) {
-            // Detect start/end of fenced code blocks (``` or ~~~), optionally indented
-            const fenceMatch = line.match(/^(\s*)(`{3,}|~{3,})/);
-            if (fenceMatch) {
-                const fence = fenceMatch[2];
-                const currentFenceChar = fence[0];
-                const currentFenceLength = fence.length;
-
-                if (!inFence) {
-                    inFence = true;
-                    fenceChar = currentFenceChar;
-                    fenceLength = currentFenceLength;
-                } else if (currentFenceChar === fenceChar && currentFenceLength >= fenceLength) {
-                    // Closing fence: same char, length >= opening
-                    inFence = false;
-                    fenceChar = null;
-                    fenceLength = 0;
-                }
-
-                continue;
-            }
-
-            if (!inFence && /^\s*---\s*$/.test(line)) {
-                slideCount += 1;
-            }
-        }
-
-        return slideCount;
+    const lastSlideText = currentSlideLines.join("\n").trim();
+    if (lastSlideText) {
+      slides.push(lastSlideText);
     }
 
-    /**
-     * Build a deterministic fallback markdown deck.
-     * @param {string} topic - Topic
-     * @param {number} slideCount - Number of slides
-     * @returns {string} Fallback markdown
-     */
-    static generateFallbackDeck(topic, slideCount = 6) {
-        const safeTitle = topic || "Generated Lesson";
-        const middleSlides = Math.max(2, slideCount - 2);
+    return slides;
+  }
 
-        const slides = [];
-        slides.push(`layout: title-slide
+  /**
+   * Validate generated markdown deck structure.
+   * @param {string} markdown - Deck markdown
+   * @param {number} expectedSlideCount - Expected number of slides (0 = skip count check)
+   * @returns {{valid: boolean, errors: Array<string>, warnings: Array<string>}} Validation result
+   */
+  static validateMarkdown(markdown, expectedSlideCount = 0) {
+    const errors = [];
+    const warnings = [];
+    const text = String(markdown || "").trim();
+
+    if (!text) {
+      errors.push("Deck is empty");
+      return { valid: false, errors, warnings };
+    }
+
+    const slides = DeckGenerator.splitSlidesForValidation(text);
+    if (slides.length < 2) {
+      errors.push("Deck should have at least 2 slides separated by ---");
+    }
+
+    slides.forEach((slide, index) => {
+      if (!/\blayout\s*:\s*[a-z0-9-]+/i.test(slide)) {
+        errors.push(`Slide ${index + 1}: Missing layout directive`);
+      }
+    });
+
+    // Detect truncation: last non-empty line of the last slide is an area marker with no content after it
+    if (slides.length > 0) {
+      const lastSlide = slides[slides.length - 1];
+      const nonEmptyLines = lastSlide
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const lastLine = nonEmptyLines[nonEmptyLines.length - 1] || "";
+      if (/^@[a-z]/i.test(lastLine)) {
+        warnings.push("Deck appears truncated: the last slide ends with an empty area marker");
+      }
+    }
+
+    // Check if significantly fewer slides were generated than requested
+    if (expectedSlideCount > 2 && slides.length < Math.ceil(expectedSlideCount * 0.6)) {
+      warnings.push(`Only ${slides.length} slides generated (expected ~${expectedSlideCount})`);
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
+
+  /**
+   * Count slides using the canonical separator.
+   * Uses the same flexible, fence-aware logic as the markdown parser:
+   *  - Any line matching /^\s*---\s*$/ is a separator
+   *  - Separators inside fenced code blocks are ignored
+   * @param {string} markdown - Deck markdown
+   * @returns {number} Slide count
+   */
+  static countSlides(markdown) {
+    const text = String(markdown || "").trim();
+    if (!text) {
+      return 0;
+    }
+
+    const lines = text.split(/\r?\n/);
+    let slideCount = 1;
+    let inFence = false;
+    let fenceChar = null; // '`' or '~'
+    let fenceLength = 0;
+
+    for (const line of lines) {
+      // Detect start/end of fenced code blocks (``` or ~~~), optionally indented
+      const fenceMatch = line.match(/^(\s*)(`{3,}|~{3,})/);
+      if (fenceMatch) {
+        const fence = fenceMatch[2];
+        const currentFenceChar = fence[0];
+        const currentFenceLength = fence.length;
+
+        if (!inFence) {
+          inFence = true;
+          fenceChar = currentFenceChar;
+          fenceLength = currentFenceLength;
+        } else if (currentFenceChar === fenceChar && currentFenceLength >= fenceLength) {
+          // Closing fence: same char, length >= opening
+          inFence = false;
+          fenceChar = null;
+          fenceLength = 0;
+        }
+
+        continue;
+      }
+
+      if (!inFence && /^\s*---\s*$/.test(line)) {
+        slideCount += 1;
+      }
+    }
+
+    return slideCount;
+  }
+
+  /**
+   * Build a deterministic fallback markdown deck.
+   * @param {string} topic - Topic
+   * @param {number} slideCount - Number of slides
+   * @returns {string} Fallback markdown
+   */
+  static generateFallbackDeck(topic, slideCount = 6) {
+    const safeTitle = topic || "Generated Lesson";
+    const middleSlides = Math.max(2, slideCount - 2);
+
+    const slides = [];
+    slides.push(`layout: title-slide
 
 @title
 
@@ -858,8 +884,8 @@ Return only the final markdown deck — no explanations before or after it.`;
 
 ---`);
 
-        for (let i = 1; i <= middleSlides; i += 1) {
-            slides.push(`layout: header-content
+    for (let i = 1; i <= middleSlides; i += 1) {
+      slides.push(`layout: header-content
 
 @header
 
@@ -872,9 +898,9 @@ Return only the final markdown deck — no explanations before or after it.`;
 - Example or discussion point
 
 ---`);
-        }
+    }
 
-        slides.push(`layout: header-content
+    slides.push(`layout: header-content
 
 @header
 
@@ -887,6 +913,6 @@ Return only the final markdown deck — no explanations before or after it.`;
 
 ---`);
 
-        return slides.join("\n\n") + "\n";
-    }
+    return slides.join("\n\n") + "\n";
+  }
 }

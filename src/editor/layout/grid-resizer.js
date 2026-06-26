@@ -8,7 +8,7 @@
  * handles.  Fixed `px` and `auto` tracks are left alone.
  */
 
-import { DESIGN_SIZE } from '../../core/utils.js';
+import { DESIGN_SIZE } from "../../core/utils.js";
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
 const MIN_TRACK_PX = 80;
@@ -25,17 +25,17 @@ const MIN_TRACK_PX = 80;
  *                                       Either value may be `null` if unchanged.
  */
 export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) {
-    if (!slideEl || !layoutInfo) return;
+  if (!slideEl || !layoutInfo) return;
 
-    // The slide DOM can be reused in edit mode (e.g. navigating without rerender),
-    // so clear any previous injected handles before attaching fresh ones.
-    slideEl.querySelectorAll('.grid-resize-handle').forEach((el) => el.remove());
+  // The slide DOM can be reused in edit mode (e.g. navigating without rerender),
+  // so clear any previous injected handles before attaching fresh ones.
+  slideEl.querySelectorAll(".grid-resize-handle").forEach((el) => el.remove());
 
-    const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || '1fr');
-    const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || 'minmax(0, 1fr)');
-    const scale = _getScale(stageEl);
+  const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
+  const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || "minmax(0, 1fr)");
+  const scale = _getScale(stageEl);
 
-    _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
+  _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
 }
 
 /**
@@ -51,26 +51,28 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
  * @returns {string} Full grid spec.
  */
 export function buildLayoutSpec(layoutInfo, newCols, newRows) {
-    const cols = newCols ?? layoutInfo.gridTemplateColumns ?? '1fr';
-    const rows = newRows ?? layoutInfo.gridTemplateRows ?? 'minmax(0, 1fr)';
+  const cols = newCols ?? layoutInfo.gridTemplateColumns ?? "1fr";
+  const rows = newRows ?? layoutInfo.gridTemplateRows ?? "minmax(0, 1fr)";
 
-    // Split gridTemplateAreas into individual quoted row strings
-    // e.g. '"header header" "main media"' → ['"header header"', '"main media"']
-    const areaRowMatches = (layoutInfo.gridTemplateAreas || '"main"').match(/"[^"]*"|'[^']*'/g) || ['"main"'];
+  // Split gridTemplateAreas into individual quoted row strings
+  // e.g. '"header header" "main media"' → ['"header header"', '"main media"']
+  const areaRowMatches = (layoutInfo.gridTemplateAreas || '"main"').match(/"[^"]*"|'[^']*'/g) || [
+    '"main"',
+  ];
 
-    // Split gridTemplateRows into per-row size tokens (handles minmax, fr, px, auto)
-    const rowSizeTokens = _splitRowSizes(rows);
+  // Split gridTemplateRows into per-row size tokens (handles minmax, fr, px, auto)
+  const rowSizeTokens = _splitRowSizes(rows);
 
-    // Interleave: "areaRow1" size1 "areaRow2" size2 ...
-    const parts = [];
-    for (let i = 0; i < areaRowMatches.length; i++) {
-        parts.push(areaRowMatches[i]);
-        if (i < rowSizeTokens.length) {
-            parts.push(rowSizeTokens[i]);
-        }
+  // Interleave: "areaRow1" size1 "areaRow2" size2 ...
+  const parts = [];
+  for (let i = 0; i < areaRowMatches.length; i++) {
+    parts.push(areaRowMatches[i]);
+    if (i < rowSizeTokens.length) {
+      parts.push(rowSizeTokens[i]);
     }
+  }
 
-    return `${parts.join(' ')} / ${cols}`;
+  return `${parts.join(" ")} / ${cols}`;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -83,35 +85,39 @@ export function buildLayoutSpec(layoutInfo, newCols, newRows) {
  * @returns {{ raw: string, isFr: boolean, frValue: number }[]}
  */
 function _parseTrackList(trackStr) {
-    // Tokenize respecting nested parens (e.g. minmax(0, 1fr))
-    const tokens = [];
-    let depth = 0;
-    let current = '';
+  // Tokenize respecting nested parens (e.g. minmax(0, 1fr))
+  const tokens = [];
+  let depth = 0;
+  let current = "";
 
-    for (const ch of (trackStr || '').trim()) {
-        if (ch === '(') { depth++; current += ch; }
-        else if (ch === ')') { depth--; current += ch; }
-        else if (ch === ' ' && depth === 0) {
-            if (current) tokens.push(current.trim());
-            current = '';
-        } else {
-            current += ch;
-        }
+  for (const ch of (trackStr || "").trim()) {
+    if (ch === "(") {
+      depth++;
+      current += ch;
+    } else if (ch === ")") {
+      depth--;
+      current += ch;
+    } else if (ch === " " && depth === 0) {
+      if (current) tokens.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
     }
-    if (current.trim()) tokens.push(current.trim());
+  }
+  if (current.trim()) tokens.push(current.trim());
 
-    return tokens.map(raw => {
-        const frMatch = raw.match(/^([\d.]+)fr$/i);
-        const isFr = !!frMatch;
-        // minmax(0, Xfr) is also treated as a resizable fr track
-        const minmaxFrMatch = !frMatch && raw.match(/^minmax\([^,]+,\s*([\d.]+)fr\s*\)$/i);
-        const isMinmaxFr = !!minmaxFrMatch;
-        return {
-            raw,
-            isFr: isFr || isMinmaxFr,
-            frValue: frMatch ? parseFloat(frMatch[1]) : (minmaxFrMatch ? parseFloat(minmaxFrMatch[1]) : 0),
-        };
-    });
+  return tokens.map((raw) => {
+    const frMatch = raw.match(/^([\d.]+)fr$/i);
+    const isFr = !!frMatch;
+    // minmax(0, Xfr) is also treated as a resizable fr track
+    const minmaxFrMatch = !frMatch && raw.match(/^minmax\([^,]+,\s*([\d.]+)fr\s*\)$/i);
+    const isMinmaxFr = !!minmaxFrMatch;
+    return {
+      raw,
+      isFr: isFr || isMinmaxFr,
+      frValue: frMatch ? parseFloat(frMatch[1]) : minmaxFrMatch ? parseFloat(minmaxFrMatch[1]) : 0,
+    };
+  });
 }
 
 /**
@@ -119,58 +125,58 @@ function _parseTrackList(trackStr) {
  * handling `minmax(…)` which contains a space inside parens.
  */
 function _splitRowSizes(rowsStr) {
-    return _parseTrackList(rowsStr).map(t => t.raw);
+  return _parseTrackList(rowsStr).map((t) => t.raw);
 }
 
 /** Read `--stage-scale` CSS variable from the stage element. */
 function _getScale(stageEl) {
-    if (!stageEl) return 1;
-    const val = parseFloat(stageEl.style.getPropertyValue('--stage-scale'));
-    return isFinite(val) && val > 0 ? val : 1;
+  if (!stageEl) return 1;
+  const val = parseFloat(stageEl.style.getPropertyValue("--stage-scale"));
+  return isFinite(val) && val > 0 ? val : 1;
 }
 
 function _getGridElement(slideEl) {
-    return slideEl.querySelector('.slide__grid') || slideEl.firstElementChild || slideEl;
+  return slideEl.querySelector(".slide__grid") || slideEl.firstElementChild || slideEl;
 }
 
 function _parsePxList(value) {
-    return _parseTrackList(value).map(token => {
-        const match = token.raw.match(/^(-?[\d.]+)px$/i);
-        return match ? parseFloat(match[1]) : 0;
-    });
+  return _parseTrackList(value).map((token) => {
+    const match = token.raw.match(/^(-?[\d.]+)px$/i);
+    return match ? parseFloat(match[1]) : 0;
+  });
 }
 
 function _getRenderedTrackMetrics(slideEl, scale = 1) {
-    const grid = _getGridElement(slideEl);
-    const gridStyle = window.getComputedStyle(grid);
-    const slideRect = slideEl.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
-    const normalizedScale = scale > 0 ? scale : 1;
+  const grid = _getGridElement(slideEl);
+  const gridStyle = window.getComputedStyle(grid);
+  const slideRect = slideEl.getBoundingClientRect();
+  const gridRect = grid.getBoundingClientRect();
+  const normalizedScale = scale > 0 ? scale : 1;
 
-    return {
-        // DOMRect values are in viewport pixels (post-transform). Convert to
-        // slide design-space coordinates so absolute handle positions align.
-        leftOffset: (gridRect.left - slideRect.left) / normalizedScale,
-        topOffset: (gridRect.top - slideRect.top) / normalizedScale,
-        columns: _parsePxList(gridStyle.gridTemplateColumns),
-        rows: _parsePxList(gridStyle.gridTemplateRows),
-        columnGap: parseFloat(gridStyle.columnGap || gridStyle.gap || '0') || 0,
-        rowGap: parseFloat(gridStyle.rowGap || gridStyle.gap || '0') || 0,
-        grid,
-    };
+  return {
+    // DOMRect values are in viewport pixels (post-transform). Convert to
+    // slide design-space coordinates so absolute handle positions align.
+    leftOffset: (gridRect.left - slideRect.left) / normalizedScale,
+    topOffset: (gridRect.top - slideRect.top) / normalizedScale,
+    columns: _parsePxList(gridStyle.gridTemplateColumns),
+    rows: _parsePxList(gridStyle.gridTemplateRows),
+    columnGap: parseFloat(gridStyle.columnGap || gridStyle.gap || "0") || 0,
+    rowGap: parseFloat(gridStyle.rowGap || gridStyle.gap || "0") || 0,
+    grid,
+  };
 }
 
 function _getBoundaryPositions(sizes, gap) {
-    const positions = [0];
-    let cursor = 0;
-    for (let i = 0; i < sizes.length; i++) {
-        cursor += sizes[i];
-        positions.push(cursor);
-        if (i < sizes.length - 1) {
-            cursor += gap;
-        }
+  const positions = [0];
+  let cursor = 0;
+  for (let i = 0; i < sizes.length; i++) {
+    cursor += sizes[i];
+    positions.push(cursor);
+    if (i < sizes.length - 1) {
+      cursor += gap;
     }
-    return positions;
+  }
+  return positions;
 }
 
 /**
@@ -178,20 +184,20 @@ function _getBoundaryPositions(sizes, gap) {
  * sorted ascending.  These correspond to column-track boundaries.
  */
 function _collectColumnBoundaries(slideEl, scale) {
-    const slideRect = slideEl.getBoundingClientRect();
-    const boundaries = new Set();
-    boundaries.add(0);
+  const slideRect = slideEl.getBoundingClientRect();
+  const boundaries = new Set();
+  boundaries.add(0);
 
-    slideEl.querySelectorAll('.slide__area').forEach(area => {
-        const r = area.getBoundingClientRect();
-        const leftDesign = Math.round((r.left - slideRect.left) / scale);
-        const rightDesign = Math.round((r.right - slideRect.left) / scale);
-        if (leftDesign > 0) boundaries.add(leftDesign);
-        if (rightDesign < DESIGN_SIZE.width) boundaries.add(rightDesign);
-    });
+  slideEl.querySelectorAll(".slide__area").forEach((area) => {
+    const r = area.getBoundingClientRect();
+    const leftDesign = Math.round((r.left - slideRect.left) / scale);
+    const rightDesign = Math.round((r.right - slideRect.left) / scale);
+    if (leftDesign > 0) boundaries.add(leftDesign);
+    if (rightDesign < DESIGN_SIZE.width) boundaries.add(rightDesign);
+  });
 
-    boundaries.add(DESIGN_SIZE.width);
-    return [...boundaries].sort((a, b) => a - b);
+  boundaries.add(DESIGN_SIZE.width);
+  return [...boundaries].sort((a, b) => a - b);
 }
 
 /**
@@ -199,123 +205,165 @@ function _collectColumnBoundaries(slideEl, scale) {
  * sorted ascending.  These correspond to row-track boundaries.
  */
 function _collectRowBoundaries(slideEl, scale) {
-    const slideRect = slideEl.getBoundingClientRect();
-    const boundaries = new Set();
-    boundaries.add(0);
+  const slideRect = slideEl.getBoundingClientRect();
+  const boundaries = new Set();
+  boundaries.add(0);
 
-    slideEl.querySelectorAll('.slide__area').forEach(area => {
-        const r = area.getBoundingClientRect();
-        const topDesign = Math.round((r.top - slideRect.top) / scale);
-        const bottomDesign = Math.round((r.bottom - slideRect.top) / scale);
-        if (topDesign > 0) boundaries.add(topDesign);
-        if (bottomDesign < DESIGN_SIZE.height) boundaries.add(bottomDesign);
-    });
+  slideEl.querySelectorAll(".slide__area").forEach((area) => {
+    const r = area.getBoundingClientRect();
+    const topDesign = Math.round((r.top - slideRect.top) / scale);
+    const bottomDesign = Math.round((r.bottom - slideRect.top) / scale);
+    if (topDesign > 0) boundaries.add(topDesign);
+    if (bottomDesign < DESIGN_SIZE.height) boundaries.add(bottomDesign);
+  });
 
-    boundaries.add(DESIGN_SIZE.height);
-    return [...boundaries].sort((a, b) => a - b);
+  boundaries.add(DESIGN_SIZE.height);
+  return [...boundaries].sort((a, b) => a - b);
 }
 
 // ─── Column handles ───────────────────────────────────────────────────────────
 
 function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
-    if (colTracks.length < 2) return;
+  if (colTracks.length < 2) return;
 
-    const metrics = _getRenderedTrackMetrics(slideEl, scale);
-    const boundaries = _getBoundaryPositions(metrics.columns, metrics.columnGap);
-    const totalGridHeight = boundaries.length ? (_getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0) : 0;
+  const metrics = _getRenderedTrackMetrics(slideEl, scale);
+  const boundaries = _getBoundaryPositions(metrics.columns, metrics.columnGap);
+  const totalGridHeight = boundaries.length
+    ? _getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0
+    : 0;
 
-    for (let i = 0; i < colTracks.length - 1; i++) {
-        if (!colTracks[i].isFr && !colTracks[i + 1].isFr) continue;
-        const xDesign = metrics.leftOffset + boundaries[i + 1];
-        const leftTrackIdx = i;
-        const rightTrackIdx = i + 1;
+  for (let i = 0; i < colTracks.length - 1; i++) {
+    if (!colTracks[i].isFr && !colTracks[i + 1].isFr) continue;
+    const xDesign = metrics.leftOffset + boundaries[i + 1];
+    const leftTrackIdx = i;
+    const rightTrackIdx = i + 1;
 
-        const handle = document.createElement('div');
-        handle.className = 'grid-resize-handle grid-resize-handle--col';
-        handle.setAttribute('aria-label', 'Resize column');
-        handle.style.left = `${xDesign}px`;
-        handle.style.top = `${metrics.topOffset}px`;
-        handle.style.height = `${totalGridHeight}px`;
-        slideEl.appendChild(handle);
+    const handle = document.createElement("div");
+    handle.className = "grid-resize-handle grid-resize-handle--col";
+    handle.setAttribute("aria-label", "Resize column");
+    handle.style.left = `${xDesign}px`;
+    handle.style.top = `${metrics.topOffset}px`;
+    handle.style.height = `${totalGridHeight}px`;
+    slideEl.appendChild(handle);
 
-        _attachColDragLogic(handle, slideEl, colTracks, leftTrackIdx, rightTrackIdx, scale, layoutInfo, onLayoutChange, metrics);
-    }
+    _attachColDragLogic(
+      handle,
+      slideEl,
+      colTracks,
+      leftTrackIdx,
+      rightTrackIdx,
+      scale,
+      layoutInfo,
+      onLayoutChange,
+      metrics,
+    );
+  }
 }
 
-function _attachColDragLogic(handle, slideEl, colTracks, leftIdx, rightIdx, scale, layoutInfo, onLayoutChange, metrics) {
-    let startClientX = 0;
-    let startLeftPx = 0;
-    let startRightPx = 0;
-    let totalWidth = 0;
+function _attachColDragLogic(
+  handle,
+  slideEl,
+  colTracks,
+  leftIdx,
+  rightIdx,
+  scale,
+  layoutInfo,
+  onLayoutChange,
+  metrics,
+) {
+  let startClientX = 0;
+  let startLeftPx = 0;
+  let startRightPx = 0;
+  let totalWidth = 0;
 
-    const onMouseMove = (e) => {
-        const deltaDesign = (e.clientX - startClientX) / scale;
-        const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
-        const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
+  const onMouseMove = (e) => {
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
+    const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
 
-        const newTracks = _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
+    const newTracks = _buildResizedTrackList(
+      colTracks,
+      leftIdx,
+      rightIdx,
+      newLeftPx,
+      newRightPx,
+      totalWidth,
+    );
 
-        // Live visual update: set the column template directly on the slide grid
-        const slideGrid = _getGridElement(slideEl);
-        if (slideGrid) slideGrid.style.gridTemplateColumns = newTracks.join(' ');
-    };
+    // Live visual update: set the column template directly on the slide grid
+    const slideGrid = _getGridElement(slideEl);
+    if (slideGrid) slideGrid.style.gridTemplateColumns = newTracks.join(" ");
+  };
 
-    const onMouseUp = (e) => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        slideEl.style.pointerEvents = '';
+  const onMouseUp = (e) => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    slideEl.style.pointerEvents = "";
 
-        const deltaDesign = (e.clientX - startClientX) / scale;
-        const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
-        const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
-        const newTracks = _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
+    const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
+    const newTracks = _buildResizedTrackList(
+      colTracks,
+      leftIdx,
+      rightIdx,
+      newLeftPx,
+      newRightPx,
+      totalWidth,
+    );
 
-        onLayoutChange({ cols: newTracks.join(' '), rows: null });
-    };
+    onLayoutChange({ cols: newTracks.join(" "), rows: null });
+  };
 
-    handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-        startClientX = e.clientX;
+    startClientX = e.clientX;
 
-        const trackWidths = metrics.columns;
-        startLeftPx = trackWidths[leftIdx] ?? (DESIGN_SIZE.width / colTracks.length);
-        startRightPx = trackWidths[rightIdx] ?? (DESIGN_SIZE.width / colTracks.length);
-        totalWidth = startLeftPx + startRightPx;
+    const trackWidths = metrics.columns;
+    startLeftPx = trackWidths[leftIdx] ?? DESIGN_SIZE.width / colTracks.length;
+    startRightPx = trackWidths[rightIdx] ?? DESIGN_SIZE.width / colTracks.length;
+    totalWidth = startLeftPx + startRightPx;
 
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        slideEl.style.pointerEvents = 'none';
-        handle.style.pointerEvents = 'auto';
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    slideEl.style.pointerEvents = "none";
+    handle.style.pointerEvents = "auto";
 
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
 }
 
 function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, totalPx) {
-    const pairTotalPx = Math.max(1, totalPx || (firstPx + secondPx));
-    const firstTrack = tracks[firstIdx];
-    const secondTrack = tracks[secondIdx];
+  const pairTotalPx = Math.max(1, totalPx || firstPx + secondPx);
+  const firstTrack = tracks[firstIdx];
+  const secondTrack = tracks[secondIdx];
 
-    // Keep fr semantics only when both resized tracks are fr-based.
-    if (firstTrack?.isFr && secondTrack?.isFr) {
-        const pairFrBase = (firstTrack.frValue + secondTrack.frValue) || 1;
-        const firstFr = (firstPx / pairTotalPx) * pairFrBase;
-        const secondFr = (secondPx / pairTotalPx) * pairFrBase;
-        return tracks.map((track, index) => {
-            if (index === firstIdx) return `${firstFr.toFixed(4)}fr`;
-            if (index === secondIdx) return `${secondFr.toFixed(4)}fr`;
-            return track.raw;
-        });
-    }
-
+  // Keep fr semantics only when both resized tracks are fr-based.
+  if (firstTrack?.isFr && secondTrack?.isFr) {
+    const pairFrBase = firstTrack.frValue + secondTrack.frValue || 1;
+    const firstFr = (firstPx / pairTotalPx) * pairFrBase;
+    const secondFr = (secondPx / pairTotalPx) * pairFrBase;
     return tracks.map((track, index) => {
-        if (index === firstIdx) return firstTrack?.isFr ? `${(firstPx / totalPx * (firstTrack.frValue || 1)).toFixed(4)}fr` : track.raw;
-        if (index === secondIdx) return secondTrack?.isFr ? `${(secondPx / totalPx * (secondTrack.frValue || 1)).toFixed(4)}fr` : track.raw;
-        return track.raw;
+      if (index === firstIdx) return `${firstFr.toFixed(4)}fr`;
+      if (index === secondIdx) return `${secondFr.toFixed(4)}fr`;
+      return track.raw;
     });
+  }
+
+  return tracks.map((track, index) => {
+    if (index === firstIdx)
+      return firstTrack?.isFr
+        ? `${((firstPx / totalPx) * (firstTrack.frValue || 1)).toFixed(4)}fr`
+        : track.raw;
+    if (index === secondIdx)
+      return secondTrack?.isFr
+        ? `${((secondPx / totalPx) * (secondTrack.frValue || 1)).toFixed(4)}fr`
+        : track.raw;
+    return track.raw;
+  });
 }

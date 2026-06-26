@@ -37,6 +37,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 ---
 
 layout: header-two-column
+
 <!-- notes: Your talking points! -->
 
 @header
@@ -53,6 +54,7 @@ layout: header-two-column
 4. **Press `F`** – Go fullscreen on viewer
 
 @media
+
 ### Essential Shortcuts
 
 - Press **`E`** to toggle Edit Mode
@@ -75,15 +77,15 @@ layout: left-heavy
 
 Use --- to separate slides. Define the layout first, then place content with @area markers.
 
-| Layout | Areas |
-|------|-------|
-| `header-content` | `@header` `@main` `@footer` |
-| `title-slide` | `@title` |
-| `focus` | `@header` `@main` `@footer` |
-| `two-column` | `@header` `@main` `@media` `@footer` |
-| `left-heavy` | `@header` `@main` `@media` `@footer` |
-| `right-heavy` | `@header` `@main` `@media` `@footer` |
-| `three-column` | `@header` `@main` `@media` `@secondary` `@footer` |
+| Layout           | Areas                                             |
+| ---------------- | ------------------------------------------------- |
+| `header-content` | `@header` `@main` `@footer`                       |
+| `title-slide`    | `@title`                                          |
+| `focus`          | `@header` `@main` `@footer`                       |
+| `two-column`     | `@header` `@main` `@media` `@footer`              |
+| `left-heavy`     | `@header` `@main` `@media` `@footer`              |
+| `right-heavy`    | `@header` `@main` `@media` `@footer`              |
+| `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
 
@@ -93,6 +95,7 @@ Use --- to separate slides. Define the layout first, then place content with @ar
 layout: two-column
 
 @header
+
 ## Slide Title
 
 @main
@@ -215,16 +218,19 @@ layout: "header header" "main media" / 2fr 1fr
 ### Examples
 
 **Two equal columns:**
+
 ```yaml
 layout: "left right" / 1fr 1fr
 ```
 
 **Fixed Width Centered:**
+
 ```yaml
 layout: "header" auto "main" 1fr / 800px
 ```
 
 **Hidden Slide:**
+
 ```yaml
 layout: focus
 hidden: true
@@ -240,11 +246,10 @@ layout: header-two-column
 
 @main
 
-
 ### Text Formatting
 
 - `**Bold**` for **important concepts**
-- `*Italic*` for *definitions or emphasis*
+- `*Italic*` for _definitions or emphasis_
 - `` `Code` `` for `filenames` and commands
 - `[Links](https://example.com)` for references
 - `~~Strikethrough~~` for ~~removed content~~
@@ -252,22 +257,23 @@ layout: header-two-column
 ### Lists
 
 **Unordered** – Use for related points:
+
 - Use - at the beginning of the line
 
 **Ordered** – For sequences:
+
 1. Use item number followed by dot at the beginning of the line. Example: 1.
 
 @media
 
 ### Tables
 
-| Feature | Support |
-|---------|---------|
-| Code highlighting | Prism.js |
-| Math rendering | KaTeX |
-| Diagrams | Mermaid |
-| Export | PDF, HTML |
-
+| Feature           | Support   |
+| ----------------- | --------- |
+| Code highlighting | Prism.js  |
+| Math rendering    | KaTeX     |
+| Diagrams          | Mermaid   |
+| Export            | PDF, HTML |
 
 ### Blockquotes
 
@@ -289,14 +295,15 @@ layout: header-two-column
 
 When you open SlideMD, you see the presenter dashboard with:
 
-| Panel | Purpose |
-|-------|---------|
-| **Current Slide** | What the audience sees |
-| **Next Slide** | Preview of upcoming content |
-| **Speaker Notes** | Your private notes |
-| **Break Controls** | Timer for breaks |
+| Panel              | Purpose                     |
+| ------------------ | --------------------------- |
+| **Current Slide**  | What the audience sees      |
+| **Next Slide**     | Preview of upcoming content |
+| **Speaker Notes**  | Your private notes          |
+| **Break Controls** | Timer for breaks            |
 
 @media
+
 ### Typical Workflow
 
 1. **Open your deck** – Load your `.md` file
@@ -305,7 +312,7 @@ When you open SlideMD, you see the presenter dashboard with:
 4. **Press `F`** – Go fullscreen on viewer
 5. **Present** – Navigate with arrow keys or space
 
-> *The break timer shows your audience when you'll return based on the selected duration (5-15 minutes).*
+> _The break timer shows your audience when you'll return based on the selected duration (5-15 minutes)._
 
 ---
 
@@ -319,25 +326,26 @@ layout: header-two-column
 
 ### Navigation
 
-| Key | Action |
-|-----|--------|
-| `→` / `Space` / `PageDown` | Next slide |
-| `←` / `PageUp` / `Backspace` | Previous slide |
-| `Home` | First slide |
-| `End` | Last slide |
-| `G` | Go to slide (type number) |
+| Key                          | Action                    |
+| ---------------------------- | ------------------------- |
+| `→` / `Space` / `PageDown`   | Next slide                |
+| `←` / `PageUp` / `Backspace` | Previous slide            |
+| `Home`                       | First slide               |
+| `End`                        | Last slide                |
+| `G`                          | Go to slide (type number) |
 
 @media
+
 ### Presentation Controls
 
-| Key | Action |
-|-----|--------|
+| Key | Action                   |
+| --- | ------------------------ |
 | `P` | Open/close viewer window |
-| `F` | Toggle fullscreen |
-| `E` | Toggle edit mode |
-| `B` | Start break timer |
-| `D` | Toggle dark/light theme |
-| `R` | Reload deck from file |
+| `F` | Toggle fullscreen        |
+| `E` | Toggle edit mode         |
+| `B` | Start break timer        |
+| `D` | Toggle dark/light theme  |
+| `R` | Reload deck from file    |
 
 ---
 
@@ -370,7 +378,6 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 ---
 
 layout: header-content
-
 
 @title
 

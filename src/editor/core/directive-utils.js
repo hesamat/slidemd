@@ -5,7 +5,7 @@
  * (layout, background, etc.) in markdown source text.
  */
 
-import { MarkdownParser } from '../../data/markdown-parser.js';
+import { MarkdownParser } from "../../data/markdown-parser.js";
 
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
@@ -15,9 +15,9 @@ import { MarkdownParser } from '../../data/markdown-parser.js';
  * @returns {string} Updated markdown with the `layout:` line replaced/inserted.
  */
 export function updateLayoutDirective(markdown, newLayoutValue) {
-    const parser = new MarkdownParser();
-    const { markdown: stripped } = parser.extractDirective(markdown, 'layout');
-    return `layout: ${newLayoutValue}\n${stripped}`;
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "layout");
+  return `layout: ${newLayoutValue}\n${stripped}`;
 }
 
 /**
@@ -29,17 +29,17 @@ export function updateLayoutDirective(markdown, newLayoutValue) {
  * @returns {string} Updated markdown.
  */
 export function updateBackgroundDirective(markdown, newBackgroundCss) {
-    const parser = new MarkdownParser();
-    const { markdown: stripped } = parser.extractDirective(markdown, 'background');
-    const trimmed = String(newBackgroundCss || '').trim();
-    if (!trimmed) return stripped;
-    // Multi-line values (gradients, layered backgrounds) should keep working.
-    // Indent continuation lines so the parser doesn't treat them as new directives.
-    const indented = trimmed
-        .split('\n')
-        .map((line, i) => (i === 0 ? line : `  ${line}`))
-        .join('\n');
-    return `background: ${indented}\n${stripped}`;
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "background");
+  const trimmed = String(newBackgroundCss || "").trim();
+  if (!trimmed) return stripped;
+  // Multi-line values (gradients, layered backgrounds) should keep working.
+  // Indent continuation lines so the parser doesn't treat them as new directives.
+  const indented = trimmed
+    .split("\n")
+    .map((line, i) => (i === 0 ? line : `  ${line}`))
+    .join("\n");
+  return `background: ${indented}\n${stripped}`;
 }
 
 /**
@@ -50,11 +50,13 @@ export function updateBackgroundDirective(markdown, newBackgroundCss) {
  * @returns {string} Updated markdown.
  */
 export function updateThemeDirective(markdown, themeValue) {
-    const parser = new MarkdownParser();
-    const { markdown: stripped } = parser.extractDirective(markdown, 'theme');
-    const trimmed = String(themeValue || '').trim().toLowerCase();
-    if (!trimmed) return stripped;
-    return `theme: ${trimmed}\n${stripped}`;
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "theme");
+  const trimmed = String(themeValue || "")
+    .trim()
+    .toLowerCase();
+  if (!trimmed) return stripped;
+  return `theme: ${trimmed}\n${stripped}`;
 }
 
 /**
@@ -67,11 +69,11 @@ export function updateThemeDirective(markdown, themeValue) {
  * @returns {string} Updated markdown.
  */
 export function updateAreaStyleDirective(markdown, cssText) {
-    const parser = new MarkdownParser();
-    const { markdown: stripped } = parser.extractDirective(markdown, 'area-style');
-    const trimmed = String(cssText || '').trim();
-    if (!trimmed) return stripped;
-    return `area-style: ${trimmed}\n${stripped}`;
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "area-style");
+  const trimmed = String(cssText || "").trim();
+  if (!trimmed) return stripped;
+  return `area-style: ${trimmed}\n${stripped}`;
 }
 
 /**
@@ -82,12 +84,12 @@ export function updateAreaStyleDirective(markdown, cssText) {
  * @param {string} css
  */
 export function describeBackground(css) {
-    const value = String(css || '').trim();
-    if (!value) return { type: 'none', value: '', preview: '' };
+  const value = String(css || "").trim();
+  if (!value) return { type: "none", value: "", preview: "" };
 
-    let type = 'color';
-    if (/gradient\s*\(/i.test(value)) type = 'gradient';
-    else if (/^url\(/i.test(value)) type = 'image';
+  let type = "color";
+  if (/gradient\s*\(/i.test(value)) type = "gradient";
+  else if (/^url\(/i.test(value)) type = "image";
 
-    return { type, value, preview: value };
+  return { type, value, preview: value };
 }
