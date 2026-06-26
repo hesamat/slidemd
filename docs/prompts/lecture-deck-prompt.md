@@ -360,25 +360,11 @@ After generating the slide deck, create a **student hand-in template** for stude
 
 **Generate a complete slide deck markdown file for:**
 
-**Topic:** Data Management & Serialization (with a focus on Firestore). I have covered REST API and flask basics last week.
+**Topic:** [Your topic here]
 
-**Target Audience:** "Last semester undergraduate EE students"
+**Target Audience:** [Your audience here]
 
-**Course objectives:** Course Description
-The course views software from a systems perspective. Software modules are viewed as components in a system. Software development methodology is reinforced in the context of an overall system design, including requirements analysis and specifications, implementation, testing, inspection, and debugging techniques. The integration of independent modules (including modules developed in different languages) is explored. Issues in distributing software functionality and data access across a network are explored. Common methods and modules for distributing system management and other functions over the Internet are discussed. Security issues related to distributed software-based systems are discussed. Students are exposed to TCP/IP network programming, and web-based user interface design.
-
-Course Learning Outcomes/Competencies
-Upon successful completion of this course, the student will be able to:
-
-Describe the steps of methodical design of a multifaceted system involving multiple distributed software modules and data stores over a network. [4,5,7]
-Describe the challenges of complexity management for large distributed software systems. [2,7]
-Analyze, design and document distributed software systems. [2,3,5,7]
-Create a comprehensive test plan for a distributed software system. [3,5]
-Integrate independent software modules developed in different programming languages. [4,6]
-Identify and use the common modules and protocols implemented on the Internet for distributed system management. [2,4,5]
-Identify the major security issues related to distributed software systems. [2,3,5]
-Design and implement a distributed software application using standard libraries. [4,5,6]
-Analyze, design and implement a web-based user interface for distributed software. [2,3,4,5,6]
+**Additional Context:** [Optional: prerequisites, covered topics, course objectives]
 
 ---
 
