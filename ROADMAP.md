@@ -57,9 +57,9 @@ Goal: Replace the fragile custom build script with a proper bundler.
 | Task                                      | Effort   | Details                                                   |
 | ----------------------------------------- | -------- | --------------------------------------------------------- |
 | [x] Migrate `tools/build.mjs` to esbuild  | 2-3 days | Replace regex-based ESM stripping with esbuild bundler    |
-| [ ] Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
+| [x] Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
 | [x] Verify all assets inline correctly    | 0.5 day  | KaTeX fonts, Prism themes, CSS                            |
-| [ ] Update build pipeline for source maps | 0.5 day  | Optional but helpful for debugging dist builds            |
+| [x] Update build pipeline for source maps | 0.5 day  | Optional but helpful for debugging dist builds            |
 
 **Effort estimate:** 3-4 days
 

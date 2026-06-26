@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
 import { build as esbuild } from "esbuild";
-import { buildMermaidScriptTag } from "../src/core/mermaid-config.js";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -422,10 +421,8 @@ if (usesPrism || usesKatex || usesMermaid) {
     }
 
     if (usesMermaid) {
-        // Don't inline mermaid (v11 is 2.7MB and ESM-only)
-        // Instead, inject a script tag to load it from CDN
-        // This will be processed later to add the CDN link to the HTML head
-        vendorJsParts.push(`/* Mermaid loaded from CDN (usesMermaid flag) */`);
+        // Mermaid is bundled into deck.bundle.js via esbuild.
+        // No CDN script needed — works offline.
     }
 
     vendorCss = vendorCssParts.filter(Boolean).join("\n\n");
@@ -445,6 +442,7 @@ async function buildBundleJs() {
         platform: "browser",
         target: "es2020",
         minify: true,
+        sourcemap: true,
         outfile: path.join(distDir, "deck.bundle.js"),
         // Configure loaders for non-JS assets that might be imported
         loader: {
@@ -582,13 +580,6 @@ html = html.replace(
     deckScriptRegex,
     () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
-
-// Inject mermaid CDN script if needed (before closing </head> tag)
-if (usesMermaid) {
-    const mermaidScript = buildMermaidScriptTag();
-    html = html.replace(/<\/head>/i, `${mermaidScript}</head>`);
-    console.log(`Added mermaid CDN link for diagram rendering`);
-}
 
 // Initialize KaTeX auto-render for dist builds (needed since ensureKatexLoaded is stubbed out)
 if (usesKatex) {
