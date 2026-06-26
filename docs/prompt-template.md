@@ -31,7 +31,7 @@ layout: header-content
 
 # Header + two equal columns
 
-layout: header-two-column
+layout: two-column
 
 # Content: @header, @main, @media
 
@@ -49,12 +49,9 @@ layout: "header header" "main sidebar" / 1fr 300px
 
 # Other commonly used presets
 
-layout: focus
 layout: left-heavy
 layout: right-heavy
 layout: three-column
-layout: sidebar-content
-layout: content-sidebar
 ```
 
 **Slide Options:**

@@ -57,16 +57,12 @@ More layouts, backgrounds, and theming recipes live in [docs/example.md](docs/ex
 
 Use preset names instead of full CSS grid strings:
 
-- `focus` - Single column content area
-- `two-column` - Equal two-column layout
+- `title-slide` - Full-screen centered content
+- `header-content` - Header, content, footer stacked
+- `two-column` - Two equal columns with optional header and footer
 - `left-heavy` - Two columns with left side larger (2:1)
 - `right-heavy` - Two columns with right side larger (1:2)
-- `header-content` - Header, content, footer stacked
-- `header-two-column` - Header row with two columns and footer
-- `title-slide` - Full-screen centered content
 - `three-column` - Three equal columns
-- `sidebar-content` - Fixed sidebar (300px) with flexible content
-- `content-sidebar` - Flexible content with fixed sidebar (300px)
 
 ## Edit Mode Tips
 

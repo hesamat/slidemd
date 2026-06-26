@@ -10,7 +10,7 @@ Create beautiful slides with plain Markdown. No installation, no accounts, no bu
 
 ---
 
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -36,7 +36,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 ---
 
-layout: header-two-column
+layout: two-column
 
 <!-- notes: Your talking points! -->
 
@@ -81,7 +81,6 @@ Use --- to separate slides. Define the layout first, then place content with @ar
 | ---------------- | ------------------------------------------------- |
 | `header-content` | `@header` `@main` `@footer`                       |
 | `title-slide`    | `@title`                                          |
-| `focus`          | `@header` `@main` `@footer`                       |
 | `two-column`     | `@header` `@main` `@media` `@footer`              |
 | `left-heavy`     | `@header` `@main` `@media` `@footer`              |
 | `right-heavy`    | `@header` `@main` `@media` `@footer`              |
@@ -155,7 +154,7 @@ graph TD
 ---
 
 background: linear-gradient(135deg, #c7d2fe 0%, #f5d0fe 100%)
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -188,7 +187,7 @@ Press `E` to toggle split-screen editing with live preview.
 
 ---
 
-layout: header-two-column
+layout: two-column
 theme: dark
 background: #3e1d5f
 
@@ -238,7 +237,7 @@ hidden: true
 
 ---
 
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -283,7 +282,7 @@ Use for key takeaways and callouts:
 
 ---
 
-layout: header-two-column
+layout: two-column
 
 @header
 
@@ -316,7 +315,7 @@ When you open SlideMD, you see the presenter dashboard with:
 
 ---
 
-layout: header-two-column
+layout: two-column
 
 @header
 
