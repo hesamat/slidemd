@@ -239,29 +239,21 @@ layout: two-column
 
 ### Inserting Images
 
-**Drag and drop** an image directly onto a slide in Edit Mode, or use the image picker:
+**Drag and drop** an image directly onto a slide in Edit Mode, or use the image picker from the toolbar.
 
-```markdown
-layout: two-column
-
-@main
-![Alt text](../public/screenshot.png)
-```
-
-### Resizing
+### Resizing & Positioning
 
 - Drag corner handles to resize
 - Double-click to reset to original size
 - Use the properties panel for precise dimensions
+- Images can be placed in any `@area` column
 
 ### Background Images
 
-```markdown
-layout: header-content
-background: url(../public/hero.png)
+Add `background: url(...)` to slide frontmatter for full-slide backgrounds:
 
-@main
-Content overlays the background image.
+```yaml
+background: url(../public/hero.png)
 ```
 
 @media
@@ -271,7 +263,13 @@ Content overlays the background image.
 - Use `../public/` for project images
 - Supported formats: PNG, JPG, SVG, GIF
 - Images auto-scale to fit the slide area
-- Use `background:` for full-slide backgrounds
+- Combine with `theme: dark` for overlay effects
+
+### Supported Sources
+
+- **Local files** – Drag from file explorer
+- **URLs** – `![alt](https://example.com/img.png)`
+- **Relative paths** – `![alt](../public/image.png)`
 
 ---
 
