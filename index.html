@@ -1,561 +1,966 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SlideMD - Markdown Presentations</title>
     <link rel="stylesheet" href="styles.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="icon" type="image/png" sizes="500x500" href="/icon.png" />
     <link rel="apple-touch-icon" sizes="500x500" href="/icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#3b82f6" />
     <meta name="description" content="Create and present slides using plain Markdown." />
-</head>
+  </head>
 
-<body>
+  <body>
     <div id="app" class="app">
-        <!-- Top Bar -->
-        <header id="controlBar" class="topbar">
-            <div class="topbar__left">
-                <div class="menu-dropdown">
-                    <button id="menuBtn" class="icon-btn" type="button" aria-label="Open menu" title="Menu">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="1"></circle>
-                            <circle cx="19" cy="12" r="1"></circle>
-                            <circle cx="5" cy="12" r="1"></circle>
-                        </svg>
-                    </button>
-                    <div id="menuDropdown" class="menu-dropdown__content webdeck-hidden">
-                        <button id="menuOpenFileBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            <span>Open File</span>
-                        </button>
-                        <button id="menuReloadDeckBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="23 4 23 10 17 10"></polyline>
-                                <polyline points="1 20 1 14 7 14"></polyline>
-                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                            </svg>
-                            <span>Reload Deck</span>
-                        </button>
-                        <button id="menuToggleEditModeBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                            </svg>
-                            <span>Toggle Edit Mode</span>
-                        </button>
-                        <button id="menuSaveBtn" class="menu-item menu-hide-in-viewing" type="button" title="Save changes (Ctrl+S)">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                                <polyline points="17 21 17 13 7 13 7 21" />
-                                <polyline points="7 3 7 3 7 8 15 8" />
-                            </svg>
-                            <span>Save</span>
-                            <kbd class="menu-item__hint">Ctrl+S</kbd>
-                        </button>
-                        <div class="menu-divider menu-hide-in-viewing"></div>
-                        <button id="menuPrintBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2">
-                                </path>
-                                <rect x="6" y="14" width="12" height="8"></rect>
-                            </svg>
-                            <span>Print PDF</span>
-                        </button>
-                        <button id="menuExportHtmlBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <span>Export HTML</span>
-                        </button>
-                        <div class="menu-divider"></div>
-                        <button id="menuCourseProfilesBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                            </svg>
-                            <span>Course Profiles</span>
-                        </button>
-                        <button id="menuAIConfigBtn" class="menu-item" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path>
-                                <path d="M12 16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"></path>
-                                <path
-                                    d="M4.93 4.93a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0L4.93 7.76a2 2 0 0 1 0-2.83z">
-                                </path>
-                                <path
-                                    d="M14.83 14.83a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-1.41-1.41a2 2 0 0 1 0-2.83z">
-                                </path>
-                                <path d="M2 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"></path>
-                                <path d="M16 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"></path>
-                                <path
-                                    d="M4.93 19.07a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z">
-                                </path>
-                                <path
-                                    d="M14.83 9.17a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z">
-                                </path>
-                            </svg>
-                            <span>AI Configuration</span>
-                        </button>
-                        <button id="menuGenerateDeckBtn" class="menu-item menu-item--primary" type="button">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 2v4"></path>
-                                <path d="M12 18v4"></path>
-                                <path d="M4.93 4.93l2.83 2.83"></path>
-                                <path d="M16.24 16.24l2.83 2.83"></path>
-                                <path d="M2 12h4"></path>
-                                <path d="M18 12h4"></path>
-                                <path d="M4.93 19.07l2.83-2.83"></path>
-                                <path d="M16.24 7.76l2.83-2.83"></path>
-                            </svg>
-                            <span>Generate Deck</span>
-                        </button>
-                    </div>
-                </div>
-                <button id="toggleEditModeBtn" class="icon-btn" type="button" aria-label="Toggle edit mode"
-                    title="Edit Mode (E)">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                </button>
-                <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
+      <!-- Top Bar -->
+      <header id="controlBar" class="topbar">
+        <div class="topbar__left">
+          <div class="menu-dropdown">
+            <button id="menuBtn" class="icon-btn" type="button" aria-label="Open menu" title="Menu">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="1"></circle>
+                <circle cx="19" cy="12" r="1"></circle>
+                <circle cx="5" cy="12" r="1"></circle>
+              </svg>
+            </button>
+            <div id="menuDropdown" class="menu-dropdown__content webdeck-hidden">
+              <button id="menuOpenFileBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>Open File</span>
+              </button>
+              <button id="menuReloadDeckBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path
+                    d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+                  ></path>
+                </svg>
+                <span>Reload Deck</span>
+              </button>
+              <button id="menuToggleEditModeBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>Toggle Edit Mode</span>
+              </button>
+              <button
+                id="menuSaveBtn"
+                class="menu-item menu-hide-in-viewing"
+                type="button"
+                title="Save changes (Ctrl+S)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 3 7 8 15 8" />
+                </svg>
+                <span>Save</span>
+                <kbd class="menu-item__hint">Ctrl+S</kbd>
+              </button>
+              <div class="menu-divider menu-hide-in-viewing"></div>
+              <button id="menuPrintBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path
+                    d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+                  ></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>Print PDF</span>
+              </button>
+              <button id="menuExportHtmlBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Export HTML</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button id="menuCourseProfilesBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                <span>Course Profiles</span>
+              </button>
+              <button id="menuAIConfigBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
+                  ></path>
+                  <path
+                    d="M12 16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z"
+                  ></path>
+                  <path
+                    d="M4.93 4.93a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0L4.93 7.76a2 2 0 0 1 0-2.83z"
+                  ></path>
+                  <path
+                    d="M14.83 14.83a2 2 0 0 1 2.83 0l1.41 1.41a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-1.41-1.41a2 2 0 0 1 0-2.83z"
+                  ></path>
+                  <path
+                    d="M2 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"
+                  ></path>
+                  <path
+                    d="M16 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"
+                  ></path>
+                  <path
+                    d="M4.93 19.07a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z"
+                  ></path>
+                  <path
+                    d="M14.83 9.17a2 2 0 0 1 0-2.83l1.41-1.41a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-1.41 1.41a2 2 0 0 1-2.83 0z"
+                  ></path>
+                </svg>
+                <span>AI Configuration</span>
+              </button>
+              <button id="menuGenerateDeckBtn" class="menu-item menu-item--primary" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 2v4"></path>
+                  <path d="M12 18v4"></path>
+                  <path d="M4.93 4.93l2.83 2.83"></path>
+                  <path d="M16.24 16.24l2.83 2.83"></path>
+                  <path d="M2 12h4"></path>
+                  <path d="M18 12h4"></path>
+                  <path d="M4.93 19.07l2.83-2.83"></path>
+                  <path d="M16.24 7.76l2.83-2.83"></path>
+                </svg>
+                <span>Generate Deck</span>
+              </button>
             </div>
-            <div class="topbar__right">
-                <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Toggle dark mode"
-                    title="Toggle Dark Mode (D)">
-                    <span class="theme-toggle__track">
-                        <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="5"></circle>
-                            <line x1="12" y1="1" x2="12" y2="3"></line>
-                            <line x1="12" y1="21" x2="12" y2="23"></line>
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                            <line x1="1" y1="12" x2="3" y2="12"></line>
-                            <line x1="21" y1="12" x2="23" y2="12"></line>
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                        </svg>
-                        <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                        </svg>
-                        <span class="theme-toggle__thumb"></span>
-                    </span>
-                </button>
-                <div class="mode-toggles">
-                    <button id="presentBtn" class="mode-toggle" type="button" aria-label="Open viewer view"
-                        title="Present" data-mode="editor">
-                        <svg width="16" height="16" viewBox="0 0 26 26" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                            <line x1="8" y1="21" x2="16" y2="21"></line>
-                            <line x1="12" y1="17" x2="12" y2="21"></line>
-                        </svg>
-                        <span>Present</span>
-                    </button>
-                </div>
-                <button id="toggleFullscreenBtn" class="icon-btn" type="button" aria-label="Toggle fullscreen"
-                    title="Fullscreen (F)">
-                    <svg width="18" height="18" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
-                        </path>
-                    </svg>
-                </button>
-            </div>
-        </header>
+          </div>
+          <button
+            id="toggleEditModeBtn"
+            class="icon-btn"
+            type="button"
+            aria-label="Toggle edit mode"
+            title="Edit Mode (E)"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+          <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
+        </div>
+        <div class="topbar__right">
+          <button
+            id="themeToggleBtn"
+            class="theme-toggle"
+            type="button"
+            aria-label="Toggle dark mode"
+            title="Toggle Dark Mode (D)"
+          >
+            <span class="theme-toggle__track">
+              <svg
+                class="theme-icon-light"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <svg
+                class="theme-icon-dark"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span class="theme-toggle__thumb"></span>
+            </span>
+          </button>
+          <div class="mode-toggles">
+            <button
+              id="presentBtn"
+              class="mode-toggle"
+              type="button"
+              aria-label="Open viewer view"
+              title="Present"
+              data-mode="editor"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 26 26"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span>Present</span>
+            </button>
+          </div>
+          <button
+            id="toggleFullscreenBtn"
+            class="icon-btn"
+            type="button"
+            aria-label="Toggle fullscreen"
+            title="Fullscreen (F)"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 26 26"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </header>
 
-        <main class="main">
-            <!-- Editor Panel -->
-            <aside id="editorPanel" class="editorPanel webdeck-hidden" aria-label="Editor panel">
-                <div class="editor__resize-handle" title="Drag to resize panel"></div>
-                <!-- Slide Thumbnails Sidebar -->
-                <div class="editor__thumbnails">
-                    <div class="editor__thumbnails-header">
-                        <span class="editor__thumbnails-title">Slides</span>
-                        <div class="segmented insert-dropdown" role="group" aria-label="Slide actions">
-                            <button id="slideActionsDropdownBtn"
-                                class="segmented__btn segmented__btn--dropdown insert-dropdown__btn" type="button"
-                                aria-expanded="false" aria-controls="slideActionsDropdownContent"
-                                title="Slide actions (new / duplicate / delete)">
-                                <svg class="segmented__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
-                                <span class="segmented__label">Slide</span>
-                                <svg class="insert-dropdown__chevron" width="12" height="12" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                                    stroke-linejoin="round">
-                                    <polyline points="6 9 12 15 18 9"></polyline>
-                                </svg>
-                            </button>
-                            <div id="slideActionsDropdownContent" class="insert-dropdown__content webdeck-hidden">
-                                <div class="insert-dropdown__group">
-                                    <span class="insert-dropdown__group-label">Slide</span>
-                                    <button type="button" class="menu-item" data-slide-action="new">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                                            <line x1="12" y1="8" x2="12" y2="16" />
-                                            <line x1="8" y1="12" x2="16" y2="12" />
-                                        </svg>
-                                        <span>New slide</span>
-                                        <kbd class="insert-dropdown__hint">Alt+N</kbd>
-                                    </button>
-                                    <button type="button" class="menu-item" data-slide-action="duplicate">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <rect x="9" y="9" width="11" height="11" rx="2" />
-                                            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                                        </svg>
-                                        <span>Duplicate</span>
-                                        <kbd class="insert-dropdown__hint">Alt+D</kbd>
-                                    </button>
-                                    <button type="button" class="menu-item" data-slide-action="delete">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6" />
-                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                            <path d="M10 11v6" />
-                                            <path d="M14 11v6" />
-                                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                        </svg>
-                                        <span>Delete slide</span>
-                                        <kbd class="insert-dropdown__hint">Alt+⌫</kbd>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <button id="toggleThumbnailsBtn" class="editor__thumbnails-toggle" type="button"
-                            aria-label="Collapse slides" title="Collapse slides">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="slideThumbnails" class="slide-thumbnails">
-                        <!-- Thumbnails will be generated by JS -->
-                        <!-- Add-slide button is the last item in the list so
+      <main class="main">
+        <!-- Editor Panel -->
+        <aside id="editorPanel" class="editorPanel webdeck-hidden" aria-label="Editor panel">
+          <div class="editor__resize-handle" title="Drag to resize panel"></div>
+          <!-- Slide Thumbnails Sidebar -->
+          <div class="editor__thumbnails">
+            <div class="editor__thumbnails-header">
+              <span class="editor__thumbnails-title">Slides</span>
+              <div class="segmented insert-dropdown" role="group" aria-label="Slide actions">
+                <button
+                  id="slideActionsDropdownBtn"
+                  class="segmented__btn segmented__btn--dropdown insert-dropdown__btn"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="slideActionsDropdownContent"
+                  title="Slide actions (new / duplicate / delete)"
+                >
+                  <svg
+                    class="segmented__icon"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span class="segmented__label">Slide</span>
+                  <svg
+                    class="insert-dropdown__chevron"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div
+                  id="slideActionsDropdownContent"
+                  class="insert-dropdown__content webdeck-hidden"
+                >
+                  <div class="insert-dropdown__group">
+                    <span class="insert-dropdown__group-label">Slide</span>
+                    <button type="button" class="menu-item" data-slide-action="new">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <line x1="12" y1="8" x2="12" y2="16" />
+                        <line x1="8" y1="12" x2="16" y2="12" />
+                      </svg>
+                      <span>New slide</span>
+                      <kbd class="insert-dropdown__hint">Alt+N</kbd>
+                    </button>
+                    <button type="button" class="menu-item" data-slide-action="duplicate">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                      </svg>
+                      <span>Duplicate</span>
+                      <kbd class="insert-dropdown__hint">Alt+D</kbd>
+                    </button>
+                    <button type="button" class="menu-item" data-slide-action="delete">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                      </svg>
+                      <span>Delete slide</span>
+                      <kbd class="insert-dropdown__hint">Alt+⌫</kbd>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button
+                id="toggleThumbnailsBtn"
+                class="editor__thumbnails-toggle"
+                type="button"
+                aria-label="Collapse slides"
+                title="Collapse slides"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+            <div id="slideThumbnails" class="slide-thumbnails">
+              <!-- Thumbnails will be generated by JS -->
+              <!-- Add-slide button is the last item in the list so
                              it scrolls with the thumbnails (and so we don't
                              reserve a fixed slot for it).  Right-click a
                              thumbnail for the full new/duplicate/delete
                              context menu. -->
-                        <button id="addSlideFooterBtn" class="slide-thumbnails__add-btn" type="button"
-                            title="Add a new slide" aria-label="Add a new slide">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                            <span>Add Slide</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="editor__body">
-                    <div class="editor__body-header">
-                        <h2 class="editor__title">Edit Slide</h2>
-                        <div class="editor__helper-actions">
-                            <div class="segmented insert-dropdown" role="group" aria-label="Slide actions">
-                                <button id="insertDropdownBtn"
-                                    class="segmented__btn segmented__btn--dropdown insert-dropdown__btn" type="button"
-                                    aria-expanded="false" aria-controls="insertDropdownContent"
-                                    title="Modify the current slide">
-                                    <svg class="segmented__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                                        <line x1="3" y1="9" x2="21" y2="9" />
-                                        <line x1="15" y1="3" x2="15" y2="21" />
-                                    </svg>
-                                    <span class="segmented__label">Format</span>
-                                    <svg class="insert-dropdown__chevron" width="12" height="12" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-                                <div id="insertDropdownContent" class="insert-dropdown__content webdeck-hidden">
-                                    <div class="insert-dropdown__group">
-                                        <span class="insert-dropdown__group-label">Layout</span>
-                                        <button type="button" class="menu-item" data-insert-action="layout">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                                <line x1="3" y1="9" x2="21" y2="9" />
-                                                <line x1="9" y1="21" x2="9" y2="9" />
-                                            </svg>
-                                            <span>Layout</span>
-                                            <kbd class="insert-dropdown__hint">Alt+L</kbd>
-                                        </button>
-                                        <button id="adjustColumnsMenuItem" type="button" class="menu-item"
-                                            data-insert-action="adjust-columns" disabled>
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <rect x="3" y="3" width="7" height="18" rx="1" />
-                                                <rect x="14" y="3" width="7" height="18" rx="1" />
-                                            </svg>
-                                            <span>Columns</span>
-                                            <kbd class="insert-dropdown__hint">Alt+A</kbd>
-                                        </button>
-                                    </div>
-                                    <div class="insert-dropdown__group">
-                                        <span class="insert-dropdown__group-label">Appearance</span>
-                                        <button type="button" class="menu-item" data-insert-action="background">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <circle cx="12" cy="12" r="10" />
-                                                <path d="M12 2a10 10 0 0 0 0 20 6 6 0 0 1 0-12 6 6 0 0 0 0-8z"
-                                                    fill="currentColor" stroke="none" />
-                                            </svg>
-                                            <span>Background</span>
-                                            <kbd class="insert-dropdown__hint">Alt+B</kbd>
-                                        </button>
-                                        <button type="button" class="menu-item" data-insert-action="area-style">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                                <line x1="3" y1="9" x2="21" y2="9" />
-                                                <line x1="9" y1="3" x2="9" y2="21" />
-                                                <line x1="3" y1="15" x2="21" y2="15" />
-                                                <line x1="15" y1="3" x2="15" y2="21" />
-                                            </svg>
-                                            <span>Styles</span>
-                                            <kbd class="insert-dropdown__hint">Alt+S</kbd>
-                                        </button>
-                                        <button type="button" class="menu-item" data-insert-action="theme"
-                                            id="toggleThemeMenuItem">
-                                            <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 24 24"
-                                                fill="none" stroke="currentColor" stroke-width="2"
-                                                stroke-linecap="round" stroke-linejoin="round" style="display:none">
-                                                <circle cx="12" cy="12" r="5"></circle>
-                                                <line x1="12" y1="1" x2="12" y2="3"></line>
-                                                <line x1="12" y1="21" x2="12" y2="23"></line>
-                                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                                                <line x1="1" y1="12" x2="3" y2="12"></line>
-                                                <line x1="21" y1="12" x2="23" y2="12"></line>
-                                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                                                <line x1="18.36" y1="5.64" x2="19.78" y2="18.36"></line>
-                                            </svg>
-                                            <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 24 24"
-                                                fill="none" stroke="currentColor" stroke-width="2"
-                                                stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                                            </svg>
-                                            <span>Theme</span>
-                                            <kbd class="insert-dropdown__hint">Alt+T</kbd>
-                                        </button>
-                                    </div>
-                                    <div class="insert-dropdown__group">
-                                        <span class="insert-dropdown__group-label">Insert</span>
-                                        <button type="button" class="menu-item" data-insert-action="image">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                                <circle cx="8.5" cy="8.5" r="1.5" />
-                                                <path d="M21 15l-5-5L5 21" />
-                                            </svg>
-                                            <span>Image</span>
-                                            <kbd class="insert-dropdown__hint">Alt+I</kbd>
-                                        </button>
-                                        <button type="button" class="menu-item" data-insert-action="mermaid">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round">
-                                                <rect x="3" y="3" width="6" height="6" rx="1" />
-                                                <rect x="15" y="15" width="6" height="6" rx="1" />
-                                                <rect x="15" y="3" width="6" height="6" rx="1" />
-                                                <path d="M9 6h6" />
-                                                <path d="M18 9v6" />
-                                                <path d="M6 9v6a3 3 0 0 0 3 3h6" />
-                                            </svg>
-                                            <span>Diagram</span>
-                                            <kbd class="insert-dropdown__hint">Alt+M</kbd>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="mermaidHelperPanel" class="editor__helper-panel webdeck-hidden" aria-hidden="true">
-                        <div class="editor__helper-title">Mermaid helpers</div>
-                        <div class="editor__helper-grid">
-                            <button class="btn btn--sm" type="button"
-                                data-mermaid-template="flowchart">Flowchart</button>
-                            <button class="btn btn--sm" type="button" data-mermaid-template="erDiagram">ER</button>
-                            <button class="btn btn--sm" type="button" data-mermaid-template="sequence">Sequence</button>
-                            <button class="btn btn--sm" type="button" data-mermaid-template="class">Class</button>
-                            <button class="btn btn--sm" type="button" data-mermaid-template="state">State</button>
-                            <button class="btn btn--sm" type="button" data-mermaid-template="gantt">Gantt</button>
-                        </div>
-                        <div class="editor__helper-note">Inserts a Mermaid code block at the cursor.</div>
-                    </div>
-                    <div id="markdownEditor" class="markdown-editor-container"></div>
-                </div>
-            </aside>
-
-            <!-- Viewer Area -->
-            <section id="viewer" class="viewer">
-                <div id="stageHost" class="stage-host">
-                    <div id="deckStage" class="stage" aria-label="Slide stage">
-                        <div id="stageInner" class="stage__inner">
-                            <div id="slidesContainer" class="slides"></div>
-                            <div id="slideIndicator" class="slide-indicator" aria-label="Slide number">
-                                <span id="slideNumber">1</span>/<span id="slideCount">1</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Presenter Panel -->
-            <aside id="presenterPanel" class="presenterPanel webdeck-hidden" aria-label="Presenter panel">
-                <div class="presenter__resize-handle" title="Drag to resize panel"></div>
-                <div class="presenter__header">
-                    <h2 class="presenter__title">Presenter View</h2>
-                </div>
-                <div class="presenter__body">
-                    <div class="presenter__tools">
-                        <label for="breakDuration" class="sr-only">Break length</label>
-                        <select id="breakDuration" class="select select--sm" aria-label="Break length">
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10" selected>10</option>
-                            <option value="11">11</option>
-                            <option value="12">12</option>
-                            <option value="13">13</option>
-                            <option value="14">14</option>
-                            <option value="15">15</option>
-                        </select>
-                        <button id="breakBtn" class="btn btn--sm">Break</button>
-                    </div>
-                    <div class="presenter__section">
-                        <div class="presenter__sectionHeader">
-                            <h3 class="presenter__sectionTitle">Viewer Control</h3>
-                            <button id="freezeBtn" class="btn btn--sm" title="Freeze Viewer" aria-pressed="false">
-                                <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                </svg>
-                                Freeze
-                            </button>
-                        </div>
-                    </div>
-                    <div class="presenter__section">
-                        <h3 class="presenter__sectionTitle">Next Slide</h3>
-                        <div id="nextPreview" class="next-preview">No next slide</div>
-                    </div>
-                    <div class="presenter__section presenter__section--grow">
-                        <h3 class="presenter__sectionTitle">Speaker Notes</h3>
-                        <div id="notesContainer" class="notes"></div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-
-        <footer id="footerBar" class="footer">
-            <div class="footer__left">
-                <strong>Shortcuts:</strong>
-                <button type="button" class="footer-shortcut" data-shortcut="prev" title="Previous slide">←
-                    Prev</button>
-                <button type="button" class="footer-shortcut" data-shortcut="next" title="Next slide">Next →</button>
-                <span id="editorOnlyControls">
-                    <span class="footer-sep footer-hide-in-edit">•</span>
-                    <span class="footer-hide-in-edit">
-                        <button type="button" class="footer-shortcut" data-shortcut="present"
-                            title="Open presenter view (hidden in edit mode)">P (Present)</button>
-                    </span>
-                    <span class="footer-sep">•</span>
-                    <button type="button" class="footer-shortcut" data-shortcut="edit" title="Toggle edit mode">E
-                        (Edit)</button>
-                    <span class="footer-sep">•</span>
-                    <button type="button" class="footer-shortcut" data-shortcut="reload" title="Reload deck">R
-                        (Reload)</button>
-                    <span class="footer-sep">•</span>
-                    <button type="button" class="footer-shortcut" data-shortcut="theme"
-                        title="Toggle app theme (T = app, Alt+T = slide)">T (App Theme)</button>
-                </span>
-                <span class="footer-sep">•</span>
-                <button type="button" class="footer-shortcut" data-shortcut="fullscreen" title="Toggle fullscreen">F
-                    (Full Screen)</button>
-                <span class="footer-sep">•</span>
-                <button type="button" class="footer-shortcut" data-shortcut="goto" title="Go to slide number">G (Go to
-                    slide)</button>
-                <span class="footer-sep footer-hide-in-edit" data-footer-group="break"></span>
-                <span class="footer-hide-in-edit" data-footer-group="break">
-                    <button type="button" class="footer-shortcut" data-shortcut="break"
-                        title="Toggle break timer (hidden in edit mode)">B (Break)</button>
-                </span>
+              <button
+                id="addSlideFooterBtn"
+                class="slide-thumbnails__add-btn"
+                type="button"
+                title="Add a new slide"
+                aria-label="Add a new slide"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Add Slide</span>
+              </button>
             </div>
-            <div class="footer__right">Slide Deck</div>
-        </footer>
+          </div>
+          <div class="editor__body">
+            <div class="editor__body-header">
+              <h2 class="editor__title">Edit Slide</h2>
+              <div class="editor__helper-actions">
+                <div class="segmented insert-dropdown" role="group" aria-label="Slide actions">
+                  <button
+                    id="insertDropdownBtn"
+                    class="segmented__btn segmented__btn--dropdown insert-dropdown__btn"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="insertDropdownContent"
+                    title="Modify the current slide"
+                  >
+                    <svg
+                      class="segmented__icon"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="3" y1="9" x2="21" y2="9" />
+                      <line x1="15" y1="3" x2="15" y2="21" />
+                    </svg>
+                    <span class="segmented__label">Format</span>
+                    <svg
+                      class="insert-dropdown__chevron"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                  <div id="insertDropdownContent" class="insert-dropdown__content webdeck-hidden">
+                    <div class="insert-dropdown__group">
+                      <span class="insert-dropdown__group-label">Layout</span>
+                      <button type="button" class="menu-item" data-insert-action="layout">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <line x1="3" y1="9" x2="21" y2="9" />
+                          <line x1="9" y1="21" x2="9" y2="9" />
+                        </svg>
+                        <span>Layout</span>
+                        <kbd class="insert-dropdown__hint">Alt+L</kbd>
+                      </button>
+                      <button
+                        id="adjustColumnsMenuItem"
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="adjust-columns"
+                        disabled
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="3" y="3" width="7" height="18" rx="1" />
+                          <rect x="14" y="3" width="7" height="18" rx="1" />
+                        </svg>
+                        <span>Columns</span>
+                        <kbd class="insert-dropdown__hint">Alt+A</kbd>
+                      </button>
+                    </div>
+                    <div class="insert-dropdown__group">
+                      <span class="insert-dropdown__group-label">Appearance</span>
+                      <button type="button" class="menu-item" data-insert-action="background">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <path
+                            d="M12 2a10 10 0 0 0 0 20 6 6 0 0 1 0-12 6 6 0 0 0 0-8z"
+                            fill="currentColor"
+                            stroke="none"
+                          />
+                        </svg>
+                        <span>Background</span>
+                        <kbd class="insert-dropdown__hint">Alt+B</kbd>
+                      </button>
+                      <button type="button" class="menu-item" data-insert-action="area-style">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <line x1="3" y1="9" x2="21" y2="9" />
+                          <line x1="9" y1="3" x2="9" y2="21" />
+                          <line x1="3" y1="15" x2="21" y2="15" />
+                          <line x1="15" y1="3" x2="15" y2="21" />
+                        </svg>
+                        <span>Styles</span>
+                        <kbd class="insert-dropdown__hint">Alt+S</kbd>
+                      </button>
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="theme"
+                        id="toggleThemeMenuItem"
+                      >
+                        <svg
+                          class="theme-icon-light"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          style="display: none"
+                        >
+                          <circle cx="12" cy="12" r="5"></circle>
+                          <line x1="12" y1="1" x2="12" y2="3"></line>
+                          <line x1="12" y1="21" x2="12" y2="23"></line>
+                          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                          <line x1="1" y1="12" x2="3" y2="12"></line>
+                          <line x1="21" y1="12" x2="23" y2="12"></line>
+                          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                          <line x1="18.36" y1="5.64" x2="19.78" y2="18.36"></line>
+                        </svg>
+                        <svg
+                          class="theme-icon-dark"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
+                        <span>Theme</span>
+                        <kbd class="insert-dropdown__hint">Alt+T</kbd>
+                      </button>
+                    </div>
+                    <div class="insert-dropdown__group">
+                      <span class="insert-dropdown__group-label">Insert</span>
+                      <button type="button" class="menu-item" data-insert-action="image">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
+                        <span>Image</span>
+                        <kbd class="insert-dropdown__hint">Alt+I</kbd>
+                      </button>
+                      <button type="button" class="menu-item" data-insert-action="mermaid">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="3" y="3" width="6" height="6" rx="1" />
+                          <rect x="15" y="15" width="6" height="6" rx="1" />
+                          <rect x="15" y="3" width="6" height="6" rx="1" />
+                          <path d="M9 6h6" />
+                          <path d="M18 9v6" />
+                          <path d="M6 9v6a3 3 0 0 0 3 3h6" />
+                        </svg>
+                        <span>Diagram</span>
+                        <kbd class="insert-dropdown__hint">Alt+M</kbd>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              id="mermaidHelperPanel"
+              class="editor__helper-panel webdeck-hidden"
+              aria-hidden="true"
+            >
+              <div class="editor__helper-title">Mermaid helpers</div>
+              <div class="editor__helper-grid">
+                <button class="btn btn--sm" type="button" data-mermaid-template="flowchart">
+                  Flowchart
+                </button>
+                <button class="btn btn--sm" type="button" data-mermaid-template="erDiagram">
+                  ER
+                </button>
+                <button class="btn btn--sm" type="button" data-mermaid-template="sequence">
+                  Sequence
+                </button>
+                <button class="btn btn--sm" type="button" data-mermaid-template="class">
+                  Class
+                </button>
+                <button class="btn btn--sm" type="button" data-mermaid-template="state">
+                  State
+                </button>
+                <button class="btn btn--sm" type="button" data-mermaid-template="gantt">
+                  Gantt
+                </button>
+              </div>
+              <div class="editor__helper-note">Inserts a Mermaid code block at the cursor.</div>
+            </div>
+            <div id="markdownEditor" class="markdown-editor-container"></div>
+          </div>
+        </aside>
+
+        <!-- Viewer Area -->
+        <section id="viewer" class="viewer">
+          <div id="stageHost" class="stage-host">
+            <div id="deckStage" class="stage" aria-label="Slide stage">
+              <div id="stageInner" class="stage__inner">
+                <div id="slidesContainer" class="slides"></div>
+                <div id="slideIndicator" class="slide-indicator" aria-label="Slide number">
+                  <span id="slideNumber">1</span>/<span id="slideCount">1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Presenter Panel -->
+        <aside
+          id="presenterPanel"
+          class="presenterPanel webdeck-hidden"
+          aria-label="Presenter panel"
+        >
+          <div class="presenter__resize-handle" title="Drag to resize panel"></div>
+          <div class="presenter__header">
+            <h2 class="presenter__title">Presenter View</h2>
+          </div>
+          <div class="presenter__body">
+            <div class="presenter__tools">
+              <label for="breakDuration" class="sr-only">Break length</label>
+              <select id="breakDuration" class="select select--sm" aria-label="Break length">
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10" selected>10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+              </select>
+              <button id="breakBtn" class="btn btn--sm">Break</button>
+            </div>
+            <div class="presenter__section">
+              <div class="presenter__sectionHeader">
+                <h3 class="presenter__sectionTitle">Viewer Control</h3>
+                <button
+                  id="freezeBtn"
+                  class="btn btn--sm"
+                  title="Freeze Viewer"
+                  aria-pressed="false"
+                >
+                  <svg
+                    class="btn-icon"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  Freeze
+                </button>
+              </div>
+            </div>
+            <div class="presenter__section">
+              <h3 class="presenter__sectionTitle">Next Slide</h3>
+              <div id="nextPreview" class="next-preview">No next slide</div>
+            </div>
+            <div class="presenter__section presenter__section--grow">
+              <h3 class="presenter__sectionTitle">Speaker Notes</h3>
+              <div id="notesContainer" class="notes"></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <footer id="footerBar" class="footer">
+        <div class="footer__left">
+          <strong>Shortcuts:</strong>
+          <button type="button" class="footer-shortcut" data-shortcut="prev" title="Previous slide">
+            ← Prev
+          </button>
+          <button type="button" class="footer-shortcut" data-shortcut="next" title="Next slide">
+            Next →
+          </button>
+          <span id="editorOnlyControls">
+            <span class="footer-sep footer-hide-in-edit">•</span>
+            <span class="footer-hide-in-edit">
+              <button
+                type="button"
+                class="footer-shortcut"
+                data-shortcut="present"
+                title="Open presenter view (hidden in edit mode)"
+              >
+                P (Present)
+              </button>
+            </span>
+            <span class="footer-sep">•</span>
+            <button
+              type="button"
+              class="footer-shortcut"
+              data-shortcut="edit"
+              title="Toggle edit mode"
+            >
+              E (Edit)
+            </button>
+            <span class="footer-sep">•</span>
+            <button
+              type="button"
+              class="footer-shortcut"
+              data-shortcut="reload"
+              title="Reload deck"
+            >
+              R (Reload)
+            </button>
+            <span class="footer-sep">•</span>
+            <button
+              type="button"
+              class="footer-shortcut"
+              data-shortcut="theme"
+              title="Toggle app theme (T = app, Alt+T = slide)"
+            >
+              T (App Theme)
+            </button>
+          </span>
+          <span class="footer-sep">•</span>
+          <button
+            type="button"
+            class="footer-shortcut"
+            data-shortcut="fullscreen"
+            title="Toggle fullscreen"
+          >
+            F (Full Screen)
+          </button>
+          <span class="footer-sep">•</span>
+          <button
+            type="button"
+            class="footer-shortcut"
+            data-shortcut="goto"
+            title="Go to slide number"
+          >
+            G (Go to slide)
+          </button>
+          <span class="footer-sep footer-hide-in-edit" data-footer-group="break"></span>
+          <span class="footer-hide-in-edit" data-footer-group="break">
+            <button
+              type="button"
+              class="footer-shortcut"
+              data-shortcut="break"
+              title="Toggle break timer (hidden in edit mode)"
+            >
+              B (Break)
+            </button>
+          </span>
+        </div>
+        <div class="footer__right">Slide Deck</div>
+      </footer>
     </div>
     <!-- Hidden file input for local file loading -->
-    <input type="file" id="fileInput" accept=".md" style="display: none;" />
+    <input type="file" id="fileInput" accept=".md" style="display: none" />
 
     <!-- Layout Picker Modal -->
-    <div id="layoutPickerModal" class="modal webdeck-hidden" role="dialog" aria-modal="true"
-        aria-labelledby="layoutPickerTitle">
-        <div class="modal__overlay" id="layoutPickerOverlay"></div>
-        <div class="modal__dialog">
-            <div class="modal__header">
-                <h2 id="layoutPickerTitle" class="modal__title">Choose a Layout</h2>
-                <button id="closeLayoutPickerBtn" class="modal__close" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal__body">
-                <div id="layoutPickerGrid" class="layout-picker-grid">
-                    <!-- Layout options will be generated by JS -->
-                </div>
-            </div>
+    <div
+      id="layoutPickerModal"
+      class="modal webdeck-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="layoutPickerTitle"
+    >
+      <div class="modal__overlay" id="layoutPickerOverlay"></div>
+      <div class="modal__dialog">
+        <div class="modal__header">
+          <h2 id="layoutPickerTitle" class="modal__title">Choose a Layout</h2>
+          <button id="closeLayoutPickerBtn" class="modal__close" aria-label="Close">&times;</button>
         </div>
+        <div class="modal__body">
+          <div id="layoutPickerGrid" class="layout-picker-grid">
+            <!-- Layout options will be generated by JS -->
+          </div>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="deck.js"></script>
-</body>
-
+  </body>
 </html>

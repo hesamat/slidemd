@@ -531,7 +531,7 @@ function stripEsmSyntax(srcText, filePath) {
         // Stub initializeMermaid - replace from method start to renderMermaidDiagrams
         // We must preserve getMermaidSandbox since renderMermaidDiagrams uses it
         out = out.replace(
-            /static async initializeMermaid\([^)]*\) \{[\s\S]*?\n    static async renderMermaidDiagrams/,
+            /static async initializeMermaid\([^)]*\) \{[\s\S]*?(?=static async renderMermaidDiagrams)/,
             () => `static async initializeMermaid() { /* Mermaid loaded from CDN in dist build */ if (!window.__WEBDECK_MERMAID__) { if (window.mermaid) { window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid }; } else { window.__WEBDECK_MERMAID__ = { mermaid: null }; } } return window.__WEBDECK_MERMAID__; }
 
     // add somewhere in ContentEnhancer (stubbed for dist build)
@@ -566,7 +566,7 @@ function stripEsmSyntax(srcText, filePath) {
     if (filePath.includes('deck-controller.js')) {
         // Stub initGenerationManager method with no-op
         out = out.replace(
-            /initGenerationManager\(\) \{[\s\S]*?\n    \}/,
+            /initGenerationManager\(\) \{[^}]*\}/,
             () => `initGenerationManager() { /* AI generation disabled in dist build */ }`
         );
     }

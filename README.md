@@ -3,6 +3,7 @@
 A lightweight, browser-based slide deck with a presenter view.
 
 This project prioritizes:
+
 - Deterministic rendering on a fixed 16:9 stage (1920x1080 coordinate system)
 - Window scaling without content reflow (letterboxing or pillarboxing adds whitespace)
 - Offline-friendly builds with no Tailwind or CDN dependencies at runtime
@@ -41,9 +42,11 @@ Minimal example:
 layout: header-content
 
 @header
+
 ## Slide Title
 
 @main
+
 - Point A
 - Point B
 ```
@@ -55,6 +58,7 @@ More layouts, backgrounds, and theming recipes live in [docs/example.md](docs/ex
 ## Edit Mode Tips
 
 Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:
+
 - Search inside the slide with Ctrl/Cmd+F (and Ctrl/Cmd+G to jump results).
 - Autocomplete for `layout:`, `theme:`, `background:`, `hidden:`, and `@area` markers.
 - Slash commands: type `/` to insert common directives and blocks.
@@ -68,6 +72,7 @@ Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork
 ## Keyboard Shortcuts
 
 ### Navigation
+
 - `Space`, `ArrowRight`, `ArrowDown`, `PageDown`: Next slide
 - `ArrowLeft`, `ArrowUp`, `PageUp`, `Backspace`: Previous slide
 - `Home`: Go to first slide
@@ -75,24 +80,30 @@ Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork
 - `G`: Open "Go to slide" prompt
 
 ### Stage Controls (all windows)
+
 - `F`: Toggle fullscreen for the stage
 
 ### Editor Window (work in both viewing and edit mode)
+
 - `E`: Toggle edit mode
 - `R`: Reload the deck
 - `T`: Toggle the **app** theme (light/dark UI chrome)
 
 ### Editor Window — Viewing Mode Only
+
 - `P`: Toggle viewer window (present) — hidden in the footer when in edit mode
 
 ### Editor Window — Edit Mode Only (also hidden in footer)
+
 - `B`: Toggle break overlay (press again or hit Space/Arrow/Page keys to dismiss)
 
 Notes:
+
 - `B` (break) and `P` (present) are intentionally disabled in edit mode — the break is for the presenter view, not for editing, and the presenter window is only useful when presenting, not when writing. Both buttons are also hidden from the footer in edit mode.
 - The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
 
 ### Edit Mode
+
 Edit mode (toggled with `E`) is the slide-editing workspace. All edit-mode shortcuts are discoverable in the **Format** dropdown and in the right-click context menu on slide thumbnails.
 
 **Format dropdown** (in the editor body header) — modify the current slide:
@@ -119,12 +130,14 @@ There are two distinct themes and two distinct shortcuts:
 **Saving changes** is done from the main app menu (top-bar dropdown, under "Toggle Edit Mode"). The menu also shows the `Ctrl+S` shortcut. Save is only meaningful in edit mode — clicking it from viewing mode shows a notification asking you to enter edit mode first.
 
 Structural (work even while typing in the editor):
+
 - `Ctrl+S`: Save changes
 - `Alt+N`: New slide (opens the layout picker)
 - `Alt+D`: Duplicate current slide
 - `Alt+Backspace`: Delete current slide (with confirmation)
 
 Insert content (work even while typing in the editor):
+
 - `Alt+I`: Insert image
 - `Alt+L`: Open layout picker for the current slide
 - `Alt+A`: Toggle column resize handles (Adjust Columns)
@@ -134,6 +147,7 @@ Insert content (work even while typing in the editor):
 - `Alt+S`: Toggle the slide styles panel
 
 Image selected (contextual — only the image overlay is active):
+
 - `C`: Center image on slide
 - `W`: Fit image to area width
 - `]`: Bring to front
@@ -144,7 +158,6 @@ Image selected (contextual — only the image overlay is active):
 - `Delete`: delete image from the slide
 
 Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`) because those `Ctrl` combinations are reserved by the browser for "new window" and "bookmark" and cannot be intercepted by web pages.
-
 
 Use preset names instead of full CSS grid strings:
 
@@ -168,6 +181,7 @@ Use preset names instead of full CSS grid strings:
 ### Math Formatting (KaTeX)
 
 **Inline math** (single `$` - stays on one line):
+
 ```markdown
 $E = mc^2$
 $\text{Time complexity: } O(n \log n)$
@@ -176,6 +190,7 @@ $\text{Time complexity: } O(n \log n)$
 **Display math** (double `$$` - centered, larger):
 
 For multi-line content with `\begin{aligned}` or similar, the `$$` delimiters must be on their own lines:
+
 ```markdown
 $$
 \begin{aligned}
@@ -186,6 +201,7 @@ $$
 ```
 
 For single-line display math, delimiters can be on the same line:
+
 ```markdown
 $$E = mc^2$$
 ```
@@ -205,6 +221,7 @@ $$E = mc^2$$
 The `decks/` folder includes alternatives. To build a different source, pass it as an argument to the build script (for example: `node tools/build.mjs decks/deck.md`).
 
 ## Tips
+
 - Images/videos: Use absolute URLs or relative paths served from the same local server.
 - Optional fields: Omit what you do not need; the renderer handles missing fields.
 - When printing to PDF: if `dist/example.pdf` is open in a viewer, the exporter writes a timestamped alternative file.

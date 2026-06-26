@@ -1,104 +1,107 @@
 :root {
-    color-scheme: light;
+  color-scheme: light;
 
-    /* ========================================================================
+  /* ========================================================================
        2. COLOR SYSTEM
        ======================================================================== */
 
-    /* --- PRIMARY COLORS --- */
-    /* Base dark slate for text and borders */
-    --color-slate: 15, 23, 42;
-    /* Primary accent (indigo) */
-    --color-primary: 119, 102, 191;
-    /* Secondary accent (teal, used for hover states) */
-    --color-secondary: 20, 184, 166;
+  /* --- PRIMARY COLORS --- */
+  /* Base dark slate for text and borders */
+  --color-slate: 15, 23, 42;
+  /* Primary accent (indigo) */
+  --color-primary: 119, 102, 191;
+  /* Secondary accent (teal, used for hover states) */
+  --color-secondary: 20, 184, 166;
 
-    /* --- TEXT HIERARCHY --- */
-    --text-high: rgba(var(--color-slate), 0.95);
-    --text-medium: rgba(var(--color-slate), 0.75);
-    --text-low: rgba(var(--color-slate), 0.55);
-    --text-muted: rgba(var(--color-slate), 0.45);
+  /* --- TEXT HIERARCHY --- */
+  --text-high: rgba(var(--color-slate), 0.95);
+  --text-medium: rgba(var(--color-slate), 0.75);
+  --text-low: rgba(var(--color-slate), 0.55);
+  --text-muted: rgba(var(--color-slate), 0.45);
 
-    /* --- BORDERS --- */
-    --border-subtle: rgba(var(--color-slate), 0.08);
-    --border-medium: rgba(148, 163, 184, 0.35);
-    --border-strong: rgba(148, 163, 184, 0.5);
+  /* --- BORDERS --- */
+  --border-subtle: rgba(var(--color-slate), 0.08);
+  --border-medium: rgba(148, 163, 184, 0.35);
+  --border-strong: rgba(148, 163, 184, 0.5);
 
-    /* --- SURFACES --- */
-    --surface-bg: rgba(255, 255, 255, 0.95);
-    --surface-elevated: rgba(248, 250, 252, 0.98);
-    --surface-hover: rgba(var(--color-slate), 0.06);
-    --theme-bg: rgba(var(--color-primary), 0.08);
+  /* --- SURFACES --- */
+  --surface-bg: rgba(255, 255, 255, 0.95);
+  --surface-elevated: rgba(248, 250, 252, 0.98);
+  --surface-hover: rgba(var(--color-slate), 0.06);
+  --theme-bg: rgba(var(--color-primary), 0.08);
 
-    /* --- ACCENT STATES --- */
-    --accent: rgba(var(--color-primary), 0.95);
-    --accent-bg: rgba(var(--color-primary), 0.12);
-    --accent-border: rgba(var(--color-primary), 0.35);
-    --accent-text: rgba(var(--color-primary), 0.95);
+  /* --- ACCENT STATES --- */
+  --accent: rgba(var(--color-primary), 0.95);
+  --accent-bg: rgba(var(--color-primary), 0.12);
+  --accent-border: rgba(var(--color-primary), 0.35);
+  --accent-text: rgba(var(--color-primary), 0.95);
 
-    /* ========================================================================
+  /* ========================================================================
        3. TYPOGRAPHY
        ======================================================================== */
 
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-    --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Courier New", monospace;
-    --ui-font-size: 13px;
-    --ui-line-height: 1.5;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
+    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-mono:
+    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Menlo, Consolas, "Courier New", monospace;
+  --ui-font-size: 13px;
+  --ui-line-height: 1.5;
 
-    /* ========================================================================
+  /* ========================================================================
        4. SPACING & SIZING
        ======================================================================== */
 
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
-    /* --- STAGE DIMENSIONS --- */
-    --slide-bg: #ffffff;
-    --stage-w: 1920px;
-    --stage-h: 1080px;
-    --stage-scale: 1;
+  /* --- STAGE DIMENSIONS --- */
+  --slide-bg: #ffffff;
+  --stage-w: 1920px;
+  --stage-h: 1080px;
+  --stage-scale: 1;
 
-    /* ========================================================================
+  /* ========================================================================
        5. LAYOUT
        ======================================================================== */
 
-    --topbar-h: 48px;
+  --topbar-h: 48px;
 }
 
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 html,
 body {
-    height: 100%;
+  height: 100%;
 }
 
 body {
-    margin: 0;
-    font-family: var(--font-sans);
-    font-size: var(--ui-font-size);
-    line-height: var(--ui-line-height);
-    background: var(--theme-bg);
-    color: var(--text-high);
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
+  background: var(--theme-bg);
+  color: var(--text-high);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Embedded iframe mode - prevent scrolling */
 html[data-embedded="true"] body {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 /* Text selection styling */
 ::selection {
-    background: var(--accent-bg);
-    color: var(--accent-text);
+  background: var(--accent-bg);
+  color: var(--accent-text);
 }
 
 /* ========================================================================
@@ -106,33 +109,33 @@ html[data-embedded="true"] body {
    ======================================================================== */
 
 [data-theme="dark"] {
-    color-scheme: dark;
+  color-scheme: dark;
 
-    /* --- DARK MODE COLORS --- */
-    --color-slate: 226, 232, 240;
+  /* --- DARK MODE COLORS --- */
+  --color-slate: 226, 232, 240;
 
-    /* Text colors - lighter for dark backgrounds */
-    --text-high: rgba(var(--color-slate), 0.95);
-    --text-medium: rgba(var(--color-slate), 0.75);
-    --text-low: rgba(var(--color-slate), 0.55);
-    --text-muted: rgba(var(--color-slate), 0.45);
+  /* Text colors - lighter for dark backgrounds */
+  --text-high: rgba(var(--color-slate), 0.95);
+  --text-medium: rgba(var(--color-slate), 0.75);
+  --text-low: rgba(var(--color-slate), 0.55);
+  --text-muted: rgba(var(--color-slate), 0.45);
 
-    /* Borders - lighter and more visible on dark */
-    --border-subtle: rgba(255, 255, 255, 0.10);
-    --border-medium: rgba(255, 255, 255, 0.18);
-    --border-strong: rgba(255, 255, 255, 0.28);
+  /* Borders - lighter and more visible on dark */
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.28);
 
-    /* Surfaces - dark backgrounds */
-    --surface-bg: rgba(15, 23, 42, 0.95);
-    --surface-elevated: rgba(30, 41, 59, 0.98);
-    --surface-hover: rgba(255, 255, 255, 0.10);
+  /* Surfaces - dark backgrounds */
+  --surface-bg: rgba(15, 23, 42, 0.95);
+  --surface-elevated: rgba(30, 41, 59, 0.98);
+  --surface-hover: rgba(255, 255, 255, 0.1);
 
-    /* Theme background */
-    --theme-bg: rgba(7, 10, 19, 0.98);
+  /* Theme background */
+  --theme-bg: rgba(7, 10, 19, 0.98);
 
-    /* Accent states for dark mode */
-    --accent-bg: rgba(var(--color-primary), 0.15);
-    --accent-border: rgba(var(--color-primary), 0.40);
-    --accent-text: rgba(var(--color-primary), 0.90);
-    --accent: rgba(186, 205, 222, 0.85);
+  /* Accent states for dark mode */
+  --accent-bg: rgba(var(--color-primary), 0.15);
+  --accent-border: rgba(var(--color-primary), 0.4);
+  --accent-text: rgba(var(--color-primary), 0.9);
+  --accent: rgba(186, 205, 222, 0.85);
 }

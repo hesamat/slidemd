@@ -3,21 +3,21 @@
    ======================================================================== */
 
 .main {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 html[data-webdeck-role="editor"] .main {
-    padding-top: var(--topbar-h);
+  padding-top: var(--topbar-h);
 }
 
 @media (min-width: 900px) {
-    .main {
-        flex-direction: row;
-    }
+  .main {
+    flex-direction: row;
+  }
 }
 
 /* ========================================================================
@@ -25,14 +25,14 @@ html[data-webdeck-role="editor"] .main {
    ======================================================================== */
 
 a {
-    color: inherit;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 0.2em;
-    transition: color 200ms ease;
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: color 200ms ease;
 }
 
 a:hover {
-    color: rgba(var(--color-secondary), 0.9);
+  color: rgba(var(--color-secondary), 0.9);
 }
 
 /* ========================================================================
@@ -40,56 +40,58 @@ a:hover {
    ======================================================================== */
 
 .footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    gap: 12px;
-    border-top: 1px solid var(--border-medium);
-    background: var(--surface-bg);
-    backdrop-filter: blur(12px) saturate(1.1);
-    font-size: 11px;
-    color: var(--text-high);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  gap: 12px;
+  border-top: 1px solid var(--border-medium);
+  background: var(--surface-bg);
+  backdrop-filter: blur(12px) saturate(1.1);
+  font-size: 11px;
+  color: var(--text-high);
 }
 
 .footer__left {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .footer__right {
-    color: var(--text-low);
+  color: var(--text-low);
 }
 
 .footer-shortcut {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 2px 6px;
-    border: none;
-    background: transparent;
-    color: var(--text-high);
-    font: inherit;
-    font-size: 11px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-high);
+  font: inherit;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .footer-shortcut:hover {
-    background: var(--bg-hover, rgba(0,0,0,0.08));
-    color: var(--accent);
+  background: var(--bg-hover, rgba(0, 0, 0, 0.08));
+  color: var(--accent);
 }
 
 .footer-shortcut:active {
-    background: var(--bg-active, rgba(0,0,0,0.14));
+  background: var(--bg-active, rgba(0, 0, 0, 0.14));
 }
 
 .footer-sep {
-    color: var(--text-low);
-    user-select: none;
+  color: var(--text-low);
+  user-select: none;
 }
 
 /* Hide footer items in edit mode (e.g. Break timer — the break is for the
@@ -97,9 +99,9 @@ a:hover {
    separator share the class so the trailing separator also disappears,
    avoiding a dangling bullet when the group is hidden. */
 .footer-hide-in-edit {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Two separate `.footer-hide-in-edit` groups hide in edit mode but they
@@ -111,14 +113,14 @@ a:hover {
    They're kept as two groups so they can be re-shown independently if
    the editing workflow ever needs either of them. */
 body[data-edit-mode="true"] .footer-hide-in-edit {
-    display: none;
+  display: none;
 }
 
 /* Menu items that only make sense in edit mode (e.g. Save) are hidden
    when not in edit mode.  The `body:not([data-edit-mode="true"])`
    selector matches both viewing mode and the initial state. */
 body:not([data-edit-mode="true"]) .menu-hide-in-viewing {
-    display: none;
+  display: none;
 }
 
 /* ========================================================================
@@ -126,41 +128,41 @@ body:not([data-edit-mode="true"]) .menu-hide-in-viewing {
    ======================================================================== */
 
 @media (max-width: 900px) {
-    .footer {
-        display: none;
-    }
+  .footer {
+    display: none;
+  }
 
-    .presenter {
-        display: none !important;
-    }
+  .presenter {
+    display: none !important;
+  }
 
-    .presenterPanel {
-        display: none !important;
-    }
+  .presenterPanel {
+    display: none !important;
+  }
 
-    .stage-host {
-        max-width: 100%;
-        max-height: 100%;
-        padding: 12px;
-    }
+  .stage-host {
+    max-width: 100%;
+    max-height: 100%;
+    padding: 12px;
+  }
 
-    .stage {
-        width: 100% !important;
-        height: 100% !important;
-        aspect-ratio: 16 / 9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
+  .stage {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-    .stage__inner {
-        position: relative !important;
-        inset: auto !important;
-        flex-shrink: 0;
-        transform-origin: center center !important;
-    }
+  .stage__inner {
+    position: relative !important;
+    inset: auto !important;
+    flex-shrink: 0;
+    transform-origin: center center !important;
+  }
 
-    .viewer {
-        padding: 0;
-    }
+  .viewer {
+    padding: 0;
+  }
 }
