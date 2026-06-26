@@ -65,25 +65,23 @@ Goal: Replace the fragile custom build script with a proper bundler.
 
 ---
 
-## Phase 3: Packaging
+## Phase 3: Distribution
 
-Goal: Prepare for npm distribution and clean up package metadata.
+Goal: Make the app easy to download and install. Not a library — no npm.
 
-| Task                                          | Effort  | Details                                     |
-| --------------------------------------------- | ------- | ------------------------------------------- |
-| Add `bin` field to package.json for CLI entry | 0.5 day | `slidemd` command                           |
-| Add `files` field to package.json             | 0.5 day | Only ship dist/, not source                 |
-| Add `prepublishOnly` script                   | 0.5 day | Auto-build before publish                   |
-| Test npm pack / npm publish locally           | 0.5 day | Verify package contents                     |
-| Add engines field (Node >=18)                 | 15 min  | File System Access API requires modern Node |
+| Task                                   | Effort  | Details                                        |
+| -------------------------------------- | ------- | ---------------------------------------------- |
+| CI release workflow on tag push (`v*`) | 1 day   | Build dist/, create GitHub Release, attach zip |
+| Download page in README                | 0.5 day | Direct link to latest release zip              |
+| Docker image                           | 1 day   | `docker run -p 8080:80 slidemd`                |
 
 **Effort estimate:** 2-3 days
 
 ---
 
-## Phase 4: Quality & Polish
+## Phase 4: Testing & Polish
 
-Goal: Comprehensive testing, AI generation improvements, and production hardening.
+Goal: Comprehensive testing and usability improvements.
 
 ### Testing
 
@@ -94,7 +92,30 @@ Goal: Comprehensive testing, AI generation improvements, and production hardenin
 | Unit tests for generation modules   | 2-3 days | `lecture-plan-generator.js`, `deck-generator.js`, `ai-provider-registry.js` |
 | Integration tests for deck pipeline | 2-3 days | Full flow: markdown → parse → render                                        |
 
-### AI Generation Overhaul
+### New Presentation
+
+| Task                                             | Effort  | Details                                          |
+| ------------------------------------------------ | ------- | ------------------------------------------------ |
+| New Presentation modal                           | 1 day   | Theme, style, and template selection             |
+| Theme section: color mode + accent color         | 0.5 day | Light/dark radio cards, accent color grid        |
+| Style section: header style, border, code blocks | 0.5 day | Underline/pill/none, border toggle, rounded code |
+| Template section: blank, standard, lecture       | 0.5 day | Starter deck templates                           |
+| Menu item + wiring                               | 0.5 day | Element references, click handler, CSS           |
+
+### TypeScript Definitions
+
+| Task                                          | Effort   | Details                                      |
+| --------------------------------------------- | -------- | -------------------------------------------- |
+| Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
+| Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
+
+**Effort estimate:** 8-12 days
+
+---
+
+## Phase 5: AI Generation Overhaul
+
+Goal: Fix bugs, add reliability, and improve the AI generation experience.
 
 | Task                                           | Effort  | Details                                                       |
 | ---------------------------------------------- | ------- | ------------------------------------------------------------- |
@@ -110,48 +131,87 @@ Goal: Comprehensive testing, AI generation improvements, and production hardenin
 | Add undo for deck replacement                  | 1-2 hrs | Snapshot + 3s undo notification                               |
 | Add IndexedDB fallback for profiles            | 2-3 hrs | Non-Chromium browser support                                  |
 
-### TypeScript Definitions
-
-| Task                                          | Effort   | Details                                      |
-| --------------------------------------------- | -------- | -------------------------------------------- |
-| Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
-| Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
-
-**Effort estimate:** 8-10 days
+**Effort estimate:** 15-22 hrs (~3-4 days)
 
 ---
 
-## Phase 5: Release v0.2.0
+## Phase 6: Cloud Mode
 
-Goal: Ship the improvements.
+Goal: Enable multi-device editing, cloud image storage, and authenticated access.
 
-| Task                                  | Effort  | Details                        |
-| ------------------------------------- | ------- | ------------------------------ |
-| Update CHANGELOG.md with v0.2.0 entry | 0.5 day | Document all Phase 2-4 changes |
-| Update package.json version to 0.2.0  | 5 min   |                                |
-| Final QA pass                         | 0.5 day | Manual testing of all features |
-| Create release branch and PR          | 0.5 day | Same process as v0.1.0         |
-| Tag v0.2.0 and create GitHub release  | 15 min  |                                |
+### Architecture
 
-**Effort estimate:** 2-3 days
+- **Storage adapter pattern**: editor uses relative paths (`./images/slide.png`) in both modes
+- **Local mode**: paths resolve to local filesystem (current behavior, no server needed)
+- **Cloud mode**: images uploaded to cloud storage, paths rewritten to URLs behind the scenes
+- **No Amazon services** — use Cloudflare R2 for storage
+
+### Image Storage
+
+| Task                                      | Effort   | Details                                  |
+| ----------------------------------------- | -------- | ---------------------------------------- |
+| Set up Cloudflare R2 bucket               | 0.5 day  | Free tier: 10GB storage, 10M reads/mo    |
+| Create StorageAdapter interface           | 1 day    | Abstract local vs cloud image paths      |
+| Implement R2StorageAdapter                | 2-3 days | Upload, delete, URL generation           |
+| Update image picker to use adapter        | 1 day    | Transparent to user, paths stay relative |
+| Handle image deletion (cascade from deck) | 0.5 day  | Clean up orphaned images                 |
+
+### Authentication & Access Control
+
+| Task                                        | Effort   | Details                               |
+| ------------------------------------------- | -------- | ------------------------------------- |
+| Choose auth provider (Clerk, Auth.js, etc.) | 0.5 day  | Prefer self-hosted or edge-compatible |
+| Implement sign-up / sign-in flow            | 2-3 days | Email + OAuth (Google, GitHub)        |
+| Add deck sharing with permission levels     | 2-3 days | Owner / editor / viewer roles         |
+| Add access tokens for API requests          | 1 day    | For programmatic access               |
+
+### Cloud File Sync
+
+| Task                                         | Effort   | Details                                     |
+| -------------------------------------------- | -------- | ------------------------------------------- |
+| Design deck storage schema                   | 0.5 day  | Deck metadata + markdown + image references |
+| Implement deck CRUD API                      | 2-3 days | Create, read, update, delete decks          |
+| Add real-time sync (WebSocket or polling)    | 3-4 days | Multi-device live updates                   |
+| Add offline support (service worker + cache) | 2-3 days | Edit offline, sync when online              |
+
+### Deployment
+
+| Task                                    | Effort  | Details                             |
+| --------------------------------------- | ------- | ----------------------------------- |
+| Deploy web app to Vercel/Netlify        | 0.5 day | Static frontend                     |
+| Deploy API (Workers or serverless)      | 1 day   | Cloudflare Workers for edge compute |
+| Set up custom domain + SSL              | 0.5 day |                                     |
+| Add environment config (R2, auth, etc.) | 0.5 day |                                     |
+
+### UX
+
+| Task                                      | Effort  | Details                                  |
+| ----------------------------------------- | ------- | ---------------------------------------- |
+| Add mode switcher (Local / Cloud)         | 0.5 day | On first open, prompt user to choose     |
+| Show cloud status indicator               | 0.5 day | Syncing / synced / offline badge         |
+| Update export to resolve cloud image URLs | 0.5 day | Download images inline for portable HTML |
+| Add deck sharing UI                       | 1 day   | Share link with permission selection     |
+
+**Effort estimate:** 25-35 days
 
 ---
 
 ## Summary
 
-| Phase                               | Effort         | Status             |
-| ----------------------------------- | -------------- | ------------------ |
-| Phase 1: Safety Net + Documentation | 7-9 days       | ✅ Complete        |
-| Phase 2: Build Modernization        | 3-4 days       | ✅ Complete        |
-| Phase 3: Packaging                  | 2-3 days       | Not started        |
-| Phase 4: Quality & Polish           | 8-10 days      | Not started        |
-| Phase 5: Release v0.2.0             | 2-3 days       | Not started        |
-| **Total**                           | **~7-9 weeks** | **Phase 1-2 done** |
+| Phase                        | Effort           | Status             |
+| ---------------------------- | ---------------- | ------------------ |
+| Phase 1: Safety Net          | 7-9 days         | ✅ Complete        |
+| Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
+| Phase 3: Distribution        | 2-3 days         | Not started        |
+| Phase 4: Testing & Polish    | 8-12 days        | Not started        |
+| Phase 5: AI Generation       | 3-4 days         | Not started        |
+| Phase 6: Cloud Mode          | 25-35 days       | Not started        |
+| **Total**                    | **~13-17 weeks** | **Phase 1-2 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 → Phase 4 → Phase 5 → Phase 6
 ```
 
-Phase 4 includes the AI generation overhaul as a major component. Within Phase 4, the recommended order is: bug fixes → cleanup → reliability → token tracking → streaming → polish.
+Phase 4 includes the New Presentation feature and a release. Phase 5 is the AI overhaul. Phase 6 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
