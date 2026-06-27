@@ -18,6 +18,9 @@ import { UiActions } from "../ui/ui-actions.js";
 import { AIGenerationController } from "../generation/ai-generation-controller.js";
 import { GenerationActions } from "../ui/generation-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
+import { NewPresentationModal } from "../generation/new-presentation-modal.js";
+import { MarkdownParser } from "../data/markdown-parser.js";
+import { AssetLoader } from "../core/asset-loader.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -357,6 +360,10 @@ export class DeckController extends EventEmitter {
       this.handleHtmlExport();
       this.closeMenu();
     });
+    listen(this.elements.menuNewPresentationBtn, "click", () => {
+      this.handleNewPresentation();
+      this.closeMenu();
+    });
 
     listen(this.elements.breakDurationSelect, "change", (e) => {
       this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -520,6 +527,61 @@ export class DeckController extends EventEmitter {
     await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, {
       filename,
     });
+  }
+
+  async handleNewPresentation() {
+    const options = await NewPresentationModal.show();
+    if (!options) return;
+
+    const { theme, accentColor, headerStyle, showBorder, roundedCode, template } = options;
+
+    let markdown = template.markdown;
+
+    // Apply theme to first slide
+    if (theme === "dark") {
+      markdown = markdown.replace(/^(layout: .+)$/m, `$1\ntheme: dark`);
+    }
+
+    // Build style directive for first slide
+    const styleDirectives = [];
+    if (headerStyle === "pill") {
+      styleDirectives.push("header-style: pill");
+    } else if (headerStyle === "none") {
+      styleDirectives.push("header-style: none");
+    }
+    if (!showBorder) {
+      styleDirectives.push("border: none");
+    }
+    if (!roundedCode) {
+      styleDirectives.push("code-radius: none");
+    }
+
+    if (styleDirectives.length > 0) {
+      markdown = markdown.replace(/^(layout: .+)$/m, `$1\n${styleDirectives.join("\n")}`);
+    }
+
+    // Parse markdown into deck data
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
+
+    // Apply accent color as CSS variable on the stage
+    const stageEl = document.getElementById("deckStage");
+    if (stageEl) {
+      stageEl.style.setProperty("--color-primary", accentColor.value);
+    }
+
+    // Replace the current deck
+    if (this.reloadManager?.replaceDeck) {
+      await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+    }
+
+    // Update editor if open
+    const editor = document.getElementById("markdownEditor");
+    if (editor?.CodeMirror) {
+      editor.CodeMirror.setValue(markdown);
+    }
+
+    Notification.info("New presentation created");
   }
 
   destroy() {
