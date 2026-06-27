@@ -56,6 +56,10 @@ export class SlideRenderer {
       wrapper.setAttribute("data-theme", slide.theme);
     }
 
+    if (slide?.headerStyle) {
+      wrapper.setAttribute("data-header-style", slide.headerStyle);
+    }
+
     if (slide?.background) {
       wrapper.style.background = slide.background;
     }

@@ -533,13 +533,18 @@ export class DeckController extends EventEmitter {
     const options = await NewPresentationModal.show();
     if (!options) return;
 
-    const { theme, template } = options;
+    const { theme, headerStyle, template } = options;
 
     let markdown = template.markdown;
 
-    // Apply theme to all slides
-    if (theme === "dark") {
-      markdown = markdown.replace(/^(layout: .+)$/gm, `$1\ntheme: dark`);
+    // Apply theme and header-style to all slides
+    if (theme === "dark" || headerStyle !== "line") {
+      markdown = markdown.replace(/^(layout: .+)$/gm, (match) => {
+        let result = match;
+        if (theme === "dark") result += "\ntheme: dark";
+        if (headerStyle !== "line") result += `\nheader-style: ${headerStyle}`;
+        return result;
+      });
     }
 
     // Store markdown in localStorage so edit mode can work

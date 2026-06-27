@@ -3,13 +3,19 @@
  */
 
 .new-presentation-modal .modal__dialog {
-  max-width: 520px;
+  max-width: 560px;
 }
 
 .new-presentation-modal__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+}
+
+.new-presentation-modal__column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .new-presentation-modal__section {
@@ -97,28 +103,50 @@
   color: var(--text-high);
 }
 
-.new-presentation-modal__theme-desc {
-  font-size: 11px;
-  color: var(--text-low);
+/* Accent Colors */
+.new-presentation-modal__colors {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.new-presentation-modal__color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.new-presentation-modal__color:hover {
+  transform: scale(1.1);
+}
+
+.new-presentation-modal__color.selected {
+  border-color: var(--text-high);
+  box-shadow: 0 0 0 2px var(--surface-bg);
 }
 
 /* Templates */
 .new-presentation-modal__templates {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
 }
 
 .new-presentation-modal__template {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 10px 8px;
   background: var(--surface-elevated);
   border: 2px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
+  text-align: center;
 }
 
 .new-presentation-modal__template:hover {

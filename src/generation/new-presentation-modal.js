@@ -157,9 +157,13 @@ export class NewPresentationModal {
       document.body.appendChild(backdrop);
 
       let selectedTheme = "light";
+      let selectedHeaderStyle = "line";
       let selectedTemplate = TEMPLATES[0];
 
       const themeCards = backdrop.querySelectorAll(".new-presentation-modal__theme-card");
+      const headerOptions = backdrop.querySelectorAll(
+        ".new-presentation-modal__option[data-header-style]",
+      );
       const templateCards = backdrop.querySelectorAll(".new-presentation-modal__template");
       const confirmBtn = backdrop.querySelector(".new-presentation-modal__btn--primary");
       const cancelBtn = backdrop.querySelector(".new-presentation-modal__btn--secondary");
@@ -169,6 +173,14 @@ export class NewPresentationModal {
           themeCards.forEach((c) => c.classList.remove("selected"));
           card.classList.add("selected");
           selectedTheme = card.dataset.theme;
+        };
+      });
+
+      headerOptions.forEach((opt) => {
+        opt.onclick = () => {
+          headerOptions.forEach((o) => o.classList.remove("selected"));
+          opt.classList.add("selected");
+          selectedHeaderStyle = opt.dataset.headerStyle;
         };
       });
 
@@ -187,7 +199,11 @@ export class NewPresentationModal {
 
       confirmBtn.onclick = () => {
         backdrop.remove();
-        resolve({ theme: selectedTheme, template: selectedTemplate });
+        resolve({
+          theme: selectedTheme,
+          headerStyle: selectedHeaderStyle,
+          template: selectedTemplate,
+        });
       };
 
       backdrop.onclick = (e) => {
@@ -232,7 +248,6 @@ export class NewPresentationModal {
                   <div class="new-presentation-modal__theme-preview new-presentation-modal__theme-preview--light">Aa</div>
                   <div class="new-presentation-modal__theme-info">
                     <div class="new-presentation-modal__theme-name">Light</div>
-                    <div class="new-presentation-modal__theme-desc">White background</div>
                   </div>
                 </div>
                 <div class="new-presentation-modal__theme-card" data-theme="dark">
@@ -240,29 +255,38 @@ export class NewPresentationModal {
                   <div class="new-presentation-modal__theme-preview new-presentation-modal__theme-preview--dark">Aa</div>
                   <div class="new-presentation-modal__theme-info">
                     <div class="new-presentation-modal__theme-name">Dark</div>
-                    <div class="new-presentation-modal__theme-desc">Dark background</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div class="new-presentation-modal__section">
-              <span class="new-presentation-modal__section-title">Starting Template</span>
-              <div class="new-presentation-modal__templates">
-                ${TEMPLATES.map(
-                  (t) => `
-                  <div class="new-presentation-modal__template ${t.id === "blank" ? "selected" : ""}" data-template="${t.id}">
-                    <div class="new-presentation-modal__template-preview">
-                      <div class="new-presentation-modal__template-preview-line"></div>
-                      <div class="new-presentation-modal__template-preview-line"></div>
-                      <div class="new-presentation-modal__template-preview-line"></div>
-                    </div>
-                    <div class="new-presentation-modal__template-name">${t.name}</div>
-                    <div class="new-presentation-modal__template-desc">${t.desc}</div>
-                  </div>
-                `,
-                ).join("")}
+              <span class="new-presentation-modal__section-title">Header Style</span>
+              <div class="new-presentation-modal__options">
+                <button class="new-presentation-modal__option selected" data-header-style="line" type="button">Line</button>
+                <button class="new-presentation-modal__option" data-header-style="full" type="button">Full</button>
+                <button class="new-presentation-modal__option" data-header-style="thick" type="button">Thick</button>
+                <button class="new-presentation-modal__option" data-header-style="none" type="button">None</button>
               </div>
+            </div>
+          </div>
+
+          <div class="new-presentation-modal__section" style="margin-top: 20px;">
+            <span class="new-presentation-modal__section-title">Starting Template</span>
+            <div class="new-presentation-modal__templates">
+              ${TEMPLATES.map(
+                (t) => `
+                <div class="new-presentation-modal__template ${t.id === "blank" ? "selected" : ""}" data-template="${t.id}">
+                  <div class="new-presentation-modal__template-preview">
+                    <div class="new-presentation-modal__template-preview-line"></div>
+                    <div class="new-presentation-modal__template-preview-line"></div>
+                    <div class="new-presentation-modal__template-preview-line"></div>
+                  </div>
+                  <div class="new-presentation-modal__template-name">${t.name}</div>
+                  <div class="new-presentation-modal__template-desc">${t.desc}</div>
+                </div>
+              `,
+              ).join("")}
             </div>
           </div>
         </div>

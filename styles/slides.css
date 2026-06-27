@@ -164,6 +164,19 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   background: rgba(225, 211, 252, 0.8);
 }
 
+.slide[data-header-style="none"] .slide__area--header::after {
+  display: none;
+}
+
+.slide[data-header-style="full"] .slide__area--header::after {
+  left: 0;
+  width: 100%;
+}
+
+.slide[data-header-style="thick"] .slide__area--header::after {
+  height: 3px;
+}
+
 .slide__area--header:empty {
   display: none;
 }
