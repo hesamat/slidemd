@@ -23,9 +23,12 @@ const TEMPLATES = [
     desc: "Empty deck",
     markdown: `layout: title-slide
 
+@title
 # Presentation Title
 
-Author Name
+## Subtitle or Tagline
+
+**Author Name**
 `,
   },
   {
@@ -34,18 +37,21 @@ Author Name
     desc: "Title + content slides",
     markdown: `layout: title-slide
 
+@title
 # Presentation Title
 
-Author Name
+## Subtitle or Tagline
+
+**Author Name**
 
 ---
 
 layout: header-content
 
+@header
 ## Overview
 
 @main
-
 - Topic 1
 - Topic 2
 - Topic 3
@@ -54,10 +60,10 @@ layout: header-content
 
 layout: header-content
 
+@header
 ## Topic 1
 
 @main
-
 - Detail A
 - Detail B
 
@@ -65,10 +71,10 @@ layout: header-content
 
 layout: header-content
 
+@header
 ## Topic 2
 
 @main
-
 - Detail C
 - Detail D
 
@@ -76,6 +82,7 @@ layout: header-content
 
 layout: title-slide
 
+@title
 # Thank You
 
 Questions?
@@ -87,18 +94,19 @@ Questions?
     desc: "Academic format",
     markdown: `layout: title-slide
 
+@title
 # Course Title
 
-Semester / Year
+## Semester / Year
 
 ---
 
 layout: header-content
 
+@header
 ## Today's Topics
 
 @main
-
 - Learning objective 1
 - Learning objective 2
 - Learning objective 3
@@ -107,10 +115,10 @@ layout: header-content
 
 layout: header-content
 
+@header
 ## Topic 1
 
 @main
-
 - Key concept explanation
 - Important formulas or definitions
 
@@ -118,10 +126,10 @@ layout: header-content
 
 layout: header-content
 
+@header
 ## Topic 2
 
 @main
-
 - Key concept explanation
 - Examples and applications
 
@@ -129,10 +137,10 @@ layout: header-content
 
 layout: header-content
 
+@header
 ## Summary
 
 @main
-
 - Recap point 1
 - Recap point 2
 - Recap point 3
@@ -141,9 +149,10 @@ layout: header-content
 
 layout: title-slide
 
+@title
 # Next Lecture
 
-Topic preview
+## Topic preview
 `,
   },
 ];
@@ -163,17 +172,11 @@ export class NewPresentationModal {
       // State
       let selectedTheme = "light";
       let selectedColor = ACCENT_COLORS[0];
-      let selectedHeader = "underline";
-      let showBorder = true;
-      let roundedCode = true;
       let selectedTemplate = TEMPLATES[0];
 
       // Elements
       const themeCards = backdrop.querySelectorAll(".new-presentation-modal__theme-card");
       const colorBtns = backdrop.querySelectorAll(".new-presentation-modal__color");
-      const headerOptions = backdrop.querySelectorAll("[data-header-style]");
-      const borderToggle = backdrop.querySelector('[data-toggle="border"]');
-      const codeToggle = backdrop.querySelector('[data-toggle="code"]');
       const templateCards = backdrop.querySelectorAll(".new-presentation-modal__template");
       const confirmBtn = backdrop.querySelector(".new-presentation-modal__btn--primary");
       const cancelBtn = backdrop.querySelector(".new-presentation-modal__btn--secondary");
@@ -196,27 +199,6 @@ export class NewPresentationModal {
         };
       });
 
-      // Header style selection
-      headerOptions.forEach((opt) => {
-        opt.onclick = () => {
-          headerOptions.forEach((o) => o.classList.remove("selected"));
-          opt.classList.add("selected");
-          selectedHeader = opt.dataset.headerStyle;
-        };
-      });
-
-      // Border toggle
-      borderToggle.onclick = () => {
-        showBorder = !showBorder;
-        borderToggle.classList.toggle("active", showBorder);
-      };
-
-      // Code toggle
-      codeToggle.onclick = () => {
-        roundedCode = !roundedCode;
-        codeToggle.classList.toggle("active", roundedCode);
-      };
-
       // Template selection
       templateCards.forEach((card) => {
         card.onclick = () => {
@@ -238,9 +220,6 @@ export class NewPresentationModal {
         resolve({
           theme: selectedTheme,
           accentColor: selectedColor,
-          headerStyle: selectedHeader,
-          showBorder,
-          roundedCode,
           template: selectedTemplate,
         });
       };
@@ -313,23 +292,6 @@ export class NewPresentationModal {
                     type="button"></button>
                 `,
                 ).join("")}
-              </div>
-            </div>
-
-            <div class="new-presentation-modal__section">
-              <span class="new-presentation-modal__section-title">Style</span>
-              <div class="new-presentation-modal__options">
-                <button class="new-presentation-modal__option selected" data-header-style="underline" type="button">Underline</button>
-                <button class="new-presentation-modal__option" data-header-style="pill" type="button">Pill</button>
-                <button class="new-presentation-modal__option" data-header-style="none" type="button">None</button>
-              </div>
-              <div class="new-presentation-modal__toggle-row">
-                <span class="new-presentation-modal__toggle-label">Show border on images</span>
-                <button class="new-presentation-modal__toggle active" data-toggle="border" type="button"></button>
-              </div>
-              <div class="new-presentation-modal__toggle-row">
-                <span class="new-presentation-modal__toggle-label">Rounded code blocks</span>
-                <button class="new-presentation-modal__toggle active" data-toggle="code" type="button"></button>
               </div>
             </div>
 

@@ -533,32 +533,20 @@ export class DeckController extends EventEmitter {
     const options = await NewPresentationModal.show();
     if (!options) return;
 
-    const { theme, accentColor, headerStyle, showBorder, roundedCode, template } = options;
+    const { theme, accentColor, template } = options;
 
     let markdown = template.markdown;
 
-    // Apply theme to first slide
+    // Apply theme to all slides
     if (theme === "dark") {
-      markdown = markdown.replace(/^(layout: .+)$/m, `$1\ntheme: dark`);
+      markdown = markdown.replace(/^(layout: .+)$/gm, `$1\ntheme: dark`);
     }
 
-    // Build style directive for first slide
-    const styleDirectives = [];
-    if (headerStyle === "pill") {
-      styleDirectives.push("header-style: pill");
-    } else if (headerStyle === "none") {
-      styleDirectives.push("header-style: none");
-    }
-    if (!showBorder) {
-      styleDirectives.push("border: none");
-    }
-    if (!roundedCode) {
-      styleDirectives.push("code-radius: none");
-    }
-
-    if (styleDirectives.length > 0) {
-      markdown = markdown.replace(/^(layout: .+)$/m, `$1\n${styleDirectives.join("\n")}`);
-    }
+    // Store markdown in localStorage so edit mode can work
+    localStorage.setItem("webdeck_local_file", markdown);
+    localStorage.setItem("webdeck_local_file_type", "md");
+    localStorage.setItem("webdeck_local_file_name", "New Presentation");
+    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
 
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
