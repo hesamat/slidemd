@@ -533,7 +533,7 @@ export class DeckController extends EventEmitter {
     const options = await NewPresentationModal.show();
     if (!options) return;
 
-    const { theme, accentColor, template } = options;
+    const { theme, template } = options;
 
     let markdown = template.markdown;
 
@@ -551,12 +551,6 @@ export class DeckController extends EventEmitter {
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
     const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
-
-    // Apply accent color as CSS variable on the stage
-    const stageEl = document.getElementById("deckStage");
-    if (stageEl) {
-      stageEl.style.setProperty("--color-primary", accentColor.value);
-    }
 
     // Replace the current deck
     if (this.reloadManager?.replaceDeck) {

@@ -1,20 +1,7 @@
 /**
  * New Presentation Modal
- * Modal for creating a new presentation with theme, style, and template options
+ * Modal for creating a new presentation with theme and template options
  */
-
-const ACCENT_COLORS = [
-  { id: "indigo", value: "119, 102, 191", name: "Indigo" },
-  { id: "blue", value: "59, 130, 246", name: "Blue" },
-  { id: "teal", value: "20, 184, 166", name: "Teal" },
-  { id: "green", value: "34, 197, 94", name: "Green" },
-  { id: "orange", value: "249, 115, 22", name: "Orange" },
-  { id: "red", value: "239, 68, 68", name: "Red" },
-  { id: "pink", value: "236, 72, 153", name: "Pink" },
-  { id: "purple", value: "168, 85, 247", name: "Purple" },
-  { id: "white", value: "15, 23, 42", name: "White" },
-  { id: "black", value: "241, 245, 249", name: "Black" },
-];
 
 const TEMPLATES = [
   {
@@ -169,19 +156,14 @@ export class NewPresentationModal {
       const backdrop = this.createModal();
       document.body.appendChild(backdrop);
 
-      // State
       let selectedTheme = "light";
-      let selectedColor = ACCENT_COLORS[0];
       let selectedTemplate = TEMPLATES[0];
 
-      // Elements
       const themeCards = backdrop.querySelectorAll(".new-presentation-modal__theme-card");
-      const colorBtns = backdrop.querySelectorAll(".new-presentation-modal__color");
       const templateCards = backdrop.querySelectorAll(".new-presentation-modal__template");
       const confirmBtn = backdrop.querySelector(".new-presentation-modal__btn--primary");
       const cancelBtn = backdrop.querySelector(".new-presentation-modal__btn--secondary");
 
-      // Theme selection
       themeCards.forEach((card) => {
         card.onclick = () => {
           themeCards.forEach((c) => c.classList.remove("selected"));
@@ -190,16 +172,6 @@ export class NewPresentationModal {
         };
       });
 
-      // Color selection
-      colorBtns.forEach((btn) => {
-        btn.onclick = () => {
-          colorBtns.forEach((b) => b.classList.remove("selected"));
-          btn.classList.add("selected");
-          selectedColor = ACCENT_COLORS.find((c) => c.id === btn.dataset.color);
-        };
-      });
-
-      // Template selection
       templateCards.forEach((card) => {
         card.onclick = () => {
           templateCards.forEach((c) => c.classList.remove("selected"));
@@ -208,23 +180,16 @@ export class NewPresentationModal {
         };
       });
 
-      // Cancel
       cancelBtn.onclick = () => {
         backdrop.remove();
         resolve(null);
       };
 
-      // Confirm
       confirmBtn.onclick = () => {
         backdrop.remove();
-        resolve({
-          theme: selectedTheme,
-          accentColor: selectedColor,
-          template: selectedTemplate,
-        });
+        resolve({ theme: selectedTheme, template: selectedTemplate });
       };
 
-      // Close on backdrop click
       backdrop.onclick = (e) => {
         if (e.target === backdrop) {
           backdrop.remove();
@@ -232,7 +197,6 @@ export class NewPresentationModal {
         }
       };
 
-      // Close on Escape
       const handleEsc = (e) => {
         if (e.key === "Escape") {
           backdrop.remove();
@@ -259,15 +223,16 @@ export class NewPresentationModal {
           <button class="modal__close new-presentation-modal__close" aria-label="Close">&times;</button>
         </div>
         <div class="modal__body">
-          <div class="new-presentation-modal__sections">
+          <div class="new-presentation-modal__grid">
             <div class="new-presentation-modal__section">
-              <span class="new-presentation-modal__section-title">Color Mode</span>
+              <span class="new-presentation-modal__section-title">Slide Theme</span>
               <div class="new-presentation-modal__theme-cards">
                 <div class="new-presentation-modal__theme-card selected" data-theme="light">
                   <input type="radio" name="theme" class="new-presentation-modal__theme-radio" checked>
                   <div class="new-presentation-modal__theme-preview new-presentation-modal__theme-preview--light">Aa</div>
                   <div class="new-presentation-modal__theme-info">
                     <div class="new-presentation-modal__theme-name">Light</div>
+                    <div class="new-presentation-modal__theme-desc">White background</div>
                   </div>
                 </div>
                 <div class="new-presentation-modal__theme-card" data-theme="dark">
@@ -275,28 +240,14 @@ export class NewPresentationModal {
                   <div class="new-presentation-modal__theme-preview new-presentation-modal__theme-preview--dark">Aa</div>
                   <div class="new-presentation-modal__theme-info">
                     <div class="new-presentation-modal__theme-name">Dark</div>
+                    <div class="new-presentation-modal__theme-desc">Dark background</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div class="new-presentation-modal__section">
-              <span class="new-presentation-modal__section-title">Accent Color</span>
-              <div class="new-presentation-modal__colors">
-                ${ACCENT_COLORS.map(
-                  (c) => `
-                  <button class="new-presentation-modal__color new-presentation-modal__color--${c.id} ${c.id === "indigo" ? "selected" : ""}"
-                    data-color="${c.id}"
-                    style="background: rgb(${c.value})"
-                    title="${c.name}"
-                    type="button"></button>
-                `,
-                ).join("")}
-              </div>
-            </div>
-
-            <div class="new-presentation-modal__section">
-              <span class="new-presentation-modal__section-title">Template</span>
+              <span class="new-presentation-modal__section-title">Starting Template</span>
               <div class="new-presentation-modal__templates">
                 ${TEMPLATES.map(
                   (t) => `
@@ -322,7 +273,6 @@ export class NewPresentationModal {
       </div>
     `;
 
-    // Wire up close button
     const closeBtn = backdrop.querySelector(".new-presentation-modal__close");
     closeBtn.onclick = () => {
       backdrop.remove();
