@@ -2,7 +2,7 @@
  * New Presentation Modal Styles
  */
 
-.new-presentation-modal {
+.new-presentation-modal .modal__dialog {
   max-width: 640px;
 }
 
