@@ -112,32 +112,40 @@ export class SlideStylePanel {
     const markdown = this._getMarkdown();
     const parser = new MarkdownParser();
 
-    let { markdown: stripped } = parser.extractDirective(markdown, "area-style");
+    let result = markdown;
+
+    // area-style is global (one at top of document)
+    let { markdown: stripped } = parser.extractDirective(result, "area-style");
     const cssString = this._buildCssFromUI();
     if (cssString) stripped = `area-style: ${cssString}\n${stripped}`;
+    result = stripped;
 
-    let { markdown: withoutHeader } = parser.extractDirective(stripped, "header-style");
+    // Per-slide directives: replace ALL occurrences across all slides
     const headerStyle = this._getSelectedHeaderStyle();
-    if (headerStyle && headerStyle !== "line") {
-      withoutHeader = `header-style: ${headerStyle}\n${withoutHeader}`;
-    }
-
-    let { markdown: withoutBg } = parser.extractDirective(withoutHeader, "background");
     const bgValue = this._getBackgroundValue();
+    const themeValue = this._currentTheme;
+
+    result = result.replace(
+      /^\s*header-style\s*:.*$/gm,
+      headerStyle && headerStyle !== "line" ? `header-style: ${headerStyle}` : "",
+    );
+
     if (bgValue) {
       const indented = bgValue
         .split("\n")
         .map((line, i) => (i === 0 ? line : `  ${line}`))
         .join("\n");
-      withoutBg = `background: ${indented}\n${withoutBg}`;
+      result = result.replace(/^\s*background\s*:.*$/gm, `background: ${indented}`);
+    } else {
+      result = result.replace(/^\s*background\s*:.*$/gm, "");
     }
 
-    let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
-    if (this._currentTheme) {
-      withoutTheme = `theme: ${this._currentTheme}\n${withoutTheme}`;
-    }
+    result = result.replace(/^\s*theme\s*:.*$/gm, themeValue ? `theme: ${themeValue}` : "");
 
-    this._setMarkdown(withoutTheme);
+    // Clean up consecutive blank lines left by removals
+    result = result.replace(/\n{3,}/g, "\n\n");
+
+    this._setMarkdown(result);
   }
 
   static _buildCssFromUI() {
@@ -582,9 +590,9 @@ export class SlideStylePanel {
       }
       const cssString = this._buildCssFromUI();
       const headerStyle = this._getSelectedHeaderStyle();
-      this.saveDefaultStyles(cssString, headerStyle, this._currentBg, this._currentTheme);
-      if (this._applyToAll)
-        this._applyToAll(cssString, headerStyle, this._currentBg, this._currentTheme);
+      const bgValue = this._getBackgroundValue();
+      this.saveDefaultStyles(cssString, headerStyle, bgValue, this._currentTheme);
+      if (this._applyToAll) this._applyToAll(cssString, headerStyle, bgValue, this._currentTheme);
     });
   }
 
