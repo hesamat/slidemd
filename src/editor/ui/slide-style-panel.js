@@ -40,6 +40,7 @@ export class SlideStylePanel {
   // Current bg state
   static _currentBg = "";
   static _currentImagePath = "";
+  static _currentImageBlobUrl = "";
   static _imageOverlay = 40;
   static _currentTheme = "";
 
@@ -162,7 +163,8 @@ export class SlideStylePanel {
 
   static _buildImageBackground(imagePath, overlay) {
     if (!imagePath) return "";
-    const url = `url('${String(imagePath).replace(/'/g, "\\'")}')`;
+    const displayUrl = this._currentImageBlobUrl || imagePath;
+    const url = `url('${String(displayUrl).replace(/'/g, "\\'")}')`;
     const imageLayer = `${url} center / cover no-repeat`;
     const opacity = overlay / 100;
     if (opacity <= 0) return imageLayer;
@@ -522,11 +524,24 @@ export class SlideStylePanel {
     el.querySelector('[data-action="pick-image"]')?.addEventListener("click", (e) => {
       e.stopPropagation();
       if (this._onPickImage) {
-        this._onPickImage((path) => {
+        this._onPickImage(async (path) => {
           this._currentImagePath = path;
           this._currentBg = "";
           this._currentTheme = "dark";
+          this._currentImageBlobUrl = "";
           this._syncBgUI();
+          try {
+            const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
+            if (DeckImagesResolver._dirHandle && /^images\//.test(path)) {
+              const blobUrl = await DeckImagesResolver.resolvePreviewSrc(path);
+              if (blobUrl !== path) {
+                this._currentImageBlobUrl = blobUrl;
+                this._syncBgUI();
+              }
+            }
+          } catch {
+            // Image resolution not available — fall back to relative path
+          }
         });
       }
     });
@@ -535,6 +550,7 @@ export class SlideStylePanel {
     el.querySelector('[data-action="clear-bg"]')?.addEventListener("click", () => {
       this._currentBg = "";
       this._currentImagePath = "";
+      this._currentImageBlobUrl = "";
       this._currentTheme = "";
       this._syncBgUI();
     });
@@ -551,6 +567,7 @@ export class SlideStylePanel {
       this._updateSliderLabels();
       this._currentBg = "";
       this._currentImagePath = "";
+      this._currentImageBlobUrl = "";
       this._imageOverlay = 40;
       this._currentTheme = "";
       this._syncBgUI();
