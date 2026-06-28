@@ -112,39 +112,44 @@ export class SlideStylePanel {
     const markdown = this._getMarkdown();
     const parser = new MarkdownParser();
 
-    let result = markdown;
-
-    // area-style is global (one at top of document)
-    let { markdown: stripped } = parser.extractDirective(result, "area-style");
     const cssString = this._buildCssFromUI();
-    if (cssString) stripped = `area-style: ${cssString}\n${stripped}`;
-    result = stripped;
-
-    // Per-slide directives: replace ALL occurrences across all slides
     const headerStyle = this._getSelectedHeaderStyle();
     const bgValue = this._getBackgroundValue();
     const themeValue = this._currentTheme;
 
-    result = result.replace(
-      /^\s*header-style\s*:.*$/gm,
-      headerStyle && headerStyle !== "line" ? `header-style: ${headerStyle}` : "",
-    );
+    // area-style is global (one at top of document)
+    let { markdown: stripped } = parser.extractDirective(markdown, "area-style");
+    if (cssString) stripped = `area-style: ${cssString}\n${stripped}`;
 
-    if (bgValue) {
-      const indented = bgValue
-        .split("\n")
-        .map((line, i) => (i === 0 ? line : `  ${line}`))
-        .join("\n");
-      result = result.replace(/^\s*background\s*:.*$/gm, `background: ${indented}`);
-    } else {
-      result = result.replace(/^\s*background\s*:.*$/gm, "");
-    }
+    // Split into slide sections by --- separator
+    const sections = stripped.split(/^---$/m);
 
-    result = result.replace(/^\s*theme\s*:.*$/gm, themeValue ? `theme: ${themeValue}` : "");
+    const updated = sections.map((section) => {
+      let s = section;
 
-    // Clean up consecutive blank lines left by removals
-    result = result.replace(/\n{3,}/g, "\n\n");
+      // Strip existing per-slide directives
+      let { markdown: noHeader } = parser.extractDirective(s, "header-style");
+      let { markdown: noBg } = parser.extractDirective(noHeader, "background");
+      let { markdown: noTheme } = parser.extractDirective(noBg, "theme");
 
+      // Re-add per-slide directives
+      let lines = noTheme;
+      if (themeValue) lines = `theme: ${themeValue}\n${lines}`;
+      if (bgValue) {
+        const indented = bgValue
+          .split("\n")
+          .map((line, i) => (i === 0 ? line : `  ${line}`))
+          .join("\n");
+        lines = `background: ${indented}\n${lines}`;
+      }
+      if (headerStyle && headerStyle !== "line") {
+        lines = `header-style: ${headerStyle}\n${lines}`;
+      }
+
+      return lines;
+    });
+
+    const result = updated.join("\n---\n").replace(/\n{3,}/g, "\n\n");
     this._setMarkdown(result);
   }
 
