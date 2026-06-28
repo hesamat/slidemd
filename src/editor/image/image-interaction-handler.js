@@ -28,7 +28,7 @@ export class ImageInteractionHandler {
   static _overlay = null;
   static _resizeState = null;
   static _pendingSelectSrc = null;
-  static _aspectLocked = false;
+  static _aspectLocked = true;
 
   static init(getMarkdown, setMarkdown, { onDelete } = {}) {
     if (this._initialized) return;

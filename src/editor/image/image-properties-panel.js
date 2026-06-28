@@ -32,7 +32,7 @@ export class ImagePropertiesPanel {
   static _wired = false;
   static _getMarkdown = null;
   static _setMarkdown = null;
-  static _aspectLocked = false;
+  static _aspectLocked = true;
   static _lastRatio = null;
   static _currentImg = null;
 
@@ -123,7 +123,7 @@ export class ImagePropertiesPanel {
                             <span class="image-properties-panel__field-label">Height</span>
                             <input type="number" class="image-properties-panel__input" data-field="height" min="20" max="1080" placeholder="H" />
                         </label>
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="false">🔓</button>
+                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="true">🔒</button>
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="small">Small</button>

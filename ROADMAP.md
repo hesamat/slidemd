@@ -99,14 +99,14 @@ Goal: Add a modal for creating new presentations with theme, style, and template
 
 Goal: Remove AI generation feature and unify prompt documentation.
 
-| Task                                               | Effort | Details                                                       |
-| -------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| [x] Remove AI generation feature entirely          | ~3-4 hr | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
-| [x] Move New Presentation Modal to src/editor/     | —      | Not AI-related; manual presentation wizard                    |
-| [x] Remove AI menu items from UI                   | —      | Course Profiles, AI Configuration, Generate Deck              |
-| [x] Unify prompt templates in docs/                | —      | Merged 2 prompt files into single docs/prompt-template.md     |
-| [x] Update documentation (README, example.md, AGENTS.md) | — | Removed AI generation references                              |
-| [x] Fix image properties panel aspect ratio bug    | —      | Size presets now respect aspect ratio lock                    |
+| Task                                                     | Effort  | Details                                                        |
+| -------------------------------------------------------- | ------- | -------------------------------------------------------------- |
+| [x] Remove AI generation feature entirely                | ~3-4 hr | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
+| [x] Move New Presentation Modal to src/editor/           | —       | Not AI-related; manual presentation wizard                     |
+| [x] Remove AI menu items from UI                         | —       | Course Profiles, AI Configuration, Generate Deck               |
+| [x] Unify prompt templates in docs/                      | —       | Merged 2 prompt files into single docs/prompt-template.md      |
+| [x] Update documentation (README, example.md, AGENTS.md) | —       | Removed AI generation references                               |
+| [x] Fix image properties panel aspect ratio bug          | —       | Size presets now respect aspect ratio lock                     |
 
 **Effort estimate:** ~3-4 hrs (completed)
 
