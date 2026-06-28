@@ -34,6 +34,7 @@ export class ImagePropertiesPanel {
   static _setMarkdown = null;
   static _aspectLocked = false;
   static _lastRatio = null;
+  static _currentImg = null;
 
   /**
    * Initialize with callbacks that read/write the slide markdown.
@@ -54,6 +55,7 @@ export class ImagePropertiesPanel {
    */
   static show(img, settings) {
     if (!this.el) this._buildDom();
+    this._currentImg = img;
     this._syncUI(settings);
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
@@ -330,9 +332,14 @@ export class ImagePropertiesPanel {
     let settings = { ...current, ...overrides };
 
     // If aspect ratio is locked and width is being set, calculate height
-    if (this._aspectLocked && settings.width && current.height) {
-      const ratio = current.width / current.height;
-      settings.height = Math.round(settings.width / ratio);
+    if (this._aspectLocked && settings.width) {
+      // Use explicit height if set, otherwise use image's actual visual height
+      const effectiveHeight =
+        current.height || (this._currentImg ? this._currentImg.offsetHeight : null);
+      if (effectiveHeight) {
+        const ratio = current.width / effectiveHeight;
+        settings.height = Math.round(settings.width / ratio);
+      }
     }
 
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
