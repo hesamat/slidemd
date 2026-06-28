@@ -256,13 +256,6 @@ export class NewPresentationModal {
         }
       });
 
-      backdrop.querySelector('[data-action="clear-bg"]')?.addEventListener("click", () => {
-        selectedBg = "";
-        selectedImagePath = "";
-        selectedTheme = "";
-        syncBg();
-      });
-
       backdrop.querySelector('[data-field="bg-theme"]')?.addEventListener("change", (e) => {
         selectedTheme = e.target.checked ? "dark" : "light";
       });
@@ -323,6 +316,7 @@ export class NewPresentationModal {
       });
 
       const resolveWith = () => {
+        ac.abort();
         backdrop.remove();
         resolve({
           background: getBackgroundValue(),
@@ -336,26 +330,26 @@ export class NewPresentationModal {
       createBtn.addEventListener("click", resolveWith);
       createDefaultsBtn.addEventListener("click", resolveWith);
 
-      cancelBtn.addEventListener("click", () => {
+      const dismiss = () => {
+        ac.abort();
         backdrop.remove();
         resolve(null);
-      });
+      };
+
+      cancelBtn.addEventListener("click", dismiss);
 
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) {
-          backdrop.remove();
-          resolve(null);
-        }
+        if (e.target === backdrop) dismiss();
       });
 
-      const handleEsc = (e) => {
-        if (e.key === "Escape") {
-          backdrop.remove();
-          resolve(null);
-          document.removeEventListener("keydown", handleEsc);
-        }
-      };
-      document.addEventListener("keydown", handleEsc);
+      const ac = new AbortController();
+      document.addEventListener(
+        "keydown",
+        (e) => {
+          if (e.key === "Escape") dismiss();
+        },
+        { signal: ac.signal },
+      );
 
       syncBg();
       showStep(0);
@@ -409,7 +403,7 @@ export class NewPresentationModal {
             ${buildBackgroundPanelHtml()}
           </div>
           <div class="${P}panel" data-step="styling">
-            ${buildTitlePanelHtml("data-title-style")}
+            ${buildTitlePanelHtml()}
             <div class="${P}divider"></div>
             ${buildAreaStylePanelHtml({ showHint: true })}
           </div>

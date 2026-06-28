@@ -106,7 +106,7 @@ export function syncTitleDisabled(rootEl, { titleBtnSelector, hintSelector } = {
     if (hasBorders) btn.classList.remove("selected");
   });
   if (hasBorders) {
-    const noneBtn = rootEl.querySelector('[data-header-style="none"], [data-title-style="none"]');
+    const noneBtn = rootEl.querySelector('[data-header-style="none"]');
     if (noneBtn) noneBtn.classList.add("selected");
   }
   if (hint) hint.style.display = hasBorders ? "block" : "none";
@@ -192,18 +192,16 @@ export function buildAreaStylePanelHtml({ showHint = false } = {}) {
 
 /**
  * Build the title decoration panel HTML using shared style- classes.
- * @param {string} [dataAttr="data-header-style"] - data attribute for title style buttons
  */
-export function buildTitlePanelHtml(dataAttr = "data-header-style") {
-  const hasDataTitle = dataAttr === "data-title-style";
+export function buildTitlePanelHtml() {
   return `
     <div class="style-inline-section">
       <span class="style-label">Title Decoration</span>
       <p class="style-hint">Accent line under slide titles.</p>
       <div class="style-btn-group">
-        <button class="style-btn-option selected" ${dataAttr}="${hasDataTitle ? "short" : "line"}" type="button">Short</button>
-        <button class="style-btn-option" ${dataAttr}="full" type="button">Full width</button>
-        <button class="style-btn-option" ${dataAttr}="none" type="button">None</button>
+        <button class="style-btn-option selected" data-header-style="line" type="button">Short</button>
+        <button class="style-btn-option" data-header-style="full" type="button">Full width</button>
+        <button class="style-btn-option" data-header-style="none" type="button">None</button>
       </div>
       <p class="style-disabled-hint" style="display:none">Disabled when content borders are active.</p>
     </div>

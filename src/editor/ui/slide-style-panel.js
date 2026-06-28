@@ -295,7 +295,7 @@ export class SlideStylePanel {
             ${buildAreaStylePanelHtml()}
           </div>
           <div class="${P}tab-panel" data-panel="title">
-            ${buildTitlePanelHtml("data-header-style")}
+            ${buildTitlePanelHtml()}
           </div>
         </div>
         <div class="${P}footer">
@@ -412,15 +412,6 @@ export class SlideStylePanel {
           await this._resolveImageBlob(path);
         });
       }
-    });
-
-    // Clear background
-    el.querySelector('[data-action="clear-bg"]')?.addEventListener("click", () => {
-      this._currentBg = "";
-      this._currentImagePath = "";
-      this._currentImageBlobUrl = "";
-      this._currentTheme = "";
-      this._syncBgUI();
     });
 
     // Clear all
