@@ -5,7 +5,6 @@
  */
 
 export const COLOR_SWATCHES = [
-  { name: "White", value: "#ffffff" },
   { name: "Light gray", value: "#f1f5f9" },
   { name: "Warm gray", value: "#e7e5e4" },
   { name: "Dark slate", value: "#1e293b" },
@@ -14,7 +13,7 @@ export const COLOR_SWATCHES = [
 ];
 
 export const ICON_COLOR =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l1-1h3l9-9M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22 3.5 18.5a2.12 2.12 0 0 1 0-3l11-11a2.12 2.12 0 0 1 3 0L21 7.5a2.12 2.12 0 0 1 0 3L10 21.5a2.12 2.12 0 0 1-3 0Z"/><path d="m18.5 6.5 2-2a2.12 2.12 0 0 1 3 0l.5.5a2.12 2.12 0 0 1 0 3l-2 2"/></svg>';
 
 export const ICON_NONE = "✕";
 
