@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.3.0 (2026-06-28)
+
+### New Presentation Modal
+
+- Added stepper wizard for creating new presentations (Template → Background → Styling)
+- Template selection: blank, standard, lecture starter decks
+- Background picker with color mode, solid color, and image options
+- Styling panel with header style, border, and code block options
+- Image support in background picker with drag/resize
+
+### Slide Style Panel
+
+- Added slide-specific styling with image background support
+- Shared style helpers module (41 unit tests)
+- Deduplicated panel CSS across editors
+
+### Bug Fixes
+
+- Fixed DeckImagesResolver not initialized when picking image in Slide Style Panel
+- Fixed background not applied in edit mode
+- Fixed premature live apply from Slide Style Panel
+- Fixed event listener leak in style panels
+- Fixed dark theme tables and mermaid styling
+
+### Infrastructure
+
+- Added 41 unit tests for style-helpers.js
+- Extracted shared style helpers for code reuse
+
 ## 0.2.0 (2026-06-26)
 
 ### Build Modernization
