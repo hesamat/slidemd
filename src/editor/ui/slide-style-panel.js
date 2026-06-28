@@ -418,6 +418,7 @@ export class SlideStylePanel {
         </div>
         <div class="slide-style-panel-modal__footer">
           <button class="slide-style-panel-modal__btn" data-action="clear">Clear All</button>
+          <button class="slide-style-panel-modal__btn" data-action="apply">Apply</button>
           <button class="slide-style-panel-modal__btn slide-style-panel-modal__btn--primary" data-action="apply-all">Apply to All</button>
         </div>
       </div>
@@ -572,6 +573,20 @@ export class SlideStylePanel {
       this._syncTitleDisabled();
       this._doApplyChange();
       this.saveDefaultStyles("", "line", "", "");
+    });
+
+    // Apply (current slide)
+    el.querySelector('[data-action="apply"]').addEventListener("click", () => {
+      if (this._debounceTimer) {
+        clearTimeout(this._debounceTimer);
+        this._debounceTimer = null;
+      }
+      const cssString = this._buildCssFromUI();
+      const headerStyle = this._getSelectedHeaderStyle();
+      const bgValue = this._getBackgroundValue();
+      this.saveDefaultStyles(cssString, headerStyle, bgValue, this._currentTheme);
+      this._doApplyChange();
+      this.hide();
     });
 
     // Apply to all
