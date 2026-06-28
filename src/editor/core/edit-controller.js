@@ -186,7 +186,9 @@ export class EditController {
       (updated) => {
         this.markdownEditor?.setValue(updated, { suppressOnChange: false });
       },
-      (cssString) => this._applySlideStyleToAll(cssString),
+      (cssString, headerStyle, background, theme) =>
+        this._applySlideStyleToAll(cssString, headerStyle, background, theme),
+      (onSelect) => this._pickImageForStylePanel(onSelect),
     );
 
     // Source-jump: click text in slide → jump to markdown source
@@ -655,16 +657,54 @@ export class EditController {
     SlideStylePanel.toggle();
   }
 
-  async _applySlideStyleToAll(cssString) {
+  async _applySlideStyleToAll(cssString, headerStyle, background, theme) {
     const parser = new MarkdownParser();
     await AssetLoader.ensureMarkdownItLoaded();
     const total = this.originalMarkdown.length;
     for (let i = 0; i < total; i++) {
       const current = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-      const { markdown: stripped } = parser.extractDirective(current, "area-style");
-      const trimmed = String(cssString || "").trim();
-      const updated = trimmed ? `area-style: ${trimmed}\n${stripped}` : stripped;
-      this.unsavedMarkdown.set(i, updated);
+
+      // Check if this is a title slide — skip area-style for title slides
+      const { value: layout } = parser.extractDirective(current, "layout");
+      const isTitleSlide = layout === "title-slide";
+
+      let { markdown: stripped } = parser.extractDirective(current, "area-style");
+      const trimmedCss = String(cssString || "").trim();
+      if (trimmedCss && !isTitleSlide) {
+        stripped = `area-style: ${trimmedCss}\n${stripped}`;
+      }
+
+      // Also apply header-style
+      let { markdown: withoutHeaderStyle } = parser.extractDirective(stripped, "header-style");
+      const trimmedHeaderStyle = String(headerStyle || "")
+        .trim()
+        .toLowerCase();
+      if (trimmedHeaderStyle && trimmedHeaderStyle !== "line") {
+        withoutHeaderStyle = `header-style: ${trimmedHeaderStyle}\n${withoutHeaderStyle}`;
+      }
+
+      // Also apply background
+      let { markdown: withoutBg } = parser.extractDirective(withoutHeaderStyle, "background");
+      const trimmedBg = String(background || "").trim();
+      if (trimmedBg) {
+        // Multi-line values (gradients, layered backgrounds) should keep working.
+        const indented = trimmedBg
+          .split("\n")
+          .map((line, i) => (i === 0 ? line : `  ${line}`))
+          .join("\n");
+        withoutBg = `background: ${indented}\n${withoutBg}`;
+      }
+
+      // Also apply theme
+      let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
+      const trimmedTheme = String(theme || "")
+        .trim()
+        .toLowerCase();
+      if (trimmedTheme) {
+        withoutTheme = `theme: ${trimmedTheme}\n${withoutTheme}`;
+      }
+
+      this.unsavedMarkdown.set(i, withoutTheme);
     }
     this.hasUnsavedChanges = true;
     this.updateSaveButton();
@@ -694,6 +734,22 @@ export class EditController {
 
   async _pickBackgroundImage() {
     return this.imageBg._pickBackgroundImage();
+  }
+
+  async _pickImageForStylePanel(onSelect) {
+    const { ImagePicker } = await import("../image/image-picker.js");
+    const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
+    this.imageBg.constructor.setDeckDir?.(deckDirHandle, this.imageBg.deckDirMode);
+    ImagePicker.show(
+      (path) => {
+        onSelect(path);
+      },
+      {
+        deckDirHandle,
+        deckDirMode: this.imageBg.deckDirMode,
+        pathOnly: true,
+      },
+    );
   }
 
   addSlideWithLayout(layoutName) {

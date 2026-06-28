@@ -1,7 +1,17 @@
 /* Background Picker Modal */
 
+.background-picker-modal {
+  z-index: 1100;
+}
+
 .background-picker-modal .modal__dialog {
   max-width: 640px;
+  overflow: hidden;
+}
+
+.background-picker-modal .modal__dialog > .bg-picker-tab-panel {
+  overflow-y: auto;
+  max-height: calc(85vh - 160px);
 }
 
 /* ── Tabs ── */

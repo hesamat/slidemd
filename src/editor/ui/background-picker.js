@@ -317,7 +317,8 @@ export class BackgroundPicker {
     });
 
     // Image tab — pick image (delegated to a callback provided in show())
-    this.pickImageBtn.addEventListener("click", () => {
+    this.pickImageBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
       if (typeof this.onPickImageCallback === "function") {
         this.onPickImageCallback();
       }
@@ -359,7 +360,10 @@ export class BackgroundPicker {
     });
 
     // Apply
-    this.applyBtn.addEventListener("click", () => this._confirm());
+    this.applyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._confirm();
+    });
   }
 
   /**

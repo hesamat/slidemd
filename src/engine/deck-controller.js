@@ -19,6 +19,7 @@ import { AIGenerationController } from "../generation/ai-generation-controller.j
 import { GenerationActions } from "../ui/generation-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { NewPresentationModal } from "../generation/new-presentation-modal.js";
+import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 
@@ -530,22 +531,32 @@ export class DeckController extends EventEmitter {
   }
 
   async handleNewPresentation() {
+    NewPresentationModal.setOnPickImage((onSelect) => {
+      ImagePicker.show(
+        (path) => {
+          onSelect(path, "");
+        },
+        { pathOnly: true },
+      );
+    });
     const options = await NewPresentationModal.show();
     if (!options) return;
 
-    const { theme, headerStyle, template } = options;
+    const { background, theme, titleStyle, areaStyle, template } = options;
 
     let markdown = template.markdown;
 
-    // Apply theme and header-style to all slides
-    if (theme === "dark" || headerStyle !== "line") {
-      markdown = markdown.replace(/^(layout: .+)$/gm, (match) => {
-        let result = match;
-        if (theme === "dark") result += "\ntheme: dark";
-        if (headerStyle !== "line") result += `\nheader-style: ${headerStyle}`;
-        return result;
-      });
-    }
+    // Apply background, theme, header-style, and area-style to all slides
+    // Title slides (layout: title-slide) get background/theme/header-style but NOT area-style
+    markdown = markdown.replace(/^(layout: .+)$/gm, (match) => {
+      let result = match;
+      const isTitleSlide = match.includes("title-slide");
+      if (background) result += `\nbackground: ${background}`;
+      if (theme) result += `\ntheme: ${theme}`;
+      if (titleStyle && titleStyle !== "short") result += `\nheader-style: ${titleStyle}`;
+      if (areaStyle && !isTitleSlide) result += `\narea-style: ${areaStyle}`;
+      return result;
+    });
 
     // Store markdown in localStorage so edit mode can work
     localStorage.setItem("webdeck_local_file", markdown);

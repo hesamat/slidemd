@@ -77,6 +77,23 @@ export function updateAreaStyleDirective(markdown, cssText) {
 }
 
 /**
+ * Replace (or insert) the `header-style:` directive in a slide's markdown.
+ *
+ * @param {string} markdown      - Slide markdown source.
+ * @param {string} headerStyle   - Header style value ('line', 'full', 'thick', 'none', or '' to remove).
+ * @returns {string} Updated markdown.
+ */
+export function updateHeaderStyleDirective(markdown, headerStyle) {
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "header-style");
+  const trimmed = String(headerStyle || "")
+    .trim()
+    .toLowerCase();
+  if (!trimmed || trimmed === "line") return stripped;
+  return `header-style: ${trimmed}\n${stripped}`;
+}
+
+/**
  * Parse a CSS background string and return a friendly preview description.
  * Returns `{ type, value, preview }` where `preview` is a CSS string suitable
  * for inline `style="background: ..."`.
