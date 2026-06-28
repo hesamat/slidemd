@@ -11,13 +11,6 @@ import { Notification } from "./src/renderer/notification.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
-import { initializeDefaultProviders } from "./src/generation/ai-provider-registry.js";
-
-// Initialize AI providers on startup (only in dev mode - stripped in exports)
-if (typeof initializeDefaultProviders === "function") {
-  initializeDefaultProviders();
-}
-
 (() => {
   "use strict";
 

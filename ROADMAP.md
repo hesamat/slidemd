@@ -95,19 +95,20 @@ Goal: Add a modal for creating new presentations with theme, style, and template
 
 ---
 
-## Phase 5: Quick Fixes
+## Phase 5: Quick Fixes ✅
 
 Goal: Address small bugs and remove dead code before major work.
 
 | Task                                               | Effort | Details                                                       |
 | -------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| [ ] Fix AI Config Modal close button bug           | 0.5 hr | Promise never resolves on X click                             |
-| [ ] Fix `topicsCovered` type inconsistency         | 0.5 hr | String → array, wire into prompts                             |
-| [ ] Deduplicate error modals                       | 1 hr   | `showPlanFormatError` / `showDeckFormatError` → shared method |
-| [ ] Remove dead code: single-pass `generateDeck()` | 0.5 hr | Never called, only `generateDeckFromPlan()` is used           |
-| [ ] Remove vestigial `generation-templates.js`     | 1 hr   | Template engine exists but is never used in generation        |
+| [x] Fix AI Config Modal close button bug           | 0.5 hr | Promise never resolves on X click                             |
+| [x] Fix `topicsCovered` type inconsistency         | 0.5 hr | String → array, wire into prompts                             |
+| [x] Deduplicate error modals                       | 1 hr   | `showPlanFormatError` / `showDeckFormatError` → shared method |
+| [x] Remove dead code: single-pass `generateDeck()` | 0.5 hr | Never called, only `generateDeckFromPlan()` is used           |
+| [x] Remove vestigial `generation-templates.js`     | 1 hr   | Template engine exists but is never used in generation        |
+| [x] **Full AI generation removal**                 | —      | Removed all AI generation code, unified prompts in docs/      |
 
-**Effort estimate:** ~3-4 hrs
+**Effort estimate:** ~3-4 hrs (completed)
 
 ---
 
@@ -226,16 +227,16 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
 | Phase 3: Distribution        | 2-3 days         | ✅ Complete        |
 | Phase 4: New Presentation    | 3-4 days         | ✅ Complete        |
-| Phase 5: Quick Fixes         | ~3-4 hrs         | Not started        |
+| Phase 5: Quick Fixes         | ~3-4 hrs         | ✅ Complete        |
 | Phase 6: Testing & Polish    | 6-9 days         | Not started        |
 | Phase 7: AI Generation       | 4-6 days         | Not started        |
 | Phase 8: Cloud Mode          | 25-35 days       | Not started        |
-| **Total**                    | **~10-14 weeks** | **Phase 1-4 done** |
+| **Total**                    | **~10-14 weeks** | **Phase 1-5 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 → Phase 6 → Phase 7 → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 → Phase 7 → Phase 8
 ```
 
-Phase 5 is quick fixes (bug fixes, dead code removal). Phase 6 covers testing and type safety. Phase 7 is the AI overhaul. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 5 is quick fixes (bug fixes, dead code removal) **and full AI generation removal**. Phase 6 covers testing and type safety. Phase 7 will be the PPTX-to-SlideMD conversion feature. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.

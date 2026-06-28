@@ -224,31 +224,6 @@ $$E = mc^2$$
 - Deterministic PDF: `npm run pdf` (outputs `dist/example.pdf`)
 - If Chromium is missing after `npm update`, run `npx playwright install chromium` once; `npm run pdf` also runs that install step automatically.
 
-## AI Generation
-
-SlideMD includes AI-powered deck generation from course profiles and lecture topics.
-
-### Setup
-
-1. Open the app menu and go to **AI Configuration**
-2. Enter your API key (supports GLM/Zhipu AI or OpenRouter)
-3. Create a **Course Profile** with your course details
-
-### Usage
-
-1. Open the app menu and click **Generate Deck**
-2. Select a course profile
-3. Enter a topic and optional summary of previous lectures
-4. Review the generated lecture plan
-5. The AI generates a complete Markdown deck
-
-### Features
-
-- Course profile management (create, edit, delete, import/export)
-- Lecture plan generation with customizable slide counts
-- Full Markdown deck generation with layouts, code blocks, and diagrams
-- Configurable AI providers (GLM, OpenRouter)
-
 ## Multiple Decks / Lecture Backup
 
 The `decks/` folder includes alternatives. To build a different source, pass it as an argument to the build script (for example: `node tools/build.mjs decks/deck.md`).

@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, and AI-powered deck generation",
+  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, and diagrams",
   "author": "Hesam Alizadeh",
   "license": "MIT",
   "repository": {
@@ -21,8 +21,7 @@
     "speaker-view",
     "code-highlighting",
     "math",
-    "mermaid",
-    "ai-generation"
+    "mermaid"
   ],
   "scripts": {
     "dev": "vite",

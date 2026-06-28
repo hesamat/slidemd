@@ -21,7 +21,4 @@
 @import "./styles/editor.css";
 @import "./styles/style-helpers.css";
 @import "./styles/slide-style-panel.css";
-@import "./styles/course-profile-modal.css";
-@import "./styles/ai-config-modal.css";
-@import "./styles/lecture-plan-modal.css";
 @import "./styles/new-presentation-modal.css";

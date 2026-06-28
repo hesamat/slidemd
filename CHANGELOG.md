@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 (2026-06-28)
+
+### AI Generation Removal
+
+- Removed entire AI slide generation feature (course profiles, lecture plans, deck generation)
+- Deleted 10 source files, 3 CSS files, and 1 UI file (~4,500 lines removed)
+- Moved New Presentation Modal to `src/editor/` (not AI-related)
+- Removed AI menu items: Course Profiles, AI Configuration, Generate Deck
+- Removed AI generation from package.json description and keywords
+
+### Prompt Unification
+
+- Merged `docs/prompt-template.md` and `docs/prompts/lecture-deck-prompt.md` into single unified prompt template
+- Removed `docs/prompts/` directory
+
+### Documentation Updates
+
+- Removed AI Generation section from README.md
+- Removed AI Generation slide from docs/example.md
+- Removed AI Generation section from AGENTS.md
+- Updated ROADMAP.md with Phase 5 completion
+
+### Bug Fixes
+
+- Fixed image properties panel: size presets (Small/Medium/Large) now respect aspect ratio lock
+
 ## 0.3.0 (2026-06-28)
 
 ### New Presentation Modal

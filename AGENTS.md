@@ -38,8 +38,7 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
   - **ui/** - Background picker, insert dropdown, mermaid helper, panel resizer, save manager, slide style panel, theme manager
 - **engine/** - Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager, wheel-handler, freeze-manager)
 - **renderer/** - Display logic (slide-renderer, stage-scaler, theme-manager, content-enhancer, html-export-manager, print-manager, notification)
-- **generation/** - AI-powered slide generation (deck-generator, lecture-plan-generator, ai-provider-registry, ai-generation-controller, course-profile-manager, course-profile-modal, lecture-plan-modal, ai-config-modal)
-- **ui/** - UI actions (ui-actions, generation-actions)
+- **ui/** - UI actions (ui-actions)
 
 ### Entry Points
 
@@ -84,14 +83,6 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 - Slide thumbnails: [src/editor/core/slide-thumbnails.js](src/editor/core/slide-thumbnails.js)
 - Image handling: [src/editor/image/](src/editor/image/)
 - Grid resizer: [src/editor/layout/grid-resizer.js](src/editor/layout/grid-resizer.js)
-
-### When Working with AI Generation
-
-- AI generation controller: [src/generation/ai-generation-controller.js](src/generation/ai-generation-controller.js)
-- Deck generation: [src/generation/deck-generator.js](src/generation/deck-generator.js)
-- Lecture plan generation: [src/generation/lecture-plan-generator.js](src/generation/lecture-plan-generator.js)
-- AI provider registry: [src/generation/ai-provider-registry.js](src/generation/ai-provider-registry.js)
-- Course profiles: [src/generation/course-profile-manager.js](src/generation/course-profile-manager.js)
 
 ## Common Tasks
 

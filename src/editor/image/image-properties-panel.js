@@ -327,7 +327,14 @@ export class ImagePropertiesPanel {
 
   static _applyPreset(overrides) {
     const current = this._collectSettings();
-    const settings = { ...current, ...overrides };
+    let settings = { ...current, ...overrides };
+
+    // If aspect ratio is locked and width is being set, calculate height
+    if (this._aspectLocked && settings.width && current.height) {
+      const ratio = current.width / current.height;
+      settings.height = Math.round(settings.width / ratio);
+    }
+
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
       ImageInteractionHandler.applySettings(settings);
     });

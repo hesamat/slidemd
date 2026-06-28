@@ -29,7 +29,6 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 - **Math rendering** via KaTeX
 - **Diagrams** via Mermaid
 - **Export** to PDF or standalone HTML
-- **AI-powered** deck generation
 
 @media
 
@@ -429,45 +428,8 @@ layout: two-column
 | `F` | Toggle fullscreen        |
 | `E` | Toggle edit mode         |
 | `B` | Start break timer        |
-| `D` | Toggle dark/light theme  |
+| `T` | Toggle dark/light theme  |
 | `R` | Reload deck from file    |
-
----
-
-layout: two-column
-
-@header
-
-## AI Generation
-
-@main
-
-### Overview
-
-SlideMD includes AI-powered deck generation. Create course profiles, generate lecture plans, and produce complete slide decks from a topic description.
-
-### Workflow
-
-1. **Create a Course Profile** – Define your course, learning objectives, and defaults
-2. **Configure AI Provider** – Enter your API key (GLM/Zhipu AI or OpenRouter)
-3. **Generate Deck** – Enter a topic, review the lecture plan, and generate
-
-@media
-
-### Features
-
-- **Course profiles** – Save course details for reuse
-- **Lecture plans** – AI generates a structured plan before writing slides
-- **Two-pass generation** – Plan review ensures quality before deck creation
-- **Token tracking** – Monitor API usage costs
-
-### Access
-
-Open the Menu (⋮) and select:
-
-- **Course Profiles** – Manage your profiles
-- **AI Configuration** – Set up API keys
-- **Generate Deck** – Start generation
 
 ---
 
