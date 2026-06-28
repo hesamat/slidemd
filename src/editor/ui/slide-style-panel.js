@@ -471,14 +471,11 @@ export class SlideStylePanel {
       input.addEventListener("input", () => {
         this._updateSliderLabels();
         this._syncTitleDisabled();
-        this._applyChange();
       });
     });
 
     // Border color
-    el.querySelector('[data-field="border-color"]')?.addEventListener("input", () => {
-      this._applyChange();
-    });
+    el.querySelector('[data-field="border-color"]')?.addEventListener("input", () => {});
 
     // Header style buttons
     el.querySelectorAll(".slide-style-panel-modal__btn-option").forEach((btn) => {
@@ -487,7 +484,6 @@ export class SlideStylePanel {
           b.classList.remove("selected"),
         );
         btn.classList.add("selected");
-        this._applyChange();
       });
     });
 
@@ -499,7 +495,6 @@ export class SlideStylePanel {
       this._currentImagePath = "";
       this._currentTheme = this._isColorDark(btn.dataset.value) ? "dark" : "";
       this._syncBgUI();
-      this._applyChange();
     });
 
     // Custom text input
@@ -507,13 +502,11 @@ export class SlideStylePanel {
       this._currentBg = e.target.value.trim();
       this._currentImagePath = "";
       this._syncBgUI();
-      this._applyChange();
     });
 
     // Theme checkbox
     el.querySelector('[data-field="bg-theme"]')?.addEventListener("change", (e) => {
       this._currentTheme = e.target.checked ? "dark" : "light";
-      this._applyChange();
     });
 
     // Overlay slider
@@ -523,7 +516,6 @@ export class SlideStylePanel {
       this._imageOverlay = parseInt(slider.value, 10);
       if (label) label.textContent = `${this._imageOverlay}%`;
       this._syncBgUI();
-      this._applyChange();
     });
 
     // Pick image
@@ -535,7 +527,6 @@ export class SlideStylePanel {
           this._currentBg = "";
           this._currentTheme = "dark";
           this._syncBgUI();
-          this._applyChange();
         });
       }
     });
@@ -546,15 +537,10 @@ export class SlideStylePanel {
       this._currentImagePath = "";
       this._currentTheme = "";
       this._syncBgUI();
-      this._applyChange();
     });
 
     // Clear all
     el.querySelector('[data-action="clear"]').addEventListener("click", () => {
-      if (this._debounceTimer) {
-        clearTimeout(this._debounceTimer);
-        this._debounceTimer = null;
-      }
       const setVal = (sel, val) => {
         const e = this.el.querySelector(sel);
         if (e) e.value = val;
@@ -565,14 +551,13 @@ export class SlideStylePanel {
       this._updateSliderLabels();
       this._currentBg = "";
       this._currentImagePath = "";
+      this._imageOverlay = 40;
       this._currentTheme = "";
       this._syncBgUI();
       this.el.querySelectorAll(".slide-style-panel-modal__btn-option").forEach((b) => {
         b.classList.toggle("selected", b.dataset.headerStyle === "line");
       });
       this._syncTitleDisabled();
-      this._doApplyChange();
-      this.saveDefaultStyles("", "line", "", "");
     });
 
     // Apply (current slide)
