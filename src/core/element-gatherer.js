@@ -62,6 +62,7 @@ export class ElementGatherer {
       menuCourseProfilesBtn: $("menuCourseProfilesBtn"),
       menuAIConfigBtn: $("menuAIConfigBtn"),
       menuGenerateDeckBtn: $("menuGenerateDeckBtn"),
+      menuNewPresentationBtn: $("menuNewPresentationBtn"),
       printBtn: $("printBtn"),
       reloadDeckBtn: $("reloadDeckBtn"),
 

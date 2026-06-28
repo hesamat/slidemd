@@ -1,0 +1,370 @@
+/* ==========================================================================
+   Shared styles for SlideStylePanel and NewPresentationModal.
+   This file is imported by both panel CSS files.
+   ========================================================================== */
+
+/* ── Color row (swatches + picker inline) ── */
+.style-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Swatches grid ── */
+.style-swatch-grid {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  position: relative;
+}
+
+.style-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    transform 0.1s ease;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.style-swatch:hover {
+  transform: scale(1.15);
+}
+
+.style-swatch.selected {
+  border-color: var(--accent);
+  transform: scale(1.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 0 0 2px rgba(var(--color-primary), 0.3);
+}
+
+/* ── None swatch (icon) ── */
+.style-swatch--none {
+  background: var(--surface-elevated);
+  color: var(--text-low);
+  border: 1px solid var(--border-medium);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.style-swatch--none:hover {
+  color: var(--text-high);
+  border-color: var(--border-strong);
+}
+
+.style-swatch--none.selected {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Icon button (dropper trigger) ── */
+.style-icon-btn {
+  appearance: none;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  color: var(--text-medium);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.style-icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-high);
+  border-color: var(--border-strong);
+}
+
+/* ── Hidden color input (overlays dropper button for native picker) ── */
+.style-color-input-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  z-index: 1;
+}
+
+/* ── Image row (label + button inline) ── */
+.style-image-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.style-image-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-medium);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+/* ── Background button ── */
+.style-bg-btn {
+  appearance: none;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  color: var(--text-medium);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.style-bg-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-high);
+  border-color: var(--border-strong);
+}
+
+/* ── Image status ── */
+.style-image-status {
+  margin-top: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+  background: rgba(var(--color-primary), 0.06);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
+/* ── Overlay row ── */
+.style-overlay-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 18px;
+}
+
+.style-overlay-row .style-label {
+  margin-bottom: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Toggle ── */
+.style-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-medium);
+  cursor: pointer;
+}
+
+.style-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ── Background preview ── */
+.style-bg-preview {
+  width: 100%;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.style-bg-preview.has-bg {
+  border-color: rgba(var(--color-primary), 0.4);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.08),
+    0 0 0 2px rgba(var(--color-primary), 0.15);
+}
+
+/* ── Range slider ── */
+.style-range {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-medium);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+}
+
+.style-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface-bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+
+.style-range::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+
+.style-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface-bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+
+/* ── Control row (label + range + value + color) ── */
+.style-control-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.style-control-row:last-child {
+  margin-bottom: 0;
+}
+
+.style-control-label {
+  font-size: 13px;
+  color: var(--text-medium);
+  width: 60px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.style-control-value {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-medium);
+  width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+/* ── Color picker (small, for borders etc.) ── */
+.style-color {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── Inline section / label / hint ── */
+.style-inline-section {
+  margin-bottom: 18px;
+}
+
+.style-inline-section:last-child {
+  margin-bottom: 0;
+}
+
+.style-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-medium);
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.style-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-low);
+  line-height: 1.4;
+}
+
+/* ── Button group (title decoration) ── */
+.style-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.style-btn-option {
+  appearance: none;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-bg);
+  color: var(--text-medium);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.style-btn-option:hover {
+  background: var(--surface-elevated);
+  color: var(--text-high);
+}
+
+.style-btn-option.selected {
+  background: rgba(var(--color-primary), 0.1);
+  border-color: rgba(var(--color-primary), 0.4);
+  color: rgba(var(--color-primary), 1);
+}
+
+.style-btn-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.style-btn-option:disabled:hover {
+  background: var(--surface-bg);
+  border-color: var(--border-medium);
+  color: var(--text-medium);
+}
+
+.style-disabled-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-low);
+  font-style: italic;
+}
+
+/* ── Row helpers ── */
+.style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-row--between {
+  justify-content: space-between;
+}

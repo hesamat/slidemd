@@ -18,6 +18,10 @@ import { UiActions } from "../ui/ui-actions.js";
 import { AIGenerationController } from "../generation/ai-generation-controller.js";
 import { GenerationActions } from "../ui/generation-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
+import { NewPresentationModal } from "../generation/new-presentation-modal.js";
+import { ImagePicker } from "../editor/image/image-picker.js";
+import { MarkdownParser } from "../data/markdown-parser.js";
+import { AssetLoader } from "../core/asset-loader.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -180,13 +184,6 @@ export class DeckController extends EventEmitter {
           edit()?.toggleMermaidHelperPanel?.();
         } catch (e) {
           console.warn("Toggle Mermaid shortcut failed:", e);
-        }
-      },
-      pickBackground: () => {
-        try {
-          edit()?.pickBackground?.();
-        } catch (e) {
-          console.warn("Pick background shortcut failed:", e);
         }
       },
       adjustColumns: () => {
@@ -357,6 +354,10 @@ export class DeckController extends EventEmitter {
       this.handleHtmlExport();
       this.closeMenu();
     });
+    listen(this.elements.menuNewPresentationBtn, "click", () => {
+      this.handleNewPresentation();
+      this.closeMenu();
+    });
 
     listen(this.elements.breakDurationSelect, "change", (e) => {
       this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -520,6 +521,58 @@ export class DeckController extends EventEmitter {
     await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, {
       filename,
     });
+  }
+
+  async handleNewPresentation() {
+    NewPresentationModal.setOnPickImage((onSelect) => {
+      ImagePicker.show(
+        (path) => {
+          onSelect(path, "");
+        },
+        { pathOnly: true },
+      );
+    });
+    const options = await NewPresentationModal.show();
+    if (!options) return;
+
+    const { background, theme, titleStyle, areaStyle, template } = options;
+
+    let markdown = template.markdown;
+
+    // Apply background, theme, header-style, and area-style to all slides
+    // Title slides (layout: title-slide) get background/theme/header-style but NOT area-style
+    markdown = markdown.replace(/^(layout: .+)$/gm, (match) => {
+      let result = match;
+      const isTitleSlide = match.includes("title-slide");
+      if (background) result += `\nbackground: ${background}`;
+      if (theme) result += `\ntheme: ${theme}`;
+      if (titleStyle && titleStyle !== "short") result += `\nheader-style: ${titleStyle}`;
+      if (areaStyle && !isTitleSlide) result += `\narea-style: ${areaStyle}`;
+      return result;
+    });
+
+    // Store markdown in localStorage so edit mode can work
+    localStorage.setItem("webdeck_local_file", markdown);
+    localStorage.setItem("webdeck_local_file_type", "md");
+    localStorage.setItem("webdeck_local_file_name", "New Presentation");
+    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
+    // Parse markdown into deck data
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
+
+    // Replace the current deck
+    if (this.reloadManager?.replaceDeck) {
+      await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+    }
+
+    // Update editor if open
+    const editor = document.getElementById("markdownEditor");
+    if (editor?.CodeMirror) {
+      editor.CodeMirror.setValue(markdown);
+    }
+
+    Notification.info("New presentation created");
   }
 
   destroy() {

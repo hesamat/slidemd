@@ -1,188 +1,156 @@
 /* ==========================================================================
-   Slide Style Panel — friendly floating toolbar for slide-wide CSS editing
+   Slide Style Panel — modal dialog for slide-wide CSS editing
+   Shared styles are in style-helpers.css (imported by styles.css).
    ========================================================================== */
 
-.slide-style-panel {
+.slide-style-panel-modal {
   position: fixed;
+  inset: 0;
   z-index: 200;
-  width: 300px;
-  background: var(--surface-bg);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-lg);
-  box-shadow:
-    0 12px 40px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-sans);
-  font-size: var(--ui-font-size);
+  font-size: 14px;
   color: var(--text-high);
-  user-select: none;
 }
 
-.slide-style-panel.webdeck-hidden {
+.slide-style-panel-modal.webdeck-hidden {
   display: none;
 }
 
-.slide-style-panel__header {
+.slide-style-panel-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.slide-style-panel-modal__dialog {
+  position: relative;
+  width: 440px;
+  max-height: 80vh;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.slide-style-panel-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border-subtle);
-  cursor: grab;
 }
 
-.slide-style-panel__header:active {
-  cursor: grabbing;
-}
-
-.slide-style-panel__title {
-  font-size: 12px;
+.slide-style-panel-modal__title {
+  margin: 0;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--text-medium);
+  color: var(--text-high);
 }
 
-.slide-style-panel__close {
+.slide-style-panel-modal__close {
   appearance: none;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
+  transition: color 0.12s ease;
 }
 
-.slide-style-panel__close:hover {
+.slide-style-panel-modal__close:hover {
   color: var(--text-high);
   background: var(--surface-hover);
 }
 
-.slide-style-panel__body {
-  padding: 10px 14px 14px;
+/* ── Tabs ── */
+.slide-style-panel-modal__tabs {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.slide-style-panel__section {
-  font-size: 10px;
-  font-weight: 700;
+.slide-style-panel-modal__tab {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-top: 6px;
-}
-
-.slide-style-panel__section:first-child {
-  margin-top: 0;
-}
-
-.slide-style-panel__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ── Color picker ── */
-.slide-style-panel__color {
-  width: 32px;
-  height: 28px;
-  padding: 2px;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 11px 0;
   cursor: pointer;
-  flex: 0 0 32px;
-  background: var(--surface-elevated);
+  transition: color 0.12s ease;
+  border-bottom: 2px solid transparent;
+  letter-spacing: 0.02em;
 }
 
-/* ── Range slider ── */
-.slide-style-panel__range {
-  flex: 1;
-  min-width: 0;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  background: var(--border-medium);
-  border-radius: 999px;
-  cursor: pointer;
-  outline: none;
-}
-
-.slide-style-panel__range--grow {
-  flex: 1;
-}
-
-.slide-style-panel__range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--surface-bg);
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
-  cursor: grab;
-}
-
-.slide-style-panel__range::-webkit-slider-thumb:active {
-  cursor: grabbing;
-}
-
-.slide-style-panel__range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--surface-bg);
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
-  cursor: grab;
-}
-
-/* ── Value label ── */
-.slide-style-panel__value {
-  font-size: 11px;
-  font-family: var(--font-mono);
+.slide-style-panel-modal__tab:hover {
   color: var(--text-medium);
-  flex: 0 0 42px;
-  text-align: right;
+}
+
+.slide-style-panel-modal__tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Body ── */
+.slide-style-panel-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.slide-style-panel-modal__tab-panel {
+  display: none;
+  padding: 18px 20px;
+}
+
+.slide-style-panel-modal__tab-panel.active {
+  display: block;
 }
 
 /* ── Footer ── */
-.slide-style-panel__footer {
+.slide-style-panel-modal__footer {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: 8px;
+  padding: 12px 20px;
   border-top: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
 }
 
-.slide-style-panel__btn {
+.slide-style-panel-modal__btn {
   appearance: none;
   border: 1px solid var(--border-medium);
   background: var(--surface-bg);
   color: var(--text-high);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 5px 12px;
+  padding: 9px 18px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
-.slide-style-panel__btn:hover {
+.slide-style-panel-modal__btn:hover {
   background: var(--surface-elevated);
 }
 
-.slide-style-panel__btn--danger {
-  color: rgba(220, 38, 38, 0.9);
-  border-color: rgba(220, 38, 38, 0.3);
+.slide-style-panel-modal__btn--primary {
+  background: rgba(var(--color-primary), 1);
+  color: white;
+  border-color: transparent;
 }
 
-.slide-style-panel__btn--danger:hover {
-  background: rgba(220, 38, 38, 0.08);
+.slide-style-panel-modal__btn--primary:hover {
+  background: rgba(var(--color-primary), 0.85);
 }

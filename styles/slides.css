@@ -164,6 +164,19 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   background: rgba(225, 211, 252, 0.8);
 }
 
+.slide[data-header-style="none"] .slide__area--header::after {
+  display: none;
+}
+
+.slide[data-header-style="full"] .slide__area--header::after {
+  left: 0;
+  width: 100%;
+}
+
+.slide[data-header-style="thick"] .slide__area--header::after {
+  height: 3px;
+}
+
 .slide__area--header:empty {
   display: none;
 }
@@ -222,7 +235,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   text-align: center;
   justify-content: center;
   align-items: center;
-  max-width: var(--line-max);
+  max-width: 120ch;
   margin: 0 auto;
 }
 
@@ -318,12 +331,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* --- PARAGRAPH & TEXT STYLES --- */
 
-.slide__area p:not(.nodeLabel > p) {
-  line-height: 1.55;
-  color: var(--slide-body);
-  margin-top: var(--spacing-xs);
-}
-
 .slide__area strong {
   color: var(--slide-ink);
   font-weight: 700;
@@ -402,7 +409,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area--title h2,
 .slide__area--title h3,
 .slide__area--title p {
-  max-width: var(--line-max);
+  max-width: 120ch;
 }
 
 /* ==========================================================================
@@ -676,11 +683,36 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* Zebra striping for better readability */
 .slide:not([data-theme]) .slide__area tbody tr:nth-child(odd) td,
 .slide[data-theme="light"] .slide__area tbody tr:nth-child(odd) td {
-  background: rgba(15, 23, 42, 0.03);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.slide:not([data-theme]) .slide__area tbody tr:nth-child(even) td,
+.slide[data-theme="light"] .slide__area tbody tr:nth-child(even) td {
+  background: rgba(15, 23, 42, 0.02);
 }
 
 .slide[data-theme="dark"] .slide__area tbody tr:nth-child(odd) td {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.slide[data-theme="dark"] .slide__area tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Dark theme table header */
+.slide[data-theme="dark"] .slide__area thead th {
+  background: rgba(26, 149, 184, 0.45);
+  color: rgba(240, 242, 245, 0.95);
+  border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+
+.slide[data-theme="dark"] .slide__area table {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.slide[data-theme="dark"] .slide__area tbody td {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  color: rgba(246, 242, 240, 0.92);
 }
 
 /* Row hover state */

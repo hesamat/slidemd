@@ -12,6 +12,7 @@ import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { Notification } from "../../renderer/notification.js";
 import { LayoutData } from "../../data/layout-data.js";
+import { SlideStylePanel } from "../ui/slide-style-panel.js";
 
 export class SlideOperations {
   /** @param {import('./edit-controller.js').EditController} ctrl */
@@ -257,9 +258,27 @@ export class SlideOperations {
     const template = LayoutData.getTemplate(layoutName);
     const insertIndex = this.currentSlideIndex + 1;
 
+    // Apply persisted default styles to the new slide template
+    const defaultAreaStyle = SlideStylePanel.getDefaultAreaStyle();
+    const defaultHeaderStyle = SlideStylePanel.getDefaultHeaderStyle();
+    const defaultBackground = SlideStylePanel.getDefaultBackground();
+    const defaultTheme = SlideStylePanel.getDefaultTheme();
+    let styledTemplate = template;
+    if (defaultAreaStyle || defaultHeaderStyle !== "line" || defaultBackground || defaultTheme) {
+      styledTemplate = template.replace(/^(layout: .+)$/gm, (match) => {
+        let result = match;
+        if (defaultAreaStyle) result += `\narea-style: ${defaultAreaStyle}`;
+        if (defaultHeaderStyle && defaultHeaderStyle !== "line")
+          result += `\nheader-style: ${defaultHeaderStyle}`;
+        if (defaultBackground) result += `\nbackground: ${defaultBackground}`;
+        if (defaultTheme) result += `\ntheme: ${defaultTheme}`;
+        return result;
+      });
+    }
+
     try {
       const parser = new MarkdownParser();
-      const deckData = parser.parseDeckMarkdown(template);
+      const deckData = parser.parseDeckMarkdown(styledTemplate);
 
       if (!deckData.slides || deckData.slides.length === 0) {
         const newSlide = {
@@ -270,11 +289,11 @@ export class SlideOperations {
           areas: { main: "<h2>New Slide</h2>\n\nAdd your content here" },
         };
         this.deck.slides.splice(insertIndex, 0, newSlide);
-        this.ctrl.originalMarkdown.splice(insertIndex, 0, template);
+        this.ctrl.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       } else {
         const newSlide = deckData.slides[0];
         this.deck.slides.splice(insertIndex, 0, newSlide);
-        this.ctrl.originalMarkdown.splice(insertIndex, 0, template);
+        this.ctrl.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       }
 
       if (this.elements.slideCountEl) {
@@ -300,7 +319,7 @@ export class SlideOperations {
       }
 
       this.controller.slideNavigator.goTo(insertIndex);
-      this.rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, template);
+      this.rebuildUnsavedMarkdownMap(insertIndex, -1, insertIndex, styledTemplate);
       this.thumbnails.refresh();
       Notification.success(`Added new slide with "${layoutName}" layout`);
     } catch (error) {

@@ -65,7 +65,7 @@ export class KeyboardHandler {
     { key: "i", ctrl: false, shift: false, alt: true, action: "insertImage" },
     { key: "l", ctrl: false, shift: false, alt: true, action: "openLayout" },
     { key: "m", ctrl: false, shift: false, alt: true, action: "toggleMermaid" },
-    { key: "b", ctrl: false, shift: false, alt: true, action: "pickBackground" },
+
     { key: "a", ctrl: false, shift: false, alt: true, action: "adjustColumns" },
     { key: "t", ctrl: false, shift: false, alt: true, action: "slideTheme" },
     { key: "s", ctrl: false, shift: false, alt: true, action: "styles" },
@@ -94,7 +94,7 @@ export class KeyboardHandler {
    * @param {Function} actions.insertImage - Open image picker (edit mode only, Alt+I)
    * @param {Function} actions.openLayout - Open layout picker for current slide (edit mode only, Alt+L)
    * @param {Function} actions.toggleMermaid - Toggle Mermaid helper panel (edit mode only, Alt+M)
-   * @param {Function} actions.pickBackground - Open background picker (edit mode only, Alt+B)
+
    * @param {Function} actions.adjustColumns - Toggle column resize handles (edit mode only, Alt+A)
    * @param {Function} actions.isEditMode - Callback to check if edit mode is active
    * @param {Function} actions.isBreakActive - Callback to check if break mode is active

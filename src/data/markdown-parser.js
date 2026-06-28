@@ -423,6 +423,12 @@ export class MarkdownParser {
       const { value: theme, markdown: withoutTheme } = this.extractDirective(cleaned, "theme");
       cleaned = withoutTheme;
 
+      const { value: headerStyle, markdown: withoutHeaderStyle } = this.extractDirective(
+        cleaned,
+        "header-style",
+      );
+      cleaned = withoutHeaderStyle;
+
       const { value: areaStyle, markdown: withoutAreaStyle } = this.extractDirective(
         cleaned,
         "area-style",
@@ -520,6 +526,7 @@ export class MarkdownParser {
         layout: layout || "",
         background: background || "",
         theme: themeNormalized,
+        headerStyle: safeString(headerStyle).toLowerCase() || "",
         hidden,
         areas,
         areaStyle: areaStyle || "",
