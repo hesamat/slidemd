@@ -97,20 +97,22 @@ Goal: Add a modal for creating new presentations with theme, style, and template
 
 ## Phase 5: Quick Fixes ✅
 
-Goal: Address small bugs and remove dead code before major work.
+Goal: Remove AI generation feature and unify prompt documentation.
 
 | Task                                               | Effort | Details                                                       |
 | -------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| [x] Fix AI Config Modal close button bug           | 0.5 hr | Promise never resolves on X click                             |
-| [x] Fix `topicsCovered` type inconsistency         | 0.5 hr | String → array, wire into prompts                             |
-| [x] Deduplicate error modals                       | 1 hr   | `showPlanFormatError` / `showDeckFormatError` → shared method |
-| [x] Remove dead code: single-pass `generateDeck()` | 0.5 hr | Never called, only `generateDeckFromPlan()` is used           |
-| [x] Remove vestigial `generation-templates.js`     | 1 hr   | Template engine exists but is never used in generation        |
-| [x] **Full AI generation removal**                 | —      | Removed all AI generation code, unified prompts in docs/      |
+| [x] Remove AI generation feature entirely          | ~3-4 hr | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
+| [x] Move New Presentation Modal to src/editor/     | —      | Not AI-related; manual presentation wizard                    |
+| [x] Remove AI menu items from UI                   | —      | Course Profiles, AI Configuration, Generate Deck              |
+| [x] Unify prompt templates in docs/                | —      | Merged 2 prompt files into single docs/prompt-template.md     |
+| [x] Update documentation (README, example.md, AGENTS.md) | — | Removed AI generation references                              |
+| [x] Fix image properties panel aspect ratio bug    | —      | Size presets now respect aspect ratio lock                    |
 
 **Effort estimate:** ~3-4 hrs (completed)
 
 ---
+
+**Note:** The original Phase 5 tasks (fix AI config modal close button, fix topicsCovered type, deduplicate error modals, remove generateDeck dead code, remove generation-templates.js) are subsumed by the complete AI generation removal — the buggy/dead code no longer exists.
 
 ## Phase 6: Testing & Polish
 
