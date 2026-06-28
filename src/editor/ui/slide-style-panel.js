@@ -112,45 +112,32 @@ export class SlideStylePanel {
     const markdown = this._getMarkdown();
     const parser = new MarkdownParser();
 
-    const cssString = this._buildCssFromUI();
-    const headerStyle = this._getSelectedHeaderStyle();
-    const bgValue = this._getBackgroundValue();
-    const themeValue = this._currentTheme;
-
-    // area-style is global (one at top of document)
     let { markdown: stripped } = parser.extractDirective(markdown, "area-style");
+    const cssString = this._buildCssFromUI();
     if (cssString) stripped = `area-style: ${cssString}\n${stripped}`;
 
-    // Split into slide sections by --- separator
-    const sections = stripped.split(/^---$/m);
+    let { markdown: withoutHeader } = parser.extractDirective(stripped, "header-style");
+    const headerStyle = this._getSelectedHeaderStyle();
+    if (headerStyle && headerStyle !== "line") {
+      withoutHeader = `header-style: ${headerStyle}\n${withoutHeader}`;
+    }
 
-    const updated = sections.map((section) => {
-      let s = section;
+    let { markdown: withoutBg } = parser.extractDirective(withoutHeader, "background");
+    const bgValue = this._getBackgroundValue();
+    if (bgValue) {
+      const indented = bgValue
+        .split("\n")
+        .map((line, i) => (i === 0 ? line : `  ${line}`))
+        .join("\n");
+      withoutBg = `background: ${indented}\n${withoutBg}`;
+    }
 
-      // Strip existing per-slide directives
-      let { markdown: noHeader } = parser.extractDirective(s, "header-style");
-      let { markdown: noBg } = parser.extractDirective(noHeader, "background");
-      let { markdown: noTheme } = parser.extractDirective(noBg, "theme");
+    let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
+    if (this._currentTheme) {
+      withoutTheme = `theme: ${this._currentTheme}\n${withoutTheme}`;
+    }
 
-      // Re-add per-slide directives
-      let lines = noTheme;
-      if (themeValue) lines = `theme: ${themeValue}\n${lines}`;
-      if (bgValue) {
-        const indented = bgValue
-          .split("\n")
-          .map((line, i) => (i === 0 ? line : `  ${line}`))
-          .join("\n");
-        lines = `background: ${indented}\n${lines}`;
-      }
-      if (headerStyle && headerStyle !== "line") {
-        lines = `header-style: ${headerStyle}\n${lines}`;
-      }
-
-      return lines;
-    });
-
-    const result = updated.join("\n---\n").replace(/\n{3,}/g, "\n\n");
-    this._setMarkdown(result);
+    this._setMarkdown(withoutTheme);
   }
 
   static _buildCssFromUI() {

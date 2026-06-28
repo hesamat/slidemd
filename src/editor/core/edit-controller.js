@@ -738,8 +738,9 @@ export class EditController {
 
   async _pickImageForStylePanel(onSelect) {
     const { ImagePicker } = await import("../image/image-picker.js");
+    const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
     const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-    this.imageBg.constructor.setDeckDir?.(deckDirHandle, this.imageBg.deckDirMode);
+    DeckImagesResolver.setDeckDir(deckDirHandle, this.imageBg.deckDirMode);
     ImagePicker.show(
       (path) => {
         onSelect(path);
