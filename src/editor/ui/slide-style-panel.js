@@ -7,28 +7,28 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import {
+  isColorDark,
+  buildImageBackground,
+  parseCss,
+  parseBorder,
+  parsePx,
+  buildAreaStyleFromElements,
+  syncSliderLabels,
+  syncTitleDisabled,
+  buildBackgroundPanelHtml,
+  buildAreaStylePanelHtml,
+  buildTitlePanelHtml,
+  syncBgState,
+  parseBackgroundValue,
+} from "./style-helpers.js";
 
 const STORAGE_KEY_AREA_STYLE = "webdeck:default-area-style";
 const STORAGE_KEY_HEADER_STYLE = "webdeck:default-header-style";
 const STORAGE_KEY_BG_STYLE = "webdeck:default-background";
 const STORAGE_KEY_THEME_STYLE = "webdeck:default-theme";
 
-const COLOR_SWATCHES = [
-  { name: "White", value: "#ffffff" },
-  { name: "Slate", value: "#1e293b" },
-  { name: "Ink", value: "#0f172a" },
-  { name: "Sky", value: "#0ea5e9" },
-  { name: "Indigo", value: "#6366f1" },
-  { name: "Violet", value: "#8b5cf6" },
-  { name: "Pink", value: "#ec4899" },
-  { name: "Rose", value: "#f43f5e" },
-  { name: "Amber", value: "#f59e0b" },
-  { name: "Lime", value: "#84cc16" },
-  { name: "Emerald", value: "#10b981" },
-  { name: "Teal", value: "#14b8a6" },
-  { name: "Sand", value: "#f5f5dc" },
-  { name: "Paper", value: "#f8fafc" },
-];
+const P = "slide-style-panel-modal__";
 
 export class SlideStylePanel {
   static el = null;
@@ -143,38 +143,22 @@ export class SlideStylePanel {
 
   static _buildCssFromUI() {
     if (!this.el) return "";
-    const borderW = this.el.querySelector('[data-field="border-width"]')?.value ?? 0;
-    const borderC = this.el.querySelector('[data-field="border-color"]')?.value ?? "#d3d3d3";
-    const radius = this.el.querySelector('[data-field="radius"]')?.value ?? 0;
-    const padding = this.el.querySelector('[data-field="padding"]')?.value ?? 10;
-
-    const parts = [];
-    if (parseInt(borderW, 10) > 0) parts.push(`border: ${borderW}px solid ${borderC}`);
-    if (parseInt(radius, 10) > 0) parts.push(`border-radius: ${radius}px`);
-    if (parseInt(padding, 10) !== 10) parts.push(`padding: ${padding}px`);
-    return parts.join("; ");
+    return buildAreaStyleFromElements(this.el);
   }
 
   static _getSelectedHeaderStyle() {
     if (!this.el) return "line";
-    const selected = this.el.querySelector(".slide-style-panel-modal__btn-option.selected");
+    const selected = this.el.querySelector(`.style-btn-option.selected`);
     return selected?.dataset.headerStyle || "line";
-  }
-
-  static _buildImageBackground(imagePath, overlay) {
-    if (!imagePath) return "";
-    const displayUrl = this._currentImageBlobUrl || imagePath;
-    const url = `url('${String(displayUrl).replace(/'/g, "\\'")}')`;
-    const imageLayer = `${url} center / cover no-repeat`;
-    const opacity = overlay / 100;
-    if (opacity <= 0) return imageLayer;
-    const overlayLayer = `linear-gradient(rgba(0,0,0,${opacity}),rgba(0,0,0,${opacity}))`;
-    return `${overlayLayer}, ${imageLayer}`;
   }
 
   static _getBackgroundValue() {
     if (this._currentImagePath)
-      return this._buildImageBackground(this._currentImagePath, this._imageOverlay);
+      return buildImageBackground(
+        this._currentImagePath,
+        this._imageOverlay,
+        this._currentImageBlobUrl,
+      );
     return this._currentBg;
   }
 
@@ -209,10 +193,10 @@ export class SlideStylePanel {
     if (!this.el) return;
 
     const cssText = this._readAreaStyleFromMarkdown();
-    const parsed = this._parseCss(cssText);
-    const border = this._parseBorder(parsed["border"] || "");
-    const radius = this._parsePx(parsed["border-radius"] || "");
-    const padding = this._parsePx(parsed["padding"] || "");
+    const parsed = parseCss(cssText);
+    const border = parseBorder(parsed["border"] || "");
+    const radius = parsePx(parsed["border-radius"] || "");
+    const padding = parsePx(parsed["padding"] || "");
 
     const setNum = (sel, val) => {
       const el = this.el.querySelector(sel);
@@ -230,106 +214,56 @@ export class SlideStylePanel {
     setNum('[data-field="padding"]', parsed["padding"] !== undefined ? padding : 10);
 
     const headerStyle = this._readHeaderStyleFromMarkdown();
-    this.el.querySelectorAll(".slide-style-panel__btn-option").forEach((btn) => {
+    this.el.querySelectorAll(".style-btn-option").forEach((btn) => {
       btn.classList.toggle("selected", btn.dataset.headerStyle === headerStyle);
     });
 
     const rawBg = this._readBackgroundFromMarkdown();
     this._currentTheme = this._readThemeFromMarkdown();
 
-    const urlMatch = rawBg.match(/url\(['"]?([^'")]+)['"]?\)/);
-    if (urlMatch) {
-      this._currentImagePath = urlMatch[1];
-      const overlayMatch = rawBg.match(/rgba\(0,0,0,([\d.]+)\)/);
-      this._imageOverlay = overlayMatch ? Math.round(parseFloat(overlayMatch[1]) * 100) : 0;
-    } else {
-      this._currentImagePath = "";
-      this._currentImageBlobUrl = "";
-      this._imageOverlay = 40;
-    }
+    const bgInfo = parseBackgroundValue(rawBg);
+    this._currentImagePath = bgInfo.imagePath;
+    this._currentImageBlobUrl = bgInfo.imageBlobUrl;
+    this._imageOverlay = bgInfo.overlay;
     this._currentBg = rawBg;
+
+    if (this._currentImagePath) {
+      this._resolveImageBlob(this._currentImagePath);
+    }
+
     this._syncBgUI();
 
-    this._updateSliderLabels();
-    this._syncTitleDisabled();
+    syncSliderLabels(this.el);
+    syncTitleDisabled(this.el, {
+      titleBtnSelector: '[data-panel="title"] .style-btn-option',
+      hintSelector: ".style-disabled-hint",
+    });
+  }
+
+  static async _resolveImageBlob(path) {
+    try {
+      const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
+      if (DeckImagesResolver._dirHandle && /^images\//.test(path)) {
+        const blobUrl = await DeckImagesResolver.resolvePreviewSrc(path);
+        if (blobUrl !== path) {
+          this._currentImageBlobUrl = blobUrl;
+          this._syncBgUI();
+        }
+      }
+    } catch {
+      // Image resolution not available
+    }
   }
 
   static _syncBgUI() {
     if (!this.el) return;
-    const swatches = this.el.querySelectorAll(".slide-style-panel-modal__swatch");
-    const textInput = this.el.querySelector('[data-field="bg-text"]');
-    const themeCb = this.el.querySelector('[data-field="bg-theme"]');
-    const clearBtn = this.el.querySelector('[data-action="clear-bg"]');
-    const imageStatus = this.el.querySelector(".slide-style-panel-modal__image-status");
-    const bgPreview = this.el.querySelector(".slide-style-panel-modal__bg-preview");
-    const overlaySlider = this.el.querySelector('[data-field="bg-overlay"]');
-    const overlayValue = this.el.querySelector('[data-display="bg-overlay"]');
-    const overlayRow = this.el.querySelector(".slide-style-panel-modal__overlay-row");
-
-    swatches.forEach((s) =>
-      s.classList.toggle(
-        "selected",
-        s.dataset.value === this._currentBg && !this._currentImagePath,
-      ),
-    );
-    if (textInput) textInput.value = this._currentImagePath || this._currentBg;
-    if (themeCb) themeCb.checked = this._currentTheme === "dark";
-    if (clearBtn)
-      clearBtn.style.display = this._currentBg || this._currentImagePath ? "block" : "none";
-    if (imageStatus) {
-      if (this._currentImagePath) {
-        imageStatus.textContent = this._currentImagePath;
-        imageStatus.style.display = "block";
-      } else {
-        imageStatus.style.display = "none";
-      }
-    }
-    if (bgPreview) {
-      const bgVal = this._getBackgroundValue();
-      bgPreview.style.background = bgVal || "var(--surface-elevated)";
-      bgPreview.classList.toggle("has-bg", !!bgVal);
-    }
-    if (overlayRow) overlayRow.style.display = this._currentImagePath ? "flex" : "none";
-    if (overlaySlider) overlaySlider.value = this._imageOverlay;
-    if (overlayValue) overlayValue.textContent = `${this._imageOverlay}%`;
-  }
-
-  static _updateSliderLabels() {
-    if (!this.el) return;
-    const set = (sel, val) => {
-      const el = this.el.querySelector(sel);
-      if (el) el.textContent = val;
-    };
-    const bw = this.el.querySelector('[data-field="border-width"]');
-    if (bw) set('[data-display="border-width"]', `${bw.value}px`);
-    const r = this.el.querySelector('[data-field="radius"]');
-    if (r) set('[data-display="radius"]', `${r.value}px`);
-    const p = this.el.querySelector('[data-field="padding"]');
-    if (p) set('[data-display="padding"]', `${p.value}px`);
-  }
-
-  static _syncTitleDisabled() {
-    if (!this.el) return;
-    const bw = this.el.querySelector('[data-field="border-width"]');
-    const r = this.el.querySelector('[data-field="radius"]');
-    const p = this.el.querySelector('[data-field="padding"]');
-    const hasBorders =
-      (bw && parseInt(bw.value, 10) > 0) ||
-      (r && parseInt(r.value, 10) > 0) ||
-      (p && parseInt(p.value, 10) !== 10);
-    const titleBtns = this.el.querySelectorAll(
-      '[data-panel="title"] .slide-style-panel__btn-option',
-    );
-    const hint = this.el.querySelector(".slide-style-panel__disabled-hint");
-    titleBtns.forEach((btn) => {
-      btn.disabled = hasBorders;
-      if (hasBorders) btn.classList.remove("selected");
+    syncBgState(this.el, {
+      bg: this._currentBg,
+      imagePath: this._currentImagePath,
+      theme: this._currentTheme,
+      bgValue: this._getBackgroundValue(),
+      overlay: this._imageOverlay,
     });
-    if (hasBorders) {
-      const noneBtn = this.el.querySelector('[data-header-style="none"]');
-      if (noneBtn) noneBtn.classList.add("selected");
-    }
-    if (hint) hint.style.display = hasBorders ? "block" : "none";
   }
 
   // ── DOM ──
@@ -341,99 +275,33 @@ export class SlideStylePanel {
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Slide styles");
 
-    const swatchBtns = COLOR_SWATCHES.map(
-      (c) =>
-        `<button type="button" class="slide-style-panel-modal__swatch" data-value="${c.value}" title="${c.name}" style="background:${c.value}"></button>`,
-    ).join("");
-
     el.innerHTML = `
-      <div class="slide-style-panel-modal__overlay"></div>
-      <div class="slide-style-panel-modal__dialog">
-        <div class="slide-style-panel-modal__header">
-          <h2 class="slide-style-panel-modal__title">Slide Styles</h2>
-          <button class="slide-style-panel-modal__close" type="button" aria-label="Close">&times;</button>
+      <div class="${P}overlay"></div>
+      <div class="${P}dialog">
+        <div class="${P}header">
+          <h2 class="${P}title">Slide Styles</h2>
+          <button class="${P}close" type="button" aria-label="Close">&times;</button>
         </div>
-        <div class="slide-style-panel-modal__tabs">
-          <button class="slide-style-panel-modal__tab active" data-tab="background" type="button">Background</button>
-          <button class="slide-style-panel-modal__tab" data-tab="borders" type="button">Borders</button>
-          <button class="slide-style-panel-modal__tab" data-tab="title" type="button">Title</button>
+        <div class="${P}tabs">
+          <button class="${P}tab active" data-tab="background" type="button">Background</button>
+          <button class="${P}tab" data-tab="borders" type="button">Borders</button>
+          <button class="${P}tab" data-tab="title" type="button">Title</button>
         </div>
-        <div class="slide-style-panel-modal__body">
-
-          <div class="slide-style-panel-modal__tab-panel active" data-panel="background">
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Color</span>
-              <div class="slide-style-panel-modal__swatches">${swatchBtns}</div>
-            </div>
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Image</span>
-              <div class="slide-style-panel-modal__row">
-                <input type="text" class="slide-style-panel-modal__text-input" data-field="bg-text" placeholder="Paste image path or URL..." />
-                <button class="slide-style-panel-modal__bg-btn" data-action="pick-image" type="button">Browse...</button>
-              </div>
-              <div class="slide-style-panel-modal__image-status" style="display:none"></div>
-            </div>
-            <div class="slide-style-panel-modal__overlay-row" style="display:none">
-              <span class="slide-style-panel-modal__label">Overlay</span>
-              <input type="range" class="slide-style-panel-modal__range" data-field="bg-overlay" min="0" max="100" value="40" />
-              <span class="slide-style-panel-modal__value" data-display="bg-overlay">40%</span>
-            </div>
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Preview</span>
-              <div class="slide-style-panel-modal__bg-preview"></div>
-            </div>
-            <div class="slide-style-panel-modal__row slide-style-panel-modal__row--between">
-              <label class="slide-style-panel-modal__toggle">
-                <input type="checkbox" data-field="bg-theme" />
-                <span>Dark theme</span>
-              </label>
-              <button class="slide-style-panel-modal__bg-btn slide-style-panel-modal__bg-btn--clear" data-action="clear-bg" type="button" style="display:none">Clear</button>
-            </div>
+        <div class="${P}body">
+          <div class="${P}tab-panel active" data-panel="background">
+            ${buildBackgroundPanelHtml()}
           </div>
-
-          <div class="slide-style-panel-modal__tab-panel" data-panel="borders">
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Border</span>
-              <div class="slide-style-panel-modal__control-row">
-                <input type="range" class="slide-style-panel-modal__range" data-field="border-width" min="0" max="12" value="0" />
-                <span class="slide-style-panel-modal__value" data-display="border-width">0px</span>
-                <input type="color" class="slide-style-panel-modal__color" data-field="border-color" value="#d3d3d3" />
-              </div>
-            </div>
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Corner Radius</span>
-              <div class="slide-style-panel-modal__control-row">
-                <input type="range" class="slide-style-panel-modal__range" data-field="radius" min="0" max="50" value="0" />
-                <span class="slide-style-panel-modal__value" data-display="radius">0px</span>
-              </div>
-            </div>
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Padding</span>
-              <div class="slide-style-panel-modal__control-row">
-                <input type="range" class="slide-style-panel-modal__range" data-field="padding" min="0" max="48" value="10" />
-                <span class="slide-style-panel-modal__value" data-display="padding">10px</span>
-              </div>
-            </div>
+          <div class="${P}tab-panel" data-panel="borders">
+            ${buildAreaStylePanelHtml()}
           </div>
-
-          <div class="slide-style-panel-modal__tab-panel" data-panel="title">
-            <div class="slide-style-panel-modal__inline-section">
-              <span class="slide-style-panel-modal__label">Title Decoration</span>
-              <p class="slide-style-panel-modal__hint">Accent line under slide titles.</p>
-              <div class="slide-style-panel-modal__btn-group">
-                <button class="slide-style-panel-modal__btn-option selected" data-header-style="line" type="button">Short</button>
-                <button class="slide-style-panel-modal__btn-option" data-header-style="full" type="button">Full width</button>
-                <button class="slide-style-panel-modal__btn-option" data-header-style="none" type="button">None</button>
-              </div>
-              <p class="slide-style-panel-modal__disabled-hint" style="display:none">Disabled when content borders are active.</p>
-            </div>
+          <div class="${P}tab-panel" data-panel="title">
+            ${buildTitlePanelHtml("data-header-style")}
           </div>
-
         </div>
-        <div class="slide-style-panel-modal__footer">
-          <button class="slide-style-panel-modal__btn" data-action="clear">Clear All</button>
-          <button class="slide-style-panel-modal__btn" data-action="apply">Apply</button>
-          <button class="slide-style-panel-modal__btn slide-style-panel-modal__btn--primary" data-action="apply-all">Apply to All</button>
+        <div class="${P}footer">
+          <button class="${P}btn" data-action="clear">Clear All</button>
+          <button class="${P}btn" data-action="apply">Apply</button>
+          <button class="${P}btn ${P}btn--primary" data-action="apply-all">Apply to All</button>
         </div>
       </div>
     `;
@@ -446,14 +314,10 @@ export class SlideStylePanel {
 
   static _wireEvents(el) {
     // Close button
-    el.querySelector(".slide-style-panel-modal__close").addEventListener("click", () =>
-      this.hide(),
-    );
+    el.querySelector(`.${P}close`).addEventListener("click", () => this.hide());
 
     // Overlay click closes
-    el.querySelector(".slide-style-panel-modal__overlay").addEventListener("click", () =>
-      this.hide(),
-    );
+    el.querySelector(`.${P}overlay`).addEventListener("click", () => this.hide());
 
     // Escape closes
     const handleEsc = (e) => {
@@ -465,14 +329,10 @@ export class SlideStylePanel {
     document.addEventListener("keydown", handleEsc);
 
     // Tabs
-    el.querySelectorAll(".slide-style-panel-modal__tab").forEach((tab) => {
+    el.querySelectorAll(`.${P}tab`).forEach((tab) => {
       tab.addEventListener("click", () => {
-        el.querySelectorAll(".slide-style-panel-modal__tab").forEach((t) =>
-          t.classList.remove("active"),
-        );
-        el.querySelectorAll(".slide-style-panel-modal__tab-panel").forEach((p) =>
-          p.classList.remove("active"),
-        );
+        el.querySelectorAll(`.${P}tab`).forEach((t) => t.classList.remove("active"));
+        el.querySelectorAll(`.${P}tab-panel`).forEach((p) => p.classList.remove("active"));
         tab.classList.add("active");
         el.querySelector(`[data-panel="${tab.dataset.tab}"]`).classList.add("active");
       });
@@ -483,8 +343,11 @@ export class SlideStylePanel {
       'input[data-field="border-width"], input[data-field="radius"], input[data-field="padding"]',
     ).forEach((input) => {
       input.addEventListener("input", () => {
-        this._updateSliderLabels();
-        this._syncTitleDisabled();
+        syncSliderLabels(this.el);
+        syncTitleDisabled(this.el, {
+          titleBtnSelector: '[data-panel="title"] .style-btn-option',
+          hintSelector: ".style-disabled-hint",
+        });
       });
     });
 
@@ -492,9 +355,9 @@ export class SlideStylePanel {
     el.querySelector('[data-field="border-color"]')?.addEventListener("input", () => {});
 
     // Header style buttons
-    el.querySelectorAll(".slide-style-panel-modal__btn-option").forEach((btn) => {
+    el.querySelectorAll('[data-panel="title"] .style-btn-option').forEach((btn) => {
       btn.addEventListener("click", () => {
-        el.querySelectorAll(".slide-style-panel-modal__btn-option").forEach((b) =>
+        el.querySelectorAll('[data-panel="title"] .style-btn-option').forEach((b) =>
           b.classList.remove("selected"),
         );
         btn.classList.add("selected");
@@ -502,21 +365,25 @@ export class SlideStylePanel {
     });
 
     // Background swatches
-    el.querySelector(".slide-style-panel-modal__swatches").addEventListener("click", (e) => {
-      const btn = e.target.closest(".slide-style-panel-modal__swatch");
-      if (!btn) return;
+    el.querySelector(".style-swatch-grid").addEventListener("click", (e) => {
+      const btn = e.target.closest(".style-swatch");
+      if (!btn || btn.dataset.action === "open-color-picker") return;
       this._currentBg = btn.dataset.value;
       this._currentImagePath = "";
-      this._currentTheme = this._isColorDark(btn.dataset.value) ? "dark" : "";
+      this._currentTheme = btn.dataset.value && isColorDark(btn.dataset.value) ? "dark" : "";
       this._syncBgUI();
     });
 
-    // Custom text input
-    el.querySelector('[data-field="bg-text"]')?.addEventListener("input", (e) => {
-      this._currentBg = e.target.value.trim();
-      this._currentImagePath = "";
-      this._syncBgUI();
-    });
+    // Color picker (hidden input overlays dropper button)
+    const colorInput = el.querySelector('[data-field="bg-custom-color"]');
+    if (colorInput) {
+      colorInput.addEventListener("input", (e) => {
+        this._currentBg = e.target.value;
+        this._currentImagePath = "";
+        this._currentTheme = isColorDark(e.target.value) ? "dark" : "";
+        this._syncBgUI();
+      });
+    }
 
     // Theme checkbox
     el.querySelector('[data-field="bg-theme"]')?.addEventListener("change", (e) => {
@@ -542,18 +409,7 @@ export class SlideStylePanel {
           this._currentTheme = "dark";
           this._currentImageBlobUrl = "";
           this._syncBgUI();
-          try {
-            const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-            if (DeckImagesResolver._dirHandle && /^images\//.test(path)) {
-              const blobUrl = await DeckImagesResolver.resolvePreviewSrc(path);
-              if (blobUrl !== path) {
-                this._currentImageBlobUrl = blobUrl;
-                this._syncBgUI();
-              }
-            }
-          } catch {
-            // Image resolution not available — fall back to relative path
-          }
+          await this._resolveImageBlob(path);
         });
       }
     });
@@ -576,17 +432,20 @@ export class SlideStylePanel {
       setVal('[data-field="border-width"]', 0);
       setVal('[data-field="radius"]', 0);
       setVal('[data-field="padding"]', 10);
-      this._updateSliderLabels();
+      syncSliderLabels(this.el);
       this._currentBg = "";
       this._currentImagePath = "";
       this._currentImageBlobUrl = "";
       this._imageOverlay = 40;
       this._currentTheme = "";
       this._syncBgUI();
-      this.el.querySelectorAll(".slide-style-panel-modal__btn-option").forEach((b) => {
+      this.el.querySelectorAll('[data-panel="title"] .style-btn-option').forEach((b) => {
         b.classList.toggle("selected", b.dataset.headerStyle === "line");
       });
-      this._syncTitleDisabled();
+      syncTitleDisabled(this.el, {
+        titleBtnSelector: '[data-panel="title"] .style-btn-option',
+        hintSelector: ".style-disabled-hint",
+      });
     });
 
     // Apply (current slide)
@@ -615,41 +474,5 @@ export class SlideStylePanel {
       this.saveDefaultStyles(cssString, headerStyle, bgValue, this._currentTheme);
       if (this._applyToAll) this._applyToAll(cssString, headerStyle, bgValue, this._currentTheme);
     });
-  }
-
-  // ── Helpers ──
-
-  static _isColorDark(hex) {
-    if (!hex || !hex.startsWith("#")) return false;
-    const c = hex.replace("#", "");
-    const r = parseInt(c.slice(0, 2), 16);
-    const g = parseInt(c.slice(2, 4), 16);
-    const b = parseInt(c.slice(4, 6), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-  }
-
-  static _parseCss(cssText) {
-    const result = {};
-    if (!cssText) return result;
-    cssText.split(";").forEach((decl) => {
-      const idx = decl.indexOf(":");
-      if (idx < 0) return;
-      const prop = decl.slice(0, idx).trim();
-      const val = decl.slice(idx + 1).trim();
-      if (prop && val) result[prop] = val;
-    });
-    return result;
-  }
-
-  static _parseBorder(val) {
-    const parts = val.split(/\s+/);
-    return {
-      width: parseInt(parts[0], 10) || 0,
-      color: parts[2] || "#d3d3d3",
-    };
-  }
-
-  static _parsePx(val) {
-    return parseInt(val, 10) || 0;
   }
 }
