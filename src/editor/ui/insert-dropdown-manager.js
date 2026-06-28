@@ -120,9 +120,7 @@ export class InsertDropdownManager {
       case "mermaid":
         this.ctrl.mermaidHelper.toggle();
         break;
-      case "background":
-        this.ctrl.pickBackground();
-        break;
+
       case "theme":
         // Per-slide theme (`theme:` directive on the current slide)
         this.ctrl.themeManager.toggle();

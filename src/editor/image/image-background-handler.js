@@ -1,17 +1,12 @@
 /**
  * ImageBackgroundHandler
  *
- * FS Access API, image-picker, and background-picker integration
+ * FS Access API and image-picker integration
  * extracted from EditController.  Manages the deck directory handle,
  * image insertion, background selection, and file uploads.
  */
 
-import { MarkdownParser } from "../../data/markdown-parser.js";
-import { ImagePicker } from "./image-picker.js";
-import { BackgroundPicker } from "../ui/background-picker.js";
-import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
-import { updateBackgroundDirective, updateThemeDirective } from "../core/directive-utils.js";
 
 export class ImageBackgroundHandler {
   /** @param {import('./edit-controller.js').EditController} ctrl */
@@ -30,54 +25,6 @@ export class ImageBackgroundHandler {
   /** Current mode of the directory handle ('parent' | 'images' | null). */
   get deckDirMode() {
     return this._deckDirMode || "parent";
-  }
-
-  // ─── Background picker ────────────────────────────────────────────────
-
-  pickBackground() {
-    if (!this.markdownEditor) return;
-
-    const parser = new MarkdownParser();
-    const currentMarkdown = this.markdownEditor.getValue();
-    const currentBg = parser.extractDirective(currentMarkdown, "background").value || "";
-    const currentTheme = parser.extractDirective(currentMarkdown, "theme").value || "";
-
-    BackgroundPicker.show(
-      (newValue, theme) => {
-        let updated = this.markdownEditor.getValue();
-        updated = updateBackgroundDirective(updated, newValue);
-        updated = updateThemeDirective(updated, theme);
-        this.markdownEditor.setValue(updated, { suppressOnChange: false });
-        this.markdownEditor.focus();
-      },
-      {
-        currentValue: currentBg,
-        currentTheme,
-        onPickImage: () => this._pickBackgroundImage(),
-      },
-    );
-  }
-
-  async _pickBackgroundImage() {
-    const deckDirHandle = await this._resolveDeckDirectoryHandle();
-    DeckImagesResolver.setDeckDir(deckDirHandle, this.deckDirMode);
-
-    ImagePicker.show(
-      (path) => {
-        BackgroundPicker.setImageSelection(path);
-      },
-      {
-        deckDirHandle,
-        deckDirMode: this.deckDirMode,
-        pathOnly: true,
-        onChangeFolder: async () => {
-          await this.clearDeckDirectoryHandle();
-          const next = await this._resolveDeckDirectoryHandle();
-          if (next) DeckImagesResolver.setDeckDir(next, this.deckDirMode);
-          return next ? { handle: next, mode: this.deckDirMode } : null;
-        },
-      },
-    );
   }
 
   // ─── Upload ───────────────────────────────────────────────────────────

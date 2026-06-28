@@ -24,7 +24,7 @@ export const MERMAID_INIT_OPTIONS = {
     primaryBorderColor: "#1f2937",
     primaryTextColor: "#1f2937",
     textColor: "#1f2937",
-    lineColor: "#7c3aed",
+    lineColor: "#824cdf",
     secondaryColor: "#f3f4f6",
     secondaryBorderColor: "#374151",
     secondaryTextColor: "#1f2937",

@@ -234,8 +234,20 @@ export class SlideStylePanel {
       btn.classList.toggle("selected", btn.dataset.headerStyle === headerStyle);
     });
 
-    this._currentBg = this._readBackgroundFromMarkdown();
+    const rawBg = this._readBackgroundFromMarkdown();
     this._currentTheme = this._readThemeFromMarkdown();
+
+    const urlMatch = rawBg.match(/url\(['"]?([^'")]+)['"]?\)/);
+    if (urlMatch) {
+      this._currentImagePath = urlMatch[1];
+      const overlayMatch = rawBg.match(/rgba\(0,0,0,([\d.]+)\)/);
+      this._imageOverlay = overlayMatch ? Math.round(parseFloat(overlayMatch[1]) * 100) : 0;
+    } else {
+      this._currentImagePath = "";
+      this._currentImageBlobUrl = "";
+      this._imageOverlay = 40;
+    }
+    this._currentBg = rawBg;
     this._syncBgUI();
 
     this._updateSliderLabels();

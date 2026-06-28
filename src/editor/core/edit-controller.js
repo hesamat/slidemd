@@ -11,7 +11,6 @@ import { LayoutParser } from "../../data/layout-parser.js";
 import { LayoutData } from "../../data/layout-data.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
-import { BackgroundPicker } from "../ui/background-picker.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
@@ -160,9 +159,6 @@ export class EditController {
 
     // Initialize image picker modal
     ImagePicker.init();
-
-    // Initialize background picker modal
-    BackgroundPicker.init();
 
     // Image interaction — drag/resize
     ImageInteractionHandler.init(
@@ -649,10 +645,6 @@ export class EditController {
     return this.layoutManager.showPickerForCurrentSlide();
   }
 
-  pickBackground() {
-    return this.imageBg.pickBackground();
-  }
-
   openSlideStylePanel() {
     SlideStylePanel.toggle();
   }
@@ -730,10 +722,6 @@ export class EditController {
       suppressOnChange: true,
     });
     Notification.success("Style applied to all slides");
-  }
-
-  async _pickBackgroundImage() {
-    return this.imageBg._pickBackgroundImage();
   }
 
   async _pickImageForStylePanel(onSelect) {

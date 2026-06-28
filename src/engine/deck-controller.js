@@ -186,13 +186,6 @@ export class DeckController extends EventEmitter {
           console.warn("Toggle Mermaid shortcut failed:", e);
         }
       },
-      pickBackground: () => {
-        try {
-          edit()?.pickBackground?.();
-        } catch (e) {
-          console.warn("Pick background shortcut failed:", e);
-        }
-      },
       adjustColumns: () => {
         try {
           edit()?.toggleGridResizer?.();

@@ -144,7 +144,7 @@
   background-color: rgb(30, 41, 59);
 }
 
-.insert-dropdown__group + .insert-dropdown__group {
+.insert-dropdown__group+.insert-dropdown__group {
   margin-top: 2px;
   padding-top: 2px;
   border-top: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.2));
@@ -219,6 +219,7 @@
   .segmented__btn--dropdown .segmented__label {
     display: none;
   }
+
   .segmented__btn {
     padding: 7px 9px;
   }
