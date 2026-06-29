@@ -15,13 +15,29 @@ const PROVIDERS = [
     id: "openai",
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1/chat/completions",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+    modelsUrl: "https://api.openai.com/v1/models",
+    models: [],
   },
   {
     id: "openrouter",
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",
-    models: ["anthropic/claude-sonnet-4", "openai/gpt-4o", "google/gemini-2.0-flash-001"],
+    modelsUrl: "https://openrouter.ai/api/v1/models",
+    models: [],
+  },
+  {
+    id: "opencode",
+    name: "Opencode",
+    baseUrl: "https://opencode.ai/api/v1/chat/completions",
+    modelsUrl: "https://opencode.ai/api/v1/models",
+    models: [],
+  },
+  {
+    id: "zai",
+    name: "Z.ai",
+    baseUrl: "https://api.z.ai/v1/chat/completions",
+    modelsUrl: "https://api.z.ai/v1/models",
+    models: [],
   },
 ];
 
@@ -46,7 +62,7 @@ export class ConversionModal {
       let extractionResult = null;
       const providerSelect = backdrop.querySelector(`[data-field="provider"]`);
       const apiKeyInput = backdrop.querySelector(`[data-field="api-key"]`);
-      const modelSelect = backdrop.querySelector(`[data-field="model"]`);
+      const modelInput = backdrop.querySelector(`[data-field="model"]`);
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
       const fileName = backdrop.querySelector(`.${P}file-name`);
@@ -57,23 +73,66 @@ export class ConversionModal {
       const previewEl = backdrop.querySelector(`.${P}preview`);
 
       // Populate models for the first provider
-      const updateModels = () => {
-        const provider = PROVIDERS.find((p) => p.id === providerSelect.value);
-        modelSelect.innerHTML = (provider?.models || [])
-          .map((m) => `<option value="${m}">${m}</option>`)
-          .join("");
-      };
-      updateModels();
-      providerSelect.addEventListener("change", updateModels);
+      const fetchModelsBtn = backdrop.querySelector('[data-action="fetch-models"]');
 
-      // Load saved API key
+      const updateModels = (models) => {
+        const datalist = backdrop.querySelector("#model-list");
+        if (datalist) {
+          datalist.innerHTML = models.map((m) => `<option value="${m}">`).join("");
+        }
+      };
+
+      // Fetch models from provider API
+      const fetchModels = async () => {
+        const provider = PROVIDERS.find((p) => p.id === providerSelect.value);
+        const apiKey = apiKeyInput.value.trim();
+        if (!provider?.modelsUrl) {
+          setStatus("This provider does not support model listing", "error");
+          return;
+        }
+        if (!apiKey) {
+          setStatus("Enter an API key first", "error");
+          return;
+        }
+        fetchModelsBtn.disabled = true;
+        setStatus("Fetching models...", "");
+        try {
+          const res = await fetch(provider.modelsUrl, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const models = (data.data || data.models || [])
+            .map((m) => m.id || m.name || m)
+            .filter((m) => typeof m === "string")
+            .sort();
+          if (models.length === 0) {
+            setStatus("No models returned by API", "error");
+          } else {
+            provider.models = models;
+            updateModels(models);
+            setStatus(`Found ${models.length} models`, "success");
+          }
+        } catch (err) {
+          setStatus(`Failed to fetch models: ${err.message}`, "error");
+        } finally {
+          fetchModelsBtn.disabled = false;
+        }
+      };
+
+      fetchModelsBtn.addEventListener("click", fetchModels);
+      providerSelect.addEventListener("change", () => {
+        const provider = PROVIDERS.find((p) => p.id === providerSelect.value);
+        updateModels(provider?.models || []);
+      });
+
+      // Load saved config
       const savedKey = localStorage.getItem("slidemd_api_key");
       if (savedKey) apiKeyInput.value = savedKey;
       const savedProvider = localStorage.getItem("slidemd_ai_provider");
-      if (savedProvider) {
-        providerSelect.value = savedProvider;
-        updateModels();
-      }
+      if (savedProvider) providerSelect.value = savedProvider;
+      const savedModel = localStorage.getItem("slidemd_ai_model");
+      if (savedModel) modelInput.value = savedModel;
 
       const setStatus = (msg, type = "") => {
         statusEl.textContent = msg;
@@ -146,9 +205,14 @@ export class ConversionModal {
         // Save config
         localStorage.setItem("slidemd_api_key", apiKey);
         localStorage.setItem("slidemd_ai_provider", providerSelect.value);
+        localStorage.setItem("slidemd_ai_model", model);
 
         const provider = PROVIDERS.find((p) => p.id === providerSelect.value);
-        const model = modelSelect.value;
+        const model = modelInput.value.trim();
+        if (!model) {
+          setStatus("Please enter or select a model", "error");
+          return;
+        }
         const plainText = PptxExtractor.toPlainText(extractionResult);
 
         convertBtn.disabled = true;
@@ -278,13 +342,21 @@ Rules:
             <select data-field="provider" class="${P}select">
               ${PROVIDERS.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}
             </select>
-            <select data-field="model" class="${P}select"></select>
           </div>
         </div>
 
         <div class="${P}section">
           <label class="${P}label">API Key</label>
           <input type="password" data-field="api-key" class="${P}input" placeholder="sk-..." />
+        </div>
+
+        <div class="${P}section">
+          <label class="${P}label">Model</label>
+          <div class="${P}row">
+            <input type="text" data-field="model" class="${P}input" list="model-list" placeholder="Select or type a model name" />
+            <button type="button" data-action="fetch-models" class="${P}btn ${P}btn--primary ${P}btn--sm">Fetch</button>
+          </div>
+          <datalist id="model-list"></datalist>
         </div>
 
         <div class="${P}status"></div>
@@ -362,6 +434,7 @@ Rules:
       .${P}btn--primary { background: var(--surface-bg, #fff); border-color: var(--border-medium, #ccc); color: var(--text-high, #111); }
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
+      .${P}btn--sm { padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
     `;
     container.appendChild(style);
   }
