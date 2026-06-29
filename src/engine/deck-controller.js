@@ -17,6 +17,7 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
+import { ConversionModal } from "../editor/conversion-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
@@ -361,6 +362,10 @@ export class DeckController extends EventEmitter {
       this.handleNewPresentation();
       this.closeMenu();
     });
+    listen(this.elements.menuConvertPptxBtn, "click", () => {
+      this.handleConvertPptx();
+      this.closeMenu();
+    });
 
     listen(this.elements.breakDurationSelect, "change", (e) => {
       this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -576,6 +581,61 @@ export class DeckController extends EventEmitter {
     }
 
     Notification.info("New presentation created");
+  }
+
+  async handleConvertPptx() {
+    const result = await ConversionModal.show();
+    if (!result || !result.markdown) return;
+
+    const { markdown, images } = result;
+
+    // Save images to the deck's images folder if we have a directory handle
+    if (images?.length) {
+      try {
+        const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+        const { handle } = await DirectoryHandleStore.load();
+        if (handle) {
+          const imagesDir = await handle.getDirectoryHandle("images", { create: true });
+          for (const img of images) {
+            if (!img.base64 || !img.ref) continue;
+            const ext = img.ref.split(".").pop() || "png";
+            const filename = img.ref.includes(".") ? img.ref : `${img.ref}.${ext}`;
+            const binary = atob(img.base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(bytes);
+            await writable.close();
+          }
+          Notification.info(`Saved ${images.length} images to images/ folder`);
+        }
+      } catch (err) {
+        console.warn("Could not save images:", err);
+      }
+    }
+
+    // Store markdown in localStorage
+    localStorage.setItem("webdeck_local_file", markdown);
+    localStorage.setItem("webdeck_local_file_type", "md");
+    localStorage.setItem("webdeck_local_file_name", "Converted Presentation");
+    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
+    // Parse and replace deck
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
+
+    if (this.reloadManager?.replaceDeck) {
+      await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+    }
+
+    // Update editor if open
+    const editor = document.getElementById("markdownEditor");
+    if (editor?.CodeMirror) {
+      editor.CodeMirror.setValue(markdown);
+    }
+
+    Notification.info("PPTX converted successfully");
   }
 
   destroy() {

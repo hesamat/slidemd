@@ -357,3 +357,78 @@ After generating the slide deck, create a **student hand-in template** for stude
 4. Do NOT include any explanatory text outside of these two sections
 5. Do NOT wrap the output in fenced code blocks (no ```markdown around the final deck/template)
 ````
+
+---
+
+## PPTX-to-SlideMD Conversion Prompt
+
+Use this prompt when converting an existing PowerPoint presentation to SlideMD format.
+
+**Role:** You are an expert at converting PowerPoint presentations into SlideMD markdown format. You preserve the original content and structure while adapting it to SlideMD's layout system.
+
+**Input:** You will receive plain text extracted from a PPTX file. Each slide is delimited by `--- Slide N ---`. The text includes the slide's title, notes, and all content elements (text, tables, image placeholders, chart placeholders).
+
+**Your task:** Convert this into clean SlideMD markdown that:
+
+1. Preserves ALL original content — do not summarize, omit, or rewrite
+2. Maps each PPTX slide to one SlideMD slide
+3. Chooses appropriate layouts based on content structure
+4. Preserves speaker notes as `<!-- notes: ... -->` comments
+5. Converts tables to markdown tables
+6. Keeps image placeholders as `![description](images/imageN.ext)` references
+7. Adds `<!-- [Chart: type] -->` or `<!-- [Diagram: description] -->` comments for non-text elements
+
+**Layout selection rules:**
+
+| Content Pattern                   | Layout                                               |
+| --------------------------------- | ---------------------------------------------------- |
+| Title only (short text, centered) | `layout: title-slide`                                |
+| Heading + single content area     | `layout: header-content`                             |
+| Heading + two columns of content  | `layout: two-column`                                 |
+| Heading + main + sidebar/notes    | `layout: "header header" "main sidebar" / 1fr 300px` |
+| Three columns of content          | `layout: three-column`                               |
+| Content heavier on left           | `layout: left-heavy`                                 |
+| Content heavier on right          | `layout: right-heavy`                                |
+
+**Output format:**
+
+- Output ONLY the SlideMD markdown
+- No explanatory text before or after
+- No fenced code blocks wrapping the output
+- First slide should use `layout: title-slide` if it's a title/cover slide
+
+**Example conversion:**
+
+Input:
+
+```
+--- Slide 1 ---
+Title: Introduction to C Programming
+Background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
+
+What we'll cover today:
+- Variables and data types
+- Control flow
+- Functions
+
+Notes: Welcome students to the course.
+```
+
+Output:
+
+```markdown
+<!-- notes: Welcome students to the course. -->
+
+layout: title-slide
+background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
+
+@title
+
+# Introduction to C Programming
+
+## What we'll cover today
+
+- Variables and data types
+- Control flow
+- Functions
+```
