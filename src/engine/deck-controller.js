@@ -191,6 +191,20 @@ export class DeckController extends EventEmitter {
           console.warn("Adjust columns shortcut failed:", e);
         }
       },
+      moveSlideUp: () => {
+        try {
+          edit()?.moveSlideUp?.();
+        } catch (e) {
+          console.warn("Move slide up shortcut failed:", e);
+        }
+      },
+      moveSlideDown: () => {
+        try {
+          edit()?.moveSlideDown?.();
+        } catch (e) {
+          console.warn("Move slide down shortcut failed:", e);
+        }
+      },
       isEditMode: () => this.isEditMode(),
       isBreakActive: () => this.breakManager.isActive,
       endBreak: () => this.breakManager.setActive(false),

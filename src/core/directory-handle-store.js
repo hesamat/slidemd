@@ -4,10 +4,15 @@
  * Small helper for persisting a `FileSystemDirectoryHandle` in IndexedDB so
  * we don't have to ask the user to re-pick a directory on every visit.
  * Pattern borrowed from `CourseProfileManager`.
+ *
+ * @class
  */
 export class DirectoryHandleStore {
+  /** @type {string} */
   static DB_NAME = "webdeck_image_dir";
+  /** @type {string} */
   static STORE = "directory_handles";
+  /** @type {string} */
   static KEY = "images_dir";
 
   /**
@@ -15,11 +20,13 @@ export class DirectoryHandleStore {
    *   - "parent" — the parent folder containing the deck .md file.
    *                Images live at `<handle>/images/`.
    *   - "images" — the handle IS the images folder itself.
+   * @type {string}
    */
   static MODE_KEY = "images_dir_mode";
 
   /**
    * Open (and upgrade on first run) the IndexedDB database.
+   * @static
    * @returns {Promise<IDBDatabase>}
    */
   static openDb() {
@@ -37,8 +44,11 @@ export class DirectoryHandleStore {
   }
 
   /**
+   * Save a directory handle and its mode to IndexedDB.
+   * @static
    * @param {FileSystemDirectoryHandle} handle
-   * @param {'parent'|'images'} [mode='parent'] What `handle` points to.
+   * @param {import('../types.js').DirectoryMode} [mode='parent'] What `handle` points to.
+   * @returns {Promise<void>}
    */
   static async save(handle, mode = "parent") {
     try {
@@ -56,7 +66,9 @@ export class DirectoryHandleStore {
   }
 
   /**
-   * @returns {Promise<{handle: FileSystemDirectoryHandle|null, mode: 'parent'|'images'}>}
+   * Load the saved directory handle and mode from IndexedDB.
+   * @static
+   * @returns {Promise<{handle: FileSystemDirectoryHandle|null, mode: import('../types.js').DirectoryMode}>}
    */
   static async load() {
     try {
@@ -82,6 +94,11 @@ export class DirectoryHandleStore {
     }
   }
 
+  /**
+   * Clear the saved directory handle and mode from IndexedDB.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async clear() {
     try {
       const db = await this.openDb();

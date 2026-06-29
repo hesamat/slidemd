@@ -1,12 +1,15 @@
 /**
  * ElementGatherer
  * Gathers all DOM element references used by the application.
+ * Each call queries `document.getElementById` for every known UI element.
  */
 
+/** @class */
 export class ElementGatherer {
   /**
-   * Gathers all DOM element references used by the application.
-   * @returns {Object} An object containing all element references
+   * Gather all DOM element references used by the application.
+   * @static
+   * @returns {import('../types.js').GatheredElements} An object containing all element references.
    */
   static gatherElements() {
     const $ = (id) => document.getElementById(id);
@@ -30,8 +33,6 @@ export class ElementGatherer {
       markdownEditor: $("markdownEditor"),
       insertDropdownBtn: $("insertDropdownBtn"),
       insertDropdownContent: $("insertDropdownContent"),
-      slideActionsDropdownBtn: $("slideActionsDropdownBtn"),
-      slideActionsDropdownContent: $("slideActionsDropdownContent"),
       addSlideFooterBtn: $("addSlideFooterBtn"),
       toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
       adjustColumnsMenuItem: $("adjustColumnsMenuItem"),

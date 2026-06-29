@@ -94,6 +94,7 @@ export class SlideThumbnails {
     thumbnail.setAttribute("role", "button");
     thumbnail.setAttribute("aria-label", `Go to slide ${index + 1}`);
     thumbnail.setAttribute("tabindex", "0");
+    thumbnail.title = "Right-click for options";
 
     // Slide number
     const number = document.createElement("div");
@@ -107,41 +108,6 @@ export class SlideThumbnails {
 
     thumbnail.appendChild(number);
     thumbnail.appendChild(title);
-
-    // Action buttons (move up / down) — revealed on hover or for the
-    // current slide via CSS (no JS display toggling needed).
-    const actionsContainer = document.createElement("div");
-    actionsContainer.className = "slide-thumbnail__actions";
-
-    // Move up button
-    if (index > 0) {
-      const moveUpBtn = this._createActionBtn(
-        "Move slide up",
-        "Move slide up",
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>',
-      );
-      moveUpBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._moveSlide(index, "up");
-      });
-      actionsContainer.appendChild(moveUpBtn);
-    }
-
-    // Move down button
-    if (index < this._deck.slides.length - 1) {
-      const moveDownBtn = this._createActionBtn(
-        "Move slide down",
-        "Move slide down",
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>',
-      );
-      moveDownBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._moveSlide(index, "down");
-      });
-      actionsContainer.appendChild(moveDownBtn);
-    }
-
-    thumbnail.appendChild(actionsContainer);
 
     // Long-press support and the click-suppression flag are declared
     // here so the click handler below can see them.
@@ -162,6 +128,19 @@ export class SlideThumbnails {
       e.preventDefault();
       this._controller.slideNavigator.goTo(index);
       this._contextMenu.open(e.clientX, e.clientY, index);
+    });
+
+    // Keyboard activation: Enter/Space → navigate, ContextMenu/Shift+F10 → open context menu
+    thumbnail.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        this._controller.slideNavigator.goTo(index);
+      } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+        e.preventDefault();
+        this._controller.slideNavigator.goTo(index);
+        const rect = thumbnail.getBoundingClientRect();
+        this._contextMenu.open(rect.right, rect.bottom, index);
+      }
     });
 
     // Long-press on touch devices opens the same context menu.  The
@@ -202,23 +181,6 @@ export class SlideThumbnails {
     thumbnail.addEventListener("touchcancel", cancelLongPress);
 
     return thumbnail;
-  }
-
-  /**
-   * Build a small action button for the visible-on-current-slide controls.
-   * @param {string} ariaLabel
-   * @param {string} title
-   * @param {string} svg  inline SVG markup
-   * @returns {HTMLButtonElement}
-   */
-  _createActionBtn(ariaLabel, title, svg) {
-    const btn = document.createElement("button");
-    btn.className = "slide-thumbnail__action-btn";
-    btn.type = "button";
-    btn.setAttribute("aria-label", ariaLabel);
-    btn.setAttribute("title", title);
-    btn.innerHTML = svg;
-    return btn;
   }
 
   /**
@@ -282,31 +244,6 @@ export class SlideThumbnails {
     const currentThumbnail = thumbnails[currentIndex];
     if (currentThumbnail && currentThumbnail.scrollIntoView) {
       currentThumbnail.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }
-
-  /**
-   * Move a slide up or down (delegates to edit controller)
-   */
-  _moveSlide(index, direction) {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) {
-      console.warn("Edit controller not available");
-      return;
-    }
-
-    if (direction === "up") {
-      // Switch to the target slide first, then move
-      this._controller.slideNavigator.goTo(index);
-      // Small delay to let the slide switch happen before moving
-      setTimeout(() => {
-        editController.moveSlideUp();
-      }, 50);
-    } else if (direction === "down") {
-      this._controller.slideNavigator.goTo(index);
-      setTimeout(() => {
-        editController.moveSlideDown();
-      }, 50);
     }
   }
 
@@ -381,6 +318,23 @@ class SlideContextMenu {
       { label: "Delete slide", kbd: "Alt+⌫", action: () => this._delete() },
     ];
 
+    const totalSlides = this._thumbnails._deck.slides.length;
+    if (index > 0) {
+      items.splice(1, 0, {
+        label: "Move up",
+        kbd: "Alt+Shift+\u2191",
+        action: () => this._moveUp(index),
+      });
+    }
+    if (index < totalSlides - 1) {
+      const insertAt = index > 0 ? 3 : 2;
+      items.splice(insertAt, 0, {
+        label: "Move down",
+        kbd: "Alt+Shift+\u2193",
+        action: () => this._moveDown(index),
+      });
+    }
+
     for (const item of items) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -440,5 +394,23 @@ class SlideContextMenu {
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
     if (!editController) return;
     editController.deleteSlide();
+  }
+
+  _moveUp(index) {
+    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+    if (!editController) return;
+    this._thumbnails._controller.slideNavigator.goTo(index);
+    setTimeout(() => {
+      editController.moveSlideUp();
+    }, 50);
+  }
+
+  _moveDown(index) {
+    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+    if (!editController) return;
+    this._thumbnails._controller.slideNavigator.goTo(index);
+    setTimeout(() => {
+      editController.moveSlideDown();
+    }, 50);
   }
 }

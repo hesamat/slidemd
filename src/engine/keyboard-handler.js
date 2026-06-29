@@ -69,6 +69,8 @@ export class KeyboardHandler {
     { key: "a", ctrl: false, shift: false, alt: true, action: "adjustColumns" },
     { key: "t", ctrl: false, shift: false, alt: true, action: "slideTheme" },
     { key: "s", ctrl: false, shift: false, alt: true, action: "styles" },
+    { key: "ArrowUp", ctrl: false, shift: true, alt: true, action: "moveSlideUp" },
+    { key: "ArrowDown", ctrl: false, shift: true, alt: true, action: "moveSlideDown" },
   ];
 
   /**

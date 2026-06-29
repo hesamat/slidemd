@@ -54,14 +54,12 @@ Goal: Establish quality infrastructure and fix all documentation before making f
 
 Goal: Replace the fragile custom build script with a proper bundler.
 
-| Task                                      | Effort   | Details                                                   |
-| ----------------------------------------- | -------- | --------------------------------------------------------- |
-| [x] Migrate `tools/build.mjs` to esbuild  | 2-3 days | Replace regex-based ESM stripping with esbuild bundler    |
-| [x] Bundle Mermaid locally                | 0.5 day  | Currently loaded from CDN in dist builds — breaks offline |
-| [x] Verify all assets inline correctly    | 0.5 day  | KaTeX fonts, Prism themes, CSS                            |
-| [x] Update build pipeline for source maps | 0.5 day  | Optional but helpful for debugging dist builds            |
-
-**Effort estimate:** 3-4 days
+| Task                                      | Details                                                   |
+| ----------------------------------------- | --------------------------------------------------------- |
+| [x] Migrate `tools/build.mjs` to esbuild  | Replace regex-based ESM stripping with esbuild bundler    |
+| [x] Bundle Mermaid locally                | Currently loaded from CDN in dist builds — breaks offline |
+| [x] Verify all assets inline correctly    | KaTeX fonts, Prism themes, CSS                            |
+| [x] Update build pipeline for source maps | Optional but helpful for debugging dist builds            |
 
 ---
 
@@ -69,13 +67,11 @@ Goal: Replace the fragile custom build script with a proper bundler.
 
 Goal: Make the app easy to download and install. Not a library — no npm.
 
-| Task                                       | Effort  | Details                                        |
-| ------------------------------------------ | ------- | ---------------------------------------------- |
-| [x] CI release workflow on tag push (`v*`) | 1 day   | Build dist/, create GitHub Release, attach zip |
-| [x] Download page in README                | 0.5 day | Direct link to latest release zip              |
-| [x] Docker image                           | 1 day   | `docker run -p 8080:80 slidemd`                |
-
-**Effort estimate:** 2-3 days
+| Task                                       | Details                                        |
+| ------------------------------------------ | ---------------------------------------------- |
+| [x] CI release workflow on tag push (`v*`) | Build dist/, create GitHub Release, attach zip |
+| [x] Download page in README                | Direct link to latest release zip              |
+| [x] Docker image                           | `docker run -p 8080:80 slidemd`                |
 
 ---
 
@@ -83,15 +79,13 @@ Goal: Make the app easy to download and install. Not a library — no npm.
 
 Goal: Add a modal for creating new presentations with theme, style, and template selection.
 
-| Task                                                 | Effort  | Details                                          |
-| ---------------------------------------------------- | ------- | ------------------------------------------------ |
-| [x] New Presentation modal (stepper wizard)          | 1 day   | Template → Background → Styling steps            |
-| [x] Theme section: color mode + accent color         | 0.5 day | Light/dark radio cards, accent color grid        |
-| [x] Style section: header style, border, code blocks | 0.5 day | Underline/pill/none, border toggle, rounded code |
-| [x] Template section: blank, standard, lecture       | 0.5 day | Starter deck templates                           |
-| [x] Menu item + wiring                               | 0.5 day | Element references, click handler, CSS           |
-
-**Effort estimate:** 3-4 days (completed)
+| Task                                                 | Details                                          |
+| ---------------------------------------------------- | ------------------------------------------------ |
+| [x] New Presentation modal (stepper wizard)          | Template → Background → Styling steps            |
+| [x] Theme section: color mode + accent color         | Light/dark radio cards, accent color grid        |
+| [x] Style section: header style, border, code blocks | Underline/pill/none, border toggle, rounded code |
+| [x] Template section: blank, standard, lecture       | Starter deck templates                           |
+| [x] Menu item + wiring                               | Element references, click handler, CSS           |
 
 ---
 
@@ -99,16 +93,14 @@ Goal: Add a modal for creating new presentations with theme, style, and template
 
 Goal: Remove AI generation feature and unify prompt documentation.
 
-| Task                                                     | Effort  | Details                                                        |
-| -------------------------------------------------------- | ------- | -------------------------------------------------------------- |
-| [x] Remove AI generation feature entirely                | ~3-4 hr | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
-| [x] Move New Presentation Modal to src/editor/           | —       | Not AI-related; manual presentation wizard                     |
-| [x] Remove AI menu items from UI                         | —       | Course Profiles, AI Configuration, Generate Deck               |
-| [x] Unify prompt templates in docs/                      | —       | Merged 2 prompt files into single docs/prompt-template.md      |
-| [x] Update documentation (README, example.md, AGENTS.md) | —       | Removed AI generation references                               |
-| [x] Fix image properties panel aspect ratio bug          | —       | Size presets now respect aspect ratio lock                     |
-
-**Effort estimate:** ~3-4 hrs (completed)
+| Task                                                     | Details                                                        |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| [x] Remove AI generation feature entirely                | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
+| [x] Move New Presentation Modal to src/editor/           | Not AI-related; manual presentation wizard                     |
+| [x] Remove AI menu items from UI                         | Course Profiles, AI Configuration, Generate Deck               |
+| [x] Unify prompt templates in docs/                      | Merged 2 prompt files into single docs/prompt-template.md      |
+| [x] Update documentation (README, example.md, AGENTS.md) | Removed AI generation references                               |
+| [x] Fix image properties panel aspect ratio bug          | Size presets now respect aspect ratio lock                     |
 
 ---
 
@@ -118,20 +110,27 @@ Goal: Comprehensive testing and type safety improvements.
 
 ### Testing
 
-| Task                                    | Effort   | Details                              |
-| --------------------------------------- | -------- | ------------------------------------ |
-| [ ] Unit tests for `markdown-parser.js` | 1-2 days | Complex parsing logic, edge cases    |
-| [ ] Unit tests for `directive-utils.js` | 0.5 day  | Pure functions                       |
-| [ ] Integration tests for deck pipeline | 2-3 days | Full flow: markdown → parse → render |
+| Task                                    | Details                              |
+| --------------------------------------- | ------------------------------------ |
+| [x] Unit tests for `markdown-parser.js` | Complex parsing logic, edge cases    |
+| [x] Unit tests for `directive-utils.js` | Pure functions                       |
+| [x] Integration tests for deck pipeline | Full flow: markdown → parse → render |
 
 ### TypeScript Definitions
 
-| Task                                              | Effort   | Details                                      |
-| ------------------------------------------------- | -------- | -------------------------------------------- |
-| [ ] Add JSDoc type annotations to core modules    | 2-3 days | Better IDE support without full TS migration |
-| [ ] Add type definitions for deck data structures | 0.5 day  | `Slide`, `Deck`, `Layout`, `Profile` types   |
+| Task                                              | Details                                      |
+| ------------------------------------------------- | -------------------------------------------- |
+| [x] Add JSDoc type annotations to core modules    | Better IDE support without full TS migration |
+| [x] Add type definitions for deck data structures | `Slide`, `Deck`, `Layout`, `Profile` types   |
 
-**Effort estimate:** 6-9 days
+### UI Polish
+
+| Task                                                      | Details                                                          |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| [x] Move slide up/down from inline arrows to context menu | Right-click thumbnail to access; Alt+Shift+Arrow shortcuts added |
+| [x] Remove slide actions dropdown from thumbnails header  | Actions available via context menu and keyboard shortcuts        |
+| [x] Add hover hint on slide thumbnails                    | "Right-click for options" native tooltip                         |
+| [x] Re-hide focus layout from layout picker               | Duplicate of header-content                                      |
 
 ---
 
@@ -141,30 +140,28 @@ Goal: Convert existing presentations (PPTX, PDF, Google Slides) to SlideMD forma
 
 ### Core
 
-| Task                                   | Effort  | Details                                                   |
-| -------------------------------------- | ------- | --------------------------------------------------------- |
-| [ ] AI provider config modal           | 2-3 hrs | API key input (OpenAI, OpenRouter), model selector, test  |
-| [ ] PPTX text extraction               | 3-4 hrs | Parse PPTX XML, extract text, shapes, images, slide order |
-| [ ] SlideMD generation via AI          | 4-6 hrs | Send extracted content + layout docs to LLM, get markdown |
-| [ ] Conversion modal (upload → review) | 2-3 hrs | File upload, progress, preview before apply               |
-| [ ] Image extraction from PPTX         | 2-3 hrs | Extract embedded images, save to deck, update references  |
-| [ ] Error handling and retry           | 1-2 hrs | Truncation recovery, rate limit backoff, user feedback    |
+| Task                                   | Details                                                   |
+| -------------------------------------- | --------------------------------------------------------- |
+| [ ] AI provider config modal           | API key input (OpenAI, OpenRouter), model selector, test  |
+| [ ] PPTX text extraction               | Parse PPTX XML, extract text, shapes, images, slide order |
+| [ ] SlideMD generation via AI          | Send extracted content + layout docs to LLM, get markdown |
+| [ ] Conversion modal (upload → review) | File upload, progress, preview before apply               |
+| [ ] Image extraction from PPTX         | Extract embedded images, save to deck, update references  |
+| [ ] Error handling and retry           | Truncation recovery, rate limit backoff, user feedback    |
 
 ### Prompt Templates
 
-| Task                               | Effort  | Details                                                     |
-| ---------------------------------- | ------- | ----------------------------------------------------------- |
-| [ ] Expand docs/prompt-template.md | 1-2 hrs | Add conversion-specific prompt (PPTX → SlideMD)             |
-| [ ] Add reusable prompt snippets   | 1 hr    | Layout selection rules, code example style, activity format |
+| Task                               | Details                                                     |
+| ---------------------------------- | ----------------------------------------------------------- |
+| [ ] Expand docs/prompt-template.md | Add conversion-specific prompt (PPTX → SlideMD)             |
+| [ ] Add reusable prompt snippets   | Layout selection rules, code example style, activity format |
 
 ### Post-Conversion
 
-| Task                                | Effort   | Details                                            |
-| ----------------------------------- | -------- | -------------------------------------------------- |
-| [ ] Edit mode integration           | 1 hr     | Load converted deck into editor for manual cleanup |
-| [ ] Unit tests for extraction logic | 1-2 days | PPTX parser, slide mapping, image extraction       |
-
-**Effort estimate:** 3-4 days
+| Task                                | Details                                            |
+| ----------------------------------- | -------------------------------------------------- |
+| [ ] Edit mode integration           | Load converted deck into editor for manual cleanup |
+| [ ] Unit tests for extraction logic | PPTX parser, slide mapping, image extraction       |
 
 ---
 
@@ -181,72 +178,69 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ### Image Storage
 
-| Task                                          | Effort   | Details                                  |
-| --------------------------------------------- | -------- | ---------------------------------------- |
-| [ ] Set up Cloudflare R2 bucket               | 0.5 day  | Free tier: 10GB storage, 10M reads/mo    |
-| [ ] Create StorageAdapter interface           | 1 day    | Abstract local vs cloud image paths      |
-| [ ] Implement R2StorageAdapter                | 2-3 days | Upload, delete, URL generation           |
-| [ ] Update image picker to use adapter        | 1 day    | Transparent to user, paths stay relative |
-| [ ] Handle image deletion (cascade from deck) | 0.5 day  | Clean up orphaned images                 |
+| Task                                          | Details                                  |
+| --------------------------------------------- | ---------------------------------------- |
+| [ ] Set up Cloudflare R2 bucket               | Free tier: 10GB storage, 10M reads/mo    |
+| [ ] Create StorageAdapter interface           | Abstract local vs cloud image paths      |
+| [ ] Implement R2StorageAdapter                | Upload, delete, URL generation           |
+| [ ] Update image picker to use adapter        | Transparent to user, paths stay relative |
+| [ ] Handle image deletion (cascade from deck) | Clean up orphaned images                 |
 
 ### Authentication & Access Control
 
-| Task                                            | Effort   | Details                               |
-| ----------------------------------------------- | -------- | ------------------------------------- |
-| [ ] Choose auth provider (Clerk, Auth.js, etc.) | 0.5 day  | Prefer self-hosted or edge-compatible |
-| [ ] Implement sign-up / sign-in flow            | 2-3 days | Email + OAuth (Google, GitHub)        |
-| [ ] Add deck sharing with permission levels     | 2-3 days | Owner / editor / viewer roles         |
-| [ ] Add access tokens for API requests          | 1 day    | For programmatic access               |
+| Task                                            | Details                               |
+| ----------------------------------------------- | ------------------------------------- |
+| [ ] Choose auth provider (Clerk, Auth.js, etc.) | Prefer self-hosted or edge-compatible |
+| [ ] Implement sign-up / sign-in flow            | Email + OAuth (Google, GitHub)        |
+| [ ] Add deck sharing with permission levels     | Owner / editor / viewer roles         |
+| [ ] Add access tokens for API requests          | For programmatic access               |
 
 ### Cloud File Sync
 
-| Task                                             | Effort   | Details                                     |
-| ------------------------------------------------ | -------- | ------------------------------------------- |
-| [ ] Design deck storage schema                   | 0.5 day  | Deck metadata + markdown + image references |
-| [ ] Implement deck CRUD API                      | 2-3 days | Create, read, update, delete decks          |
-| [ ] Add real-time sync (WebSocket or polling)    | 3-4 days | Multi-device live updates                   |
-| [ ] Add offline support (service worker + cache) | 2-3 days | Edit offline, sync when online              |
+| Task                                             | Details                                     |
+| ------------------------------------------------ | ------------------------------------------- |
+| [ ] Design deck storage schema                   | Deck metadata + markdown + image references |
+| [ ] Implement deck CRUD API                      | Create, read, update, delete decks          |
+| [ ] Add real-time sync (WebSocket or polling)    | Multi-device live updates                   |
+| [ ] Add offline support (service worker + cache) | Edit offline, sync when online              |
 
 ### Deployment
 
-| Task                                        | Effort  | Details                             |
-| ------------------------------------------- | ------- | ----------------------------------- |
-| [ ] Deploy web app to Vercel/Netlify        | 0.5 day | Static frontend                     |
-| [ ] Deploy API (Workers or serverless)      | 1 day   | Cloudflare Workers for edge compute |
-| [ ] Set up custom domain + SSL              | 0.5 day |                                     |
-| [ ] Add environment config (R2, auth, etc.) | 0.5 day |                                     |
+| Task                                        | Details                             |
+| ------------------------------------------- | ----------------------------------- |
+| [ ] Deploy web app to Vercel/Netlify        | Static frontend                     |
+| [ ] Deploy API (Workers or serverless)      | Cloudflare Workers for edge compute |
+| [ ] Set up custom domain + SSL              |                                     |
+| [ ] Add environment config (R2, auth, etc.) |                                     |
 
 ### UX
 
-| Task                                          | Effort  | Details                                  |
-| --------------------------------------------- | ------- | ---------------------------------------- |
-| [ ] Add mode switcher (Local / Cloud)         | 0.5 day | On first open, prompt user to choose     |
-| [ ] Show cloud status indicator               | 0.5 day | Syncing / synced / offline badge         |
-| [ ] Update export to resolve cloud image URLs | 0.5 day | Download images inline for portable HTML |
-| [ ] Add deck sharing UI                       | 1 day   | Share link with permission selection     |
-
-**Effort estimate:** 25-35 days
+| Task                                          | Details                                  |
+| --------------------------------------------- | ---------------------------------------- |
+| [ ] Add mode switcher (Local / Cloud)         | On first open, prompt user to choose     |
+| [ ] Show cloud status indicator               | Syncing / synced / offline badge         |
+| [ ] Update export to resolve cloud image URLs | Download images inline for portable HTML |
+| [ ] Add deck sharing UI                       | Share link with permission selection     |
 
 ---
 
 ## Summary
 
-| Phase                        | Effort           | Status             |
-| ---------------------------- | ---------------- | ------------------ |
-| Phase 1: Safety Net          | 7-9 days         | ✅ Complete        |
-| Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
-| Phase 3: Distribution        | 2-3 days         | ✅ Complete        |
-| Phase 4: New Presentation    | 3-4 days         | ✅ Complete        |
-| Phase 5: Quick Fixes         | ~3-4 hrs         | ✅ Complete        |
-| Phase 6: Testing & Polish    | 6-9 days         | Not started        |
-| Phase 7: AI Conversion       | 3-4 days         | Not started        |
-| Phase 8: Cloud Mode          | 25-35 days       | Not started        |
-| **Total**                    | **~10-14 weeks** | **Phase 1-5 done** |
+| Phase                               | Status      |
+| ----------------------------------- | ----------- |
+| Phase 1: Safety Net                 | ✅ Complete |
+| Phase 2: Build Modernization        | ✅ Complete |
+| Phase 3: Distribution               | ✅ Complete |
+| Phase 4: New Presentation           | ✅ Complete |
+| Phase 5: Quick Fixes                | ✅ Complete |
+| Phase 6: Testing & Polish           | ✅ Complete |
+| Phase 7: AI Presentation Conversion | Not started |
+| Phase 8: Cloud Mode                 | Not started |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 → Phase 7 → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 → Phase 8
 ```
 
-Phase 5 is quick fixes and full AI generation removal. Phase 6 covers testing and type safety. Phase 7 is AI-powered presentation conversion (PPTX → SlideMD). Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 6 covers testing and type safety. Phase 7 is AI-powered presentation conversion (PPTX → SlideMD). Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.

@@ -1,14 +1,22 @@
 /**
  * AssetLoader
- * Utility class for loading and caching external assets (e.g., markdown-it, PrismJS) for the slide deck application.
- * Provides methods to ensure assets are loaded only once and exposes them globally for use in rendering and enhancement.
+ * Utility class for loading and caching external assets (e.g., markdown-it, PrismJS, KaTeX, Mermaid).
+ * Each asset is loaded at most once via dynamic import and exposed on `window` for downstream consumers.
  */
 import { MERMAID_INIT_OPTIONS } from "./mermaid-config.js";
 
-// Asset loading utilities (optional vendor enhancers)
+/** @class */
 export class AssetLoader {
+  /** @type {Map<string, Promise<void>>} */
   static _oncePromises = new Map();
 
+  /**
+   * Run `loader` exactly once for a given `key`. Subsequent calls return the cached promise.
+   * @static
+   * @param {string} key - Unique cache key for this asset.
+   * @param {() => Promise<void>} loader - Async function that loads the asset.
+   * @returns {Promise<void>}
+   */
   static once(key, loader) {
     if (this._oncePromises.has(key)) return this._oncePromises.get(key);
     const p = (async () => loader())();
@@ -16,6 +24,11 @@ export class AssetLoader {
     return p;
   }
 
+  /**
+   * Ensure `window.markdownit` is available (loaded via dynamic import if needed).
+   * @static
+   * @returns {Promise<void>}
+   */
   static async ensureMarkdownItLoaded() {
     if (typeof window.markdownit === "function") return;
 
@@ -28,6 +41,11 @@ export class AssetLoader {
     });
   }
 
+  /**
+   * Ensure PrismJS and common language grammars are loaded on `window.Prism`.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async ensurePrismLoaded() {
     if (window.Prism && typeof window.Prism.highlightElement === "function") return;
 
@@ -72,6 +90,11 @@ export class AssetLoader {
     });
   }
 
+  /**
+   * Ensure KaTeX and its auto-render extension are loaded on `window.katex` / `window.renderMathInElement`.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async ensureKatexLoaded() {
     if (typeof window.renderMathInElement === "function") return;
 
@@ -99,6 +122,12 @@ export class AssetLoader {
     });
   }
 
+  /**
+   * Ensure Mermaid is loaded and initialized on `window.mermaid`.
+   * Uses a pre-bundled global if present (e.g. dist builds), otherwise dynamic-imports.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async ensureMermaidLoaded() {
     if (window.__WEBDECK_MERMAID__) return;
 
@@ -120,6 +149,12 @@ export class AssetLoader {
     });
   }
 
+  /**
+   * Preload all optional rich-text enhancers (Prism, KaTeX, Mermaid) in parallel.
+   * Failures are silently ignored — the deck renders without them.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async ensureRichTextEnhancers() {
     // Never throw: the deck should still render without optional enhancers.
     await Promise.allSettled([

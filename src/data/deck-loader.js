@@ -1,13 +1,23 @@
 /**
  * DeckLoader
- * Loads deck data from embedded HTML or local files.
+ * Loads deck data from embedded HTML, local files, localStorage, or broadcast channels.
+ * Provides normalization and parsing for deck structures.
+ *
+ * @class
  */
 import { AssetLoader } from "../core/asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
 import { Notification } from "../renderer/notification.js";
 
+/** @class */
 export class DeckLoader {
+  /**
+   * Get the display title for a deck (from localStorage file name or deck meta).
+   * @static
+   * @param {import('../types.js').Deck} deck
+   * @returns {string}
+   */
   static getDisplayTitle(deck) {
     const localFileName = localStorage.getItem("webdeck_local_file_name");
     if (localFileName) return localFileName;
@@ -15,6 +25,11 @@ export class DeckLoader {
     return safeString(deck?.meta?.title) || "Slide Deck";
   }
 
+  /**
+   * Registry of file handles keyed by file name (for reload without re-pick).
+   * @static
+   * @type {Map<string, FileSystemFileHandle>}
+   */
   static get fileHandleRegistry() {
     if (!window.__WEBDECK_FILE_HANDLE_REGISTRY__) {
       window.__WEBDECK_FILE_HANDLE_REGISTRY__ = new Map();
@@ -22,10 +37,21 @@ export class DeckLoader {
     return window.__WEBDECK_FILE_HANDLE_REGISTRY__;
   }
 
+  /**
+   * Whether the browser supports the File System Access API.
+   * @static
+   * @type {boolean}
+   */
   static get supportsFileSystemAPI() {
     return "showOpenFilePicker" in window;
   }
 
+  /**
+   * Load and parse a deck from a FileSystemFileHandle.
+   * @static
+   * @param {FileSystemFileHandle} fileHandle
+   * @returns {Promise<import('../types.js').Deck>}
+   */
   static async loadFromFileHandle(fileHandle) {
     try {
       const file = await fileHandle.getFile();
@@ -42,12 +68,24 @@ export class DeckLoader {
     }
   }
 
+  /**
+   * Fetch text from a URL.
+   * @static
+   * @param {string} url
+   * @param {RequestInit} [options]
+   * @returns {Promise<string>}
+   */
   static async fetchText(url, options = {}) {
     const res = await fetch(url, options);
     if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
     return await res.text();
   }
 
+  /**
+   * Load deck data from localStorage, embedded JSON, or fall back to the welcome deck.
+   * @static
+   * @returns {Promise<import('../types.js').Deck>}
+   */
   static async loadDeckData() {
     // 1. Try LocalStorage (Shared State)
     try {
@@ -118,6 +156,11 @@ Markdown-based presentations made simple.
    * Loads the bundled example.md from docs/ via HTTP fetch.
    * No file picker needed — the file is served by the dev server / host.
    */
+  /**
+   * Load the bundled example.md from docs/ via HTTP fetch and store in localStorage.
+   * @static
+   * @returns {Promise<void>}
+   */
   static async openExampleFile() {
     try {
       const res = await fetch("docs/example.md");
@@ -141,6 +184,13 @@ Markdown-based presentations made simple.
     }
   }
 
+  /**
+   * Wire up file-open buttons to either the File System Access API or a fallback file input.
+   * @static
+   * @param {HTMLElement} openFileBtn
+   * @param {HTMLInputElement} fileInput
+   * @returns {void}
+   */
   static setupLocalFileHandler(openFileBtn, fileInput) {
     openFileBtn.addEventListener("click", async () => {
       if (this.supportsFileSystemAPI) {
@@ -206,6 +256,12 @@ Markdown-based presentations made simple.
     });
   }
 
+  /**
+   * Reload a deck from a previously saved file handle.
+   * @static
+   * @param {string} deckId - Key to look up in the file handle registry.
+   * @returns {Promise<import('../types.js').Deck|null>}
+   */
   static async reloadFromFileHandle(deckId) {
     let handle = DeckLoader.fileHandleRegistry.get(deckId);
     const fileName = localStorage.getItem("webdeck_local_file_name");
@@ -258,6 +314,11 @@ Markdown-based presentations made simple.
     });
   }
 
+  /**
+   * Load deck data from localStorage without loading markdown-it (returns raw parsed deck or null).
+   * @static
+   * @returns {Promise<import('../types.js').Deck|null>}
+   */
   static async loadFromLocalStorage() {
     try {
       const localFile = localStorage.getItem("webdeck_local_file");
@@ -271,12 +332,24 @@ Markdown-based presentations made simple.
     }
   }
 
+  /**
+   * Process raw deck data by normalizing it (always includes hidden slides for edit mode).
+   * @static
+   * @param {import('../types.js').Deck} raw
+   * @returns {Promise<import('../types.js').Deck>}
+   */
   static async processRawData(raw) {
     // Always include hidden slides so edit mode can show them
     // CSS will handle hiding them in presentation mode
     return this.normalizeDeck(raw, { includeHidden: true });
   }
 
+  /**
+   * Parse raw markdown text into a normalized deck structure.
+   * @static
+   * @param {string} text
+   * @returns {Promise<import('../types.js').Deck>}
+   */
   static async parseMarkdown(text) {
     await AssetLoader.ensureMarkdownItLoaded();
     const raw = new MarkdownParser().parseDeckMarkdown(text);
@@ -284,6 +357,13 @@ Markdown-based presentations made simple.
     return this.normalizeDeck(raw, { includeHidden: true });
   }
 
+  /**
+   * Normalize a raw deck object: validate structure, fill defaults, filter hidden slides.
+   * @static
+   * @param {import('../types.js').Deck} raw
+   * @param {{ includeHidden?: boolean }} [options]
+   * @returns {import('../types.js').Deck}
+   */
   static normalizeDeck(raw, { includeHidden = true } = {}) {
     if (!raw || typeof raw !== "object") throw new Error("Invalid deck: not an object");
     if (!Array.isArray(raw.slides)) throw new Error("Invalid deck: slides must be an array");
