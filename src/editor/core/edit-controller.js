@@ -525,15 +525,32 @@ export class EditController {
       const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
       if (isNaN(sourceLine)) return;
 
+      // Walk up to the slide wrapper to read per-slide area offsets.
+      const slideWrapper = areaEl.closest(".slide");
+      if (!slideWrapper) return;
+
+      let areaOffsets;
+      try {
+        areaOffsets = JSON.parse(slideWrapper.dataset.areaOffsets || "{}");
+      } catch {
+        areaOffsets = {};
+      }
+
+      // Find the slide index by counting preceding .slide siblings.
+      const allSlides = slidesContainer.querySelectorAll(":scope > .slide");
+      const slideIndex = Array.from(allSlides).indexOf(slideWrapper);
+
+      // Compute the slide's starting line in the editor markdown by
+      // summing the line counts of all preceding slides (split on ---).
       const editorMarkdown = this.markdownEditor?.getValue() ?? "";
       const lines = editorMarkdown.split("\n");
-
-      // Compute content-start offsets from the current editor markdown.
-      // token.map[0] is a physical line index inside the rendered area
-      // string; adding the area's editor start line gives the absolute
-      // target line. Directives are treated as non-content lines.
       const parser = new MarkdownParser();
-      const areaOffsets = parser.computeAreaOffsets(editorMarkdown);
+      const slideTexts = parser.splitSlides(editorMarkdown);
+      let slideStartLine = 0;
+      for (let i = 0; i < slideIndex && i < slideTexts.length; i++) {
+        slideStartLine += slideTexts[i].split("\n").length + 1; // +1 for the --- separator
+      }
+
       let areaStart = areaOffsets[areaName];
       if (areaStart === undefined) {
         // @title / @header alias handling
@@ -545,7 +562,7 @@ export class EditController {
       }
       if (areaStart === undefined) areaStart = 0;
 
-      let targetLine = areaStart + sourceLine;
+      let targetLine = slideStartLine + areaStart + sourceLine;
       targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
 
       let pos = 0;
