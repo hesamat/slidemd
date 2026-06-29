@@ -82,7 +82,6 @@ export class SlideRenderer {
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
     grid.style.gridTemplateColumns = layout.gridTemplateColumns;
     grid.style.gridTemplateRows = layout.gridTemplateRows;
-    grid.dataset.layout = slide?.layout || "default";
 
     const names = [...layout.orderedAreas];
     for (const extra of areaNamesFromContent) {

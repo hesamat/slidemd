@@ -58,10 +58,11 @@
       "template": "layout: content-sidebar\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nYour primary content with more space\n\n* Detailed point one\n* Detailed point two\n* Detailed point three\n\n@sidebar\n## Notes\n\nAdditional notes or context\n\n@footer\nAdditional context or reference"
     },
     "focus": {
-      "gridTemplate": "\"main\" \"footer\" / 1fr",
-      "description": "Centered single-column content with optional footer",
-      "preview": "<div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: focus\n\n@main\n## Your Main Content Here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
+      "_note": "Hidden from modal. Duplicate of header-content.",
+      "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",
+      "description": "Single column content area with optional header and footer",
+      "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer\"></div>",
+      "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\nYour main content here\n\n* Point one\n* Point two\n* Point three\n\n@footer\nAdditional context or reference"
     },
     "default": {
       "_note": "Hidden from modal. Used as fallback when no layout is specified.",
