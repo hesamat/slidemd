@@ -63,15 +63,15 @@ export class ImagePropertiesPanel {
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
     const panelW = this.el.offsetWidth || 300;
+    const scale = this._getStageScale();
 
-    let top = rect.bottom + window.scrollY + 6;
-    let left = rect.left + window.scrollX + (rect.width - panelW) / 2;
+    // Position panel on top-left corner of the image, partially overlapping it
+    let left = rect.left + window.scrollX + 4 * scale;
+    let top = rect.top + window.scrollY + 4 * scale;
 
+    // Clamp to viewport so the panel stays fully visible
     left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
-    if (top + panelH > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - panelH - 6;
-    }
-    if (top < window.scrollY + 8) top = window.scrollY + 8;
+    top = Math.max(8, Math.min(top, window.innerHeight + window.scrollY - panelH - 8));
 
     this.el.style.top = `${top}px`;
     this.el.style.left = `${left}px`;
@@ -83,6 +83,15 @@ export class ImagePropertiesPanel {
 
   static isVisible() {
     return this.el && !this.el.classList.contains("webdeck-hidden");
+  }
+
+  static _getStageScale() {
+    const stage = document.querySelector(".stage__inner");
+    if (!stage) return 1;
+    const transform = getComputedStyle(stage).transform;
+    if (!transform || transform === "none") return 1;
+    const match = transform.match(/matrix\(([^,]+),/);
+    return match ? parseFloat(match[1]) : 1;
   }
 
   // ── Panel UI ──────────────────────────────────────────────────────────
