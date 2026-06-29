@@ -308,7 +308,7 @@ class SlideContextMenu {
     if (index > 0) {
       items.splice(1, 0, {
         label: "Move up",
-        kbd: "",
+        kbd: "Alt+Shift+\u2191",
         action: () => this._moveUp(index),
       });
     }
@@ -316,7 +316,7 @@ class SlideContextMenu {
       const insertAt = index > 0 ? 3 : 2;
       items.splice(insertAt, 0, {
         label: "Move down",
-        kbd: "",
+        kbd: "Alt+Shift+\u2193",
         action: () => this._moveDown(index),
       });
     }
