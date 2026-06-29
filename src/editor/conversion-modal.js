@@ -1,12 +1,14 @@
 /**
  * ConversionModal
  *
- * Modal for converting PPTX files to SlideMD format using AI.
- * Handles file upload, AI provider configuration, extraction,
- * and sending to an LLM for markdown generation.
+ * Modal for converting PPTX files to SlideMD format.
+ * Supports two modes:
+ * - Rule-based: fast, local conversion using element positions (no API key needed)
+ * - AI-powered: sends extracted content to an LLM for smarter layout selection
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
+import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 
 const P = "conversion-modal__";
 
@@ -68,6 +70,7 @@ export class ConversionModal {
       const fileName = backdrop.querySelector(`.${P}file-name`);
       const extractBtn = backdrop.querySelector('[data-action="extract"]');
       const convertBtn = backdrop.querySelector('[data-action="convert"]');
+      const convertAiBtn = backdrop.querySelector('[data-action="convert-ai"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const statusEl = backdrop.querySelector(`.${P}status`);
       const previewEl = backdrop.querySelector(`.${P}preview`);
@@ -184,14 +187,31 @@ export class ConversionModal {
             "success",
           );
           convertBtn.disabled = false;
+          convertAiBtn.disabled = false;
         } catch (err) {
           setStatus(`Extraction failed: ${err.message}`, "error");
           extractBtn.disabled = false;
         }
       });
 
-      // Convert button
-      convertBtn.addEventListener("click", async () => {
+      // Convert button (rule-based, no AI)
+      convertBtn.addEventListener("click", () => {
+        if (!extractionResult) {
+          setStatus("Please extract a PPTX file first", "error");
+          return;
+        }
+        const markdown = convertToSlideMd(extractionResult);
+        setStatus("Conversion complete!", "success");
+        resolve({
+          markdown,
+          imageRefs: extractionResult.images.map((img) => img.ref),
+          images: extractionResult.images,
+        });
+        backdrop.remove();
+      });
+
+      // Convert with AI button
+      convertAiBtn.addEventListener("click", async () => {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) {
           setStatus("Please enter an API key", "error");
@@ -216,7 +236,7 @@ export class ConversionModal {
 
         const plainText = PptxExtractor.toPlainText(extractionResult);
 
-        convertBtn.disabled = true;
+        convertAiBtn.disabled = true;
         setStatus("Sending to AI for conversion...", "");
 
         try {
@@ -230,7 +250,7 @@ export class ConversionModal {
           backdrop.remove();
         } catch (err) {
           setStatus(`AI conversion failed: ${err.message}`, "error");
-          convertBtn.disabled = false;
+          convertAiBtn.disabled = false;
         }
       });
 
@@ -370,7 +390,8 @@ Rules:
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="extract" class="${P}btn ${P}btn--primary" disabled>Extract</button>
-          <button type="button" data-action="convert" class="${P}btn ${P}btn--accent" disabled>Convert with AI</button>
+          <button type="button" data-action="convert" class="${P}btn ${P}btn--accent" disabled>Convert</button>
+          <button type="button" data-action="convert-ai" class="${P}btn ${P}btn--accent" disabled>Convert with AI</button>
         </div>
       </div>
     `;
