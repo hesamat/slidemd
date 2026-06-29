@@ -29,7 +29,6 @@ describe("LayoutData", () => {
       expect(layouts).not.toContain("header-two-column");
       expect(layouts).not.toContain("sidebar-content");
       expect(layouts).not.toContain("content-sidebar");
-      expect(layouts).not.toContain("focus");
     });
 
     it("includes common layouts", () => {

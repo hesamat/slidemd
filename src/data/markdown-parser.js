@@ -1,6 +1,9 @@
 /**
  * MarkdownParser
- * Extracts and parses slides from markdown files. Handles code fences, directives, and metadata for slide generation and content structuring.
+ * Extracts and parses slides from markdown files. Handles code fences, directives,
+ * and metadata for slide generation and content structuring.
+ *
+ * @class
  */
 // Markdown parsing and slide extraction
 import { safeString, slugifyTitle, DESIGN_SIZE } from "../core/utils.js";
@@ -35,6 +38,11 @@ export class MarkdownParser {
     this.md = null;
   }
 
+  /**
+   * Parse a boolean directive value ("true"/"false"/"yes"/"no"/"1"/"0"/etc.).
+   * @param {string} raw - Raw directive value.
+   * @returns {boolean|null} `true`, `false`, or `null` if unrecognized.
+   */
   parseBooleanDirectiveValue(raw) {
     const s = safeString(raw).trim().toLowerCase();
     if (!s) return null;
@@ -43,6 +51,11 @@ export class MarkdownParser {
     return null;
   }
 
+  /**
+   * Extract the first `# heading` from markdown text (skipping fenced code blocks).
+   * @param {string} markdownText
+   * @returns {string} The heading text, or empty string if none found.
+   */
   extractTitle(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -62,6 +75,11 @@ export class MarkdownParser {
     return title;
   }
 
+  /**
+   * Initialize `this.md` (markdown-it instance) if not already done.
+   * Sets up source-line tracking on the renderer.
+   * @returns {void}
+   */
   ensureMarkdownIt() {
     if (this.md) return;
     if (typeof window.markdownit !== "function") {
@@ -107,6 +125,12 @@ export class MarkdownParser {
     }
   }
 
+  /**
+   * Split a markdown document into individual slide strings on `---` separators.
+   * Ignores `---` inside fenced code blocks.
+   * @param {string} markdownText
+   * @returns {string[]} Non-empty slide text segments.
+   */
   splitSlides(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const slides = [];
@@ -129,6 +153,11 @@ export class MarkdownParser {
     return slides;
   }
 
+  /**
+   * Split text into fence-aware segments, marking each as inside or outside a code fence.
+   * @param {string} markdownText
+   * @returns {{ inFence: boolean, text: string }[]}
+   */
   splitFenceAwareSegments(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const segments = [];
@@ -164,6 +193,11 @@ export class MarkdownParser {
     return segments;
   }
 
+  /**
+   * Extract speaker notes from `<!-- notes: ... -->` HTML comments (outside code fences).
+   * @param {string} markdownText
+   * @returns {string} Notes joined by double newline, or empty string.
+   */
   extractNotes(markdownText) {
     const notes = [];
 
@@ -180,6 +214,11 @@ export class MarkdownParser {
     return notes.join("\n\n").trim();
   }
 
+  /**
+   * Remove all `<!-- notes: ... -->` comments from text (outside code fences).
+   * @param {string} markdownText
+   * @returns {string}
+   */
   stripNotes(markdownText) {
     return this.splitFenceAwareSegments(markdownText)
       .map((segment) =>
@@ -188,6 +227,12 @@ export class MarkdownParser {
       .join("\n");
   }
 
+  /**
+   * Extract a named directive (e.g. "layout", "theme") from slide markdown.
+   * @param {string} markdownText
+   * @param {string} directiveName - Case-insensitive directive name.
+   * @returns {import('../types.js').DirectiveResult}
+   */
   extractDirective(markdownText, directiveName) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -212,6 +257,11 @@ export class MarkdownParser {
     return { value, found, markdown: out.join("\n").trim() };
   }
 
+  /**
+   * Escape LaTeX bracket delimiters (`\[`, `\]`) and convert `$$` math blocks to single-line.
+   * @param {string} src
+   * @returns {string}
+   */
   escapeKatexBracketDelimiters(src) {
     const lines = safeString(src).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -258,6 +308,11 @@ export class MarkdownParser {
     return result.join("\n");
   }
 
+  /**
+   * Split slide markdown by `@area` markers into named content regions.
+   * @param {string} markdownText
+   * @returns {import('../types.js').AreaParseResult}
+   */
   parseAreas(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const areas = {};
@@ -373,6 +428,11 @@ export class MarkdownParser {
     return areaOffsets;
   }
 
+  /**
+   * Convert `<pre><code class="language-mermaid">` blocks to `<div class="mermaid">` for client-side rendering.
+   * @param {string} htmlText
+   * @returns {string}
+   */
   convertMermaidCodeBlocksToDiv(htmlText) {
     // Convert <pre><code class="language-mermaid">...</code></pre> to <div class="mermaid">...</div>
     // Capture attributes before/after the class so we can preserve data-source-line.
@@ -392,6 +452,12 @@ export class MarkdownParser {
     });
   }
 
+  /**
+   * Parse a full markdown document into a deck structure with slides, areas, and metadata.
+   * Requires `window.markdownit` to be loaded (call `AssetLoader.ensureMarkdownItLoaded()` first).
+   * @param {string} markdownText
+   * @returns {import('../types.js').Deck}
+   */
   parseDeckMarkdown(markdownText) {
     this.ensureMarkdownIt();
 
