@@ -202,17 +202,18 @@ export class ConversionModal {
           return;
         }
 
-        // Save config
-        localStorage.setItem("slidemd_api_key", apiKey);
-        localStorage.setItem("slidemd_ai_provider", providerSelect.value);
-        localStorage.setItem("slidemd_ai_model", model);
-
         const provider = PROVIDERS.find((p) => p.id === providerSelect.value);
         const model = modelInput.value.trim();
         if (!model) {
           setStatus("Please enter or select a model", "error");
           return;
         }
+
+        // Save config
+        localStorage.setItem("slidemd_api_key", apiKey);
+        localStorage.setItem("slidemd_ai_provider", providerSelect.value);
+        localStorage.setItem("slidemd_ai_model", model);
+
         const plainText = PptxExtractor.toPlainText(extractionResult);
 
         convertBtn.disabled = true;
