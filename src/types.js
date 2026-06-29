@@ -77,8 +77,6 @@
  * @property {HTMLElement} markdownEditor
  * @property {HTMLElement} insertDropdownBtn
  * @property {HTMLElement} insertDropdownContent
- * @property {HTMLElement} slideActionsDropdownBtn
- * @property {HTMLElement} slideActionsDropdownContent
  * @property {HTMLElement} addSlideFooterBtn
  * @property {HTMLElement} toggleThumbnailsBtn
  * @property {HTMLElement} adjustColumnsMenuItem

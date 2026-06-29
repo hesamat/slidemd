@@ -94,6 +94,7 @@ export class SlideThumbnails {
     thumbnail.setAttribute("role", "button");
     thumbnail.setAttribute("aria-label", `Go to slide ${index + 1}`);
     thumbnail.setAttribute("tabindex", "0");
+    thumbnail.title = "Right-click for options";
 
     // Slide number
     const number = document.createElement("div");

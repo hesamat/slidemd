@@ -36,11 +36,6 @@ export class InsertDropdownManager {
   init() {
     this._dropdowns = [
       {
-        btn: this.elements.slideActionsDropdownBtn,
-        content: this.elements.slideActionsDropdownContent,
-        attr: "data-slide-action",
-      },
-      {
         btn: this.elements.insertDropdownBtn,
         content: this.elements.insertDropdownContent,
         attr: "data-insert-action",
