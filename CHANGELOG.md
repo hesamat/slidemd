@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.4.0 (2026-06-28)
+## 0.4.0 (2026-06-29)
+
+### Testing & Type Safety
+
+- Added 107 new unit tests across 5 test files (218 total)
+- Added integration test for full deck pipeline (markdown → parse → normalize)
+- Added JSDoc type annotations to core modules (asset-loader, element-gatherer, directory-handle-store, markdown-parser, deck-loader)
+- Created `src/types.js` with shared `@typedef` definitions (Slide, Deck, DeckMeta, Layout, DirectiveResult, AreaParseResult, DirectoryMode, GatheredElements)
+
+### UI Polish
+
+- Moved slide up/down from inline arrows to right-click context menu on thumbnails
+- Added `Alt+Shift+ArrowUp` / `Alt+Shift+ArrowDown` keyboard shortcuts for moving slides
+- Removed slide actions dropdown from thumbnails header (actions available via context menu and keyboard)
+- Added "Right-click for options" hover tooltip on slide thumbnails
+- Added keyboard activation on thumbnails (Enter/Space to navigate, ContextMenu/Shift+F10 for context menu)
+- Re-hid focus layout from layout picker (duplicate of header-content)
 
 ### AI Generation Removal
 
