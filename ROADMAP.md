@@ -95,19 +95,20 @@ Goal: Add a modal for creating new presentations with theme, style, and template
 
 ---
 
-## Phase 5: Quick Fixes
+## Phase 5: Quick Fixes ✅
 
-Goal: Address small bugs and remove dead code before major work.
+Goal: Remove AI generation feature and unify prompt documentation.
 
-| Task                                               | Effort | Details                                                       |
-| -------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| [ ] Fix AI Config Modal close button bug           | 0.5 hr | Promise never resolves on X click                             |
-| [ ] Fix `topicsCovered` type inconsistency         | 0.5 hr | String → array, wire into prompts                             |
-| [ ] Deduplicate error modals                       | 1 hr   | `showPlanFormatError` / `showDeckFormatError` → shared method |
-| [ ] Remove dead code: single-pass `generateDeck()` | 0.5 hr | Never called, only `generateDeckFromPlan()` is used           |
-| [ ] Remove vestigial `generation-templates.js`     | 1 hr   | Template engine exists but is never used in generation        |
+| Task                                                     | Effort  | Details                                                        |
+| -------------------------------------------------------- | ------- | -------------------------------------------------------------- |
+| [x] Remove AI generation feature entirely                | ~3-4 hr | Deleted 10 source files, 3 CSS files, 1 UI file (~4,500 lines) |
+| [x] Move New Presentation Modal to src/editor/           | —       | Not AI-related; manual presentation wizard                     |
+| [x] Remove AI menu items from UI                         | —       | Course Profiles, AI Configuration, Generate Deck               |
+| [x] Unify prompt templates in docs/                      | —       | Merged 2 prompt files into single docs/prompt-template.md      |
+| [x] Update documentation (README, example.md, AGENTS.md) | —       | Removed AI generation references                               |
+| [x] Fix image properties panel aspect ratio bug          | —       | Size presets now respect aspect ratio lock                     |
 
-**Effort estimate:** ~3-4 hrs
+**Effort estimate:** ~3-4 hrs (completed)
 
 ---
 
@@ -134,26 +135,36 @@ Goal: Comprehensive testing and type safety improvements.
 
 ---
 
-## Phase 7: AI Generation Overhaul
+## Phase 7: AI Presentation Conversion
 
-Goal: Fix bugs, add reliability, and improve the AI generation experience.
+Goal: Convert existing presentations (PPTX, PDF, Google Slides) to SlideMD format using AI. Users provide their own API key.
 
-| Task                                    | Effort  | Details                                       |
-| --------------------------------------- | ------- | --------------------------------------------- |
-| [ ] Add retry with exponential backoff  | 2-3 hrs | Max 3 retries, 429/500/timeout only           |
-| [ ] Add truncation recovery             | 1-2 hrs | Retry with stronger prompt, then warn         |
-| [ ] Add token usage tracking            | 2-3 hrs | Parse usage from API response, display in UI  |
-| [ ] Add streaming for deck generation   | 4-6 hrs | SSE parsing, loading modal with token counter |
-| [ ] Add undo for deck replacement       | 1-2 hrs | Snapshot + 3s undo notification               |
-| [ ] Add IndexedDB fallback for profiles | 2-3 hrs | Non-Chromium browser support                  |
+### Core
 
-### Post-Overhaul Testing
+| Task                                   | Effort  | Details                                                   |
+| -------------------------------------- | ------- | --------------------------------------------------------- |
+| [ ] AI provider config modal           | 2-3 hrs | API key input (OpenAI, OpenRouter), model selector, test  |
+| [ ] PPTX text extraction               | 3-4 hrs | Parse PPTX XML, extract text, shapes, images, slide order |
+| [ ] SlideMD generation via AI          | 4-6 hrs | Send extracted content + layout docs to LLM, get markdown |
+| [ ] Conversion modal (upload → review) | 2-3 hrs | File upload, progress, preview before apply               |
+| [ ] Image extraction from PPTX         | 2-3 hrs | Extract embedded images, save to deck, update references  |
+| [ ] Error handling and retry           | 1-2 hrs | Truncation recovery, rate limit backoff, user feedback    |
 
-| Task                                  | Effort   | Details                                                                     |
-| ------------------------------------- | -------- | --------------------------------------------------------------------------- |
-| [ ] Unit tests for generation modules | 2-3 days | `lecture-plan-generator.js`, `deck-generator.js`, `ai-provider-registry.js` |
+### Prompt Templates
 
-**Effort estimate:** 12-19 hrs (~2-3 days) + 2-3 days testing
+| Task                               | Effort  | Details                                                     |
+| ---------------------------------- | ------- | ----------------------------------------------------------- |
+| [ ] Expand docs/prompt-template.md | 1-2 hrs | Add conversion-specific prompt (PPTX → SlideMD)             |
+| [ ] Add reusable prompt snippets   | 1 hr    | Layout selection rules, code example style, activity format |
+
+### Post-Conversion
+
+| Task                                | Effort   | Details                                            |
+| ----------------------------------- | -------- | -------------------------------------------------- |
+| [ ] Edit mode integration           | 1 hr     | Load converted deck into editor for manual cleanup |
+| [ ] Unit tests for extraction logic | 1-2 days | PPTX parser, slide mapping, image extraction       |
+
+**Effort estimate:** 3-4 days
 
 ---
 
@@ -226,16 +237,16 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | Phase 2: Build Modernization | 3-4 days         | ✅ Complete        |
 | Phase 3: Distribution        | 2-3 days         | ✅ Complete        |
 | Phase 4: New Presentation    | 3-4 days         | ✅ Complete        |
-| Phase 5: Quick Fixes         | ~3-4 hrs         | Not started        |
+| Phase 5: Quick Fixes         | ~3-4 hrs         | ✅ Complete        |
 | Phase 6: Testing & Polish    | 6-9 days         | Not started        |
-| Phase 7: AI Generation       | 4-6 days         | Not started        |
+| Phase 7: AI Conversion       | 3-4 days         | Not started        |
 | Phase 8: Cloud Mode          | 25-35 days       | Not started        |
-| **Total**                    | **~10-14 weeks** | **Phase 1-4 done** |
+| **Total**                    | **~10-14 weeks** | **Phase 1-5 done** |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 → Phase 6 → Phase 7 → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 → Phase 7 → Phase 8
 ```
 
-Phase 5 is quick fixes (bug fixes, dead code removal). Phase 6 covers testing and type safety. Phase 7 is the AI overhaul. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 5 is quick fixes and full AI generation removal. Phase 6 covers testing and type safety. Phase 7 is AI-powered presentation conversion (PPTX → SlideMD). Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.

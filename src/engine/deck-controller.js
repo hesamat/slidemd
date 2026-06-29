@@ -15,10 +15,8 @@ import { PrintManager } from "../renderer/print-manager.js";
 import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
-import { AIGenerationController } from "../generation/ai-generation-controller.js";
-import { GenerationActions } from "../ui/generation-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
-import { NewPresentationModal } from "../generation/new-presentation-modal.js";
+import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
@@ -234,13 +232,6 @@ export class DeckController extends EventEmitter {
     }
   }
 
-  initGenerationManager() {
-    // Initialize AI generation controller
-    this.generationController = new AIGenerationController(this.deck, this, this.elements);
-    // Initialize generation actions (menu handlers)
-    GenerationActions.init(this.generationController);
-  }
-
   async init() {
     // Initialize broadcast channel after breakManager is ready
     this.reloadManager.initBroadcastChannel();
@@ -248,8 +239,6 @@ export class DeckController extends EventEmitter {
     this.reloadManager.initDeckDataChannel();
     // Store reference to bc for backward compatibility
     this.bc = this.reloadManager.getBroadcastChannel();
-    // Initialize AI generation system
-    this.initGenerationManager();
 
     const url = new URL(window.location.href);
     const hash = window.location.hash.match(/#slide-(\d+)/);

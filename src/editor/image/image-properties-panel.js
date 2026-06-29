@@ -32,8 +32,9 @@ export class ImagePropertiesPanel {
   static _wired = false;
   static _getMarkdown = null;
   static _setMarkdown = null;
-  static _aspectLocked = false;
+  static _aspectLocked = true;
   static _lastRatio = null;
+  static _currentImg = null;
 
   /**
    * Initialize with callbacks that read/write the slide markdown.
@@ -54,6 +55,7 @@ export class ImagePropertiesPanel {
    */
   static show(img, settings) {
     if (!this.el) this._buildDom();
+    this._currentImg = img;
     this._syncUI(settings);
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
@@ -61,15 +63,15 @@ export class ImagePropertiesPanel {
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
     const panelW = this.el.offsetWidth || 300;
+    const scale = this._getStageScale();
 
-    let top = rect.bottom + window.scrollY + 6;
-    let left = rect.left + window.scrollX + (rect.width - panelW) / 2;
+    // Position panel on top-left corner of the image, partially overlapping it
+    let left = rect.left + window.scrollX + 4 * scale;
+    let top = rect.top + window.scrollY + 4 * scale;
 
+    // Clamp to viewport so the panel stays fully visible
     left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
-    if (top + panelH > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - panelH - 6;
-    }
-    if (top < window.scrollY + 8) top = window.scrollY + 8;
+    top = Math.max(8, Math.min(top, window.innerHeight + window.scrollY - panelH - 8));
 
     this.el.style.top = `${top}px`;
     this.el.style.left = `${left}px`;
@@ -81,6 +83,15 @@ export class ImagePropertiesPanel {
 
   static isVisible() {
     return this.el && !this.el.classList.contains("webdeck-hidden");
+  }
+
+  static _getStageScale() {
+    const stage = document.querySelector(".stage__inner");
+    if (!stage) return 1;
+    const transform = getComputedStyle(stage).transform;
+    if (!transform || transform === "none") return 1;
+    const match = transform.match(/matrix\(([^,]+),/);
+    return match ? parseFloat(match[1]) : 1;
   }
 
   // ── Panel UI ──────────────────────────────────────────────────────────
@@ -121,7 +132,7 @@ export class ImagePropertiesPanel {
                             <span class="image-properties-panel__field-label">Height</span>
                             <input type="number" class="image-properties-panel__input" data-field="height" min="20" max="1080" placeholder="H" />
                         </label>
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="false">🔓</button>
+                        <button type="button" class="image-properties-panel__icon-btn" data-action="toggle-lock" title="Lock aspect ratio" aria-pressed="true">🔒</button>
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="small">Small</button>
@@ -327,7 +338,19 @@ export class ImagePropertiesPanel {
 
   static _applyPreset(overrides) {
     const current = this._collectSettings();
-    const settings = { ...current, ...overrides };
+    let settings = { ...current, ...overrides };
+
+    // If aspect ratio is locked and width is being set, calculate height
+    if (this._aspectLocked && settings.width) {
+      // Use explicit height if set, otherwise use image's actual visual height
+      const effectiveHeight =
+        current.height || (this._currentImg ? this._currentImg.offsetHeight : null);
+      if (effectiveHeight) {
+        const ratio = current.width / effectiveHeight;
+        settings.height = Math.round(settings.width / ratio);
+      }
+    }
+
     import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
       ImageInteractionHandler.applySettings(settings);
     });

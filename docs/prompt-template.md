@@ -1,6 +1,6 @@
 # Slide Deck Generation Prompt
 
-**Role:** You are an expert technical educator and curriculum designer creating an interactive slide deck for a computer science / software engineering course
+**Role:** You are an expert technical educator and curriculum designer creating an interactive slide deck for a programming or software engineering course.
 
 **Context:** The slide deck will be created using SlideMD, a markdown-based presentation system. You must follow the exact syntax and structure shown in the examples.
 
@@ -54,6 +54,15 @@ layout: right-heavy
 layout: three-column
 ```
 
+**Content Areas:**
+
+- `@title` - Title slide content
+- `@header` - Top section (full width)
+- `@main` - Primary content area
+- `@media` - Secondary content (typically right column)
+- `@sidebar` - Narrow side column (300px)
+- `@footer` - Optional footer
+
 **Slide Options:**
 
 - `theme: dark` or `theme: light`
@@ -68,11 +77,6 @@ layout: three-column
 - **Diagrams:** Mermaid syntax in ```mermaid blocks
 - **Markdown:** Bold, italic, lists, blockquotes, tables, links
 - **HTML:** Inline styles for custom formatting
-
-**Activity Guidelines:**
-
-- Each activity takes **2-5 minutes**
-- Students take screenshots and paste into hand-in template with written answers
 
 ---
 
@@ -90,7 +94,9 @@ layout: three-column
 
 **For Code Examples:**
 
-- Keep examples under 6 lines
+- Include brief comments explaining key lines
+- Keep examples under 20 lines
+- Show "bad" vs "good" patterns using two equal columns when appropriate
 
 **For Concepts:**
 
@@ -99,6 +105,13 @@ layout: three-column
 - Use `code font` for syntax elements
 - Bullet lists for characteristics
 - Blockquotes for warnings or tips
+
+**For Diagrams:**
+
+- Mermaid flowcharts for process flows
+- Sequence diagrams for function calls or API interactions
+- Class diagrams for data structures
+- Add `classDef` styling for color-coding
 
 ---
 
@@ -121,12 +134,13 @@ background: linear-gradient(135deg, #eae4f0 0%, #f9fcfe 100%)
 ### Instructor Name
 ```
 
-### Activity Slide (simple example)
+### Activity Slide
 
 ````markdown
 <!-- notes: Give students 3-5 minutes -->
 
 layout: "header header" "main sidebar" / 1fr 300px
+background: linear-gradient(135deg, #f1faff 0%, #bbcde6 100%)
 
 @header
 
@@ -152,11 +166,159 @@ print(mystery([1, 2]))
 > <br />
 > <span style="text-align: center">Screenshot your answer for the hand-in template.</span>
 
-```
+````
 
 **Activity Instructions Guidelines:**
 - Always use the blue callout style shown above
 - Keep instructions brief - hand-in template has details
+- Remind students what to submit (screenshot, code, explanation)
+
+### Content Slide with Code
+
+```markdown
+layout: "header header" "main media" / 1fr 1fr
+
+@header
+
+# Function Parameters in C
+
+@main
+
+### Pass-by-Value Behavior
+
+Parameters are passed by value in C.
+
+**Key points:**
+- Copies are made
+- Original not modified
+- Use pointers to modify
+
+@media
+
+```c
+void func(int x) {
+    x = 10;  // Only modifies copy
+}
+````
+
+````
+
+### Comparison Slide
+
+```markdown
+layout: "main media" / 1fr 1fr
+
+@main
+
+## Bad Code Example
+
+```c
+int *p;
+*p = 5;  // Crash!
+````
+
+@media
+
+## Good Code Example
+
+```c
+int *p = NULL;
+if (p != NULL) {
+    *p = 5;  // Safe
+}
+```
+
+````
+
+### Best Practices Slide
+
+```markdown
+layout: "header header" "main media" / 1fr 1fr
+
+@header
+
+## Common Pitfall: Off-by-One Errors
+
+@main
+
+> <span style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.12); color: #dc2626; border-radius: 6px; margin-right: 8px;">**Warning:**</span> Arrays are 0-indexed!
+
+**Key Points:**
+- First element at index `0`
+- Last element at `length - 1`
+- Use `i < length`, not `i <= length`
+
+@media
+
+```python
+# WRONG - IndexError
+for i in range(len(arr)):
+    print(arr[i + 1])
+
+# CORRECT
+for i in range(len(arr)):
+    print(arr[i])
+````
+
+````
+
+### Submission Instructions Slide
+
+```markdown
+layout: "main" / 1fr / center
+background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)
+
+@main
+
+# Submitting Your Work
+
+## Hand-in Instructions
+
+1. **Compile screenshots** from all activities
+2. **Paste screenshots** into the hand-in template
+3. **Add written answers** for conceptual questions
+4. **Submit** the completed template by end of lecture
+
+**Template location:** [Course LMS page / Handout folder]
+**Deadline:** End of class today
+````
+
+---
+
+## Hand-in Template
+
+After generating the slide deck, create a **student hand-in template** for students to submit activity work.
+
+**Format:** Plain markdown that can be copied into a document editor (Word, Google Docs, etc.)
+
+**Template Structure:**
+
+````markdown
+# [Course Name] - Week X Activity Hand-in
+
+**Student Name:** **\*\*\*\***\_\_\_**\*\*\*\***
+**Student ID:** **\*\*\*\***\_\_\_**\*\*\*\***
+**Date:** **\*\*\*\***\_\_\_**\*\*\*\***
+
+---
+
+## Activity 1: [Activity Title]
+
+**Your Screenshot:**
+[Paste screenshot here]
+
+**Your Answer/Explanation:**
+[Type your answer here]
+
+---
+
+## Activity 2: [Activity Title]
+
+**Your Screenshot:**
+[Paste screenshot here]
+
+**Your Answer/Explanation:**
+[Type your answer here]
 
 ---
 
@@ -164,13 +326,13 @@ print(mystery([1, 2]))
 
 **Generate a complete slide deck markdown file for:**
 
-**Topic:** [INSERT YOUR TOPIC HERE - e.g., "Async/Await in JavaScript", "Hash Tables in Python", "REST API Design"]
+**Topic:** [Your topic here]
 
-**Target Audience:** [INSERT - e.g., "Undergraduate CS students, Week 3 of Web Development course"]
+**Target Audience:** [Your audience here - e.g., "Undergraduate CS students, Week 3 of Web Development course"]
 
-**Prerequisites:** [INSERT - e.g., "Basic JavaScript, familiarity with callbacks"]
+**Prerequisites:** [What students should know before this lecture]
 
-**Learning Objectives:** [INSERT 3-5 specific learning objectives]
+**Learning Objectives:** [3-5 specific learning objectives]
 
 ---
 
@@ -178,13 +340,20 @@ print(mystery([1, 2]))
 
 1. Follow exact SlideMD syntax (no markdown rendering errors)
 2. Use speaker notes (`<!-- notes: -->`) on at least 10 slides
-3. **Activity slides should use:** `layout: "header header" "main sidebar" / 1fr 300px` with colored background
-4. **Activity instructions must use consistent blue callout style** (see examples)
-5. Use varied layouts for content slides (not all the same)
-6. Include code examples in appropriate language
-7. End with summary slide reviewing all learning objectives
+3. Include **4-6 short activities** spread throughout (every 4-5 slides), not grouped together
+4. **Activity slides should use:** `layout: "header header" "main sidebar" / 1fr 300px` with colored background
+5. **Activity instructions must use consistent blue callout style** (see examples)
+6. Use varied layouts for content slides (not all the same)
+7. Include code examples in appropriate language
+8. Include submission instructions slide before end
+9. End with summary slide reviewing all learning objectives
+10. **Create a student hand-in template** as a separate markdown document after the slide deck
 
 **Output format:**
+
 1. First, provide the complete slide deck markdown (starting with the first slide's layout declaration)
-2. Do NOT include any explanatory text outside of these two sections
-```
+2. After the slide deck, provide a clear separator: `--- HAND-IN TEMPLATE ---`
+3. Then provide the hand-in template markdown with sections for each activity
+4. Do NOT include any explanatory text outside of these two sections
+5. Do NOT wrap the output in fenced code blocks (no ```markdown around the final deck/template)
+````
