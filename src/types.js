@@ -101,3 +101,7 @@
  * @property {HTMLElement} reloadDeckBtn
  * @property {HTMLElement} themeToggleBtn
  */
+
+// Export empty object so `import('../types.js').*` resolves in TypeScript/IDE tooling.
+// JSDoc @typedef declarations are type-only and don't create runtime exports.
+export {};

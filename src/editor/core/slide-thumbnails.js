@@ -130,6 +130,19 @@ export class SlideThumbnails {
       this._contextMenu.open(e.clientX, e.clientY, index);
     });
 
+    // Keyboard activation: Enter/Space → navigate, ContextMenu/Shift+F10 → open context menu
+    thumbnail.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        this._controller.slideNavigator.goTo(index);
+      } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+        e.preventDefault();
+        this._controller.slideNavigator.goTo(index);
+        const rect = thumbnail.getBoundingClientRect();
+        this._contextMenu.open(rect.right, rect.bottom, index);
+      }
+    });
+
     // Long-press on touch devices opens the same context menu.  The
     // `contextmenu` event only fires for mouse/pen, so without this
     // tablet users would lose access to new/duplicate/delete.

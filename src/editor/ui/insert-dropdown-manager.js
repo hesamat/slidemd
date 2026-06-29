@@ -28,10 +28,10 @@ export class InsertDropdownManager {
   /**
    * Initialize the editor's header dropdowns.
    *
-   * The slide-lifecycle menu (New / Duplicate / Delete) is also
-   * reachable from the right-click context menu on slide thumbnails
-   * and from the keyboard shortcuts (Alt+N / Alt+D / Alt+⌫) — this
-   * dropdown is the in-panel UI surface for the same actions.
+   * Currently manages only the "Format" dropdown (Layout, Columns,
+   * Appearance, Insert).  Slide-lifecycle actions (New / Duplicate /
+   * Delete) live in the right-click context menu on slide thumbnails
+   * and keyboard shortcuts (Alt+N / Alt+D / Alt+⌫).
    */
   init() {
     this._dropdowns = [
