@@ -123,6 +123,15 @@ Goal: Comprehensive testing and type safety improvements.
 | [x] Add JSDoc type annotations to core modules    | Better IDE support without full TS migration |
 | [x] Add type definitions for deck data structures | `Slide`, `Deck`, `Layout`, `Profile` types   |
 
+### UI Polish
+
+| Task                                                      | Details                                                          |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| [x] Move slide up/down from inline arrows to context menu | Right-click thumbnail to access; Alt+Shift+Arrow shortcuts added |
+| [x] Remove slide actions dropdown from thumbnails header  | Actions available via context menu and keyboard shortcuts        |
+| [x] Add hover hint on slide thumbnails                    | "Right-click for options" native tooltip                         |
+| [x] Re-hide focus layout from layout picker               | Duplicate of header-content                                      |
+
 ---
 
 ## Phase 7: AI Presentation Conversion
@@ -224,14 +233,14 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | Phase 3: Distribution               | ✅ Complete |
 | Phase 4: New Presentation           | ✅ Complete |
 | Phase 5: Quick Fixes                | ✅ Complete |
-| Phase 6: Testing & Polish           | Not started |
+| Phase 6: Testing & Polish           | ✅ Complete |
 | Phase 7: AI Presentation Conversion | Not started |
 | Phase 8: Cloud Mode                 | Not started |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 → Phase 7 → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 → Phase 8
 ```
 
 Phase 6 covers testing and type safety. Phase 7 is AI-powered presentation conversion (PPTX → SlideMD). Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
