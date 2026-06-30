@@ -636,6 +636,11 @@ export class DeckController extends EventEmitter {
         const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
         await DirectoryHandleStore.save(dirHandle);
 
+        // Configure the image resolver with this directory so images render
+        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+        DeckImagesResolver.setDeckDir(dirHandle, "parent");
+        DeckImagesResolver.prime();
+
         // Store markdown info in localStorage so edit mode can find it
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
