@@ -280,17 +280,9 @@ export class PptxExtractor {
         case "LIST_CLOSE":
           depth = Math.max(0, depth - 1);
           break;
-        case "LI": {
-          // Strip leading dash/bullet from content to avoid double-dash
-          // when the PPTX content already includes list markers
-          const afterLi = s.slice(last);
-          const dashMatch = afterLi.match(/^\s*[-*•]\s*/);
-          if (dashMatch) {
-            last += dashMatch[0].length;
-          }
+        case "LI":
           result += "  ".repeat(Math.max(0, depth - 1)) + "- ";
           break;
-        }
       }
     }
     // Any text after the last marker

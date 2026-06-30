@@ -634,22 +634,22 @@ export class DeckController extends EventEmitter {
         await mdWritable.write(markdown);
         await mdWritable.close();
 
-        // Save images to images/<deckName>/ subdirectory to avoid collisions
+        // Save images to images/ subdirectory with deck-prefixed filenames
         if (images?.length) {
           const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
-          const imagesRoot = await dirHandle.getDirectoryHandle("images", { create: true });
-          const deckImagesDir = await imagesRoot.getDirectoryHandle(deckName, { create: true });
+          const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
           let savedCount = 0;
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
             try {
-              const filename = img.ref.split("/").pop();
-              if (!filename) continue;
+              const rawName = img.ref.split("/").pop();
+              if (!rawName) continue;
+              const filename = `${deckName}_${rawName}`;
               const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
               const binary = atob(raw);
               const bytes = new Uint8Array(binary.length);
               for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              const fileHandle = await deckImagesDir.getFileHandle(filename, { create: true });
+              const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
               const writable = await fileHandle.createWritable();
               await writable.write(bytes);
               await writable.close();
@@ -659,7 +659,7 @@ export class DeckController extends EventEmitter {
             }
           }
           if (savedCount > 0) {
-            Notification.info(`Saved ${savedCount} images to images/${deckName}/`);
+            Notification.info(`Saved ${savedCount} images to images/ folder`);
           }
         }
 

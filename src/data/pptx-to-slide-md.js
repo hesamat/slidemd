@@ -271,9 +271,9 @@ function formatImage(img, deckName = "presentation") {
   const w = Math.round(img.width / 4763) || null;
   const h = Math.round(img.height / 4763) || null;
   if (w && h) {
-    return `<img src="images/${safeName}/${filename}" width="${w}" height="${h}" alt="${filename}">`;
+    return `<img src="images/${safeName}_${filename}" width="${w}" height="${h}" alt="${filename}">`;
   }
-  return `<img src="images/${safeName}/${filename}" alt="${filename}">`;
+  return `<img src="images/${safeName}_${filename}" alt="${filename}">`;
 }
 
 /**
