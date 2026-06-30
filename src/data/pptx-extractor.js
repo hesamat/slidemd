@@ -259,31 +259,37 @@ export class PptxExtractor {
     s = s.replace(/&#39;/g, "'");
     s = s.replace(/&nbsp;/g, " ");
 
-    // Process list markers: convert to indented markdown lists
+    // Process list markers: convert to indented markdown lists.
+    // Walk the string token by token so %%LI%% gets the correct
+    // depth for any %%LIST_OPEN%% / %%LIST_CLOSE%% that precedes it.
     let depth = 0;
-    const lines = s.split("\n");
-    const out = [];
-    for (const line of lines) {
-      let processed = line;
-      // Handle LIST_OPEN markers (can appear multiple times on one line)
-      while (processed.includes("%%LIST_OPEN%%")) {
-        depth++;
-        processed = processed.replace("%%LIST_OPEN%%", "");
-      }
-      // Handle LIST_CLOSE markers
-      while (processed.includes("%%LIST_CLOSE%%")) {
-        depth = Math.max(0, depth - 1);
-        processed = processed.replace("%%LIST_CLOSE%%", "");
-      }
-      // Handle LI markers
-      processed = processed.replace(/%%LI%%/g, () => {
-        return "  ".repeat(Math.max(0, depth - 1)) + "- ";
-      });
-      processed = processed.trim();
-      if (processed) out.push(processed);
-    }
+    let result = "";
+    let reg = /%%(LIST_OPEN|LIST_CLOSE|LI)%%/g;
+    let last = 0;
+    let m;
+    while ((m = reg.exec(s)) !== null) {
+      // Text before this marker
+      const text = s.slice(last, m.index);
+      if (text.trim()) result += text;
+      last = m.index + m[0].length;
 
-    s = out.join("\n");
+      switch (m[1]) {
+        case "LIST_OPEN":
+          depth++;
+          break;
+        case "LIST_CLOSE":
+          depth = Math.max(0, depth - 1);
+          break;
+        case "LI":
+          result += "  ".repeat(Math.max(0, depth - 1)) + "- ";
+          break;
+      }
+    }
+    // Any text after the last marker
+    const remaining = s.slice(last).trim();
+    if (remaining) result += "\n" + remaining;
+
+    s = result;
     s = s.replace(/\n{3,}/g, "\n\n");
     return s.trim();
   }

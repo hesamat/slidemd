@@ -81,11 +81,7 @@ export class EditController {
    * global (used for large converted decks that exceed quota).
    */
   _getSourceMarkdown() {
-    return (
-      localStorage.getItem("webdeck_local_file") ||
-      window.__WEBDECK_MARKDOWN__ ||
-      ""
-    );
+    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
   }
   _cacheOriginalMarkdown() {
     const localFile = this._getSourceMarkdown();

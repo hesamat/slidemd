@@ -235,7 +235,13 @@ function formatTextElement(raw, isFirstElement) {
  */
 function formatImage(img) {
   const filename = (img.ref || "image.png").split("/").pop();
-  return `![${filename}](images/${filename})`;
+  // Convert EMU to approximate pixels (slide is 1920x1080, EMU is ~9144000x5143500)
+  const w = Math.round(img.width / 4763) || null;
+  const h = Math.round(img.height / 4763) || null;
+  if (w && h) {
+    return `<img src="images/${filename}" width="${w}" height="${h}" alt="${filename}">`;
+  }
+  return `<img src="images/${filename}" alt="${filename}">`;
 }
 
 /**

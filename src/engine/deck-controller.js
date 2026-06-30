@@ -595,7 +595,9 @@ export class DeckController extends EventEmitter {
     try {
       dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
     } catch {
-      Notification.warning("Save cancelled. Deck will be loaded in memory but images won't be saved.");
+      Notification.warning(
+        "Save cancelled. Deck will be loaded in memory but images won't be saved.",
+      );
     }
 
     if (dirHandle) {
