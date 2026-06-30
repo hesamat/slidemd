@@ -99,12 +99,8 @@ export class PptxExtractor {
       if (extracted) elements.push(extracted);
     }
 
-    // Sort by visual position (top to bottom, left to right)
-    elements.sort((a, b) => {
-      const topDiff = a.top - b.top;
-      if (Math.abs(topDiff) > 50000) return topDiff;
-      return a.left - b.left;
-    });
+    // Sort by PPTX element order (preserves slide author's arrangement)
+    elements.sort((a, b) => a.order - b.order);
 
     const title = this.#guessTitle(elements);
     const background = this.#extractBackground(slide.fill);
@@ -225,22 +221,27 @@ export class PptxExtractor {
   static #htmlToMarkdown(html) {
     if (!html) return "";
     let s = html;
-    // Block elements first
-    s = s.replace(/<br\s*\/?>/gi, "\n");
-    s = s.replace(/<\/p>/gi, "\n");
-    s = s.replace(/<\/li>/gi, "\n");
-    s = s.replace(/<li[^>]*>/gi, "- ");
-    s = s.replace(/<\/ul>/gi, "\n");
-    s = s.replace(/<ul[^>]*>/gi, "");
-    s = s.replace(/<\/ol>/gi, "\n");
-    s = s.replace(/<ol[^>]*>/gi, "");
-    // Inline formatting
+
+    // Inline formatting (before stripping tags)
     s = s.replace(/<\/?strong>/gi, "**");
     s = s.replace(/<\/?b>/gi, "**");
     s = s.replace(/<\/?em>/gi, "*");
     s = s.replace(/<\/?i>/gi, "*");
+
+    // Block elements
+    s = s.replace(/<br\s*\/?>/gi, "\n");
+    s = s.replace(/<\/p>/gi, "\n");
+
+    // Track list nesting: replace list tags with markers
+    s = s.replace(/<ol[^>]*>/gi, "%%LIST_OPEN%%");
+    s = s.replace(/<\/ol>/gi, "%%LIST_CLOSE%%");
+    s = s.replace(/<ul[^>]*>/gi, "%%LIST_OPEN%%");
+    s = s.replace(/<\/ul>/gi, "%%LIST_CLOSE%%");
+    s = s.replace(/<li[^>]*>/gi, "%%LI%%");
+
     // Strip remaining tags
     s = s.replace(/<[^>]+>/g, "");
+
     // Decode entities
     s = s.replace(/&amp;/g, "&");
     s = s.replace(/&lt;/g, "<");
@@ -248,7 +249,32 @@ export class PptxExtractor {
     s = s.replace(/&quot;/g, '"');
     s = s.replace(/&#39;/g, "'");
     s = s.replace(/&nbsp;/g, " ");
-    // Clean up whitespace
+
+    // Process list markers: convert to indented markdown lists
+    let depth = 0;
+    const lines = s.split("\n");
+    const out = [];
+    for (const line of lines) {
+      let processed = line;
+      // Handle LIST_OPEN markers (can appear multiple times on one line)
+      while (processed.includes("%%LIST_OPEN%%")) {
+        depth++;
+        processed = processed.replace("%%LIST_OPEN%%", "");
+      }
+      // Handle LIST_CLOSE markers
+      while (processed.includes("%%LIST_CLOSE%%")) {
+        depth = Math.max(0, depth - 1);
+        processed = processed.replace("%%LIST_CLOSE%%", "");
+      }
+      // Handle LI markers
+      processed = processed.replace(/%%LI%%/g, () => {
+        return "  ".repeat(Math.max(0, depth - 1)) + "- ";
+      });
+      processed = processed.trim();
+      if (processed) out.push(processed);
+    }
+
+    s = out.join("\n");
     s = s.replace(/\n{3,}/g, "\n\n");
     return s.trim();
   }

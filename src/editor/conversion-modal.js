@@ -208,13 +208,14 @@ export class ConversionModal {
         // Use setTimeout to let the spinner render before blocking
         setTimeout(() => {
           const markdown = convertToSlideMd(extractionResult);
-          setStatus("Conversion complete!", "success");
           resolve({
             markdown,
             imageRefs: extractionResult.images.map((img) => img.ref),
             images: extractionResult.images,
           });
-          backdrop.remove();
+          setStatus("Done! You can close this dialog.", "success");
+          cancelBtn.textContent = "Close";
+          cancelBtn.disabled = false;
         }, 50);
       });
 
