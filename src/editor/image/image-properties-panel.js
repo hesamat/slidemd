@@ -65,9 +65,14 @@ export class ImagePropertiesPanel {
     const panelW = this.el.offsetWidth || 300;
     const scale = this._getStageScale();
 
-    // Position panel on top-left corner of the image, partially overlapping it
-    let left = rect.left + window.scrollX + 4 * scale;
-    let top = rect.top + window.scrollY + 4 * scale;
+    // Position panel to the left of the image
+    let left = rect.left + window.scrollX - panelW - 8 * scale;
+    let top = rect.top + window.scrollY + (rect.height - panelH) / 2;
+
+    // If not enough space on the left, fall back to the right
+    if (left < 8) {
+      left = rect.right + window.scrollX + 8 * scale;
+    }
 
     // Clamp to viewport so the panel stays fully visible
     left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
