@@ -248,12 +248,10 @@ export class PptxExtractor {
 
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
-    // producing "**word1**** ****word2**" instead of "**word1 word2**".
-    // Pattern: closing ** then optional whitespace then opening **
-    s = s.replace(/\*\*\s*\*\*/g, "**");
-    // Same for italic: closing * then optional whitespace then opening *
-    // But avoid matching ** (bold) — only match single *
-    s = s.replace(/(?<!\*)\*(?!\*)\s*(?<!\*)\*(?!\*)/g, "*");
+    // producing "**word1** **word2**" instead of "**word1 word2**".
+    // Handle both "****" (no space) and "** **" (with space) patterns.
+    s = s.replace(/\*\*(\s*)\*\*/g, "$1");
+    s = s.replace(/(?<!\*)\*(\s+)\*(?!\*)/g, "$1");
 
     // Block elements
     s = s.replace(/<br\s*\/?>/gi, "\n");
