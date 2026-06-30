@@ -17,6 +17,8 @@
  */
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
+import { DeckImagesResolver } from "./deck-images-resolver.js";
+import { Notification } from "../../renderer/notification.js";
 
 export class ImageInteractionHandler {
   static _initialized = false;
@@ -588,7 +590,13 @@ export class ImageInteractionHandler {
     const img = this._selectedImg;
     const entry = entries[idx];
     const alt = img.getAttribute("alt") ?? this._extractAlt(entry);
-    const src = img.getAttribute("src") ?? entry.src;
+
+    // The preview rewrites `src="images/..."` to a `blob:` URL so the
+    // browser can render it in dev mode (see DeckImagesResolver).  The
+    // original relative path is preserved on `data-original-src`; fall
+    // back to the entry parsed from markdown to avoid persisting the
+    // throwaway blob URL into the saved markdown.
+    const src = img.dataset.originalSrc || entry.src || img.getAttribute("src") || "";
 
     const style = this._buildStyleString(img);
     const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
@@ -630,16 +638,48 @@ export class ImageInteractionHandler {
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
-    if (entry.type !== "md") return;
+
+    // Compute an initial width/height that preserves the image's
+    // natural aspect ratio while fitting inside the containing slide
+    // area.  Previously this used `img.offsetWidth`, which — for a
+    // markdown image rendered via the `.slide__area p > img:only-child`
+    // rule (`width: 100%`) — returned the full area width (often
+    // ~1600px).  Combined with the `.image-selected` rule's
+    // `height: auto`, that produced an enormous box the moment the
+    // user clicked the image.  Using the natural dimensions (capped by
+    // the area) keeps the visual size stable across the md→html swap.
+    const area = img.closest(".slide__area");
+    let areaW = 1920;
+    let areaH = 1080;
+    if (area) {
+      const scale = this._getStageScale();
+      const areaRect = area.getBoundingClientRect();
+      areaW = Math.max(1, areaRect.width / scale);
+      areaH = Math.max(1, areaRect.height / scale);
+    }
+    const natW = img.naturalWidth || img.offsetWidth || 320;
+    const natH = img.naturalHeight || img.offsetHeight || 240;
+    let w = natW;
+    let h = natH;
+    if (w > areaW) {
+      w = areaW;
+      h = Math.round((w * natH) / natW);
+    }
+    if (h > areaH) {
+      h = areaH;
+      w = Math.round((h * natW) / natH);
+    }
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
 
     const alt = this._extractAlt(entry);
     const src = entry.src;
-    const w = img.offsetWidth || 320;
     const style = [
       "position: relative",
       "left: 0px",
       "top: 0px",
       `width: ${w}px`,
+      `height: ${h}px`,
       "border: none",
       "object-fit: contain",
       "cursor: move",
@@ -654,6 +694,7 @@ export class ImageInteractionHandler {
     img.style.left = "0px";
     img.style.top = "0px";
     img.style.width = `${w}px`;
+    img.style.height = `${h}px`;
     img.style.border = "none";
     img.style.objectFit = "contain";
     img.style.cursor = "move";
@@ -853,6 +894,156 @@ export class ImageInteractionHandler {
     }
 
     this.applySettings(settings);
+  }
+
+  /**
+   * Trim the transparent border around the selected image's visible
+   * content and overwrite the source file in the deck folder.
+   *
+   * This is primarily useful for EMF → PNG exports (e.g. from
+   * PowerPoint) which ship with large transparent margins so the image
+   * element's bounding box is much bigger than the picture the user
+   * actually sees.  We rasterise the image to an off-DOM canvas, scan
+   * for the axis-aligned bounding box of any non-transparent pixel,
+   * crop to that box, re-encode as PNG, and write the bytes back to the
+   * same `images/...` path via the File System Access API.
+   *
+   * The action is gated on the image actually *having* a transparent
+   * border: opaque photos and screenshots have no detectable padding and
+   * produce a user-facing message rather than a destructive rewrite.
+   * After a successful trim the displayed width/height are left
+   * unchanged — the trimmed natural image simply fills more of the box.
+   *
+   * @returns {Promise<void>}
+   */
+  static async trimTransparency() {
+    const img = this._selectedImg;
+    if (!img) return;
+    const liveSrc = img.getAttribute("src") || "";
+    const relPath = img.dataset.originalSrc || liveSrc;
+    if (!relPath || !/^images\//.test(relPath)) {
+      Notification.warning("Trim only works on images stored in images/");
+      return;
+    }
+    if (!liveSrc) {
+      Notification.warning("Could not read the image source");
+      return;
+    }
+
+    // Load the current image bytes into a canvas.  Fetch-blob works for
+    // both `blob:` (dev preview) and `http(s):` (build/export) URLs.
+    let bitmap;
+    try {
+      const response = await fetch(liveSrc);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      bitmap = await createImageBitmap(blob);
+    } catch (err) {
+      Notification.error("Could not load the image for trimming");
+      console.warn("trimTransparency load failed:", err);
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+
+    const { data, width: cw, height: ch } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Find the tightest rectangle containing the image's visible
+    // content.  EMF → PNG exports (e.g. from PowerPoint) frequently
+    // ship with faint near-transparent artifact pixels (alpha 1-8) at
+    // the canvas edges — a strict `alpha > 0` test treats those as
+    // content and refuses to crop the surrounding transparent band,
+    // leaving a large empty margin at the bottom.  We instead require
+    // `alpha >= ALPHA_THRESHOLD` for a pixel to count as visible;
+    // truly-antialiased content edges sit well above this threshold,
+    // while border artifacts fall below it and get trimmed.
+    const ALPHA_THRESHOLD = 10; // out of 255 — ~4% opacity
+    let minX = cw;
+    let minY = ch;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        if (data[(y * cw + x) * 4 + 3] >= ALPHA_THRESHOLD) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    if (maxX < 0) {
+      Notification.warning("Image has no visible content to trim");
+      return;
+    }
+
+    // Gate on an actual transparent border: this is what naturally
+    // scopes the operation to EMF-style images (which carry big
+    // transparent margins) while leaving opaque screenshots alone.
+    const PAD_THRESHOLD_PCT = 1; // ≥1% transparent band on any side
+    const minPadX = Math.ceil(cw * (PAD_THRESHOLD_PCT / 100));
+    const minPadY = Math.ceil(ch * (PAD_THRESHOLD_PCT / 100));
+    const hasBorder =
+      minX >= minPadX || minY >= minPadY || cw - 1 - maxX >= minPadX || ch - 1 - maxY >= minPadY;
+    if (!hasBorder) {
+      Notification.info("No transparent border to trim");
+      return;
+    }
+
+    const trimmedW = maxX - minX + 1;
+    const trimmedH = maxY - minY + 1;
+    const croppedCanvas = document.createElement("canvas");
+    croppedCanvas.width = trimmedW;
+    croppedCanvas.height = trimmedH;
+    croppedCanvas
+      .getContext("2d")
+      .drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
+
+    const pngBlob = await new Promise((resolve) => croppedCanvas.toBlob(resolve, "image/png"));
+    if (!pngBlob) {
+      Notification.error("Failed to encode the trimmed image");
+      return;
+    }
+
+    const written = await DeckImagesResolver.replaceImageFile(relPath, pngBlob);
+    if (!written) {
+      Notification.warning(
+        "Could not save the trimmed image to disk (permission denied or deck folder unavailable)",
+      );
+      return;
+    }
+
+    // Refresh the cached blob URL and point the <img> at it so the
+    // preview re-renders with the new bytes immediately.
+    const newUrl = await DeckImagesResolver.resolvePreviewSrc(relPath, { force: true });
+    if (newUrl && newUrl !== relPath) {
+      img.src = newUrl;
+      // `img.dataset.originalSrc` is preserved by rewriteImgSrcs; keep
+      // it on the live element after swap.
+      img.dataset.originalSrc = relPath;
+    }
+
+    // The natural dimensions changed; drop any fixed `height` style
+    // so the image re-derives height from the new natural size while
+    // keeping the user's chosen `width`.  This keeps the visible box
+    // roughly the same width but lets the cropped content fill it.
+    if (img.style.height) {
+      img.style.height = "";
+      img.style.objectFit = "contain";
+    }
+
+    this._updateOverlay();
+    ImagePropertiesPanel._syncUI(this._readSettings(img));
+    this._syncToMarkdown();
+    Notification.success(
+      `Trimmed transparent border → ${trimmedW}×${trimmedH}px (was ${cw}×${ch}px)`,
+    );
   }
 
   static _getImageIndex(img) {
