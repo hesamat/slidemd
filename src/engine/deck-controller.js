@@ -589,24 +589,26 @@ export class DeckController extends EventEmitter {
 
     const { markdown, images } = result;
 
-    // Save images to the deck's images folder
-    if (images?.length) {
+    // Prompt the user to pick a save directory
+    let dirHandle = null;
+    try {
+      dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    } catch {
+      Notification.warning("Save cancelled. Deck will be loaded in memory but images won't be saved.");
+    }
+
+    if (dirHandle) {
       try {
-        const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-        let { handle } = await DirectoryHandleStore.load();
-        // If handle is missing or stale, prompt user to pick a directory
-        if (!handle) {
-          try {
-            handle = await window.showDirectoryPicker({ mode: "readwrite" });
-            await DirectoryHandleStore.save(handle);
-          } catch {
-            // User cancelled — skip image saving
-            handle = null;
-          }
-        }
-        if (handle) {
+        // Save the markdown file
+        const mdFile = await dirHandle.getFileHandle("presentation.md", { create: true });
+        const mdWritable = await mdFile.createWritable();
+        await mdWritable.write(markdown);
+        await mdWritable.close();
+
+        // Save images to images/ subdirectory
+        if (images?.length) {
+          const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
           let savedCount = 0;
-          const imagesDir = await handle.getDirectoryHandle("images", { create: true });
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
             try {
@@ -629,20 +631,24 @@ export class DeckController extends EventEmitter {
             Notification.info(`Saved ${savedCount} images to images/ folder`);
           }
         }
-      } catch (err) {
-        console.warn("Could not save images:", err);
-      }
-    }
 
-    // Store markdown in localStorage (may fail for large decks with embedded images)
-    try {
-      localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", "Converted Presentation");
-      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-    } catch (e) {
-      console.warn("Could not store converted deck in localStorage (too large). Using in-memory fallback.", e);
-      // Store in a global so edit controller can still find it
+        // Save the directory handle for future use
+        const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+        await DirectoryHandleStore.save(dirHandle);
+
+        // Store markdown info in localStorage so edit mode can find it
+        localStorage.setItem("webdeck_local_file", markdown);
+        localStorage.setItem("webdeck_local_file_type", "md");
+        localStorage.setItem("webdeck_local_file_name", "presentation.md");
+        localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+      } catch (e) {
+        console.warn("Failed to save deck to filesystem:", e);
+        Notification.warning("Failed to save deck. Try again.");
+        ConversionModal.close();
+        return;
+      }
+    } else {
+      // No directory — store in memory only
       window.__WEBDECK_MARKDOWN__ = markdown;
     }
 
