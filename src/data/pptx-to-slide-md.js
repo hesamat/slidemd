@@ -56,25 +56,25 @@ function convertSlide(slide, slideWidth, slideHeight) {
   }
 
   // Build areas based on layout type
+  const joinText = (els) => els.map((el) => el.content.trim()).join("\n\n");
+
   if (layout.type === "title-slide") {
     parts.push("");
     parts.push("@title");
     parts.push("");
-    parts.push(formatTitleContent(textElements));
+    parts.push(joinText(textElements));
   } else if (layout.type === "header-content") {
     const { header, main } = splitHeaderMain(textElements, slideHeight);
     parts.push("");
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(formatHeading(header.content.trim()));
+      parts.push(header.content.trim());
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
-    if (main.length > 0) {
-      parts.push(formatBodyContent(main));
-    }
+    parts.push(joinText(main));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else if (layout.type === "two-column") {
@@ -82,15 +82,11 @@ function convertSlide(slide, slideWidth, slideHeight) {
     parts.push("");
     parts.push("@main");
     parts.push("");
-    if (left.length > 0) {
-      parts.push(formatBodyContent(left));
-    }
+    parts.push(joinText(left));
     parts.push("");
     parts.push("@media");
     parts.push("");
-    if (right.length > 0) {
-      parts.push(formatBodyContent(right));
-    }
+    parts.push(joinText(right));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else if (layout.type === "header-two-column") {
@@ -99,28 +95,23 @@ function convertSlide(slide, slideWidth, slideHeight) {
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(formatHeading(header.content.trim()));
+      parts.push(header.content.trim());
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
-    if (left.length > 0) {
-      parts.push(formatBodyContent(left));
-    }
+    parts.push(joinText(left));
     parts.push("");
     parts.push("@media");
     parts.push("");
-    if (right.length > 0) {
-      parts.push(formatBodyContent(right));
-    }
+    parts.push(joinText(right));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else {
-    // Generic: dump everything into @main
     parts.push("");
     parts.push("@main");
     parts.push("");
-    parts.push(formatBodyContent(textElements));
+    parts.push(joinText(textElements));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   }
@@ -233,107 +224,6 @@ function splitHeaderAndColumns(elements, slideWidth, slideHeight) {
 }
 
 /**
- * Format a title slide's content.
- * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
- * @returns {string}
- */
-function formatTitleContent(elements) {
-  if (elements.length === 0) return "# Presentation Title";
-  const text = elements[0].content.trim();
-  const lines = text.split("\n").filter((l) => l.trim());
-  if (lines.length === 0) return "# Presentation Title";
-
-  // First line becomes h1, rest become h2
-  const result = [`# ${lines[0]}`];
-  for (let i = 1; i < lines.length; i++) {
-    result.push(`\n## ${lines[i]}`);
-  }
-  return result.join("\n");
-}
-
-/**
- * Format text as a heading (## prefix). Converts first line to heading.
- * @param {string} text
- * @returns {string}
- */
-function formatHeading(text) {
-  if (!text) return "";
-  const lines = text.split("\n").filter((l) => l.trim());
-  if (lines.length === 0) return "";
-  // First line becomes heading, rest stay as-is
-  const result = [`## ${lines[0]}`];
-  for (let i = 1; i < lines.length; i++) {
-    result.push(lines[i]);
-  }
-  return result.join("\n");
-}
-
-/**
- * Format body content elements. The first element's first line gets a
- * heading (##), subsequent lines become bullet lists if they look like
- * list items.
- * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
- * @returns {string}
- */
-function formatBodyContent(elements) {
-  if (elements.length === 0) return "";
-
-  const parts = [];
-  for (let i = 0; i < elements.length; i++) {
-    const text = elements[i].content.trim();
-    if (!text) continue;
-
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (lines.length === 0) continue;
-
-    // First element: first line becomes ## heading
-    if (i === 0) {
-      parts.push(`## ${lines[0]}`);
-      for (let j = 1; j < lines.length; j++) {
-        const line = lines[j].trim();
-        if (isListItem(line)) {
-          parts.push(`- ${cleanListItem(line)}`);
-        } else {
-          parts.push(line);
-        }
-      }
-    } else {
-      // Subsequent elements: check if they look like list items
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (isListItem(trimmed)) {
-          parts.push(`- ${cleanListItem(trimmed)}`);
-        } else {
-          parts.push(trimmed);
-        }
-      }
-    }
-    parts.push("");
-  }
-
-  return parts.join("\n").trim();
-}
-
-/**
- * Check if a line looks like a list item.
- * @param {string} line
- * @returns {boolean}
- */
-function isListItem(line) {
-  return /^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/.test(line) || /^\d+[.)]\s*/.test(line);
-}
-
-/**
- * Clean a list item by removing the bullet/number prefix.
- * @param {string} line
- * @returns {string}
- */
-function cleanListItem(line) {
-  return line.replace(/^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/, "").replace(/^\d+[.)]\s*/, "");
-}
-
-/**
  * Format non-text elements (images, tables, charts) as markdown.
  * @param {import('./pptx-extractor.js').ExtractedElement[]} images
  * @param {import('./pptx-extractor.js').ExtractedElement[]} tables
@@ -345,12 +235,7 @@ function formatMedia(images, tables, others) {
 
   for (const img of images) {
     const ref = img.ref || "image.png";
-    if (img.base64) {
-      const mime = img.mimeType || "image/png";
-      parts.push(`![${ref}](data:${mime};base64,${img.base64})`);
-    } else {
-      parts.push(`![${ref}](images/${ref})`);
-    }
+    parts.push(`![${ref}](images/${ref})`);
     parts.push("");
   }
 

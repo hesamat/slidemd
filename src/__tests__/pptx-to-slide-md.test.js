@@ -33,8 +33,8 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain("layout: title-slide");
-    expect(md).toContain("# Hello World");
-    expect(md).toContain("## Subtitle");
+    expect(md).toContain("Hello World");
+    expect(md).toContain("Subtitle");
   });
 
   it("converts header + content layout", () => {
@@ -200,7 +200,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("![image1.png](data:image/png;base64,abc)");
+    expect(md).toContain("![image1.png](images/image1.png)");
   });
 
   it("handles table elements", () => {
