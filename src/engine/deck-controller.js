@@ -17,7 +17,6 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
-import { ConversionModal } from "../editor/conversion-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
@@ -584,6 +583,7 @@ export class DeckController extends EventEmitter {
   }
 
   async handleConvertPptx() {
+    const { ConversionModal } = await import("../editor/conversion-modal.js");
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
@@ -659,6 +659,12 @@ export class DeckController extends EventEmitter {
     }
 
     Notification.info("PPTX converted successfully");
+
+    // Open edit mode so the user can review and edit the result
+    this.toggleEditMode();
+
+    // Close the conversion modal now that loading is done
+    ConversionModal.close();
   }
 
   destroy() {

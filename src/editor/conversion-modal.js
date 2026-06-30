@@ -50,6 +50,18 @@ const PROVIDERS = [
  */
 
 export class ConversionModal {
+  static _currentBackdrop = null;
+
+  /**
+   * Close the currently open conversion modal (if any).
+   */
+  static close() {
+    if (this._currentBackdrop) {
+      this._currentBackdrop.remove();
+      this._currentBackdrop = null;
+    }
+  }
+
   /**
    * Show the conversion modal. Returns the converted markdown or null if cancelled.
    * @static
@@ -59,6 +71,7 @@ export class ConversionModal {
     return new Promise((resolve) => {
       const backdrop = this.#createDom();
       document.body.appendChild(backdrop);
+      this._currentBackdrop = backdrop;
 
       let selectedFile = null;
       let extractionResult = null;
@@ -195,7 +208,7 @@ export class ConversionModal {
       });
 
       // Convert button (rule-based, no AI)
-      convertBtn.addEventListener("click", () => {
+      convertBtn.addEventListener("click", async () => {
         if (!extractionResult) {
           setStatus("Please extract a PPTX file first", "error");
           return;
@@ -207,19 +220,16 @@ export class ConversionModal {
         statusEl.innerHTML = '<span class="' + P + 'spinner"></span> Converting...';
         statusEl.className = P + "status";
 
-        // Let the browser paint the spinner, then convert
-        setTimeout(() => {
-          const markdown = convertToSlideMd(extractionResult);
-          resolve({
-            markdown,
-            imageRefs: extractionResult.images.map((img) => img.ref),
-            images: extractionResult.images,
-          });
-          statusEl.textContent = "Done! Close this dialog.";
-          statusEl.className = P + "status " + P + "status--success";
-          cancelBtn.textContent = "Close";
-          cancelBtn.disabled = false;
-        }, 50);
+        // Let the browser paint the spinner first
+        await new Promise((r) => setTimeout(r, 50));
+
+        const markdown = convertToSlideMd(extractionResult);
+        resolve({
+          markdown,
+          imageRefs: extractionResult.images.map((img) => img.ref),
+          images: extractionResult.images,
+        });
+        // Don't remove backdrop — deck-controller will close it after loading
       });
 
       // Convert with AI button
