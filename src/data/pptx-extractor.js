@@ -369,31 +369,47 @@ export class PptxExtractor {
    * @returns {Promise<void>}
    */
   static async #convertEmfImages(slides, images) {
-    const { convertEmfToDataUrl, convertWmfToDataUrl } = await import("emf-converter");
+    let emfConverter;
+    try {
+      emfConverter = await import("emf-converter");
+    } catch (err) {
+      console.warn("emf-converter not available, skipping EMF conversion:", err);
+      return;
+    }
+
+    const { convertEmfToDataUrl, convertWmfToDataUrl } = emfConverter;
 
     for (const img of images) {
       if (img.mimeType !== "image/emf" && img.mimeType !== "image/wmf") continue;
       try {
-        const binary = atob(img.base64);
+        // Handle possible data URI prefix in base64
+        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+        const binary = atob(raw);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const buffer = bytes.buffer;
 
         const convert = img.mimeType === "image/emf" ? convertEmfToDataUrl : convertWmfToDataUrl;
-        const dataUrl = await convert(buffer);
-        if (dataUrl) {
-          // Extract base64 from data URL (data:image/png;base64,...)
-          const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-          img.base64 = base64;
-          img.mimeType = "image/png";
+        const dataUrl = await convert(bytes.buffer, 1920, 1080);
 
-          // Update the corresponding element in slides
-          for (const slide of slides) {
-            for (const el of slide.elements) {
-              if (el.type === "image" && el.ref === img.ref) {
-                el.base64 = base64;
-                el.mimeType = "image/png";
-              }
+        if (!dataUrl) {
+          console.warn(
+            `EMF conversion returned null for ${img.ref} (size: ${bytes.length} bytes) — browser may lack Canvas API or file is invalid`,
+          );
+          continue;
+        }
+
+        // Extract base64 from data URL (data:image/png;base64,...)
+        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+        img.base64 = base64;
+        img.mimeType = "image/png";
+
+        // Update the corresponding element in slides (match by ref, not mimeType
+        // since we just changed img.mimeType)
+        for (const slide of slides) {
+          for (const el of slide.elements) {
+            if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
+              el.base64 = base64;
+              el.mimeType = "image/png";
             }
           }
         }
