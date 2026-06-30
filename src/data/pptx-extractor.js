@@ -152,19 +152,25 @@ export class PptxExtractor {
     }
 
     if (el.type === "image") {
+      // Skip EMF/WMF images — browsers cannot render them
+      const mime = this.#inferMimeType(el.ref);
+      if (mime === "image/emf" || mime === "image/wmf") {
+        console.warn(`Skipping unsupported image format: ${el.ref}`);
+        return null;
+      }
+
       if (el.base64) {
-        const mimeType = this.#inferMimeType(el.ref);
         imagesAccum.push({
           ref: el.ref,
           base64: el.base64,
-          mimeType,
+          mimeType: mime,
           slideIndex,
         });
       }
       return {
         type: "image",
         base64: el.base64 || "",
-        mimeType: this.#inferMimeType(el.ref),
+        mimeType: mime,
         ref: el.ref,
         order: el.order,
         left: el.left,
@@ -231,19 +237,32 @@ export class PptxExtractor {
     if (!html) return "";
     let s = html;
 
-    // Convert CSS-based formatting to markdown (pptxtojson uses spans with inline styles)
-    // Bold: font-weight: bold or font-weight: 700
-    s = s.replace(
-      /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">([\s\S]*?)<\/span>/gi,
-      "**$1**",
-    );
-    // Italic: font-style: italic
-    s = s.replace(
-      /<span\s+style="[^"]*font-style:\s*italic[^"]*">([\s\S]*?)<\/span>/gi,
-      "*$1*",
-    );
+    // Convert CSS-based formatting to markdown.
+    // pptxtojson uses <span style="font-weight: bold;"> etc.
+    // Process in order: bold first, then italic, to avoid nesting issues.
+    // Use non-greedy matching and limit nesting depth.
 
-    // Inline formatting (before stripping tags)
+    // Pass 1: Bold — font-weight: bold or 700+
+    // Repeat up to 3 times to handle one level of nesting
+    for (let i = 0; i < 3; i++) {
+      s = s.replace(
+        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<\/span>).)*)<\/span>/gi,
+        "**$1**",
+      );
+    }
+    // Pass 2: Italic — font-style: italic
+    for (let i = 0; i < 3; i++) {
+      s = s.replace(
+        /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<\/span>).)*)<\/span>/gi,
+        "*$1*",
+      );
+    }
+
+    // Remove now-empty or style-only spans left over from formatting conversion
+    s = s.replace(/<span\s*>\s*/g, "");
+    s = s.replace(/<\/span>/g, "");
+
+    // Inline formatting from semantic HTML tags
     s = s.replace(/<\/?strong>/gi, "**");
     s = s.replace(/<\/?b>/gi, "**");
     s = s.replace(/<\/?em>/gi, "*");
