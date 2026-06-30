@@ -587,9 +587,10 @@ export class DeckController extends EventEmitter {
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
-    const { markdown, images } = result;
+    const { markdown, images, fileName } = result;
+    const mdName = (fileName || "presentation.pptx").replace(/\.pptx$/i, ".md");
 
-    // Prompt the user to pick a save directory
+    // Prompt user to pick a save directory
     let dirHandle = null;
     try {
       dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
@@ -599,8 +600,8 @@ export class DeckController extends EventEmitter {
 
     if (dirHandle) {
       try {
-        // Save the markdown file
-        const mdFile = await dirHandle.getFileHandle("presentation.md", { create: true });
+        // Save the markdown file using the PPTX-derived name
+        const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
         const mdWritable = await mdFile.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
@@ -642,10 +643,14 @@ export class DeckController extends EventEmitter {
         DeckImagesResolver.prime();
 
         // Store markdown info in localStorage so edit mode can find it
-        localStorage.setItem("webdeck_local_file", markdown);
-        localStorage.setItem("webdeck_local_file_type", "md");
-        localStorage.setItem("webdeck_local_file_name", "presentation.md");
-        localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        try {
+          localStorage.setItem("webdeck_local_file", markdown);
+          localStorage.setItem("webdeck_local_file_type", "md");
+          localStorage.setItem("webdeck_local_file_name", mdName);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        } catch {
+          window.__WEBDECK_MARKDOWN__ = markdown;
+        }
       } catch (e) {
         console.warn("Failed to save deck to filesystem:", e);
         Notification.warning("Failed to save deck. Try again.");
@@ -653,7 +658,6 @@ export class DeckController extends EventEmitter {
         return;
       }
     } else {
-      // No directory — store in memory only
       window.__WEBDECK_MARKDOWN__ = markdown;
     }
 

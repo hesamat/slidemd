@@ -47,6 +47,7 @@ const PROVIDERS = [
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
  * @property {string[]} imageRefs - Image filenames that need to be saved.
+ * @property {string} fileName - Original PPTX filename (for naming the .md output).
  */
 
 export class ConversionModal {
@@ -228,6 +229,7 @@ export class ConversionModal {
           markdown,
           imageRefs: extractionResult.images.map((img) => img.ref),
           images: extractionResult.images,
+          fileName: selectedFile?.name || "presentation.pptx",
         });
         // Don't remove backdrop — deck-controller will close it after loading
       });
@@ -268,6 +270,7 @@ export class ConversionModal {
             markdown,
             imageRefs: extractionResult.images.map((img) => img.ref),
             images: extractionResult.images,
+            fileName: selectedFile?.name || "presentation.pptx",
           });
           backdrop.remove();
         } catch (err) {
