@@ -200,7 +200,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("![image1.png](images/image1.png)");
+    expect(md).toContain("![image1.png](data:image/png;base64,abc)");
   });
 
   it("handles table elements", () => {

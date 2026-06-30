@@ -235,7 +235,13 @@ function formatMedia(images, tables, others) {
 
   for (const img of images) {
     const filename = (img.ref || "image.png").split("/").pop();
-    parts.push(`![${filename}](images/${filename})`);
+    if (img.base64) {
+      const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+      const mime = img.mimeType || "image/png";
+      parts.push(`![${filename}](data:${mime};base64,${raw})`);
+    } else {
+      parts.push(`![${filename}](images/${filename})`);
+    }
     parts.push("");
   }
 
