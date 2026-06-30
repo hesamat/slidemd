@@ -294,6 +294,25 @@ export class DeckController extends EventEmitter {
 
     // Immediately enhance the first slide (don't wait for idle)
     requestAnimationFrame(() => this.enhanceActiveSlideNow());
+
+    // Configure image resolver from stored directory handle
+    this.#loadDeckImagesResolver();
+  }
+
+  async #loadDeckImagesResolver() {
+    try {
+      const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+      const { handle, mode } = await DirectoryHandleStore.load();
+      if (handle) {
+        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+        DeckImagesResolver.setDeckDir(handle, mode || "parent");
+        await DeckImagesResolver.prime();
+        DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+        DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("Could not load deck images resolver:", err);
+    }
   }
 
   preloadEnhancers() {

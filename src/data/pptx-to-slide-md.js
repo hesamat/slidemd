@@ -48,7 +48,8 @@ function convertSlide(slide, slideWidth, slideHeight) {
       el.type === "diagram",
   );
 
-  const layout = inferLayout(textElements, slideWidth, slideHeight);
+  const hasMedia = allElements.some((el) => el.type !== "text");
+  const layout = inferLayout(textElements, slideWidth, slideHeight, hasMedia);
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
@@ -131,7 +132,7 @@ function convertSlide(slide, slideWidth, slideHeight) {
  * @param {number} slideHeight
  * @returns {{ type: string, spec: string }}
  */
-function inferLayout(textEls, slideWidth, slideHeight) {
+function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
   const contentEls = textEls.filter((el) => el.content?.trim());
 
   // No text content
@@ -139,25 +140,53 @@ function inferLayout(textEls, slideWidth, slideHeight) {
     return { type: "header-content", spec: "header-content" };
   }
 
-  // Single short text element → title slide
-  if (contentEls.length === 1) {
-    const text = contentEls[0].content.trim();
-    const lineCount = text.split("\n").length;
-    if (lineCount <= 4 && text.length < 200) {
+  // Slides with images, tables, or charts are not title slides
+  const bodyThreshold = slideHeight * 0.22;
+  const hasHeader = contentEls.some((el) => el.top < bodyThreshold);
+
+  if (!hasMedia) {
+    // Check if elements are at similar vertical positions but spread
+    // horizontally — that's a multi-column layout, not a title slide.
+    const rows = {};
+    for (const el of contentEls) {
+      const rowKey = Math.round(el.top / (slideHeight * 0.08));
+      if (!rows[rowKey]) rows[rowKey] = [];
+      rows[rowKey].push(el);
+    }
+    const spreadRow = Object.values(rows).find(
+      (group) =>
+        group.length >= 2 &&
+        group.some((a) =>
+          group.some((b) => a !== b && Math.abs(a.left - b.left) > slideWidth * 0.25),
+        ),
+    );
+    if (spreadRow && hasHeader) {
+      return {
+        type: "header-two-column",
+        spec: '"header header" "main media" / 1fr 1fr',
+      };
+    }
+    if (spreadRow) {
+      return { type: "two-column", spec: "two-column" };
+    }
+
+    const hasBodyBelowHeader = contentEls.some((el) => el.top >= bodyThreshold);
+    const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+
+    if (hasHeader && hasBodyBelowHeader) {
+      return { type: "header-content", spec: "header-content" };
+    }
+
+    if (totalLength < 300) {
       return { type: "title-slide", spec: "title-slide" };
     }
-    return { type: "header-content", spec: "header-content" };
   }
 
-  const headerThreshold = slideHeight * 0.22;
-  const midX = slideWidth / 2;
-
-  const hasHeader = contentEls.some((el) => el.top < headerThreshold);
   const leftEls = contentEls.filter(
-    (el) => el.top >= headerThreshold && el.left + el.width / 2 < midX,
+    (el) => el.top >= bodyThreshold && el.left + el.width / 2 < slideWidth / 2,
   );
   const rightEls = contentEls.filter(
-    (el) => el.top >= headerThreshold && el.left + el.width / 2 >= midX,
+    (el) => el.top >= bodyThreshold && el.left + el.width / 2 >= slideWidth / 2,
   );
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
