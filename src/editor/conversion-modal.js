@@ -408,7 +408,28 @@ Rules:
 
         <div class="${P}section">
           <label class="${P}label">API Key</label>
-          <input type="password" data-field="api-key" class="${P}input" placeholder="sk-..." />
+          <!-- A visually-hidden dummy password input placed before the real
+               one suppresses the browser's password-save prompt on the real
+               field (Chrome/Firefox key off the last password input).  The
+               real input carries autocomplete="new-password" + a non-standard
+               name so password managers ignore it; the API key is not a login
+               credential and should never be saved. -->
+          <input
+            type="password"
+            name="slidemd-decoy"
+            tabindex="-1"
+            autocomplete="off"
+            aria-hidden="true"
+            style="position:absolute;width:0;height:0;padding:0;margin:0;border:0;opacity:0;pointer-events:none"
+          />
+          <input
+            type="password"
+            name="slidemd-apikey"
+            data-field="api-key"
+            class="${P}input"
+            placeholder="sk-..."
+            autocomplete="new-password"
+          />
         </div>
 
         <div class="${P}section">

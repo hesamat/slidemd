@@ -72,7 +72,20 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("");
     parts.push("@title");
     parts.push("");
-    parts.push(allElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    // Format the first text element as a heading (## ...) so the title
+    // slide actually renders the title prominently.  Previously every
+    // element was passed isFirst=false, which left the title as plain
+    // text — the @title area needs an h2 to look like a cover slide.
+    let firstTextDone = false;
+    parts.push(
+      allElements
+        .map((el) => {
+          const isFirstText = el.type === "text" && !firstTextDone;
+          if (isFirstText) firstTextDone = true;
+          return formatSingleElement(el, isFirstText);
+        })
+        .join("\n\n"),
+    );
   } else if (layout.type === "header-content") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
     const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
@@ -237,7 +250,15 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
   return { type: "header-content", spec: "header-content" };
 }
 
-const BULLET_RE = /^[\u2022\u2023\u25E6\u2043\u2219•-]\s*/;
+// Match one OR MORE leading bullet/dash markers + optional trailing
+// whitespace.  pptxtojson sometimes includes the PPTX bullet glyph as a
+// literal text run AND wraps the line in <li>; #htmlToMarkdown then
+// prepends "- " for the <li>, yielding a leading "- - text" or
+// "• - text".  A single-char regex only strips one marker and the
+// re-added "- " prefix produces a visible double dash.  The (?:...\s*)+
+// group consumes every consecutive bullet-or-dash + whitespace pair so
+// "- - Understand" collapses to "Understand" before we re-add one "- ".
+const BULLET_RE = /^(?:[\u2022\u2023\u25E6\u2043\u2219•-]\s*)+/;
 const NUMBER_RE = /^\d+[.)]\s*/;
 
 /**

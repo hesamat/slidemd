@@ -316,6 +316,82 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: title-slide");
   });
 
+  it("renders the title-slide's first text element as a heading", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Cover",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Introduction to APIs",
+            left: 1500000,
+            top: 600000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: "Hesam Alizadeh",
+            left: 2000000,
+            top: 2500000,
+            width: 5000000,
+            height: 1200000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Title slide must promote its first text element to a heading so
+    // the cover doesn't read as a wall of unstyled body text.
+    expect(md).toContain("## Introduction to APIs");
+    // The subtitle stays unstyled body text.
+    expect(md).not.toContain("## Hesam Alizadeh");
+  });
+
+  it("collapses leading '- - ' from PPTX bullets into a single dash", () => {
+    // Mirrors a real PPTX where the bullet glyph is a literal text run
+    // (e.g. "- ") that pptxtojson keeps AND #htmlToMarkdown prepends
+    // another "- " for the <li>, producing "- - Understand what an API is".
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Bullets",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 400000,
+          },
+          {
+            type: "text",
+            content:
+              "- - Understand what an API is\n- Learn why APIs are important\n- See how APIs are used in software development",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("- Understand what an API is");
+    expect(md).toContain("- Learn why APIs are important");
+    expect(md).toContain("- See how APIs are used in software development");
+    // No double-dash anywhere in the body.
+    expect(md).not.toMatch(/^- - /m);
+    // Also no line should begin with "- - ".
+    expect(md).not.toContain("- - Understand");
+  });
+
   it("handles empty slides", () => {
     const extraction = makeExtraction([
       { index: 0, title: "", notes: "", elements: [], background: "" },

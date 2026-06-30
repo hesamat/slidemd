@@ -172,6 +172,15 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: true });
         this.unsavedMarkdown.set(this.currentSlideIndex, updated);
         this.updateUnsavedChangesFlag();
+        // Image drag/resize mutates a positioned <img>'s inline style
+        // directly on the live slide element, then writes back to the
+        // markdown with suppressOnChange so the preview doesn't re-render.
+        // Area overflow indicators (the red @label state) are not part of
+        // the markdown and therefore don't get re-evaluated automatically
+        // — re-measure here so resizing an image out of an overflowing area
+        // clears the red badge immediately instead of lingering forever.
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (slideEl) this.areaGuides.updateAreaOverflow(slideEl);
       },
       {
         onDelete: (updated) => {
