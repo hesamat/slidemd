@@ -305,13 +305,6 @@ export class DeckController extends EventEmitter {
       const { handle, mode } = await DirectoryHandleStore.load();
       if (!handle) return;
 
-      // Check if the stored handle still has permission
-      const perm = await handle.queryPermission({ mode: "readwrite" });
-      if (perm !== "granted") {
-        const requested = await handle.requestPermission({ mode: "readwrite" });
-        if (requested !== "granted") return;
-      }
-
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
       DeckImagesResolver.setDeckDir(handle, mode || "parent");
       await DeckImagesResolver.prime();
@@ -704,16 +697,19 @@ export class DeckController extends EventEmitter {
     // Open edit mode so the user can review and edit the result
     this.toggleEditMode();
 
-    // After edit mode renders, rewrite image sources to blob URLs
+    // After edit mode renders, rewrite image sources to blob URLs.
+    // The editor re-renders slides asynchronously, so we retry with
+    // increasing delays to catch whenever the DOM is ready.
     if (this.elements.slidesContainer) {
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      // Call once for the initial render, then a second time after the
-      // editor's async re-render completes
-      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
-      await new Promise((r) => setTimeout(r, 100));
-      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      const rewrite = () => {
+        DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+        DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      };
+      rewrite();
+      setTimeout(rewrite, 200);
+      setTimeout(rewrite, 600);
+      setTimeout(rewrite, 1200);
     }
 
     // Close the conversion modal now that loading is done

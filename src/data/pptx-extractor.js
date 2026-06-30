@@ -231,6 +231,18 @@ export class PptxExtractor {
     if (!html) return "";
     let s = html;
 
+    // Convert CSS-based formatting to markdown (pptxtojson uses spans with inline styles)
+    // Bold: font-weight: bold or font-weight: 700
+    s = s.replace(
+      /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">([\s\S]*?)<\/span>/gi,
+      "**$1**",
+    );
+    // Italic: font-style: italic
+    s = s.replace(
+      /<span\s+style="[^"]*font-style:\s*italic[^"]*">([\s\S]*?)<\/span>/gi,
+      "*$1*",
+    );
+
     // Inline formatting (before stripping tags)
     s = s.replace(/<\/?strong>/gi, "**");
     s = s.replace(/<\/?b>/gi, "**");
