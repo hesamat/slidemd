@@ -598,9 +598,12 @@ export class DeckController extends EventEmitter {
           const imagesDir = await handle.getDirectoryHandle("images", { create: true });
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
-            const ext = img.ref.split(".").pop() || "png";
-            const filename = img.ref.includes(".") ? img.ref : `${img.ref}.${ext}`;
-            const binary = atob(img.base64);
+            // Extract just the filename from paths like "ppt/media/image1.png"
+            const filename = img.ref.split("/").pop();
+            if (!filename) continue;
+            // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+            const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+            const binary = atob(raw);
             const bytes = new Uint8Array(binary.length);
             for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
             const fileHandle = await imagesDir.getFileHandle(filename, { create: true });

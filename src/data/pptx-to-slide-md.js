@@ -234,8 +234,8 @@ function formatMedia(images, tables, others) {
   const parts = [];
 
   for (const img of images) {
-    const ref = img.ref || "image.png";
-    parts.push(`![${ref}](images/${ref})`);
+    const filename = (img.ref || "image.png").split("/").pop();
+    parts.push(`![${filename}](images/${filename})`);
     parts.push("");
   }
 
