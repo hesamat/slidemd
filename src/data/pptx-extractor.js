@@ -299,15 +299,30 @@ export class PptxExtractor {
     s = s.replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, "$1");
 
     // Clean up whitespace-only formatting markers BEFORE merging.
-    // pptxtojson emits <span bold+italic>&nbsp;</span> between words,
-    // which after CSS-formatting and entity decoding becomes "*** ***"
-    // (bold+italic space).  These markers interfere with the adjacent-
-    // marker merge by splitting what should be a single run into
-    // fragments.  Collapse any marker pair whose content is purely
-    // whitespace to a plain space so the merge regexes can't see them.
-    s = s.replace(/\*\*\*([ \t\n\r\f]+)\*\*\*/g, " ");
-    s = s.replace(/\*\*([ \t\n\r\f]+)\*\*/g, " ");
-    s = s.replace(/(?<!\*)\*([ \t\n\r\f]+)\*(?!\*)/g, " ");
+    // pptxtojson emits <span bold>&nbsp;</span> between words and
+    // <span bold+italic>&nbsp;</span> between bold+italic words.
+    // After CSS formatting + entity decoding these become "** **"
+    // (bold space) and "*** ***" (bold+italic space).  These markers
+    // break the adjacent-marker merge by sitting between what should
+    // be a single continuous run: "**word1** ** ** **word2**" can't
+    // be merged cleanly because the merge regex consumes the closing
+    // ** of the space marker and leaves the word markers orphaned.
+    //
+    // Collapse any whitespace-only marker pair to a plain space first.
+    // After cleanup "**word1** ** ** **word2**" becomes
+    // "**word1** **word2**" and the merge regex handles it cleanly.
+    // triple-asterisk (bold+italic space)
+    s = s.replace(/\*\*\*([ \t\n\r\f]*)\*\*\*/g, (m, content) =>
+      /^[\s\u00a0]*$/.test(content) ? " " : m,
+    );
+    // double-asterisk (bold space)
+    s = s.replace(/\*\*([ \t\n\r\f]*)\*\*/g, (m, content) =>
+      /^[\s\u00a0]*$/.test(content) ? " " : m,
+    );
+    // single-asterisk (italic space)
+    s = s.replace(/(?<!\*)\*([ \t\n\r\f]*)\*(?!\*)/g, (m, content) =>
+      /^[\s\u00a0]*$/.test(content) ? " " : m,
+    );
 
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
