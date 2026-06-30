@@ -206,19 +206,17 @@ export class ConversionModal {
         cancelBtn.disabled = true;
         setStatus('<span class="' + P + 'spinner"></span> Converting...', "info");
 
-        // Two nested rAFs ensure the browser paints the spinner
+        // setTimeout gives the browser time to paint the spinner
         // before the synchronous conversion blocks the thread.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const markdown = convertToSlideMd(extractionResult);
-            resolve({
-              markdown,
-              imageRefs: extractionResult.images.map((img) => img.ref),
-              images: extractionResult.images,
-            });
-            backdrop.remove();
+        setTimeout(() => {
+          const markdown = convertToSlideMd(extractionResult);
+          resolve({
+            markdown,
+            imageRefs: extractionResult.images.map((img) => img.ref),
+            images: extractionResult.images,
           });
-        });
+          backdrop.remove();
+        }, 100);
       });
 
       // Convert with AI button
