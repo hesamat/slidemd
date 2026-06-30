@@ -240,6 +240,32 @@ export class PptxExtractor {
     // Use iterative string search to handle nested spans correctly.
     s = this.#convertCssFormatting(s);
 
+    // --- Merge split bullets + nest sub-lists ---
+    // pptxtojson sometimes wraps only part of a bullet's text in
+    // <li>…</li></ul>, then puts the rest in a loose <p>…</p>, and
+    // then opens a new <ul> for sub-bullets.  Without this pre-
+    // processing the output would be:
+    //   - first half
+    //   second half                 ← plain text, not a bullet
+    //   - sub bullet 1              ← sibling, not nested
+    //   - sub bullet 2
+    // After merge:
+    //   - first half second half
+    //     - sub bullet 1            ← nested under the first bullet
+    //     - sub bullet 2
+    // We restructure the HTML so the continuation <p> text joins the
+    // <li> content and the following <ul> nests inside it.  The
+    // existing %%LIST_OPEN%% / %%LI%% / %%LIST_CLOSE%% token walk
+    // then naturally produces the correct depth.
+    s = s.replace(
+      /<ul[^>]*>\s*<li[^>]*>\s*(<p[^>]*>)?\s*([\s\S]*?)\s*(<\/p>)?\s*<\/li>\s*<\/ul>\s*<p[^>]*>([\s\S]*?)<\/p>\s*(?=<ul[^>]*>|<ol[^>]*>)/gi,
+      (_m, pOpen, part1, pClose, part2) => {
+        // Re-open and leave the </li></ul> to be matched by the
+        // sub-list's closing tags at the end.
+        return `<ul><li><p>${part1} ${part2}</p>`;
+      },
+    );
+
     // Inline formatting from semantic HTML tags
     s = s.replace(/<\/?strong>/gi, "**");
     s = s.replace(/<\/?b>/gi, "**");
@@ -259,6 +285,13 @@ export class PptxExtractor {
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
     // producing "**word1** **word2**" instead of "**word1 word2**".
+    // Bold+italic (***word***) is merged first so its triple-asterisk
+    // markers aren't broken up by the ** pass.
+    for (let i = 0; i < 10; i++) {
+      const prev = s;
+      s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*/g, "***$1$2");
+      if (s === prev) break;
+    }
     for (let i = 0; i < 10; i++) {
       const prev = s;
       s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*/g, "**$1$2");
@@ -335,7 +368,12 @@ export class PptxExtractor {
   static #convertCssFormatting(html) {
     let s = html;
     // Bold: font-weight: bold or font-weight: 700+
-    for (let i = 0; i < 10; i++) {
+    // pptxtojson wraps EACH WORD in its own <span>, so a 15-word
+    // heading produces 15 sibling spans. The old 10-iteration cap
+    // left trailing words un-converted, dropping their bold/italic
+    // formatting entirely. Use a generous cap that covers long
+    // sentences while protecting against pathological inputs.
+    for (let i = 0; i < 500; i++) {
       const match = s.match(
         /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
       );
@@ -348,7 +386,7 @@ export class PptxExtractor {
         s.slice(match.index + match[0].length);
     }
     // Italic: font-style: italic
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 500; i++) {
       const match = s.match(
         /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
       );
@@ -358,6 +396,35 @@ export class PptxExtractor {
         "*" +
         match[1].trimEnd() +
         "*" +
+        s.slice(match.index + match[0].length);
+    }
+    // Bold + italic: font-weight: bold AND font-style: italic
+    // pptxtojson may combine both in a single span (e.g. class=btn
+    // which is both bold and italic). Handle these after the
+    // single-property passes so the combined spans are the only
+    // remaining ones with those styles.
+    for (let i = 0; i < 500; i++) {
+      const match = s.match(
+        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
+      if (!match) break;
+      s =
+        s.slice(0, match.index) +
+        "***" +
+        match[1].trimEnd() +
+        "***" +
+        s.slice(match.index + match[0].length);
+    }
+    for (let i = 0; i < 500; i++) {
+      const match = s.match(
+        /<span\s+style="[^"]*font-style:\s*italic[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
+      if (!match) break;
+      s =
+        s.slice(0, match.index) +
+        "***" +
+        match[1].trimEnd() +
+        "***" +
         s.slice(match.index + match[0].length);
     }
     // Clean up remaining empty/style spans
