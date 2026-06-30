@@ -303,13 +303,20 @@ export class DeckController extends EventEmitter {
     try {
       const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
       const { handle, mode } = await DirectoryHandleStore.load();
-      if (handle) {
-        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-        DeckImagesResolver.setDeckDir(handle, mode || "parent");
-        await DeckImagesResolver.prime();
-        DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-        DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      if (!handle) return;
+
+      // Check if the stored handle still has permission
+      const perm = await handle.queryPermission({ mode: "readwrite" });
+      if (perm !== "granted") {
+        const requested = await handle.requestPermission({ mode: "readwrite" });
+        if (requested !== "granted") return;
       }
+
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      DeckImagesResolver.setDeckDir(handle, mode || "parent");
+      await DeckImagesResolver.prime();
+      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
     } catch (err) {
       console.warn("Could not load deck images resolver:", err);
     }
@@ -627,9 +634,11 @@ export class DeckController extends EventEmitter {
         await mdWritable.write(markdown);
         await mdWritable.close();
 
-        // Save images to images/ subdirectory
+        // Save images to images/<deckName>/ subdirectory to avoid collisions
         if (images?.length) {
-          const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const imagesRoot = await dirHandle.getDirectoryHandle("images", { create: true });
+          const deckImagesDir = await imagesRoot.getDirectoryHandle(deckName, { create: true });
           let savedCount = 0;
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
@@ -640,7 +649,7 @@ export class DeckController extends EventEmitter {
               const binary = atob(raw);
               const bytes = new Uint8Array(binary.length);
               for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
+              const fileHandle = await deckImagesDir.getFileHandle(filename, { create: true });
               const writable = await fileHandle.createWritable();
               await writable.write(bytes);
               await writable.close();
@@ -650,7 +659,7 @@ export class DeckController extends EventEmitter {
             }
           }
           if (savedCount > 0) {
-            Notification.info(`Saved ${savedCount} images to images/ folder`);
+            Notification.info(`Saved ${savedCount} images to images/${deckName}/`);
           }
         }
 

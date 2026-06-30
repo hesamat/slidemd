@@ -12,13 +12,16 @@
  * Convert an extraction result to SlideMD markdown.
  * @static
  * @param {import('./pptx-extractor.js').ExtractionResult} extraction
+ * @param {string} [deckName='presentation'] - Deck name for image path namespacing.
  * @returns {string} Complete SlideMD markdown.
  */
-export function convertToSlideMd(extraction) {
+export function convertToSlideMd(extraction, deckName = "presentation") {
   const slideWidth = extraction.size?.width || 9144000;
   const slideHeight = extraction.size?.height || 5143500;
 
-  const slides = extraction.slides.map((slide) => convertSlide(slide, slideWidth, slideHeight));
+  const slides = extraction.slides.map((slide) =>
+    convertSlide(slide, slideWidth, slideHeight, deckName),
+  );
 
   return slides.join("\n\n---\n\n");
 }
@@ -30,7 +33,7 @@ export function convertToSlideMd(extraction) {
  * @param {number} slideHeight
  * @returns {string}
  */
-function convertSlide(slide, slideWidth, slideHeight) {
+function convertSlide(slide, slideWidth, slideHeight, deckName) {
   const parts = [];
 
   // Speaker notes
@@ -58,7 +61,7 @@ function convertSlide(slide, slideWidth, slideHeight) {
 
   const formatSingleElement = (el, isFirst) => {
     if (el.type === "text") return formatTextElement(el.content, isFirst);
-    if (el.type === "image") return formatImage(el);
+    if (el.type === "image") return formatImage(el, deckName);
     if (el.type === "table") return formatTable(el);
     if (el.type === "chart") return `<!-- ${el.content || "[Chart]"} -->`;
     if (el.type === "diagram") return `<!-- [Diagram: ${el.content || ""}] -->`;
@@ -262,15 +265,15 @@ function formatTextElement(raw, isFirstElement) {
  * @param {import('./pptx-extractor.js').ExtractedElement} img
  * @returns {string}
  */
-function formatImage(img) {
+function formatImage(img, deckName = "presentation") {
   const filename = (img.ref || "image.png").split("/").pop();
-  // Convert EMU to approximate pixels (slide is 1920x1080, EMU is ~9144000x5143500)
+  const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const w = Math.round(img.width / 4763) || null;
   const h = Math.round(img.height / 4763) || null;
   if (w && h) {
-    return `<img src="images/${filename}" width="${w}" height="${h}" alt="${filename}">`;
+    return `<img src="images/${safeName}/${filename}" width="${w}" height="${h}" alt="${filename}">`;
   }
-  return `<img src="images/${filename}" alt="${filename}">`;
+  return `<img src="images/${safeName}/${filename}" alt="${filename}">`;
 }
 
 /**

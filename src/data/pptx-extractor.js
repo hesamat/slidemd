@@ -264,7 +264,7 @@ export class PptxExtractor {
     // depth for any %%LIST_OPEN%% / %%LIST_CLOSE%% that precedes it.
     let depth = 0;
     let result = "";
-    let reg = /%%(LIST_OPEN|LIST_CLOSE|LI)%%/g;
+    const reg = /%%(LIST_OPEN|LIST_CLOSE|LI)%%/g;
     let last = 0;
     let m;
     while ((m = reg.exec(s)) !== null) {
@@ -280,9 +280,17 @@ export class PptxExtractor {
         case "LIST_CLOSE":
           depth = Math.max(0, depth - 1);
           break;
-        case "LI":
+        case "LI": {
+          // Strip leading dash/bullet from content to avoid double-dash
+          // when the PPTX content already includes list markers
+          const afterLi = s.slice(last);
+          const dashMatch = afterLi.match(/^\s*[-*•]\s*/);
+          if (dashMatch) {
+            last += dashMatch[0].length;
+          }
           result += "  ".repeat(Math.max(0, depth - 1)) + "- ";
           break;
+        }
       }
     }
     // Any text after the last marker

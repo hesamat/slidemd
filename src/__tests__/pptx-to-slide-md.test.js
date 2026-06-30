@@ -200,7 +200,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain('src="images/image1.png"');
+    expect(md).toContain('src="images/presentation/image1.png"');
     expect(md).toContain('width="630"');
     expect(md).toContain('height="420"');
   });

@@ -224,7 +224,8 @@ export class ConversionModal {
         // Let the browser paint the spinner first
         await new Promise((r) => setTimeout(r, 50));
 
-        const markdown = convertToSlideMd(extractionResult);
+        const deckName = (selectedFile?.name || "presentation").replace(/\.pptx$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const markdown = convertToSlideMd(extractionResult, deckName);
         resolve({
           markdown,
           imageRefs: extractionResult.images.map((img) => img.ref),
