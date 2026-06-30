@@ -246,24 +246,34 @@ export class PptxExtractor {
     s = s.replace(/<\/?em>/gi, "*");
     s = s.replace(/<\/?i>/gi, "*");
 
+    // Decode entities BEFORE merging so &nbsp; becomes a real space
+    // that the merge regex can match.
+    s = s.replace(/&amp;/g, "&");
+    s = s.replace(/&lt;/g, "<");
+    s = s.replace(/&gt;/g, ">");
+    s = s.replace(/&quot;/g, '"');
+    s = s.replace(/&#39;/g, "'");
+    s = s.replace(/&apos;/g, "'");
+    s = s.replace(/&nbsp;/g, " ");
+
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
     // producing "**word1** **word2**" instead of "**word1 word2**".
-    // Repeatedly merge adjacent markers until stable.
-    // Pattern: "**text** **more**" → "**text more**"
-    // Also handles "**text ****more**" (directly adjacent) and
-    // "**text ** **more**" (extra space from span boundary).
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/\*\*([^*]*?)\s*\*\*\s*\*\*/g, "**$1 ");
+      s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*/g, "**$1$2");
       if (s === prev) break;
     }
     // Same for italic (single *)
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/(?<!\*)\*([^*]+?)\s*\*\s*\*(?!\*)/g, "*$1 ");
+      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s*)\*(?!\*)/g, "*$1$2");
       if (s === prev) break;
     }
+
+    // Clean up any remaining empty bold/italic markers
+    s = s.replace(/\*\*\s*\*\*/g, " ");
+    s = s.replace(/(?<!\*)\*\s*\*(?!\*)/g, " ");
 
     // Block elements
     s = s.replace(/<br\s*\/?>/gi, "\n");
@@ -278,14 +288,6 @@ export class PptxExtractor {
 
     // Strip remaining tags
     s = s.replace(/<[^>]+>/g, "");
-
-    // Decode entities
-    s = s.replace(/&amp;/g, "&");
-    s = s.replace(/&lt;/g, "<");
-    s = s.replace(/&gt;/g, ">");
-    s = s.replace(/&quot;/g, '"');
-    s = s.replace(/&#39;/g, "'");
-    s = s.replace(/&nbsp;/g, " ");
 
     // Process list markers: convert to indented markdown lists.
     // Walk the string token by token so %%LI%% gets the correct
