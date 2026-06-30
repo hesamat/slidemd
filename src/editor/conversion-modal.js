@@ -224,7 +224,9 @@ export class ConversionModal {
         // Let the browser paint the spinner first
         await new Promise((r) => setTimeout(r, 50));
 
-        const deckName = (selectedFile?.name || "presentation").replace(/\.pptx$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const deckName = (selectedFile?.name || "presentation")
+          .replace(/\.pptx$/i, "")
+          .replace(/[^a-zA-Z0-9_-]/g, "_");
         const markdown = convertToSlideMd(extractionResult, deckName);
         resolve({
           markdown,
@@ -285,6 +287,18 @@ export class ConversionModal {
         backdrop.remove();
         resolve(null);
       });
+
+      // Copy extracted text to clipboard
+      const copyBtn = backdrop.querySelector('[data-action="copy-extracted"]');
+      if (copyBtn) {
+        copyBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(previewEl.textContent).then(() => {
+            copyBtn.textContent = "Copied!";
+            setTimeout(() => (copyBtn.textContent = "Copy"), 2000);
+          });
+        });
+      }
 
       // Close on backdrop click
       backdrop.addEventListener("click", (e) => {
@@ -409,7 +423,10 @@ Rules:
         <div class="${P}status"></div>
 
         <details class="${P}details">
-          <summary>Extracted Content Preview</summary>
+          <summary>
+            Extracted Content Preview
+            <button type="button" data-action="copy-extracted" class="${P}btn ${P}btn--sm ${P}btn--copy" title="Copy to clipboard">Copy</button>
+          </summary>
           <pre class="${P}preview"></pre>
         </details>
 
@@ -483,6 +500,8 @@ Rules:
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
       .${P}btn--sm { padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
+      .${P}btn--copy { margin-left: auto; }
+      .${P}details > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
       .${P}spinner {
         display: inline-block; width: 14px; height: 14px;
         border: 2px solid var(--border-medium, #ccc);

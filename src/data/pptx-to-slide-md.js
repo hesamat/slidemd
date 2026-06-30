@@ -212,7 +212,7 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
   return { type: "header-content", spec: "header-content" };
 }
 
-const BULLET_RE = /^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/;
+const BULLET_RE = /^[\u2022\u2023\u25E6\u2043\u2219•-]\s*/;
 const NUMBER_RE = /^\d+[.)]\s*/;
 
 /**
@@ -266,7 +266,9 @@ function formatTextElement(raw, isFirstElement) {
  * @returns {string}
  */
 function formatImage(img, deckName = "presentation") {
-  const filename = (img.ref || "image.png").split("/").pop();
+  const rawName = (img.ref || "image.png").split("/").pop();
+  // EMF/WMF images are converted to PNG during extraction
+  const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const w = Math.round(img.width / 4763) || null;
   const h = Math.round(img.height / 4763) || null;

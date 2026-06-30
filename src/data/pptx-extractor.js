@@ -315,13 +315,17 @@ export class PptxExtractor {
     let s = html;
     // Bold: font-weight: bold or font-weight: 700+
     for (let i = 0; i < 10; i++) {
-      const match = s.match(/<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i);
+      const match = s.match(
+        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
       if (!match) break;
       s = s.slice(0, match.index) + "**" + match[1] + "**" + s.slice(match.index + match[0].length);
     }
     // Italic: font-style: italic
     for (let i = 0; i < 10; i++) {
-      const match = s.match(/<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i);
+      const match = s.match(
+        /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
       if (!match) break;
       s = s.slice(0, match.index) + "*" + match[1] + "*" + s.slice(match.index + match[0].length);
     }
