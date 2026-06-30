@@ -240,6 +240,82 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("| A | 1 |");
   });
 
+  it("keeps multi-line cell text in the same table cell", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Table",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "Name" }, { text: "Value" }],
+              [{ text: "Line A\nLine B" }, { text: "1\n2\n3" }],
+            ],
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // The newline must be escaped to <br> and must NOT produce a new
+    // markdown table row (which would have a leading | only if actually
+    // intended).  The cell content stays a single line in the source.
+    expect(md).toContain("| Line A<br>Line B | 1<br>2<br>3 |");
+    // Sanity: the body should still have exactly two data rows (one
+    // per element), no extra split-out lines from the inner newlines.
+    const tableBlock = md.match(/\| Name \| Value \|\n\| --- \| --- \|\n([\s\S]+?)(?:\n\n|$)/)[1];
+    expect(tableBlock.trim().split("\n").length).toBe(1);
+  });
+
+  it("classifies a title+subtitle slide as title-slide even when title sits near the top", () => {
+    // Mirrors a real PPTX title slide: a prominent centred title at the
+    // top band (so `hasHeader` is true) and a one-line centred subtitle
+    // below.  Both boxes are similar height, so this is a tight centred
+    // cluster, not a thin header strip above a tall body.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Cover",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Microservices Architecture",
+            left: 1500000,
+            top: 600000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: "A practical guide",
+            left: 2000000,
+            top: 2500000,
+            width: 5000000,
+            height: 1200000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: title-slide");
+  });
+
   it("handles empty slides", () => {
     const extraction = makeExtraction([
       { index: 0, title: "", notes: "", elements: [], background: "" },

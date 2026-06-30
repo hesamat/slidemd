@@ -639,6 +639,33 @@ export class ImageInteractionHandler {
 
     const entry = entries[idx];
 
+    // Grab the image's pre-conversion visual centre relative to its
+    // containing slide area.  A markdown image renders inside a
+    // <p> as `width:100%/height:100%/object-fit:contain` and is
+    // flex-centred by the `.slide__area p > img:only-child` rule, so a
+    // centred picture looks identical regardless of how big the area
+    // is.  The moment we replace the markdown with a raw HTML <img>
+    // carrying a small fixed-size inline style, the element drops out
+    // of the <p> wrapper (no flex centring) and jumps to the area's
+    // top-left corner — visibly noticeable as "image jumps left/up on
+    // click".  We capture the centre BEFORE applying any inline style
+    // and then choose left/top offsets that put the new fixed-size
+    // element's centre at the same point, so the picture stays put.
+    const area = img.closest(".slide__area");
+    let areaW = 1920;
+    let areaH = 1080;
+    let visualCenterX = areaW / 2;
+    let visualCenterY = areaH / 2;
+    if (area) {
+      const scale = this._getStageScale();
+      const areaRect = area.getBoundingClientRect();
+      areaW = Math.max(1, areaRect.width / scale);
+      areaH = Math.max(1, areaRect.height / scale);
+      const imgRect = img.getBoundingClientRect();
+      visualCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
+      visualCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
+    }
+
     // Compute an initial width/height that preserves the image's
     // natural aspect ratio while fitting inside the containing slide
     // area.  Previously this used `img.offsetWidth`, which — for a
@@ -648,15 +675,6 @@ export class ImageInteractionHandler {
     // `height: auto`, that produced an enormous box the moment the
     // user clicked the image.  Using the natural dimensions (capped by
     // the area) keeps the visual size stable across the md→html swap.
-    const area = img.closest(".slide__area");
-    let areaW = 1920;
-    let areaH = 1080;
-    if (area) {
-      const scale = this._getStageScale();
-      const areaRect = area.getBoundingClientRect();
-      areaW = Math.max(1, areaRect.width / scale);
-      areaH = Math.max(1, areaRect.height / scale);
-    }
     const natW = img.naturalWidth || img.offsetWidth || 320;
     const natH = img.naturalHeight || img.offsetHeight || 240;
     let w = natW;
@@ -672,12 +690,15 @@ export class ImageInteractionHandler {
     w = Math.max(1, Math.round(w));
     h = Math.max(1, Math.round(h));
 
+    const left = Math.round(visualCenterX - w / 2);
+    const top = Math.round(visualCenterY - h / 2);
+
     const alt = this._extractAlt(entry);
     const src = entry.src;
     const style = [
       "position: relative",
-      "left: 0px",
-      "top: 0px",
+      `left: ${left}px`,
+      `top: ${top}px`,
       `width: ${w}px`,
       `height: ${h}px`,
       "border: none",
@@ -691,8 +712,8 @@ export class ImageInteractionHandler {
 
     // Apply styles directly to the DOM element (no re-render with suppressOnChange)
     img.style.position = "relative";
-    img.style.left = "0px";
-    img.style.top = "0px";
+    img.style.left = `${left}px`;
+    img.style.top = `${top}px`;
     img.style.width = `${w}px`;
     img.style.height = `${h}px`;
     img.style.border = "none";

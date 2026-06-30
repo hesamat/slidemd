@@ -176,6 +176,31 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
     const hasBodyBelowHeader = contentEls.some((el) => el.top >= bodyThreshold);
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
 
+    // Title-slide heuristic.
+    // PowerPoint title slides typically have a prominent title (often
+    // near the top, which trips `hasHeader`) and a one-line subtitle
+    // below — visually those look like header+body, but they are
+    // really a centred cluster of two short text blocks.  A real
+    // header-content slide has a *thin header strip* on top with a
+    // substantially taller body area beneath.  We use the box-height
+    // ratio between the topmost ("header") element and the tallest
+    // body element to tell them apart: if the header is not a thin
+    // strip relative to the body, AND the total content is short and
+    // has no bullet markers, the slide is a title slide.
+    if (totalLength < 300 && contentEls.length <= 3) {
+      const hasBullet = contentEls.some(
+        (el) => BULLET_RE.test(el.content || "") || NUMBER_RE.test(el.content || ""),
+      );
+      const headerEl = contentEls.find((el) => el.top < bodyThreshold) || null;
+      const bodyEls = contentEls.filter((el) => el !== headerEl);
+      const headerHi = headerEl?.height || 0;
+      const bodyHi = bodyEls.length ? Math.max(...bodyEls.map((e) => e.height || 0)) : 0;
+      const isThinStripHeader = headerEl && bodyHi > 0 && headerHi < bodyHi * 0.4;
+      if (!hasBullet && (!headerEl || !isThinStripHeader)) {
+        return { type: "title-slide", spec: "title-slide" };
+      }
+    }
+
     if (hasHeader && hasBodyBelowHeader) {
       return { type: "header-content", spec: "header-content" };
     }
@@ -285,9 +310,19 @@ function formatImage(img, deckName = "presentation") {
  */
 function formatTable(table) {
   if (!table.rows?.length) return "";
+  // A single cell's text may contain newlines (e.g. from <br> in the
+  // PPTX source, preserved by #stripHtml).  A raw newline would start
+  // a new markdown table row, splitting one cell across rows.  Escape
+  // intra-cell newlines to <br> so the cell stays a single logical
+  // entry; markdown table renderers typically interpret <br> as a
+  // soft line break within a cell.  Also collapse padding whitespace
+  // so the row layout isn't disturbed.
+  const escapeCell = (text) =>
+    (text || "").replace(/\r\n?/g, "\n").replace(/\n/g, "<br>").replace(/\|/g, "\\|").trim();
+  const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
   const headerRow = table.rows[0];
   const separator = headerRow.map(() => "---").join(" | ");
-  const rows = table.rows.map((row) => row.map((cell) => cell.text || "").join(" | "));
+  const rows = table.rows.map(formatRow);
   const parts = [];
   parts.push(`| ${rows[0]} |`);
   parts.push(`| ${separator} |`);
