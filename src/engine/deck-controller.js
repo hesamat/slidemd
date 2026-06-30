@@ -641,7 +641,9 @@ export class DeckController extends EventEmitter {
       localStorage.setItem("webdeck_local_file_name", "Converted Presentation");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
     } catch (e) {
-      console.warn("Could not store converted deck in localStorage (too large):", e);
+      console.warn("Could not store converted deck in localStorage (too large). Using in-memory fallback.", e);
+      // Store in a global so edit controller can still find it
+      window.__WEBDECK_MARKDOWN__ = markdown;
     }
 
     // Parse and replace deck

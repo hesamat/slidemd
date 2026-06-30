@@ -76,10 +76,19 @@ export class EditController {
   }
 
   /**
-   * Cache original markdown for all slides
+   * Get the source markdown for editing.
+   * Checks localStorage first, then falls back to the in-memory
+   * global (used for large converted decks that exceed quota).
    */
+  _getSourceMarkdown() {
+    return (
+      localStorage.getItem("webdeck_local_file") ||
+      window.__WEBDECK_MARKDOWN__ ||
+      ""
+    );
+  }
   _cacheOriginalMarkdown() {
-    const localFile = localStorage.getItem("webdeck_local_file");
+    const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
 
     try {
@@ -199,7 +208,7 @@ export class EditController {
    */
   toggleEditMode() {
     // Prevent entering edit mode when no file has been loaded
-    if (!this.isEditMode && !localStorage.getItem("webdeck_local_file")) {
+    if (!this.isEditMode && !this._getSourceMarkdown()) {
       Notification.warning("Open a markdown file first to enable the editor");
       return;
     }
