@@ -665,16 +665,22 @@ export class DeckController extends EventEmitter {
       await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
     }
 
-    // Update editor if open
-    const editor = document.getElementById("markdownEditor");
-    if (editor?.CodeMirror) {
-      editor.CodeMirror.setValue(markdown);
-    }
-
     Notification.info("PPTX converted successfully");
 
     // Open edit mode so the user can review and edit the result
     this.toggleEditMode();
+
+    // After edit mode renders, rewrite image sources to blob URLs
+    if (this.elements.slidesContainer) {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      // Call once for the initial render, then a second time after the
+      // editor's async re-render completes
+      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      await new Promise((r) => setTimeout(r, 100));
+      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+    }
 
     // Close the conversion modal now that loading is done
     ConversionModal.close();
