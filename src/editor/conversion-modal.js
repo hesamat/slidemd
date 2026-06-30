@@ -138,7 +138,7 @@ export class ConversionModal {
       if (savedModel) modelInput.value = savedModel;
 
       const setStatus = (msg, type = "") => {
-        statusEl.textContent = msg;
+        statusEl.innerHTML = msg;
         statusEl.className = `${P}status${type ? ` ${P}status--${type}` : ""}`;
       };
 
@@ -200,14 +200,22 @@ export class ConversionModal {
           setStatus("Please extract a PPTX file first", "error");
           return;
         }
-        const markdown = convertToSlideMd(extractionResult);
-        setStatus("Conversion complete!", "success");
-        resolve({
-          markdown,
-          imageRefs: extractionResult.images.map((img) => img.ref),
-          images: extractionResult.images,
-        });
-        backdrop.remove();
+        convertBtn.disabled = true;
+        convertAiBtn.disabled = true;
+        extractBtn.disabled = true;
+        setStatus('<span class="' + P + 'spinner"></span> Converting...', "info");
+
+        // Use setTimeout to let the spinner render before blocking
+        setTimeout(() => {
+          const markdown = convertToSlideMd(extractionResult);
+          setStatus("Conversion complete!", "success");
+          resolve({
+            markdown,
+            imageRefs: extractionResult.images.map((img) => img.ref),
+            images: extractionResult.images,
+          });
+          backdrop.remove();
+        }, 50);
       });
 
       // Convert with AI button
@@ -457,6 +465,15 @@ Rules:
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
       .${P}btn--sm { padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
+      .${P}spinner {
+        display: inline-block; width: 14px; height: 14px;
+        border: 2px solid var(--border-medium, #ccc);
+        border-top-color: var(--accent, #6366f1);
+        border-radius: 50%;
+        animation: ${P}spin 0.6s linear infinite;
+        vertical-align: middle; margin-right: 6px;
+      }
+      @keyframes ${P}spin { to { transform: rotate(360deg); } }
     `;
     container.appendChild(style);
   }

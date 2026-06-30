@@ -56,25 +56,28 @@ function convertSlide(slide, slideWidth, slideHeight) {
   }
 
   // Build areas based on layout type
-  const joinText = (els) => els.map((el) => el.content.trim()).join("\n\n");
+  const formatContent = (els) => {
+    if (els.length === 0) return "";
+    return els.map((el) => formatTextElement(el.content, false)).join("\n\n");
+  };
 
   if (layout.type === "title-slide") {
     parts.push("");
     parts.push("@title");
     parts.push("");
-    parts.push(joinText(textElements));
+    parts.push(formatContent(textElements));
   } else if (layout.type === "header-content") {
     const { header, main } = splitHeaderMain(textElements, slideHeight);
     parts.push("");
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(header.content.trim());
+      parts.push(formatTextElement(header.content, true));
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
-    parts.push(joinText(main));
+    parts.push(formatContent(main));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else if (layout.type === "two-column") {
@@ -82,11 +85,11 @@ function convertSlide(slide, slideWidth, slideHeight) {
     parts.push("");
     parts.push("@main");
     parts.push("");
-    parts.push(joinText(left));
+    parts.push(formatContent(left));
     parts.push("");
     parts.push("@media");
     parts.push("");
-    parts.push(joinText(right));
+    parts.push(formatContent(right));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else if (layout.type === "header-two-column") {
@@ -95,23 +98,23 @@ function convertSlide(slide, slideWidth, slideHeight) {
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(header.content.trim());
+      parts.push(formatTextElement(header.content, true));
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
-    parts.push(joinText(left));
+    parts.push(formatContent(left));
     parts.push("");
     parts.push("@media");
     parts.push("");
-    parts.push(joinText(right));
+    parts.push(formatContent(right));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   } else {
     parts.push("");
     parts.push("@main");
     parts.push("");
-    parts.push(joinText(textElements));
+    parts.push(formatContent(textElements));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   }
@@ -221,6 +224,60 @@ function splitHeaderAndColumns(elements, slideWidth, slideHeight) {
   const left = body.filter((el) => el.left + el.width / 2 < midX);
   const right = body.filter((el) => el.left + el.width / 2 >= midX);
   return { header, left, right };
+}
+
+const BULLET_RE = /^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/;
+const NUMBER_RE = /^\d+[.)]\s*/;
+
+/**
+ * Format a single text element's content:
+ * - First line becomes ## heading (if isFirstElement)
+ * - Bullet/number lines become markdown lists
+ * - Indented lines become nested lists
+ * @param {string} raw
+ * @param {boolean} isFirstElement
+ * @returns {string}
+ */
+function formatTextElement(raw, isFirstElement) {
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      result.push("");
+      continue;
+    }
+
+    // First line of first element → heading
+    if (i === 0 && isFirstElement) {
+      result.push(`## ${trimmed}`);
+      continue;
+    }
+
+    // Detect indentation (spaces or tabs at start)
+    const indent = line.match(/^(\s*)/)[1];
+    const indentLevel = indent.length > 0 ? Math.floor(indent.length / 2) : 0;
+    const prefix = "  ".repeat(indentLevel);
+
+    // Bullet or numbered list item
+    if (BULLET_RE.test(trimmed)) {
+      const content = trimmed.replace(BULLET_RE, "");
+      result.push(`${prefix}- ${content}`);
+    } else if (NUMBER_RE.test(trimmed)) {
+      const content = trimmed.replace(NUMBER_RE, "");
+      result.push(`${prefix}- ${content}`);
+    } else {
+      result.push(trimmed);
+    }
+  }
+
+  return result
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /**
