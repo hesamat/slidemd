@@ -589,29 +589,45 @@ export class DeckController extends EventEmitter {
 
     const { markdown, images } = result;
 
-    // Save images to the deck's images folder if we have a directory handle
+    // Save images to the deck's images folder
     if (images?.length) {
       try {
         const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-        const { handle } = await DirectoryHandleStore.load();
+        let { handle } = await DirectoryHandleStore.load();
+        // If handle is missing or stale, prompt user to pick a directory
+        if (!handle) {
+          try {
+            handle = await window.showDirectoryPicker({ mode: "readwrite" });
+            await DirectoryHandleStore.save(handle);
+          } catch {
+            // User cancelled — skip image saving
+            handle = null;
+          }
+        }
         if (handle) {
+          let savedCount = 0;
           const imagesDir = await handle.getDirectoryHandle("images", { create: true });
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
-            // Extract just the filename from paths like "ppt/media/image1.png"
-            const filename = img.ref.split("/").pop();
-            if (!filename) continue;
-            // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
-            const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-            const binary = atob(raw);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(bytes);
-            await writable.close();
+            try {
+              const filename = img.ref.split("/").pop();
+              if (!filename) continue;
+              const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+              const binary = atob(raw);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+              const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(bytes);
+              await writable.close();
+              savedCount++;
+            } catch (imgErr) {
+              console.warn(`Could not save image ${img.ref}:`, imgErr);
+            }
           }
-          Notification.info(`Saved ${images.length} images to images/ folder`);
+          if (savedCount > 0) {
+            Notification.info(`Saved ${savedCount} images to images/ folder`);
+          }
         }
       } catch (err) {
         console.warn("Could not save images:", err);
