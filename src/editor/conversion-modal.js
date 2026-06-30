@@ -215,7 +215,10 @@ export class ConversionModal {
             imageRefs: extractionResult.images.map((img) => img.ref),
             images: extractionResult.images,
           });
-          backdrop.remove();
+          statusEl.textContent = "Done! Close this dialog.";
+          statusEl.className = P + "status " + P + "status--success";
+          cancelBtn.textContent = "Close";
+          cancelBtn.disabled = false;
         }, 50);
       });
 

@@ -634,11 +634,15 @@ export class DeckController extends EventEmitter {
       }
     }
 
-    // Store markdown in localStorage
-    localStorage.setItem("webdeck_local_file", markdown);
-    localStorage.setItem("webdeck_local_file_type", "md");
-    localStorage.setItem("webdeck_local_file_name", "Converted Presentation");
-    localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+    // Store markdown in localStorage (may fail for large decks with embedded images)
+    try {
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", "Converted Presentation");
+      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+    } catch (e) {
+      console.warn("Could not store converted deck in localStorage (too large):", e);
+    }
 
     // Parse and replace deck
     await AssetLoader.ensureMarkdownItLoaded();
