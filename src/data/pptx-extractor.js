@@ -438,8 +438,8 @@ export class PptxExtractor {
     let s = html;
     for (let i = 0; i < 50; i++) {
       const prev = s;
-      s = s.replace(re, (_m, styleA, _content, styleB) =>
-        styleA.toLowerCase() === styleB.toLowerCase() ? `<span style="${styleA}">` : _m,
+      s = s.replace(re, (_m, styleA, content, styleB) =>
+        styleA.toLowerCase() === styleB.toLowerCase() ? `<span style="${styleA}">${content}` : _m,
       );
       if (s === prev) break;
     }
@@ -481,7 +481,7 @@ export class PptxExtractor {
       s =
         s.slice(0, match.index) +
         "***" +
-        match[1].trimEnd() +
+        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
         "***" +
         s.slice(match.index + match[0].length);
     }
@@ -494,7 +494,7 @@ export class PptxExtractor {
       s =
         s.slice(0, match.index) +
         "***" +
-        match[1].trimEnd() +
+        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
         "***" +
         s.slice(match.index + match[0].length);
     }
@@ -507,7 +507,7 @@ export class PptxExtractor {
       s =
         s.slice(0, match.index) +
         "**" +
-        match[1].trimEnd() +
+        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
         "**" +
         s.slice(match.index + match[0].length);
     }
@@ -520,7 +520,7 @@ export class PptxExtractor {
       s =
         s.slice(0, match.index) +
         "*" +
-        match[1].trimEnd() +
+        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
         "*" +
         s.slice(match.index + match[0].length);
     }
