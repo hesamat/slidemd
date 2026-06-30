@@ -420,7 +420,7 @@ export class PptxExtractor {
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
         const convert = img.mimeType === "image/emf" ? convertEmfToDataUrl : convertWmfToDataUrl;
-        const dataUrl = await convert(bytes.buffer, 1920, 1080);
+        let dataUrl = await convert(bytes.buffer, 1920, 1080);
 
         if (!dataUrl) {
           console.warn(
@@ -428,6 +428,13 @@ export class PptxExtractor {
           );
           continue;
         }
+
+        // EMF → PNG exports typically carry large transparent margins
+        // (the EMF canvas is sized to the slide, not to the picture),
+        // which makes the image element's bounding box much bigger
+        // than the visible picture.  Trim those margins now so what
+        // lands in the deck matches what the user sees in PowerPoint.
+        dataUrl = (await this.#trimTransparentMargins(dataUrl)) ?? dataUrl;
 
         // Extract base64 from data URL (data:image/png;base64,...)
         const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
@@ -447,6 +454,85 @@ export class PptxExtractor {
       } catch (err) {
         console.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
       }
+    }
+  }
+
+  /**
+   * Trim transparent margins around the visible content of a PNG data
+   * URL.  EMF → PNG conversion produces a canvas sized to the slide
+   * (typically 1920×1080) with the actual picture floating in the
+   * middle and large transparent bands around it — most noticeably at
+   * the bottom.  Returning a cropped data URL here means what lands in
+   * the deck matches what the user sees in PowerPoint, without
+   * requiring a manual 'Trim margins' click in the editor.
+   *
+   * Uses a small alpha threshold (10/255) so faint near-transparent
+   * artifact pixels left at the canvas edges by the EMF converter are
+   * treated as transparent and cropped away — a strict `alpha > 0`
+   * test would treat those as content and keep the bottom band.
+   *
+   * Returns `null` when trimming cannot be performed (no Canvas API,
+   * no transparent border, decode failure, no visible content) so the
+   * caller can fall back to the original data URL.
+   *
+   * @static
+   * @param {string} dataUrl - PNG data URL to trim.
+   * @returns {Promise<string|null>}
+   */
+  static async #trimTransparentMargins(dataUrl) {
+    if (typeof document === "undefined" || !document.createElement) return null;
+    const ALPHA_THRESHOLD = 10; // out of 255 — ~4% opacity
+    const PAD_THRESHOLD_PCT = 1; // require ≥1% transparent band on some side
+
+    try {
+      const bitmap = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = (e) => reject(new Error("decode failed: " + String(e)));
+        image.src = dataUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0);
+      const { data, width: cw, height: ch } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      let minX = cw;
+      let minY = ch;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          if (data[(y * cw + x) * 4 + 3] >= ALPHA_THRESHOLD) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) return null;
+
+      const minPadX = Math.ceil(cw * (PAD_THRESHOLD_PCT / 100));
+      const minPadY = Math.ceil(ch * (PAD_THRESHOLD_PCT / 100));
+      const hasBorder =
+        minX >= minPadX || minY >= minPadY || cw - 1 - maxX >= minPadX || ch - 1 - maxY >= minPadY;
+      if (!hasBorder) return null;
+
+      const trimmedW = maxX - minX + 1;
+      const trimmedH = maxY - minY + 1;
+      const cropped = document.createElement("canvas");
+      cropped.width = trimmedW;
+      cropped.height = trimmedH;
+      cropped
+        .getContext("2d")
+        .drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
+      return cropped.toDataURL("image/png");
+    } catch (err) {
+      console.warn("trimTransparentMargins failed:", err);
+      return null;
     }
   }
 
