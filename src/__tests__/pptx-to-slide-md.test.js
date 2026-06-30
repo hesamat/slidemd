@@ -550,4 +550,38 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("***var*** keyword");
     expect(md).toContain("***let*** ->");
   });
+
+  it("preserves bold+italic header with mixed bold runs without marker corruption", () => {
+    // Regression test for the var vs let header: var=bold+italic,
+    // vs=bold, let=bold+italic. The ** merge must not consume the
+    // opening *** of the next triple-asterisk marker.
+    // Bug: "**vs**" + " " + "***let***" was being merged into
+    // "**vs *let***" because the trailing ** in the merge matched
+    // the first two * of ***. Fix: add (?!\*) lookahead.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "var vs let",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "***var*** **vs** ***let***",
+            left: 59,
+            top: 42,
+            width: 118,
+            height: 34,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Must produce clean markers, not ***var* vs* let***
+    expect(md).toContain("***var*** **vs** ***let***");
+    // The broken output would have ***var* (italic var) instead of
+    // ***var*** (bold+italic var). Check for the exact broken pattern.
+    expect(md).not.toMatch(/\*\*\*var\*(?!\*)/);
+    expect(md).not.toMatch(/vs\*\s+let/);
+  });
 });

@@ -337,12 +337,12 @@ export class PptxExtractor {
     // markers aren't broken up by the ** pass.
     for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*/g, "***$1$2");
+      s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*(?!\*)/g, "***$1$2");
       if (s === prev) break;
     }
     for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*/g, "**$1$2");
+      s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*(?!\*)/g, "**$1$2");
       if (s === prev) break;
     }
     // Same for italic (single *)
