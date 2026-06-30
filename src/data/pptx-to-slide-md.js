@@ -235,11 +235,6 @@ function formatTextElement(raw, isFirstElement) {
  */
 function formatImage(img) {
   const filename = (img.ref || "image.png").split("/").pop();
-  if (img.base64) {
-    const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-    const mime = img.mimeType || "image/png";
-    return `![${filename}](data:${mime};base64,${raw})`;
-  }
   return `![${filename}](images/${filename})`;
 }
 

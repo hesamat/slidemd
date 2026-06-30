@@ -25,6 +25,7 @@ import { parse } from "pptxtojson";
  * @property {string} [mimeType] - Image MIME type inferred from ref extension.
  * @property {string} [ref] - Original image reference name.
  * @property {ExtractedTableCell[][]} [rows] - Table data.
+ * @property {number} order - PPTX element order (preserves slide author's arrangement).
  * @property {number} left - X position (EMU, relative to slide).
  * @property {number} top - Y position (EMU).
  * @property {number} width - Width in EMU.
@@ -142,6 +143,7 @@ export class PptxExtractor {
       return {
         type: "text",
         content,
+        order: el.order,
         left: el.left,
         top: el.top,
         width: el.width,
@@ -164,6 +166,7 @@ export class PptxExtractor {
         base64: el.base64 || "",
         mimeType: this.#inferMimeType(el.ref),
         ref: el.ref,
+        order: el.order,
         left: el.left,
         top: el.top,
         width: el.width,
@@ -182,6 +185,7 @@ export class PptxExtractor {
       return {
         type: "table",
         rows,
+        order: el.order,
         left: el.left,
         top: el.top,
         width: el.width,
@@ -193,6 +197,7 @@ export class PptxExtractor {
       return {
         type: "chart",
         content: `[Chart: ${el.chartType}]`,
+        order: el.order,
         left: el.left,
         top: el.top,
         width: el.width,
@@ -205,6 +210,7 @@ export class PptxExtractor {
       return {
         type: "diagram",
         content: text || "[Diagram]",
+        order: el.order,
         left: el.left,
         top: el.top,
         width: el.width,
