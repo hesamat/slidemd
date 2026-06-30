@@ -312,17 +312,11 @@ export class PptxExtractor {
     // After cleanup "**word1** ** ** **word2**" becomes
     // "**word1** **word2**" and the merge regex handles it cleanly.
     // triple-asterisk (bold+italic space)
-    s = s.replace(/\*\*\*([ \t\n\r\f]*)\*\*\*/g, (m, content) =>
-      /^[\s\u00a0]*$/.test(content) ? " " : m,
-    );
+    s = s.replace(/\*\*\*(\s*)\*\*\*/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
     // double-asterisk (bold space)
-    s = s.replace(/\*\*([ \t\n\r\f]*)\*\*/g, (m, content) =>
-      /^[\s\u00a0]*$/.test(content) ? " " : m,
-    );
+    s = s.replace(/\*\*(\s*)\*\*/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
     // single-asterisk (italic space)
-    s = s.replace(/(?<!\*)\*([ \t\n\r\f]*)\*(?!\*)/g, (m, content) =>
-      /^[\s\u00a0]*$/.test(content) ? " " : m,
-    );
+    s = s.replace(/(?<!\*)\*(\s*)\*(?!\*)/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
 
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
