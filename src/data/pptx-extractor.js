@@ -91,15 +91,18 @@ export class PptxExtractor {
    * @returns {ExtractedSlide}
    */
   static #processSlide(slide, index, imagesAccum) {
+    // Process layout elements first (backgrounds, placeholders), then content
     const elements = [];
-    const allElements = [...(slide.elements || []), ...(slide.layoutElements || [])];
-
-    for (const el of allElements) {
+    for (const el of slide.layoutElements || []) {
+      const extracted = this.#processElement(el, index, imagesAccum);
+      if (extracted) elements.push(extracted);
+    }
+    for (const el of slide.elements || []) {
       const extracted = this.#processElement(el, index, imagesAccum);
       if (extracted) elements.push(extracted);
     }
 
-    // Sort by PPTX element order (preserves slide author's arrangement)
+    // Sort by PPTX element order within each group (layout first, then content)
     elements.sort((a, b) => a.order - b.order);
 
     const title = this.#guessTitle(elements);
