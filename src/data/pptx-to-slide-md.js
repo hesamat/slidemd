@@ -67,13 +67,13 @@ function convertSlide(slide, slideWidth, slideHeight) {
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(header.content.trim());
+      parts.push(formatHeading(header.content.trim()));
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
     if (main.length > 0) {
-      parts.push(main.map((el) => el.content.trim()).join("\n\n"));
+      parts.push(formatBodyContent(main));
     }
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
@@ -83,13 +83,13 @@ function convertSlide(slide, slideWidth, slideHeight) {
     parts.push("@main");
     parts.push("");
     if (left.length > 0) {
-      parts.push(left.map((el) => el.content.trim()).join("\n\n"));
+      parts.push(formatBodyContent(left));
     }
     parts.push("");
     parts.push("@media");
     parts.push("");
     if (right.length > 0) {
-      parts.push(right.map((el) => el.content.trim()).join("\n\n"));
+      parts.push(formatBodyContent(right));
     }
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
@@ -99,19 +99,19 @@ function convertSlide(slide, slideWidth, slideHeight) {
     if (header) {
       parts.push("@header");
       parts.push("");
-      parts.push(header.content.trim());
+      parts.push(formatHeading(header.content.trim()));
       parts.push("");
     }
     parts.push("@main");
     parts.push("");
     if (left.length > 0) {
-      parts.push(left.map((el) => el.content.trim()).join("\n\n"));
+      parts.push(formatBodyContent(left));
     }
     parts.push("");
     parts.push("@media");
     parts.push("");
     if (right.length > 0) {
-      parts.push(right.map((el) => el.content.trim()).join("\n\n"));
+      parts.push(formatBodyContent(right));
     }
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
@@ -120,8 +120,7 @@ function convertSlide(slide, slideWidth, slideHeight) {
     parts.push("");
     parts.push("@main");
     parts.push("");
-    const allContent = textElements.map((el) => el.content.trim());
-    parts.push(allContent.join("\n\n"));
+    parts.push(formatBodyContent(textElements));
     parts.push("");
     parts.push(formatMedia(imageElements, tableElements, otherElements));
   }
@@ -250,6 +249,88 @@ function formatTitleContent(elements) {
     result.push(`\n## ${lines[i]}`);
   }
   return result.join("\n");
+}
+
+/**
+ * Format text as a heading (## prefix). Converts first line to heading.
+ * @param {string} text
+ * @returns {string}
+ */
+function formatHeading(text) {
+  if (!text) return "";
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (lines.length === 0) return "";
+  // First line becomes heading, rest stay as-is
+  const result = [`## ${lines[0]}`];
+  for (let i = 1; i < lines.length; i++) {
+    result.push(lines[i]);
+  }
+  return result.join("\n");
+}
+
+/**
+ * Format body content elements. The first element's first line gets a
+ * heading (##), subsequent lines become bullet lists if they look like
+ * list items.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @returns {string}
+ */
+function formatBodyContent(elements) {
+  if (elements.length === 0) return "";
+
+  const parts = [];
+  for (let i = 0; i < elements.length; i++) {
+    const text = elements[i].content.trim();
+    if (!text) continue;
+
+    const lines = text.split("\n").filter((l) => l.trim());
+    if (lines.length === 0) continue;
+
+    // First element: first line becomes ## heading
+    if (i === 0) {
+      parts.push(`## ${lines[0]}`);
+      for (let j = 1; j < lines.length; j++) {
+        const line = lines[j].trim();
+        if (isListItem(line)) {
+          parts.push(`- ${cleanListItem(line)}`);
+        } else {
+          parts.push(line);
+        }
+      }
+    } else {
+      // Subsequent elements: check if they look like list items
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (isListItem(trimmed)) {
+          parts.push(`- ${cleanListItem(trimmed)}`);
+        } else {
+          parts.push(trimmed);
+        }
+      }
+    }
+    parts.push("");
+  }
+
+  return parts.join("\n").trim();
+}
+
+/**
+ * Check if a line looks like a list item.
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isListItem(line) {
+  return /^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/.test(line) || /^\d+[.)]\s*/.test(line);
+}
+
+/**
+ * Clean a list item by removing the bullet/number prefix.
+ * @param {string} line
+ * @returns {string}
+ */
+function cleanListItem(line) {
+  return line.replace(/^[\u2022\u2023\u25E6\u2043\u2219•\-*]\s*/, "").replace(/^\d+[.)]\s*/, "");
 }
 
 /**
