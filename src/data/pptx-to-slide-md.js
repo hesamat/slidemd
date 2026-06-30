@@ -295,6 +295,13 @@ function formatTextElement(raw, isFirstElement) {
     } else if (NUMBER_RE.test(trimmed)) {
       const content = trimmed.replace(NUMBER_RE, "");
       result.push(`${prefix}- ${content}`);
+    } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
+      // Standalone bold-only paragraphs act as sub-headings in PPTX
+      // presentations (e.g. "What is an Event Listener?" or "Examples:").
+      // Strip the bold markers and convert to a level-3 heading so the
+      // rendered slide uses a distinct heading style instead of bold
+      // body text that reads as plain paragraph.
+      result.push(`### ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
     } else {
       result.push(trimmed);
     }

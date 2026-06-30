@@ -298,6 +298,17 @@ export class PptxExtractor {
     // Bare <a>…</a> without href (rare) — just keep the inner text.
     s = s.replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, "$1");
 
+    // Clean up whitespace-only formatting markers BEFORE merging.
+    // pptxtojson emits <span bold+italic>&nbsp;</span> between words,
+    // which after CSS-formatting and entity decoding becomes "*** ***"
+    // (bold+italic space).  These markers interfere with the adjacent-
+    // marker merge by splitting what should be a single run into
+    // fragments.  Collapse any marker pair whose content is purely
+    // whitespace to a plain space so the merge regexes can't see them.
+    s = s.replace(/\*\*\*([ \t\n\r\f]+)\*\*\*/g, " ");
+    s = s.replace(/\*\*([ \t\n\r\f]+)\*\*/g, " ");
+    s = s.replace(/(?<!\*)\*([ \t\n\r\f]+)\*(?!\*)/g, " ");
+
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
     // producing "**word1** **word2**" instead of "**word1 word2**".
