@@ -74,6 +74,9 @@ export class PptxExtractor {
     const images = [];
     const slides = raw.slides.map((slide, index) => this.#processSlide(slide, index, images));
 
+    // Convert EMF/WMF images to PNG
+    await this.#convertEmfImages(slides, images);
+
     return {
       slides,
       themeColors: raw.themeColors || [],
@@ -152,12 +155,7 @@ export class PptxExtractor {
     }
 
     if (el.type === "image") {
-      // Skip EMF/WMF images — browsers cannot render them
       const mime = this.#inferMimeType(el.ref);
-      if (mime === "image/emf" || mime === "image/wmf") {
-        console.warn(`Skipping unsupported image format: ${el.ref}`);
-        return null;
-      }
 
       if (el.base64) {
         imagesAccum.push({
@@ -237,30 +235,10 @@ export class PptxExtractor {
     if (!html) return "";
     let s = html;
 
-    // Convert CSS-based formatting to markdown.
+    // Convert CSS-based formatting spans to markdown.
     // pptxtojson uses <span style="font-weight: bold;"> etc.
-    // Process in order: bold first, then italic, to avoid nesting issues.
-    // Use non-greedy matching and limit nesting depth.
-
-    // Pass 1: Bold — font-weight: bold or 700+
-    // Repeat up to 3 times to handle one level of nesting
-    for (let i = 0; i < 3; i++) {
-      s = s.replace(
-        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<\/span>).)*)<\/span>/gi,
-        "**$1**",
-      );
-    }
-    // Pass 2: Italic — font-style: italic
-    for (let i = 0; i < 3; i++) {
-      s = s.replace(
-        /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<\/span>).)*)<\/span>/gi,
-        "*$1*",
-      );
-    }
-
-    // Remove now-empty or style-only spans left over from formatting conversion
-    s = s.replace(/<span\s*>\s*/g, "");
-    s = s.replace(/<\/span>/g, "");
+    // Use iterative string search to handle nested spans correctly.
+    s = this.#convertCssFormatting(s);
 
     // Inline formatting from semantic HTML tags
     s = s.replace(/<\/?strong>/gi, "**");
@@ -326,6 +304,34 @@ export class PptxExtractor {
   }
 
   /**
+   * Convert CSS-based formatting spans to markdown.
+   * Uses iterative search to handle nested spans correctly:
+   * finds innermost spans first, converts them, then works outward.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static #convertCssFormatting(html) {
+    let s = html;
+    // Bold: font-weight: bold or font-weight: 700+
+    for (let i = 0; i < 10; i++) {
+      const match = s.match(/<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i);
+      if (!match) break;
+      s = s.slice(0, match.index) + "**" + match[1] + "**" + s.slice(match.index + match[0].length);
+    }
+    // Italic: font-style: italic
+    for (let i = 0; i < 10; i++) {
+      const match = s.match(/<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i);
+      if (!match) break;
+      s = s.slice(0, match.index) + "*" + match[1] + "*" + s.slice(match.index + match[0].length);
+    }
+    // Clean up remaining empty/style spans
+    s = s.replace(/<span\s*>\s*/g, "");
+    s = s.replace(/<\/span>/g, "");
+    return s;
+  }
+
+  /**
    * Strip all HTML tags, returning plain text only.
    * Used for AI consumption (toPlainText) and table cells.
    * @static
@@ -348,6 +354,49 @@ export class PptxExtractor {
       .replace(/&nbsp;/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+  }
+
+  /**
+   * Convert EMF/WMF images to PNG data URLs using emf-converter.
+   * Modifies slides and images arrays in place.
+   * @static
+   * @param {ExtractedSlide[]} slides
+   * @param {ExtractedImage[]} images
+   * @returns {Promise<void>}
+   */
+  static async #convertEmfImages(slides, images) {
+    const { convertEmfToDataUrl, convertWmfToDataUrl } = await import("emf-converter");
+
+    for (const img of images) {
+      if (img.mimeType !== "image/emf" && img.mimeType !== "image/wmf") continue;
+      try {
+        const binary = atob(img.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const buffer = bytes.buffer;
+
+        const convert = img.mimeType === "image/emf" ? convertEmfToDataUrl : convertWmfToDataUrl;
+        const dataUrl = await convert(buffer);
+        if (dataUrl) {
+          // Extract base64 from data URL (data:image/png;base64,...)
+          const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+          img.base64 = base64;
+          img.mimeType = "image/png";
+
+          // Update the corresponding element in slides
+          for (const slide of slides) {
+            for (const el of slide.elements) {
+              if (el.type === "image" && el.ref === img.ref) {
+                el.base64 = base64;
+                el.mimeType = "image/png";
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
+      }
+    }
   }
 
   /**
