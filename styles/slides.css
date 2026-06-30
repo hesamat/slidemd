@@ -527,7 +527,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area img.image-selected {
   margin: 0;
   border-radius: 0;
-  max-width: none !important;
   height: auto;
 }
 
