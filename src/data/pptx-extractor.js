@@ -249,9 +249,21 @@ export class PptxExtractor {
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
     // producing "**word1** **word2**" instead of "**word1 word2**".
-    // Handle both "****" (no space) and "** **" (with space) patterns.
-    s = s.replace(/\*\*(\s*)\*\*/g, "$1");
-    s = s.replace(/(?<!\*)\*(\s+)\*(?!\*)/g, "$1");
+    // Repeatedly merge adjacent markers until stable.
+    // Pattern: "**text** **more**" → "**text more**"
+    // Also handles "**text ****more**" (directly adjacent) and
+    // "**text ** **more**" (extra space from span boundary).
+    for (let i = 0; i < 5; i++) {
+      const prev = s;
+      s = s.replace(/\*\*([^*]*?)\s*\*\*\s*\*\*/g, "**$1 ");
+      if (s === prev) break;
+    }
+    // Same for italic (single *)
+    for (let i = 0; i < 5; i++) {
+      const prev = s;
+      s = s.replace(/(?<!\*)\*([^*]+?)\s*\*\s*\*(?!\*)/g, "*$1 ");
+      if (s === prev) break;
+    }
 
     // Block elements
     s = s.replace(/<br\s*\/?>/gi, "\n");
@@ -326,7 +338,12 @@ export class PptxExtractor {
         /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
       );
       if (!match) break;
-      s = s.slice(0, match.index) + "**" + match[1] + "**" + s.slice(match.index + match[0].length);
+      s =
+        s.slice(0, match.index) +
+        "**" +
+        match[1].trimEnd() +
+        "**" +
+        s.slice(match.index + match[0].length);
     }
     // Italic: font-style: italic
     for (let i = 0; i < 10; i++) {
@@ -334,7 +351,12 @@ export class PptxExtractor {
         /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
       );
       if (!match) break;
-      s = s.slice(0, match.index) + "*" + match[1] + "*" + s.slice(match.index + match[0].length);
+      s =
+        s.slice(0, match.index) +
+        "*" +
+        match[1].trimEnd() +
+        "*" +
+        s.slice(match.index + match[0].length);
     }
     // Clean up remaining empty/style spans
     s = s.replace(/<span\s*>\s*/g, "");
