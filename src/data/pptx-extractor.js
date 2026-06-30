@@ -235,9 +235,21 @@ export class PptxExtractor {
     if (!html) return "";
     let s = html;
 
+    // Merge adjacent same-styled <span> elements BEFORE CSS formatting.
+    // pptxtojson wraps EACH WORD in its own <span style="...">, so a
+    // 15-word bold sentence produces 15 sibling spans.  After CSS
+    // formatting each span becomes **word** and the inter-word space
+    // span becomes **\u00a0** (bold nbsp).  The merge regexes can't
+    // cleanly combine these because the space marker's closing **
+    // gets consumed and leaves the adjacent word markers orphaned.
+    //
+    // By pre-merging same-styled siblings the CSS formatting pass
+    // sees a single <span> and produces one continuous **run** that
+    // needs no post-hoc merging.
+    s = this.#mergeSameStyledSpans(s);
+
     // Convert CSS-based formatting spans to markdown.
     // pptxtojson uses <span style="font-weight: bold;"> etc.
-    // Use iterative string search to handle nested spans correctly.
     s = this.#convertCssFormatting(s);
 
     // --- Merge split bullets + nest sub-lists ---
@@ -312,11 +324,11 @@ export class PptxExtractor {
     // After cleanup "**word1** ** ** **word2**" becomes
     // "**word1** **word2**" and the merge regex handles it cleanly.
     // triple-asterisk (bold+italic space)
-    s = s.replace(/\*\*\*(\s*)\*\*\*/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
+    s = s.replace(/\*\*\*(\s+)\*\*\*/g, " ");
     // double-asterisk (bold space)
-    s = s.replace(/\*\*(\s*)\*\*/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
+    s = s.replace(/\*\*(\s+)\*\*/g, " ");
     // single-asterisk (italic space)
-    s = s.replace(/(?<!\*)\*(\s*)\*(?!\*)/g, (m, c) => (/^\s*$/.test(c) ? " " : m));
+    s = s.replace(/(?<!\*)\*(\s+)\*(?!\*)/g, " ");
 
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
@@ -402,9 +414,40 @@ export class PptxExtractor {
   }
 
   /**
+   * Merge adjacent <span> elements that share the same style attribute.
+   * pptxtojson wraps EACH WORD in its own <span style="...">, producing
+   * 15 sibling spans for a 15-word bold sentence.  After CSS formatting
+   * each span becomes **word** and inter-word space spans become **\u00a0**
+   * (bold nbsp), which corrupts the adjacent-marker merge.  By pre-
+   * merging at the HTML level the CSS pass sees a single <span> and
+   * produces one continuous **run** that needs no post-hoc merging.
+   *
+   * Only merges truly adjacent spans with identical style attributes —
+   * a closing </span> immediately followed by <span style="..."> with
+   * the same style value.  Other content between them (e.g. <br>, <a>)
+   * breaks the merge.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static #mergeSameStyledSpans(html) {
+    // Match <span style="X">...</span><span style="Y"> where X and Y
+    // are the style attribute values.  Replace with <span style="X">
+    // only when X === Y (case-insensitive).  Repeat until stable.
+    const re = /<span\s+style="([^"]*)">([\s\S]*?)<\/span>\s*<span\s+style="([^"]*)">/gi;
+    let s = html;
+    for (let i = 0; i < 50; i++) {
+      const prev = s;
+      s = s.replace(re, (_m, styleA, _content, styleB) =>
+        styleA.toLowerCase() === styleB.toLowerCase() ? `<span style="${styleA}">` : _m,
+      );
+      if (s === prev) break;
+    }
+    return s;
+  }
+
+  /**
    * Convert CSS-based formatting spans to markdown.
-   * Uses iterative search to handle nested spans correctly:
-   * finds innermost spans first, converts them, then works outward.
    * @static
    * @param {string} html
    * @returns {string}

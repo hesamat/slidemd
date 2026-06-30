@@ -446,4 +446,108 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("A");
     expect(md).toContain("B");
   });
+
+  // ── Bold-paragraph → heading tests ──────────────────────────────────
+
+  it("converts standalone bold paragraphs to ### headings", () => {
+    // Mirrors the addEventListener slide where a bold-only paragraph
+    // acts as a sub-heading (e.g. "What is an Event Listener?").
+    // PptxExtractor converts <span bold>What...</span> to **What...**
+    // and formatTextElement should promote it to ### heading.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "addEventListener",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content:
+              "*Making things interactive*\n**What is an Event Listener?**\n- Piece of code\n- Attached to a DOM\n**Examples:**\n- Click\n- Hover",
+            left: 43,
+            top: 66,
+            width: 653,
+            height: 286,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("### What is an Event Listener?");
+    expect(md).toContain("### Examples:");
+    expect(md).toContain("- Piece of code");
+    expect(md).toContain("- Click");
+  });
+
+  it("preserves bold+italic formatting without extra spaces", () => {
+    // Mirrors the var vs let slide where bold+italic spans wrap each
+    // word individually.  After pre-merging same-styled spans, the
+    // output should be ***var*** **vs** ***let*** without trailing
+    // spaces inside the markers.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "var vs let",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "***var*** **vs** ***let***",
+            left: 59,
+            top: 42,
+            width: 118,
+            height: 34,
+          },
+          {
+            type: "text",
+            content:
+              "- Variables declared with the ***var*** keyword can not have Block Scope.\n- ***let*** -> for local declarations (Block Scope)",
+            left: 56,
+            top: 100,
+            width: 410,
+            height: 51,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Header: bold+italic var, bold vs, bold+italic let
+    expect(md).toContain("***var*** **vs** ***let***");
+    // Body: no trailing spaces inside markers
+    expect(md).not.toMatch(/\*{2,}\w+\s{2,}\*{2,}/);
+    expect(md).toContain("***var*** keyword");
+    expect(md).toContain("***let*** ->");
+  });
+
+  it("does not add trailing spaces inside bold+italic markers from body bullets", () => {
+    // Regression test for the var vs let slide body where bold+italic
+    // keywords had trailing spaces: ***var  ***keyword should be
+    // ***var*** keyword (space OUTSIDE the markers).
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "var vs let",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content:
+              "- Variables declared with the ***var*** keyword can not have Block Scope.\n- ***let*** -> for local declarations (Block Scope)\n- Redeclaring a variable inside a block with var will also redeclare the variable outside the block.",
+            left: 56,
+            top: 100,
+            width: 410,
+            height: 51,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // No trailing spaces inside any *** markers
+    expect(md).not.toMatch(/\*\*\*\w+\s+\*\*\*/);
+    expect(md).toContain("***var*** keyword");
+    expect(md).toContain("***let*** ->");
+  });
 });
