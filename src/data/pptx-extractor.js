@@ -138,7 +138,7 @@ export class PptxExtractor {
     }
 
     if (el.type === "text" || el.type === "shape") {
-      const content = this.#stripHtml(el.content || "");
+      const content = this.#htmlToMarkdown(el.content || "");
       if (!content.trim()) return null;
       return {
         type: "text",
@@ -217,16 +217,57 @@ export class PptxExtractor {
   }
 
   /**
-   * Strip HTML tags from rich text content, preserving text.
+   * Convert HTML to markdown, preserving structural elements.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static #htmlToMarkdown(html) {
+    if (!html) return "";
+    let s = html;
+    // Block elements first
+    s = s.replace(/<br\s*\/?>/gi, "\n");
+    s = s.replace(/<\/p>/gi, "\n");
+    s = s.replace(/<\/li>/gi, "\n");
+    s = s.replace(/<li[^>]*>/gi, "- ");
+    s = s.replace(/<\/ul>/gi, "\n");
+    s = s.replace(/<ul[^>]*>/gi, "");
+    s = s.replace(/<\/ol>/gi, "\n");
+    s = s.replace(/<ol[^>]*>/gi, "");
+    // Inline formatting
+    s = s.replace(/<\/?strong>/gi, "**");
+    s = s.replace(/<\/?b>/gi, "**");
+    s = s.replace(/<\/?em>/gi, "*");
+    s = s.replace(/<\/?i>/gi, "*");
+    // Strip remaining tags
+    s = s.replace(/<[^>]+>/g, "");
+    // Decode entities
+    s = s.replace(/&amp;/g, "&");
+    s = s.replace(/&lt;/g, "<");
+    s = s.replace(/&gt;/g, ">");
+    s = s.replace(/&quot;/g, '"');
+    s = s.replace(/&#39;/g, "'");
+    s = s.replace(/&nbsp;/g, " ");
+    // Clean up whitespace
+    s = s.replace(/\n{3,}/g, "\n\n");
+    return s.trim();
+  }
+
+  /**
+   * Strip all HTML tags, returning plain text only.
+   * Used for AI consumption (toPlainText) and table cells.
    * @static
    * @param {string} html
    * @returns {string}
    */
   static #stripHtml(html) {
+    if (!html) return "";
     return html
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/p>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
+      .replace(/<\/li>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "- ")
+      .replace(/<\/?[a-z][^>]*>/gi, "")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
@@ -308,7 +349,7 @@ export class PptxExtractor {
       lines.push(`--- Slide ${slide.index + 1} ---`);
       if (slide.title) lines.push(`Title: ${slide.title}`);
       if (slide.background) lines.push(`Background: ${slide.background}`);
-      if (slide.notes) lines.push(`Notes: ${slide.notes}`);
+      if (slide.notes) lines.push(`Notes: ${this.#stripHtml(slide.notes)}`);
       lines.push("");
 
       for (const el of slide.elements) {

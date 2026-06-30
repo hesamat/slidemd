@@ -345,7 +345,12 @@ function formatMedia(images, tables, others) {
 
   for (const img of images) {
     const ref = img.ref || "image.png";
-    parts.push(`![${ref}](images/${ref})`);
+    if (img.base64) {
+      const mime = img.mimeType || "image/png";
+      parts.push(`![${ref}](data:${mime};base64,${img.base64})`);
+    } else {
+      parts.push(`![${ref}](images/${ref})`);
+    }
     parts.push("");
   }
 
