@@ -273,7 +273,9 @@ export class PptxExtractor {
     s = s.replace(/<\/?i>/gi, "*");
 
     // Decode entities BEFORE merging so &nbsp; becomes a real space
-    // that the merge regex can match.
+    // that the merge regex can match, and so link label text captured
+    // below is already decoded (pptxtojson keeps &lt;button&gt; as
+    // entities inside <a>...</a>).
     s = s.replace(/&amp;/g, "&");
     s = s.replace(/&lt;/g, "<");
     s = s.replace(/&gt;/g, ">");
@@ -281,6 +283,20 @@ export class PptxExtractor {
     s = s.replace(/&#39;/g, "'");
     s = s.replace(/&apos;/g, "'");
     s = s.replace(/&nbsp;/g, " ");
+
+    // --- Links ---
+    // pptxtojson emits hyperlinks as <a href="...">text</a>.  Convert
+    // to markdown inline-link syntax [text](href) so the URL is
+    // preserved in the slide markdown.  Run AFTER entity decoding so
+    // the captured label text is already decoded (e.g. &lt;button&gt;
+    // becomes <button>).  When the visible text is empty, fall back
+    // to the href as the label so the link isn't dropped silently.
+    s = s.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => {
+      const label = text.trim() || href;
+      return `[${label}](${href})`;
+    });
+    // Bare <a>…</a> without href (rare) — just keep the inner text.
+    s = s.replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, "$1");
 
     // Merge adjacent same-type bold/italic markers.
     // pptxtojson splits bold text into separate spans per word,
@@ -318,6 +334,14 @@ export class PptxExtractor {
     s = s.replace(/<ul[^>]*>/gi, "%%LIST_OPEN%%");
     s = s.replace(/<\/ul>/gi, "%%LIST_CLOSE%%");
     s = s.replace(/<li[^>]*>/gi, "%%LI%%");
+
+    // Drop empty list items (e.g. "<li><p>&nbsp;</p></li>" — pptxtojson
+    // emits these as spacer rows).  After the tag→marker conversion an
+    // empty <li> becomes "%%LI%%" sandwiched between markers; collapse
+    // any %%LI%% whose following text up to the next %% marker is only
+    // whitespace so the token walk doesn't emit a bare "- " bullet
+    // with no content.
+    s = s.replace(/%%LI%%(?=\s*(?=%%|$))/g, "");
 
     // Strip remaining tags
     s = s.replace(/<[^>]+>/g, "");
@@ -367,12 +391,51 @@ export class PptxExtractor {
    */
   static #convertCssFormatting(html) {
     let s = html;
-    // Bold: font-weight: bold or font-weight: 700+
     // pptxtojson wraps EACH WORD in its own <span>, so a 15-word
     // heading produces 15 sibling spans. The old 10-iteration cap
     // left trailing words un-converted, dropping their bold/italic
     // formatting entirely. Use a generous cap that covers long
     // sentences while protecting against pathological inputs.
+    //
+    // ORDERING: combined bold+italic MUST run before the single-
+    // property bold and italic passes. The single-property regexes
+    // accept any style attribute that includes `font-weight: bold`
+    // (or `font-style: italic`) regardless of what *else* is in the
+    // same style attribute, so running them first would convert a
+    // `<span style="font-weight: bold; font-style: italic;">` span
+    // to `**class=btn**` and lose the italic half of the styling.
+    // Running combined first leaves only single-property spans for
+    // the single-property passes.
+
+    // Bold + italic: font-weight: bold AND font-style: italic
+    // (handles spans like the `class=btn` run which is both bold
+    // and italic in the same span).
+    for (let i = 0; i < 500; i++) {
+      const match = s.match(
+        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
+      if (!match) break;
+      s =
+        s.slice(0, match.index) +
+        "***" +
+        match[1].trimEnd() +
+        "***" +
+        s.slice(match.index + match[0].length);
+    }
+    // Bold + italic (italic-first ordering in style attribute)
+    for (let i = 0; i < 500; i++) {
+      const match = s.match(
+        /<span\s+style="[^"]*font-style:\s*italic[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
+      );
+      if (!match) break;
+      s =
+        s.slice(0, match.index) +
+        "***" +
+        match[1].trimEnd() +
+        "***" +
+        s.slice(match.index + match[0].length);
+    }
+    // Bold: font-weight: bold or font-weight: 700+
     for (let i = 0; i < 500; i++) {
       const match = s.match(
         /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
@@ -396,35 +459,6 @@ export class PptxExtractor {
         "*" +
         match[1].trimEnd() +
         "*" +
-        s.slice(match.index + match[0].length);
-    }
-    // Bold + italic: font-weight: bold AND font-style: italic
-    // pptxtojson may combine both in a single span (e.g. class=btn
-    // which is both bold and italic). Handle these after the
-    // single-property passes so the combined spans are the only
-    // remaining ones with those styles.
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "***" +
-        match[1].trimEnd() +
-        "***" +
-        s.slice(match.index + match[0].length);
-    }
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-style:\s*italic[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "***" +
-        match[1].trimEnd() +
-        "***" +
         s.slice(match.index + match[0].length);
     }
     // Clean up remaining empty/style spans
