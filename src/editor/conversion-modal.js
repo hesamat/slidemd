@@ -203,20 +203,22 @@ export class ConversionModal {
         convertBtn.disabled = true;
         convertAiBtn.disabled = true;
         extractBtn.disabled = true;
+        cancelBtn.disabled = true;
         setStatus('<span class="' + P + 'spinner"></span> Converting...', "info");
 
-        // Use setTimeout to let the spinner render before blocking
-        setTimeout(() => {
-          const markdown = convertToSlideMd(extractionResult);
-          resolve({
-            markdown,
-            imageRefs: extractionResult.images.map((img) => img.ref),
-            images: extractionResult.images,
+        // Two nested rAFs ensure the browser paints the spinner
+        // before the synchronous conversion blocks the thread.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const markdown = convertToSlideMd(extractionResult);
+            resolve({
+              markdown,
+              imageRefs: extractionResult.images.map((img) => img.ref),
+              images: extractionResult.images,
+            });
+            backdrop.remove();
           });
-          setStatus("Done! You can close this dialog.", "success");
-          cancelBtn.textContent = "Close";
-          cancelBtn.disabled = false;
-        }, 50);
+        });
       });
 
       // Convert with AI button
