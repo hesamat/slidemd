@@ -305,6 +305,23 @@ export class DeckController extends EventEmitter {
       const { handle, mode } = await DirectoryHandleStore.load();
       if (!handle) return;
 
+      // Validate the handle is still usable
+      try {
+        await handle.getFileHandle(".permission-check", { create: false });
+      } catch (e) {
+        if (e.name === "NotFoundError") {
+          // File not found is fine — the directory itself is accessible
+        } else {
+          // Handle is stale or permission revoked — try to re-request
+          try {
+            const perm = await handle.requestPermission({ mode: "readwrite" });
+            if (perm !== "granted") return;
+          } catch {
+            return;
+          }
+        }
+      }
+
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
       DeckImagesResolver.setDeckDir(handle, mode || "parent");
       await DeckImagesResolver.prime();
