@@ -245,18 +245,21 @@ export class PptxExtractor {
     // without using <ul>/<li>.  A negative text-indent >= 10pt is a
     // reliable signal of bullet formatting, regardless of whether
     // margin-left is also present.
-    const withBullets = html.replace(/<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi, (match, style) => {
-      const m = style.match(/text-indent:\s*-(\d+)/);
-      if (!m) return match;
-      const indent = parseInt(m[1], 10);
-      if (indent >= 10) return `<li>${match}</li>`;
-      return match;
-    });
-
-    const doc = new DOMParser().parseFromString(
-      withBullets.replace(/(<li>[\s\S]*?<\/li>)+/gi, (m) => `<ul>${m}</ul>`),
-      "text/html",
+    const withBullets = html.replace(
+      /<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi,
+      (match, style) => {
+        const m = style.match(/text-indent:\s*-(\d+)/);
+        if (!m) return match;
+        const indent = parseInt(m[1], 10);
+        if (indent >= 10) return `<li>${match}</li>`;
+        return match;
+      },
     );
+
+    // DOMParser normalizes the HTML.  Existing <ul><li> structures are
+    // preserved.  Standalone <li> tags (from CSS bullet detection) are
+    // placed directly under <body> and handled by #processBlockNodes.
+    const doc = new DOMParser().parseFromString(withBullets, "text/html");
     const body = doc.body;
 
     const result = [];
@@ -287,6 +290,17 @@ export class PptxExtractor {
       if (tag === "UL" || tag === "OL") {
         this.#processList(node, 0, out);
         out.push("\n");
+        continue;
+      }
+
+      // Standalone <li> (from CSS bullet detection) — treat as a list item
+      if (tag === "LI") {
+        const inline = [];
+        this.#processInlineNodes(node.childNodes, inline);
+        const merged = this.#mergeAdjacentMarkers(inline.join("").trim());
+        if (merged) {
+          out.push("- " + merged + "\n");
+        }
         continue;
       }
 
