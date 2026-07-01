@@ -245,16 +245,13 @@ export class PptxExtractor {
     // without using <ul>/<li>.  A negative text-indent >= 10pt is a
     // reliable signal of bullet formatting, regardless of whether
     // margin-left is also present.
-    const withBullets = html.replace(
-      /<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi,
-      (match, style) => {
-        const m = style.match(/text-indent:\s*-(\d+)/);
-        if (!m) return match;
-        const indent = parseInt(m[1], 10);
-        if (indent >= 10) return `<li>${match}</li>`;
-        return match;
-      },
-    );
+    const withBullets = html.replace(/<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi, (match, style) => {
+      const m = style.match(/text-indent:\s*-(\d+)/);
+      if (!m) return match;
+      const indent = parseInt(m[1], 10);
+      if (indent >= 10) return `<li>${match}</li>`;
+      return match;
+    });
 
     // DOMParser normalizes the HTML.  Existing <ul><li> structures are
     // preserved.  Standalone <li> tags (from CSS bullet detection) are
