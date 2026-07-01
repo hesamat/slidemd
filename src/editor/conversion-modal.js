@@ -49,7 +49,6 @@ export class ConversionModal {
       const convertBtn = backdrop.querySelector('[data-action="convert"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const statusEl = backdrop.querySelector(`.${P}status`);
-      const previewEl = backdrop.querySelector(`.${P}preview`);
 
       const setStatus = (msg, type = "") => {
         statusEl.textContent = msg;
@@ -109,11 +108,6 @@ export class ConversionModal {
             .replace(/[^a-zA-Z0-9_-]/g, "_");
           const markdown = convertToSlideMd(extractionResult, deckName);
 
-          // Show preview
-          const plainText = PptxExtractor.toPlainText(extractionResult);
-          previewEl.textContent = plainText;
-          previewEl.style.display = "block";
-
           setStatus(
             `Converted ${extractionResult.slides.length} slides, ${extractionResult.images.length} images`,
             "success",
@@ -137,18 +131,6 @@ export class ConversionModal {
         backdrop.remove();
         resolve(null);
       });
-
-      // Copy extracted text to clipboard
-      const copyBtn = backdrop.querySelector('[data-action="copy-extracted"]');
-      if (copyBtn) {
-        copyBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          navigator.clipboard.writeText(previewEl.textContent).then(() => {
-            copyBtn.textContent = "Copied!";
-            setTimeout(() => (copyBtn.textContent = "Copy"), 2000);
-          });
-        });
-      }
 
       // Close on backdrop click
       backdrop.addEventListener("click", (e) => {
@@ -202,14 +184,6 @@ export class ConversionModal {
 
         <div class="${P}status"></div>
 
-        <details class="${P}details">
-          <summary>
-            Extracted Content Preview
-            <button type="button" data-action="copy-extracted" class="${P}btn ${P}btn--sm ${P}btn--copy" title="Copy to clipboard">Copy</button>
-          </summary>
-          <pre class="${P}preview"></pre>
-        </details>
-
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="convert" class="${P}btn ${P}btn--accent" disabled>Convert</button>
@@ -261,12 +235,6 @@ export class ConversionModal {
       .${P}status { font-size: 13px; margin: 12px 0; min-height: 20px; }
       .${P}status--error { color: #dc2626; }
       .${P}status--success { color: #16a34a; }
-      .${P}details { margin: 12px 0; }
-      .${P}preview {
-        max-height: 200px; overflow: auto; font-size: 12px;
-        background: var(--surface-bg-alt, #f5f5f5); padding: 12px;
-        border-radius: 6px; white-space: pre-wrap; display: none;
-      }
       .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
       .${P}btn {
         padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
@@ -277,9 +245,6 @@ export class ConversionModal {
       .${P}btn--primary { background: var(--surface-bg, #fff); border-color: var(--border-medium, #ccc); color: var(--text-high, #111); }
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
-      .${P}btn--sm { padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
-      .${P}btn--copy { margin-left: auto; }
-      .${P}details > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
       .${P}spinner {
         display: inline-block; width: 14px; height: 14px;
         border: 2px solid var(--border-medium, #ccc);
