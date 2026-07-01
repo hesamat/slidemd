@@ -185,6 +185,9 @@ export class EditController {
       {
         onDelete: (updated) => {
           this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.updatePreview();
         },
       },
     );
