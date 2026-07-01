@@ -639,6 +639,7 @@ export class DeckController extends EventEmitter {
     }
 
     if (dirHandle) {
+      const savingToast = Notification.showToast("Saving files...", "info", 0);
       try {
         // Save the markdown file using the PPTX-derived name
         const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
@@ -700,6 +701,8 @@ export class DeckController extends EventEmitter {
         Notification.warning("Failed to save deck. Try again.");
         ConversionModal.close();
         return;
+      } finally {
+        Notification.dismiss(document.querySelector(`[data-toast-id="${savingToast}"]`));
       }
     } else {
       window.__WEBDECK_MARKDOWN__ = markdown;
