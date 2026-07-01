@@ -303,6 +303,7 @@ export class PptxExtractor {
    * @param {string[]} out
    */
   static #processList(listNode, depth, out) {
+    const startLen = out.length;
     for (const child of listNode.children) {
       if (child.tagName !== "LI") continue;
 
@@ -323,6 +324,9 @@ export class PptxExtractor {
         this.#processList(nl, depth + 1, out);
       }
     }
+    if (out.length > startLen) {
+      out.push("\n");
+    }
   }
 
   /**
@@ -334,7 +338,12 @@ export class PptxExtractor {
   static #processInlineNodes(nodes, out) {
     for (const node of nodes) {
       if (node.nodeType === 3) {
-        out.push(node.textContent.replace(/\u00a0/g, " "));
+        out.push(
+          node.textContent
+            .replace(/\u00a0/g, " ")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;"),
+        );
         continue;
       }
       if (node.nodeType !== 1) continue;
@@ -411,9 +420,16 @@ export class PptxExtractor {
         continue;
       }
 
+      // Unknown element (e.g. <button>, <h1>) — treat the tag itself as
+      // text so it appears as literal <tag>content</tag> in the markdown
+      // instead of being silently dropped or rendered as real HTML.
       const inner = [];
       this.#processInlineNodes(node.childNodes, inner);
-      out.push(inner.join(""));
+      const attrs = Array.from(node.attributes)
+        .map((a) => `${a.name}="${a.value}"`)
+        .join(" ");
+      const open = attrs ? `<${tag} ${attrs}>` : `<${tag}>`;
+      out.push(open + inner.join("") + `</${tag}>`);
     }
   }
 
