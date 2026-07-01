@@ -52,7 +52,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
   );
 
   const hasMedia = allElements.some((el) => el.type !== "text");
-  const layout = inferLayout(textElements, slideWidth, slideHeight, hasMedia);
+  const layout = inferLayout(textElements, slideWidth, slideHeight, hasMedia, allElements);
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
@@ -148,7 +148,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
  * @param {number} slideHeight
  * @returns {{ type: string, spec: string }}
  */
-function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
+function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls = textEls) {
   const contentEls = textEls.filter((el) => el.content?.trim());
 
   // No text content
@@ -223,10 +223,12 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false) {
     }
   }
 
-  const leftEls = contentEls.filter(
+  // Use ALL elements (text + images + tables) for column detection
+  // so that images positioned on the right side trigger two-column layout.
+  const leftEls = allEls.filter(
     (el) => el.top >= bodyThreshold && el.left + el.width / 2 < slideWidth / 2,
   );
-  const rightEls = contentEls.filter(
+  const rightEls = allEls.filter(
     (el) => el.top >= bodyThreshold && el.left + el.width / 2 >= slideWidth / 2,
   );
 
