@@ -8,28 +8,6 @@
  */
 import { parse } from "pptxtojson";
 
-const STRUCTURAL_TAGS = new Set([
-  "p",
-  "div",
-  "span",
-  "br",
-  "strong",
-  "b",
-  "em",
-  "i",
-  "a",
-  "ul",
-  "ol",
-  "li",
-  "table",
-  "tr",
-  "td",
-  "th",
-  "thead",
-  "tbody",
-  "font",
-]);
-
 /**
  * @typedef {Object} ExtractedSlide
  * @property {number} index - 0-based slide index.
@@ -257,18 +235,14 @@ export class PptxExtractor {
    */
   static #htmlToMarkdown(html) {
     if (!html) return "";
-    const sanitized = html.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tag) =>
-      STRUCTURAL_TAGS.has(tag.toLowerCase())
-        ? match
-        : match.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-    );
-    const doc = new DOMParser().parseFromString(sanitized, "text/html");
+    const doc = new DOMParser().parseFromString(html, "text/html");
     const body = doc.body;
 
     const result = [];
     this.#processBlockNodes(body.childNodes, result);
     let md = result.join("");
     md = md.replace(/\n{3,}/g, "\n\n");
+    md = md.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return md.trim();
   }
 
