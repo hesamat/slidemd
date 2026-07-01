@@ -140,29 +140,20 @@ export class MarkdownEditor {
     const { suppressOnChange = false } = options;
     if (suppressOnChange) this.suppressChange = true;
 
-    const wasFocused = this.view.hasFocus;
-    const selection = this.view.state.selection.main;
     const scrollTop = this.view.scrollDOM.scrollTop;
 
-    this.view.dispatch({
-      changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-    });
+    // Rebuild state entirely to avoid decoration mapping errors when the
+    // new document is shorter than the old one (out-of-range positions).
+    this.view.setState(
+      EditorState.create({
+        doc: this.value,
+        extensions: this.extensions,
+      }),
+    );
 
     if (suppressOnChange) this.suppressChange = false;
 
-    if (wasFocused) {
-      // Clamp the restored selection to the new document length to avoid
-      // out-of-bounds ranges when the new value is shorter than the old one.
-      const docLength = this.view.state.doc.length;
-      const from = Math.min(selection.from, docLength);
-      const to = Math.min(selection.to, docLength);
-
-      this.view.dispatch({
-        selection: EditorSelection.range(from, to),
-        scrollIntoView: false,
-      });
-      this.view.scrollDOM.scrollTop = scrollTop;
-    }
+    this.view.scrollDOM.scrollTop = scrollTop;
   }
 
   /**
@@ -523,6 +514,8 @@ export class MarkdownEditor {
         }, this.options.debounceDelay);
       }),
     ];
+
+    this.extensions = extensions;
 
     this.view = new EditorView({
       state: EditorState.create({
