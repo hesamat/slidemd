@@ -97,6 +97,7 @@ export class ConversionModal {
         setSpinner("Converting...");
 
         // Let the browser paint the spinner first
+        const started = Date.now();
         await new Promise((r) => setTimeout(r, 50));
 
         try {
@@ -107,6 +108,13 @@ export class ConversionModal {
             .replace(/\.pptx$/i, "")
             .replace(/[^a-zA-Z0-9_-]/g, "_");
           const markdown = convertToSlideMd(extractionResult, deckName);
+
+          // Ensure the spinner is visible for at least 300ms so the
+          // user gets feedback that something happened.
+          const elapsed = Date.now() - started;
+          if (elapsed < 300) {
+            await new Promise((r) => setTimeout(r, 300 - elapsed));
+          }
 
           setStatus(
             `Converted ${extractionResult.slides.length} slides, ${extractionResult.images.length} images`,
