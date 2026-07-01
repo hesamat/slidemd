@@ -2,7 +2,7 @@
  * PptxExtractor
  *
  * Parses PPTX files using pptxtojson and extracts structured content
- * (text, images, notes, tables) suitable for AI-powered conversion to SlideMD.
+ * (text, images, notes, tables) suitable for conversion to SlideMD.
  *
  * @class
  */
@@ -487,7 +487,7 @@ export class PptxExtractor {
 
   /**
    * Strip all HTML tags, returning plain text only.
-   * Used for AI consumption (toPlainText) and table cells.
+   * Used for plain-text preview (toPlainText) and table cells.
    * @static
    * @param {string} html
    * @returns {string}
@@ -715,7 +715,7 @@ export class PptxExtractor {
 
   /**
    * Convert extraction result to a plain-text representation suitable
-   * for sending to an AI model. Strips positioning data, keeps content.
+   * for preview or external processing. Strips positioning data, keeps content.
    * @static
    * @param {ExtractionResult} result
    * @returns {string}

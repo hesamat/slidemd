@@ -108,7 +108,7 @@ export class ConversionModal {
         }
       });
 
-      // Convert button (rule-based, no AI)
+      // Convert button
       convertBtn.addEventListener("click", async () => {
         if (!extractionResult) {
           setStatus("Please extract a PPTX file first", "error");

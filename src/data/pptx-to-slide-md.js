@@ -2,7 +2,7 @@
  * PptxToSlideMd
  *
  * Rule-based converter: transforms an ExtractionResult (from PptxExtractor)
- * directly into SlideMD markdown without AI. Uses element positions and
+ * directly into SlideMD markdown. Uses element positions and
  * sizes to infer layouts deterministically.
  *
  * @class
