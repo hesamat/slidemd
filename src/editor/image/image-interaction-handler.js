@@ -1070,7 +1070,19 @@ export class ImageInteractionHandler {
   static _getImageIndex(img) {
     const slide = img.closest(".slide");
     if (!slide) return -1;
-    return Array.from(slide.querySelectorAll("img")).indexOf(img);
+    // Only count images that appear in the markdown, matching by src.
+    // The DOM may contain extra images (backgrounds, decorations) that
+    // aren't in the markdown, so a raw querySelectorAll index would be
+    // misaligned with _findAllImages entries.
+    const md = this._getMarkdown?.() || "";
+    const entries = this._findAllImages(md);
+    const allImgs = Array.from(slide.querySelectorAll("img"));
+    // Build a list of only the images that correspond to markdown entries
+    const mdImgs = allImgs.filter((el) => {
+      const src = el.dataset.originalSrc || el.getAttribute("src") || "";
+      return entries.some((e) => e.src === src || src.endsWith(e.src) || e.src.endsWith(src));
+    });
+    return mdImgs.indexOf(img);
   }
 
   static _extractAlt(entry) {

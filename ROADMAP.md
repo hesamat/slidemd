@@ -134,34 +134,32 @@ Goal: Comprehensive testing and type safety improvements.
 
 ---
 
-## Phase 7: AI Presentation Conversion
+## Phase 7: PPTX Conversion ✅
 
-Goal: Convert existing presentations (PPTX, PDF, Google Slides) to SlideMD format using AI. Users provide their own API key.
+Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based layout inference. No AI or API keys required.
 
 ### Core
 
-| Task                                   | Details                                                   |
-| -------------------------------------- | --------------------------------------------------------- |
-| [ ] AI provider config modal           | API key input (OpenAI, OpenRouter), model selector, test  |
-| [ ] PPTX text extraction               | Parse PPTX XML, extract text, shapes, images, slide order |
-| [ ] SlideMD generation via AI          | Send extracted content + layout docs to LLM, get markdown |
-| [ ] Conversion modal (upload → review) | File upload, progress, preview before apply               |
-| [ ] Image extraction from PPTX         | Extract embedded images, save to deck, update references  |
-| [ ] Error handling and retry           | Truncation recovery, rate limit backoff, user feedback    |
-
-### Prompt Templates
-
-| Task                               | Details                                                     |
-| ---------------------------------- | ----------------------------------------------------------- |
-| [ ] Expand docs/prompt-template.md | Add conversion-specific prompt (PPTX → SlideMD)             |
-| [ ] Add reusable prompt snippets   | Layout selection rules, code example style, activity format |
+| Task                                          | Details                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| [x] PPTX text extraction                      | Parse PPTX via pptxtojson, extract text, shapes, images, slide order |
+| [x] Rule-based SlideMD generation             | Layout inference from element positions, bullet/heading detection   |
+| [x] Conversion modal (upload → convert)       | File upload with drag-drop, single-step extract + convert          |
+| [x] Image extraction from PPTX                | Extract embedded images, save to deck, update references           |
+| [x] EMF/WMF image conversion                  | Convert embedded EMF/WMF to PNG via emf-converter                  |
+| [x] CSS bullet detection                      | Detect text-indent-based bullets without `<ul>/<li>` markup        |
+| [x] HTML tag escaping                         | Escape non-structural tags so teaching HTML renders as text        |
+| [x] Dark theme detection                      | Auto-set theme: dark when slide background is dark                 |
+| [x] DOMParser-based HTML-to-markdown          | Replace regex pipeline with proper DOM tree walk                   |
+| [x] Two-column layout with images             | Detect images positioned in right column for two-column layout     |
 
 ### Post-Conversion
 
 | Task                                | Details                                            |
 | ----------------------------------- | -------------------------------------------------- |
-| [ ] Edit mode integration           | Load converted deck into editor for manual cleanup |
-| [ ] Unit tests for extraction logic | PPTX parser, slide mapping, image extraction       |
+| [x] Edit mode integration           | Load converted deck into editor for manual cleanup |
+| [x] Image blob URL management       | Rewrite relative paths to blob URLs for preview    |
+| [x] Image deletion fix              | Match DOM images to markdown entries by src         |
 
 ---
 
@@ -234,13 +232,13 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 | Phase 4: New Presentation           | ✅ Complete |
 | Phase 5: Quick Fixes                | ✅ Complete |
 | Phase 6: Testing & Polish           | ✅ Complete |
-| Phase 7: AI Presentation Conversion | Not started |
+| Phase 7: PPTX Conversion            | ✅ Complete |
 | Phase 8: Cloud Mode                 | Not started |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 8
 ```
 
-Phase 6 covers testing and type safety. Phase 7 is AI-powered presentation conversion (PPTX → SlideMD). Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
