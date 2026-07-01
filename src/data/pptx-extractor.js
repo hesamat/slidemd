@@ -96,15 +96,18 @@ export class PptxExtractor {
    */
   static #processSlide(slide, index, imagesAccum) {
     // Process layout elements first (backgrounds, placeholders), then content
-    const elements = [];
+    const raw = [];
     for (const el of slide.layoutElements || []) {
       const extracted = this.#processElement(el, index, imagesAccum);
-      if (extracted) elements.push(extracted);
+      if (extracted) raw.push(extracted);
     }
     for (const el of slide.elements || []) {
       const extracted = this.#processElement(el, index, imagesAccum);
-      if (extracted) elements.push(extracted);
+      if (extracted) raw.push(extracted);
     }
+
+    // Flatten nested arrays from group elements
+    const elements = raw.flat(Infinity);
 
     // Sort by PPTX element order within each group (layout first, then content)
     elements.sort((a, b) => a.order - b.order);
@@ -168,6 +171,7 @@ export class PptxExtractor {
       return {
         type: "image",
         base64: el.base64 || "",
+        blob: el.blob || "",
         mimeType: mime,
         ref: el.ref,
         order: el.order,

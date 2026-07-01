@@ -320,15 +320,17 @@ function formatTextElement(raw, isFirstElement) {
  */
 function formatImage(img, deckName = "presentation") {
   const rawName = (img.ref || "image.png").split("/").pop();
-  // EMF/WMF images are converted to PNG during extraction
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const w = Math.round(img.width / 4763) || null;
   const h = Math.round(img.height / 4763) || null;
+
+  const src = img.blob || `images/${safeName}_${filename}`;
+
   if (w && h) {
-    return `<img src="images/${safeName}_${filename}" width="${w}" height="${h}" alt="${filename}">`;
+    return `<img src="${src}" width="${w}" height="${h}" alt="${filename}">`;
   }
-  return `<img src="images/${safeName}_${filename}" alt="${filename}">`;
+  return `<img src="${src}" alt="${filename}">`;
 }
 
 /**
