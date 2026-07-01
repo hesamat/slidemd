@@ -2,7 +2,7 @@
  * ConversionModal
  *
  * Modal for converting PPTX files to SlideMD format.
- * Rule-based: fast, local conversion using element positions.
+ * Handles file selection and converts in a single step.
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
@@ -14,6 +14,7 @@ const P = "conversion-modal__";
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
  * @property {string[]} imageRefs - Image filenames that need to be saved.
+ * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} fileName - Original PPTX filename (for naming the .md output).
  */
 
@@ -42,19 +43,22 @@ export class ConversionModal {
       this._currentBackdrop = backdrop;
 
       let selectedFile = null;
-      let extractionResult = null;
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
       const fileName = backdrop.querySelector(`.${P}file-name`);
-      const extractBtn = backdrop.querySelector('[data-action="extract"]');
       const convertBtn = backdrop.querySelector('[data-action="convert"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const statusEl = backdrop.querySelector(`.${P}status`);
       const previewEl = backdrop.querySelector(`.${P}preview`);
 
       const setStatus = (msg, type = "") => {
-        statusEl.innerHTML = msg;
+        statusEl.textContent = msg;
         statusEl.className = `${P}status${type ? ` ${P}status--${type}` : ""}`;
+      };
+
+      const setSpinner = (msg) => {
+        statusEl.innerHTML = '<span class="' + P + 'spinner"></span> ' + this.#escHtml(msg);
+        statusEl.className = P + "status";
       };
 
       // File handling
@@ -66,7 +70,7 @@ export class ConversionModal {
         selectedFile = file;
         fileName.textContent = file.name;
         setStatus(`Selected: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`, "success");
-        extractBtn.disabled = false;
+        convertBtn.disabled = false;
       };
 
       fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
@@ -86,54 +90,46 @@ export class ConversionModal {
       });
       dropZone.addEventListener("click", () => fileInput.click());
 
-      // Extract button
-      extractBtn.addEventListener("click", async () => {
-        if (!selectedFile) return;
-        extractBtn.disabled = true;
-        setStatus("Extracting content from PPTX...", "");
-        try {
-          const buffer = await selectedFile.arrayBuffer();
-          extractionResult = await PptxExtractor.extract(buffer);
-          const plainText = PptxExtractor.toPlainText(extractionResult);
-          previewEl.textContent = plainText;
-          previewEl.style.display = "block";
-          setStatus(
-            `Extracted ${extractionResult.slides.length} slides, ${extractionResult.images.length} images`,
-            "success",
-          );
-          convertBtn.disabled = false;
-        } catch (err) {
-          setStatus(`Extraction failed: ${err.message}`, "error");
-          extractBtn.disabled = false;
-        }
-      });
-
-      // Convert button
+      // Convert button — extract + convert in one step
       convertBtn.addEventListener("click", async () => {
-        if (!extractionResult) {
-          setStatus("Please extract a PPTX file first", "error");
-          return;
-        }
+        if (!selectedFile) return;
         convertBtn.disabled = true;
-        extractBtn.disabled = true;
         cancelBtn.disabled = true;
-        statusEl.innerHTML = '<span class="' + P + 'spinner"></span> Converting...';
-        statusEl.className = P + "status";
+        setSpinner("Converting...");
 
         // Let the browser paint the spinner first
         await new Promise((r) => setTimeout(r, 50));
 
-        const deckName = (selectedFile?.name || "presentation")
-          .replace(/\.pptx$/i, "")
-          .replace(/[^a-zA-Z0-9_-]/g, "_");
-        const markdown = convertToSlideMd(extractionResult, deckName);
-        resolve({
-          markdown,
-          imageRefs: extractionResult.images.map((img) => img.ref),
-          images: extractionResult.images,
-          fileName: selectedFile?.name || "presentation.pptx",
-        });
-        // Don't remove backdrop — deck-controller will close it after loading
+        try {
+          const buffer = await selectedFile.arrayBuffer();
+          const extractionResult = await PptxExtractor.extract(buffer);
+
+          const deckName = (selectedFile.name || "presentation")
+            .replace(/\.pptx$/i, "")
+            .replace(/[^a-zA-Z0-9_-]/g, "_");
+          const markdown = convertToSlideMd(extractionResult, deckName);
+
+          // Show preview
+          const plainText = PptxExtractor.toPlainText(extractionResult);
+          previewEl.textContent = plainText;
+          previewEl.style.display = "block";
+
+          setStatus(
+            `Converted ${extractionResult.slides.length} slides, ${extractionResult.images.length} images`,
+            "success",
+          );
+
+          resolve({
+            markdown,
+            imageRefs: extractionResult.images.map((img) => img.ref),
+            images: extractionResult.images,
+            fileName: selectedFile.name || "presentation.pptx",
+          });
+        } catch (err) {
+          setStatus(`Conversion failed: ${err.message}`, "error");
+          convertBtn.disabled = false;
+          cancelBtn.disabled = false;
+        }
       });
 
       // Cancel
@@ -162,6 +158,20 @@ export class ConversionModal {
         }
       });
     });
+  }
+
+  /**
+   * Escape HTML special characters for safe insertion via innerHTML.
+   * @static
+   * @param {string} s
+   * @returns {string}
+   */
+  static #escHtml(s) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   /**
@@ -202,7 +212,6 @@ export class ConversionModal {
 
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
-          <button type="button" data-action="extract" class="${P}btn ${P}btn--primary" disabled>Extract</button>
           <button type="button" data-action="convert" class="${P}btn ${P}btn--accent" disabled>Convert</button>
         </div>
       </div>
