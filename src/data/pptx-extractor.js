@@ -240,26 +240,16 @@ export class PptxExtractor {
   static #htmlToMarkdown(html) {
     if (!html) return "";
 
-    // Detect CSS-based bullets: PowerPoint uses text-indent: -XXpt +
-    // margin-left: XXpt (hanging indent) to simulate bullet indentation
-    // without <ul>/<li>.  Only match when both values are present and
-    // the margin-left is at least 12pt (avoids tiny indents that are
-    // regular paragraph formatting, not bullets).
+    // Detect CSS-based bullets: PowerPoint uses text-indent: -XXpt
+    // (negative hanging indent) to create space for the bullet marker
+    // without using <ul>/<li>.  A negative text-indent >= 10pt is a
+    // reliable signal of bullet formatting, regardless of whether
+    // margin-left is also present.
     const withBullets = html.replace(/<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi, (match, style) => {
-      let m = style.match(/text-indent:\s*-(\d+)/);
-      let m2 = style.match(/margin-left:\s*(\d+)/);
-      if (!m || !m2) return match;
+      const m = style.match(/text-indent:\s*-(\d+)/);
+      if (!m) return match;
       const indent = parseInt(m[1], 10);
-      const margin = parseInt(m2[1], 10);
-      // Must be a hanging indent (margin roughly equals indent) with
-      // a meaningful margin (>= 12pt) to count as a bullet.
-      if (
-        margin >= 12 &&
-        indent >= 10 &&
-        Math.abs(margin - indent) <= Math.max(margin, indent) * 0.5
-      ) {
-        return `<li>${match}</li>`;
-      }
+      if (indent >= 10) return `<li>${match}</li>`;
       return match;
     });
 
