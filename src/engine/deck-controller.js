@@ -96,6 +96,8 @@ export class DeckController extends EventEmitter {
     this.reloadManager.addEventListener("deckchange", (e) => {
       this.deck = e.deck;
       this.dispatchEvent("deckchange", e);
+      // Re-rewrite image srcs to blob URLs on the freshly created DOM
+      this.#rewriteImages();
     });
     // Note: broadcast channel initialized later, after breakManager exists
   }
@@ -312,6 +314,21 @@ export class DeckController extends EventEmitter {
       DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
     } catch (err) {
       console.warn("Could not load deck images resolver:", err);
+    }
+  }
+
+  /**
+   * Rewrite image src attributes to blob URLs using the existing cache.
+   * Lighter than #loadDeckImagesResolver — skips directory handle loading
+   * and cache priming. Used after deck reload when the cache is still valid.
+   */
+  async #rewriteImages() {
+    try {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
+      await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
+    } catch {
+      // Resolver not configured — no directory handle loaded yet
     }
   }
 
