@@ -213,11 +213,16 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
 
   // Use ALL elements (text + images + tables) for column detection
   // so that images positioned on the right side trigger two-column layout.
+  // Exclude centered/full-width elements (their center is near the slide
+  // midpoint) so they don't falsely trigger column detection.
+  const midX = slideWidth / 2;
+  const centerTol = slideWidth * 0.1;
+  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
   const leftEls = allEls.filter(
-    (el) => el.top >= bodyThreshold && el.left + el.width / 2 < slideWidth / 2,
+    (el) => el.top >= bodyThreshold && el.left + el.width / 2 < midX && !isCentered(el),
   );
   const rightEls = allEls.filter(
-    (el) => el.top >= bodyThreshold && el.left + el.width / 2 >= slideWidth / 2,
+    (el) => el.top >= bodyThreshold && el.left + el.width / 2 >= midX && !isCentered(el),
   );
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
