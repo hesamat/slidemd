@@ -239,7 +239,20 @@ export class PptxExtractor {
    */
   static #htmlToMarkdown(html) {
     if (!html) return "";
-    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    // Detect CSS-based bullets: PowerPoint uses text-indent: -XXpt +
+    // margin-left: XXpt to simulate bullet indentation without <ul>/<li>.
+    // Convert consecutive bullet-style <p> tags to <ul><li> structure.
+    const withBullets = html.replace(/<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi, (match, style) => {
+      const hasNegativeIndent = /text-indent:\s*-\d+/.test(style);
+      const hasMarginLeft = /margin-left:\s*\d+/.test(style);
+      return hasNegativeIndent && hasMarginLeft ? `<li>${match}</li>` : match;
+    });
+
+    const doc = new DOMParser().parseFromString(
+      withBullets.replace(/(<li>[\s\S]*?<\/li>)+/gi, (m) => `<ul>${m}</ul>`),
+      "text/html",
+    );
     const body = doc.body;
 
     const result = [];

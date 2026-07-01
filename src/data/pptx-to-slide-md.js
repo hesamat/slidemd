@@ -57,6 +57,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
 
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
+    if (isColorDark(slide.background)) {
+      parts.push("theme: dark");
+    }
   }
 
   const formatSingleElement = (el, isFirst) => {
@@ -100,18 +103,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("");
     parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
   } else if (layout.type === "two-column") {
-    const midX = slideWidth / 2;
-    const leftEls = allElements.filter((el) => el.left + el.width / 2 < midX);
-    const rightEls = allElements.filter((el) => el.left + el.width / 2 >= midX);
-    parts.push("");
-    parts.push("@main");
-    parts.push("");
-    parts.push(leftEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
-    parts.push("");
-    parts.push("@media");
-    parts.push("");
-    parts.push(rightEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
-  } else if (layout.type === "header-two-column") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
     const midX = slideWidth / 2;
     const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
@@ -177,10 +168,7 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
         ),
     );
     if (spreadRow && hasHeader) {
-      return {
-        type: "header-two-column",
-        spec: '"header header" "main media" / 1fr 1fr',
-      };
+      return { type: "two-column", spec: "two-column" };
     }
     if (spreadRow) {
       return { type: "two-column", spec: "two-column" };
@@ -235,10 +223,7 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
 
   if (hasHeader && hasTwoColumns) {
-    return {
-      type: "header-two-column",
-      spec: '"header header" "main media" / 1fr 1fr',
-    };
+    return { type: "two-column", spec: "two-column" };
   }
 
   if (hasHeader) {
@@ -262,6 +247,21 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
 // "- - Understand" collapses to "Understand" before we re-add one "- ".
 const BULLET_RE = /^(?:[\u2022\u2023\u25E6\u2043\u2219•-]\s*)+/;
 const NUMBER_RE = /^\d+[.)]\s*/;
+
+/**
+ * Check if a hex color is dark (luminance-based).
+ * @param {string} hex
+ * @returns {boolean}
+ */
+function isColorDark(hex) {
+  if (!hex || !hex.startsWith("#")) return false;
+  const c = hex.replace("#", "");
+  if (c.length < 6) return false;
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
 
 /**
  * Format a single text element's content.
