@@ -140,26 +140,26 @@ Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based l
 
 ### Core
 
-| Task                                          | Details                                                            |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| [x] PPTX text extraction                      | Parse PPTX via pptxtojson, extract text, shapes, images, slide order |
-| [x] Rule-based SlideMD generation             | Layout inference from element positions, bullet/heading detection   |
-| [x] Conversion modal (upload → convert)       | File upload with drag-drop, single-step extract + convert          |
-| [x] Image extraction from PPTX                | Extract embedded images, save to deck, update references           |
-| [x] EMF/WMF image conversion                  | Convert embedded EMF/WMF to PNG via emf-converter                  |
-| [x] CSS bullet detection                      | Detect text-indent-based bullets without `<ul>/<li>` markup        |
-| [x] HTML tag escaping                         | Escape non-structural tags so teaching HTML renders as text        |
-| [x] Dark theme detection                      | Auto-set theme: dark when slide background is dark                 |
-| [x] DOMParser-based HTML-to-markdown          | Replace regex pipeline with proper DOM tree walk                   |
-| [x] Two-column layout with images             | Detect images positioned in right column for two-column layout     |
+| Task                                    | Details                                                              |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| [x] PPTX text extraction                | Parse PPTX via pptxtojson, extract text, shapes, images, slide order |
+| [x] Rule-based SlideMD generation       | Layout inference from element positions, bullet/heading detection    |
+| [x] Conversion modal (upload → convert) | File upload with drag-drop, single-step extract + convert            |
+| [x] Image extraction from PPTX          | Extract embedded images, save to deck, update references             |
+| [x] EMF/WMF image conversion            | Convert embedded EMF/WMF to PNG via emf-converter                    |
+| [x] CSS bullet detection                | Detect text-indent-based bullets without `<ul>/<li>` markup          |
+| [x] HTML tag escaping                   | Escape non-structural tags so teaching HTML renders as text          |
+| [x] Dark theme detection                | Auto-set theme: dark when slide background is dark                   |
+| [x] DOMParser-based HTML-to-markdown    | Replace regex pipeline with proper DOM tree walk                     |
+| [x] Two-column layout with images       | Detect images positioned in right column for two-column layout       |
 
 ### Post-Conversion
 
-| Task                                | Details                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| [x] Edit mode integration           | Load converted deck into editor for manual cleanup |
-| [x] Image blob URL management       | Rewrite relative paths to blob URLs for preview    |
-| [x] Image deletion fix              | Match DOM images to markdown entries by src         |
+| Task                          | Details                                            |
+| ----------------------------- | -------------------------------------------------- |
+| [x] Edit mode integration     | Load converted deck into editor for manual cleanup |
+| [x] Image blob URL management | Rewrite relative paths to blob URLs for preview    |
+| [x] Image deletion fix        | Match DOM images to markdown entries by src        |
 
 ---
 
@@ -224,16 +224,16 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ## Summary
 
-| Phase                               | Status      |
-| ----------------------------------- | ----------- |
-| Phase 1: Safety Net                 | ✅ Complete |
-| Phase 2: Build Modernization        | ✅ Complete |
-| Phase 3: Distribution               | ✅ Complete |
-| Phase 4: New Presentation           | ✅ Complete |
-| Phase 5: Quick Fixes                | ✅ Complete |
-| Phase 6: Testing & Polish           | ✅ Complete |
-| Phase 7: PPTX Conversion            | ✅ Complete |
-| Phase 8: Cloud Mode                 | Not started |
+| Phase                        | Status      |
+| ---------------------------- | ----------- |
+| Phase 1: Safety Net          | ✅ Complete |
+| Phase 2: Build Modernization | ✅ Complete |
+| Phase 3: Distribution        | ✅ Complete |
+| Phase 4: New Presentation    | ✅ Complete |
+| Phase 5: Quick Fixes         | ✅ Complete |
+| Phase 6: Testing & Polish    | ✅ Complete |
+| Phase 7: PPTX Conversion     | ✅ Complete |
+| Phase 8: Cloud Mode          | Not started |
 
 ### Priority Order
 
