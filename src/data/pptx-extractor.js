@@ -334,7 +334,7 @@ export class PptxExtractor {
   static #processInlineNodes(nodes, out) {
     for (const node of nodes) {
       if (node.nodeType === 3) {
-        out.push(node.textContent);
+        out.push(node.textContent.replace(/\u00a0/g, " "));
         continue;
       }
       if (node.nodeType !== 1) continue;
@@ -349,7 +349,7 @@ export class PptxExtractor {
         if (trimmed) {
           out.push("**" + trimmed + "**");
         } else if (raw) {
-          out.push(raw);
+          out.push(" ");
         }
         continue;
       }
@@ -362,7 +362,7 @@ export class PptxExtractor {
         if (trimmed) {
           out.push("*" + trimmed + "*");
         } else if (raw) {
-          out.push(raw);
+          out.push(" ");
         }
         continue;
       }
@@ -388,7 +388,7 @@ export class PptxExtractor {
             out.push(raw);
           }
         } else if (raw) {
-          out.push(raw);
+          out.push(" ");
         }
         continue;
       }
