@@ -226,115 +226,208 @@ export class PptxExtractor {
   }
 
   /**
-   * Convert HTML to markdown, preserving structural elements.
+   * Convert HTML to markdown using native DOM parsing.
+   * Walks the DOM tree to convert elements to markdown, handling
+   * inline formatting, lists, links, and block elements natively.
    * @static
    * @param {string} html
    * @returns {string}
    */
   static #htmlToMarkdown(html) {
     if (!html) return "";
-    let s = html;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const body = doc.body;
 
-    // Merge adjacent same-styled <span> elements BEFORE CSS formatting.
-    // pptxtojson wraps EACH WORD in its own <span style="...">, so a
-    // 15-word bold sentence produces 15 sibling spans.  After CSS
-    // formatting each span becomes **word** and the inter-word space
-    // span becomes **\u00a0** (bold nbsp).  The merge regexes can't
-    // cleanly combine these because the space marker's closing **
-    // gets consumed and leaves the adjacent word markers orphaned.
-    //
-    // By pre-merging same-styled siblings the CSS formatting pass
-    // sees a single <span> and produces one continuous **run** that
-    // needs no post-hoc merging.
-    s = this.#mergeSameStyledSpans(s);
+    const result = [];
+    this.#processBlockNodes(body.childNodes, result);
+    let md = result.join("");
+    md = md.replace(/\n{3,}/g, "\n\n");
+    return md.trim();
+  }
 
-    // Convert CSS-based formatting spans to markdown.
-    // pptxtojson uses <span style="font-weight: bold;"> etc.
-    s = this.#convertCssFormatting(s);
+  /**
+   * Process block-level nodes and accumulate markdown output.
+   * @static
+   * @param {NodeList} nodes
+   * @param {string[]} out
+   */
+  static #processBlockNodes(nodes, out) {
+    for (const node of nodes) {
+      if (node.nodeType === 3) {
+        const text = node.textContent;
+        if (text.trim()) out.push(text);
+        continue;
+      }
+      if (node.nodeType !== 1) continue;
 
-    // --- Merge split bullets + nest sub-lists ---
-    // pptxtojson sometimes wraps only part of a bullet's text in
-    // <li>…</li></ul>, then puts the rest in a loose <p>…</p>, and
-    // then opens a new <ul> for sub-bullets.  Without this pre-
-    // processing the output would be:
-    //   - first half
-    //   second half                 ← plain text, not a bullet
-    //   - sub bullet 1              ← sibling, not nested
-    //   - sub bullet 2
-    // After merge:
-    //   - first half second half
-    //     - sub bullet 1            ← nested under the first bullet
-    //     - sub bullet 2
-    // We restructure the HTML so the continuation <p> text joins the
-    // <li> content and the following <ul> nests inside it.  The
-    // existing %%LIST_OPEN%% / %%LI%% / %%LIST_CLOSE%% token walk
-    // then naturally produces the correct depth.
-    s = s.replace(
-      /<ul[^>]*>\s*<li[^>]*>\s*(<p[^>]*>)?\s*([\s\S]*?)\s*(<\/p>)?\s*<\/li>\s*<\/ul>\s*<p[^>]*>([\s\S]*?)<\/p>\s*(?=<ul[^>]*>|<ol[^>]*>)/gi,
-      (_m, pOpen, part1, pClose, part2) => {
-        // Re-open and leave the </li></ul> to be matched by the
-        // sub-list's closing tags at the end.
-        return `<ul><li><p>${part1} ${part2}</p>`;
-      },
-    );
+      const tag = node.tagName;
 
-    // Inline formatting from semantic HTML tags
-    s = s.replace(/<\/?strong>/gi, "**");
-    s = s.replace(/<\/?b>/gi, "**");
-    s = s.replace(/<\/?em>/gi, "*");
-    s = s.replace(/<\/?i>/gi, "*");
+      if (tag === "UL" || tag === "OL") {
+        this.#processList(node, 0, out);
+        continue;
+      }
 
-    // Decode entities BEFORE merging so &nbsp; becomes a real space
-    // that the merge regex can match, and so link label text captured
-    // below is already decoded (pptxtojson keeps &lt;button&gt; as
-    // entities inside <a>...</a>).
-    s = s.replace(/&amp;/g, "&");
-    s = s.replace(/&lt;/g, "<");
-    s = s.replace(/&gt;/g, ">");
-    s = s.replace(/&quot;/g, '"');
-    s = s.replace(/&#39;/g, "'");
-    s = s.replace(/&apos;/g, "'");
-    s = s.replace(/&nbsp;/g, " ");
+      if (tag === "TABLE") {
+        continue;
+      }
 
-    // --- Links ---
-    // pptxtojson emits hyperlinks as <a href="...">text</a>.  Convert
-    // to markdown inline-link syntax [text](href) so the URL is
-    // preserved in the slide markdown.  Run AFTER entity decoding so
-    // the captured label text is already decoded (e.g. &lt;button&gt;
-    // becomes <button>).  When the visible text is empty, fall back
-    // to the href as the label so the link isn't dropped silently.
-    s = s.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => {
-      const label = text.trim() || href;
-      return `[${label}](${href})`;
-    });
-    // Bare <a>…</a> without href (rare) — just keep the inner text.
-    s = s.replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+      if (tag === "P" || tag === "DIV") {
+        const inline = [];
+        this.#processInlineNodes(node.childNodes, inline);
+        const merged = this.#mergeAdjacentMarkers(inline.join(""));
+        if (merged.trim()) {
+          out.push(merged + "\n\n");
+        }
+        continue;
+      }
 
-    // Clean up whitespace-only formatting markers BEFORE merging.
-    // pptxtojson emits <span bold>&nbsp;</span> between words and
-    // <span bold+italic>&nbsp;</span> between bold+italic words.
-    // After CSS formatting + entity decoding these become "** **"
-    // (bold space) and "*** ***" (bold+italic space).  These markers
-    // break the adjacent-marker merge by sitting between what should
-    // be a single continuous run: "**word1** ** ** **word2**" can't
-    // be merged cleanly because the merge regex consumes the closing
-    // ** of the space marker and leaves the word markers orphaned.
-    //
-    // Collapse any whitespace-only marker pair to a plain space first.
-    // After cleanup "**word1** ** ** **word2**" becomes
-    // "**word1** **word2**" and the merge regex handles it cleanly.
-    // triple-asterisk (bold+italic space)
-    s = s.replace(/\*\*\*(\s+)\*\*\*/g, " ");
-    // double-asterisk (bold space)
-    s = s.replace(/\*\*(\s+)\*\*/g, " ");
-    // single-asterisk (italic space)
-    s = s.replace(/(?<!\*)\*(\s+)\*(?!\*)/g, " ");
+      if (tag === "BR") {
+        out.push("\n");
+        continue;
+      }
 
-    // Merge adjacent same-type bold/italic markers.
-    // pptxtojson splits bold text into separate spans per word,
-    // producing "**word1** **word2**" instead of "**word1 word2**".
-    // Bold+italic (***word***) is merged first so its triple-asterisk
-    // markers aren't broken up by the ** pass.
+      const inline = [];
+      this.#processInlineNodes(node.childNodes, inline);
+      const merged = this.#mergeAdjacentMarkers(inline.join(""));
+      if (merged.trim()) {
+        out.push(merged + "\n\n");
+      }
+    }
+  }
+
+  /**
+   * Process a list element and its children with proper indentation.
+   * @static
+   * @param {Element} listNode
+   * @param {number} depth
+   * @param {string[]} out
+   */
+  static #processList(listNode, depth, out) {
+    for (const child of listNode.children) {
+      if (child.tagName !== "LI") continue;
+
+      const inline = [];
+      const nestedLists = [];
+      for (const cn of child.childNodes) {
+        if (cn.nodeType === 1 && (cn.tagName === "UL" || cn.tagName === "OL")) {
+          nestedLists.push(cn);
+        } else {
+          this.#processInlineNodes([cn], inline);
+        }
+      }
+      const merged = this.#mergeAdjacentMarkers(inline.join("").trim());
+      if (merged) {
+        out.push("  ".repeat(depth) + "- " + merged + "\n");
+      }
+      for (const nl of nestedLists) {
+        this.#processList(nl, depth + 1, out);
+      }
+    }
+  }
+
+  /**
+   * Process inline-level nodes, accumulating markdown text and link references.
+   * @static
+   * @param {NodeList} nodes
+   * @param {string[]} out
+   */
+  static #processInlineNodes(nodes, out) {
+    for (const node of nodes) {
+      if (node.nodeType === 3) {
+        out.push(node.textContent);
+        continue;
+      }
+      if (node.nodeType !== 1) continue;
+
+      const tag = node.tagName;
+
+      if (tag === "STRONG" || tag === "B") {
+        const inner = [];
+        this.#processInlineNodes(node.childNodes, inner);
+        const raw = inner.join("");
+        const trimmed = raw.trim();
+        if (trimmed) {
+          out.push("**" + trimmed + "**");
+        } else if (raw) {
+          out.push(raw);
+        }
+        continue;
+      }
+
+      if (tag === "EM" || tag === "I") {
+        const inner = [];
+        this.#processInlineNodes(node.childNodes, inner);
+        const raw = inner.join("");
+        const trimmed = raw.trim();
+        if (trimmed) {
+          out.push("*" + trimmed + "*");
+        } else if (raw) {
+          out.push(raw);
+        }
+        continue;
+      }
+
+      if (tag === "SPAN") {
+        const style = (node.getAttribute("style") || "").toLowerCase();
+        const isBold = /font-weight:\s*(?:bold|[6-9]\d{2})/.test(style);
+        const isItalic = /font-style:\s*italic/.test(style);
+
+        const inner = [];
+        this.#processInlineNodes(node.childNodes, inner);
+        const raw = inner.join("");
+        const trimmed = raw.trim();
+
+        if (trimmed) {
+          if (isBold && isItalic) {
+            out.push("***" + trimmed + "***");
+          } else if (isBold) {
+            out.push("**" + trimmed + "**");
+          } else if (isItalic) {
+            out.push("*" + trimmed + "*");
+          } else {
+            out.push(raw);
+          }
+        } else if (raw) {
+          out.push(raw);
+        }
+        continue;
+      }
+
+      if (tag === "A") {
+        const href = node.getAttribute("href") || "";
+        const inner = [];
+        this.#processInlineNodes(node.childNodes, inner);
+        const text = inner.join("").trim();
+        if (href) {
+          out.push("[" + (text || href) + "](" + href + ")");
+        } else if (text) {
+          out.push(text);
+        }
+        continue;
+      }
+
+      if (tag === "BR") {
+        out.push("\n");
+        continue;
+      }
+
+      const inner = [];
+      this.#processInlineNodes(node.childNodes, inner);
+      out.push(inner.join(""));
+    }
+  }
+
+  /**
+   * Merge adjacent same-type markdown markers.
+   * Converts "**a** **b**" → "**a b**" and "***a*** ***b***" → "***a b***".
+   * Bold+italic is merged first so its triple-asterisk markers are not
+   * broken up by the double-asterisk pass.
+   * @static
+   * @param {string} text
+   * @returns {string}
+   */
+  static #mergeAdjacentMarkers(text) {
+    let s = text;
     for (let i = 0; i < 10; i++) {
       const prev = s;
       s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*(?!\*)/g, "***$1$2");
@@ -345,188 +438,13 @@ export class PptxExtractor {
       s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*(?!\*)/g, "**$1$2");
       if (s === prev) break;
     }
-    // Same for italic (single *)
     for (let i = 0; i < 10; i++) {
       const prev = s;
       s = s.replace(/(?<!\*)\*([^*]+?)\*(\s*)\*(?!\*)/g, "*$1$2");
       if (s === prev) break;
     }
-
-    // Clean up any remaining empty bold/italic markers
     s = s.replace(/\*\*\s*\*\*/g, " ");
     s = s.replace(/(?<!\*)\*\s*\*(?!\*)/g, " ");
-
-    // Block elements
-    s = s.replace(/<br\s*\/?>/gi, "\n");
-    s = s.replace(/<\/p>/gi, "\n");
-
-    // Track list nesting: replace list tags with markers
-    s = s.replace(/<ol[^>]*>/gi, "%%LIST_OPEN%%");
-    s = s.replace(/<\/ol>/gi, "%%LIST_CLOSE%%");
-    s = s.replace(/<ul[^>]*>/gi, "%%LIST_OPEN%%");
-    s = s.replace(/<\/ul>/gi, "%%LIST_CLOSE%%");
-    s = s.replace(/<li[^>]*>/gi, "%%LI%%");
-
-    // Drop empty list items (e.g. "<li><p>&nbsp;</p></li>" — pptxtojson
-    // emits these as spacer rows).  After the tag→marker conversion an
-    // empty <li> becomes "%%LI%%" sandwiched between markers; collapse
-    // any %%LI%% whose following text up to the next %% marker is only
-    // whitespace so the token walk doesn't emit a bare "- " bullet
-    // with no content.
-    s = s.replace(/%%LI%%(?=\s*(?=%%|$))/g, "");
-
-    // Strip remaining tags
-    s = s.replace(/<[^>]+>/g, "");
-
-    // Process list markers: convert to indented markdown lists.
-    // Walk the string token by token so %%LI%% gets the correct
-    // depth for any %%LIST_OPEN%% / %%LIST_CLOSE%% that precedes it.
-    let depth = 0;
-    let result = "";
-    const reg = /%%(LIST_OPEN|LIST_CLOSE|LI)%%/g;
-    let last = 0;
-    let m;
-    while ((m = reg.exec(s)) !== null) {
-      // Text before this marker
-      const text = s.slice(last, m.index);
-      if (text.trim()) result += text;
-      last = m.index + m[0].length;
-
-      switch (m[1]) {
-        case "LIST_OPEN":
-          depth++;
-          break;
-        case "LIST_CLOSE":
-          depth = Math.max(0, depth - 1);
-          break;
-        case "LI":
-          result += "  ".repeat(Math.max(0, depth - 1)) + "- ";
-          break;
-      }
-    }
-    // Any text after the last marker
-    const remaining = s.slice(last).trim();
-    if (remaining) result += "\n" + remaining;
-
-    s = result;
-    s = s.replace(/\n{3,}/g, "\n\n");
-    return s.trim();
-  }
-
-  /**
-   * Merge adjacent <span> elements that share the same style attribute.
-   * pptxtojson wraps EACH WORD in its own <span style="...">, producing
-   * 15 sibling spans for a 15-word bold sentence.  After CSS formatting
-   * each span becomes **word** and inter-word space spans become **\u00a0**
-   * (bold nbsp), which corrupts the adjacent-marker merge.  By pre-
-   * merging at the HTML level the CSS pass sees a single <span> and
-   * produces one continuous **run** that needs no post-hoc merging.
-   *
-   * Only merges truly adjacent spans with identical style attributes —
-   * a closing </span> immediately followed by <span style="..."> with
-   * the same style value.  Other content between them (e.g. <br>, <a>)
-   * breaks the merge.
-   * @static
-   * @param {string} html
-   * @returns {string}
-   */
-  static #mergeSameStyledSpans(html) {
-    // Match <span style="X">...</span><span style="Y"> where X and Y
-    // are the style attribute values.  Replace with <span style="X">
-    // only when X === Y (case-insensitive).  Repeat until stable.
-    const re = /<span\s+style="([^"]*)">([\s\S]*?)<\/span>\s*<span\s+style="([^"]*)">/gi;
-    let s = html;
-    for (let i = 0; i < 50; i++) {
-      const prev = s;
-      s = s.replace(re, (_m, styleA, content, styleB) =>
-        styleA.toLowerCase() === styleB.toLowerCase() ? `<span style="${styleA}">${content}` : _m,
-      );
-      if (s === prev) break;
-    }
-    return s;
-  }
-
-  /**
-   * Convert CSS-based formatting spans to markdown.
-   * @static
-   * @param {string} html
-   * @returns {string}
-   */
-  static #convertCssFormatting(html) {
-    let s = html;
-    // pptxtojson wraps EACH WORD in its own <span>, so a 15-word
-    // heading produces 15 sibling spans. The old 10-iteration cap
-    // left trailing words un-converted, dropping their bold/italic
-    // formatting entirely. Use a generous cap that covers long
-    // sentences while protecting against pathological inputs.
-    //
-    // ORDERING: combined bold+italic MUST run before the single-
-    // property bold and italic passes. The single-property regexes
-    // accept any style attribute that includes `font-weight: bold`
-    // (or `font-style: italic`) regardless of what *else* is in the
-    // same style attribute, so running them first would convert a
-    // `<span style="font-weight: bold; font-style: italic;">` span
-    // to `**class=btn**` and lose the italic half of the styling.
-    // Running combined first leaves only single-property spans for
-    // the single-property passes.
-
-    // Bold + italic: font-weight: bold AND font-style: italic
-    // (handles spans like the `class=btn` run which is both bold
-    // and italic in the same span).
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "***" +
-        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
-        "***" +
-        s.slice(match.index + match[0].length);
-    }
-    // Bold + italic (italic-first ordering in style attribute)
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-style:\s*italic[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "***" +
-        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
-        "***" +
-        s.slice(match.index + match[0].length);
-    }
-    // Bold: font-weight: bold or font-weight: 700+
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-weight:\s*(?:bold|[6-9]\d\d)[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "**" +
-        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
-        "**" +
-        s.slice(match.index + match[0].length);
-    }
-    // Italic: font-style: italic
-    for (let i = 0; i < 500; i++) {
-      const match = s.match(
-        /<span\s+style="[^"]*font-style:\s*italic[^"]*">((?:(?!<span|<\/span>).)*)<\/span>/i,
-      );
-      if (!match) break;
-      s =
-        s.slice(0, match.index) +
-        "*" +
-        match[1].replace(/^[\s\u00a0]+|[\s\u00a0]+$/g, "") +
-        "*" +
-        s.slice(match.index + match[0].length);
-    }
-    // Clean up remaining empty/style spans
-    s = s.replace(/<span\s*>\s*/g, "");
-    s = s.replace(/<\/span>/g, "");
     return s;
   }
 
