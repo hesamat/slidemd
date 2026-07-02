@@ -180,11 +180,23 @@ export class PptxExtractor {
       if (!this.#hasTextContent(el)) {
         return null;
       }
-      // Flatten group elements
+      // Flatten group elements, adjusting positions to be slide-relative
       const results = [];
       for (const child of el.elements) {
         const r = this.#processElement(child, slideIndex, imagesAccum);
-        if (r) results.push(r);
+        if (r) {
+          if (Array.isArray(r)) {
+            for (const item of r) {
+              item.left += el.left;
+              item.top += el.top;
+              results.push(item);
+            }
+          } else {
+            r.left += el.left;
+            r.top += el.top;
+            results.push(r);
+          }
+        }
       }
       return results.length ? results : null;
     }
