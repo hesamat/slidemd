@@ -337,17 +337,15 @@ function processInlineNodes(nodes, out) {
       if (trimmed) {
         let text = isMono ? raw : trimmed;
         if (isMono) {
+          // Monospace text — use backticks, skip bold/italic markers
           text = "`" + text.replace(/`/g, "\\`") + "`";
-        }
-        if (isBold && isItalic) {
-          out.push("***" + text + "***");
-        } else if (isBold) {
-          out.push("**" + text + "**");
-        } else if (isItalic) {
-          out.push("*" + text + "*");
-        } else if (isMono) {
-          // Monospace text — already wrapped in backticks
           out.push(text);
+        } else if (isBold && isItalic) {
+          out.push("***" + trimmed + "***");
+        } else if (isBold) {
+          out.push("**" + trimmed + "**");
+        } else if (isItalic) {
+          out.push("*" + trimmed + "*");
         } else {
           // Plain text span — preserve original spacing
           out.push(raw);

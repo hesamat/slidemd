@@ -485,11 +485,12 @@ describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
     expect(result).toContain("`code`");
   });
 
-  it("handles bold monospace text", () => {
+  it("handles bold monospace text — monospace wins over bold", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-family: Consolas; font-weight: bold;">code</span></p>',
     );
-    expect(result).toContain("**`code`**");
+    expect(result).toContain("`code`");
+    expect(result).not.toContain("**`code`**");
   });
 
   it("escapes backticks inside monospace text", () => {
