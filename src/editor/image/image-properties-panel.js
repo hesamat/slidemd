@@ -149,9 +149,7 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="center" title="Center on slide">⊞ Center</button>
                         <button type="button" class="image-properties-panel__chip" data-action="fit" title="Fit to slide width">↔ Fit width</button>
                     </div>
-                    <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="trim" title="Crop transparent margins around the picture (useful for converted EMF images)">✂ Trim margins</button>
-                    </div>
+
                 </div>
 
                 <!-- Position tab -->
@@ -318,9 +316,6 @@ export class ImagePropertiesPanel {
         break;
       case "fit":
         ImageInteractionHandler.fitToWidth();
-        break;
-      case "trim":
-        ImageInteractionHandler.trimTransparency();
         break;
       case "front":
         ImageInteractionHandler.bringToFront();

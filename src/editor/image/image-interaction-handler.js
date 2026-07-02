@@ -17,8 +17,6 @@
  */
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
-import { DeckImagesResolver } from "./deck-images-resolver.js";
-import { Notification } from "../../renderer/notification.js";
 
 export class ImageInteractionHandler {
   static _initialized = false;
@@ -242,12 +240,7 @@ export class ImageInteractionHandler {
           const img = this._selectedImg;
           if (!img) return;
 
-          const grid = this._slideContainer;
-          if (!grid) return;
-
           const scale = this._getStageScale();
-          const curStyleLeft = parseFloat(img.style.left) || 0;
-          const curStyleTop = parseFloat(img.style.top) || 0;
 
           // interact.js reports pointer motion in screen px.  Because
           // the stage is rendered with a CSS transform, we must scale
@@ -256,47 +249,16 @@ export class ImageInteractionHandler {
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
 
-          // Visual position of the image's box relative to the grid
-          // container (which is the positioning context for overlay &&
-          // snap guides), at the pre-move state.
-          const gridRect = grid.getBoundingClientRect();
-          const imgRect = img.getBoundingClientRect();
-          const curVisualLeft = (imgRect.left - gridRect.left) / scale;
-          const curVisualTop = (imgRect.top - gridRect.top) / scale;
-          const w = imgRect.width / scale;
-          const h = imgRect.height / scale;
+          const curStyleLeft = parseFloat(img.style.left) || 0;
+          const curStyleTop = parseFloat(img.style.top) || 0;
 
-          let proposedVisualLeft = curVisualLeft + dDesignX;
-          let proposedVisualTop = curVisualTop + dDesignY;
-
-          let newLeft;
-          let newTop;
-
-          // Snapping (disabled while Alt is held).  Snapping returns
-          // a desired *visual* left/top; convert back to a style
-          // offset using the relationship that style.left maps 1:1 to
-          // visual shift.
-          if (!e.altKey) {
-            const snap = this._computeSnap(img, proposedVisualLeft, proposedVisualTop, w, h);
-            const snappedVisualLeft = snap.x != null ? snap.x : proposedVisualLeft;
-            const snappedVisualTop = snap.y != null ? snap.y : proposedVisualTop;
-            newLeft = curStyleLeft + (snappedVisualLeft - curVisualLeft);
-            newTop = curStyleTop + (snappedVisualTop - curVisualTop);
-            this._renderSnapGuides(snap.guides);
-          } else {
-            newLeft = curStyleLeft + dDesignX;
-            newTop = curStyleTop + dDesignY;
-            this._clearSnapGuides();
-          }
-
-          img.style.left = `${newLeft}px`;
-          img.style.top = `${newTop}px`;
+          img.style.left = `${curStyleLeft + dDesignX}px`;
+          img.style.top = `${curStyleTop + dDesignY}px`;
 
           this._updateOverlay();
           ImagePropertiesPanel._syncUI(this._readSettings(img));
         },
         end: () => {
-          this._clearSnapGuides();
           this._syncToMarkdown();
         },
       },
@@ -409,150 +371,6 @@ export class ImageInteractionHandler {
     if (!transform || transform === "none") return 1;
     const match = transform.match(/matrix\(([^,]+),/);
     return match ? parseFloat(match[1]) : 1;
-  }
-
-  // ── Snapping ────────────────────────────────────────────────────────────
-
-  static _SNAP_THRESHOLD = 6; // design px
-
-  /**
-   * Compute snap-adjusted left/top for the dragged image.
-   *
-   * All coordinates are expressed relative to the slide grid container
-   * (`.slide__grid`), which is the same coordinate system used for the
-   * overlay and snap-guide elements.  Working in *visual* coordinates (rather
-   * than the image's `position: relative` style offsets) ensures snapping
-   * works across images that live in different `.slide__area` cells and at
-   * any stage scale.
-   *
-   * @param {HTMLImageElement} img    – the image being dragged (for finding sibling targets)
-   * @param {number} visualLeft       – proposed visual left edge (design px, grid-relative)
-   * @param {number} visualTop        – proposed visual top edge
-   * @param {number} w                – image width in design px
-   * @param {number} h                – image height in design px
-   * @returns {{x: number|null, y: number|null, guides: Array}} `x`/`y` are the
-   *   desired *visual* positions of the image's left/top edge after snapping
-   *   (or null when no snap target is close enough).  `guides` is a list of
-   *   `{ axis, pos }` for drawing guide lines.
-   */
-  static _computeSnap(img, visualLeft, visualTop, w, h) {
-    const grid = this._slideContainer;
-    if (!grid) return { x: null, y: null, guides: [] };
-
-    const scale = this._getStageScale();
-    const gridRect = grid.getBoundingClientRect();
-    const gridW = gridRect.width / scale;
-    const gridH = gridRect.height / scale;
-
-    // Slide-grid edges and center are the primary snap targets.
-    const xTargets = [
-      { v: 0, kind: "edge" }, // grid left
-      { v: gridW / 2, kind: "center" }, // grid center X
-      { v: gridW, kind: "edge" }, // grid right
-    ];
-    const yTargets = [
-      { v: 0, kind: "edge" },
-      { v: gridH / 2, kind: "center" },
-      { v: gridH, kind: "edge" },
-    ];
-
-    // Add other images' visible centers/edges on the same slide.  We use
-    // getBoundingClientRect so images in different grid cells compare on the
-    // same coordinate axis.
-    const slide = img.closest(".slide");
-    if (slide) {
-      slide.querySelectorAll("img").forEach((other) => {
-        if (other === img) return;
-        const oRect = other.getBoundingClientRect();
-        const oL = (oRect.left - gridRect.left) / scale;
-        const oT = (oRect.top - gridRect.top) / scale;
-        const oW = oRect.width / scale;
-        const oH = oRect.height / scale;
-        xTargets.push({ v: oL, kind: "edge" });
-        xTargets.push({ v: oL + oW / 2, kind: "center" });
-        xTargets.push({ v: oL + oW, kind: "edge" });
-        yTargets.push({ v: oT, kind: "edge" });
-        yTargets.push({ v: oT + oH / 2, kind: "center" });
-        yTargets.push({ v: oT + oH, kind: "edge" });
-      });
-    }
-
-    // The dragged image exposes three reference lines along each axis.
-    const xRefs = [
-      { ref: visualLeft, offset: 0 },
-      { ref: visualLeft + w / 2, offset: w / 2 },
-      { ref: visualLeft + w, offset: w },
-    ];
-    const yRefs = [
-      { ref: visualTop, offset: 0 },
-      { ref: visualTop + h / 2, offset: h / 2 },
-      { ref: visualTop + h, offset: h },
-    ];
-
-    // Choose the closest candidate within the threshold (not the first in
-    // iteration order) so the most relevant edge/center snaps.
-    let bestX = null;
-    let bestXDist = Infinity;
-    let bestXGuide = null;
-    for (const ref of xRefs) {
-      for (const t of xTargets) {
-        const d = Math.abs(ref.ref - t.v);
-        if (d <= this._SNAP_THRESHOLD && d < bestXDist) {
-          bestXDist = d;
-          bestX = t.v - ref.offset;
-          bestXGuide = { axis: "v", pos: t.v };
-        }
-      }
-    }
-
-    let bestY = null;
-    let bestYDist = Infinity;
-    let bestYGuide = null;
-    for (const ref of yRefs) {
-      for (const t of yTargets) {
-        const d = Math.abs(ref.ref - t.v);
-        if (d <= this._SNAP_THRESHOLD && d < bestYDist) {
-          bestYDist = d;
-          bestY = t.v - ref.offset;
-          bestYGuide = { axis: "h", pos: t.v };
-        }
-      }
-    }
-
-    const guides = [];
-    if (bestXGuide) guides.push(bestXGuide);
-    if (bestYGuide) guides.push(bestYGuide);
-
-    return { x: bestX, y: bestY, guides };
-  }
-
-  static _renderSnapGuides(guides) {
-    this._clearSnapGuides();
-    const grid = this._slideContainer;
-    if (!grid) return;
-    for (const g of guides) {
-      const el = document.createElement("div");
-      el.className = "image-snap-guide";
-      el.dataset.axis = g.axis;
-      if (g.axis === "v") {
-        el.style.left = `${g.pos}px`;
-        el.style.top = "0";
-        el.style.width = "1px";
-        el.style.height = "100%";
-      } else {
-        el.style.top = `${g.pos}px`;
-        el.style.left = "0";
-        el.style.height = "1px";
-        el.style.width = "100%";
-      }
-      grid.appendChild(el);
-    }
-  }
-
-  static _clearSnapGuides() {
-    const grid = this._slideContainer;
-    if (!grid) return;
-    grid.querySelectorAll(".image-snap-guide").forEach((el) => el.remove());
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────
@@ -915,156 +733,6 @@ export class ImageInteractionHandler {
     }
 
     this.applySettings(settings);
-  }
-
-  /**
-   * Trim the transparent border around the selected image's visible
-   * content and overwrite the source file in the deck folder.
-   *
-   * This is primarily useful for EMF → PNG exports (e.g. from
-   * PowerPoint) which ship with large transparent margins so the image
-   * element's bounding box is much bigger than the picture the user
-   * actually sees.  We rasterise the image to an off-DOM canvas, scan
-   * for the axis-aligned bounding box of any non-transparent pixel,
-   * crop to that box, re-encode as PNG, and write the bytes back to the
-   * same `images/...` path via the File System Access API.
-   *
-   * The action is gated on the image actually *having* a transparent
-   * border: opaque photos and screenshots have no detectable padding and
-   * produce a user-facing message rather than a destructive rewrite.
-   * After a successful trim the displayed width/height are left
-   * unchanged — the trimmed natural image simply fills more of the box.
-   *
-   * @returns {Promise<void>}
-   */
-  static async trimTransparency() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const liveSrc = img.getAttribute("src") || "";
-    const relPath = img.dataset.originalSrc || liveSrc;
-    if (!relPath || !/^images\//.test(relPath)) {
-      Notification.warning("Trim only works on images stored in images/");
-      return;
-    }
-    if (!liveSrc) {
-      Notification.warning("Could not read the image source");
-      return;
-    }
-
-    // Load the current image bytes into a canvas.  Fetch-blob works for
-    // both `blob:` (dev preview) and `http(s):` (build/export) URLs.
-    let bitmap;
-    try {
-      const response = await fetch(liveSrc);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      bitmap = await createImageBitmap(blob);
-    } catch (err) {
-      Notification.error("Could not load the image for trimming");
-      console.warn("trimTransparency load failed:", err);
-      return;
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close?.();
-
-    const { data, width: cw, height: ch } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    // Find the tightest rectangle containing the image's visible
-    // content.  EMF → PNG exports (e.g. from PowerPoint) frequently
-    // ship with faint near-transparent artifact pixels (alpha 1-8) at
-    // the canvas edges — a strict `alpha > 0` test treats those as
-    // content and refuses to crop the surrounding transparent band,
-    // leaving a large empty margin at the bottom.  We instead require
-    // `alpha >= ALPHA_THRESHOLD` for a pixel to count as visible;
-    // truly-antialiased content edges sit well above this threshold,
-    // while border artifacts fall below it and get trimmed.
-    const ALPHA_THRESHOLD = 10; // out of 255 — ~4% opacity
-    let minX = cw;
-    let minY = ch;
-    let maxX = -1;
-    let maxY = -1;
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        if (data[(y * cw + x) * 4 + 3] >= ALPHA_THRESHOLD) {
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-
-    if (maxX < 0) {
-      Notification.warning("Image has no visible content to trim");
-      return;
-    }
-
-    // Gate on an actual transparent border: this is what naturally
-    // scopes the operation to EMF-style images (which carry big
-    // transparent margins) while leaving opaque screenshots alone.
-    const PAD_THRESHOLD_PCT = 1; // ≥1% transparent band on any side
-    const minPadX = Math.ceil(cw * (PAD_THRESHOLD_PCT / 100));
-    const minPadY = Math.ceil(ch * (PAD_THRESHOLD_PCT / 100));
-    const hasBorder =
-      minX >= minPadX || minY >= minPadY || cw - 1 - maxX >= minPadX || ch - 1 - maxY >= minPadY;
-    if (!hasBorder) {
-      Notification.info("No transparent border to trim");
-      return;
-    }
-
-    const trimmedW = maxX - minX + 1;
-    const trimmedH = maxY - minY + 1;
-    const croppedCanvas = document.createElement("canvas");
-    croppedCanvas.width = trimmedW;
-    croppedCanvas.height = trimmedH;
-    croppedCanvas
-      .getContext("2d")
-      .drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
-
-    const pngBlob = await new Promise((resolve) => croppedCanvas.toBlob(resolve, "image/png"));
-    if (!pngBlob) {
-      Notification.error("Failed to encode the trimmed image");
-      return;
-    }
-
-    const written = await DeckImagesResolver.replaceImageFile(relPath, pngBlob);
-    if (!written) {
-      Notification.warning(
-        "Could not save the trimmed image to disk (permission denied or deck folder unavailable)",
-      );
-      return;
-    }
-
-    // Refresh the cached blob URL and point the <img> at it so the
-    // preview re-renders with the new bytes immediately.
-    const newUrl = await DeckImagesResolver.resolvePreviewSrc(relPath, { force: true });
-    if (newUrl && newUrl !== relPath) {
-      img.src = newUrl;
-      // `img.dataset.originalSrc` is preserved by rewriteImgSrcs; keep
-      // it on the live element after swap.
-      img.dataset.originalSrc = relPath;
-    }
-
-    // The natural dimensions changed; drop any fixed `height` style
-    // so the image re-derives height from the new natural size while
-    // keeping the user's chosen `width`.  This keeps the visible box
-    // roughly the same width but lets the cropped content fill it.
-    if (img.style.height) {
-      img.style.height = "";
-      img.style.objectFit = "contain";
-    }
-
-    this._updateOverlay();
-    ImagePropertiesPanel._syncUI(this._readSettings(img));
-    this._syncToMarkdown();
-    Notification.success(
-      `Trimmed transparent border → ${trimmedW}×${trimmedH}px (was ${cw}×${ch}px)`,
-    );
   }
 
   static _getImageIndex(img) {
