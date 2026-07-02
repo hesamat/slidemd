@@ -86,18 +86,20 @@ export function htmlToMarkdown(html) {
   md = md.replace(/\n{3,}/g, "\n\n");
 
   // Group consecutive backtick-wrapped lines into fenced code blocks.
+  // Match any line that starts and ends with backtick (inline code),
+  // including lines with backticks inside (e.g., `id``(test_value)`).
   const lines = md.split("\n");
   const grouped = [];
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     const trimmedLine = line.trim();
-    const isBacktickLine = /^`[^`]+`$/.test(trimmedLine);
+    const isBacktickLine = /^`.+`$/.test(trimmedLine);
     if (isBacktickLine) {
       const codeLines = [];
       while (i < lines.length) {
         const t = lines[i].trim();
-        if (/^`[^`]+`$/.test(t)) {
+        if (/^`.+`$/.test(t)) {
           codeLines.push(t.replace(/^`|`$/g, ""));
           i++;
         } else if (t === "") {
@@ -119,6 +121,13 @@ export function htmlToMarkdown(html) {
   }
   md = grouped.join("\n");
 
+  // Escape < and > characters, but preserve content inside backticks and
+  // fenced code blocks. Split by backtick-wrapped content and fenced code
+  // blocks, escape only the non-code parts.
+  md = md
+    .split(/(`[^`]+`|^```\n[\s\S]*?\n```)/m)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;").replace(/>/g, "&gt;")))
+    .join("");
   return md.trim();
 }
 
@@ -267,14 +276,7 @@ function processList(listNode, depth, out) {
 function processInlineNodes(nodes, out) {
   for (const node of nodes) {
     if (node.nodeType === 3) {
-      // Escape HTML entities at the text node level so monospace code
-      // blocks and other inline content preserve their original characters.
-      out.push(
-        node.textContent
-          .replace(/\u00a0/g, " ")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;"),
-      );
+      out.push(node.textContent.replace(/\u00a0/g, " "));
       continue;
     }
     if (node.nodeType !== 1) continue;
