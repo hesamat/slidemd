@@ -19,20 +19,9 @@ export function convertToSlideMd(extraction, deckName = "presentation") {
   const slideWidth = extraction.size?.width || 9144000;
   const slideHeight = extraction.size?.height || 5143500;
 
-  // Build frontmatter with theme colors if available
-  const frontmatter = [];
-  if (extraction.themeColors?.length > 0) {
-    frontmatter.push(`themeColors: ${JSON.stringify(extraction.themeColors)}`);
-  }
-
   const slides = extraction.slides.map((slide) =>
     convertSlide(slide, slideWidth, slideHeight, deckName),
   );
-
-  // Prepend frontmatter as YAML if any
-  if (frontmatter.length > 0) {
-    return `---\n${frontmatter.join("\n")}\n---\n\n${slides.join("\n\n---\n\n")}`;
-  }
 
   return slides.join("\n\n---\n\n");
 }
