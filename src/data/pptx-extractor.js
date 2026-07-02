@@ -7,6 +7,9 @@
  * @class
  */
 import { parse } from "pptxtojson";
+import { htmlToMarkdown, stripHtml } from "./pptx-html-to-markdown.js";
+import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
+import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /**
  * @typedef {Object} ExtractedSlide
@@ -70,26 +73,24 @@ import { parse } from "pptxtojson";
 /** @class */
 export class PptxExtractor {
   /**
-   * Parse a PPTX file (ArrayBuffer) and extract structured content.
+   * Parse a PPTX file (as ArrayBuffer) and return structured extraction data.
    * @static
-   * @param {ArrayBuffer} buffer - The PPTX file contents.
+   * @param {ArrayBuffer} buffer - PPTX file contents.
    * @returns {Promise<ExtractionResult>}
    */
   static async extract(buffer) {
-    const raw = await parse(buffer, {
-      imageMode: "base64",
-      videoMode: "none",
-      audioMode: "none",
-    });
+    const raw = await parse(buffer);
 
     const images = [];
-    const slides = raw.slides.map((slide, index) => this.#processSlide(slide, index, images));
+    const slides = (raw.slides || []).map((slide, index) =>
+      this.#processSlide(slide, index, images),
+    );
 
     // Convert EMF/WMF images to PNG
-    await this.#convertEmfImages(slides, images);
+    await convertEmfImages(slides, images);
 
     // Convert TIFF images to PNG (browsers can't display TIFF natively)
-    await this.#convertTiffImages(slides, images);
+    await convertTiffImages(slides, images);
 
     return {
       slides,
@@ -101,9 +102,19 @@ export class PptxExtractor {
   }
 
   /**
-   * Process a single slide from pptxtojson into our extracted format.
+   * Convert HTML to Markdown. Public wrapper for testing.
    * @static
-   * @param {import('pptxtojson').Slide} slide
+   * @param {string} html
+   * @returns {string}
+   */
+  static htmlToMarkdown(html) {
+    return htmlToMarkdown(html);
+  }
+
+  /**
+   * Process a single raw pptxtojson slide into an ExtractedSlide.
+   * @static
+   * @param {Object} slide
    * @param {number} index
    * @param {ExtractedImage[]} imagesAccum
    * @returns {ExtractedSlide}
@@ -122,21 +133,17 @@ export class PptxExtractor {
       if (extracted) raw.push(extracted);
     }
 
-    // Flatten nested arrays from group elements
-    const elements = raw.flat(Infinity);
+    // Sort by PPTX element order to preserve author's layout intent
+    raw.sort((a, b) => a.order - b.order);
 
-    // Sort by PPTX element order within each group (layout first, then content)
-    elements.sort((a, b) => a.order - b.order);
-
-    const title = this.#guessTitle(elements);
-    const background = this.#extractBackground(slide.fill);
+    const elements = raw.flat().filter(Boolean);
 
     return {
       index,
-      title,
+      title: this.#guessTitle(elements),
       notes: slide.note || "",
       elements,
-      background,
+      background: this.#extractBackground(slide.fill),
     };
   }
 
@@ -190,7 +197,7 @@ export class PptxExtractor {
     }
 
     if (el.type === "text" || el.type === "shape") {
-      const content = this.#htmlToMarkdown(el.content || "");
+      const content = htmlToMarkdown(el.content || "");
       if (!content.trim()) return null;
       return {
         type: "text",
@@ -293,566 +300,6 @@ export class PptxExtractor {
   }
 
   /**
-   * Convert HTML to markdown using native DOM parsing.
-   * Walks the DOM tree to convert elements to markdown, handling
-   * inline formatting, lists, links, and block elements natively.
-   * @static
-   * @param {string} html
-   * @returns {string}
-   */
-  static htmlToMarkdown(html) {
-    return this.#htmlToMarkdown(html);
-  }
-
-  /**
-   * @static
-   * @param {string} html
-   * @returns {string}
-   */
-  static #htmlToMarkdown(html) {
-    if (!html) return "";
-
-    // Detect CSS-based bullets: PowerPoint uses text-indent: -XXpt
-    // (negative hanging indent) to create space for the bullet marker
-    // without using <ul>/<li>.  A negative text-indent >= 10pt is a
-    // reliable signal of bullet formatting, regardless of whether
-    // margin-left is also present.
-    const withBullets = html.replace(/<p\s+style="([^"]*)">([\s\S]*?)<\/p>/gi, (match, style) => {
-      const m = style.match(/text-indent:\s*-(\d+)/);
-      if (!m) return match;
-      const indent = parseInt(m[1], 10);
-      if (indent >= 10) return `<li>${match}</li>`;
-      return match;
-    });
-
-    // DOMParser normalizes the HTML.  Existing <ul><li> structures are
-    // preserved.  Standalone <li> tags (from CSS bullet detection) are
-    // placed directly under <body> and handled by #processBlockNodes.
-    const doc = new DOMParser().parseFromString(withBullets, "text/html");
-    const body = doc.body;
-
-    const result = [];
-    this.#processBlockNodes(body.childNodes, result);
-    let md = result.join("");
-    md = md.replace(/\n{3,}/g, "\n\n");
-
-    // Group consecutive backtick-wrapped lines into fenced code blocks.
-    // A backtick-wrapped line looks like: `code here`
-    // 2+ consecutive such lines become a fenced block.
-    const lines = md.split("\n");
-    const grouped = [];
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      const isBacktickLine = /^`[^`]+`$/.test(trimmedLine);
-      if (isBacktickLine) {
-        const codeLines = [];
-        while (i < lines.length) {
-          const t = lines[i].trim();
-          if (/^`[^`]+`$/.test(t)) {
-            codeLines.push(t.replace(/^`|`$/g, ""));
-            i++;
-          } else if (t === "") {
-            // Skip empty lines between backtick lines (from <p> separators)
-            i++;
-          } else {
-            break;
-          }
-        }
-        if (codeLines.length >= 2) {
-          grouped.push("```\n" + codeLines.join("\n") + "\n```");
-        } else if (codeLines.length === 1) {
-          grouped.push(codeLines[0]);
-        }
-      } else {
-        grouped.push(line);
-        i++;
-      }
-    }
-    md = grouped.join("\n");
-
-    md = md.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    return md.trim();
-  }
-
-  /**
-   * Process block-level nodes and accumulate markdown output.
-   * @static
-   * @param {NodeList} nodes
-   * @param {string[]} out
-   */
-  static #processBlockNodes(nodes, out) {
-    for (const node of nodes) {
-      if (node.nodeType === 3) {
-        const text = node.textContent;
-        if (text.trim()) out.push(text);
-        continue;
-      }
-      if (node.nodeType !== 1) continue;
-
-      const tag = node.tagName;
-
-      if (tag === "UL" || tag === "OL") {
-        this.#processList(node, 0, out);
-        out.push("\n");
-        continue;
-      }
-
-      // Standalone <li> (from CSS bullet detection) — treat as a list item
-      if (tag === "LI") {
-        const inline = [];
-        this.#processInlineNodes(node.childNodes, inline);
-        const merged = this.#mergeAdjacentMarkers(inline.join("").trim());
-        if (merged) {
-          out.push("- " + merged + "\n");
-        }
-        continue;
-      }
-
-      if (tag === "TABLE") {
-        continue;
-      }
-
-      if (tag === "PRE") {
-        const text = node.textContent || "";
-        if (text.trim()) {
-          out.push("```\n" + text + "\n```\n\n");
-        }
-        continue;
-      }
-
-      if (tag === "P" || tag === "DIV") {
-        const inline = [];
-        this.#processInlineNodes(node.childNodes, inline);
-        const merged = this.#mergeAdjacentMarkers(inline.join(""));
-        if (merged.trim()) {
-          out.push(merged + "\n\n");
-        }
-        continue;
-      }
-
-      if (tag === "BR") {
-        out.push("\n");
-        continue;
-      }
-
-      const inline = [];
-      this.#processInlineNodes(node.childNodes, inline);
-      const merged = this.#mergeAdjacentMarkers(inline.join(""));
-      if (merged.trim()) {
-        out.push(merged + "\n\n");
-      }
-    }
-  }
-
-  /**
-   * Process a list element and its children with proper indentation.
-   * @static
-   * @param {Element} listNode
-   * @param {number} depth
-   * @param {string[]} out
-   */
-  static #processList(listNode, depth, out) {
-    for (const child of listNode.children) {
-      if (child.tagName !== "LI") continue;
-
-      const inline = [];
-      const nestedLists = [];
-      for (const cn of child.childNodes) {
-        if (cn.nodeType === 1 && (cn.tagName === "UL" || cn.tagName === "OL")) {
-          nestedLists.push(cn);
-        } else {
-          this.#processInlineNodes([cn], inline);
-        }
-      }
-      const merged = this.#mergeAdjacentMarkers(inline.join("").trim());
-      if (merged) {
-        out.push("  ".repeat(depth) + "- " + merged + "\n");
-      }
-      for (const nl of nestedLists) {
-        this.#processList(nl, depth + 1, out);
-      }
-    }
-  }
-
-  /**
-   * Process inline-level nodes, accumulating markdown text and link references.
-   * @static
-   * @param {NodeList} nodes
-   * @param {string[]} out
-   */
-  static #processInlineNodes(nodes, out) {
-    for (const node of nodes) {
-      if (node.nodeType === 3) {
-        out.push(node.textContent.replace(/\u00a0/g, " "));
-        continue;
-      }
-      if (node.nodeType !== 1) continue;
-
-      const tag = node.tagName;
-
-      if (tag === "STRONG" || tag === "B") {
-        const inner = [];
-        this.#processInlineNodes(node.childNodes, inner);
-        const raw = inner.join("");
-        const trimmed = raw.trim();
-        if (trimmed) {
-          out.push("**" + trimmed + "**");
-        } else if (raw) {
-          out.push(" ");
-        }
-        continue;
-      }
-
-      if (tag === "EM" || tag === "I") {
-        const inner = [];
-        this.#processInlineNodes(node.childNodes, inner);
-        const raw = inner.join("");
-        const trimmed = raw.trim();
-        if (trimmed) {
-          out.push("*" + trimmed + "*");
-        } else if (raw) {
-          out.push(" ");
-        }
-        continue;
-      }
-
-      if (tag === "SPAN") {
-        const style = (node.getAttribute("style") || "").toLowerCase();
-        const isBold = /font-weight:\s*(?:bold|[6-9]\d{2})/.test(style);
-        const isItalic = /font-style:\s*italic/.test(style);
-        const isMono =
-          /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i.test(
-            style,
-          );
-
-        const inner = [];
-        this.#processInlineNodes(node.childNodes, inner);
-        const raw = inner.join("");
-        const trimmed = raw.trim();
-
-        if (trimmed) {
-          let text = trimmed;
-          if (isMono) {
-            text = "`" + text.replace(/`/g, "\\`") + "`";
-          }
-          if (isBold && isItalic) {
-            out.push("***" + text + "***");
-          } else if (isBold) {
-            out.push("**" + text + "**");
-          } else if (isItalic) {
-            out.push("*" + text + "*");
-          } else {
-            out.push(text);
-          }
-        } else if (raw) {
-          out.push(" ");
-        }
-        continue;
-      }
-
-      if (tag === "A") {
-        const href = node.getAttribute("href") || "";
-        const inner = [];
-        this.#processInlineNodes(node.childNodes, inner);
-        const text = inner.join("").trim();
-        if (href) {
-          out.push("[" + (text || href) + "](" + href + ")");
-        } else if (text) {
-          out.push(text);
-        }
-        continue;
-      }
-
-      if (tag === "BR") {
-        out.push("\n");
-        continue;
-      }
-
-      const inner = [];
-      this.#processInlineNodes(node.childNodes, inner);
-      out.push(inner.join(""));
-    }
-  }
-
-  /**
-   * Merge adjacent same-type markdown markers.
-   * Converts "**a** **b**" → "**a b**" and "***a*** ***b***" → "***a b***".
-   * Bold+italic is merged first so its triple-asterisk markers are not
-   * broken up by the double-asterisk pass.
-   * @static
-   * @param {string} text
-   * @returns {string}
-   */
-  static #mergeAdjacentMarkers(text) {
-    let s = text;
-    for (let i = 0; i < 10; i++) {
-      const prev = s;
-      s = s.replace(/\*\*\*([^*]+?)\*\*\*(\s*)\*\*\*(?!\*)/g, "***$1$2");
-      if (s === prev) break;
-    }
-    for (let i = 0; i < 10; i++) {
-      const prev = s;
-      s = s.replace(/\*\*([^*]+?)\*\*(\s*)\*\*(?!\*)/g, "**$1$2");
-      if (s === prev) break;
-    }
-    for (let i = 0; i < 10; i++) {
-      const prev = s;
-      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s+)\*(?!\*)/g, "*$1$2");
-      if (s === prev) break;
-    }
-    s = s.replace(/\*\*\s*\*\*/g, " ");
-    s = s.replace(/(?<!\*)\*\s+\*(?!\*)/g, " ");
-    return s;
-  }
-
-  /**
-   * Strip all HTML tags, returning plain text only.
-   * Used for plain-text preview (toPlainText) and table cells.
-   * @static
-   * @param {string} html
-   * @returns {string}
-   */
-  static #stripHtml(html) {
-    if (!html) return "";
-    return html
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n")
-      .replace(/<\/li>/gi, "\n")
-      .replace(/<li[^>]*>/gi, "- ")
-      .replace(/<\/?[a-z][^>]*>/gi, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
-
-  /**
-   * Convert EMF/WMF images to PNG data URLs using emf-converter.
-   * Modifies slides and images arrays in place.
-   * @static
-   * @param {ExtractedSlide[]} slides
-   * @param {ExtractedImage[]} images
-   * @returns {Promise<void>}
-   */
-  static async #convertEmfImages(slides, images) {
-    let emfConverter;
-    try {
-      emfConverter = await import("emf-converter");
-    } catch (err) {
-      console.warn("emf-converter not available, skipping EMF conversion:", err);
-      return;
-    }
-
-    const { convertEmfToDataUrl, convertWmfToDataUrl } = emfConverter;
-
-    for (const img of images) {
-      if (img.mimeType !== "image/emf" && img.mimeType !== "image/wmf") continue;
-      try {
-        // Handle possible data URI prefix in base64
-        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-        const binary = atob(raw);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-        const convert = img.mimeType === "image/emf" ? convertEmfToDataUrl : convertWmfToDataUrl;
-        let dataUrl = await convert(bytes.buffer, 1920, 1080);
-
-        if (!dataUrl) {
-          console.warn(
-            `EMF conversion returned null for ${img.ref} (size: ${bytes.length} bytes) — browser may lack Canvas API or file is invalid`,
-          );
-          continue;
-        }
-
-        // EMF → PNG exports typically carry large transparent margins
-        // (the EMF canvas is sized to the slide, not to the picture),
-        // which makes the image element's bounding box much bigger
-        // than the visible picture.  Trim those margins now so what
-        // lands in the deck matches what the user sees in PowerPoint.
-        dataUrl = (await this.#trimTransparentMargins(dataUrl)) ?? dataUrl;
-
-        // Extract base64 from data URL (data:image/png;base64,...)
-        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-        img.base64 = base64;
-        img.mimeType = "image/png";
-
-        // Update the corresponding element in slides (match by ref, not mimeType
-        // since we just changed img.mimeType)
-        for (const slide of slides) {
-          for (const el of slide.elements) {
-            if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
-              el.base64 = base64;
-              el.mimeType = "image/png";
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
-      }
-    }
-  }
-
-  /**
-   * Convert TIFF images to PNG data URLs using utif2.
-   * Browsers cannot display TIFF natively, so we decode to RGBA and
-   * render via Canvas to produce PNG data URLs.
-   * @static
-   * @param {ExtractedSlide[]} slides
-   * @param {ExtractedImage[]} images
-   * @returns {Promise<void>}
-   */
-  static async #convertTiffImages(slides, images) {
-    let Utif;
-    try {
-      Utif = await import("utif2");
-    } catch (err) {
-      console.warn("utif2 not available, skipping TIFF conversion:", err);
-      return;
-    }
-
-    for (const img of images) {
-      if (img.mimeType !== "image/tiff") continue;
-      try {
-        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-        const binary = atob(raw);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-        // Decode first page of TIFF
-        const ifds = Utif.decode(bytes.buffer);
-        if (!ifds || ifds.length === 0) {
-          console.warn(`TIFF decode returned no pages for ${img.ref}`);
-          continue;
-        }
-        const firstPage = ifds[0];
-        Utif.decodeImage(bytes.buffer, firstPage);
-
-        const w = firstPage.width;
-        const h = firstPage.height;
-
-        if (typeof document === "undefined" || !document.createElement) {
-          console.warn("Canvas API not available, skipping TIFF conversion for", img.ref);
-          continue;
-        }
-
-        // Render decoded RGBA to canvas → PNG data URL
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        const rgba = new Uint8Array(firstPage.data);
-        const imageData = ctx.createImageData(w, h);
-        // utif2 outputs RGBA already
-        imageData.data.set(rgba);
-        ctx.putImageData(imageData, 0, 0);
-
-        const dataUrl = canvas.toDataURL("image/png");
-        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-
-        img.base64 = base64;
-        img.mimeType = "image/png";
-
-        // Update corresponding elements in slides
-        for (const slide of slides) {
-          for (const el of slide.elements) {
-            if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
-              el.base64 = base64;
-              el.mimeType = "image/png";
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`Could not convert ${img.ref} from TIFF:`, err);
-      }
-    }
-  }
-
-  /**
-   * Trim transparent margins around the visible content of a PNG data
-   * URL.  EMF → PNG conversion produces a canvas sized to the slide
-   * (typically 1920×1080) with the actual picture floating in the
-   * middle and large transparent bands around it — most noticeably at
-   * the bottom.  Returning a cropped data URL here means what lands in
-   * the deck matches what the user sees in PowerPoint, without
-   * requiring a manual 'Trim margins' click in the editor.
-   *
-   * Uses a small alpha threshold (10/255) so faint near-transparent
-   * artifact pixels left at the canvas edges by the EMF converter are
-   * treated as transparent and cropped away — a strict `alpha > 0`
-   * test would treat those as content and keep the bottom band.
-   *
-   * Returns `null` when trimming cannot be performed (no Canvas API,
-   * no transparent border, decode failure, no visible content) so the
-   * caller can fall back to the original data URL.
-   *
-   * @static
-   * @param {string} dataUrl - PNG data URL to trim.
-   * @returns {Promise<string|null>}
-   */
-  static async #trimTransparentMargins(dataUrl) {
-    if (typeof document === "undefined" || !document.createElement) return null;
-    const ALPHA_THRESHOLD = 10; // out of 255 — ~4% opacity
-    const PAD_THRESHOLD_PCT = 1; // require ≥1% transparent band on some side
-
-    try {
-      const bitmap = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = (e) => reject(new Error("decode failed: " + String(e)));
-        image.src = dataUrl;
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(bitmap, 0, 0);
-      const { data, width: cw, height: ch } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-      let minX = cw;
-      let minY = ch;
-      let maxX = -1;
-      let maxY = -1;
-      for (let y = 0; y < ch; y++) {
-        for (let x = 0; x < cw; x++) {
-          if (data[(y * cw + x) * 4 + 3] >= ALPHA_THRESHOLD) {
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
-          }
-        }
-      }
-      if (maxX < 0) return null;
-
-      const minPadX = Math.ceil(cw * (PAD_THRESHOLD_PCT / 100));
-      const minPadY = Math.ceil(ch * (PAD_THRESHOLD_PCT / 100));
-      const hasBorder =
-        minX >= minPadX || minY >= minPadY || cw - 1 - maxX >= minPadX || ch - 1 - maxY >= minPadY;
-      if (!hasBorder) return null;
-
-      const trimmedW = maxX - minX + 1;
-      const trimmedH = maxY - minY + 1;
-      const cropped = document.createElement("canvas");
-      cropped.width = trimmedW;
-      cropped.height = trimmedH;
-      cropped
-        .getContext("2d")
-        .drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
-      return cropped.toDataURL("image/png");
-    } catch (err) {
-      console.warn("trimTransparentMargins failed:", err);
-      return null;
-    }
-  }
-
-  /**
    * Guess the slide title from its elements.
    * @static
    * @param {ExtractedElement[]} elements
@@ -873,9 +320,6 @@ export class PptxExtractor {
 
   /**
    * Detect placeholder type from the element's name attribute.
-   * PowerPoint names footer placeholders "Footer Placeholder N",
-   * date placeholders "Date and time placeholder N", and slide
-   * number placeholders "Slide Number Placeholder N".
    * @static
    * @param {string} name
    * @returns {'footer'|'date'|'slideNumber'|null}
@@ -931,40 +375,28 @@ export class PptxExtractor {
   }
 
   /**
-   * Build structured chart data (headers + rows) from extracted chart data.
-   * Shared by toPlainText and markdown chart formatting.
+   * Build structured chart data. Re-exports from pptx-chart-data.js.
    * @static
    * @param {ChartData[]} chartData
    * @returns {{ headers: string[], rows: string[][] }}
    */
   static buildChartDataRows(chartData) {
-    if (!chartData?.length) return { headers: [], rows: [] };
+    return buildChartDataRows(chartData);
+  }
 
-    const allXIndices = new Set();
-    for (const series of chartData) {
-      for (const point of series.values) {
-        allXIndices.add(point.x);
-      }
-    }
-    const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
-
-    const headers = ["Category", ...chartData.map((s) => String(s.key))];
-    const rows = [];
-    for (const x of sortedX) {
-      const firstSeries = chartData[0];
-      const category = firstSeries?.xlabels?.[x] ?? String(x);
-      const values = chartData.map((s) => {
-        const point = s.values.find((p) => p.x === x);
-        return point?.y !== undefined ? String(point.y) : "";
-      });
-      rows.push([category, ...values]);
-    }
-    return { headers, rows };
+  /**
+   * Strip HTML tags. Re-exports from pptx-html-to-markdown.js.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static #stripHtml(html) {
+    return stripHtml(html);
   }
 
   /**
    * Convert extraction result to a plain-text representation suitable
-   * for preview or external processing. Strips positioning data, keeps content.
+   * for preview or external processing.
    * @static
    * @param {ExtractionResult} result
    * @returns {string}
@@ -993,7 +425,7 @@ export class PptxExtractor {
         } else if (el.type === "chart") {
           if (el.chartData?.length) {
             lines.push(`[Chart: ${el.chartType || "unknown"}]`);
-            const { headers, rows } = this.buildChartDataRows(el.chartData);
+            const { headers, rows } = buildChartDataRows(el.chartData);
             lines.push(headers.join(" | "));
             lines.push("---".repeat(headers.length));
             for (const row of rows) {
@@ -1006,7 +438,6 @@ export class PptxExtractor {
           }
         } else if (el.type === "diagram") {
           if (el.content) {
-            // Content is textList joined with ", " - split and display as list
             const items = el.content.split(", ");
             for (const item of items) {
               lines.push(`- ${item}`);

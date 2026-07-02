@@ -528,3 +528,36 @@ describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
     expect(result).not.toContain("`normal text`");
   });
 });
+
+describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
+  it("detects h2 heading from large font-size (44pt)", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 44pt;">Big Title</span></p>',
+    );
+    expect(result).toContain("## Big Title");
+  });
+
+  it("detects h3 heading from medium font-size (30pt)", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 30pt;">Subtitle</span></p>',
+    );
+    expect(result).toContain("### Subtitle");
+  });
+
+  it("does not add heading for body text (18pt)", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 18pt;">Body text</span></p>',
+    );
+    expect(result).not.toContain("##");
+    expect(result).not.toContain("###");
+    expect(result).toContain("Body text");
+  });
+
+  it("does not add heading for text without font-size", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="color: #333;">Plain text</span></p>',
+    );
+    expect(result).not.toContain("##");
+    expect(result).toContain("Plain text");
+  });
+});
