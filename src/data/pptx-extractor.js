@@ -88,6 +88,9 @@ export class PptxExtractor {
     // Convert EMF/WMF images to PNG
     await this.#convertEmfImages(slides, images);
 
+    // Convert TIFF images to PNG (browsers can't display TIFF natively)
+    await this.#convertTiffImages(slides, images);
+
     return {
       slides,
       themeColors: raw.themeColors || [],
@@ -641,6 +644,81 @@ export class PptxExtractor {
   }
 
   /**
+   * Convert TIFF images to PNG data URLs using utif2.
+   * Browsers cannot display TIFF natively, so we decode to RGBA and
+   * render via Canvas to produce PNG data URLs.
+   * @static
+   * @param {ExtractedSlide[]} slides
+   * @param {ExtractedImage[]} images
+   * @returns {Promise<void>}
+   */
+  static async #convertTiffImages(slides, images) {
+    let Utif;
+    try {
+      Utif = await import("utif2");
+    } catch (err) {
+      console.warn("utif2 not available, skipping TIFF conversion:", err);
+      return;
+    }
+
+    for (const img of images) {
+      if (img.mimeType !== "image/tiff") continue;
+      try {
+        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+        const binary = atob(raw);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        // Decode first page of TIFF
+        const ifds = Utif.decode(bytes.buffer);
+        if (!ifds || ifds.length === 0) {
+          console.warn(`TIFF decode returned no pages for ${img.ref}`);
+          continue;
+        }
+        const firstPage = ifds[0];
+        Utif.decodeImage(bytes.buffer, firstPage);
+
+        const w = firstPage.width;
+        const h = firstPage.height;
+
+        if (typeof document === "undefined" || !document.createElement) {
+          console.warn("Canvas API not available, skipping TIFF conversion for", img.ref);
+          continue;
+        }
+
+        // Render decoded RGBA to canvas → PNG data URL
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        const rgba = new Uint8Array(firstPage.data);
+        const imageData = ctx.createImageData(w, h);
+        // utif2 outputs RGBA already
+        imageData.data.set(rgba);
+        ctx.putImageData(imageData, 0, 0);
+
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+
+        img.base64 = base64;
+        img.mimeType = "image/png";
+
+        // Update corresponding elements in slides
+        for (const slide of slides) {
+          for (const el of slide.elements) {
+            if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
+              el.base64 = base64;
+              el.mimeType = "image/png";
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Could not convert ${img.ref} from TIFF:`, err);
+      }
+    }
+  }
+
+  /**
    * Trim transparent margins around the visible content of a PNG data
    * URL.  EMF → PNG conversion produces a canvas sized to the slide
    * (typically 1920×1080) with the actual picture floating in the
@@ -791,6 +869,8 @@ export class PptxExtractor {
       bmp: "image/bmp",
       emf: "image/emf",
       wmf: "image/wmf",
+      tif: "image/tiff",
+      tiff: "image/tiff",
     };
     return map[ext] || "image/png";
   }
