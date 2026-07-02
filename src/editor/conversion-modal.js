@@ -48,6 +48,7 @@ export class ConversionModal {
       let markdown = "";
       let importImages = true;
       let keepBackgrounds = true;
+      let codeLanguage = "";
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
@@ -87,8 +88,10 @@ export class ConversionModal {
       const hideResult = () => {
         resultEl.hidden = true;
         resultEl.textContent = "";
-        // Remove any dynamically added checkbox rows from previous conversion
-        backdrop.querySelectorAll(`.${P}checkbox-row`).forEach((el) => el.remove());
+        // Remove any dynamically added rows from previous conversion
+        backdrop
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .forEach((el) => el.remove());
       };
 
       // File handling
@@ -182,6 +185,36 @@ export class ConversionModal {
             resultEl.parentNode.insertBefore(bgCheckboxRow, resultEl.nextSibling);
           }
 
+          // Show language selector
+          const langRow = document.createElement("div");
+          langRow.className = `${P}select-row`;
+          langRow.innerHTML = `
+            <label class="${P}select-label">Code language</label>
+            <select class="${P}select" data-field="code-language">
+              <option value="">None</option>
+              <option value="javascript">JavaScript</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="cpp">C / C++</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="sql">SQL</option>
+              <option value="bash">Shell / Bash</option>
+              <option value="json">JSON</option>
+              <option value="typescript">TypeScript</option>
+            </select>
+          `;
+          const langSelect = langRow.querySelector(`[data-field="code-language"]`);
+          langSelect.addEventListener("change", () => {
+            codeLanguage = langSelect.value;
+          });
+          const lastRow = resultEl.parentNode.querySelector(`.${P}checkbox-row, .${P}select-row`);
+          if (lastRow) {
+            lastRow.parentNode.insertBefore(langRow, lastRow.nextSibling);
+          } else {
+            resultEl.parentNode.insertBefore(langRow, resultEl.nextSibling);
+          }
+
           // Switch buttons: hide Import, show Save as Deck
           importBtn.hidden = true;
           saveBtn.hidden = false;
@@ -203,6 +236,10 @@ export class ConversionModal {
             .replace(/^\s*background:.*$/gm, "")
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
+        }
+        // Add language tag to all fenced code blocks
+        if (codeLanguage) {
+          finalMarkdown = finalMarkdown.replace(/```\n/g, "```" + codeLanguage + "\n");
         }
         backdrop.remove();
         resolve({
@@ -323,6 +360,16 @@ export class ConversionModal {
         font-size: 14px; cursor: pointer; margin: 4px 0 0;
       }
       .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
+      .${P}select-row {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 14px; margin: 8px 0 0;
+      }
+      .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
+      .${P}select {
+        padding: 4px 8px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); cursor: pointer;
+      }
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }

@@ -462,3 +462,69 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("a b");
   });
 });
+
+describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
+  it("wraps Consolas text in backticks", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">const x = 1;</span></p>',
+    );
+    expect(result).toContain("`const x = 1;`");
+  });
+
+  it("wraps Courier New text in backticks", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Courier New;">code here</span></p>',
+    );
+    expect(result).toContain("`code here`");
+  });
+
+  it("wraps generic monospace font in backticks", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: monospace;">code</span></p>',
+    );
+    expect(result).toContain("`code`");
+  });
+
+  it("handles bold monospace text", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas; font-weight: bold;">code</span></p>',
+    );
+    expect(result).toContain("**`code`**");
+  });
+
+  it("escapes backticks inside monospace text", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">`backticks`</span></p>',
+    );
+    expect(result).toContain("`\\`backticks\\``");
+  });
+
+  it("groups consecutive monospace lines into fenced code block", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">line 1</span></p>' +
+        '<p><span style="font-family: Consolas;">line 2</span></p>' +
+        '<p><span style="font-family: Consolas;">line 3</span></p>',
+    );
+    expect(result).toContain("```\nline 1\nline 2\nline 3\n```");
+  });
+
+  it("leaves single monospace line as inline code", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">single line</span></p>',
+    );
+    expect(result).toContain("`single line`");
+    expect(result).not.toContain("```");
+  });
+
+  it("handles pre tags as fenced code blocks", () => {
+    const result = PptxExtractor.htmlToMarkdown("<pre>code block</pre>");
+    expect(result).toContain("```\ncode block\n```");
+  });
+
+  it("does not wrap non-monospace text in backticks", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Arial;">normal text</span></p>',
+    );
+    expect(result).not.toContain("`normal text`");
+  });
+});

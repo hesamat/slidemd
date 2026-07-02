@@ -335,6 +335,43 @@ export class PptxExtractor {
     this.#processBlockNodes(body.childNodes, result);
     let md = result.join("");
     md = md.replace(/\n{3,}/g, "\n\n");
+
+    // Group consecutive backtick-wrapped lines into fenced code blocks.
+    // A backtick-wrapped line looks like: `code here`
+    // 2+ consecutive such lines become a fenced block.
+    const lines = md.split("\n");
+    const grouped = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      const isBacktickLine = /^`[^`]+`$/.test(trimmedLine);
+      if (isBacktickLine) {
+        const codeLines = [];
+        while (i < lines.length) {
+          const t = lines[i].trim();
+          if (/^`[^`]+`$/.test(t)) {
+            codeLines.push(t.replace(/^`|`$/g, ""));
+            i++;
+          } else if (t === "") {
+            // Skip empty lines between backtick lines (from <p> separators)
+            i++;
+          } else {
+            break;
+          }
+        }
+        if (codeLines.length >= 2) {
+          grouped.push("```\n" + codeLines.join("\n") + "\n```");
+        } else if (codeLines.length === 1) {
+          grouped.push(codeLines[0]);
+        }
+      } else {
+        grouped.push(line);
+        i++;
+      }
+    }
+    md = grouped.join("\n");
+
     md = md.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return md.trim();
   }
@@ -374,6 +411,14 @@ export class PptxExtractor {
       }
 
       if (tag === "TABLE") {
+        continue;
+      }
+
+      if (tag === "PRE") {
+        const text = node.textContent || "";
+        if (text.trim()) {
+          out.push("```\n" + text + "\n```\n\n");
+        }
         continue;
       }
 
@@ -477,6 +522,10 @@ export class PptxExtractor {
         const style = (node.getAttribute("style") || "").toLowerCase();
         const isBold = /font-weight:\s*(?:bold|[6-9]\d{2})/.test(style);
         const isItalic = /font-style:\s*italic/.test(style);
+        const isMono =
+          /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i.test(
+            style,
+          );
 
         const inner = [];
         this.#processInlineNodes(node.childNodes, inner);
@@ -484,14 +533,18 @@ export class PptxExtractor {
         const trimmed = raw.trim();
 
         if (trimmed) {
+          let text = trimmed;
+          if (isMono) {
+            text = "`" + text.replace(/`/g, "\\`") + "`";
+          }
           if (isBold && isItalic) {
-            out.push("***" + trimmed + "***");
+            out.push("***" + text + "***");
           } else if (isBold) {
-            out.push("**" + trimmed + "**");
+            out.push("**" + text + "**");
           } else if (isItalic) {
-            out.push("*" + trimmed + "*");
+            out.push("*" + text + "*");
           } else {
-            out.push(raw);
+            out.push(text);
           }
         } else if (raw) {
           out.push(" ");
