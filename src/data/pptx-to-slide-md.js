@@ -321,7 +321,13 @@ function inferLayout(
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
 
-  if (hasHeader && hasTwoColumns) {
+  // Only use two-column when there is actual body text on both sides,
+  // not just images.  A header + a single image should be header-content.
+  const leftText = leftEls.filter((el) => el.type === "text");
+  const rightText = rightEls.filter((el) => el.type === "text");
+  const hasTextColumns = leftText.length > 0 && rightText.length > 0;
+
+  if (hasHeader && hasTextColumns) {
     return { type: "two-column", spec: "two-column" };
   }
 
