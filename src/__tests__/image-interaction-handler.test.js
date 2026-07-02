@@ -30,39 +30,6 @@ function mockImg(index, total) {
   return img;
 }
 
-function mockFitImage({
-  areaWidth = 1920,
-  areaHeight = 1080,
-  imgLeft = 120,
-  imgTop = 80,
-  imgWidth = 400,
-  imgHeight = 600,
-  naturalWidth = 400,
-  naturalHeight = 600,
-} = {}) {
-  const area = {
-    getBoundingClientRect: () => ({
-      left: 0,
-      top: 0,
-      width: areaWidth,
-      height: areaHeight,
-    }),
-  };
-  const img = {
-    closest: (sel) => (sel === ".slide__area" ? area : null),
-    getBoundingClientRect: () => ({
-      left: imgLeft,
-      top: imgTop,
-      width: imgWidth,
-      height: imgHeight,
-    }),
-    naturalWidth,
-    naturalHeight,
-    style: {},
-  };
-  return img;
-}
-
 describe("ImageInteractionHandler", () => {
   beforeEach(() => {
     ImageInteractionHandler._selectedImg = null;
@@ -209,6 +176,38 @@ describe("ImageInteractionHandler", () => {
       // Should not have excessive blank lines
       expect(saved).not.toMatch(/\n{3,}/);
       expect(saved.trim()).toBe("## Title\n\nMore text");
+    });
+  });
+
+  describe("rotateBy", () => {
+    it("wraps negative rotation into the 0-359 range", () => {
+      ImageInteractionHandler._selectedImg = mockImg(0, 1);
+      ImageInteractionHandler._readSettings = () => ({
+        rotation: 0,
+        width: 120,
+        height: 80,
+      });
+
+      ImageInteractionHandler.rotateBy(-90);
+
+      expect(ImageInteractionHandler.applySettings).toHaveBeenCalledWith({
+        rotation: 270,
+        width: 80,
+        height: 120,
+      });
+    });
+
+    it("wraps positive rotation past 360 back to zero", () => {
+      ImageInteractionHandler._selectedImg = mockImg(0, 1);
+      ImageInteractionHandler._readSettings = () => ({
+        rotation: 270,
+        width: 120,
+        height: 80,
+      });
+
+      ImageInteractionHandler.rotateBy(90);
+
+      expect(ImageInteractionHandler.applySettings).toHaveBeenCalledWith({ rotation: 0 });
     });
   });
 
