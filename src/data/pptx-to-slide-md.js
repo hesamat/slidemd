@@ -334,7 +334,10 @@ function inferLayout(
   if (dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
-  if (dominantImages.length === 1 && contentEls.length > 0) {
+  // Only use two-column for dominant images when there is body text
+  // below the header, not just a header + image.
+  const hasBodyText = contentEls.some((el) => el.top >= bodyThreshold);
+  if (dominantImages.length === 1 && hasBodyText) {
     return { type: "two-column", spec: "two-column" };
   }
 
