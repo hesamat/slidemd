@@ -136,7 +136,7 @@ Goal: Comprehensive testing and type safety improvements.
 
 ## Phase 7: PPTX Conversion ✅
 
-Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based layout inference. No AI or API keys required.
+Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based layout inference.
 
 ### Core
 
