@@ -76,10 +76,15 @@ export class EditController {
   }
 
   /**
-   * Cache original markdown for all slides
+   * Get the source markdown for editing.
+   * Checks localStorage first, then falls back to the in-memory
+   * global (used for large converted decks that exceed quota).
    */
+  _getSourceMarkdown() {
+    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+  }
   _cacheOriginalMarkdown() {
-    const localFile = localStorage.getItem("webdeck_local_file");
+    const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
 
     try {
@@ -167,10 +172,22 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: true });
         this.unsavedMarkdown.set(this.currentSlideIndex, updated);
         this.updateUnsavedChangesFlag();
+        // Image drag/resize mutates a positioned <img>'s inline style
+        // directly on the live slide element, then writes back to the
+        // markdown with suppressOnChange so the preview doesn't re-render.
+        // Area overflow indicators (the red @label state) are not part of
+        // the markdown and therefore don't get re-evaluated automatically
+        // — re-measure here so resizing an image out of an overflowing area
+        // clears the red badge immediately instead of lingering forever.
+        const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
+        if (slideEl) this.areaGuides.updateAreaOverflow(slideEl);
       },
       {
         onDelete: (updated) => {
           this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.updatePreview();
         },
       },
     );
@@ -199,7 +216,7 @@ export class EditController {
    */
   toggleEditMode() {
     // Prevent entering edit mode when no file has been loaded
-    if (!this.isEditMode && !localStorage.getItem("webdeck_local_file")) {
+    if (!this.isEditMode && !this._getSourceMarkdown()) {
       Notification.warning("Open a markdown file first to enable the editor");
       return;
     }

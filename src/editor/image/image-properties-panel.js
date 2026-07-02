@@ -65,9 +65,14 @@ export class ImagePropertiesPanel {
     const panelW = this.el.offsetWidth || 300;
     const scale = this._getStageScale();
 
-    // Position panel on top-left corner of the image, partially overlapping it
-    let left = rect.left + window.scrollX + 4 * scale;
-    let top = rect.top + window.scrollY + 4 * scale;
+    // Position panel to the left of the image
+    let left = rect.left + window.scrollX - panelW - 8 * scale;
+    let top = rect.top + window.scrollY + (rect.height - panelH) / 2;
+
+    // If not enough space on the left, fall back to the right
+    if (left < 8) {
+      left = rect.right + window.scrollX + 8 * scale;
+    }
 
     // Clamp to viewport so the panel stays fully visible
     left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
@@ -143,6 +148,9 @@ export class ImagePropertiesPanel {
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="center" title="Center on slide">⊞ Center</button>
                         <button type="button" class="image-properties-panel__chip" data-action="fit" title="Fit to slide width">↔ Fit width</button>
+                    </div>
+                    <div class="image-properties-panel__row">
+                        <button type="button" class="image-properties-panel__chip" data-action="trim" title="Crop transparent margins around the picture (useful for converted EMF images)">✂ Trim margins</button>
                     </div>
                 </div>
 
@@ -310,6 +318,9 @@ export class ImagePropertiesPanel {
         break;
       case "fit":
         ImageInteractionHandler.fitToWidth();
+        break;
+      case "trim":
+        ImageInteractionHandler.trimTransparency();
         break;
       case "front":
         ImageInteractionHandler.bringToFront();

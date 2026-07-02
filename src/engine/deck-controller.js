@@ -96,6 +96,8 @@ export class DeckController extends EventEmitter {
     this.reloadManager.addEventListener("deckchange", (e) => {
       this.deck = e.deck;
       this.dispatchEvent("deckchange", e);
+      // Re-rewrite image srcs to blob URLs on the freshly created DOM
+      this.#rewriteImages();
     });
     // Note: broadcast channel initialized later, after breakManager exists
   }
@@ -294,6 +296,40 @@ export class DeckController extends EventEmitter {
 
     // Immediately enhance the first slide (don't wait for idle)
     requestAnimationFrame(() => this.enhanceActiveSlideNow());
+
+    // Configure image resolver from stored directory handle
+    this.#loadDeckImagesResolver();
+  }
+
+  async #loadDeckImagesResolver() {
+    try {
+      const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+      const { handle, mode } = await DirectoryHandleStore.load();
+      if (!handle) return;
+
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      DeckImagesResolver.setDeckDir(handle, mode || "parent");
+      await DeckImagesResolver.prime();
+      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+    } catch (err) {
+      console.warn("Could not load deck images resolver:", err);
+    }
+  }
+
+  /**
+   * Rewrite image src attributes to blob URLs using the existing cache.
+   * Lighter than #loadDeckImagesResolver — skips directory handle loading
+   * and cache priming. Used after deck reload when the cache is still valid.
+   */
+  async #rewriteImages() {
+    try {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
+      await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
+    } catch {
+      // Resolver not configured — no directory handle loaded yet
+    }
   }
 
   preloadEnhancers() {
@@ -361,6 +397,10 @@ export class DeckController extends EventEmitter {
       this.handleNewPresentation();
       this.closeMenu();
     });
+    listen(this.elements.menuConvertPptxBtn, "click", () => {
+      this.handleConvertPptx();
+      this.closeMenu();
+    });
 
     listen(this.elements.breakDurationSelect, "change", (e) => {
       this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);
@@ -375,6 +415,8 @@ export class DeckController extends EventEmitter {
 
   async handleLocalFileLoad(event) {
     await this.reloadManager.handleLocalFileLoad(event);
+    // Reconfigure image resolver for the newly loaded file
+    this.#loadDeckImagesResolver();
   }
 
   handleKeyboard(e) {
@@ -576,6 +618,126 @@ export class DeckController extends EventEmitter {
     }
 
     Notification.info("New presentation created");
+  }
+
+  async handleConvertPptx() {
+    const { ConversionModal } = await import("../editor/conversion-modal.js");
+    const result = await ConversionModal.show();
+    if (!result || !result.markdown) return;
+
+    const { markdown, images, fileName } = result;
+    const mdName = (fileName || "presentation.pptx").replace(/\.pptx$/i, ".md");
+
+    // Prompt user to pick a save directory
+    let dirHandle = null;
+    try {
+      dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    } catch {
+      Notification.warning(
+        "Save cancelled. Deck will be loaded in memory but images won't be saved.",
+      );
+    }
+
+    if (dirHandle) {
+      const savingToast = Notification.showToast("Saving files...", "info", 0);
+      try {
+        // Save the markdown file using the PPTX-derived name
+        const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
+        const mdWritable = await mdFile.createWritable();
+        await mdWritable.write(markdown);
+        await mdWritable.close();
+
+        // Save images to images/ subdirectory with deck-prefixed filenames
+        if (images?.length) {
+          const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+          const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          let savedCount = 0;
+          for (const img of images) {
+            if (!img.base64 || !img.ref) continue;
+            try {
+              const rawName = img.ref.split("/").pop();
+              if (!rawName) continue;
+              // EMF/WMF images are converted to PNG during extraction
+              const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+              const filename = `${deckName}_${safeName}`;
+              const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+              const binary = atob(raw);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+              const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(bytes);
+              await writable.close();
+              savedCount++;
+            } catch (imgErr) {
+              console.warn(`Could not save image ${img.ref}:`, imgErr);
+            }
+          }
+          if (savedCount > 0) {
+            Notification.info(`Saved ${savedCount} images to images/ folder`);
+          }
+        }
+
+        // Save the directory handle for future use
+        const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+        await DirectoryHandleStore.save(dirHandle);
+
+        // Configure the image resolver with this directory so images render
+        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+        DeckImagesResolver.setDeckDir(dirHandle, "parent");
+        DeckImagesResolver.prime();
+
+        // Store markdown info in localStorage so edit mode can find it
+        try {
+          localStorage.setItem("webdeck_local_file", markdown);
+          localStorage.setItem("webdeck_local_file_type", "md");
+          localStorage.setItem("webdeck_local_file_name", mdName);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        } catch {
+          window.__WEBDECK_MARKDOWN__ = markdown;
+        }
+      } catch (e) {
+        console.warn("Failed to save deck to filesystem:", e);
+        Notification.warning("Failed to save deck. Try again.");
+        ConversionModal.close();
+        return;
+      } finally {
+        Notification.dismiss(document.querySelector(`[data-toast-id="${savingToast}"]`));
+      }
+    } else {
+      window.__WEBDECK_MARKDOWN__ = markdown;
+    }
+
+    // Parse and replace deck
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
+
+    if (this.reloadManager?.replaceDeck) {
+      await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+    }
+
+    Notification.info("PPTX converted successfully");
+
+    // Open edit mode so the user can review and edit the result
+    this.toggleEditMode();
+
+    // After edit mode renders, rewrite image sources to blob URLs.
+    // The editor re-renders slides asynchronously, so we retry with
+    // increasing delays to catch whenever the DOM is ready.
+    if (this.elements.slidesContainer) {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      const rewrite = () => {
+        DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+        DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      };
+      rewrite();
+      setTimeout(rewrite, 200);
+      setTimeout(rewrite, 600);
+      setTimeout(rewrite, 1200);
+    }
+
+    // Close the conversion modal now that loading is done
+    ConversionModal.close();
   }
 
   destroy() {

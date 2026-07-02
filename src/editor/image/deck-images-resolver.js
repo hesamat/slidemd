@@ -89,12 +89,22 @@ export class DeckImagesResolver {
    * access the file (so build/export HTTP serving still works).
    *
    * @param {string} relPath
+   * @param {{ force?: boolean }} [options] - When `force` is true, discard
+   *   any cached blob URL for `relPath` and re-read the file from disk.
+   *   Used after the underlying file has been rewritten in place (e.g.
+   *   transparency-trimmed EMF-converted images).
    * @returns {Promise<string>}
    */
-  static async resolvePreviewSrc(relPath) {
+  static async resolvePreviewSrc(relPath, { force = false } = {}) {
     if (!this._dirHandle || !relPath) return relPath;
     if (!/^images\//.test(relPath) && !relPath.startsWith("images/")) {
       return relPath;
+    }
+
+    if (force && this._urls.has(relPath)) {
+      URL.revokeObjectURL(this._urls.get(relPath));
+      this._urls.delete(relPath);
+      this._cache.delete(relPath);
     }
 
     if (this._urls.has(relPath)) return this._urls.get(relPath);
@@ -144,6 +154,63 @@ export class DeckImagesResolver {
       );
     }
     await Promise.all(tasks);
+  }
+
+  /**
+   * Overwrite an image file inside the deck folder with the supplied
+   * `Blob` (e.g. a transparency-trimmed PNG).  After writing, the cached
+   * blob URL for `relPath` is revoked so the next call to
+   * `resolvePreviewSrc` re-reads the new bytes from disk.
+   *
+   * Requires a `FileSystemDirectoryHandle` with readwrite permission.
+   * Returns `true` on success, `false` when we can't access the deck
+   * folder (no handle, no FS Access API, no permission, etc.) — in that
+   * case the caller should fall back to a non-destructive notification
+   * rather than silently dropping the user's edit.
+   *
+   * @param {string} relPath  - Must be under `images/...`.
+   * @param {Blob} blob       - New file contents.
+   * @returns {Promise<boolean>}
+   */
+  static async replaceImageFile(relPath, blob) {
+    if (!this._dirHandle || !relPath || !/^images\//.test(relPath)) return false;
+    if (typeof window.showDirectoryPicker !== "function") return false;
+
+    try {
+      // We need readwrite permission to overwrite the file.  The deck
+      // directory handle was originally requested with readwrite in
+      // ImageBackgroundHandler, but query first and re-request if
+      // necessary — the user may have revoked the grant since then.
+      let perm = await this._dirHandle.queryPermission({ mode: "readwrite" });
+      if (perm !== "granted") {
+        perm = await this._dirHandle.requestPermission({ mode: "readwrite" });
+      }
+      if (perm !== "granted") return false;
+
+      const targetDir =
+        this._mode === "images"
+          ? this._dirHandle
+          : await this._dirHandle.getDirectoryHandle("images", { create: true });
+      const name = relPath.split("/").pop();
+      const fileHandle = await targetDir.getFileHandle(name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+
+      // Drop the cached URL + File so the next resolvePreviewSrc(refresh)
+      // picks up the new bytes.
+      if (this._urls.has(relPath)) {
+        URL.revokeObjectURL(this._urls.get(relPath));
+        this._urls.delete(relPath);
+      }
+      this._cache.delete(relPath);
+      return true;
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.warn("DeckImagesResolver.replaceImageFile failed:", err);
+      }
+      return false;
+    }
   }
 
   /**

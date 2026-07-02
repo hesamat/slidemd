@@ -79,7 +79,7 @@
                 </svg>
                 <span>New Presentation</span>
               </button>
-              <button id="menuReloadDeckBtn" class="menu-item" type="button">
+              <button id="menuConvertPptxBtn" class="menu-item" type="button">
                 <svg
                   width="16"
                   height="16"
@@ -90,14 +90,13 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path
-                    d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-                  ></path>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                <span>Reload Deck</span>
+                <span>Import PPTX (experimental)</span>
               </button>
+              <div class="menu-divider"></div>
               <button id="menuToggleEditModeBtn" class="menu-item" type="button">
                 <svg
                   width="16"
@@ -116,7 +115,7 @@
               </button>
               <button
                 id="menuSaveBtn"
-                class="menu-item menu-hide-in-viewing"
+                class="menu-item"
                 type="button"
                 title="Save changes (Ctrl+S)"
               >
@@ -137,7 +136,26 @@
                 <span>Save</span>
                 <kbd class="menu-item__hint">Ctrl+S</kbd>
               </button>
-              <div class="menu-divider menu-hide-in-viewing"></div>
+              <button id="menuReloadDeckBtn" class="menu-item" type="button">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path
+                    d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+                  ></path>
+                </svg>
+                <span>Reload</span>
+              </button>
+              <div class="menu-divider"></div>
               <button id="menuPrintBtn" class="menu-item" type="button">
                 <svg
                   width="16"
