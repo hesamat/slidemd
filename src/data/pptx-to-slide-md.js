@@ -64,9 +64,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
         el.type === "diagram"),
   );
 
-  const hasMedia = allElements.some((el) => el.type !== "text");
-  const layout = inferLayout(textElements, slideWidth, slideHeight, hasMedia, allElements);
   const dominantImages = findDominantImages(allElements, slideWidth, slideHeight);
+  const hasMedia = allElements.some((el) => el.type !== "text");
+  const layout = inferLayout(
+    textElements,
+    slideWidth,
+    slideHeight,
+    hasMedia,
+    allElements,
+    dominantImages,
+  );
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
@@ -156,6 +163,19 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     const [mediaImage, secondaryImage] = dominantImages;
+    if (!mediaImage || !secondaryImage) {
+      parts.push("");
+      if (isHeaderValid) {
+        parts.push("@header");
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push("@main");
+      parts.push("");
+      parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+      return parts.join("\n");
+    }
     const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
     parts.push("");
     if (isHeaderValid) {
@@ -206,7 +226,14 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
  * @param {number} slideHeight
  * @returns {{ type: string, spec: string }}
  */
-function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls = textEls) {
+function inferLayout(
+  textEls,
+  slideWidth,
+  slideHeight,
+  hasMedia = false,
+  allEls = textEls,
+  dominantImages = findDominantImages(allEls, slideWidth, slideHeight),
+) {
   const contentEls = textEls.filter((el) => el.content?.trim());
 
   // No text content
@@ -298,7 +325,6 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
     return { type: "two-column", spec: "two-column" };
   }
 
-  const dominantImages = findDominantImages(allEls, slideWidth, slideHeight);
   if (dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
@@ -322,6 +348,9 @@ function findDominantImages(allEls, slideWidth, slideHeight) {
   const images = allEls.filter((el) => el.type === "image" && el.base64);
 
   const dominant = images.filter((el) => {
+    // Treat images as dominant when they occupy a large share of the slide,
+    // matching the PPTX conversion rule for auto-switching to multi-column
+    // layouts: width > 40%, height > 60%, or area > 25% of the slide.
     const widthRatio = el.width / slideWidth;
     const heightRatio = el.height / slideHeight;
     const areaRatio = (el.width * el.height) / slideArea;
