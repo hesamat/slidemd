@@ -93,9 +93,12 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push(allElements.map((el) => formatSingleElement(el)).join("\n\n"));
   } else if (layout.type === "header-content") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
-    const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
+    // Don't treat bullet lists or numbered lists as headers — they are body content.
+    const isHeaderValid =
+      header && !BULLET_RE.test(header.content || "") && !NUMBER_RE.test(header.content || "");
+    const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     parts.push("");
-    if (header) {
+    if (isHeaderValid) {
       parts.push("@header");
       parts.push("");
       parts.push(formatTextElement(header.content));
@@ -106,12 +109,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
   } else if (layout.type === "two-column") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    // Don't treat bullet lists or numbered lists as headers — they are body content.
+    const isHeaderValid =
+      header && !BULLET_RE.test(header.content || "") && !NUMBER_RE.test(header.content || "");
     const midX = slideWidth / 2;
-    const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
+    const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
     const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
     parts.push("");
-    if (header) {
+    if (isHeaderValid) {
       parts.push("@header");
       parts.push("");
       parts.push(formatTextElement(header.content));
