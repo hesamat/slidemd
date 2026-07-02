@@ -31,6 +31,7 @@ export class ThemeManager {
     const next = currentTheme === "dark" ? "light" : "dark";
     const updated = updateThemeDirective(markdown, next);
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.ctrl.updatePreview();
     this.deck.slides[this.currentSlideIndex].theme = next;
     this._syncMenuItemIcon(next);
   }
