@@ -494,14 +494,14 @@ export class ImageInteractionHandler {
     //   (capped by the area) keeps the visual size stable.
     //
     // • Raw HTML `<img>` tags (e.g. from PPTX conversion) carry explicit
-    //   `width`/`height` attributes and render at those dimensions.
-    //   Here `offsetWidth`/`offsetHeight` reflect the actual rendered
-    //   size and should be used so the image does not jump on click.
+    //   `width`/`height` attributes that express the intended design-pixel
+    //   dimensions.  Read these directly so CSS constraints (e.g. the
+    //   `p > img:only-child` rule) cannot shrink them before we convert.
     let natW;
     let natH;
     if (entry.type === "html" && img.getAttribute("width") && img.getAttribute("height")) {
-      natW = img.offsetWidth || 320;
-      natH = img.offsetHeight || 240;
+      natW = parseInt(img.getAttribute("width"), 10) || img.offsetWidth || 320;
+      natH = parseInt(img.getAttribute("height"), 10) || img.offsetHeight || 240;
     } else {
       natW = img.naturalWidth || img.offsetWidth || 320;
       natH = img.naturalHeight || img.offsetHeight || 240;
