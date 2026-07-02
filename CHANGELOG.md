@@ -4,7 +4,7 @@
 
 ### PPTX Import
 
-- Added rule-based PPTX to SlideMD conversion (no AI needed)
+- Added rule-based PPTX to SlideMD conversion
 - Import PPTX via menu item with conversion modal and progress spinner
 - Preserves headings, bold/italic formatting, lists (including nested), tables, and images
 - Extracts images from PPTX and saves to deck folder via File System Access API
