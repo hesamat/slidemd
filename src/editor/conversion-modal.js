@@ -159,7 +159,7 @@ export class ConversionModal {
           // Insert elements in order: language selector, then checkboxes
           let insertAfter = resultEl;
 
-          // Show language selector first
+          // Show code language selector
           const langRow = document.createElement("div");
           langRow.className = `${P}select-row`;
           langRow.innerHTML = `
@@ -185,7 +185,7 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
-          // If images detected, show checkbox
+          // If images detected, show checkbox with description
           if (imageCount > 0) {
             importImages = true;
             const checkboxRow = document.createElement("label");
@@ -199,7 +199,7 @@ export class ConversionModal {
             insertAfter = checkboxRow;
           }
 
-          // Show background/theme checkbox
+          // Show background/theme checkbox with description
           keepBackgrounds = true;
           const bgCheckboxRow = document.createElement("label");
           bgCheckboxRow.className = `${P}checkbox-row`;
@@ -234,18 +234,10 @@ export class ConversionModal {
             .replace(/\n{3,}/g, "\n\n");
         }
         // Add language tag to opening fences of fenced code blocks only.
-        // Split by double newlines to isolate blocks, then add language
-        // tag only to blocks that start with ``` (opening fence).
+        // Use regex to match opening fence ``` at start of line, but skip
+        // closing fences (which are followed by blank line or end of string).
         if (codeLanguage) {
-          finalMarkdown = finalMarkdown
-            .split(/\n\n+/)
-            .map((block) => {
-              if (block.startsWith("```\n")) {
-                return "```" + codeLanguage + "\n" + block.slice(4);
-              }
-              return block;
-            })
-            .join("\n\n");
+          finalMarkdown = finalMarkdown.replace(/^```\n(?!$)/gm, "```" + codeLanguage + "\n");
         }
         backdrop.remove();
         resolve({
@@ -297,6 +289,7 @@ export class ConversionModal {
     backdrop.innerHTML = `
       <div class="${P}dialog">
         <h2 class="${P}title">Import PowerPoint</h2>
+        <p class="${P}description">Convert a .pptx file into a SlideMD presentation. Code blocks, images, and slide structure will be detected automatically.</p>
 
         <div class="${P}section">
           <label class="${P}label">PowerPoint File</label>
@@ -346,7 +339,8 @@ export class ConversionModal {
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
-      .${P}title { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
+      .${P}title { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
+      .${P}description { font-size: 13px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.4; }
       .${P}section { margin-bottom: 16px; }
       .${P}label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
       .${P}drop-zone {
