@@ -242,12 +242,7 @@ export class ImageInteractionHandler {
           const img = this._selectedImg;
           if (!img) return;
 
-          const grid = this._slideContainer;
-          if (!grid) return;
-
           const scale = this._getStageScale();
-          const curStyleLeft = parseFloat(img.style.left) || 0;
-          const curStyleTop = parseFloat(img.style.top) || 0;
 
           // interact.js reports pointer motion in screen px.  Because
           // the stage is rendered with a CSS transform, we must scale
@@ -256,47 +251,16 @@ export class ImageInteractionHandler {
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
 
-          // Visual position of the image's box relative to the grid
-          // container (which is the positioning context for overlay &&
-          // snap guides), at the pre-move state.
-          const gridRect = grid.getBoundingClientRect();
-          const imgRect = img.getBoundingClientRect();
-          const curVisualLeft = (imgRect.left - gridRect.left) / scale;
-          const curVisualTop = (imgRect.top - gridRect.top) / scale;
-          const w = imgRect.width / scale;
-          const h = imgRect.height / scale;
+          const curStyleLeft = parseFloat(img.style.left) || 0;
+          const curStyleTop = parseFloat(img.style.top) || 0;
 
-          let proposedVisualLeft = curVisualLeft + dDesignX;
-          let proposedVisualTop = curVisualTop + dDesignY;
-
-          let newLeft;
-          let newTop;
-
-          // Snapping (disabled while Alt is held).  Snapping returns
-          // a desired *visual* left/top; convert back to a style
-          // offset using the relationship that style.left maps 1:1 to
-          // visual shift.
-          if (!e.altKey) {
-            const snap = this._computeSnap(img, proposedVisualLeft, proposedVisualTop, w, h);
-            const snappedVisualLeft = snap.x != null ? snap.x : proposedVisualLeft;
-            const snappedVisualTop = snap.y != null ? snap.y : proposedVisualTop;
-            newLeft = curStyleLeft + (snappedVisualLeft - curVisualLeft);
-            newTop = curStyleTop + (snappedVisualTop - curVisualTop);
-            this._renderSnapGuides(snap.guides);
-          } else {
-            newLeft = curStyleLeft + dDesignX;
-            newTop = curStyleTop + dDesignY;
-            this._clearSnapGuides();
-          }
-
-          img.style.left = `${newLeft}px`;
-          img.style.top = `${newTop}px`;
+          img.style.left = `${curStyleLeft + dDesignX}px`;
+          img.style.top = `${curStyleTop + dDesignY}px`;
 
           this._updateOverlay();
           ImagePropertiesPanel._syncUI(this._readSettings(img));
         },
         end: () => {
-          this._clearSnapGuides();
           this._syncToMarkdown();
         },
       },
@@ -409,150 +373,6 @@ export class ImageInteractionHandler {
     if (!transform || transform === "none") return 1;
     const match = transform.match(/matrix\(([^,]+),/);
     return match ? parseFloat(match[1]) : 1;
-  }
-
-  // ── Snapping ────────────────────────────────────────────────────────────
-
-  static _SNAP_THRESHOLD = 6; // design px
-
-  /**
-   * Compute snap-adjusted left/top for the dragged image.
-   *
-   * All coordinates are expressed relative to the slide grid container
-   * (`.slide__grid`), which is the same coordinate system used for the
-   * overlay and snap-guide elements.  Working in *visual* coordinates (rather
-   * than the image's `position: relative` style offsets) ensures snapping
-   * works across images that live in different `.slide__area` cells and at
-   * any stage scale.
-   *
-   * @param {HTMLImageElement} img    – the image being dragged (for finding sibling targets)
-   * @param {number} visualLeft       – proposed visual left edge (design px, grid-relative)
-   * @param {number} visualTop        – proposed visual top edge
-   * @param {number} w                – image width in design px
-   * @param {number} h                – image height in design px
-   * @returns {{x: number|null, y: number|null, guides: Array}} `x`/`y` are the
-   *   desired *visual* positions of the image's left/top edge after snapping
-   *   (or null when no snap target is close enough).  `guides` is a list of
-   *   `{ axis, pos }` for drawing guide lines.
-   */
-  static _computeSnap(img, visualLeft, visualTop, w, h) {
-    const grid = this._slideContainer;
-    if (!grid) return { x: null, y: null, guides: [] };
-
-    const scale = this._getStageScale();
-    const gridRect = grid.getBoundingClientRect();
-    const gridW = gridRect.width / scale;
-    const gridH = gridRect.height / scale;
-
-    // Slide-grid edges and center are the primary snap targets.
-    const xTargets = [
-      { v: 0, kind: "edge" }, // grid left
-      { v: gridW / 2, kind: "center" }, // grid center X
-      { v: gridW, kind: "edge" }, // grid right
-    ];
-    const yTargets = [
-      { v: 0, kind: "edge" },
-      { v: gridH / 2, kind: "center" },
-      { v: gridH, kind: "edge" },
-    ];
-
-    // Add other images' visible centers/edges on the same slide.  We use
-    // getBoundingClientRect so images in different grid cells compare on the
-    // same coordinate axis.
-    const slide = img.closest(".slide");
-    if (slide) {
-      slide.querySelectorAll("img").forEach((other) => {
-        if (other === img) return;
-        const oRect = other.getBoundingClientRect();
-        const oL = (oRect.left - gridRect.left) / scale;
-        const oT = (oRect.top - gridRect.top) / scale;
-        const oW = oRect.width / scale;
-        const oH = oRect.height / scale;
-        xTargets.push({ v: oL, kind: "edge" });
-        xTargets.push({ v: oL + oW / 2, kind: "center" });
-        xTargets.push({ v: oL + oW, kind: "edge" });
-        yTargets.push({ v: oT, kind: "edge" });
-        yTargets.push({ v: oT + oH / 2, kind: "center" });
-        yTargets.push({ v: oT + oH, kind: "edge" });
-      });
-    }
-
-    // The dragged image exposes three reference lines along each axis.
-    const xRefs = [
-      { ref: visualLeft, offset: 0 },
-      { ref: visualLeft + w / 2, offset: w / 2 },
-      { ref: visualLeft + w, offset: w },
-    ];
-    const yRefs = [
-      { ref: visualTop, offset: 0 },
-      { ref: visualTop + h / 2, offset: h / 2 },
-      { ref: visualTop + h, offset: h },
-    ];
-
-    // Choose the closest candidate within the threshold (not the first in
-    // iteration order) so the most relevant edge/center snaps.
-    let bestX = null;
-    let bestXDist = Infinity;
-    let bestXGuide = null;
-    for (const ref of xRefs) {
-      for (const t of xTargets) {
-        const d = Math.abs(ref.ref - t.v);
-        if (d <= this._SNAP_THRESHOLD && d < bestXDist) {
-          bestXDist = d;
-          bestX = t.v - ref.offset;
-          bestXGuide = { axis: "v", pos: t.v };
-        }
-      }
-    }
-
-    let bestY = null;
-    let bestYDist = Infinity;
-    let bestYGuide = null;
-    for (const ref of yRefs) {
-      for (const t of yTargets) {
-        const d = Math.abs(ref.ref - t.v);
-        if (d <= this._SNAP_THRESHOLD && d < bestYDist) {
-          bestYDist = d;
-          bestY = t.v - ref.offset;
-          bestYGuide = { axis: "h", pos: t.v };
-        }
-      }
-    }
-
-    const guides = [];
-    if (bestXGuide) guides.push(bestXGuide);
-    if (bestYGuide) guides.push(bestYGuide);
-
-    return { x: bestX, y: bestY, guides };
-  }
-
-  static _renderSnapGuides(guides) {
-    this._clearSnapGuides();
-    const grid = this._slideContainer;
-    if (!grid) return;
-    for (const g of guides) {
-      const el = document.createElement("div");
-      el.className = "image-snap-guide";
-      el.dataset.axis = g.axis;
-      if (g.axis === "v") {
-        el.style.left = `${g.pos}px`;
-        el.style.top = "0";
-        el.style.width = "1px";
-        el.style.height = "100%";
-      } else {
-        el.style.top = `${g.pos}px`;
-        el.style.left = "0";
-        el.style.height = "1px";
-        el.style.width = "100%";
-      }
-      grid.appendChild(el);
-    }
-  }
-
-  static _clearSnapGuides() {
-    const grid = this._slideContainer;
-    if (!grid) return;
-    grid.querySelectorAll(".image-snap-guide").forEach((el) => el.remove());
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────

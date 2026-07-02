@@ -915,15 +915,6 @@
   cursor: move;
 }
 
-/* ── Snap Guide Lines ─────────────────────────────────────────────────────── */
-
-.image-snap-guide {
-  position: absolute;
-  z-index: 25;
-  pointer-events: none;
-  background: rgba(239, 68, 68, 0.9);
-}
-
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
 
 [data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {
