@@ -214,6 +214,7 @@ export class ConversionModal {
           importBtn.hidden = true;
           saveBtn.hidden = false;
           saveBtn.disabled = false;
+          cancelBtn.disabled = false;
         } catch (err) {
           hideSpinner();
           showError(`Conversion failed: ${err.message}`);

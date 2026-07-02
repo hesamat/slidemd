@@ -94,8 +94,10 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
   } else if (layout.type === "header-content") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
     // Don't treat bullet lists or numbered lists as headers — they are body content.
-    const isHeaderValid =
-      header && !BULLET_RE.test(header.content || "") && !NUMBER_RE.test(header.content || "");
+    // Check for bullets/numbers anywhere in the content (not just at start of string).
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     parts.push("");
     if (isHeaderValid) {
@@ -110,8 +112,10 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
   } else if (layout.type === "two-column") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
     // Don't treat bullet lists or numbered lists as headers — they are body content.
-    const isHeaderValid =
-      header && !BULLET_RE.test(header.content || "") && !NUMBER_RE.test(header.content || "");
+    // Check for bullets/numbers anywhere in the content (not just at start of string).
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers;
     const midX = slideWidth / 2;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
