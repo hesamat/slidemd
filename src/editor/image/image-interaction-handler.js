@@ -676,9 +676,16 @@ export class ImageInteractionHandler {
 
     const curLeft = parseFloat(img.style.left) || 0;
     const curTop = parseFloat(img.style.top) || 0;
+    const ratio =
+      img.naturalWidth && img.naturalHeight
+        ? img.naturalWidth / img.naturalHeight
+        : imgRect.width && imgRect.height
+          ? imgRect.width / imgRect.height
+          : null;
 
     this.applySettings({
       width: Math.round(areaWidthDesign),
+      height: ratio ? Math.round(areaWidthDesign / ratio) : null,
       left: Math.round(curLeft + deltaX),
       top: Math.round(curTop + deltaY),
     });
