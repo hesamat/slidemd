@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 
 /**
@@ -72,6 +72,10 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
     ImageInteractionHandler.applySettings = vi.fn();
     ImageInteractionHandler._getStageScale = () => 1;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("deleteSelected", () => {
@@ -210,12 +214,27 @@ describe("ImageInteractionHandler", () => {
 
   describe("fitToWidth", () => {
     it("clamps portrait images to the slide height while keeping aspect ratio", () => {
-      ImageInteractionHandler._selectedImg = mockFitImage();
+      const area = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      };
+      const img = {
+        closest: (sel) => (sel === ".slide__area" ? area : null),
+        getBoundingClientRect: () => ({ left: 100, top: 200, width: 300, height: 400 }),
+        naturalWidth: 300,
+        naturalHeight: 400,
+        style: { left: "100px", top: "200px" },
+      };
+      const applySettings = vi
+        .spyOn(ImageInteractionHandler, "applySettings")
+        .mockImplementation(() => {});
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getStageScale = () => 1;
 
       ImageInteractionHandler.fitToWidth();
 
-      expect(ImageInteractionHandler.applySettings).toHaveBeenCalledWith({
-        width: 720,
+      expect(applySettings).toHaveBeenCalledWith({
+        width: 810,
+        height: 1080,
         left: 0,
         top: 0,
       });

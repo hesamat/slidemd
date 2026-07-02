@@ -676,6 +676,7 @@ export class ImageInteractionHandler {
 
     this.applySettings({
       width: Math.round(width),
+      height: Math.round(height),
       left: 0,
       top: Math.round(top),
     });
