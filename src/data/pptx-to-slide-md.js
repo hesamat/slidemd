@@ -36,19 +36,29 @@ export function convertToSlideMd(extraction, deckName = "presentation") {
 function convertSlide(slide, slideWidth, slideHeight, deckName) {
   const parts = [];
 
-  // Speaker notes
+  // Speaker notes — sanitize to prevent HTML comment injection
   if (slide.notes) {
-    parts.push(`<!-- notes: ${slide.notes} -->`);
+    const sanitized = slide.notes
+      .replace(/<!--/g, "< !--")
+      .replace(/-->/g, "-- >")
+      .replace(/<[^>]+>/g, "");
+    parts.push(`<!-- notes: ${sanitized} -->`);
   }
 
-  const textElements = slide.elements.filter((el) => el.type === "text" && el.content?.trim());
+  // Separate footer elements from content elements
+  const footerElements = slide.elements.filter((el) => el.placeholderType === "footer");
+
+  const textElements = slide.elements.filter(
+    (el) => el.type === "text" && el.content?.trim() && el.placeholderType !== "footer",
+  );
   const allElements = slide.elements.filter(
     (el) =>
-      (el.type === "text" && el.content?.trim()) ||
-      (el.type === "image" && el.base64) ||
-      (el.type === "table" && el.rows?.length) ||
-      el.type === "chart" ||
-      el.type === "diagram",
+      el.placeholderType !== "footer" &&
+      ((el.type === "text" && el.content?.trim()) ||
+        (el.type === "image" && el.base64) ||
+        (el.type === "table" && el.rows?.length) ||
+        el.type === "chart" ||
+        el.type === "diagram"),
   );
 
   const hasMedia = allElements.some((el) => el.type !== "text");
@@ -127,6 +137,20 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("@main");
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+  }
+
+  // Emit footer area if footer elements were detected
+  if (footerElements.length > 0) {
+    const footerText = footerElements
+      .map((el) => el.content?.trim())
+      .filter(Boolean)
+      .join(" ");
+    if (footerText) {
+      parts.push("");
+      parts.push("@footer");
+      parts.push("");
+      parts.push(footerText);
+    }
   }
 
   return parts.join("\n");

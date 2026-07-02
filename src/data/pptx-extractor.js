@@ -30,6 +30,7 @@ import { parse } from "pptxtojson";
  * @property {number} top - Y position (EMU).
  * @property {number} width - Width in EMU.
  * @property {number} height - Height in EMU.
+ * @property {'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
  */
 
 /**
@@ -81,7 +82,7 @@ export class PptxExtractor {
       slides,
       themeColors: raw.themeColors || [],
       usedFonts: raw.usedFonts || [],
-      size: raw.size || { width: 914400, height: 5143500 / 914400 },
+      size: raw.size || { width: 914400, height: 5143500 },
       images,
     };
   }
@@ -98,6 +99,8 @@ export class PptxExtractor {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
     for (const el of slide.layoutElements || []) {
+      // Skip images from layout — they are theme decorations, not slide content
+      if (el.type === "image") continue;
       const extracted = this.#processElement(el, index, imagesAccum);
       if (extracted) raw.push(extracted);
     }
@@ -125,6 +128,25 @@ export class PptxExtractor {
   }
 
   /**
+   * Check if an element tree contains any text content.
+   * @static
+   * @param {import('pptxtojson').Element} el
+   * @returns {boolean}
+   */
+  static #hasTextContent(el) {
+    if (el.type === "text" || el.type === "shape") {
+      return !!(el.content && el.content.trim());
+    }
+    if (el.type === "table" || el.type === "chart" || el.type === "diagram") {
+      return true;
+    }
+    if (el.type === "group" && el.elements) {
+      return el.elements.some((child) => this.#hasTextContent(child));
+    }
+    return false;
+  }
+
+  /**
    * Process a single element.
    * @static
    * @param {import('pptxtojson').Element} el
@@ -134,6 +156,10 @@ export class PptxExtractor {
    */
   static #processElement(el, slideIndex, imagesAccum) {
     if (el.type === "group" && el.elements) {
+      // Skip groups that contain only images (decorative backgrounds, theme art)
+      if (!this.#hasTextContent(el)) {
+        return null;
+      }
       // Flatten group elements
       const results = [];
       for (const child of el.elements) {
@@ -143,12 +169,20 @@ export class PptxExtractor {
       return results.length ? results : null;
     }
 
+    const placeholderType = this.#detectPlaceholderType(el.name);
+
+    // Skip auto-generated placeholders (date/time, slide numbers)
+    if (placeholderType === "date" || placeholderType === "slideNumber") {
+      return null;
+    }
+
     if (el.type === "text" || el.type === "shape") {
       const content = this.#htmlToMarkdown(el.content || "");
       if (!content.trim()) return null;
       return {
         type: "text",
         content,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -174,6 +208,7 @@ export class PptxExtractor {
         blob: el.blob || "",
         mimeType: mime,
         ref: el.ref,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -193,6 +228,7 @@ export class PptxExtractor {
       return {
         type: "table",
         rows,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -205,6 +241,7 @@ export class PptxExtractor {
       return {
         type: "chart",
         content: `[Chart: ${el.chartType}]`,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -218,6 +255,7 @@ export class PptxExtractor {
       return {
         type: "diagram",
         content: text || "[Diagram]",
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -233,6 +271,15 @@ export class PptxExtractor {
    * Convert HTML to markdown using native DOM parsing.
    * Walks the DOM tree to convert elements to markdown, handling
    * inline formatting, lists, links, and block elements natively.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static htmlToMarkdown(html) {
+    return this.#htmlToMarkdown(html);
+  }
+
+  /**
    * @static
    * @param {string} html
    * @returns {string}
@@ -474,11 +521,11 @@ export class PptxExtractor {
     }
     for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s*)\*(?!\*)/g, "*$1$2");
+      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s+)\*(?!\*)/g, "*$1$2");
       if (s === prev) break;
     }
     s = s.replace(/\*\*\s*\*\*/g, " ");
-    s = s.replace(/(?<!\*)\*\s*\*(?!\*)/g, " ");
+    s = s.replace(/(?<!\*)\*\s+\*(?!\*)/g, " ");
     return s;
   }
 
@@ -669,6 +716,24 @@ export class PptxExtractor {
       }
     }
     return "";
+  }
+
+  /**
+   * Detect placeholder type from the element's name attribute.
+   * PowerPoint names footer placeholders "Footer Placeholder N",
+   * date placeholders "Date and time placeholder N", and slide
+   * number placeholders "Slide Number Placeholder N".
+   * @static
+   * @param {string} name
+   * @returns {'footer'|'date'|'slideNumber'|null}
+   */
+  static #detectPlaceholderType(name) {
+    if (!name) return null;
+    const lower = name.toLowerCase();
+    if (lower.includes("footer")) return "footer";
+    if (lower.includes("date")) return "date";
+    if (lower.includes("slide number") || lower.includes("slidenum")) return "slideNumber";
+    return null;
   }
 
   /**
