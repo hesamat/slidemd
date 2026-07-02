@@ -66,6 +66,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
 
   const hasMedia = allElements.some((el) => el.type !== "text");
   const layout = inferLayout(textElements, slideWidth, slideHeight, hasMedia, allElements);
+  const dominantImages = findDominantImages(allElements, slideWidth, slideHeight);
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
@@ -116,10 +117,46 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
     const hasCodeBlock = /```/.test(header?.content || "");
     const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
-    const midX = slideWidth / 2;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
-    const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
-    const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
+    parts.push("");
+    if (isHeaderValid) {
+      parts.push("@header");
+      parts.push("");
+      parts.push(formatTextElement(header.content));
+      parts.push("");
+    }
+    if (dominantImages.length > 0) {
+      const mediaImage = dominantImages[0];
+      const mainEls = bodyElements.filter((el) => el !== mediaImage);
+      parts.push("@main");
+      parts.push("");
+      parts.push(mainEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
+      parts.push("");
+      parts.push("@media");
+      parts.push("");
+      parts.push(formatSingleElement(mediaImage, false));
+    } else {
+      const midX = slideWidth / 2;
+      const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
+      const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
+      parts.push("@main");
+      parts.push("");
+      parts.push(leftEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
+      parts.push("");
+      parts.push("@media");
+      parts.push("");
+      parts.push(rightEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    }
+  } else if (layout.type === "three-column") {
+    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
+    const hasCodeBlock = /```/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
+    const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
+    const [mediaImage, secondaryImage] = dominantImages;
+    const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
     parts.push("");
     if (isHeaderValid) {
       parts.push("@header");
@@ -129,11 +166,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     }
     parts.push("@main");
     parts.push("");
-    parts.push(leftEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    parts.push(mainEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
     parts.push("");
     parts.push("@media");
     parts.push("");
-    parts.push(rightEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    parts.push(formatSingleElement(mediaImage, false));
+    parts.push("");
+    parts.push("@secondary");
+    parts.push("");
+    parts.push(formatSingleElement(secondaryImage, false));
   } else {
     parts.push("");
     parts.push("@main");
@@ -257,6 +298,14 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
     return { type: "two-column", spec: "two-column" };
   }
 
+  const dominantImages = findDominantImages(allEls, slideWidth, slideHeight);
+  if (dominantImages.length >= 2 && contentEls.length > 0) {
+    return { type: "three-column", spec: "three-column" };
+  }
+  if (dominantImages.length === 1 && contentEls.length > 0) {
+    return { type: "two-column", spec: "two-column" };
+  }
+
   if (hasHeader) {
     return { type: "header-content", spec: "header-content" };
   }
@@ -266,6 +315,20 @@ function inferLayout(textEls, slideWidth, slideHeight, hasMedia = false, allEls 
   }
 
   return { type: "header-content", spec: "header-content" };
+}
+
+function findDominantImages(allEls, slideWidth, slideHeight) {
+  const slideArea = slideWidth * slideHeight;
+  const images = allEls.filter((el) => el.type === "image" && el.base64);
+
+  const dominant = images.filter((el) => {
+    const widthRatio = el.width / slideWidth;
+    const heightRatio = el.height / slideHeight;
+    const areaRatio = (el.width * el.height) / slideArea;
+    return widthRatio > 0.4 || heightRatio > 0.6 || areaRatio > 0.25;
+  });
+
+  return dominant.slice(0, 2);
 }
 
 // Match one OR MORE leading bullet/dash markers + optional trailing
