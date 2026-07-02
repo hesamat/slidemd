@@ -121,9 +121,10 @@ export function htmlToMarkdown(html) {
 
   // Escape < and > characters, but preserve content inside fenced code blocks.
   // Split by fenced code blocks, escape only the non-code parts.
-  md = md.replace(/(^```\n[\s\S]*?\n```)/gm, (match) => `%%CODEBLOCK%%${btoa(match)}%%`);
-  md = md.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  md = md.replace(/%%CODEBLOCK%%([A-Za-z0-9+/=]+)%%/g, (_, encoded) => atob(encoded));
+  md = md
+    .split(/(^```\n[\s\S]*?\n```)/m)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/</g, "&lt;").replace(/>/g, "&gt;")))
+    .join("");
   return md.trim();
 }
 
@@ -287,7 +288,10 @@ function processInlineNodes(nodes, out) {
       if (trimmed) {
         out.push("**" + trimmed + "**");
       } else if (raw) {
+        // Preserve whitespace-only spans as a single space
         out.push(" ");
+      } else {
+        out.push(raw);
       }
       continue;
     }
@@ -300,7 +304,10 @@ function processInlineNodes(nodes, out) {
       if (trimmed) {
         out.push("*" + trimmed + "*");
       } else if (raw) {
+        // Preserve whitespace-only spans as a single space
         out.push(" ");
+      } else {
+        out.push(raw);
       }
       continue;
     }
@@ -330,10 +337,15 @@ function processInlineNodes(nodes, out) {
           out.push("**" + text + "**");
         } else if (isItalic) {
           out.push("*" + text + "*");
-        } else {
+        } else if (isMono) {
+          // Monospace text — already wrapped in backticks
           out.push(text);
+        } else {
+          // Plain text span — preserve original spacing
+          out.push(raw);
         }
       } else if (raw) {
+        // Whitespace-only span — preserve as a single space
         out.push(" ");
       }
       continue;
