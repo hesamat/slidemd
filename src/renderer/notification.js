@@ -7,6 +7,9 @@ export class Notification {
   static container = null;
   static toastId = 0;
   static modalId = 0;
+  static maxVisibleToasts = 4;
+  static activeToasts = new Map();
+  static queuedToasts = [];
 
   /**
    * Initialize the notification container
@@ -30,35 +33,96 @@ export class Notification {
    * @param {string} message - The message to display
    * @param {string} type - The type of notification: 'success', 'error', 'info', 'warning'
    * @param {number} duration - Duration in milliseconds (0 = no auto-dismiss)
+   * @param {Object} options - Optional toast configuration
+   * @param {Array<{label: string, onClick: Function}>} options.actions - Action buttons
+   * @param {number} options.progress - Progress percentage (0-100)
    * @returns {number} The toast ID
    */
-  static showToast(message, type = "info", duration = 3000) {
+  static showToast(message, type = "info", duration = 3000, options = {}) {
+    if (typeof duration === "object" && duration !== null) {
+      options = duration;
+      duration = 3000;
+    }
     this.init();
 
-    const toast = document.createElement("div");
     const toastId = ++this.toastId;
+    const config = { toastId, message, type, duration, options };
+
+    if (this.activeToasts.size >= this.maxVisibleToasts) {
+      this.queuedToasts.push(config);
+      return toastId;
+    }
+
+    this.renderToast(config);
+    return toastId;
+  }
+
+  static renderToast({ toastId, message, type, duration, options }) {
+    const toast = document.createElement("div");
     toast.className = `notification-toast notification-toast--${type}`;
     toast.setAttribute("role", "status");
     toast.setAttribute("data-toast-id", toastId);
 
     const icon = this.getIcon(type);
+    const body = document.createElement("div");
+    body.className = "notification-toast__body";
+
     const messageEl = document.createElement("span");
     messageEl.className = "notification-toast__message";
     messageEl.textContent = message;
+    body.appendChild(messageEl);
+
+    const progressValue = Number.isFinite(options?.progress)
+      ? Math.min(100, Math.max(0, options.progress))
+      : null;
+    let progressBar = null;
+    if (progressValue !== null) {
+      const progressTrack = document.createElement("div");
+      progressTrack.className = "notification-toast__progress";
+      progressTrack.setAttribute("role", "progressbar");
+      progressTrack.setAttribute("aria-valuemin", "0");
+      progressTrack.setAttribute("aria-valuemax", "100");
+      progressTrack.setAttribute("aria-valuenow", String(progressValue));
+
+      progressBar = document.createElement("div");
+      progressBar.className = "notification-toast__progress-bar";
+      progressBar.style.width = `${progressValue}%`;
+
+      progressTrack.appendChild(progressBar);
+      body.appendChild(progressTrack);
+    }
+
+    const actions = Array.isArray(options?.actions) ? options.actions : [];
+    if (actions.length > 0) {
+      const actionsEl = document.createElement("div");
+      actionsEl.className = "notification-toast__actions";
+      actions.forEach((action) => {
+        const actionBtn = document.createElement("button");
+        actionBtn.className = "notification-toast__action";
+        actionBtn.textContent = action.label;
+        actionBtn.onclick = () => {
+          if (typeof action.onClick === "function") {
+            action.onClick();
+          }
+        };
+        actionsEl.appendChild(actionBtn);
+      });
+      body.appendChild(actionsEl);
+    }
 
     toast.appendChild(icon);
-    toast.appendChild(messageEl);
+    toast.appendChild(body);
 
     let autoDismissTimeout = null;
     const closeBtn = this.createCloseButton(() => {
-      this.dismiss(toast);
+      this.dismiss(toastId);
       if (autoDismissTimeout) {
         clearTimeout(autoDismissTimeout);
       }
     });
     toast.appendChild(closeBtn);
 
-    this.container.appendChild(toast);
+    this.container.prepend(toast);
 
     // Trigger animation
     requestAnimationFrame(() => {
@@ -67,10 +131,10 @@ export class Notification {
 
     // Auto-dismiss after duration
     if (duration > 0) {
-      autoDismissTimeout = setTimeout(() => this.dismiss(toast), duration);
+      autoDismissTimeout = setTimeout(() => this.dismiss(toastId), duration);
     }
 
-    return toastId;
+    this.activeToasts.set(toastId, { toast, autoDismissTimeout, progressBar });
   }
 
   /**
@@ -98,8 +162,26 @@ export class Notification {
    * Dismiss a notification toast
    * @param {HTMLElement} toast - The toast element to dismiss
    */
-  static dismiss(toast) {
-    if (!toast || !toast.parentNode) return;
+  static dismiss(toastOrId) {
+    if (toastOrId === null || toastOrId === undefined) return;
+
+    let toast = toastOrId;
+    if (typeof toastOrId === "number") {
+      const activeToast = this.activeToasts.get(toastOrId)?.toast;
+      if (!activeToast) {
+        this.queuedToasts = this.queuedToasts.filter((item) => item.toastId !== toastOrId);
+        return;
+      }
+      toast = activeToast;
+    }
+
+    if (!toast || !toast.parentNode || toast.dataset.dismissing === "true") return;
+    toast.dataset.dismissing = "true";
+    const toastId = Number(toast.getAttribute("data-toast-id"));
+    const toastState = this.activeToasts.get(toastId);
+    if (toastState?.autoDismissTimeout) {
+      clearTimeout(toastState.autoDismissTimeout);
+    }
 
     toast.classList.remove("notification-toast--show");
     toast.classList.add("notification-toast--hide");
@@ -108,26 +190,85 @@ export class Notification {
       if (toast.parentNode) {
         toast.remove();
       }
+      this.activeToasts.delete(toastId);
+      this.flushQueue();
     }, 300);
+  }
+
+  static flushQueue() {
+    while (this.activeToasts.size < this.maxVisibleToasts && this.queuedToasts.length > 0) {
+      const nextToast = this.queuedToasts.shift();
+      this.renderToast(nextToast);
+    }
   }
 
   /**
    * Convenience methods for different notification types
    */
-  static success(message, duration = 3000) {
-    return this.showToast(message, "success", duration);
+  static success(message, duration = 3000, options = {}) {
+    if (typeof duration === "object" && duration !== null) {
+      options = duration;
+      duration = 3000;
+    }
+    return this.showToast(message, "success", duration, options);
   }
 
-  static error(message, duration = 5000) {
-    return this.showToast(message, "error", duration);
+  static error(message, duration = 5000, options = {}) {
+    if (typeof duration === "object" && duration !== null) {
+      options = duration;
+      duration = 5000;
+    }
+    return this.showToast(message, "error", duration, options);
   }
 
-  static warning(message, duration = 4000) {
-    return this.showToast(message, "warning", duration);
+  static warning(message, duration = 4000, options = {}) {
+    if (typeof duration === "object" && duration !== null) {
+      options = duration;
+      duration = 4000;
+    }
+    return this.showToast(message, "warning", duration, options);
   }
 
-  static info(message, duration = 3000) {
-    return this.showToast(message, "info", duration);
+  static info(message, duration = 3000, options = {}) {
+    if (typeof duration === "object" && duration !== null) {
+      options = duration;
+      duration = 3000;
+    }
+    return this.showToast(message, "info", duration, options);
+  }
+
+  static showProgress(message, type = "info") {
+    return this.showToast(message, type, 0, { progress: 0 });
+  }
+
+  static updateProgress(toastId, progressPercent) {
+    const clampedValue = Math.min(100, Math.max(0, Number(progressPercent) || 0));
+    const toastState = this.activeToasts.get(toastId);
+    if (toastState?.progressBar) {
+      toastState.progressBar.style.width = `${clampedValue}%`;
+      toastState.progressBar.parentElement?.setAttribute("aria-valuenow", String(clampedValue));
+      return;
+    }
+
+    const queuedToast = this.queuedToasts.find((item) => item.toastId === toastId);
+    if (queuedToast) {
+      queuedToast.options = { ...(queuedToast.options || {}), progress: clampedValue };
+    }
+  }
+
+  static successWithUndo(message, undoFn, duration = 5000) {
+    return this.showToast(message, "success", duration, {
+      actions: [
+        {
+          label: "Undo",
+          onClick: () => {
+            if (typeof undoFn === "function") {
+              undoFn();
+            }
+          },
+        },
+      ],
+    });
   }
 
   /**
