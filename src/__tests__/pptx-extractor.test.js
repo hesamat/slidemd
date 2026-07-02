@@ -168,7 +168,8 @@ describe("PptxExtractor.toPlainText", () => {
     };
     const text = PptxExtractor.toPlainText(result);
     expect(text).toContain("[Chart: barChart]");
-    expect(text).toContain("[Diagram: Step 1, Step 2]");
+    expect(text).toContain("- Step 1");
+    expect(text).toContain("- Step 2");
   });
 });
 

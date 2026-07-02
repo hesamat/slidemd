@@ -845,7 +845,13 @@ export class PptxExtractor {
             lines.push("");
           }
         } else if (el.type === "diagram") {
-          lines.push(`[Diagram: ${el.content || ""}]`);
+          if (el.content) {
+            // Content is textList joined with ", " - split and display as list
+            const items = el.content.split(", ");
+            for (const item of items) {
+              lines.push(`- ${item}`);
+            }
+          }
           lines.push("");
         }
       }

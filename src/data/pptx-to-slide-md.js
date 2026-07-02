@@ -77,7 +77,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     if (el.type === "image") return formatImage(el, deckName);
     if (el.type === "table") return formatTable(el);
     if (el.type === "chart") return formatChart(el);
-    if (el.type === "diagram") return `<!-- [Diagram: ${el.content || ""}] -->`;
+    if (el.type === "diagram") return formatDiagram(el);
     return "";
   };
 
@@ -448,4 +448,46 @@ function formatChart(chart) {
     parts.push(`| ${row.map(escapeCell).join(" | ")} |`);
   }
   return parts.join("\n");
+}
+
+/**
+ * Format a diagram element as a markdown list.
+ * Diagrams from PowerPoint SmartArt contain structured text that
+ * is best represented as a bulleted list.
+ * @param {import('./pptx-extractor.js').ExtractedElement} diagram
+ * @returns {string}
+ */
+function formatDiagram(diagram) {
+  if (!diagram.content) return "";
+
+  // Content is textList joined with ", " in the extractor
+  // Split by ", " to get individual items, then handle newlines within items
+  const items = diagram.content
+    .split(", ")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) return "";
+
+  // If only one item, just return it as text
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  // Multiple items: render as a bulleted list
+  // Handle newlines within items by treating them as separate sub-items
+  const lines = [];
+  for (const item of items) {
+    const subItems = item.split("\n").filter((s) => s.trim());
+    if (subItems.length === 1) {
+      lines.push(`- ${subItems[0]}`);
+    } else {
+      // Multiple lines within one diagram item: use indented sub-bullets
+      lines.push(`- ${subItems[0]}`);
+      for (let i = 1; i < subItems.length; i++) {
+        lines.push(`  - ${subItems[i]}`);
+      }
+    }
+  }
+  return lines.join("\n");
 }
