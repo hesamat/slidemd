@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 
 /**
@@ -30,6 +30,39 @@ function mockImg(index, total) {
   return img;
 }
 
+function mockFitImage({
+  areaWidth = 1920,
+  areaHeight = 1080,
+  imgLeft = 120,
+  imgTop = 80,
+  imgWidth = 400,
+  imgHeight = 600,
+  naturalWidth = 400,
+  naturalHeight = 600,
+} = {}) {
+  const area = {
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: areaWidth,
+      height: areaHeight,
+    }),
+  };
+  const img = {
+    closest: (sel) => (sel === ".slide__area" ? area : null),
+    getBoundingClientRect: () => ({
+      left: imgLeft,
+      top: imgTop,
+      width: imgWidth,
+      height: imgHeight,
+    }),
+    naturalWidth,
+    naturalHeight,
+    style: {},
+  };
+  return img;
+}
+
 describe("ImageInteractionHandler", () => {
   beforeEach(() => {
     ImageInteractionHandler._selectedImg = null;
@@ -37,6 +70,12 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._setMarkdown = null;
     ImageInteractionHandler._onDelete = null;
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
+    ImageInteractionHandler.applySettings = vi.fn();
+    ImageInteractionHandler._getStageScale = () => 1;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("deleteSelected", () => {
@@ -170,6 +209,35 @@ describe("ImageInteractionHandler", () => {
       // Should not have excessive blank lines
       expect(saved).not.toMatch(/\n{3,}/);
       expect(saved.trim()).toBe("## Title\n\nMore text");
+    });
+  });
+
+  describe("fitToWidth", () => {
+    it("clamps portrait images to the slide height while keeping aspect ratio", () => {
+      const area = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      };
+      const img = {
+        closest: (sel) => (sel === ".slide__area" ? area : null),
+        getBoundingClientRect: () => ({ left: 100, top: 200, width: 300, height: 400 }),
+        naturalWidth: 300,
+        naturalHeight: 400,
+        style: { left: "100px", top: "200px" },
+      };
+      const applySettings = vi
+        .spyOn(ImageInteractionHandler, "applySettings")
+        .mockImplementation(() => {});
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getStageScale = () => 1;
+
+      ImageInteractionHandler.fitToWidth();
+
+      expect(applySettings).toHaveBeenCalledWith({
+        width: 810,
+        height: 1080,
+        left: 0,
+        top: 0,
+      });
     });
   });
 });
