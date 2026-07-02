@@ -13,6 +13,10 @@
 const HEADING_H2_THRESHOLD = 36;
 const HEADING_H3_THRESHOLD = 28;
 
+// Monospace font-family pattern for detecting code content
+const MONOSPACE_PATTERN =
+  /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i;
+
 /**
  * Extract the largest font size from a DOM element's child spans.
  * Returns 0 if no font-size is found.
@@ -31,6 +35,22 @@ function getLargestFontSize(element) {
     }
   }
   return maxSize;
+}
+
+/**
+ * Check if all text content in a DOM element is monospace.
+ * Returns true if every span with text has a monospace font-family.
+ * @param {Element} element
+ * @returns {boolean}
+ */
+function isAllMonospace(element) {
+  const spans = element.querySelectorAll("span");
+  if (spans.length === 0) return false;
+  for (const span of spans) {
+    const style = span.getAttribute("style") || "";
+    if (!MONOSPACE_PATTERN.test(style)) return false;
+  }
+  return true;
 }
 
 /**
@@ -99,7 +119,11 @@ export function htmlToMarkdown(html) {
   }
   md = grouped.join("\n");
 
+  // Escape < and > characters, but preserve content inside fenced code blocks.
+  // Split by fenced code blocks, escape only the non-code parts.
+  md = md.replace(/(^```\n[\s\S]*?\n```)/gm, (match) => `%%CODEBLOCK%%${btoa(match)}%%`);
   md = md.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  md = md.replace(/%%CODEBLOCK%%([A-Za-z0-9+/=]+)%%/g, (_, encoded) => atob(encoded));
   return md.trim();
 }
 
@@ -176,15 +200,22 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       const merged = mergeAdjacentMarkers(inline.join(""));
       if (merged.trim()) {
-        // Detect headings by font size: check the largest font-size
-        // among child spans to determine if this paragraph is a heading.
-        const fontSize = getLargestFontSize(node);
-        if (fontSize >= HEADING_H2_THRESHOLD) {
-          out.push(`## ${merged.trim()}\n\n`);
-        } else if (fontSize >= HEADING_H3_THRESHOLD) {
-          out.push(`### ${merged.trim()}\n\n`);
-        } else {
+        // Skip heading detection if all content is monospace code —
+        // these paragraphs should be treated as code, not headings.
+        const allMono = isAllMonospace(node);
+        if (allMono) {
           out.push(merged + "\n\n");
+        } else {
+          // Detect headings by font size: check the largest font-size
+          // among child spans to determine if this paragraph is a heading.
+          const fontSize = getLargestFontSize(node);
+          if (fontSize >= HEADING_H2_THRESHOLD) {
+            out.push(`## ${merged.trim()}\n\n`);
+          } else if (fontSize >= HEADING_H3_THRESHOLD) {
+            out.push(`### ${merged.trim()}\n\n`);
+          } else {
+            out.push(merged + "\n\n");
+          }
         }
       }
       continue;

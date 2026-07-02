@@ -237,9 +237,19 @@ export class ConversionModal {
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
         }
-        // Add language tag to all fenced code blocks
+        // Add language tag to opening fences of fenced code blocks only.
+        // Split by double newlines to isolate blocks, then add language
+        // tag only to blocks that start with ``` (opening fence).
         if (codeLanguage) {
-          finalMarkdown = finalMarkdown.replace(/```\n/g, "```" + codeLanguage + "\n");
+          finalMarkdown = finalMarkdown
+            .split(/\n\n+/)
+            .map((block) => {
+              if (block.startsWith("```\n")) {
+                return "```" + codeLanguage + "\n" + block.slice(4);
+              }
+              return block;
+            })
+            .join("\n\n");
         }
         backdrop.remove();
         resolve({
