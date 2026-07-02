@@ -30,6 +30,39 @@ function mockImg(index, total) {
   return img;
 }
 
+function mockFitImage({
+  areaWidth = 1920,
+  areaHeight = 1080,
+  imgLeft = 120,
+  imgTop = 80,
+  imgWidth = 400,
+  imgHeight = 600,
+  naturalWidth = 400,
+  naturalHeight = 600,
+} = {}) {
+  const area = {
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: areaWidth,
+      height: areaHeight,
+    }),
+  };
+  const img = {
+    closest: (sel) => (sel === ".slide__area" ? area : null),
+    getBoundingClientRect: () => ({
+      left: imgLeft,
+      top: imgTop,
+      width: imgWidth,
+      height: imgHeight,
+    }),
+    naturalWidth,
+    naturalHeight,
+    style: {},
+  };
+  return img;
+}
+
 describe("ImageInteractionHandler", () => {
   beforeEach(() => {
     ImageInteractionHandler._selectedImg = null;
@@ -37,6 +70,8 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._setMarkdown = null;
     ImageInteractionHandler._onDelete = null;
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
+    ImageInteractionHandler.applySettings = vi.fn();
+    ImageInteractionHandler._getStageScale = () => 1;
   });
 
   afterEach(() => {
