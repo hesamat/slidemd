@@ -237,12 +237,22 @@ export class ConversionModal {
             .replace(/\n{3,}/g, "\n\n");
         }
         // Add language tag to opening fences of fenced code blocks only.
-        // Match ``` at start of line that is followed by a non-blank, non-``` line.
+        // Use a state machine to distinguish opening fences from closing fences.
         if (codeLanguage) {
-          finalMarkdown = finalMarkdown.replace(
-            /^```\n(?!```|\s*$)/gm,
-            "```" + codeLanguage + "\n",
-          );
+          const mdLines = finalMarkdown.split("\n");
+          let inCodeBlock = false;
+          for (let j = 0; j < mdLines.length; j++) {
+            if (mdLines[j].trim() === "```") {
+              if (inCodeBlock) {
+                mdLines[j] = "```";
+                inCodeBlock = false;
+              } else {
+                mdLines[j] = "```" + codeLanguage;
+                inCodeBlock = true;
+              }
+            }
+          }
+          finalMarkdown = mdLines.join("\n");
         }
         backdrop.remove();
         resolve({

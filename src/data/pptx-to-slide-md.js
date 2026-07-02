@@ -93,11 +93,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push(allElements.map((el) => formatSingleElement(el)).join("\n\n"));
   } else if (layout.type === "header-content") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
-    // Don't treat bullet lists or numbered lists as headers — they are body content.
-    // Check for bullets/numbers anywhere in the content (not just at start of string).
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
-    const isHeaderValid = header && !hasBullets && !hasNumbers;
+    const hasCodeBlock = /```/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     parts.push("");
     if (isHeaderValid) {
@@ -111,11 +111,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
   } else if (layout.type === "two-column") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
-    // Don't treat bullet lists or numbered lists as headers — they are body content.
-    // Check for bullets/numbers anywhere in the content (not just at start of string).
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
-    const isHeaderValid = header && !hasBullets && !hasNumbers;
+    const hasCodeBlock = /```/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const midX = slideWidth / 2;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
