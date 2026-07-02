@@ -156,36 +156,10 @@ export class ConversionModal {
           const imageCount = extractionResult.images.length;
           showResult(`${slideCount} slide${slideCount !== 1 ? "s" : ""} converted`);
 
-          // If images detected, show checkbox
-          if (imageCount > 0) {
-            importImages = true;
-            const checkboxRow = document.createElement("label");
-            checkboxRow.className = `${P}checkbox-row`;
-            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
-            const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
-            checkboxInput.addEventListener("change", () => {
-              importImages = checkboxInput.checked;
-            });
-            resultEl.parentNode.insertBefore(checkboxRow, resultEl.nextSibling);
-          }
+          // Insert elements in order: language selector, then checkboxes
+          let insertAfter = resultEl;
 
-          // Show background/theme checkbox
-          keepBackgrounds = true;
-          const bgCheckboxRow = document.createElement("label");
-          bgCheckboxRow.className = `${P}checkbox-row`;
-          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
-          const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
-          bgCheckboxInput.addEventListener("change", () => {
-            keepBackgrounds = bgCheckboxInput.checked;
-          });
-          const lastCheckbox = resultEl.parentNode.querySelector(`.${P}checkbox-row`);
-          if (lastCheckbox) {
-            lastCheckbox.parentNode.insertBefore(bgCheckboxRow, lastCheckbox.nextSibling);
-          } else {
-            resultEl.parentNode.insertBefore(bgCheckboxRow, resultEl.nextSibling);
-          }
-
-          // Show language selector
+          // Show language selector first
           const langRow = document.createElement("div");
           langRow.className = `${P}select-row`;
           langRow.innerHTML = `
@@ -208,12 +182,33 @@ export class ConversionModal {
           langSelect.addEventListener("change", () => {
             codeLanguage = langSelect.value;
           });
-          const lastRow = resultEl.parentNode.querySelector(`.${P}checkbox-row, .${P}select-row`);
-          if (lastRow) {
-            lastRow.parentNode.insertBefore(langRow, lastRow.nextSibling);
-          } else {
-            resultEl.parentNode.insertBefore(langRow, resultEl.nextSibling);
+          insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
+          insertAfter = langRow;
+
+          // If images detected, show checkbox
+          if (imageCount > 0) {
+            importImages = true;
+            const checkboxRow = document.createElement("label");
+            checkboxRow.className = `${P}checkbox-row`;
+            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
+            const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
+            checkboxInput.addEventListener("change", () => {
+              importImages = checkboxInput.checked;
+            });
+            insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
+            insertAfter = checkboxRow;
           }
+
+          // Show background/theme checkbox
+          keepBackgrounds = true;
+          const bgCheckboxRow = document.createElement("label");
+          bgCheckboxRow.className = `${P}checkbox-row`;
+          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
+          const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
+          bgCheckboxInput.addEventListener("change", () => {
+            keepBackgrounds = bgCheckboxInput.checked;
+          });
+          insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
           // Switch buttons: hide Import, show Save as Deck
           importBtn.hidden = true;
@@ -364,15 +359,15 @@ export class ConversionModal {
       }
       .${P}file-name { font-size: 13px; color: var(--text-medium, #666); margin-top: 6px; }
       .${P}error { font-size: 13px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 14px; color: var(--text-high, #111); margin: 12px 0 4px; }
+      .${P}result { font-size: 15px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 14px; cursor: pointer; margin: 4px 0 0;
+        font-size: 14px; cursor: pointer; margin: 6px 0 0;
       }
       .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
       .${P}select-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 14px; margin: 8px 0 0;
+        font-size: 14px; margin: 10px 0 0;
       }
       .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
       .${P}select {
