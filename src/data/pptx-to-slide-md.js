@@ -305,12 +305,24 @@ function formatTextElement(raw) {
   if (!raw) return "";
   const lines = raw.split("\n");
   const result = [];
+  let inFencedCode = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed) {
       result.push("");
+      continue;
+    }
+
+    // Preserve indentation inside fenced code blocks
+    if (trimmed === "```") {
+      inFencedCode = !inFencedCode;
+      result.push(trimmed);
+      continue;
+    }
+    if (inFencedCode) {
+      result.push(line);
       continue;
     }
 
@@ -327,11 +339,6 @@ function formatTextElement(raw) {
       const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
       result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
-      // Standalone bold-only paragraphs act as sub-headings in PPTX
-      // presentations (e.g. "What is an Event Listener?" or "Examples:").
-      // Strip the bold markers and convert to a level-3 heading so the
-      // rendered slide uses a distinct heading style instead of bold
-      // body text that reads as plain paragraph.
       result.push(`### ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
     } else {
       result.push(trimmed);
