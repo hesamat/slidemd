@@ -207,6 +207,178 @@ describe("convertToSlideMd", () => {
     expect(md).toContain('height="210"');
   });
 
+  it("uses two-column layout when a dominant image shares a slide with text", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Dominant Image",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Body text stays in the main column",
+            left: 500000,
+            top: 1500000,
+            width: 3000000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "dominant.png",
+            base64: "abc",
+            left: 5000000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    const mainIndex = md.indexOf("@main");
+    const mediaIndex = md.indexOf("@media");
+    const textIndex = md.indexOf("Body text stays in the main column");
+    const imageIndex = md.indexOf("presentation_dominant.png");
+
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("@secondary");
+    expect(mainIndex).toBeGreaterThan(-1);
+    expect(mediaIndex).toBeGreaterThan(mainIndex);
+    expect(textIndex).toBeGreaterThan(mainIndex);
+    expect(textIndex).toBeLessThan(mediaIndex);
+    expect(imageIndex).toBeGreaterThan(mediaIndex);
+  });
+
+  it("uses three-column layout when two dominant images share a slide with text", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Dominant Images",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Summary text stays in the main column",
+            left: 500000,
+            top: 1500000,
+            width: 2500000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "dominant-1.png",
+            base64: "abc",
+            left: 3800000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.42,
+            height: DEFAULT_SIZE.height * 0.65,
+          },
+          {
+            type: "image",
+            ref: "dominant-2.png",
+            base64: "def",
+            left: 6500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.41,
+            height: DEFAULT_SIZE.height * 0.62,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    const mainIndex = md.indexOf("@main");
+    const mediaIndex = md.indexOf("@media");
+    const secondaryIndex = md.indexOf("@secondary");
+    const textIndex = md.indexOf("Summary text stays in the main column");
+    const firstImageIndex = md.indexOf("presentation_dominant-1.png");
+    const secondImageIndex = md.indexOf("presentation_dominant-2.png");
+
+    expect(md).toContain("layout: three-column");
+    expect(mainIndex).toBeGreaterThan(-1);
+    expect(mediaIndex).toBeGreaterThan(mainIndex);
+    expect(secondaryIndex).toBeGreaterThan(mediaIndex);
+    expect(textIndex).toBeGreaterThan(mainIndex);
+    expect(textIndex).toBeLessThan(mediaIndex);
+    expect(firstImageIndex).toBeGreaterThan(mediaIndex);
+    expect(firstImageIndex).toBeLessThan(secondaryIndex);
+    expect(secondImageIndex).toBeGreaterThan(secondaryIndex);
+  });
+
+  it("keeps image-only slides in single-column layout", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Image Only",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "full-slide.png",
+            base64: "abc",
+            left: 1000000,
+            top: 500000,
+            width: DEFAULT_SIZE.width * 0.6,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
+    expect(md).not.toContain("@media");
+    expect(md).not.toContain("@secondary");
+    expect(md).toContain("presentation_full-slide.png");
+  });
+
+  it("does not use multi-column layout for non-dominant images", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Small Image",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body text stays in the main area",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 1500000,
+          },
+          {
+            type: "image",
+            ref: "small.png",
+            base64: "abc",
+            left: 3500000,
+            top: 3200000,
+            width: DEFAULT_SIZE.width * 0.15,
+            height: DEFAULT_SIZE.height * 0.15,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
+    expect(md).not.toContain("@media");
+    expect(md).not.toContain("@secondary");
+  });
+
   it("handles table elements", () => {
     const extraction = makeExtraction([
       {
