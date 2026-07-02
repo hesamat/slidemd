@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.0 (2026-07-02)
+
+### PPTX Import
+
+- Added rule-based PPTX to SlideMD conversion
+- Import PPTX via menu item with conversion modal and progress spinner
+- Preserves headings, bold/italic formatting, lists (including nested), tables, and images
+- Extracts images from PPTX and saves to deck folder via File System Access API
+- Auto-trims transparent margins from EMF-converted images
+- Opens edit mode after conversion; prompts user to pick save directory
+
+### Image Editing
+
+- Removed image snapping behavior (snap-to-grid and sibling images)
+- Removed trim transparency feature from image properties panel
+- Fixed image deletion index mismatch and slide preview update
+
+### Bug Fixes
+
+- Fixed slide theme toggle not working
+- Fixed bold/italic formatting in PPTX extraction (triple-asterisk markers, entity decoding, whitespace-only markers)
+- Fixed span merge dropping content and nbsp leaking into markers
+- Fixed nested list depth tracking and double-dash bullets
+- Fixed title slide detection and image paths per deck namespace
+- Fixed CSS bullet detection and centered element column detection
+- Fixed image expand on click in edit mode
+- Fixed element ordering in PPTX conversion
+- Fixed QuotaExceededError for large decks with embedded images
+
+### Infrastructure
+
+- Grouped main menu items and fixed PPTX label typo
+- Added unit tests for image deletion logic
+
 ## 0.4.0 (2026-06-29)
 
 ### Testing & Type Safety
