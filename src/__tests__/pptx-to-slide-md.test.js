@@ -706,4 +706,38 @@ describe("convertToSlideMd", () => {
     // Empty footer should not produce @footer area
     expect(md).not.toContain("@footer");
   });
+
+  it("emits footer in title-slide layout", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Cover",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## My Title",
+            left: 1500000,
+            top: 600000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: "COMP 1510 202610",
+            placeholderType: "footer",
+            left: 3180000,
+            top: 4800000,
+            width: 3240000,
+            height: 287500,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: title-slide");
+    expect(md).toContain("@footer");
+    expect(md).toContain("COMP 1510 202610");
+  });
 });

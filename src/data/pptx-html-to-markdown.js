@@ -100,7 +100,10 @@ export function htmlToMarkdown(html) {
       while (i < lines.length) {
         const t = lines[i].trim();
         if (/^`.+`$/.test(t)) {
-          codeLines.push(t.replace(/^`|`$/g, ""));
+          // Preserve indentation by extracting content between backticks
+          // without trimming the original line
+          const content = lines[i].replace(/^\s*`/, "").replace(/`\s*$/, "");
+          codeLines.push(content);
           i++;
         } else if (t === "") {
           i++;
@@ -332,7 +335,7 @@ function processInlineNodes(nodes, out) {
       const trimmed = raw.trim();
 
       if (trimmed) {
-        let text = trimmed;
+        let text = isMono ? raw : trimmed;
         if (isMono) {
           text = "`" + text.replace(/`/g, "\\`") + "`";
         }
