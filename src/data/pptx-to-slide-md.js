@@ -19,9 +19,20 @@ export function convertToSlideMd(extraction, deckName = "presentation") {
   const slideWidth = extraction.size?.width || 9144000;
   const slideHeight = extraction.size?.height || 5143500;
 
+  // Build frontmatter with theme colors if available
+  const frontmatter = [];
+  if (extraction.themeColors?.length > 0) {
+    frontmatter.push(`themeColors: ${JSON.stringify(extraction.themeColors)}`);
+  }
+
   const slides = extraction.slides.map((slide) =>
     convertSlide(slide, slideWidth, slideHeight, deckName),
   );
+
+  // Prepend frontmatter as YAML if any
+  if (frontmatter.length > 0) {
+    return `---\n${frontmatter.join("\n")}\n---\n\n${slides.join("\n\n---\n\n")}`;
+  }
 
   return slides.join("\n\n---\n\n");
 }
@@ -76,7 +87,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     if (el.type === "text") return formatTextElement(el.content, isFirst);
     if (el.type === "image") return formatImage(el, deckName);
     if (el.type === "table") return formatTable(el);
-    if (el.type === "chart") return `<!-- ${el.content || "[Chart]"} -->`;
+    if (el.type === "chart") return formatChart(el);
     if (el.type === "diagram") return `<!-- [Diagram: ${el.content || ""}] -->`;
     return "";
   };
@@ -324,8 +335,10 @@ function formatTextElement(raw, isFirstElement) {
       const content = trimmed.replace(BULLET_RE, "");
       result.push(`${prefix}- ${content}`);
     } else if (NUMBER_RE.test(trimmed)) {
+      const match = trimmed.match(NUMBER_RE);
       const content = trimmed.replace(NUMBER_RE, "");
-      result.push(`${prefix}- ${content}`);
+      const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
+      result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
       // Standalone bold-only paragraphs act as sub-headings in PPTX
       // presentations (e.g. "What is an Event Listener?" or "Examples:").
@@ -358,10 +371,13 @@ function formatImage(img, deckName = "presentation") {
 
   const src = img.blob || `images/${safeName}_${filename}`;
 
+  // Use filename (without extension) as alt text for better accessibility
+  const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+
   if (w && h) {
-    return `<img src="${src}" width="${w}" height="${h}" alt="${filename}">`;
+    return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
   }
-  return `<img src="${src}" alt="${filename}">`;
+  return `<img src="${src}" alt="${altText}">`;
 }
 
 /**
@@ -389,6 +405,58 @@ function formatTable(table) {
   parts.push(`| ${separator} |`);
   for (let i = 1; i < rows.length; i++) {
     parts.push(`| ${rows[i]} |`);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Format chart data as a markdown table.
+ * @param {import('./pptx-extractor.js').ExtractedElement} chart
+ * @returns {string}
+ */
+function formatChart(chart) {
+  if (!chart.chartData?.length) {
+    return `<!-- ${chart.content || "[Chart]"} -->`;
+  }
+
+  // Collect all unique x-axis indices across all series
+  const allXIndices = new Set();
+  for (const series of chart.chartData) {
+    for (const point of series.values) {
+      allXIndices.add(point.x);
+    }
+  }
+  const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
+
+  // Build header row: Category | Series1 | Series2 | ...
+  const seriesNames = chart.chartData.map((s) => String(s.key));
+  const header = ["Category", ...seriesNames];
+
+  // Build data rows
+  const rows = [];
+  for (const x of sortedX) {
+    const row = [];
+    // Get category label from first series that has xlabels
+    const firstSeries = chart.chartData[0];
+    const category = firstSeries?.xlabels?.[x] ?? String(x);
+    row.push(category);
+
+    // Get value for each series at this x index
+    for (const series of chart.chartData) {
+      const point = series.values.find((p) => p.x === x);
+      row.push(point?.y !== undefined ? String(point.y) : "");
+    }
+    rows.push(row);
+  }
+
+  // Format as markdown table
+  const escapeCell = (text) => text.replace(/\|/g, "\\|").trim();
+  const separator = header.map(() => "---").join(" | ");
+  const parts = [];
+  parts.push(`| ${header.map(escapeCell).join(" | ")} |`);
+  parts.push(`| ${separator} |`);
+  for (const row of rows) {
+    parts.push(`| ${row.map(escapeCell).join(" | ")} |`);
   }
   return parts.join("\n");
 }

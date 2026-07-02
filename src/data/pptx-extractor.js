@@ -25,12 +25,22 @@ import { parse } from "pptxtojson";
  * @property {string} [mimeType] - Image MIME type inferred from ref extension.
  * @property {string} [ref] - Original image reference name.
  * @property {ExtractedTableCell[][]} [rows] - Table data.
+ * @property {string} [chartType] - Chart type (e.g., 'barChart', 'lineChart').
+ * @property {ChartData[]} [chartData] - Chart series data.
+ * @property {string[]} [chartColors] - Chart series colors.
  * @property {number} order - PPTX element order (preserves slide author's arrangement).
  * @property {number} left - X position (EMU, relative to slide).
  * @property {number} top - Y position (EMU).
  * @property {number} width - Width in EMU.
  * @property {number} height - Height in EMU.
  * @property {'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
+ */
+
+/**
+ * @typedef {Object} ChartData
+ * @property {string|number} key - Series name.
+ * @property {{x: number, y: number}[]} values - Data points.
+ * @property {Object<string, string|number>} xlabels - Category labels.
  */
 
 /**
@@ -241,6 +251,9 @@ export class PptxExtractor {
       return {
         type: "chart",
         content: `[Chart: ${el.chartType}]`,
+        chartType: el.chartType,
+        chartData: el.data || [],
+        chartColors: el.colors || [],
         placeholderType,
         order: el.order,
         left: el.left,
@@ -804,8 +817,33 @@ export class PptxExtractor {
           lines.push(`[Image: ${el.ref || "unknown"}]`);
           lines.push("");
         } else if (el.type === "chart") {
-          lines.push(el.content || "[Chart]");
-          lines.push("");
+          if (el.chartData?.length) {
+            lines.push(`[Chart: ${el.chartType || "unknown"}]`);
+            // Format chart data as simple table
+            const allXIndices = new Set();
+            for (const series of el.chartData) {
+              for (const point of series.values) {
+                allXIndices.add(point.x);
+              }
+            }
+            const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
+            const seriesNames = el.chartData.map((s) => String(s.key));
+            lines.push(`Category | ${seriesNames.join(" | ")}`);
+            lines.push("---".repeat(seriesNames.length + 1));
+            for (const x of sortedX) {
+              const firstSeries = el.chartData[0];
+              const category = firstSeries?.xlabels?.[x] ?? String(x);
+              const values = el.chartData.map((s) => {
+                const point = s.values.find((p) => p.x === x);
+                return point?.y !== undefined ? String(point.y) : "";
+              });
+              lines.push(`${category} | ${values.join(" | ")}`);
+            }
+            lines.push("");
+          } else {
+            lines.push(el.content || "[Chart]");
+            lines.push("");
+          }
         } else if (el.type === "diagram") {
           lines.push(`[Diagram: ${el.content || ""}]`);
           lines.push("");
