@@ -276,7 +276,9 @@ function processList(listNode, depth, out) {
 function processInlineNodes(nodes, out) {
   for (const node of nodes) {
     if (node.nodeType === 3) {
-      out.push(node.textContent.replace(/\u00a0/g, " "));
+      // Escape # at start of lines so PPTX text like "# Print using..."
+      // is preserved as literal text, not interpreted as a markdown heading.
+      out.push(node.textContent.replace(/\u00a0/g, " ").replace(/^#/gm, "\\#"));
       continue;
     }
     if (node.nodeType !== 1) continue;
