@@ -1,8 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
-
-const originalReadSettings = ImageInteractionHandler._readSettings;
-const originalApplySettings = ImageInteractionHandler.applySettings;
 
 /**
  * Create a mock img element with a mock slide parent.
@@ -39,9 +36,13 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._getMarkdown = null;
     ImageInteractionHandler._setMarkdown = null;
     ImageInteractionHandler._onDelete = null;
-    ImageInteractionHandler._readSettings = originalReadSettings;
-    ImageInteractionHandler.applySettings = originalApplySettings;
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
+    ImageInteractionHandler.applySettings = vi.fn();
+    ImageInteractionHandler._getStageScale = () => 1;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("deleteSelected", () => {
@@ -180,22 +181,16 @@ describe("ImageInteractionHandler", () => {
 
   describe("rotateBy", () => {
     it("wraps negative rotation into the 0-359 range", () => {
-      const img = mockImg(0, 1);
-      let applied = null;
-
-      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._selectedImg = mockImg(0, 1);
       ImageInteractionHandler._readSettings = () => ({
         rotation: 0,
         width: 120,
         height: 80,
       });
-      ImageInteractionHandler.applySettings = (settings) => {
-        applied = settings;
-      };
 
       ImageInteractionHandler.rotateBy(-90);
 
-      expect(applied).toEqual({
+      expect(ImageInteractionHandler.applySettings).toHaveBeenCalledWith({
         rotation: 270,
         width: 80,
         height: 120,
@@ -203,21 +198,45 @@ describe("ImageInteractionHandler", () => {
     });
 
     it("wraps positive rotation past 360 back to zero", () => {
-      let applied = null;
-
       ImageInteractionHandler._selectedImg = mockImg(0, 1);
       ImageInteractionHandler._readSettings = () => ({
         rotation: 270,
         width: 120,
         height: 80,
       });
-      ImageInteractionHandler.applySettings = (settings) => {
-        applied = settings;
-      };
 
       ImageInteractionHandler.rotateBy(90);
 
-      expect(applied).toEqual({ rotation: 0 });
+      expect(ImageInteractionHandler.applySettings).toHaveBeenCalledWith({ rotation: 0 });
+    });
+  });
+
+  describe("fitToWidth", () => {
+    it("clamps portrait images to the slide height while keeping aspect ratio", () => {
+      const area = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      };
+      const img = {
+        closest: (sel) => (sel === ".slide__area" ? area : null),
+        getBoundingClientRect: () => ({ left: 100, top: 200, width: 300, height: 400 }),
+        naturalWidth: 300,
+        naturalHeight: 400,
+        style: { left: "100px", top: "200px" },
+      };
+      const applySettings = vi
+        .spyOn(ImageInteractionHandler, "applySettings")
+        .mockImplementation(() => {});
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getStageScale = () => 1;
+
+      ImageInteractionHandler.fitToWidth();
+
+      expect(applySettings).toHaveBeenCalledWith({
+        width: 810,
+        height: 1080,
+        left: 0,
+        top: 0,
+      });
     });
   });
 });
