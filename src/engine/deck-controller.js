@@ -308,6 +308,39 @@ export class DeckController extends EventEmitter {
       if (!handle) return;
 
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+
+      // Check if we have permission to read the directory.
+      // After a page reload, stored handles reset to "prompt" permission.
+      const permission = await handle.queryPermission({ mode: "read" });
+      if (permission !== "granted") {
+        // Try to request read permission (requires user gesture in some browsers)
+        const requested = await handle.requestPermission({ mode: "read" });
+        if (requested !== "granted") {
+          Notification.info("Click anywhere to load images from disk");
+          // Retry after any user gesture
+          const retry = async () => {
+            document.removeEventListener("click", retry);
+            document.removeEventListener("keydown", retry);
+            try {
+              const p = await handle.queryPermission({ mode: "read" });
+              if (p === "granted") {
+                DeckImagesResolver.setDeckDir(handle, mode || "parent");
+                await DeckImagesResolver.prime();
+                DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
+                DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(
+                  () => {},
+                );
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          };
+          document.addEventListener("click", retry, { once: true });
+          document.addEventListener("keydown", retry, { once: true });
+          return;
+        }
+      }
+
       DeckImagesResolver.setDeckDir(handle, mode || "parent");
       await DeckImagesResolver.prime();
       DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
