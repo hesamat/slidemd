@@ -485,16 +485,27 @@ export class ImageInteractionHandler {
     }
 
     // Compute an initial width/height that preserves the image's
-    // natural aspect ratio while fitting inside the containing slide
-    // area.  Previously this used `img.offsetWidth`, which — for a
-    // markdown image rendered via the `.slide__area p > img:only-child`
-    // rule (`width: 100%`) — returned the full area width (often
-    // ~1600px).  Combined with the `.image-selected` rule's
-    // `height: auto`, that produced an enormous box the moment the
-    // user clicked the image.  Using the natural dimensions (capped by
-    // the area) keeps the visual size stable across the md→html swap.
-    const natW = img.naturalWidth || img.offsetWidth || 320;
-    const natH = img.naturalHeight || img.offsetHeight || 240;
+    // visual size after the md/html swap.
+    //
+    // • Markdown images (`![alt](src)`) render via
+    //   `.slide__area p > img:only-child` as `width:100%; height:100%`
+    //   so `offsetWidth`/`offsetHeight` would return the full area
+    //   dimensions — way too large.  Using the natural file dimensions
+    //   (capped by the area) keeps the visual size stable.
+    //
+    // • Raw HTML `<img>` tags (e.g. from PPTX conversion) carry explicit
+    //   `width`/`height` attributes and render at those dimensions.
+    //   Here `offsetWidth`/`offsetHeight` reflect the actual rendered
+    //   size and should be used so the image does not jump on click.
+    let natW;
+    let natH;
+    if (entry.type === "html" && img.getAttribute("width") && img.getAttribute("height")) {
+      natW = img.offsetWidth || 320;
+      natH = img.offsetHeight || 240;
+    } else {
+      natW = img.naturalWidth || img.offsetWidth || 320;
+      natH = img.naturalHeight || img.offsetHeight || 240;
+    }
     let w = natW;
     let h = natH;
     if (w > areaW) {
