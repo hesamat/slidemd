@@ -355,8 +355,11 @@ function formatImage(img, deckName = "presentation") {
   const rawName = (img.ref || "image.png").split("/").pop();
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const w = Math.round(img.width / 4763) || null;
-  const h = Math.round(img.height / 4763) || null;
+
+  // pptxtojson returns dimensions in points (EMU × 72/914400).
+  // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
+  const w = Math.round(img.width * 1.333) || null;
+  const h = Math.round(img.height * 1.333) || null;
 
   const src = img.blob || `images/${safeName}_${filename}`;
 

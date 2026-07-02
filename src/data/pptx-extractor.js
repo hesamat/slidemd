@@ -204,6 +204,13 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
+      // Skip tiny images (likely decorative icons, bullets, or ornaments)
+      // Dimensions from pptxtojson are in points; threshold: ~15pt ≈ 20px
+      const MIN_SIZE_PT = 15;
+      if ((el.width || 0) < MIN_SIZE_PT && (el.height || 0) < MIN_SIZE_PT) {
+        return null;
+      }
+
       if (el.base64) {
         imagesAccum.push({
           ref: el.ref,

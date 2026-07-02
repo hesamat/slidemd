@@ -172,6 +172,8 @@ describe("convertToSlideMd", () => {
   });
 
   it("handles image elements", () => {
+    // pptxtojson returns dimensions in points (EMU × 72/914400)
+    // 3000000 EMU = 236.22pt, 2000000 EMU = 157.48pt
     const extraction = makeExtraction([
       {
         index: 0,
@@ -192,8 +194,8 @@ describe("convertToSlideMd", () => {
             base64: "abc",
             left: 1000000,
             top: 2000000,
-            width: 3000000,
-            height: 2000000,
+            width: 236.22,
+            height: 157.48,
           },
         ],
         background: "",
@@ -201,8 +203,8 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain('src="images/presentation_image1.png"');
-    expect(md).toContain('width="630"');
-    expect(md).toContain('height="420"');
+    expect(md).toContain('width="315"');
+    expect(md).toContain('height="210"');
   });
 
   it("handles table elements", () => {
