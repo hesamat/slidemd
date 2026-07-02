@@ -653,8 +653,8 @@ export class ImageInteractionHandler {
   }
 
   /**
-   * Fit the selected image to the full width of its containing
-   * `.slide__area`, left-aligned and vertically centered within the area.
+   * Fit the selected image within its containing `.slide__area`, using the
+   * widest size that still keeps the full image inside the slide bounds.
    */
   static fitToWidth() {
     const img = this._selectedImg;
@@ -667,27 +667,18 @@ export class ImageInteractionHandler {
     const imgRect = img.getBoundingClientRect();
 
     const areaWidthDesign = areaRect.width / scale;
-    const currentLeft = (imgRect.left - areaRect.left) / scale;
-    const currentCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
-    const areaCenterY = areaRect.height / scale / 2;
-
-    const deltaX = 0 - currentLeft;
-    const deltaY = areaCenterY - currentCenterY;
-
-    const curLeft = parseFloat(img.style.left) || 0;
-    const curTop = parseFloat(img.style.top) || 0;
-    let ratio = null;
-    if (img.naturalWidth && img.naturalHeight) {
-      ratio = img.naturalWidth / img.naturalHeight;
-    } else if (imgRect.width && imgRect.height) {
-      ratio = imgRect.width / imgRect.height;
-    }
+    const areaHeightDesign = areaRect.height / scale;
+    const ratio =
+      (img.naturalWidth || imgRect.width || 1) / (img.naturalHeight || imgRect.height || 1);
+    const width = Math.min(areaWidthDesign, areaHeightDesign * ratio);
+    const height = width / ratio;
+    const top = (areaHeightDesign - height) / 2;
 
     this.applySettings({
-      width: Math.round(areaWidthDesign),
-      height: ratio ? Math.round(areaWidthDesign / ratio) : null,
-      left: Math.round(curLeft + deltaX),
-      top: Math.round(curTop + deltaY),
+      width: Math.round(width),
+      height: Math.round(height),
+      left: 0,
+      top: Math.round(top),
     });
   }
 

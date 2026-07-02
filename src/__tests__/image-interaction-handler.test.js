@@ -178,15 +178,15 @@ describe("ImageInteractionHandler", () => {
   });
 
   describe("fitToWidth", () => {
-    it("preserves the image aspect ratio when fitting to slide width", () => {
+    it("clamps portrait images to the slide height while keeping aspect ratio", () => {
       const area = {
         getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
       };
       const img = {
         closest: (sel) => (sel === ".slide__area" ? area : null),
-        getBoundingClientRect: () => ({ left: 100, top: 200, width: 320, height: 240 }),
-        naturalWidth: 400,
-        naturalHeight: 300,
+        getBoundingClientRect: () => ({ left: 100, top: 200, width: 300, height: 400 }),
+        naturalWidth: 300,
+        naturalHeight: 400,
         style: { left: "100px", top: "200px" },
       };
       const applySettings = vi
@@ -198,10 +198,10 @@ describe("ImageInteractionHandler", () => {
       ImageInteractionHandler.fitToWidth();
 
       expect(applySettings).toHaveBeenCalledWith({
-        width: 1920,
-        height: 1440,
+        width: 810,
+        height: 1080,
         left: 0,
-        top: 420,
+        top: 0,
       });
     });
   });
