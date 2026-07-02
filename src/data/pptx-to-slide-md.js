@@ -7,6 +7,7 @@
  *
  * @class
  */
+import { PptxExtractor } from "./pptx-extractor.js";
 
 /**
  * Convert an extraction result to SlideMD markdown.
@@ -36,11 +37,13 @@ export function convertToSlideMd(extraction, deckName = "presentation") {
 function convertSlide(slide, slideWidth, slideHeight, deckName) {
   const parts = [];
 
-  // Speaker notes — sanitize to prevent HTML comment injection
+  // Speaker notes — sanitize to prevent HTML comment injection.
+  // Preserve <br> as newlines before stripping other HTML tags.
   if (slide.notes) {
     const sanitized = slide.notes
       .replace(/<!--/g, "< !--")
       .replace(/-->/g, "-- >")
+      .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<[^>]+>/g, "");
     parts.push(`<!-- notes: ${sanitized} -->`);
   }
@@ -356,7 +359,6 @@ function formatImage(img, deckName = "presentation") {
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-  // pptxtojson returns dimensions in points (EMU × 72/914400).
   // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
   const w = Math.round(img.width * 1.333) || null;
   const h = Math.round(img.height * 1.333) || null;
@@ -411,41 +413,13 @@ function formatChart(chart) {
     return `<!-- ${chart.content || "[Chart]"} -->`;
   }
 
-  // Collect all unique x-axis indices across all series
-  const allXIndices = new Set();
-  for (const series of chart.chartData) {
-    for (const point of series.values) {
-      allXIndices.add(point.x);
-    }
-  }
-  const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
-
-  // Build header row: Category | Series1 | Series2 | ...
-  const seriesNames = chart.chartData.map((s) => String(s.key));
-  const header = ["Category", ...seriesNames];
-
-  // Build data rows
-  const rows = [];
-  for (const x of sortedX) {
-    const row = [];
-    // Get category label from first series that has xlabels
-    const firstSeries = chart.chartData[0];
-    const category = firstSeries?.xlabels?.[x] ?? String(x);
-    row.push(category);
-
-    // Get value for each series at this x index
-    for (const series of chart.chartData) {
-      const point = series.values.find((p) => p.x === x);
-      row.push(point?.y !== undefined ? String(point.y) : "");
-    }
-    rows.push(row);
-  }
+  const { headers, rows } = PptxExtractor.buildChartDataRows(chart.chartData);
 
   // Format as markdown table
   const escapeCell = (text) => text.replace(/\|/g, "\\|").trim();
-  const separator = header.map(() => "---").join(" | ");
+  const separator = headers.map(() => "---").join(" | ");
   const parts = [];
-  parts.push(`| ${header.map(escapeCell).join(" | ")} |`);
+  parts.push(`| ${headers.map(escapeCell).join(" | ")} |`);
   parts.push(`| ${separator} |`);
   for (const row of rows) {
     parts.push(`| ${row.map(escapeCell).join(" | ")} |`);

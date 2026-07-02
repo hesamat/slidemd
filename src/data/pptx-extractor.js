@@ -207,7 +207,9 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
-      // Skip tiny images (likely decorative icons, bullets, or ornaments)
+      // Skip tiny images (likely decorative icons, bullets, or ornaments).
+      // Uses AND: both dimensions must be small.  A thin separator line
+      // (e.g. 5×500pt) is intentional content and should be kept.
       // Dimensions from pptxtojson are in points; threshold: ~15pt ≈ 20px
       const MIN_SIZE_PT = 15;
       if ((el.width || 0) < MIN_SIZE_PT && (el.height || 0) < MIN_SIZE_PT) {
@@ -828,9 +830,9 @@ export class PptxExtractor {
   static #detectPlaceholderType(name) {
     if (!name) return null;
     const lower = name.toLowerCase();
-    if (lower.includes("footer")) return "footer";
-    if (lower.includes("date")) return "date";
-    if (lower.includes("slide number") || lower.includes("slidenum")) return "slideNumber";
+    if (/\bfooter\b/.test(lower)) return "footer";
+    if (/\bdate\b/.test(lower)) return "date";
+    if (/\bslide\s*number\b/.test(lower) || /\bslidenum\b/.test(lower)) return "slideNumber";
     return null;
   }
 
@@ -876,6 +878,38 @@ export class PptxExtractor {
   }
 
   /**
+   * Build structured chart data (headers + rows) from extracted chart data.
+   * Shared by toPlainText and markdown chart formatting.
+   * @static
+   * @param {ChartData[]} chartData
+   * @returns {{ headers: string[], rows: string[][] }}
+   */
+  static buildChartDataRows(chartData) {
+    if (!chartData?.length) return { headers: [], rows: [] };
+
+    const allXIndices = new Set();
+    for (const series of chartData) {
+      for (const point of series.values) {
+        allXIndices.add(point.x);
+      }
+    }
+    const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
+
+    const headers = ["Category", ...chartData.map((s) => String(s.key))];
+    const rows = [];
+    for (const x of sortedX) {
+      const firstSeries = chartData[0];
+      const category = firstSeries?.xlabels?.[x] ?? String(x);
+      const values = chartData.map((s) => {
+        const point = s.values.find((p) => p.x === x);
+        return point?.y !== undefined ? String(point.y) : "";
+      });
+      rows.push([category, ...values]);
+    }
+    return { headers, rows };
+  }
+
+  /**
    * Convert extraction result to a plain-text representation suitable
    * for preview or external processing. Strips positioning data, keeps content.
    * @static
@@ -906,25 +940,11 @@ export class PptxExtractor {
         } else if (el.type === "chart") {
           if (el.chartData?.length) {
             lines.push(`[Chart: ${el.chartType || "unknown"}]`);
-            // Format chart data as simple table
-            const allXIndices = new Set();
-            for (const series of el.chartData) {
-              for (const point of series.values) {
-                allXIndices.add(point.x);
-              }
-            }
-            const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
-            const seriesNames = el.chartData.map((s) => String(s.key));
-            lines.push(`Category | ${seriesNames.join(" | ")}`);
-            lines.push("---".repeat(seriesNames.length + 1));
-            for (const x of sortedX) {
-              const firstSeries = el.chartData[0];
-              const category = firstSeries?.xlabels?.[x] ?? String(x);
-              const values = el.chartData.map((s) => {
-                const point = s.values.find((p) => p.x === x);
-                return point?.y !== undefined ? String(point.y) : "";
-              });
-              lines.push(`${category} | ${values.join(" | ")}`);
+            const { headers, rows } = this.buildChartDataRows(el.chartData);
+            lines.push(headers.join(" | "));
+            lines.push("---".repeat(headers.length));
+            for (const row of rows) {
+              lines.push(row.join(" | "));
             }
             lines.push("");
           } else {
