@@ -153,6 +153,10 @@ export class MarkdownEditor {
       );
 
       this.view.scrollDOM.scrollTop = scrollTop;
+
+      if (!suppressOnChange) {
+        this.scheduleOnChange();
+      }
     } finally {
       if (suppressOnChange) this.suppressChange = false;
     }
@@ -232,6 +236,15 @@ export class MarkdownEditor {
   getValue() {
     if (this.view) return this.view.state.doc.toString();
     return this.value;
+  }
+
+  scheduleOnChange() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.options.onChange(this.value);
+    }, this.options.debounceDelay);
   }
 
   /**
@@ -513,13 +526,7 @@ export class MarkdownEditor {
         this.value = update.state.doc.toString();
 
         if (this.suppressChange) return;
-
-        if (this.debounceTimer) {
-          clearTimeout(this.debounceTimer);
-        }
-        this.debounceTimer = setTimeout(() => {
-          this.options.onChange(this.value);
-        }, this.options.debounceDelay);
+        this.scheduleOnChange();
       }),
     ];
 

@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { MarkdownEditor } from "../editor/core/markdown-editor.js";
 
 describe("MarkdownEditor suppression reset", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("resets suppressChange when setValue throws", () => {
     const editor = {
       value: "",
@@ -40,5 +44,27 @@ describe("MarkdownEditor suppression reset", () => {
       }),
     ).toThrow("dispatch failed");
     expect(editor.suppressChange).toBe(false);
+  });
+
+  it("calls onChange when setValue is not suppressed", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const editor = {
+      value: "",
+      view: {
+        scrollDOM: { scrollTop: 0 },
+        setState() {},
+      },
+      extensions: [],
+      suppressChange: false,
+      debounceTimer: null,
+      options: { onChange, debounceDelay: 50 },
+      scheduleOnChange: MarkdownEditor.prototype.scheduleOnChange,
+    };
+
+    MarkdownEditor.prototype.setValue.call(editor, "updated markdown", { suppressOnChange: false });
+    vi.advanceTimersByTime(50);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("updated markdown");
   });
 });
