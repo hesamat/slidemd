@@ -49,11 +49,11 @@ export class ConversionModal {
       let importImages = true;
       let keepBackgrounds = true;
       let codeLanguage = "";
+      let isConverting = false;
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
       const fileName = backdrop.querySelector(`.${P}file-name`);
-      const importBtn = backdrop.querySelector('[data-action="import"]');
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
@@ -94,16 +94,17 @@ export class ConversionModal {
           .forEach((el) => el.remove());
       };
 
-      // File handling
-      const handleFile = (file) => {
+      // File handling — auto-convert when file is selected
+      const handleFile = async (file) => {
         if (!file || !file.name.endsWith(".pptx")) {
           showError("Please select a .pptx file");
           return;
         }
+        if (isConverting) return;
         selectedFile = file;
         fileName.textContent = file.name;
         hideError();
-        importBtn.disabled = false;
+        await startConversion();
       };
 
       fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
@@ -123,10 +124,10 @@ export class ConversionModal {
       });
       dropZone.addEventListener("click", () => fileInput.click());
 
-      // Import button — extract + convert
-      importBtn.addEventListener("click", async () => {
-        if (!selectedFile) return;
-        importBtn.disabled = true;
+      // Conversion logic — called automatically when file is selected
+      const startConversion = async () => {
+        if (!selectedFile || isConverting) return;
+        isConverting = true;
         cancelBtn.disabled = true;
         hideError();
         hideResult();
@@ -201,7 +202,7 @@ export class ConversionModal {
             insertAfter = checkboxRow;
           }
 
-          // Show background/theme checkbox with description
+          // Show background/theme checkbox
           keepBackgrounds = true;
           const bgCheckboxRow = document.createElement("label");
           bgCheckboxRow.className = `${P}checkbox-row`;
@@ -212,18 +213,18 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
-          // Switch buttons: hide Import, show Save as Deck
-          importBtn.hidden = true;
+          // Show Save as Deck button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
           cancelBtn.disabled = false;
+          isConverting = false;
         } catch (err) {
           hideSpinner();
           showError(`Conversion failed: ${err.message}`);
-          importBtn.disabled = false;
           cancelBtn.disabled = false;
+          isConverting = false;
         }
-      });
+      };
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
         // If user opted out of images, strip <img> tags from markdown
@@ -236,10 +237,12 @@ export class ConversionModal {
             .replace(/\n{3,}/g, "\n\n");
         }
         // Add language tag to opening fences of fenced code blocks only.
-        // Use regex to match opening fence ``` at start of line, but skip
-        // closing fences (which are followed by blank line or end of string).
+        // Match ``` at start of line that is followed by a non-blank, non-``` line.
         if (codeLanguage) {
-          finalMarkdown = finalMarkdown.replace(/^```\n(?!$)/gm, "```" + codeLanguage + "\n");
+          finalMarkdown = finalMarkdown.replace(
+            /^```\n(?!```|\s*$)/gm,
+            "```" + codeLanguage + "\n",
+          );
         }
         backdrop.remove();
         resolve({
@@ -314,7 +317,6 @@ export class ConversionModal {
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Save as Deck</button>
-          <button type="button" data-action="import" class="${P}btn ${P}btn--accent" disabled>Import</button>
         </div>
       </div>
     `;
