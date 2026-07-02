@@ -137,7 +137,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 }
 
 body[data-edit-mode="true"] .slide__area {
-  outline: 2px dashed rgba(2, 132, 199, 0.4);
+  outline: 3px dashed rgba(2, 132, 199, 0.5);
   outline-offset: -3px;
 }
 
