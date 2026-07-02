@@ -140,20 +140,22 @@ export class MarkdownEditor {
     const { suppressOnChange = false } = options;
     if (suppressOnChange) this.suppressChange = true;
 
-    const scrollTop = this.view.scrollDOM.scrollTop;
+    try {
+      const scrollTop = this.view.scrollDOM.scrollTop;
 
-    // Rebuild state entirely to avoid decoration mapping errors when the
-    // new document is shorter than the old one (out-of-range positions).
-    this.view.setState(
-      EditorState.create({
-        doc: this.value,
-        extensions: this.extensions,
-      }),
-    );
+      // Rebuild state entirely to avoid decoration mapping errors when the
+      // new document is shorter than the old one (out-of-range positions).
+      this.view.setState(
+        EditorState.create({
+          doc: this.value,
+          extensions: this.extensions,
+        }),
+      );
 
-    if (suppressOnChange) this.suppressChange = false;
-
-    this.view.scrollDOM.scrollTop = scrollTop;
+      this.view.scrollDOM.scrollTop = scrollTop;
+    } finally {
+      if (suppressOnChange) this.suppressChange = false;
+    }
   }
 
   /**
@@ -168,14 +170,20 @@ export class MarkdownEditor {
     const { suppressOnChange = false, scrollIntoView = true } = options;
     if (suppressOnChange) this.suppressChange = true;
 
-    const position = Math.max(0, Math.min(cursorPosition ?? this.value.length, this.value.length));
-    this.view.dispatch({
-      changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-      selection: EditorSelection.cursor(position),
-      scrollIntoView,
-    });
-    if (suppressOnChange) this.suppressChange = false;
-    this.view.focus();
+    try {
+      const position = Math.max(
+        0,
+        Math.min(cursorPosition ?? this.value.length, this.value.length),
+      );
+      this.view.dispatch({
+        changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
+        selection: EditorSelection.cursor(position),
+        scrollIntoView,
+      });
+      this.view.focus();
+    } finally {
+      if (suppressOnChange) this.suppressChange = false;
+    }
   }
 
   /**
