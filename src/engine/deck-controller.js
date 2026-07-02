@@ -625,7 +625,7 @@ export class DeckController extends EventEmitter {
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
-    const { markdown, images, fileName } = result;
+    const { markdown, images, fileName, importImages } = result;
     const mdName = (fileName || "presentation.pptx").replace(/\.pptx$/i, ".md");
 
     // Prompt user to pick a save directory
@@ -648,7 +648,7 @@ export class DeckController extends EventEmitter {
         await mdWritable.close();
 
         // Save images to images/ subdirectory with deck-prefixed filenames
-        if (images?.length) {
+        if (importImages && images?.length) {
           const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
           const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
           let savedCount = 0;
