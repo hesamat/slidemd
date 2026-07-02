@@ -47,7 +47,8 @@
     "emf-converter": "^1.5.0",
     "interactjs": "^1.10.27",
     "mermaid": "^11.14.0",
-    "pptxtojson": "^2.0.6"
+    "pptxtojson": "^2.0.6",
+    "utif2": "^4.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -55,6 +56,7 @@
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.7.0",
+    "jsdom": "^29.1.1",
     "katex": "^0.16.27",
     "markdown-it": "^14.1.0",
     "playwright": "^1.49.0",

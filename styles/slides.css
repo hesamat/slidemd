@@ -292,7 +292,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   font-weight: 650;
   letter-spacing: -0.015em;
   color: var(--slide-ink);
-  margin-top: var(--spacing-md);
+  margin-top: var(--spacing-sm);
   margin-bottom: var(--spacing-xs);
 }
 

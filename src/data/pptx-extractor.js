@@ -25,11 +25,22 @@ import { parse } from "pptxtojson";
  * @property {string} [mimeType] - Image MIME type inferred from ref extension.
  * @property {string} [ref] - Original image reference name.
  * @property {ExtractedTableCell[][]} [rows] - Table data.
+ * @property {string} [chartType] - Chart type (e.g., 'barChart', 'lineChart').
+ * @property {ChartData[]} [chartData] - Chart series data.
+ * @property {string[]} [chartColors] - Chart series colors.
  * @property {number} order - PPTX element order (preserves slide author's arrangement).
  * @property {number} left - X position (EMU, relative to slide).
  * @property {number} top - Y position (EMU).
  * @property {number} width - Width in EMU.
  * @property {number} height - Height in EMU.
+ * @property {'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
+ */
+
+/**
+ * @typedef {Object} ChartData
+ * @property {string|number} key - Series name.
+ * @property {{x: number, y: number}[]} values - Data points.
+ * @property {Object<string, string|number>} xlabels - Category labels.
  */
 
 /**
@@ -77,11 +88,14 @@ export class PptxExtractor {
     // Convert EMF/WMF images to PNG
     await this.#convertEmfImages(slides, images);
 
+    // Convert TIFF images to PNG (browsers can't display TIFF natively)
+    await this.#convertTiffImages(slides, images);
+
     return {
       slides,
       themeColors: raw.themeColors || [],
       usedFonts: raw.usedFonts || [],
-      size: raw.size || { width: 914400, height: 5143500 / 914400 },
+      size: raw.size || { width: 914400, height: 5143500 },
       images,
     };
   }
@@ -98,6 +112,8 @@ export class PptxExtractor {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
     for (const el of slide.layoutElements || []) {
+      // Skip images from layout — they are theme decorations, not slide content
+      if (el.type === "image") continue;
       const extracted = this.#processElement(el, index, imagesAccum);
       if (extracted) raw.push(extracted);
     }
@@ -125,6 +141,25 @@ export class PptxExtractor {
   }
 
   /**
+   * Check if an element tree contains any text content.
+   * @static
+   * @param {import('pptxtojson').Element} el
+   * @returns {boolean}
+   */
+  static #hasTextContent(el) {
+    if (el.type === "text" || el.type === "shape") {
+      return !!(el.content && el.content.trim());
+    }
+    if (el.type === "table" || el.type === "chart" || el.type === "diagram") {
+      return true;
+    }
+    if (el.type === "group" && el.elements) {
+      return el.elements.some((child) => this.#hasTextContent(child));
+    }
+    return false;
+  }
+
+  /**
    * Process a single element.
    * @static
    * @param {import('pptxtojson').Element} el
@@ -134,6 +169,10 @@ export class PptxExtractor {
    */
   static #processElement(el, slideIndex, imagesAccum) {
     if (el.type === "group" && el.elements) {
+      // Skip groups that contain only images (decorative backgrounds, theme art)
+      if (!this.#hasTextContent(el)) {
+        return null;
+      }
       // Flatten group elements
       const results = [];
       for (const child of el.elements) {
@@ -143,12 +182,20 @@ export class PptxExtractor {
       return results.length ? results : null;
     }
 
+    const placeholderType = this.#detectPlaceholderType(el.name);
+
+    // Skip auto-generated placeholders (date/time, slide numbers)
+    if (placeholderType === "date" || placeholderType === "slideNumber") {
+      return null;
+    }
+
     if (el.type === "text" || el.type === "shape") {
       const content = this.#htmlToMarkdown(el.content || "");
       if (!content.trim()) return null;
       return {
         type: "text",
         content,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -159,6 +206,15 @@ export class PptxExtractor {
 
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
+
+      // Skip tiny images (likely decorative icons, bullets, or ornaments).
+      // Uses AND: both dimensions must be small.  A thin separator line
+      // (e.g. 5×500pt) is intentional content and should be kept.
+      // Dimensions from pptxtojson are in points; threshold: ~15pt ≈ 20px
+      const MIN_SIZE_PT = 15;
+      if ((el.width || 0) < MIN_SIZE_PT && (el.height || 0) < MIN_SIZE_PT) {
+        return null;
+      }
 
       if (el.base64) {
         imagesAccum.push({
@@ -174,6 +230,7 @@ export class PptxExtractor {
         blob: el.blob || "",
         mimeType: mime,
         ref: el.ref,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -193,6 +250,7 @@ export class PptxExtractor {
       return {
         type: "table",
         rows,
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -205,6 +263,10 @@ export class PptxExtractor {
       return {
         type: "chart",
         content: `[Chart: ${el.chartType}]`,
+        chartType: el.chartType,
+        chartData: el.data || [],
+        chartColors: el.colors || [],
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -218,6 +280,7 @@ export class PptxExtractor {
       return {
         type: "diagram",
         content: text || "[Diagram]",
+        placeholderType,
         order: el.order,
         left: el.left,
         top: el.top,
@@ -233,6 +296,15 @@ export class PptxExtractor {
    * Convert HTML to markdown using native DOM parsing.
    * Walks the DOM tree to convert elements to markdown, handling
    * inline formatting, lists, links, and block elements natively.
+   * @static
+   * @param {string} html
+   * @returns {string}
+   */
+  static htmlToMarkdown(html) {
+    return this.#htmlToMarkdown(html);
+  }
+
+  /**
    * @static
    * @param {string} html
    * @returns {string}
@@ -474,11 +546,11 @@ export class PptxExtractor {
     }
     for (let i = 0; i < 10; i++) {
       const prev = s;
-      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s*)\*(?!\*)/g, "*$1$2");
+      s = s.replace(/(?<!\*)\*([^*]+?)\*(\s+)\*(?!\*)/g, "*$1$2");
       if (s === prev) break;
     }
     s = s.replace(/\*\*\s*\*\*/g, " ");
-    s = s.replace(/(?<!\*)\*\s*\*(?!\*)/g, " ");
+    s = s.replace(/(?<!\*)\*\s+\*(?!\*)/g, " ");
     return s;
   }
 
@@ -569,6 +641,81 @@ export class PptxExtractor {
         }
       } catch (err) {
         console.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
+      }
+    }
+  }
+
+  /**
+   * Convert TIFF images to PNG data URLs using utif2.
+   * Browsers cannot display TIFF natively, so we decode to RGBA and
+   * render via Canvas to produce PNG data URLs.
+   * @static
+   * @param {ExtractedSlide[]} slides
+   * @param {ExtractedImage[]} images
+   * @returns {Promise<void>}
+   */
+  static async #convertTiffImages(slides, images) {
+    let Utif;
+    try {
+      Utif = await import("utif2");
+    } catch (err) {
+      console.warn("utif2 not available, skipping TIFF conversion:", err);
+      return;
+    }
+
+    for (const img of images) {
+      if (img.mimeType !== "image/tiff") continue;
+      try {
+        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+        const binary = atob(raw);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        // Decode first page of TIFF
+        const ifds = Utif.decode(bytes.buffer);
+        if (!ifds || ifds.length === 0) {
+          console.warn(`TIFF decode returned no pages for ${img.ref}`);
+          continue;
+        }
+        const firstPage = ifds[0];
+        Utif.decodeImage(bytes.buffer, firstPage);
+
+        const w = firstPage.width;
+        const h = firstPage.height;
+
+        if (typeof document === "undefined" || !document.createElement) {
+          console.warn("Canvas API not available, skipping TIFF conversion for", img.ref);
+          continue;
+        }
+
+        // Render decoded RGBA to canvas → PNG data URL
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        const rgba = new Uint8Array(firstPage.data);
+        const imageData = ctx.createImageData(w, h);
+        // utif2 outputs RGBA already
+        imageData.data.set(rgba);
+        ctx.putImageData(imageData, 0, 0);
+
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+
+        img.base64 = base64;
+        img.mimeType = "image/png";
+
+        // Update corresponding elements in slides
+        for (const slide of slides) {
+          for (const el of slide.elements) {
+            if (el.type === "image" && el.ref === img.ref && el.mimeType !== "image/png") {
+              el.base64 = base64;
+              el.mimeType = "image/png";
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Could not convert ${img.ref} from TIFF:`, err);
       }
     }
   }
@@ -672,6 +819,24 @@ export class PptxExtractor {
   }
 
   /**
+   * Detect placeholder type from the element's name attribute.
+   * PowerPoint names footer placeholders "Footer Placeholder N",
+   * date placeholders "Date and time placeholder N", and slide
+   * number placeholders "Slide Number Placeholder N".
+   * @static
+   * @param {string} name
+   * @returns {'footer'|'date'|'slideNumber'|null}
+   */
+  static #detectPlaceholderType(name) {
+    if (!name) return null;
+    const lower = name.toLowerCase();
+    if (/\bfooter\b/.test(lower)) return "footer";
+    if (/\bdate\b/.test(lower)) return "date";
+    if (/\bslide\s*number\b/.test(lower) || /\bslidenum\b/.test(lower)) return "slideNumber";
+    return null;
+  }
+
+  /**
    * Extract background CSS from a slide fill.
    * @static
    * @param {import('pptxtojson').Fill} fill
@@ -706,8 +871,42 @@ export class PptxExtractor {
       bmp: "image/bmp",
       emf: "image/emf",
       wmf: "image/wmf",
+      tif: "image/tiff",
+      tiff: "image/tiff",
     };
     return map[ext] || "image/png";
+  }
+
+  /**
+   * Build structured chart data (headers + rows) from extracted chart data.
+   * Shared by toPlainText and markdown chart formatting.
+   * @static
+   * @param {ChartData[]} chartData
+   * @returns {{ headers: string[], rows: string[][] }}
+   */
+  static buildChartDataRows(chartData) {
+    if (!chartData?.length) return { headers: [], rows: [] };
+
+    const allXIndices = new Set();
+    for (const series of chartData) {
+      for (const point of series.values) {
+        allXIndices.add(point.x);
+      }
+    }
+    const sortedX = Array.from(allXIndices).sort((a, b) => a - b);
+
+    const headers = ["Category", ...chartData.map((s) => String(s.key))];
+    const rows = [];
+    for (const x of sortedX) {
+      const firstSeries = chartData[0];
+      const category = firstSeries?.xlabels?.[x] ?? String(x);
+      const values = chartData.map((s) => {
+        const point = s.values.find((p) => p.x === x);
+        return point?.y !== undefined ? String(point.y) : "";
+      });
+      rows.push([category, ...values]);
+    }
+    return { headers, rows };
   }
 
   /**
@@ -739,10 +938,27 @@ export class PptxExtractor {
           lines.push(`[Image: ${el.ref || "unknown"}]`);
           lines.push("");
         } else if (el.type === "chart") {
-          lines.push(el.content || "[Chart]");
-          lines.push("");
+          if (el.chartData?.length) {
+            lines.push(`[Chart: ${el.chartType || "unknown"}]`);
+            const { headers, rows } = this.buildChartDataRows(el.chartData);
+            lines.push(headers.join(" | "));
+            lines.push("---".repeat(headers.length));
+            for (const row of rows) {
+              lines.push(row.join(" | "));
+            }
+            lines.push("");
+          } else {
+            lines.push(el.content || "[Chart]");
+            lines.push("");
+          }
         } else if (el.type === "diagram") {
-          lines.push(`[Diagram: ${el.content || ""}]`);
+          if (el.content) {
+            // Content is textList joined with ", " - split and display as list
+            const items = el.content.split(", ");
+            for (const item of items) {
+              lines.push(`- ${item}`);
+            }
+          }
           lines.push("");
         }
       }

@@ -7,6 +7,7 @@
  *
  * @class
  */
+import { PptxExtractor } from "./pptx-extractor.js";
 
 /**
  * Convert an extraction result to SlideMD markdown.
@@ -36,19 +37,31 @@ export function convertToSlideMd(extraction, deckName = "presentation") {
 function convertSlide(slide, slideWidth, slideHeight, deckName) {
   const parts = [];
 
-  // Speaker notes
+  // Speaker notes — sanitize to prevent HTML comment injection.
+  // Preserve <br> as newlines before stripping other HTML tags.
   if (slide.notes) {
-    parts.push(`<!-- notes: ${slide.notes} -->`);
+    const sanitized = slide.notes
+      .replace(/<!--/g, "< !--")
+      .replace(/-->/g, "-- >")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "");
+    parts.push(`<!-- notes: ${sanitized} -->`);
   }
 
-  const textElements = slide.elements.filter((el) => el.type === "text" && el.content?.trim());
+  // Separate footer elements from content elements
+  const footerElements = slide.elements.filter((el) => el.placeholderType === "footer");
+
+  const textElements = slide.elements.filter(
+    (el) => el.type === "text" && el.content?.trim() && el.placeholderType !== "footer",
+  );
   const allElements = slide.elements.filter(
     (el) =>
-      (el.type === "text" && el.content?.trim()) ||
-      (el.type === "image" && el.base64) ||
-      (el.type === "table" && el.rows?.length) ||
-      el.type === "chart" ||
-      el.type === "diagram",
+      el.placeholderType !== "footer" &&
+      ((el.type === "text" && el.content?.trim()) ||
+        (el.type === "image" && el.base64) ||
+        (el.type === "table" && el.rows?.length) ||
+        el.type === "chart" ||
+        el.type === "diagram"),
   );
 
   const hasMedia = allElements.some((el) => el.type !== "text");
@@ -66,8 +79,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     if (el.type === "text") return formatTextElement(el.content, isFirst);
     if (el.type === "image") return formatImage(el, deckName);
     if (el.type === "table") return formatTable(el);
-    if (el.type === "chart") return `<!-- ${el.content || "[Chart]"} -->`;
-    if (el.type === "diagram") return `<!-- [Diagram: ${el.content || ""}] -->`;
+    if (el.type === "chart") return formatChart(el);
+    if (el.type === "diagram") return formatDiagram(el);
     return "";
   };
 
@@ -127,6 +140,20 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("@main");
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+  }
+
+  // Emit footer area if footer elements were detected
+  if (footerElements.length > 0) {
+    const footerText = footerElements
+      .map((el) => el.content?.trim())
+      .filter(Boolean)
+      .join(" ");
+    if (footerText) {
+      parts.push("");
+      parts.push("@footer");
+      parts.push("");
+      parts.push(footerText);
+    }
   }
 
   return parts.join("\n");
@@ -300,8 +327,10 @@ function formatTextElement(raw, isFirstElement) {
       const content = trimmed.replace(BULLET_RE, "");
       result.push(`${prefix}- ${content}`);
     } else if (NUMBER_RE.test(trimmed)) {
+      const match = trimmed.match(NUMBER_RE);
       const content = trimmed.replace(NUMBER_RE, "");
-      result.push(`${prefix}- ${content}`);
+      const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
+      result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
       // Standalone bold-only paragraphs act as sub-headings in PPTX
       // presentations (e.g. "What is an Event Listener?" or "Examples:").
@@ -329,15 +358,20 @@ function formatImage(img, deckName = "presentation") {
   const rawName = (img.ref || "image.png").split("/").pop();
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const w = Math.round(img.width / 4763) || null;
-  const h = Math.round(img.height / 4763) || null;
+
+  // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
+  const w = Math.round(img.width * 1.333) || null;
+  const h = Math.round(img.height * 1.333) || null;
 
   const src = img.blob || `images/${safeName}_${filename}`;
 
+  // Use filename (without extension) as alt text for better accessibility
+  const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+
   if (w && h) {
-    return `<img src="${src}" width="${w}" height="${h}" alt="${filename}">`;
+    return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
   }
-  return `<img src="${src}" alt="${filename}">`;
+  return `<img src="${src}" alt="${altText}">`;
 }
 
 /**
@@ -367,4 +401,70 @@ function formatTable(table) {
     parts.push(`| ${rows[i]} |`);
   }
   return parts.join("\n");
+}
+
+/**
+ * Format chart data as a markdown table.
+ * @param {import('./pptx-extractor.js').ExtractedElement} chart
+ * @returns {string}
+ */
+function formatChart(chart) {
+  if (!chart.chartData?.length) {
+    return `<!-- ${chart.content || "[Chart]"} -->`;
+  }
+
+  const { headers, rows } = PptxExtractor.buildChartDataRows(chart.chartData);
+
+  // Format as markdown table
+  const escapeCell = (text) => text.replace(/\|/g, "\\|").trim();
+  const separator = headers.map(() => "---").join(" | ");
+  const parts = [];
+  parts.push(`| ${headers.map(escapeCell).join(" | ")} |`);
+  parts.push(`| ${separator} |`);
+  for (const row of rows) {
+    parts.push(`| ${row.map(escapeCell).join(" | ")} |`);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Format a diagram element as a markdown list.
+ * Diagrams from PowerPoint SmartArt contain structured text that
+ * is best represented as a bulleted list.
+ * @param {import('./pptx-extractor.js').ExtractedElement} diagram
+ * @returns {string}
+ */
+function formatDiagram(diagram) {
+  if (!diagram.content) return "";
+
+  // Content is textList joined with ", " in the extractor
+  // Split by ", " to get individual items, then handle newlines within items
+  const items = diagram.content
+    .split(", ")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) return "";
+
+  // If only one item, just return it as text
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  // Multiple items: render as a bulleted list
+  // Handle newlines within items by treating them as separate sub-items
+  const lines = [];
+  for (const item of items) {
+    const subItems = item.split("\n").filter((s) => s.trim());
+    if (subItems.length === 1) {
+      lines.push(`- ${subItems[0]}`);
+    } else {
+      // Multiple lines within one diagram item: use indented sub-bullets
+      lines.push(`- ${subItems[0]}`);
+      for (let i = 1; i < subItems.length; i++) {
+        lines.push(`  - ${subItems[i]}`);
+      }
+    }
+  }
+  return lines.join("\n");
 }

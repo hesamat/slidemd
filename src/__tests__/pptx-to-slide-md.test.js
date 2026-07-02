@@ -172,6 +172,8 @@ describe("convertToSlideMd", () => {
   });
 
   it("handles image elements", () => {
+    // pptxtojson returns dimensions in points (EMU × 72/914400)
+    // 3000000 EMU = 236.22pt, 2000000 EMU = 157.48pt
     const extraction = makeExtraction([
       {
         index: 0,
@@ -192,8 +194,8 @@ describe("convertToSlideMd", () => {
             base64: "abc",
             left: 1000000,
             top: 2000000,
-            width: 3000000,
-            height: 2000000,
+            width: 236.22,
+            height: 157.48,
           },
         ],
         background: "",
@@ -201,8 +203,8 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain('src="images/presentation_image1.png"');
-    expect(md).toContain('width="630"');
-    expect(md).toContain('height="420"');
+    expect(md).toContain('width="315"');
+    expect(md).toContain('height="210"');
   });
 
   it("handles table elements", () => {
@@ -583,5 +585,125 @@ describe("convertToSlideMd", () => {
     // ***var*** (bold+italic var). Check for the exact broken pattern.
     expect(md).not.toMatch(/\*\*\*var\*(?!\*)/);
     expect(md).not.toMatch(/vs\*\s+let/);
+  });
+
+  it("routes footer elements to @footer area", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Slide with Footer",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header Text",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body content here",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+          {
+            type: "text",
+            content: "Company Name",
+            placeholderType: "footer",
+            left: 500000,
+            top: 4800000,
+            width: 8000000,
+            height: 300000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("@footer");
+    expect(md).toContain("Company Name");
+    expect(md).toContain("@header");
+    expect(md).toContain("@main");
+    expect(md).toContain("Body content here");
+  });
+
+  it("excludes footer elements from layout inference", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Column",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Left",
+            left: 500000,
+            top: 2000000,
+            width: 3500000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: "Right",
+            left: 5000000,
+            top: 2000000,
+            width: 3500000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: "Footer text",
+            placeholderType: "footer",
+            left: 500000,
+            top: 4800000,
+            width: 8000000,
+            height: 300000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Footer should not affect layout detection — still two-column
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@footer");
+    expect(md).toContain("Footer text");
+  });
+
+  it("skips footer elements with empty content", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Slide",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Content",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: "",
+            placeholderType: "footer",
+            left: 500000,
+            top: 4800000,
+            width: 8000000,
+            height: 300000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Empty footer should not produce @footer area
+    expect(md).not.toContain("@footer");
   });
 });
