@@ -47,6 +47,7 @@ export class ConversionModal {
       let extractionResult = null;
       let markdown = "";
       let importImages = true;
+      let keepBackgrounds = true;
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
@@ -165,6 +166,22 @@ export class ConversionModal {
             resultEl.parentNode.insertBefore(checkboxRow, resultEl.nextSibling);
           }
 
+          // Show background/theme checkbox
+          keepBackgrounds = true;
+          const bgCheckboxRow = document.createElement("label");
+          bgCheckboxRow.className = `${P}checkbox-row`;
+          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
+          const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
+          bgCheckboxInput.addEventListener("change", () => {
+            keepBackgrounds = bgCheckboxInput.checked;
+          });
+          const lastCheckbox = resultEl.parentNode.querySelector(`.${P}checkbox-row`);
+          if (lastCheckbox) {
+            lastCheckbox.parentNode.insertBefore(bgCheckboxRow, lastCheckbox.nextSibling);
+          } else {
+            resultEl.parentNode.insertBefore(bgCheckboxRow, resultEl.nextSibling);
+          }
+
           // Switch buttons: hide Import, show Save as Deck
           importBtn.hidden = true;
           saveBtn.hidden = false;
@@ -176,11 +193,17 @@ export class ConversionModal {
           cancelBtn.disabled = false;
         }
       });
-
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
         // If user opted out of images, strip <img> tags from markdown
-        const finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
+        let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
+        // If user opted out of backgrounds/themes, strip those directives
+        if (!keepBackgrounds) {
+          finalMarkdown = finalMarkdown
+            .replace(/^\s*background:.*$/gm, "")
+            .replace(/^\s*theme:.*$/gm, "")
+            .replace(/\n{3,}/g, "\n\n");
+        }
         backdrop.remove();
         resolve({
           markdown: finalMarkdown,
@@ -190,7 +213,6 @@ export class ConversionModal {
           importImages,
         });
       });
-
       // Cancel
       cancelBtn.addEventListener("click", () => {
         backdrop.remove();
