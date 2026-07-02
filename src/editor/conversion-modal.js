@@ -48,11 +48,12 @@ export class ConversionModal {
       let markdown = "";
       let importImages = true;
       let keepBackgrounds = true;
+      let codeLanguage = "";
+      let isConverting = false;
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
       const fileName = backdrop.querySelector(`.${P}file-name`);
-      const importBtn = backdrop.querySelector('[data-action="import"]');
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
@@ -87,20 +88,23 @@ export class ConversionModal {
       const hideResult = () => {
         resultEl.hidden = true;
         resultEl.textContent = "";
-        // Remove any dynamically added checkbox rows from previous conversion
-        backdrop.querySelectorAll(`.${P}checkbox-row`).forEach((el) => el.remove());
+        // Remove any dynamically added rows from previous conversion
+        backdrop
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .forEach((el) => el.remove());
       };
 
-      // File handling
-      const handleFile = (file) => {
+      // File handling — auto-convert when file is selected
+      const handleFile = async (file) => {
         if (!file || !file.name.endsWith(".pptx")) {
           showError("Please select a .pptx file");
           return;
         }
+        if (isConverting) return;
         selectedFile = file;
         fileName.textContent = file.name;
         hideError();
-        importBtn.disabled = false;
+        await startConversion();
       };
 
       fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
@@ -120,10 +124,10 @@ export class ConversionModal {
       });
       dropZone.addEventListener("click", () => fileInput.click());
 
-      // Import button — extract + convert
-      importBtn.addEventListener("click", async () => {
-        if (!selectedFile) return;
-        importBtn.disabled = true;
+      // Conversion logic — called automatically when file is selected
+      const startConversion = async () => {
+        if (!selectedFile || isConverting) return;
+        isConverting = true;
         cancelBtn.disabled = true;
         hideError();
         hideResult();
@@ -151,9 +155,40 @@ export class ConversionModal {
           // Show conversion summary
           const slideCount = extractionResult.slides.length;
           const imageCount = extractionResult.images.length;
+          const hasCodeBlocks = /^```\n/gm.test(markdown);
           showResult(`${slideCount} slide${slideCount !== 1 ? "s" : ""} converted`);
 
-          // If images detected, show checkbox
+          // Insert elements in order: language selector, then checkboxes
+          let insertAfter = resultEl;
+
+          // Show code language selector with hint
+          const langRow = document.createElement("div");
+          langRow.className = `${P}select-row`;
+          langRow.innerHTML = `
+            <label class="${P}select-label">Code language</label>
+            <select class="${P}select" data-field="code-language">
+              <option value="">None</option>
+              <option value="javascript">JavaScript</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="cpp">C / C++</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="sql">SQL</option>
+              <option value="bash">Shell / Bash</option>
+              <option value="json">JSON</option>
+              <option value="typescript">TypeScript</option>
+            </select>
+            <span class="${P}code-hint">${hasCodeBlocks ? "Code blocks detected" : ""}</span>
+          `;
+          const langSelect = langRow.querySelector(`[data-field="code-language"]`);
+          langSelect.addEventListener("change", () => {
+            codeLanguage = langSelect.value;
+          });
+          insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
+          insertAfter = langRow;
+
+          // If images detected, show checkbox with description
           if (imageCount > 0) {
             importImages = true;
             const checkboxRow = document.createElement("label");
@@ -163,7 +198,8 @@ export class ConversionModal {
             checkboxInput.addEventListener("change", () => {
               importImages = checkboxInput.checked;
             });
-            resultEl.parentNode.insertBefore(checkboxRow, resultEl.nextSibling);
+            insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
+            insertAfter = checkboxRow;
           }
 
           // Show background/theme checkbox
@@ -175,24 +211,20 @@ export class ConversionModal {
           bgCheckboxInput.addEventListener("change", () => {
             keepBackgrounds = bgCheckboxInput.checked;
           });
-          const lastCheckbox = resultEl.parentNode.querySelector(`.${P}checkbox-row`);
-          if (lastCheckbox) {
-            lastCheckbox.parentNode.insertBefore(bgCheckboxRow, lastCheckbox.nextSibling);
-          } else {
-            resultEl.parentNode.insertBefore(bgCheckboxRow, resultEl.nextSibling);
-          }
+          insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
-          // Switch buttons: hide Import, show Save as Deck
-          importBtn.hidden = true;
+          // Show Save as Deck button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
+          cancelBtn.disabled = false;
+          isConverting = false;
         } catch (err) {
           hideSpinner();
           showError(`Conversion failed: ${err.message}`);
-          importBtn.disabled = false;
           cancelBtn.disabled = false;
+          isConverting = false;
         }
-      });
+      };
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
         // If user opted out of images, strip <img> tags from markdown
@@ -203,6 +235,24 @@ export class ConversionModal {
             .replace(/^\s*background:.*$/gm, "")
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
+        }
+        // Add language tag to opening fences of fenced code blocks only.
+        // Use a state machine to distinguish opening fences from closing fences.
+        if (codeLanguage) {
+          const mdLines = finalMarkdown.split("\n");
+          let inCodeBlock = false;
+          for (let j = 0; j < mdLines.length; j++) {
+            if (mdLines[j].trim() === "```") {
+              if (inCodeBlock) {
+                mdLines[j] = "```";
+                inCodeBlock = false;
+              } else {
+                mdLines[j] = "```" + codeLanguage;
+                inCodeBlock = true;
+              }
+            }
+          }
+          finalMarkdown = mdLines.join("\n");
         }
         backdrop.remove();
         resolve({
@@ -254,6 +304,7 @@ export class ConversionModal {
     backdrop.innerHTML = `
       <div class="${P}dialog">
         <h2 class="${P}title">Import PowerPoint</h2>
+        <p class="${P}description">Convert a .pptx file into a SlideMD presentation. Code blocks, images, and slide structure will be detected automatically.</p>
 
         <div class="${P}section">
           <label class="${P}label">PowerPoint File</label>
@@ -276,7 +327,6 @@ export class ConversionModal {
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Save as Deck</button>
-          <button type="button" data-action="import" class="${P}btn ${P}btn--accent" disabled>Import</button>
         </div>
       </div>
     `;
@@ -303,9 +353,10 @@ export class ConversionModal {
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
-      .${P}title { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
+      .${P}title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.5; }
       .${P}section { margin-bottom: 16px; }
-      .${P}label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
+      .${P}label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
       .${P}drop-zone {
         border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
         padding: 24px; text-align: center; cursor: pointer;
@@ -315,14 +366,25 @@ export class ConversionModal {
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}file-name { font-size: 13px; color: var(--text-medium, #666); margin-top: 6px; }
-      .${P}error { font-size: 13px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 14px; color: var(--text-high, #111); margin: 12px 0 4px; }
+      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 6px; }
+      .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
+      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
+      .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 14px; cursor: pointer; margin: 4px 0 0;
+        font-size: 15px; cursor: pointer; margin: 6px 0 0;
       }
-      .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
+      .${P}checkbox { width: 18px; height: 18px; cursor: pointer; }
+      .${P}select-row {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 15px; margin: 10px 0 0;
+      }
+      .${P}select-label { font-size: 14px; color: var(--text-medium, #666); white-space: nowrap; }
+      .${P}select {
+        padding: 5px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); cursor: pointer;
+      }
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }

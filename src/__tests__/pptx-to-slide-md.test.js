@@ -317,7 +317,6 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("layout: title-slide");
   });
-
   it("renders the title-slide's first text element as a heading", () => {
     const extraction = makeExtraction([
       {
@@ -327,7 +326,9 @@ describe("convertToSlideMd", () => {
         elements: [
           {
             type: "text",
-            content: "Introduction to APIs",
+            // Font-size heading detection happens in htmlToMarkdown during extraction.
+            // By the time convertToSlideMd sees it, it's already markdown with ##.
+            content: "## Introduction to APIs",
             left: 1500000,
             top: 600000,
             width: 6000000,
@@ -352,7 +353,6 @@ describe("convertToSlideMd", () => {
     // The subtitle stays unstyled body text.
     expect(md).not.toContain("## Hesam Alizadeh");
   });
-
   it("collapses leading '- - ' from PPTX bullets into a single dash", () => {
     // Mirrors a real PPTX where the bullet glyph is a literal text run
     // (e.g. "- ") that pptxtojson keeps AND #htmlToMarkdown prepends
@@ -705,5 +705,39 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     // Empty footer should not produce @footer area
     expect(md).not.toContain("@footer");
+  });
+
+  it("emits footer in title-slide layout", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Cover",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## My Title",
+            left: 1500000,
+            top: 600000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: "COMP 1510 202610",
+            placeholderType: "footer",
+            left: 3180000,
+            top: 4800000,
+            width: 3240000,
+            height: 287500,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: title-slide");
+    expect(md).toContain("@footer");
+    expect(md).toContain("COMP 1510 202610");
   });
 });

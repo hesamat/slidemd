@@ -7,7 +7,7 @@
  *
  * @class
  */
-import { PptxExtractor } from "./pptx-extractor.js";
+import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /**
  * Convert an extraction result to SlideMD markdown.
@@ -75,8 +75,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     }
   }
 
-  const formatSingleElement = (el, isFirst) => {
-    if (el.type === "text") return formatTextElement(el.content, isFirst);
+  const formatSingleElement = (el) => {
+    if (el.type === "text") return formatTextElement(el.content);
     if (el.type === "image") return formatImage(el, deckName);
     if (el.type === "table") return formatTable(el);
     if (el.type === "chart") return formatChart(el);
@@ -88,28 +88,22 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("");
     parts.push("@title");
     parts.push("");
-    // Format the first text element as a heading (## ...) so the title
-    // slide actually renders the title prominently.  Previously every
-    // element was passed isFirst=false, which left the title as plain
-    // text — the @title area needs an h2 to look like a cover slide.
-    let firstTextDone = false;
-    parts.push(
-      allElements
-        .map((el) => {
-          const isFirstText = el.type === "text" && !firstTextDone;
-          if (isFirstText) firstTextDone = true;
-          return formatSingleElement(el, isFirstText);
-        })
-        .join("\n\n"),
-    );
+    // Headings are detected by font-size in the HTML-to-markdown stage,
+    // so the title will automatically get ## if it has a large font size.
+    parts.push(allElements.map((el) => formatSingleElement(el)).join("\n\n"));
   } else if (layout.type === "header-content") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
-    const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
+    const hasCodeBlock = /```/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
+    const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     parts.push("");
-    if (header) {
+    if (isHeaderValid) {
       parts.push("@header");
       parts.push("");
-      parts.push(formatTextElement(header.content, true));
+      parts.push(formatTextElement(header.content));
       parts.push("");
     }
     parts.push("@main");
@@ -117,15 +111,20 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
   } else if (layout.type === "two-column") {
     const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
+    const hasCodeBlock = /```/.test(header?.content || "");
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const midX = slideWidth / 2;
-    const bodyElements = header ? allElements.filter((el) => el !== header) : allElements;
+    const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
     const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
     parts.push("");
-    if (header) {
+    if (isHeaderValid) {
       parts.push("@header");
       parts.push("");
-      parts.push(formatTextElement(header.content, true));
+      parts.push(formatTextElement(header.content));
       parts.push("");
     }
     parts.push("@main");
@@ -297,14 +296,16 @@ function isColorDark(hex) {
 
 /**
  * Format a single text element's content.
+ * Headings are detected by font-size in the HTML-to-markdown stage,
+ * so this function only handles bullets, numbered lists, and bold sub-headings.
  * @param {string} raw
- * @param {boolean} isFirstElement
  * @returns {string}
  */
-function formatTextElement(raw, isFirstElement) {
+function formatTextElement(raw) {
   if (!raw) return "";
   const lines = raw.split("\n");
   const result = [];
+  let inFencedCode = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -314,8 +315,14 @@ function formatTextElement(raw, isFirstElement) {
       continue;
     }
 
-    if (i === 0 && isFirstElement) {
-      result.push(`## ${trimmed}`);
+    // Preserve indentation inside fenced code blocks
+    if (trimmed === "```") {
+      inFencedCode = !inFencedCode;
+      result.push(trimmed);
+      continue;
+    }
+    if (inFencedCode) {
+      result.push(line);
       continue;
     }
 
@@ -332,11 +339,6 @@ function formatTextElement(raw, isFirstElement) {
       const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
       result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
-      // Standalone bold-only paragraphs act as sub-headings in PPTX
-      // presentations (e.g. "What is an Event Listener?" or "Examples:").
-      // Strip the bold markers and convert to a level-3 heading so the
-      // rendered slide uses a distinct heading style instead of bold
-      // body text that reads as plain paragraph.
       result.push(`### ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
     } else {
       result.push(trimmed);
@@ -413,7 +415,7 @@ function formatChart(chart) {
     return `<!-- ${chart.content || "[Chart]"} -->`;
   }
 
-  const { headers, rows } = PptxExtractor.buildChartDataRows(chart.chartData);
+  const { headers, rows } = buildChartDataRows(chart.chartData);
 
   // Format as markdown table
   const escapeCell = (text) => text.replace(/\|/g, "\\|").trim();
