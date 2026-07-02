@@ -205,7 +205,7 @@ function processBlockNodes(nodes, out) {
     if (tag === "P" || tag === "DIV") {
       const inline = [];
       processInlineNodes(node.childNodes, inline);
-      const merged = mergeAdjacentMarkers(inline.join(""));
+      let merged = mergeAdjacentMarkers(inline.join(""));
       if (merged.trim()) {
         // Skip heading detection if all content is monospace code —
         // these paragraphs should be treated as code, not headings.
@@ -213,8 +213,14 @@ function processBlockNodes(nodes, out) {
         if (allMono) {
           out.push(merged + "\n\n");
         } else {
-          // Detect headings by font size: check the largest font-size
-          // among child spans to determine if this paragraph is a heading.
+          // Escape # at start of lines so PPTX text like "# Print using..."
+          // is preserved as literal text. Skip lines starting with backticks
+          // (monospace code) since # inside code blocks should not be escaped.
+          merged = merged
+            .split("\n")
+            .map((line) => (/^`/.test(line.trim()) ? line : line.replace(/^#/gm, "\\#")))
+            .join("\n");
+          // Detect headings by font size
           const fontSize = getLargestFontSize(node);
           if (fontSize >= HEADING_H2_THRESHOLD) {
             out.push(`## ${merged.trim()}\n\n`);
@@ -279,9 +285,7 @@ function processList(listNode, depth, out) {
 function processInlineNodes(nodes, out) {
   for (const node of nodes) {
     if (node.nodeType === 3) {
-      // Escape # at start of lines so PPTX text like "# Print using..."
-      // is preserved as literal text, not interpreted as a markdown heading.
-      out.push(node.textContent.replace(/\u00a0/g, " ").replace(/^#/gm, "\\#"));
+      out.push(node.textContent.replace(/\u00a0/g, " "));
       continue;
     }
     if (node.nodeType !== 1) continue;
