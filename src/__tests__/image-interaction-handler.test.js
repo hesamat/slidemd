@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 
+const originalReadSettings = ImageInteractionHandler._readSettings;
+const originalApplySettings = ImageInteractionHandler.applySettings;
+
 /**
  * Create a mock img element with a mock slide parent.
  * @param {number} index - Index among sibling img elements in the slide
@@ -36,6 +39,8 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._getMarkdown = null;
     ImageInteractionHandler._setMarkdown = null;
     ImageInteractionHandler._onDelete = null;
+    ImageInteractionHandler._readSettings = originalReadSettings;
+    ImageInteractionHandler.applySettings = originalApplySettings;
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
   });
 
@@ -170,6 +175,49 @@ describe("ImageInteractionHandler", () => {
       // Should not have excessive blank lines
       expect(saved).not.toMatch(/\n{3,}/);
       expect(saved.trim()).toBe("## Title\n\nMore text");
+    });
+  });
+
+  describe("rotateBy", () => {
+    it("wraps negative rotation into the 0-359 range", () => {
+      const img = mockImg(0, 1);
+      let applied = null;
+
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._readSettings = () => ({
+        rotation: 0,
+        width: 120,
+        height: 80,
+      });
+      ImageInteractionHandler.applySettings = (settings) => {
+        applied = settings;
+      };
+
+      ImageInteractionHandler.rotateBy(-90);
+
+      expect(applied).toEqual({
+        rotation: 270,
+        width: 80,
+        height: 120,
+      });
+    });
+
+    it("wraps positive rotation past 360 back to zero", () => {
+      let applied = null;
+
+      ImageInteractionHandler._selectedImg = mockImg(0, 1);
+      ImageInteractionHandler._readSettings = () => ({
+        rotation: 270,
+        width: 120,
+        height: 80,
+      });
+      ImageInteractionHandler.applySettings = (settings) => {
+        applied = settings;
+      };
+
+      ImageInteractionHandler.rotateBy(90);
+
+      expect(applied).toEqual({ rotation: 0 });
     });
   });
 });

@@ -720,7 +720,7 @@ export class ImageInteractionHandler {
     const img = this._selectedImg;
     if (!img) return;
     const s = this._readSettings(img);
-    const newRot = (Math.round(s.rotation) + delta) % 360;
+    const newRot = (((Math.round(s.rotation) + delta) % 360) + 360) % 360;
 
     const settings = { rotation: newRot };
 
