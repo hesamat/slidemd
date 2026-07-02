@@ -239,4 +239,53 @@ describe("ImageInteractionHandler", () => {
       });
     });
   });
+
+  describe("_convertMdImgToHtml", () => {
+    it("preserves width/height HTML attributes instead of using offsetWidth/offsetHeight", () => {
+      // Simulate an HTML img with explicit width/height attributes (e.g. from PPTX conversion)
+      // where the CSS-rendered offsetWidth/offsetHeight differ from the attribute values.
+      const md = '<img src="images/example.jpeg" width="384" height="720" alt="image6">';
+
+      const attrs = { width: "384", height: "720", alt: "image6" };
+      const area = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+      };
+      const allImgs = [null];
+      const slide = { querySelectorAll: () => allImgs };
+      const style = {};
+      const img = {
+        // offsetWidth/offsetHeight reflect the wrong CSS-rendered size
+        offsetWidth: 190,
+        offsetHeight: 357,
+        getAttribute: (name) => attrs[name] ?? null,
+        setAttribute: (name, val) => {
+          attrs[name] = val;
+        },
+        closest: (sel) => {
+          if (sel === ".slide__area") return area;
+          if (sel === ".slide") return slide;
+          return null;
+        },
+        getBoundingClientRect: () => ({ left: 760, top: 180, width: 400, height: 720 }),
+        style,
+      };
+      allImgs[0] = img;
+
+      let saved = null;
+      ImageInteractionHandler._getMarkdown = () => md;
+      ImageInteractionHandler._setMarkdown = (updated) => {
+        saved = updated;
+      };
+      ImageInteractionHandler._getStageScale = () => 1;
+
+      ImageInteractionHandler._convertMdImgToHtml(img);
+
+      // The generated inline style must use the attribute values (384×720),
+      // not the shrunk offsetWidth/offsetHeight (190×357).
+      expect(saved).toContain("width: 384px");
+      expect(saved).toContain("height: 720px");
+      expect(saved).not.toContain("width: 190px");
+      expect(saved).not.toContain("height: 357px");
+    });
+  });
 });
