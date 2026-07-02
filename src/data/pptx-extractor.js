@@ -341,7 +341,14 @@ export class PptxExtractor {
    */
   static #extractBackground(fill) {
     if (!fill) return "";
-    if (fill.type === "color" && fill.value) return fill.value;
+    if (fill.type === "color" && fill.value) {
+      const hex = fill.value.startsWith("#") ? fill.value : `#${fill.value}`;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      if (r >= 240 && g >= 240 && b >= 240) return "";
+      return fill.value;
+    }
     if (fill.type === "gradient" && fill.value?.colors?.length) {
       const stops = fill.value.colors.map((c) => `${c.color} ${c.pos}`).join(", ");
       return `linear-gradient(${stops})`;
