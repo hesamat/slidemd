@@ -154,12 +154,13 @@ export class ConversionModal {
           // Show conversion summary
           const slideCount = extractionResult.slides.length;
           const imageCount = extractionResult.images.length;
+          const hasCodeBlocks = /^```\n/gm.test(markdown);
           showResult(`${slideCount} slide${slideCount !== 1 ? "s" : ""} converted`);
 
           // Insert elements in order: language selector, then checkboxes
           let insertAfter = resultEl;
 
-          // Show code language selector
+          // Show code language selector with hint
           const langRow = document.createElement("div");
           langRow.className = `${P}select-row`;
           langRow.innerHTML = `
@@ -177,6 +178,7 @@ export class ConversionModal {
               <option value="json">JSON</option>
               <option value="typescript">TypeScript</option>
             </select>
+            <span class="${P}code-hint">${hasCodeBlocks ? "Code blocks detected" : ""}</span>
           `;
           const langSelect = langRow.querySelector(`[data-field="code-language"]`);
           langSelect.addEventListener("change", () => {
@@ -339,10 +341,10 @@ export class ConversionModal {
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
-      .${P}title { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
-      .${P}description { font-size: 13px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.4; }
+      .${P}title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.5; }
       .${P}section { margin-bottom: 16px; }
-      .${P}label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
+      .${P}label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
       .${P}drop-zone {
         border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
         padding: 24px; text-align: center; cursor: pointer;
@@ -352,22 +354,23 @@ export class ConversionModal {
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}file-name { font-size: 13px; color: var(--text-medium, #666); margin-top: 6px; }
-      .${P}error { font-size: 13px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 15px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
+      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 6px; }
+      .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
+      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
+      .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 14px; cursor: pointer; margin: 6px 0 0;
+        font-size: 15px; cursor: pointer; margin: 6px 0 0;
       }
-      .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
+      .${P}checkbox { width: 18px; height: 18px; cursor: pointer; }
       .${P}select-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 14px; margin: 10px 0 0;
+        font-size: 15px; margin: 10px 0 0;
       }
-      .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
+      .${P}select-label { font-size: 14px; color: var(--text-medium, #666); white-space: nowrap; }
       .${P}select {
-        padding: 4px 8px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
+        padding: 5px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
       .${P}spinner-container {
