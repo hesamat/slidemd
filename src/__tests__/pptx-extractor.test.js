@@ -561,3 +561,22 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     expect(result).toContain("Plain text");
   });
 });
+
+describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {
+  it("preserves indentation in monospace code", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Courier;">    # do some stuff</span></p>',
+    );
+    expect(result).toContain("`    # do some stuff`");
+  });
+
+  it("preserves indentation in multiple monospace lines", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Courier;">line 1</span></p>' +
+        '<p><span style="font-family: Courier;">    indented line</span></p>' +
+        '<p><span style="font-family: Courier;">line 3</span></p>',
+    );
+    // Multiple lines are grouped into a fenced code block with indentation preserved
+    expect(result).toContain("```\nline 1\n    indented line\nline 3\n```");
+  });
+});
