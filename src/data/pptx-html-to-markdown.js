@@ -7,11 +7,11 @@
  * bullet detection, and font-size-based heading detection.
  */
 
-// Font-size thresholds for heading detection (in points).
-// These are based on typical PowerPoint default font sizes:
+// Font-size threshold for heading detection (in points).
+// Text >= 28pt is treated as a heading (uses ## for all heading sizes).
+// Based on typical PowerPoint default font sizes:
 // Title: 36-44pt, Subtitle: 24-28pt, Body: 18-24pt, Small: 12-14pt
-const HEADING_H2_THRESHOLD = 36;
-const HEADING_H3_THRESHOLD = 28;
+const HEADING_THRESHOLD = 28;
 
 // Monospace font-family pattern for detecting code content
 const MONOSPACE_PATTERN =
@@ -220,12 +220,11 @@ function processBlockNodes(nodes, out) {
             .split("\n")
             .map((line) => (/^`/.test(line.trim()) ? line : line.replace(/^#/gm, "\\#")))
             .join("\n");
-          // Detect headings by font size
+          // Detect headings by font size — use ## for heading-sized text
+          // but only if the text is short enough to be a heading
           const fontSize = getLargestFontSize(node);
-          if (fontSize >= HEADING_H2_THRESHOLD) {
+          if (fontSize >= HEADING_THRESHOLD && merged.trim().length <= 80) {
             out.push(`## ${merged.trim()}\n\n`);
-          } else if (fontSize >= HEADING_H3_THRESHOLD) {
-            out.push(`### ${merged.trim()}\n\n`);
           } else {
             out.push(merged + "\n\n");
           }
@@ -410,5 +409,12 @@ function mergeAdjacentMarkers(text) {
   }
   s = s.replace(/\*\*\s*\*\*/g, " ");
   s = s.replace(/(?<!\*)\*\s+\*(?!\*)/g, " ");
+  // Ensure a space after closing bold markers when followed by text
+  // e.g. "**word**next" → "**word** next" but only for ** (not ***)
+  s = s.replace(/(\S)\*\*(\S)/g, (match, before, after) => {
+    // Don't add space if this is part of a *** (bold+italic) marker
+    if (before === "*" || after === "*") return match;
+    return `${before}** ${after}`;
+  });
   return s;
 }

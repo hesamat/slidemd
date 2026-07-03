@@ -68,6 +68,10 @@ export class SlideRenderer {
       wrapper.dataset.areaOffsets = JSON.stringify(slide._areaOffsets);
     }
 
+    if (slide?.areaStyle) {
+      wrapper.setAttribute("data-has-borders", "");
+    }
+
     const grid = document.createElement("div");
     grid.className = "slide__grid";
 

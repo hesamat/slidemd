@@ -104,7 +104,7 @@ export class SlideThumbnails {
     // Slide title
     const title = document.createElement("div");
     title.className = "slide-thumbnail__title";
-    title.textContent = slide.title || `Slide ${index + 1}`;
+    title.textContent = this._stripMarkdown(slide.title || `Slide ${index + 1}`);
 
     thumbnail.appendChild(number);
     thumbnail.appendChild(title);
@@ -183,6 +183,10 @@ export class SlideThumbnails {
     return thumbnail;
   }
 
+  _stripMarkdown(text) {
+    return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+  }
+
   /**
    * Bind the pinned "Add Slide" footer button (below the scrollable list).
    */
@@ -257,7 +261,7 @@ export class SlideThumbnails {
     if (thumbnails[index]) {
       const titleEl = thumbnails[index].querySelector(".slide-thumbnail__title");
       if (titleEl) {
-        titleEl.textContent = title || `Slide ${index + 1}`;
+        titleEl.textContent = this._stripMarkdown(title || `Slide ${index + 1}`);
       }
     }
   }
