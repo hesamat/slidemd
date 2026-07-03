@@ -129,10 +129,20 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overflow-wrap: break-word;
   row-gap: var(--spacing-sm);
   max-width: 100%;
   position: relative;
   padding: 10px;
+}
+
+body[data-edit-mode="true"] .slide__area {
+  outline: 3px dashed rgba(2, 132, 199, 0.5);
+  outline-offset: -3px;
+}
+
+body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
+  outline: none;
 }
 
 /* Header areas get a hairline separator at the bottom of the left

@@ -180,11 +180,23 @@ export class PptxExtractor {
       if (!this.#hasTextContent(el)) {
         return null;
       }
-      // Flatten group elements
+      // Flatten group elements, adjusting positions to be slide-relative
       const results = [];
       for (const child of el.elements) {
         const r = this.#processElement(child, slideIndex, imagesAccum);
-        if (r) results.push(r);
+        if (r) {
+          if (Array.isArray(r)) {
+            for (const item of r) {
+              item.left += el.left;
+              item.top += el.top;
+              results.push(item);
+            }
+          } else {
+            r.left += el.left;
+            r.top += el.top;
+            results.push(r);
+          }
+        }
       }
       return results.length ? results : null;
     }
@@ -341,7 +353,18 @@ export class PptxExtractor {
    */
   static #extractBackground(fill) {
     if (!fill) return "";
-    if (fill.type === "color" && fill.value) return fill.value;
+    if (fill.type === "color" && fill.value) {
+      let hex = fill.value.startsWith("#") ? fill.value : `#${fill.value}`;
+      // Expand 3-digit hex (#FFF) to 6-digit (#FFFFFF)
+      if (hex.length === 4) {
+        hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+      }
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      if (r >= 240 && g >= 240 && b >= 240) return "";
+      return fill.value;
+    }
     if (fill.type === "gradient" && fill.value?.colors?.length) {
       const stops = fill.value.colors.map((c) => `${c.color} ${c.pos}`).join(", ");
       return `linear-gradient(${stops})`;

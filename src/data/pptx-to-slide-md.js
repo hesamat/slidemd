@@ -100,13 +100,28 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     // so the title will automatically get ## if it has a large font size.
     parts.push(allElements.map((el) => formatSingleElement(el)).join("\n\n"));
   } else if (layout.type === "header-content") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    // Prefer markdown-detected headings (## or ###) over position-based detection
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const isShortEnough = (el) => {
+      // Strip heading marker before checking length
+      const text = (el.content || "").replace(/^##\s+/, "").trim();
+      return text.length <= 80;
+    };
+    const header =
+      textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22 && isShortEnough(el)) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
-    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
-    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
-    const hasCodeBlock = /```/.test(header?.content || "");
+    const headerText = header?.content || "";
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(headerText);
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(headerText);
+    const hasCodeBlock = /```/.test(headerText);
     const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
+    // If body is a single image with no text, render it without explicit
+    // dimensions so CSS can scale it to fill available space.
+    const singleImage =
+      bodyElements.length === 1 && bodyElements[0].type === "image" && bodyElements[0].base64;
     parts.push("");
     if (isHeaderValid) {
       parts.push("@header");
@@ -116,9 +131,17 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     }
     parts.push("@main");
     parts.push("");
-    parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    if (singleImage) {
+      parts.push(formatImage(bodyElements[0], deckName, { omitDimensions: true }));
+    } else {
+      parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    }
   } else if (layout.type === "two-column") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const header =
+      textElements.find((el) => isHeading(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
@@ -155,7 +178,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
       parts.push(rightEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
     }
   } else if (layout.type === "three-column") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const header =
+      textElements.find((el) => isHeading(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
@@ -241,9 +268,11 @@ function inferLayout(
     return { type: "header-content", spec: "header-content" };
   }
 
-  // Slides with images, tables, or charts are not title slides
+  // Detect headings by markdown markers (## or ### added by font-size
+  // detection in the HTML-to-markdown stage) or by position near the top.
   const bodyThreshold = slideHeight * 0.22;
-  const hasHeader = contentEls.some((el) => el.top < bodyThreshold);
+  const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+  const hasHeader = contentEls.some((el) => isHeading(el) || el.top < bodyThreshold);
 
   if (!hasMedia) {
     // Check if elements are at similar vertical positions but spread
@@ -321,14 +350,24 @@ function inferLayout(
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
 
-  if (hasHeader && hasTwoColumns) {
+  // Only use two-column when there is actual body text on both sides,
+  // not just images.  A header + a single image should be header-content.
+  const leftText = leftEls.filter((el) => el.type === "text");
+  const rightText = rightEls.filter((el) => el.type === "text");
+  const hasTextColumns = leftText.length > 0 && rightText.length > 0;
+
+  if (hasHeader && hasTextColumns) {
     return { type: "two-column", spec: "two-column" };
   }
 
   if (dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
-  if (dominantImages.length === 1 && contentEls.length > 0) {
+  // Only use two-column for dominant images when there is substantial body
+  // text below the header — a single short line is not enough.
+  const bodyEls = contentEls.filter((el) => el.top >= bodyThreshold);
+  const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+  if (dominantImages.length === 1 && bodyEls.length >= 2 && bodyLength > 80) {
     return { type: "two-column", spec: "two-column" };
   }
 
@@ -336,7 +375,9 @@ function inferLayout(
     return { type: "header-content", spec: "header-content" };
   }
 
-  if (hasTwoColumns) {
+  // Only use two-column for horizontal spread when there is substantial
+  // content — a header + image alone should be header-content.
+  if (hasTwoColumns && bodyEls.length >= 2 && bodyLength > 80) {
     return { type: "two-column", spec: "two-column" };
   }
 
@@ -431,7 +472,7 @@ function formatTextElement(raw) {
       const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
       result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
-      result.push(`### ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
+      result.push(`## ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
     } else {
       result.push(trimmed);
     }
@@ -448,22 +489,21 @@ function formatTextElement(raw) {
  * @param {import('./pptx-extractor.js').ExtractedElement} img
  * @returns {string}
  */
-function formatImage(img, deckName = "presentation") {
+function formatImage(img, deckName = "presentation", { omitDimensions = false } = {}) {
   const rawName = (img.ref || "image.png").split("/").pop();
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-  // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
-  const w = Math.round(img.width * 1.333) || null;
-  const h = Math.round(img.height * 1.333) || null;
-
   const src = img.blob || `images/${safeName}_${filename}`;
-
-  // Use filename (without extension) as alt text for better accessibility
   const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
 
-  if (w && h) {
-    return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
+  if (!omitDimensions) {
+    // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
+    const w = Math.round(img.width * 1.333) || null;
+    const h = Math.round(img.height * 1.333) || null;
+    if (w && h) {
+      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
+    }
   }
   return `<img src="${src}" alt="${altText}">`;
 }

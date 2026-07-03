@@ -203,11 +203,12 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain('src="images/presentation_image1.png"');
-    expect(md).toContain('width="315"');
-    expect(md).toContain('height="210"');
+    // Single image with header should omit dimensions so CSS scales it
+    expect(md).not.toContain("width=");
+    expect(md).not.toContain("height=");
   });
 
-  it("uses two-column layout when a dominant image shares a slide with text", () => {
+  it("uses two-column layout when a dominant image shares a slide with substantial text", () => {
     const extraction = makeExtraction([
       {
         index: 0,
@@ -216,9 +217,19 @@ describe("convertToSlideMd", () => {
         elements: [
           {
             type: "text",
-            content: "Body text stays in the main column",
+            content:
+              "First paragraph of body text that provides context for the slide content and discussion",
             left: 500000,
             top: 1500000,
+            width: 3000000,
+            height: 1200000,
+          },
+          {
+            type: "text",
+            content:
+              "Second paragraph with additional details and explanation of the topic being covered here",
+            left: 500000,
+            top: 2800000,
             width: 3000000,
             height: 1200000,
           },
@@ -238,16 +249,48 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     const mainIndex = md.indexOf("@main");
     const mediaIndex = md.indexOf("@media");
-    const textIndex = md.indexOf("Body text stays in the main column");
     const imageIndex = md.indexOf("presentation_dominant.png");
 
     expect(md).toContain("layout: two-column");
     expect(md).not.toContain("@secondary");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
-    expect(textIndex).toBeGreaterThan(mainIndex);
-    expect(textIndex).toBeLessThan(mediaIndex);
     expect(imageIndex).toBeGreaterThan(mediaIndex);
+  });
+
+  it("uses header-content when a dominant image shares a slide with only a header", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Header Only",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "USER STORY",
+            left: 500000,
+            top: 500000,
+            width: 3000000,
+            height: 800000,
+          },
+          {
+            type: "image",
+            ref: "dominant.png",
+            base64: "abc",
+            left: 5000000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@header");
+    expect(md).toContain("USER STORY");
   });
 
   it("uses three-column layout when two dominant images share a slide with text", () => {
@@ -648,8 +691,8 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("### What is an Event Listener?");
-    expect(md).toContain("### Examples:");
+    expect(md).toContain("## What is an Event Listener?");
+    expect(md).toContain("## Examples:");
     expect(md).toContain("- Piece of code");
     expect(md).toContain("- Click");
   });
