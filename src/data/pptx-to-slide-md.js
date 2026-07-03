@@ -106,11 +106,13 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
       textElements.find((el) => isHeading(el)) ||
       textElements.find((el) => el.top < slideHeight * 0.22) ||
       null;
-    // Don't treat bullet lists, numbered lists, or code blocks as headers.
-    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
-    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
-    const hasCodeBlock = /```/.test(header?.content || "");
-    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
+    // Don't treat bullet lists, numbered lists, code blocks, or long text as headers.
+    const headerText = header?.content || "";
+    const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(headerText);
+    const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(headerText);
+    const hasCodeBlock = /```/.test(headerText);
+    const isTooLong = headerText.trim().length > 80;
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock && !isTooLong;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     // If body is a single image with no text, render it without explicit
     // dimensions so CSS can scale it to fill available space.
