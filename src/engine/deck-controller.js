@@ -674,19 +674,35 @@ export class DeckController extends EventEmitter {
     }
 
     if (dirHandle) {
-      const savingToast = Notification.showToast("Saving files...", "info", 0);
+      const imageCount = importImages ? (images?.length ?? 0) : 0;
+      // Progress milestones: saving the .md file counts for the first 10 %,
+      // the remaining 85 % is spread across images (totalling 95 %), and the
+      // final bookkeeping step brings it to 100 %.
+      const PROGRESS_AFTER_MD = imageCount > 0 ? 10 : 80;
+      const PROGRESS_IMAGES_START = PROGRESS_AFTER_MD;
+      const PROGRESS_IMAGES_RANGE = 85;
+      const initialMessage =
+        imageCount > 0
+          ? `Saving ${mdName} and ${imageCount} image${imageCount !== 1 ? "s" : ""}…`
+          : `Saving ${mdName}…`;
+      const savingModal = Notification.showLoadingModal(initialMessage, {
+        title: "Saving Deck",
+        type: "info",
+      });
       try {
         // Save the markdown file using the PPTX-derived name
         const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
         const mdWritable = await mdFile.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
+        savingModal.updateProgress(PROGRESS_AFTER_MD);
 
         // Save images to images/ subdirectory with deck-prefixed filenames
         if (importImages && images?.length) {
           const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
           const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
           let savedCount = 0;
+          const imageTotal = images.length;
           for (const img of images) {
             if (!img.base64 || !img.ref) continue;
             try {
@@ -704,14 +720,18 @@ export class DeckController extends EventEmitter {
               await writable.write(bytes);
               await writable.close();
               savedCount++;
+              savingModal.updateProgress(
+                PROGRESS_IMAGES_START +
+                  Math.round((savedCount / imageTotal) * PROGRESS_IMAGES_RANGE),
+              );
+              savingModal.updateMessage(`Saving images… ${savedCount} / ${imageTotal}`);
             } catch (imgErr) {
               console.warn(`Could not save image ${img.ref}:`, imgErr);
             }
           }
-          if (savedCount > 0) {
-            Notification.info(`Saved ${savedCount} images to images/ folder`);
-          }
         }
+
+        savingModal.updateProgress(100);
 
         // Save the directory handle for future use
         const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
@@ -737,7 +757,7 @@ export class DeckController extends EventEmitter {
         ConversionModal.close();
         return;
       } finally {
-        Notification.dismiss(document.querySelector(`[data-toast-id="${savingToast}"]`));
+        savingModal.dismiss();
       }
     } else {
       window.__WEBDECK_MARKDOWN__ = markdown;
