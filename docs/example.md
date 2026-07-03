@@ -10,11 +10,11 @@ There is a non-trivial amount of math in programming:
 
 - Python has a math module
 - Check out some of those functions!
-- ceil( )
-- floor( )
-- fabs( )
-- pow( )
-- trunc( )
+- math.ceil()
+- math.floor()
+- math.fabs()
+- math.pow()
+- math.trunc()
 
 @footer
 
@@ -238,11 +238,11 @@ layout: two-column
 @main
 
 - A for-loop executes a block of code once for each item in a sequence
-- This is called definite iteration we know it will always visit all the elements in the sequence
+- This is called definite iteration; we know it will always visit all the elements in the sequence
 
 @media
 
-- A while-loop runs as long as, i.e., ‘while’ an assertion (Boolean condition) is True
+- A while-loop runs as long as, i.e., “while” a condition (Boolean expression) is True
 - This is called indefinite iteration, i.e., it doesn’t always loop the same number of times
 
 @footer
@@ -474,7 +474,7 @@ while True:
 
 ## But Sire this is Pythonic!
 
-Java
+Java-style code
 
 @media
 
