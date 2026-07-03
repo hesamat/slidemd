@@ -520,13 +520,16 @@ function filterMeaningfulElements(elements, slideWidth, slideHeight, dominantIma
 
     // 4. Aspect Ratio Filter (Only catch thin lines, preserving panoramic banners)
     const aspectRatio = w / (h || 1);
-    if (aspectRatio > CONFIG.aspectRatioUpperLimit && h < CONFIG.thinLineThresholdPoints)
-      return false; // Horizontal divider line
-    if (aspectRatio < CONFIG.aspectRatioLowerLimit && w < CONFIG.thinLineThresholdPoints)
-      return false; // Vertical divider line
+    const isThinHorizontalLine =
+      aspectRatio > CONFIG.aspectRatioUpperLimit && h < CONFIG.thinLineThresholdPoints;
+    const isThinVerticalLine =
+      aspectRatio < CONFIG.aspectRatioLowerLimit && w < CONFIG.thinLineThresholdPoints;
+    if (isThinHorizontalLine || isThinVerticalLine) return false;
+
+    const isSmallImage = area < slideArea * CONFIG.maxLogoAreaRatio;
 
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
-    if (area < slideArea * CONFIG.maxLogoAreaRatio) {
+    if (isSmallImage) {
       const isInTopMargin = el.top < slideHeight * CONFIG.marginTopRatio;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
@@ -534,9 +537,12 @@ function filterMeaningfulElements(elements, slideWidth, slideHeight, dominantIma
       if (isInTopMargin || isInBottomMargin) {
         return false;
       }
+      // Small images not in margins are kept — they are likely icons, badges, or
+      // inline decorations rather than background/border elements.
+      return true;
     }
 
-    // 6. Text-Background / Border Overlap Filter
+    // 6. Text-Background / Border Overlap Filter (only for non-small images)
     const isBackgroundOrBorder = textElements.some((textEl) => {
       const textW = textEl.width || 0;
       const textH = textEl.height || 0;
