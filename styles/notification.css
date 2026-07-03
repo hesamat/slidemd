@@ -2,7 +2,7 @@
 
 .notification-container {
   position: fixed;
-  bottom: 1.5rem;
+  top: 1.5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10000;
@@ -40,7 +40,7 @@
 
 .notification-toast--hide {
   opacity: 0;
-  transform: translateY(0.75rem);
+  transform: translateY(-0.75rem);
 }
 
 .notification-toast__icon {
@@ -195,26 +195,49 @@
 }
 
 .notification-modal {
-  background: var(--surface-bg);
-  border-radius: 0.5rem;
-  padding: 1.5rem;
-  max-width: 500px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  max-width: 34rem;
   width: 90%;
   box-shadow:
-    0 20px 25px -5px rgba(0, 0, 0, 0.2),
-    0 10px 10px -5px rgba(0, 0, 0, 0.1);
+    0 24px 45px -24px rgba(15, 23, 42, 0.8),
+    0 14px 28px rgba(15, 23, 42, 0.22);
   animation: slideUp 0.2s ease-out;
 }
 
+.notification-modal__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.notification-modal__icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.notification-modal__copy {
+  min-width: 0;
+}
+
 .notification-modal__title {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-high);
 }
 
 .notification-modal__message {
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--text-medium);
@@ -222,8 +245,10 @@
 
 .notification-modal__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: flex-end;
+  margin-top: 1.25rem;
 }
 
 .notification-modal__actions .btn--primary {
@@ -239,6 +264,46 @@
 
 .notification-modal__actions .btn--primary:active {
   background: #1d4ed8;
+}
+
+.notification-modal--success {
+  background:
+    linear-gradient(0deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.1)),
+    rgba(255, 255, 255, 0.86);
+}
+
+.notification-modal--success .notification-modal__icon {
+  color: #10b981;
+}
+
+.notification-modal--error {
+  background:
+    linear-gradient(0deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1)),
+    rgba(255, 255, 255, 0.86);
+}
+
+.notification-modal--error .notification-modal__icon {
+  color: #ef4444;
+}
+
+.notification-modal--warning {
+  background:
+    linear-gradient(0deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.1)),
+    rgba(255, 255, 255, 0.86);
+}
+
+.notification-modal--warning .notification-modal__icon {
+  color: #f59e0b;
+}
+
+.notification-modal--info {
+  background:
+    linear-gradient(0deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.1)),
+    rgba(255, 255, 255, 0.86);
+}
+
+.notification-modal--info .notification-modal__icon {
+  color: #3b82f6;
 }
 
 /* Animations */
@@ -278,7 +343,7 @@
   .notification-container {
     left: 0.5rem;
     right: 0.5rem;
-    bottom: 0.5rem;
+    top: 0.5rem;
     transform: none;
     max-width: none;
     width: auto;
@@ -291,6 +356,10 @@
   .notification-modal {
     width: 95%;
     padding: 1.25rem;
+  }
+
+  .notification-modal__content {
+    gap: 0.75rem;
   }
 }
 
@@ -332,5 +401,34 @@
 
   .notification-toast__action:hover {
     background: rgba(15, 23, 42, 0.6);
+  }
+
+  .notification-modal {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+
+  .notification-modal--success {
+    background:
+      linear-gradient(0deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.14)),
+      rgba(15, 23, 42, 0.9);
+  }
+
+  .notification-modal--error {
+    background:
+      linear-gradient(0deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.14)),
+      rgba(15, 23, 42, 0.9);
+  }
+
+  .notification-modal--warning {
+    background:
+      linear-gradient(0deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)),
+      rgba(15, 23, 42, 0.9);
+  }
+
+  .notification-modal--info {
+    background:
+      linear-gradient(0deg, rgba(59, 130, 246, 0.14), rgba(59, 130, 246, 0.14)),
+      rgba(15, 23, 42, 0.9);
   }
 }

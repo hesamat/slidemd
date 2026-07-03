@@ -88,4 +88,53 @@ describe("Notification", () => {
 
     expect(undoFn).toHaveBeenCalledTimes(1);
   });
+
+  it("shows new toasts from the top of the stack", () => {
+    Notification.info("First", 0);
+    Notification.info("Second", 0);
+
+    const visibleMessages = [...document.querySelectorAll(".notification-toast__message")].map(
+      (el) => el.textContent,
+    );
+
+    expect(visibleMessages).toEqual(["Second", "First"]);
+  });
+
+  it("supports blocking action-or-cancel notifications", async () => {
+    const onAction = vi.fn();
+    const promise = Notification.showBlocking("Save before leaving?", {
+      title: "Unsaved changes",
+      type: "warning",
+      actionLabel: "Save now",
+      cancelLabel: "Cancel",
+      onAction,
+    });
+
+    const modal = document.querySelector(".notification-modal");
+    expect(modal?.className).toContain("notification-modal--warning");
+    expect(document.querySelector(".notification-modal__title")?.textContent).toBe(
+      "Unsaved changes",
+    );
+
+    const buttons = [...document.querySelectorAll(".notification-modal__actions button")];
+    buttons.find((button) => button.textContent === "Save now")?.click();
+
+    await expect(promise).resolves.toBe(true);
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats blocking notification dismiss as cancel", async () => {
+    const onCancel = vi.fn();
+    const promise = Notification.showBlocking("Keep editing?", {
+      cancelLabel: "Stay here",
+      onCancel,
+    });
+
+    document
+      .querySelectorAll(".notification-modal__actions button")[1]
+      ?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+    await expect(promise).resolves.toBe(false);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });

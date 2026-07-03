@@ -271,6 +271,42 @@ export class Notification {
     });
   }
 
+  static async showBlocking(
+    message,
+    {
+      title = "Action required",
+      type = "warning",
+      actionLabel = "Continue",
+      cancelLabel = "Cancel",
+      onAction,
+      onCancel,
+      focusPrimary = true,
+      closeResolvesTo = false,
+    } = {},
+  ) {
+    return this.showModal({
+      title,
+      message,
+      type,
+      buttons: [
+        {
+          label: actionLabel,
+          isPrimary: true,
+          resolvesTo: true,
+          onResolve: onAction,
+        },
+        {
+          label: cancelLabel,
+          isPrimary: false,
+          resolvesTo: false,
+          onResolve: onCancel,
+        },
+      ],
+      focusPrimary,
+      closeResolvesTo,
+    });
+  }
+
   /**
    * Show a confirmation dialog with promise-based response
    * @param {string} message - The confirmation message
@@ -327,15 +363,16 @@ export class Notification {
    * @param {Object} config - Modal configuration
    * @param {string} config.title - Modal title
    * @param {string} config.message - Modal message
+   * @param {string} config.type - Modal visual type
    * @param {Array} config.buttons - Array of button configs
    * @returns {Object} Object containing backdrop and buttons array
    */
-  static createModal({ title, message, buttons }) {
+  static createModal({ title, message, type = "info", buttons }) {
     const backdrop = document.createElement("div");
     backdrop.className = "notification-modal-backdrop";
 
     const modal = document.createElement("div");
-    modal.className = "notification-modal";
+    modal.className = `notification-modal notification-modal--${type}`;
     modal.setAttribute("role", "alertdialog");
     // Use unique IDs for accessibility
     const modalId = `notification-modal-${++this.modalId}`;
@@ -354,6 +391,20 @@ export class Notification {
     messageEl.className = "notification-modal__message";
     messageEl.textContent = message;
 
+    const content = document.createElement("div");
+    content.className = "notification-modal__content";
+
+    const icon = this.getIcon(type);
+    icon.classList.add("notification-modal__icon");
+
+    const copy = document.createElement("div");
+    copy.className = "notification-modal__copy";
+    copy.appendChild(titleEl);
+    copy.appendChild(messageEl);
+
+    content.appendChild(icon);
+    content.appendChild(copy);
+
     const actions = document.createElement("div");
     actions.className = "notification-modal__actions";
 
@@ -366,8 +417,7 @@ export class Notification {
       actions.appendChild(btn);
     });
 
-    modal.appendChild(titleEl);
-    modal.appendChild(messageEl);
+    modal.appendChild(content);
     modal.appendChild(actions);
     backdrop.appendChild(modal);
 
@@ -386,6 +436,9 @@ export class Notification {
         buttons: config.buttons.map((btn) => ({
           ...btn,
           onClick: () => {
+            if (typeof btn.onResolve === "function") {
+              btn.onResolve();
+            }
             cleanup();
             resolve(btn.resolvesTo);
           },
