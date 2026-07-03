@@ -194,6 +194,9 @@ export class PptxExtractor {
    * Agenda slides and section openers often wrap background art and logos in a
    * group that has no text children.  If every child is an image and the images
    * together cover most of the group's bounding box, the group is decorative.
+   *
+   * Groups that contain shapes (borders, frames, callouts) alongside images are
+   * treated as content — e.g. a code screenshot inside a rounded-rect border.
    * @static
    * @param {import('pptxtojson').Element} group
    * @returns {boolean}
@@ -202,15 +205,20 @@ export class PptxExtractor {
     const children = group.elements || [];
     if (children.length === 0) return false;
 
-    // Must have no text, tables, charts, or diagrams — only images and shapes
-    const hasNonImageContent = children.some(
+    // Must have no text, tables, charts, or diagrams
+    const hasTextualContent = children.some(
       (child) =>
         child.type === "text" ||
         child.type === "table" ||
         child.type === "chart" ||
         child.type === "diagram",
     );
-    if (hasNonImageContent) return false;
+    if (hasTextualContent) return false;
+
+    // If the group contains shapes (borders, frames, callouts) alongside
+    // images, it is content — e.g. a screenshot inside a styled border.
+    const hasShapes = children.some((child) => child.type === "shape");
+    if (hasShapes) return false;
 
     const images = children.filter((child) => child.type === "image");
     if (images.length === 0) return false;
