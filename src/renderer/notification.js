@@ -12,20 +12,41 @@ export class Notification {
   static queuedToasts = [];
 
   /**
+   * Returns the element that should host fixed overlays.
+   * When a fullscreen element is active, appending to document.body makes elements
+   * invisible — they must be children of the fullscreen element instead.
+   * @returns {HTMLElement}
+   */
+  static getRootElement() {
+    return document.fullscreenElement || document.body;
+  }
+
+  /**
    * Initialize the notification container
    */
   static init() {
-    if (this.container) return;
     if (!document.body) {
       // Wait for DOMContentLoaded if body is not ready
       document.addEventListener("DOMContentLoaded", () => this.init(), { once: true });
       return;
     }
-    this.container = document.createElement("div");
-    this.container.className = "notification-container";
-    this.container.setAttribute("aria-live", "polite");
-    this.container.setAttribute("aria-atomic", "true");
-    document.body.appendChild(this.container);
+    if (!this.container) {
+      this.container = document.createElement("div");
+      this.container.className = "notification-container";
+      this.container.setAttribute("aria-live", "polite");
+      this.container.setAttribute("aria-atomic", "true");
+      // Re-parent the container whenever fullscreen state changes so toasts
+      // remain visible in both normal and fullscreen modes.
+      document.addEventListener("fullscreenchange", () => {
+        if (this.container) {
+          this.getRootElement().appendChild(this.container);
+        }
+      });
+    }
+    const root = this.getRootElement();
+    if (this.container.parentNode !== root) {
+      root.appendChild(this.container);
+    }
   }
 
   /**
@@ -348,7 +369,7 @@ export class Notification {
       bd.classList.add("notification-modal-backdrop--critical");
       backdrop = bd;
 
-      document.body.appendChild(backdrop);
+      this.getRootElement().appendChild(backdrop);
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       requestAnimationFrame(() => primaryButton?.element?.focus());
@@ -533,7 +554,7 @@ export class Notification {
         })),
       });
 
-      document.body.appendChild(backdrop);
+      this.getRootElement().appendChild(backdrop);
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       const buttonToFocus =
