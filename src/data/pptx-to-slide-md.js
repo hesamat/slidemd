@@ -111,7 +111,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(headerText);
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(headerText);
     const hasCodeBlock = /```/.test(headerText);
-    const isTooLong = headerText.trim().length > 80;
+    const isTooLong = headerText.trim().length > 60;
     const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock && !isTooLong;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     // If body is a single image with no text, render it without explicit
