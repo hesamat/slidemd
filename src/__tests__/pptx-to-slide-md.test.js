@@ -203,8 +203,9 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     expect(md).toContain('src="images/presentation_image1.png"');
-    expect(md).toContain('width="315"');
-    expect(md).toContain('height="210"');
+    // Single image with header should omit dimensions so CSS scales it
+    expect(md).not.toContain("width=");
+    expect(md).not.toContain("height=");
   });
 
   it("uses two-column layout when a dominant image shares a slide with substantial text", () => {

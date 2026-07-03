@@ -112,6 +112,10 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     const hasCodeBlock = /```/.test(header?.content || "");
     const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
+    // If body is a single image with no text, render it without explicit
+    // dimensions so CSS can scale it to fill available space.
+    const singleImage =
+      bodyElements.length === 1 && bodyElements[0].type === "image" && bodyElements[0].base64;
     parts.push("");
     if (isHeaderValid) {
       parts.push("@header");
@@ -121,7 +125,17 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     }
     parts.push("@main");
     parts.push("");
-    parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    if (singleImage) {
+      const img = bodyElements[0];
+      const rawName = (img.ref || "image.png").split("/").pop();
+      const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
+      const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const src = img.blob || `images/${safeName}_${filename}`;
+      const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+      parts.push(`<img src="${src}" alt="${altText}">`);
+    } else {
+      parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
+    }
   } else if (layout.type === "two-column") {
     const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
     const header =

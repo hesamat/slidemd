@@ -538,11 +538,11 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     expect(result).toContain("## Big Title");
   });
 
-  it("detects h3 heading from medium font-size (30pt)", () => {
+  it("detects h2 heading from medium font-size (30pt)", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-size: 30pt;">Subtitle</span></p>',
     );
-    expect(result).toContain("### Subtitle");
+    expect(result).toContain("## Subtitle");
   });
 
   it("does not add heading for body text (18pt)", () => {

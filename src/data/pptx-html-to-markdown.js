@@ -220,12 +220,10 @@ function processBlockNodes(nodes, out) {
             .split("\n")
             .map((line) => (/^`/.test(line.trim()) ? line : line.replace(/^#/gm, "\\#")))
             .join("\n");
-          // Detect headings by font size
+          // Detect headings by font size — use ## for all heading-sized text
           const fontSize = getLargestFontSize(node);
-          if (fontSize >= HEADING_H2_THRESHOLD) {
+          if (fontSize >= HEADING_H3_THRESHOLD) {
             out.push(`## ${merged.trim()}\n\n`);
-          } else if (fontSize >= HEADING_H3_THRESHOLD) {
-            out.push(`### ${merged.trim()}\n\n`);
           } else {
             out.push(merged + "\n\n");
           }
