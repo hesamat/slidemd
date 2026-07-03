@@ -102,17 +102,21 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
   } else if (layout.type === "header-content") {
     // Prefer markdown-detected headings (## or ###) over position-based detection
     const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const isShortEnough = (el) => {
+      // Strip heading markers before checking length
+      const text = (el.content || "").replace(/^#{2,3}\s+/, "").trim();
+      return text.length <= 80;
+    };
     const header =
-      textElements.find((el) => isHeading(el)) ||
-      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22 && isShortEnough(el)) ||
       null;
-    // Don't treat bullet lists, numbered lists, code blocks, or long text as headers.
+    // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const headerText = header?.content || "";
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(headerText);
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(headerText);
     const hasCodeBlock = /```/.test(headerText);
-    const isTooLong = headerText.trim().length > 60;
-    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock && !isTooLong;
+    const isHeaderValid = header && !hasBullets && !hasNumbers && !hasCodeBlock;
     const bodyElements = isHeaderValid ? allElements.filter((el) => el !== header) : allElements;
     // If body is a single image with no text, render it without explicit
     // dimensions so CSS can scale it to fill available space.
