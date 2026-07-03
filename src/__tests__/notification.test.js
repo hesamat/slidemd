@@ -137,4 +137,37 @@ describe("Notification", () => {
     await expect(promise).resolves.toBe(false);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("blocking modal uses a darker overlay and is not dismissed by backdrop click", () => {
+    let resolved = false;
+    Notification.showBlocking("Critical action", {
+      title: "Are you sure?",
+    }).then(() => {
+      resolved = true;
+    });
+
+    const backdrop = document.querySelector(".notification-modal-backdrop");
+    expect(backdrop?.className).toContain("notification-modal-backdrop--blocking");
+
+    // Simulate click on backdrop (outside modal)
+    backdrop?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+    // Promise must still be pending (not resolved by outside click)
+    expect(resolved).toBe(false);
+    expect(document.querySelector(".notification-modal")).toBeTruthy();
+  });
+
+  it("blocking modal is not dismissed by Escape key", () => {
+    let resolved = false;
+    Notification.showBlocking("Critical action", {
+      title: "Are you sure?",
+    }).then(() => {
+      resolved = true;
+    });
+
+    document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(resolved).toBe(false);
+    expect(document.querySelector(".notification-modal")).toBeTruthy();
+  });
 });

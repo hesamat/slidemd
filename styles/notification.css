@@ -190,6 +190,15 @@
   animation: fadeIn 0.2s ease-out;
 }
 
+.notification-modal-backdrop--blocking {
+  background: rgba(0, 0, 0, 0.72);
+  cursor: not-allowed;
+}
+
+.notification-modal-backdrop--blocking .notification-modal {
+  cursor: auto;
+}
+
 .notification-modal-backdrop--hide {
   animation: fadeOut 0.2s ease-out;
 }
@@ -334,6 +343,25 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes modalShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-0.4rem);
+  }
+  40%,
+  80% {
+    transform: translateX(0.4rem);
+  }
+}
+
+.notification-modal--shake {
+  animation: modalShake 0.35s ease-in-out;
 }
 
 /* Responsive adjustments */

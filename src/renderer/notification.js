@@ -288,6 +288,7 @@ export class Notification {
       title,
       message,
       type,
+      blockBackdrop: true,
       buttons: [
         {
           label: actionLabel,
@@ -364,12 +365,15 @@ export class Notification {
    * @param {string} config.title - Modal title
    * @param {string} config.message - Modal message
    * @param {string} config.type - Modal visual type
+   * @param {boolean} config.blockBackdrop - When true, clicking outside/Escape does not dismiss
    * @param {Array} config.buttons - Array of button configs
    * @returns {Object} Object containing backdrop and buttons array
    */
-  static createModal({ title, message, type = "info", buttons }) {
+  static createModal({ title, message, type = "info", blockBackdrop = false, buttons }) {
     const backdrop = document.createElement("div");
-    backdrop.className = "notification-modal-backdrop";
+    backdrop.className = blockBackdrop
+      ? "notification-modal-backdrop notification-modal-backdrop--blocking"
+      : "notification-modal-backdrop";
 
     const modal = document.createElement("div");
     modal.className = `notification-modal notification-modal--${type}`;
@@ -469,21 +473,47 @@ export class Notification {
         }
       };
 
-      // Close on backdrop click
-      backdrop.onclick = (e) => {
-        if (e.target === backdrop) {
-          cleanup();
-          resolve(config.closeResolvesTo ?? false);
-        }
+      const modal = backdrop.querySelector(".notification-modal");
+
+      const shakeModal = () => {
+        if (!modal || modal.classList.contains("notification-modal--shake")) return;
+        modal.classList.add("notification-modal--shake");
+        modal.addEventListener(
+          "animationend",
+          () => modal.classList.remove("notification-modal--shake"),
+          {
+            once: true,
+          },
+        );
       };
 
-      // Close on Escape key
-      escapeHandler = (e) => {
-        if (e.key === "Escape") {
-          cleanup();
-          resolve(config.closeResolvesTo ?? false);
-        }
-      };
+      if (config.blockBackdrop) {
+        // Blocked: shake modal on outside click / Escape instead of dismissing
+        backdrop.onclick = (e) => {
+          if (e.target === backdrop) shakeModal();
+        };
+
+        escapeHandler = (e) => {
+          if (e.key === "Escape") shakeModal();
+        };
+      } else {
+        // Close on backdrop click
+        backdrop.onclick = (e) => {
+          if (e.target === backdrop) {
+            cleanup();
+            resolve(config.closeResolvesTo ?? false);
+          }
+        };
+
+        // Close on Escape key
+        escapeHandler = (e) => {
+          if (e.key === "Escape") {
+            cleanup();
+            resolve(config.closeResolvesTo ?? false);
+          }
+        };
+      }
+
       document.addEventListener("keydown", escapeHandler);
     });
   }
