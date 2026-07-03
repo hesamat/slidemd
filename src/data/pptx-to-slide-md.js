@@ -334,10 +334,11 @@ function inferLayout(
   if (dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
-  // Only use two-column for dominant images when there is body text
-  // below the header, not just a header + image.
-  const hasBodyText = contentEls.some((el) => el.top >= bodyThreshold);
-  if (dominantImages.length === 1 && hasBodyText) {
+  // Only use two-column for dominant images when there is substantial body
+  // text below the header — a single short line is not enough.
+  const bodyEls = contentEls.filter((el) => el.top >= bodyThreshold);
+  const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+  if (dominantImages.length === 1 && bodyEls.length >= 2 && bodyLength > 80) {
     return { type: "two-column", spec: "two-column" };
   }
 
@@ -345,7 +346,9 @@ function inferLayout(
     return { type: "header-content", spec: "header-content" };
   }
 
-  if (hasTwoColumns) {
+  // Only use two-column for horizontal spread when there is substantial
+  // content — a header + image alone should be header-content.
+  if (hasTwoColumns && bodyEls.length >= 2 && bodyLength > 80) {
     return { type: "two-column", spec: "two-column" };
   }
 
