@@ -216,7 +216,8 @@ describe("convertToSlideMd", () => {
         elements: [
           {
             type: "text",
-            content: "First paragraph of body text that provides context for the slide content and discussion",
+            content:
+              "First paragraph of body text that provides context for the slide content and discussion",
             left: 500000,
             top: 1500000,
             width: 3000000,
@@ -224,7 +225,8 @@ describe("convertToSlideMd", () => {
           },
           {
             type: "text",
-            content: "Second paragraph with additional details and explanation of the topic being covered here",
+            content:
+              "Second paragraph with additional details and explanation of the topic being covered here",
             left: 500000,
             top: 2800000,
             width: 3000000,
