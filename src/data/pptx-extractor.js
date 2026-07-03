@@ -72,6 +72,13 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /** @class */
 export class PptxExtractor {
+  // pptxtojson returns image dimensions in points; all other coordinates are in EMU.
+  // 1 pt = 914400 / 72 = 12700 EMU.
+  static #PT_TO_EMU = 12700;
+  // Images with both dimensions below this threshold (in EMU) are treated as
+  // decorative icons, bullets, or ornaments.  ~15 pt ≈ 20 px at 96 DPI.
+  static #MIN_SIZE_EMU = 15 * 12700;
+
   /**
    * Parse a PPTX file (as ArrayBuffer) and return structured extraction data.
    * @static
@@ -175,13 +182,11 @@ export class PptxExtractor {
    */
   static #hasSignificantImages(el) {
     if (el.type === "image") {
-      const PT_TO_EMU = 12700;
-      const MIN_SIZE_EMU = 15 * PT_TO_EMU;
-      const w = (el.width || 0) * PT_TO_EMU;
-      const h = (el.height || 0) * PT_TO_EMU;
+      const w = (el.width || 0) * this.#PT_TO_EMU;
+      const h = (el.height || 0) * this.#PT_TO_EMU;
       // A significant image has at least one dimension above the threshold.
       // Tiny square icons are decorative; thin separator lines are content.
-      return w >= MIN_SIZE_EMU || h >= MIN_SIZE_EMU;
+      return w >= this.#MIN_SIZE_EMU || h >= this.#MIN_SIZE_EMU;
     }
     if (el.type === "group" && el.elements) {
       return el.elements.some((child) => this.#hasSignificantImages(child));
@@ -223,18 +228,19 @@ export class PptxExtractor {
     const images = children.filter((child) => child.type === "image");
     if (images.length === 0) return false;
 
-    const PT_TO_EMU = 12700;
-
-    // Compute the group's bounding box
+    // Compute the group's bounding box from ALL children (including shapes).
+    // Shapes intentionally expand the bounding box, diluting the image-to-group
+    // area ratio.  This prevents a tiny image inside a large border from being
+    // misclassified as decorative.
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const child of children) {
-      const cl = (child.left || 0) * PT_TO_EMU;
-      const ct = (child.top || 0) * PT_TO_EMU;
-      const cw = (child.width || 0) * PT_TO_EMU;
-      const ch = (child.height || 0) * PT_TO_EMU;
+      const cl = (child.left || 0) * this.#PT_TO_EMU;
+      const ct = (child.top || 0) * this.#PT_TO_EMU;
+      const cw = (child.width || 0) * this.#PT_TO_EMU;
+      const ch = (child.height || 0) * this.#PT_TO_EMU;
       if (cl < minX) minX = cl;
       if (ct < minY) minY = ct;
       if (cl + cw > maxX) maxX = cl + cw;
@@ -245,14 +251,12 @@ export class PptxExtractor {
     const groupArea = groupW * groupH;
     if (groupArea === 0) return false;
 
-    // Sum image areas and check that each image is substantial (not a tiny icon)
-    const MIN_SIZE_EMU = 15 * PT_TO_EMU;
+    // Sum image areas, skipping tiny icons
     let totalImageArea = 0;
     for (const img of images) {
-      const w = (img.width || 0) * PT_TO_EMU;
-      const h = (img.height || 0) * PT_TO_EMU;
-      // Skip tiny images from the area sum — they are icons/bullets, not backgrounds
-      if (w < MIN_SIZE_EMU && h < MIN_SIZE_EMU) continue;
+      const w = (img.width || 0) * this.#PT_TO_EMU;
+      const h = (img.height || 0) * this.#PT_TO_EMU;
+      if (w < this.#MIN_SIZE_EMU && h < this.#MIN_SIZE_EMU) continue;
       totalImageArea += w * h;
     }
 
@@ -333,17 +337,13 @@ export class PptxExtractor {
       // element coordinates (left, top) are in EMU.  Normalise to EMU
       // so layout inference can compare image sizes against the slide
       // dimensions without unit-mismatch errors.
-      // Conversion: 1 pt = 914400 / 72 = 12700 EMU.
-      const PT_TO_EMU = 12700;
-      const widthEmu = (el.width || 0) * PT_TO_EMU;
-      const heightEmu = (el.height || 0) * PT_TO_EMU;
+      const widthEmu = (el.width || 0) * this.#PT_TO_EMU;
+      const heightEmu = (el.height || 0) * this.#PT_TO_EMU;
 
       // Skip tiny images (likely decorative icons, bullets, or ornaments).
       // Uses AND: both dimensions must be small.  A thin separator line
       // (e.g. 5×500pt) is intentional content and should be kept.
-      // Threshold: ~15pt × 12700 = 190500 EMU ≈ 20px at 96 DPI.
-      const MIN_SIZE_EMU = 15 * PT_TO_EMU;
-      if (widthEmu < MIN_SIZE_EMU && heightEmu < MIN_SIZE_EMU) {
+      if (widthEmu < this.#MIN_SIZE_EMU && heightEmu < this.#MIN_SIZE_EMU) {
         return null;
       }
 

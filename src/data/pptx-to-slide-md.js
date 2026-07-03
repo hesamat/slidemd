@@ -117,6 +117,7 @@ const CONFIG = {
   marginBottomRatio: 0.9, // Bottom 10% of slide height
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,
+  overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
 };
 
 /**
@@ -230,7 +231,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   }
 
   // 1. Identify layout-defining images first to ensure they are never filtered out
-  const dominantImagesCandidates = importImages
+  const dominantImages = importImages
     ? findDominantImages(slide.elements, slideWidth, slideHeight)
     : [];
 
@@ -239,7 +240,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     slide.elements,
     slideWidth,
     slideHeight,
-    dominantImagesCandidates,
+    dominantImages,
   );
 
   // 3. Separate structural footer elements from standard slide body elements
@@ -269,7 +270,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     slideHeight,
     hasMedia,
     allElements,
-    dominantImagesCandidates,
+    dominantImages,
   );
 
   const formatSingleElement = (el) => {
@@ -287,8 +288,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
 
-    const hasDominantImages = dominantImagesCandidates.length > 0;
-    const mediaImage = hasDominantImages ? dominantImagesCandidates[0] : null;
+    const hasDominantImages = dominantImages.length > 0;
+    const mediaImage = hasDominantImages ? dominantImages[0] : null;
     const midX = slideWidth / 2;
 
     const leftEls = hasDominantImages
@@ -369,8 +370,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    if (dominantImagesCandidates.length > 0) {
-      const mediaImage = dominantImagesCandidates[0];
+    if (dominantImages.length > 0) {
+      const mediaImage = dominantImages[0];
       const mainEls = bodyElements.filter((el) => el !== mediaImage);
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
@@ -398,7 +399,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       slideHeight,
       false,
     );
-    const [mediaImage, secondaryImage] = dominantImagesCandidates;
+    const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
       parts.push("");
       if (isHeaderValid) {
