@@ -328,15 +328,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 /* Remove top margin from first child in an area */
-.slide__area>h1:first-child,
-.slide__area>h2:first-child,
-.slide__area>h3:first-child,
-.slide__area>h4:first-child,
-.slide__area>p:first-child,
-.slide__area>ul:first-child,
-.slide__area>ol:first-child,
-.slide__area>pre:first-child,
-.slide__area>blockquote:first-child {
+.slide__area > h1:first-child,
+.slide__area > h2:first-child,
+.slide__area > h3:first-child,
+.slide__area > h4:first-child,
+.slide__area > p:first-child,
+.slide__area > ul:first-child,
+.slide__area > ol:first-child,
+.slide__area > pre:first-child,
+.slide__area > blockquote:first-child {
   margin-top: 0;
 }
 
@@ -449,8 +449,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 /* Code inside pre blocks */
-.slide__area pre[class*="language-"]>code,
-.slide__area pre>code[class*="language-"] {
+.slide__area pre[class*="language-"] > code,
+.slide__area pre > code[class*="language-"] {
   font-family: var(--font-mono);
   font-size: 20px;
   line-height: inherit;
@@ -487,7 +487,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* --- INLINE CODE --- */
 
-.slide__area :not(pre)>code {
+.slide__area :not(pre) > code {
   border: 1px solid var(--code-border);
   background: var(--code-bg-subtle);
   border-radius: var(--radius-sm);
@@ -541,7 +541,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 /* Full-bleed media in paragraphs */
-.slide__area p> :is(img, video):only-child {
+.slide__area p > :is(img, video):only-child {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -563,7 +563,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
-.slide__area:has(p > :is(img, video):only-child):has(p + p)>p:first-child {
+.slide__area:has(p > :is(img, video):only-child):has(p + p) > p:first-child {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -583,7 +583,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   contain: content;
 }
 
-.slide__area .mermaid>svg {
+.slide__area .mermaid > svg {
   display: block !important;
   width: auto !important;
   height: auto !important;
@@ -740,7 +740,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* Mobile table layout */
 @media (max-width: 640px) {
-
   .slide__area table,
   .slide__area thead,
   .slide__area tbody,
@@ -782,7 +781,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   align-content: start;
 }
 
-.slide__area--cards>blockquote {
+.slide__area--cards > blockquote {
   margin: 0;
 }
 
@@ -804,7 +803,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* Respect prefers-reduced-motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
-
   .slide.active,
   .slide__area a,
   .slide__area button,
@@ -1063,11 +1061,13 @@ body[data-edit-mode="true"] .slide[data-theme="dark"] .grid-resize-handle--row:a
 .slide__area .image-placeholder {
   border: 2px dashed rgba(2, 132, 199, 0.55);
   border-radius: 12px;
-  background: repeating-linear-gradient(45deg,
-      rgba(2, 132, 199, 0.08),
-      rgba(2, 132, 199, 0.08) 10px,
-      rgba(2, 132, 199, 0.02) 10px,
-      rgba(2, 132, 199, 0.02) 20px);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(2, 132, 199, 0.08),
+    rgba(2, 132, 199, 0.08) 10px,
+    rgba(2, 132, 199, 0.02) 10px,
+    rgba(2, 132, 199, 0.02) 20px
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1115,11 +1115,13 @@ body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
 
 .slide[data-theme="dark"] .slide__area .image-placeholder {
   border-color: rgba(56, 189, 248, 0.62);
-  background: repeating-linear-gradient(45deg,
-      rgba(56, 189, 248, 0.12),
-      rgba(56, 189, 248, 0.12) 10px,
-      rgba(56, 189, 248, 0.04) 10px,
-      rgba(56, 189, 248, 0.04) 20px);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(56, 189, 248, 0.12),
+    rgba(56, 189, 248, 0.12) 10px,
+    rgba(56, 189, 248, 0.04) 10px,
+    rgba(56, 189, 248, 0.04) 20px
+  );
 }
 
 .slide[data-theme="dark"] .slide__area .image-placeholder__inner {

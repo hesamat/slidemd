@@ -197,6 +197,10 @@ export class ConversionModal {
             const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
             checkboxInput.addEventListener("change", () => {
               importImages = checkboxInput.checked;
+              const dn = (selectedFile.name || "presentation")
+                .replace(/\.pptx$/i, "")
+                .replace(/[^a-zA-Z0-9_-]/g, "_");
+              markdown = convertToSlideMd(extractionResult, dn, { importImages });
             });
             insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
             insertAfter = checkboxRow;
