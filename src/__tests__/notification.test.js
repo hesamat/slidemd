@@ -170,4 +170,91 @@ describe("Notification", () => {
     expect(resolved).toBe(false);
     expect(document.querySelector(".notification-modal")).toBeTruthy();
   });
+
+  describe("critical notifications", () => {
+    it("renders centered with blurred blocking backdrop", () => {
+      Notification.critical("Exporting slides...", {
+        title: "Critical Export",
+        type: "error",
+      });
+
+      const backdrop = document.querySelector(".notification-modal-backdrop");
+      expect(backdrop?.classList.contains("notification-modal-backdrop--critical")).toBe(true);
+      expect(backdrop?.classList.contains("notification-modal-backdrop--blocking")).toBe(true);
+      expect(document.querySelector(".notification-modal--error")).toBeTruthy();
+      expect(document.querySelector(".notification-modal__title")?.textContent).toBe(
+        "Critical Export",
+      );
+    });
+
+    it("cancel button shows a confirmation dialog before dismissing", () => {
+      Notification.critical("Processing...", {
+        type: "warning",
+        cancelConfirmMessage: "Really stop?",
+      });
+
+      [...document.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Cancel")
+        ?.click();
+
+      expect(document.querySelectorAll(".notification-modal")).toHaveLength(2);
+      const messages = [...document.querySelectorAll(".notification-modal__message")].map(
+        (el) => el.textContent,
+      );
+      expect(messages).toContain("Really stop?");
+    });
+
+    it("resolves false and calls onCancel when cancel is confirmed", async () => {
+      const onCancel = vi.fn();
+      const promise = Notification.critical("Processing...", { onCancel });
+
+      [...document.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Cancel")
+        ?.click();
+
+      [...document.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Confirm")
+        ?.click();
+
+      await expect(promise).resolves.toBe(false);
+      expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the critical modal open when cancel confirmation is declined", async () => {
+      let resolved = false;
+      const promise = Notification.critical("Processing...");
+      promise.then(() => {
+        resolved = true;
+      });
+
+      [...document.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Cancel")
+        ?.click();
+
+      // Click "Cancel" in the nested confirmation dialog (not the outer one)
+      const allBackdrops = document.querySelectorAll(".notification-modal-backdrop");
+      const confirmBackdrop = allBackdrops[allBackdrops.length - 1];
+      [...confirmBackdrop.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Cancel")
+        ?.click();
+
+      expect(resolved).toBe(false);
+      expect(document.querySelector(".notification-modal-backdrop--critical")).toBeTruthy();
+    });
+
+    it("resolves true and calls onAction when primary action is taken", async () => {
+      const onAction = vi.fn();
+      const promise = Notification.critical("Applying theme...", {
+        actionLabel: "Apply",
+        onAction,
+      });
+
+      [...document.querySelectorAll(".notification-modal__actions button")]
+        .find((btn) => btn.textContent === "Apply")
+        ?.click();
+
+      await expect(promise).resolves.toBe(true);
+      expect(onAction).toHaveBeenCalledTimes(1);
+    });
+  });
 });

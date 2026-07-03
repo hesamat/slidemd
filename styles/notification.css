@@ -199,6 +199,11 @@
   cursor: auto;
 }
 
+.notification-modal-backdrop--critical {
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+}
+
 .notification-modal-backdrop--hide {
   animation: fadeOut 0.2s ease-out;
 }

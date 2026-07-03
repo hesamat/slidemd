@@ -271,6 +271,90 @@ export class Notification {
     });
   }
 
+  /**
+   * Show a critical notification centered with a full-screen blurred backdrop.
+   * Clicking cancel prompts the user to confirm before the modal is dismissed.
+   * @param {string} message - The message to display
+   * @param {Object} options
+   * @param {string} options.title - Modal title
+   * @param {string} options.type - Visual type: 'success', 'error', 'warning', 'info'
+   * @param {string} options.actionLabel - Label for the primary action button
+   * @param {string} options.cancelLabel - Label for the cancel button
+   * @param {string} options.cancelConfirmMessage - Confirmation message shown before cancelling
+   * @param {Function} options.onAction - Called when the primary action is taken
+   * @param {Function} options.onCancel - Called when the user confirms cancellation
+   * @returns {Promise<boolean>} Resolves true if action taken, false if cancelled
+   */
+  static async critical(
+    message,
+    {
+      title = "Critical Operation",
+      type = "warning",
+      actionLabel = "Continue",
+      cancelLabel = "Cancel",
+      cancelConfirmMessage = "Are you sure you want to cancel the operation?",
+      onAction,
+      onCancel,
+    } = {},
+  ) {
+    return new Promise((resolve) => {
+      let backdrop;
+
+      const cleanup = () => {
+        backdrop.classList.add("notification-modal-backdrop--hide");
+        setTimeout(() => {
+          if (backdrop.parentNode) {
+            backdrop.remove();
+          }
+        }, 200);
+      };
+
+      const handleCancel = async () => {
+        const confirmed = await this.confirm(cancelConfirmMessage);
+        if (confirmed) {
+          if (typeof onCancel === "function") {
+            onCancel();
+          }
+          cleanup();
+          resolve(false);
+        }
+      };
+
+      const { backdrop: bd, buttons } = this.createModal({
+        title,
+        message,
+        type,
+        blockBackdrop: true,
+        buttons: [
+          {
+            label: actionLabel,
+            isPrimary: true,
+            onClick: () => {
+              if (typeof onAction === "function") {
+                onAction();
+              }
+              cleanup();
+              resolve(true);
+            },
+          },
+          {
+            label: cancelLabel,
+            isPrimary: false,
+            onClick: () => handleCancel(),
+          },
+        ],
+      });
+
+      bd.classList.add("notification-modal-backdrop--critical");
+      backdrop = bd;
+
+      document.body.appendChild(backdrop);
+
+      const primaryButton = buttons.find((b) => b.isPrimary);
+      requestAnimationFrame(() => primaryButton?.element?.focus());
+    });
+  }
+
   static async showBlocking(
     message,
     {
