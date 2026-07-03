@@ -190,6 +190,82 @@ export class PptxExtractor {
   }
 
   /**
+   * Determine whether an image is a decorative background within a group.
+   * Agenda slides and section openers often place a large image behind text
+   * elements inside the same group.  The image is wider than 30% of the
+   * group's bounding box AND rendered before (lower order than) every text
+   * element it substantially overlaps.
+   * @static
+   * @param {import('pptxtojson').Element} img - The image element.
+   * @param {import('pptxtojson').Element[]} siblings - All children of the
+   *   parent group (including `img` itself).
+   * @returns {boolean}
+   */
+  static #isGroupBackgroundImage(img, siblings) {
+    if (img.type !== "image") return false;
+
+    const PT_TO_EMU = 12700;
+    const imgW = (img.width || 0) * PT_TO_EMU;
+    const imgH = (img.height || 0) * PT_TO_EMU;
+    const imgL = (img.left || 0) * PT_TO_EMU;
+    const imgT = (img.top || 0) * PT_TO_EMU;
+    const imgArea = imgW * imgH;
+    if (imgArea === 0) return false;
+
+    // Compute the group's bounding box for relative size check
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const child of siblings) {
+      const cw = (child.width || 0) * PT_TO_EMU || 0;
+      const ch = (child.height || 0) * PT_TO_EMU || 0;
+      const cl = (child.left || 0) * PT_TO_EMU || 0;
+      const ct = (child.top || 0) * PT_TO_EMU || 0;
+      if (cl < minX) minX = cl;
+      if (ct < minY) minY = ct;
+      if (cl + cw > maxX) maxX = cl + cw;
+      if (ct + ch > maxY) maxY = ct + ch;
+    }
+    const groupW = maxX - minX;
+    const groupH = maxY - minY;
+    const groupArea = groupW * groupH;
+    if (groupArea === 0) return false;
+
+    // The image must cover a significant portion of the group (> 30% area)
+    if (imgArea / groupArea <= 0.3) return false;
+
+    // Check whether text elements sit on top of this image
+    const hasTextOverImage = siblings.some((sib) => {
+      if (sib === img) return false;
+      if (sib.type !== "text" && sib.type !== "shape") return false;
+      const content = (sib.content || "").trim();
+      if (!content) return false;
+      // Text must be rendered after the image (higher order)
+      if ((sib.order || 0) <= (img.order || 0)) return false;
+
+      const sibW = (sib.width || 0) * PT_TO_EMU || 0;
+      const sibH = (sib.height || 0) * PT_TO_EMU || 0;
+      const sibL = (sib.left || 0) * PT_TO_EMU || 0;
+      const sibT = (sib.top || 0) * PT_TO_EMU || 0;
+      const sibArea = sibW * sibH;
+      if (sibArea === 0) return false;
+
+      // Overlap rectangle
+      const oL = Math.max(imgL, sibL);
+      const oT = Math.max(imgT, sibT);
+      const oR = Math.min(imgL + imgW, sibL + sibW);
+      const oB = Math.min(imgT + imgH, sibT + sibH);
+      if (oR <= oL || oB <= oT) return false;
+      const overlap = (oR - oL) * (oB - oT);
+
+      return overlap / sibArea > 0.4;
+    });
+
+    return hasTextOverImage;
+  }
+
+  /**
    * Process a single element.
    * @static
    * @param {import('pptxtojson').Element} el
@@ -205,9 +281,13 @@ export class PptxExtractor {
       if (!this.#hasTextContent(el) && !this.#hasSignificantImages(el)) {
         return null;
       }
-      // Flatten group elements, adjusting positions to be slide-relative
+      // Flatten group elements, adjusting positions to be slide-relative.
+      // Skip images that are decorative backgrounds (large images behind text).
       const results = [];
       for (const child of el.elements) {
+        if (child.type === "image" && this.#isGroupBackgroundImage(child, el.elements)) {
+          continue;
+        }
         const r = this.#processElement(child, slideIndex, imagesAccum);
         if (r) {
           if (Array.isArray(r)) {
