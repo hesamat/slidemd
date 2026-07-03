@@ -293,6 +293,141 @@ export class Notification {
   }
 
   /**
+   * Show a blocking progress modal that can be dismissed programmatically.
+   * The modal has a full-screen blurred backdrop and optionally an inline progress bar.
+   * An optional cancel button prompts for confirmation before dismissing.
+   *
+   * @param {string} message - The message to display
+   * @param {Object} [options]
+   * @param {string} [options.title="Please wait"] - Modal title
+   * @param {string} [options.type="info"] - Visual type: 'success', 'error', 'warning', 'info'
+   * @param {string|null} [options.cancelLabel=null] - If provided, adds a cancel button
+   * @param {string} [options.cancelConfirmMessage] - Confirmation text before cancelling
+   * @param {Function} [options.onCancel] - Called when the user confirms cancellation
+   * @returns {{ dismiss: Function, updateProgress: Function, updateMessage: Function }}
+   */
+  static showLoadingModal(
+    message,
+    {
+      title = "Please wait",
+      type = "info",
+      cancelLabel = null,
+      cancelConfirmMessage = "Are you sure you want to cancel the operation?",
+      onCancel,
+    } = {},
+  ) {
+    this.init();
+
+    const backdrop = document.createElement("div");
+    backdrop.className =
+      "notification-modal-backdrop notification-modal-backdrop--blocking notification-modal-backdrop--critical";
+
+    const modal = document.createElement("div");
+    modal.className = `notification-modal notification-modal--${type}`;
+    modal.setAttribute("role", "status");
+    modal.setAttribute("aria-label", title);
+
+    const icon = this.getIcon(type);
+    icon.classList.add("notification-modal__icon");
+
+    const titleEl = document.createElement("h3");
+    titleEl.className = "notification-modal__title";
+    titleEl.textContent = title;
+
+    const messageEl = document.createElement("p");
+    messageEl.className = "notification-modal__message";
+    messageEl.textContent = message;
+
+    const spinner = document.createElement("div");
+    spinner.className = "notification-modal__spinner";
+
+    const progressWrap = document.createElement("div");
+    progressWrap.className = "notification-modal__progress";
+    progressWrap.hidden = true;
+    const progressBar = document.createElement("div");
+    progressBar.className = "notification-modal__progress-bar";
+    progressWrap.appendChild(progressBar);
+
+    const copy = document.createElement("div");
+    copy.className = "notification-modal__copy";
+    copy.appendChild(titleEl);
+    copy.appendChild(messageEl);
+    copy.appendChild(spinner);
+    copy.appendChild(progressWrap);
+
+    const content = document.createElement("div");
+    content.className = "notification-modal__content";
+    content.appendChild(icon);
+    content.appendChild(copy);
+
+    modal.appendChild(content);
+
+    const shakeModal = () => {
+      if (modal.classList.contains("notification-modal--shake")) return;
+      modal.classList.add("notification-modal--shake");
+      modal.addEventListener(
+        "animationend",
+        () => modal.classList.remove("notification-modal--shake"),
+        { once: true },
+      );
+    };
+
+    let escapeHandler;
+    const cleanup = () => {
+      backdrop.classList.add("notification-modal-backdrop--hide");
+      setTimeout(() => {
+        if (backdrop.parentNode) backdrop.remove();
+      }, 200);
+      if (escapeHandler) {
+        document.removeEventListener("keydown", escapeHandler);
+        escapeHandler = null;
+      }
+    };
+
+    if (cancelLabel) {
+      const actions = document.createElement("div");
+      actions.className = "notification-modal__actions";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn btn--sm";
+      cancelBtn.textContent = cancelLabel;
+      cancelBtn.onclick = async () => {
+        const confirmed = await this.confirm(cancelConfirmMessage);
+        if (confirmed) {
+          if (typeof onCancel === "function") onCancel();
+          cleanup();
+        }
+      };
+      actions.appendChild(cancelBtn);
+      modal.appendChild(actions);
+    }
+
+    backdrop.appendChild(modal);
+    backdrop.onclick = (e) => {
+      if (e.target === backdrop) shakeModal();
+    };
+
+    escapeHandler = (e) => {
+      if (e.key === "Escape") shakeModal();
+    };
+    document.addEventListener("keydown", escapeHandler);
+
+    this.getRootElement().appendChild(backdrop);
+
+    return {
+      dismiss: cleanup,
+      updateProgress(pct) {
+        const val = Math.min(100, Math.max(0, pct));
+        progressBar.style.width = `${val}%`;
+        progressWrap.hidden = false;
+        if (val >= 100) spinner.hidden = true;
+      },
+      updateMessage(msg) {
+        messageEl.textContent = msg;
+      },
+    };
+  }
+
+  /**
    * Show a critical notification centered with a full-screen blurred backdrop.
    * Clicking cancel prompts the user to confirm before the modal is dismissed.
    * @param {string} message - The message to display

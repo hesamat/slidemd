@@ -265,6 +265,41 @@
   margin-top: 1.25rem;
 }
 
+/* Loading-modal spinner */
+.notification-modal__spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.75rem;
+  border: 2px solid rgba(148, 163, 184, 0.4);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: notificationModalSpin 0.7s linear infinite;
+}
+
+@keyframes notificationModalSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Loading-modal inline progress bar */
+.notification-modal__progress {
+  margin-top: 0.875rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.3);
+  overflow: hidden;
+}
+
+.notification-modal__progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #60a5fa 0%, #22d3ee 100%);
+  transition: width 0.25s ease-out;
+}
+
 .notification-modal__actions .btn--primary {
   background: #3b82f6;
   border-color: #2563eb;
