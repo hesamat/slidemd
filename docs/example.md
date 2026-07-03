@@ -151,7 +151,7 @@ layout: header-content
 
 @main
 
-```
+```python
 a_string_is_a_sequence = "ABC"
 for letter in a_string_is_a_sequence:
     print(letter)
@@ -204,7 +204,7 @@ layout: header-content
 
 @main
 
-```
+```python
 number = 1
 while number <= 5:
     print(number)
@@ -285,7 +285,7 @@ theme: dark
 
 @main
 
-```
+```python
 count = 0
 while count < 5:
     print("Sweatpants are a sign of defeat.")
@@ -334,7 +334,7 @@ theme: dark
 
 ## While loop with a Boolean sentinel value
 
-```
+```python
 continue_looping = True
 while continue_looping:
     # do some stuff
@@ -359,7 +359,7 @@ theme: dark
 
 @main
 
-```
+```python
 user_input = ""
 while user_input.strip().lower() != "quit":
     # do some stuff
@@ -389,7 +389,7 @@ layout: header-content
 - If we do not eventually fail the guard condition, the while-loop will never, ever end
 - We call this an infinite loop:
 
-```
+```python
 count = 0
 while count < 5:
     print("This is my life now")
@@ -464,7 +464,7 @@ layout: two-column
 
 @main
 
-```
+```python
 while True:
     choice = input("helpful prompt")
     if choice.strip().lower() == "quit":
@@ -499,7 +499,7 @@ layout: header-content
 - The continue statement returns to the beginning of the loop
 - The rest of the code in the loop is ignored
 
-```
+```python
 index = 0
 while index < 10:
     index += 1
@@ -524,7 +524,7 @@ theme: dark
 
 @main
 
-```
+```python
 continue_game = True
 while continue_game:
     # execute a bunch of code
@@ -549,7 +549,7 @@ theme: dark
 
 @main
 
-```
+```python
 while True:
     # execute a bunch of code
     repeat = input("Continue? Y or N")
@@ -697,7 +697,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def print_greeting( ):
     print('Hello there!')
 ```
@@ -733,7 +733,7 @@ theme: dark
 - We call the values that we pass to the function _arguments_
 - Every function call can be made many times with a different (or the same) argument each time
 
-```
+```python
 def print_greeting(name):
     print('Hello ‘ + str(name))
 ```
@@ -758,7 +758,7 @@ theme: dark
 - Order matters (for now!)
 - ALL arguments must be provided in the order listed by the parameters
 
-```
+```python
 def divide(dividend, divisor):
         quotient = dividend / divisor
         return quotient
@@ -784,7 +784,7 @@ background: #87C5BA
 - Introducing the return statement
 - We _use a return statement_ to return a value from a function
 
-```
+```python
 def add(first, second):
     sum = first + second
     return sum
@@ -803,7 +803,7 @@ background: linear-gradient(#0ab9c1 0%, #0ab9c1 23%, #089ca3 69%, #089298 97%)
 
 ## I’d use our add function like this:
 
-```
+```python
 cost_of_snacks = tally_items_in_cart( )
 taxes = calculate_taxes(cost_of_snacks)
 total = add(cost_of_snacks, taxes)
@@ -880,7 +880,7 @@ theme: dark
 
 @main
 
-```
+```python
 a = 5
 b = 4
 c = -3
@@ -890,7 +890,7 @@ print(result)
 
 @media
 
-```
+```python
 def square(operand):
     return operand * operand
 def sum_of_squares(x, y, z):
@@ -944,7 +944,7 @@ layout: header-content
 
 ## 🚨 Order matters! 🚨
 
-```
+```python
 # I’m going to invoke (use) a function at the top of my
 # file
 my_function( )
@@ -999,7 +999,7 @@ theme: dark
 
 ## What does this function do in Python?
 
-```
+```python
 def swap(a, b):
     temp = a
     a = b
@@ -1022,7 +1022,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a, b):
     temp = a
     a = b
@@ -1054,7 +1054,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a, b):
     temp = a
     a = b
@@ -1091,7 +1091,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a, b):
     temp = a
     a = b
@@ -1128,7 +1128,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a, b):
     temp = a
     a = b
@@ -1165,7 +1165,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a=0xadd01, b=0xadd02):
     temp = a
     a = b
@@ -1204,7 +1204,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a=0xadd01, b=0xadd02):
     temp = a
     a = b
@@ -1243,7 +1243,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a=0xadd02, b=0xadd02):
     temp = a
     a = b
@@ -1282,7 +1282,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a=0xadd02, b=0xadd01):
     temp = a
     a = b
@@ -1321,7 +1321,7 @@ layout: two-column
 
 @main
 
-```
+```python
 def swap(a=0xadd02, b=0xadd01):
     temp = a
     a = b
@@ -1360,7 +1360,7 @@ layout: two-column
 
 @main
 
-```
+```python
 first = 0xadd01
 last = 0xadd02
 ```
@@ -1721,7 +1721,7 @@ theme: dark
 
 Every module needs a main function and the if-statement you see here
 
-```
+```python
 def main( ):
     """Execute the program"""
     # Program starts here
