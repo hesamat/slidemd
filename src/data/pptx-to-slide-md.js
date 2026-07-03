@@ -363,11 +363,20 @@ function inferLayout(
   if (dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
-  // Only use two-column for dominant images when there is substantial body
-  // text below the header — a single short line is not enough.
+  // Use two-column when a dominant image shares the slide with body content.
+  // Body content can be text elements OR non-text elements (tables, charts,
+  // diagrams) — any of these would overflow if left in a single @main area
+  // alongside a large image.
   const bodyEls = contentEls.filter((el) => el.top >= bodyThreshold);
   const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
-  if (dominantImages.length === 1 && bodyEls.length >= 2 && bodyLength > 80) {
+  const bodyHasContent =
+    (bodyEls.length >= 2 && bodyLength > 80) ||
+    allEls.some(
+      (el) =>
+        el.top >= bodyThreshold &&
+        (el.type === "table" || el.type === "chart" || el.type === "diagram"),
+    );
+  if (dominantImages.length === 1 && bodyHasContent) {
     return { type: "two-column", spec: "two-column" };
   }
 
@@ -498,9 +507,10 @@ function formatImage(img, deckName = "presentation", { omitDimensions = false } 
   const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
 
   if (!omitDimensions) {
-    // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
-    const w = Math.round(img.width * 1.333) || null;
-    const h = Math.round(img.height * 1.333) || null;
+    // Convert EMU → pixels at 96 DPI: 1 inch = 914400 EMU = 96 px → 1 EMU ≈ 96/914400 px
+    const EMU_PER_PX = 914400 / 96; // 9525
+    const w = Math.round(img.width / EMU_PER_PX) || null;
+    const h = Math.round(img.height / EMU_PER_PX) || null;
     if (w && h) {
       return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
     }

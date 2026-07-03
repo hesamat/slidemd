@@ -172,8 +172,8 @@ describe("convertToSlideMd", () => {
   });
 
   it("handles image elements", () => {
-    // pptxtojson returns dimensions in points (EMU × 72/914400)
-    // 3000000 EMU = 236.22pt, 2000000 EMU = 157.48pt
+    // PptxExtractor normalises image dimensions from points to EMU (×12700).
+    // These values represent a ~236pt × ~157pt image already converted to EMU.
     const extraction = makeExtraction([
       {
         index: 0,
@@ -194,8 +194,8 @@ describe("convertToSlideMd", () => {
             base64: "abc",
             left: 1000000,
             top: 2000000,
-            width: 236.22,
-            height: 157.48,
+            width: 3000000,
+            height: 2000000,
           },
         ],
         background: "",
@@ -420,6 +420,66 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).not.toContain("@media");
     expect(md).not.toContain("@secondary");
+  });
+
+  it("uses two-column layout with image on right when slide has header + body content + large image", () => {
+    // Overflow scenario: a heading, a table, and a large right-side image.
+    // The image dimensions are stored in EMU (as normalised by PptxExtractor).
+    // width = 310pt × 12700 ≈ 3 937 000 EMU  → ratio 0.43  (> 0.4 → dominant)
+    // height = 540pt × 12700 ≈ 6 858 000 EMU  → ratio 1.33  (> 0.6 → dominant)
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Escape sequences",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## In order to represent quotes inside a string we use escape sequences",
+            left: 500000,
+            top: 200000,
+            width: 5000000,
+            height: 700000,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "Sequence" }, { text: "Meaning" }],
+              [{ text: '\\"' }, { text: "Double quote" }],
+              [{ text: "\\n" }, { text: "New line" }],
+              [{ text: "\\\\" }, { text: "Backslash" }],
+            ],
+            left: 500000,
+            top: 1400000,
+            width: 5000000,
+            height: 2500000,
+          },
+          {
+            type: "image",
+            ref: "code-example.png",
+            base64: "abc",
+            left: 5800000,
+            top: 200000,
+            width: Math.round(310 * 12700),
+            height: Math.round(540 * 12700),
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    const headerIdx = md.indexOf("@header");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    const headingIdx = md.indexOf("escape sequences");
+    const imageIdx = md.indexOf("code-example.png");
+
+    expect(md).toContain("layout: two-column");
+    // Heading must appear in the @header section (between @header and @main)
+    expect(headingIdx).toBeGreaterThan(headerIdx);
+    expect(headingIdx).toBeLessThan(mainIdx);
+    // Image must appear in the @media section (after @media)
+    expect(imageIdx).toBeGreaterThan(mediaIdx);
   });
 
   it("handles table elements", () => {

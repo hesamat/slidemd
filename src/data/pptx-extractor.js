@@ -226,12 +226,21 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
+      // pptxtojson returns image dimensions in points while all other
+      // element coordinates (left, top) are in EMU.  Normalise to EMU
+      // so layout inference can compare image sizes against the slide
+      // dimensions without unit-mismatch errors.
+      // Conversion: 1 pt = 914400 / 72 = 12700 EMU.
+      const PT_TO_EMU = 12700;
+      const widthEmu = (el.width || 0) * PT_TO_EMU;
+      const heightEmu = (el.height || 0) * PT_TO_EMU;
+
       // Skip tiny images (likely decorative icons, bullets, or ornaments).
       // Uses AND: both dimensions must be small.  A thin separator line
       // (e.g. 5×500pt) is intentional content and should be kept.
-      // Dimensions from pptxtojson are in points; threshold: ~15pt ≈ 20px
-      const MIN_SIZE_PT = 15;
-      if ((el.width || 0) < MIN_SIZE_PT && (el.height || 0) < MIN_SIZE_PT) {
+      // Threshold: ~15pt × 12700 = 190500 EMU ≈ 20px at 96 DPI.
+      const MIN_SIZE_EMU = 15 * PT_TO_EMU;
+      if (widthEmu < MIN_SIZE_EMU && heightEmu < MIN_SIZE_EMU) {
         return null;
       }
 
@@ -253,8 +262,8 @@ export class PptxExtractor {
         order: el.order,
         left: el.left,
         top: el.top,
-        width: el.width,
-        height: el.height,
+        width: widthEmu,
+        height: heightEmu,
       };
     }
 
