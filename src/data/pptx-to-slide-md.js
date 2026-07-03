@@ -360,14 +360,24 @@ function inferLayout(
     return { type: "two-column", spec: "two-column" };
   }
 
-  if (dominantImages.length >= 2 && contentEls.length > 0) {
+  if (!hasHeader && dominantImages.length >= 2 && contentEls.length > 0) {
     return { type: "three-column", spec: "three-column" };
   }
   // Only use two-column for dominant images when there is substantial body
-  // text below the header — a single short line is not enough.
+  // content below the header — a single short line or header-only slide is
+  // not enough.
   const bodyEls = contentEls.filter((el) => el.top >= bodyThreshold);
   const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
-  if (dominantImages.length === 1 && bodyEls.length >= 2 && bodyLength > 80) {
+  // Tables, charts, and diagrams in the body area count as substantial content
+  // even when there are no accompanying text elements.
+  const bodyRichEls = allEls.filter(
+    (el) =>
+      el.top >= bodyThreshold &&
+      el !== dominantImages[0] &&
+      (el.type === "table" || el.type === "chart" || el.type === "diagram"),
+  );
+  const hasSubstantialBody = bodyRichEls.length > 0 || (bodyEls.length >= 2 && bodyLength > 80);
+  if (dominantImages.length === 1 && hasSubstantialBody) {
     return { type: "two-column", spec: "two-column" };
   }
 
@@ -498,9 +508,10 @@ function formatImage(img, deckName = "presentation", { omitDimensions = false } 
   const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
 
   if (!omitDimensions) {
-    // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
-    const w = Math.round(img.width * 1.333) || null;
-    const h = Math.round(img.height * 1.333) || null;
+    // Convert EMU → pixels at 96 DPI: px = emu × 96 / 914400
+    const EMU_PER_PX_96DPI = 914400 / 96; // 9525
+    const w = Math.round(img.width / EMU_PER_PX_96DPI) || null;
+    const h = Math.round(img.height / EMU_PER_PX_96DPI) || null;
     if (w && h) {
       return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
     }

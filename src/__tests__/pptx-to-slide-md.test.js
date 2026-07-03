@@ -172,8 +172,8 @@ describe("convertToSlideMd", () => {
   });
 
   it("handles image elements", () => {
-    // pptxtojson returns dimensions in points (EMU × 72/914400)
-    // 3000000 EMU = 236.22pt, 2000000 EMU = 157.48pt
+    // PptxExtractor normalises image dimensions to EMU.
+    // 3000000 EMU ≈ 236pt, 2000000 EMU ≈ 157pt (at 72pt/inch, 914400 EMU/inch)
     const extraction = makeExtraction([
       {
         index: 0,
@@ -194,8 +194,8 @@ describe("convertToSlideMd", () => {
             base64: "abc",
             left: 1000000,
             top: 2000000,
-            width: 236.22,
-            height: 157.48,
+            width: 3000000,
+            height: 2000000,
           },
         ],
         background: "",
@@ -420,6 +420,149 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).not.toContain("@media");
     expect(md).not.toContain("@secondary");
+  });
+
+  it("uses two-column when dominant image + header + table body (unit fix regression)", () => {
+    // Regression for unit-mismatch bug: image dimensions in EMU must be
+    // compared against slide dimensions in EMU.  A full-height image that
+    // was previously reported as 310×540pt (now stored as EMU after
+    // PptxExtractor normalises) should be detected as dominant and trigger
+    // two-column layout when paired with a header and body table.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Escape sequences",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "In order to represent quotes inside a string we use escape sequences",
+            left: 500000,
+            top: 200000,
+            width: 5000000,
+            height: 700000,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "Sequence" }, { text: "Meaning" }],
+              [{ text: '\\"' }, { text: "Double quote" }],
+              [{ text: "\\n" }, { text: "New line" }],
+              [{ text: "\\\\" }, { text: "Backslash" }],
+            ],
+            left: 500000,
+            top: 1400000,
+            width: 5000000,
+            height: 2500000,
+          },
+          {
+            type: "image",
+            ref: "code-example.png",
+            base64: "abc",
+            // 310pt × 540pt normalised to EMU (× 12700)
+            left: 5800000,
+            top: 200000,
+            width: Math.round(310 * 12700),
+            height: Math.round(540 * 12700),
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@header");
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+    expect(md).toContain("escape sequences");
+    expect(md).toContain("code-example.png");
+  });
+
+  it("uses header-content (not three-column) when header + two dominant images", () => {
+    // Regression for three-column misclassification: a heading at the top
+    // + two dominant images should remain header-content, not three-column,
+    // because `three-column` layout is reserved for slides with no header.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Key Concepts",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Key Concepts",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 600000,
+          },
+          {
+            type: "image",
+            ref: "concept-a.png",
+            base64: "abc",
+            left: 500000,
+            top: 1400000,
+            width: DEFAULT_SIZE.width * 0.44,
+            height: DEFAULT_SIZE.height * 0.65,
+          },
+          {
+            type: "image",
+            ref: "concept-b.png",
+            base64: "def",
+            left: 4900000,
+            top: 1400000,
+            width: DEFAULT_SIZE.width * 0.43,
+            height: DEFAULT_SIZE.height * 0.62,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain("layout: three-column");
+    expect(md).toContain("layout: header-content");
+  });
+
+  it("still uses three-column when no header and two dominant images", () => {
+    // Guard: the !hasHeader fix must not break the legitimate three-column case.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Gallery",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Caption text for the gallery",
+            left: 500000,
+            top: 1800000, // below body threshold — no header
+            width: 2000000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "photo-a.png",
+            base64: "abc",
+            left: 3200000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.42,
+            height: DEFAULT_SIZE.height * 0.65,
+          },
+          {
+            type: "image",
+            ref: "photo-b.png",
+            base64: "def",
+            left: 6500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.41,
+            height: DEFAULT_SIZE.height * 0.62,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: three-column");
   });
 
   it("handles table elements", () => {
