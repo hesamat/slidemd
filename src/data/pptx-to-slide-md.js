@@ -501,7 +501,22 @@ function filterMeaningfulElements(elements, slideWidth, slideHeight, dominantIma
     // 2. Filter out micro-noise
     if (area < CONFIG.microNoiseThresholdPoints) return false;
 
-    // 3. Filter out massive background/watermark images ONLY if there is other
+    // 3. Filter background images — large images positioned behind text elements.
+    // Agenda slides and section openers often have a decorative image covering
+    // 30–80% of the slide area with text layered on top.  Detect by checking
+    // whether this image covers any text element AND has a lower render order
+    // (behind) that text.
+    const isLargeBackground =
+      area > slideArea * 0.3 &&
+      textElements.some((textEl) => {
+        if ((el.order || 0) >= (textEl.order || Infinity)) return false;
+        const overlap = getOverlapArea(el, textEl);
+        const textArea = (textEl.width || 0) * (textEl.height || 0);
+        return textArea > 0 && overlap / textArea > 0.4;
+      });
+    if (isLargeBackground) return false;
+
+    // 4. Filter out massive background/watermark images ONLY if there is other
     // content (body paragraphs) or other images to display on the slide.
     if (area > slideArea * CONFIG.maxMediaAreaRatio) {
       const hasOtherImages = elements.some(
