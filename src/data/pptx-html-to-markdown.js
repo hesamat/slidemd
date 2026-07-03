@@ -410,5 +410,12 @@ function mergeAdjacentMarkers(text) {
   }
   s = s.replace(/\*\*\s*\*\*/g, " ");
   s = s.replace(/(?<!\*)\*\s+\*(?!\*)/g, " ");
+  // Ensure a space after closing bold markers when followed by text
+  // e.g. "**word**next" → "**word** next" but only for ** (not ***)
+  s = s.replace(/(\S)\*\*(\S)/g, (match, before, after) => {
+    // Don't add space if this is part of a *** (bold+italic) marker
+    if (before === "*" || after === "*") return match;
+    return `${before}** ${after}`;
+  });
   return s;
 }

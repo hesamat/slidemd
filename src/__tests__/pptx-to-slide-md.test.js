@@ -690,8 +690,8 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("### What is an Event Listener?");
-    expect(md).toContain("### Examples:");
+    expect(md).toContain("## What is an Event Listener?");
+    expect(md).toContain("## Examples:");
     expect(md).toContain("- Piece of code");
     expect(md).toContain("- Click");
   });

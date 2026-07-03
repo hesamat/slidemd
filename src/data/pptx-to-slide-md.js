@@ -458,7 +458,7 @@ function formatTextElement(raw) {
       const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
       result.push(`${prefix}${number}. ${content}`);
     } else if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
-      result.push(`### ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
+      result.push(`## ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
     } else {
       result.push(trimmed);
     }
