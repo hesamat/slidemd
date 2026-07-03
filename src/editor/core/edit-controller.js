@@ -189,6 +189,12 @@ export class EditController {
           this.updateUnsavedChangesFlag();
           this.updatePreview();
         },
+        onMoveArea: (updated) => {
+          this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+          this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+          this.updateUnsavedChangesFlag();
+          this.updatePreview();
+        },
       },
     );
     this._initImagePropertiesPanel();

@@ -35,6 +35,7 @@ export class ImagePropertiesPanel {
   static _aspectLocked = true;
   static _lastRatio = null;
   static _currentImg = null;
+  static _areaWidth = 960;
 
   /**
    * Initialize with callbacks that read/write the slide markdown.
@@ -56,7 +57,9 @@ export class ImagePropertiesPanel {
   static show(img, settings) {
     if (!this.el) this._buildDom();
     this._currentImg = img;
+    this._computeAreaWidth(img);
     this._syncUI(settings);
+    this._updatePresetLabels();
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
 
@@ -97,6 +100,27 @@ export class ImagePropertiesPanel {
     if (!transform || transform === "none") return 1;
     const match = transform.match(/matrix\(([^,]+),/);
     return match ? parseFloat(match[1]) : 1;
+  }
+
+  /**
+   * Compute the width of the containing .slide__area in design-space pixels.
+   */
+  static _computeAreaWidth(img) {
+    const area = img?.closest?.(".slide__area");
+    if (!area) {
+      this._areaWidth = 960;
+      return;
+    }
+    const scale = this._getStageScale();
+    const rect = area.getBoundingClientRect();
+    this._areaWidth = Math.round(rect.width / scale) || 960;
+  }
+
+  /**
+   * Update the Small/Medium/Large chip labels to show computed pixel values.
+   */
+  static _updatePresetLabels() {
+    if (!this.el) return;
   }
 
   // ── Panel UI ──────────────────────────────────────────────────────────
@@ -300,13 +324,13 @@ export class ImagePropertiesPanel {
         ImageInteractionHandler.setAspectLock(this._aspectLocked);
         break;
       case "small":
-        this._applyPreset({ width: 240 });
+        this._applyPreset({ width: Math.min(240, this._areaWidth) });
         break;
       case "medium":
-        this._applyPreset({ width: 480 });
+        this._applyPreset({ width: Math.min(480, this._areaWidth) });
         break;
       case "large":
-        this._applyPreset({ width: 720 });
+        this._applyPreset({ width: Math.min(720, this._areaWidth) });
         break;
       case "full":
         ImageInteractionHandler.fitToWidth();

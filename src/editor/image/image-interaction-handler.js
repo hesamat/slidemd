@@ -25,17 +25,24 @@ export class ImageInteractionHandler {
   static _getMarkdown = null;
   static _setMarkdown = null;
   static _onDelete = null;
+  static _onMoveArea = null;
   static _overlay = null;
   static _resizeState = null;
   static _pendingSelectSrc = null;
   static _aspectLocked = true;
+  static _dragSourceArea = null;
+  static _dragTargetArea = null;
+  static _dragStartX = 0;
+  static _dragStartY = 0;
+  static _dragSnapped = false;
 
-  static init(getMarkdown, setMarkdown, { onDelete } = {}) {
+  static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
     if (this._initialized) return;
     this._initialized = true;
     this._getMarkdown = getMarkdown;
     this._setMarkdown = setMarkdown;
     this._onDelete = onDelete || null;
+    this._onMoveArea = onMoveArea || null;
 
     document.addEventListener("mousedown", (e) => {
       if (
@@ -234,7 +241,15 @@ export class ImageInteractionHandler {
       listeners: {
         start: (e) => {
           const img = e.target.closest("img");
-          if (img) this.select(img);
+          if (img) {
+            this.select(img);
+            const sourceArea = img.closest(".slide__area");
+            this._dragSourceArea = sourceArea?.dataset.areaName || null;
+            this._dragTargetArea = null;
+            this._dragStartX = e.clientX;
+            this._dragStartY = e.clientY;
+            this._dragSnapped = false;
+          }
         },
         move: (e) => {
           const img = this._selectedImg;
@@ -242,10 +257,41 @@ export class ImageInteractionHandler {
 
           const scale = this._getStageScale();
 
-          // interact.js reports pointer motion in screen px.  Because
-          // the stage is rendered with a CSS transform, we must scale
-          // pointer delta to design px so the image tracks the cursor
-          // 1:1 regardless of zoom level.
+          // Detect which area the cursor is over
+          this._updateDragTarget(e.clientX, e.clientY);
+
+          // If already snapped, don't move the image further
+          if (this._dragSnapped) return;
+
+          const targetArea = this._dragTargetArea;
+          const sourceArea = this._dragSourceArea;
+
+          if (targetArea && sourceArea && targetArea !== sourceArea) {
+            // Check distance threshold from drag start
+            const dx = e.clientX - this._dragStartX;
+            const dy = e.clientY - this._dragStartY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 25) {
+              // Snap: move the img element directly in the DOM for instant feedback
+              const targetAreaEl = container.querySelector(
+                `.slide__area[data-area-name="${targetArea}"]`,
+              );
+              if (targetAreaEl) {
+                this._dragSnapped = true;
+                this._clearDropTargetHighlight();
+
+                // Move img in DOM
+                targetAreaEl.appendChild(img);
+                img.style.left = "0px";
+                img.style.top = "0px";
+                this._updateOverlay();
+              }
+              return;
+            }
+          }
+
+          // Normal within-area drag
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
 
@@ -259,10 +305,97 @@ export class ImageInteractionHandler {
           ImagePropertiesPanel._syncUI(this._readSettings(img));
         },
         end: () => {
-          this._syncToMarkdown();
+          this._clearDropTargetHighlight();
+
+          if (this._dragSnapped) {
+            const img = this._selectedImg;
+            const fromArea = this._dragSourceArea;
+            const toArea = this._dragTargetArea;
+            // Capture src before deselect clears the img reference
+            const movedSrc = img?.dataset?.originalSrc || img?.getAttribute("src") || "";
+
+            this.deselect();
+
+            if (img && fromArea && toArea) {
+              const newMd = this._buildMoveMarkdown(img, fromArea, toArea);
+              if (newMd) {
+                if (this._onMoveArea) {
+                  this._onMoveArea(newMd);
+                } else {
+                  this._setMarkdown?.(newMd);
+                }
+                // Re-select the moved image by src after re-render
+                const targetName = toArea;
+                setTimeout(() => {
+                  if (!movedSrc) return;
+                  const imgs = this._slideContainer?.querySelectorAll(
+                    `.slide__area[data-area-name="${targetName}"] img`,
+                  );
+                  const match = Array.from(imgs || []).find((el) => {
+                    const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
+                    return elSrc === movedSrc;
+                  });
+                  if (match) this.select(match);
+                }, 400);
+              }
+            }
+          } else {
+            this._syncToMarkdown();
+          }
+
+          this._dragSourceArea = null;
+          this._dragTargetArea = null;
+          this._dragSnapped = false;
         },
       },
     });
+  }
+
+  /**
+   * Build the updated markdown for a cross-area image move.
+   * Finds the image by src within the source area's content range
+   * (not by DOM index, which can mismatch markdown order).
+   */
+  static _buildMoveMarkdown(img, fromAreaName, toAreaName) {
+    const md = this._getMarkdown?.();
+    if (!md) return null;
+
+    const src = img.dataset.originalSrc || img.getAttribute("src") || "";
+
+    // Find the image entry within the source area
+    const entries = this._findAllImages(md);
+    const sourceRange = this._getAreaContentRange(md, fromAreaName);
+    const entry = entries.find(
+      (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
+    );
+    if (!entry) return null;
+
+    // Remove from source
+    const withoutImage = md.slice(0, entry.start) + md.slice(entry.end);
+
+    // Build a fresh <img> tag at origin (CSS centers it in the area)
+    const alt = img.getAttribute("alt") ?? entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] ?? "";
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
+    const styleParts = [
+      "position: relative",
+      "left: 0px",
+      "top: 0px",
+      `width: ${w}px`,
+      h ? `height: ${h}px` : "",
+      "border: none",
+      "object-fit: contain",
+      "cursor: move",
+    ];
+    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+
+    let updated = withoutImage.replace(/\n{3,}/g, "\n\n");
+    const targetRange = this._getAreaContentRange(updated, toAreaName);
+    const insertAt = targetRange.to;
+    const before = updated.slice(0, insertAt);
+    const after = updated.slice(insertAt);
+    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    return before + needsNewline + newTag + "\n" + after;
   }
 
   // ── Resize (manual mouse events on overlay handles) ─────────────────────
@@ -371,6 +504,84 @@ export class ImageInteractionHandler {
     if (!transform || transform === "none") return 1;
     const match = transform.match(/matrix\(([^,]+),/);
     return match ? parseFloat(match[1]) : 1;
+  }
+
+  // ── Cross-area drag helpers ────────────────────────────────────────────────
+
+  /**
+   * Detect which .slide__area the cursor is over during a drag and
+   * toggle the drop-target highlight class.
+   */
+  static _updateDragTarget(clientX, clientY) {
+    const img = this._selectedImg;
+    // Temporarily hide the dragged image so elementFromPoint hits the area below
+    if (img) img.style.pointerEvents = "none";
+    const el = document.elementFromPoint(clientX, clientY);
+    if (img) img.style.pointerEvents = "";
+    const area = el?.closest?.(".slide__area");
+    const targetName = area?.dataset.areaName || null;
+
+    if (targetName !== this._dragTargetArea) {
+      this._clearDropTargetHighlight();
+      this._dragTargetArea = targetName;
+      if (area && targetName !== this._dragSourceArea) {
+        area.classList.add("slide__area--drop-target");
+      }
+    }
+  }
+
+  /**
+   * Remove the drop-target highlight from all areas.
+   */
+  static _clearDropTargetHighlight() {
+    if (!this._slideContainer) return;
+    this._slideContainer
+      .querySelectorAll(".slide__area--drop-target")
+      .forEach((el) => el.classList.remove("slide__area--drop-target"));
+  }
+
+  /**
+   * Return the character range for the content inside a named @area block.
+   * Same logic as AreaNavigation.getAreaContentRange but standalone.
+   */
+  static _getAreaContentRange(markdown, areaName) {
+    const text = String(markdown || "").replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const target = String(areaName || "main")
+      .trim()
+      .toLowerCase();
+
+    const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+    let areaMarkerIdx = -1;
+    let nextMarkerIdx = lines.length;
+
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(markerRegex);
+      if (!match) continue;
+      if (match[1].toLowerCase() === target) {
+        areaMarkerIdx = i;
+      } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
+        nextMarkerIdx = i;
+        break;
+      }
+    }
+
+    if (areaMarkerIdx < 0) {
+      return { from: text.length, to: text.length };
+    }
+
+    const lineToChar = (lineIndex) => {
+      let pos = 0;
+      for (let i = 0; i < lineIndex; i++) {
+        pos += lines[i].length + 1;
+      }
+      return pos;
+    };
+
+    return {
+      from: lineToChar(areaMarkerIdx + 1),
+      to: lineToChar(nextMarkerIdx),
+    };
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────

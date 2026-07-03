@@ -915,6 +915,14 @@
   cursor: move;
 }
 
+/* ── Cross-area image drag: drop-target highlight ──────────────────────── */
+
+[data-edit-mode="true"] .slides .slide .slide__area.slide__area--drop-target {
+  outline: 2px dashed rgba(2, 132, 199, 0.7);
+  outline-offset: -2px;
+  background-color: rgba(2, 132, 199, 0.06);
+}
+
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
 
 [data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {
