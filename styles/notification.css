@@ -278,8 +278,7 @@
 
 .notification-modal--error {
   background:
-    linear-gradient(0deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1)),
-    rgba(255, 255, 255, 0.86);
+    linear-gradient(0deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1)), rgba(255, 255, 255, 0.86);
 }
 
 .notification-modal--error .notification-modal__icon {
@@ -416,8 +415,7 @@
 
   .notification-modal--error {
     background:
-      linear-gradient(0deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.14)),
-      rgba(15, 23, 42, 0.9);
+      linear-gradient(0deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.14)), rgba(15, 23, 42, 0.9);
   }
 
   .notification-modal--warning {
