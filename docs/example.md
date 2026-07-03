@@ -529,7 +529,7 @@ continue_game = True
 while continue_game:
     # execute a bunch of code
     repeat = input("Continue? Y or N")
-    if repeat.strip().lower( ) == "n":
+    if repeat.strip().lower() == "n":
         continue_game = False
 ```
 
@@ -553,7 +553,7 @@ theme: dark
 while True:
     # execute a bunch of code
     repeat = input("Continue? Y or N")
-    if repeat.strip().lower( ) == "n":
+    if repeat.strip().lower() == "n":
         break
 ```
 
