@@ -261,9 +261,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         el.type === ELEMENT_TYPES.DIAGRAM),
   );
 
-  const dominantImages = importImages
-    ? findDominantImages(allElements, slideWidth, slideHeight)
-    : [];
   const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
 
   let layout = inferLayout(
@@ -272,7 +269,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     slideHeight,
     hasMedia,
     allElements,
-    dominantImages,
+    dominantImagesCandidates,
   );
 
   const formatSingleElement = (el) => {
@@ -290,8 +287,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
 
-    const hasDominantImages = dominantImages.length > 0;
-    const mediaImage = hasDominantImages ? dominantImages[0] : null;
+    const hasDominantImages = dominantImagesCandidates.length > 0;
+    const mediaImage = hasDominantImages ? dominantImagesCandidates[0] : null;
     const midX = slideWidth / 2;
 
     const leftEls = hasDominantImages
@@ -372,8 +369,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    if (dominantImages.length > 0) {
-      const mediaImage = dominantImages[0];
+    if (dominantImagesCandidates.length > 0) {
+      const mediaImage = dominantImagesCandidates[0];
       const mainEls = bodyElements.filter((el) => el !== mediaImage);
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
@@ -401,7 +398,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       slideHeight,
       false,
     );
-    const [mediaImage, secondaryImage] = dominantImages;
+    const [mediaImage, secondaryImage] = dominantImagesCandidates;
     if (!mediaImage || !secondaryImage) {
       parts.push("");
       if (isHeaderValid) {

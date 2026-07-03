@@ -167,6 +167,29 @@ export class PptxExtractor {
   }
 
   /**
+   * Check if an element tree contains any non-tiny images.
+   * Tiny images (both dimensions < 15pt) are treated as decorative.
+   * @static
+   * @param {import('pptxtojson').Element} el
+   * @returns {boolean}
+   */
+  static #hasSignificantImages(el) {
+    if (el.type === "image") {
+      const PT_TO_EMU = 12700;
+      const MIN_SIZE_EMU = 15 * PT_TO_EMU;
+      const w = (el.width || 0) * PT_TO_EMU;
+      const h = (el.height || 0) * PT_TO_EMU;
+      // A significant image has at least one dimension above the threshold.
+      // Tiny square icons are decorative; thin separator lines are content.
+      return w >= MIN_SIZE_EMU || h >= MIN_SIZE_EMU;
+    }
+    if (el.type === "group" && el.elements) {
+      return el.elements.some((child) => this.#hasSignificantImages(child));
+    }
+    return false;
+  }
+
+  /**
    * Process a single element.
    * @static
    * @param {import('pptxtojson').Element} el
@@ -176,8 +199,10 @@ export class PptxExtractor {
    */
   static #processElement(el, slideIndex, imagesAccum) {
     if (el.type === "group" && el.elements) {
-      // Skip groups that contain only images (decorative backgrounds, theme art)
-      if (!this.#hasTextContent(el)) {
+      // Skip groups that contain no renderable content — only tiny decorative
+      // images, empty shapes, or unrecognized types.  Keep groups that have
+      // text, tables, charts, diagrams, or any non-tiny image.
+      if (!this.#hasTextContent(el) && !this.#hasSignificantImages(el)) {
         return null;
       }
       // Flatten group elements, adjusting positions to be slide-relative
