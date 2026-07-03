@@ -425,7 +425,7 @@ export class Notification {
     modal.appendChild(actions);
     backdrop.appendChild(modal);
 
-    return { backdrop, buttons };
+    return { backdrop, modal, buttons };
   }
 
   /**
@@ -435,7 +435,7 @@ export class Notification {
    */
   static async showModal(config) {
     return new Promise((resolve) => {
-      const { backdrop, buttons } = this.createModal({
+      const { backdrop, modal, buttons } = this.createModal({
         ...config,
         buttons: config.buttons.map((btn) => ({
           ...btn,
@@ -472,8 +472,6 @@ export class Notification {
           escapeHandler = null;
         }
       };
-
-      const modal = backdrop.querySelector(".notification-modal");
 
       const shakeModal = () => {
         if (!modal || modal.classList.contains("notification-modal--shake")) return;
