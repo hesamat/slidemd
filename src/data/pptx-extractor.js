@@ -148,10 +148,7 @@ export class PptxExtractor {
   }
 
   /**
-   * Check if an element tree contains any meaningful content.
-   * Returns true for text/table/chart/diagram with content, or for
-   * content-sized images (≥15 pt in both dimensions) so that groups
-   * containing an image alongside an empty shape are not discarded.
+   * Check if an element tree contains any text content.
    * @static
    * @param {import('pptxtojson').Element} el
    * @returns {boolean}
@@ -162,13 +159,6 @@ export class PptxExtractor {
     }
     if (el.type === "table" || el.type === "chart" || el.type === "diagram") {
       return true;
-    }
-    if (el.type === "image") {
-      // Treat content-sized images as meaningful so groups that pair an image
-      // with an empty shape are not dropped by the decorative-group filter.
-      // pptxtojson returns image dimensions in points; 15 pt ≈ 20 px threshold.
-      const MIN_SIZE_PT = 15;
-      return (el.width || 0) >= MIN_SIZE_PT && (el.height || 0) >= MIN_SIZE_PT;
     }
     if (el.type === "group" && el.elements) {
       return el.elements.some((child) => this.#hasTextContent(child));
@@ -253,12 +243,6 @@ export class PptxExtractor {
           slideIndex,
         });
       }
-      // pptxtojson returns image dimensions in *points* while all other
-      // element coordinates (left, top) are in EMU.  Normalise to EMU
-      // so that layout inference can compare image sizes against the
-      // slide dimensions without unit-mismatch errors.
-      // Conversion: 1 pt = 914400 / 72 = 12700 EMU.
-      const PT_TO_EMU = 12700;
       return {
         type: "image",
         base64: el.base64 || "",
@@ -269,8 +253,8 @@ export class PptxExtractor {
         order: el.order,
         left: el.left,
         top: el.top,
-        width: (el.width || 0) * PT_TO_EMU,
-        height: (el.height || 0) * PT_TO_EMU,
+        width: el.width,
+        height: el.height,
       };
     }
 
