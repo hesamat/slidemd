@@ -100,7 +100,12 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     // so the title will automatically get ## if it has a large font size.
     parts.push(allElements.map((el) => formatSingleElement(el)).join("\n\n"));
   } else if (layout.type === "header-content") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    // Prefer markdown-detected headings (## or ###) over position-based detection
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const header =
+      textElements.find((el) => isHeading(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
@@ -118,7 +123,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("");
     parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
   } else if (layout.type === "two-column") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const header =
+      textElements.find((el) => isHeading(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
@@ -155,7 +164,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
       parts.push(rightEls.map((el) => formatSingleElement(el, false)).join("\n\n"));
     }
   } else if (layout.type === "three-column") {
-    const header = textElements.find((el) => el.top < slideHeight * 0.22) || null;
+    const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+    const header =
+      textElements.find((el) => isHeading(el)) ||
+      textElements.find((el) => el.top < slideHeight * 0.22) ||
+      null;
     // Don't treat bullet lists, numbered lists, or code blocks as headers.
     const hasBullets = /(?:^|\n)\s*[-*•]\s/.test(header?.content || "");
     const hasNumbers = /(?:^|\n)\s*\d+[.)]\s/.test(header?.content || "");
@@ -241,9 +254,11 @@ function inferLayout(
     return { type: "header-content", spec: "header-content" };
   }
 
-  // Slides with images, tables, or charts are not title slides
+  // Detect headings by markdown markers (## or ### added by font-size
+  // detection in the HTML-to-markdown stage) or by position near the top.
   const bodyThreshold = slideHeight * 0.22;
-  const hasHeader = contentEls.some((el) => el.top < bodyThreshold);
+  const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
+  const hasHeader = contentEls.some((el) => isHeading(el) || el.top < bodyThreshold);
 
   if (!hasMedia) {
     // Check if elements are at similar vertical positions but spread
