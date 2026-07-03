@@ -7,11 +7,11 @@
  * bullet detection, and font-size-based heading detection.
  */
 
-// Font-size thresholds for heading detection (in points).
-// These are based on typical PowerPoint default font sizes:
+// Font-size threshold for heading detection (in points).
+// Text >= 28pt is treated as a heading (uses ## for all heading sizes).
+// Based on typical PowerPoint default font sizes:
 // Title: 36-44pt, Subtitle: 24-28pt, Body: 18-24pt, Small: 12-14pt
-const HEADING_H2_THRESHOLD = 36;
-const HEADING_H3_THRESHOLD = 28;
+const HEADING_THRESHOLD = 28;
 
 // Monospace font-family pattern for detecting code content
 const MONOSPACE_PATTERN =
@@ -223,7 +223,7 @@ function processBlockNodes(nodes, out) {
           // Detect headings by font size — use ## for heading-sized text
           // but only if the text is short enough to be a heading
           const fontSize = getLargestFontSize(node);
-          if (fontSize >= HEADING_H3_THRESHOLD && merged.trim().length <= 80) {
+          if (fontSize >= HEADING_THRESHOLD && merged.trim().length <= 80) {
             out.push(`## ${merged.trim()}\n\n`);
           } else {
             out.push(merged + "\n\n");

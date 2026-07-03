@@ -103,8 +103,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     // Prefer markdown-detected headings (## or ###) over position-based detection
     const isHeading = (el) => /^#{2,3}\s/.test(el.content?.trim() || "");
     const isShortEnough = (el) => {
-      // Strip heading markers before checking length
-      const text = (el.content || "").replace(/^#{2,3}\s+/, "").trim();
+      // Strip heading marker before checking length
+      const text = (el.content || "").replace(/^##\s+/, "").trim();
       return text.length <= 80;
     };
     const header =
@@ -132,13 +132,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName) {
     parts.push("@main");
     parts.push("");
     if (singleImage) {
-      const img = bodyElements[0];
-      const rawName = (img.ref || "image.png").split("/").pop();
-      const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
-      const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const src = img.blob || `images/${safeName}_${filename}`;
-      const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
-      parts.push(`<img src="${src}" alt="${altText}">`);
+      parts.push(formatImage(bodyElements[0], deckName, { omitDimensions: true }));
     } else {
       parts.push(bodyElements.map((el) => formatSingleElement(el, false)).join("\n\n"));
     }
@@ -495,22 +489,21 @@ function formatTextElement(raw) {
  * @param {import('./pptx-extractor.js').ExtractedElement} img
  * @returns {string}
  */
-function formatImage(img, deckName = "presentation") {
+function formatImage(img, deckName = "presentation", { omitDimensions = false } = {}) {
   const rawName = (img.ref || "image.png").split("/").pop();
   const filename = rawName.replace(/\.(emf|wmf)$/i, ".png");
   const safeName = deckName.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-  // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
-  const w = Math.round(img.width * 1.333) || null;
-  const h = Math.round(img.height * 1.333) || null;
-
   const src = img.blob || `images/${safeName}_${filename}`;
-
-  // Use filename (without extension) as alt text for better accessibility
   const altText = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
 
-  if (w && h) {
-    return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
+  if (!omitDimensions) {
+    // Convert points → pixels at 96 DPI: px = pt × (96/72) = pt × 1.333
+    const w = Math.round(img.width * 1.333) || null;
+    const h = Math.round(img.height * 1.333) || null;
+    if (w && h) {
+      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
+    }
   }
   return `<img src="${src}" alt="${altText}">`;
 }

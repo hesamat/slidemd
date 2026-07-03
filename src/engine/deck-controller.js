@@ -317,10 +317,12 @@ export class DeckController extends EventEmitter {
         const requested = await handle.requestPermission({ mode: "read" });
         if (requested !== "granted") {
           Notification.info("Click anywhere to load images from disk");
-          // Retry after any user gesture
+          // Retry after any user gesture — flag prevents double execution
+          // if both click and keydown fire in quick succession.
+          let retried = false;
           const retry = async () => {
-            document.removeEventListener("click", retry);
-            document.removeEventListener("keydown", retry);
+            if (retried) return;
+            retried = true;
             try {
               const p = await handle.queryPermission({ mode: "read" });
               if (p === "granted") {
