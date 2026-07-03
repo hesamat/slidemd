@@ -1,4 +1,4 @@
-s a non-trivial amount of math in programming:
+There is a non-trivial amount of math in programming:
 
 - Quantitative trading
 - Graphics (polygon mesh processing and geometric mesh modelling)
@@ -153,7 +153,7 @@ layout: header-content
 
 ```
 a_string_is_a_sequence = "ABC"
-for ``letter`` in ``a_string_is_a_sequence``:
+for letter in a_string_is_a_sequence:
     print(letter)
 ```
 
@@ -206,7 +206,7 @@ layout: header-content
 
 ```
 number = 1
-while`` number <= 5``:
+while number <= 5:
     print(number)
     number += 1
 ```
@@ -256,7 +256,7 @@ background: #bfbfbf
 
 @header
 
-## There are lots of way to use the while
+## There are lots of ways to use the while
 
 @main
 
@@ -307,7 +307,7 @@ background: #bfbfbf
 
 @header
 
-## There are lots of way to use the while
+## There are lots of ways to use the while
 
 @main
 
@@ -361,7 +361,7 @@ theme: dark
 
 ```
 user_input = ""
-while user_input.trim().lower() != "quit":
+while user_input.strip().lower() != "quit":
     # do some stuff
     user_input = input("a meaningful prompt")
 ```
@@ -467,7 +467,7 @@ layout: two-column
 ```
 while True:
     choice = input("helpful prompt")
-    if choice.trim().lower() == "quit":
+    if choice.strip().lower() == "quit":
         break # exit the while loop
     # do some stuff
 ```
@@ -728,7 +728,7 @@ theme: dark
 
 @main
 
-- When a function requires information, we say it _accepts\*\* parameters_
+- When a function requires information, we say it _accepts_ parameters
 - We must pass values to such a function for it to work
 - We call the values that we pass to the function _arguments_
 - Every function call can be made many times with a different (or the same) argument each time
@@ -782,7 +782,7 @@ background: #87C5BA
 <img src="images/COMP_1510_DTC_202610_Week_03_Sequence_Selection_Repetition_Indirection_image38.png" width="593" height="720" alt="image38">
 
 - Introducing the return statement
-- We *use a return statement*to return a value from a function
+- We _use a return statement_ to return a value from a function
 
 ```
 def add(first, second):
@@ -831,7 +831,7 @@ theme: dark
 
 - A function's statements may include function calls
 - A function may call a function or several functions
-- These are known as _hierarchical_ or _nested\*\* function calls_
+- These are known as _hierarchical_ or _nested function calls_
 - Functions should be very short and atomic
 - Functions should do one thing
 - Just one thing
@@ -1383,7 +1383,7 @@ The Python virtual machine will manage my memory.
 
 100
 
-## _Python** is** a_
+## _Python is a_
 
 ## _“ PASS BY VALUE”_
 
@@ -1714,7 +1714,7 @@ theme: dark
 
 @main
 
-- Python uses a built-in variable called **\_\_** name** \_\_** to determine if a file is being directly executed as a program by the programmer, or if the file is being indirectly imported by another module
+- Python uses a built-in variable called **name** to determine if a file is being directly executed as a program by the programmer, or if the file is being indirectly imported by another module
 - If the value of **name** is the string '**main**', then the file is being directly executed as a program
 
 @media
@@ -1731,7 +1731,7 @@ def main( ):
 # Executes main only if the
 # source file is executed, not
 # imported
-if __name__ == '__main__’:
+if __name__ == '__main__':
     main( )
 ```
 
