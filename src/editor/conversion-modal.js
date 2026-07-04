@@ -46,6 +46,7 @@ export class ConversionModal {
       let selectedFile = null;
       let extractionResult = null;
       let markdown = "";
+      let deckName = "presentation";
       let importImages = true;
       let keepBackgrounds = true;
       let codeLanguage = "";
@@ -140,7 +141,7 @@ export class ConversionModal {
           const buffer = await selectedFile.arrayBuffer();
           extractionResult = await PptxExtractor.extract(buffer);
 
-          const deckName = (selectedFile.name || "presentation")
+          deckName = (selectedFile.name || "presentation")
             .replace(/\.pptx$/i, "")
             .replace(/[^a-zA-Z0-9_-]/g, "_");
           markdown = convertToSlideMd(extractionResult, deckName);
@@ -197,6 +198,7 @@ export class ConversionModal {
             const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
             checkboxInput.addEventListener("change", () => {
               importImages = checkboxInput.checked;
+              markdown = convertToSlideMd(extractionResult, deckName, { importImages });
             });
             insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
             insertAfter = checkboxRow;

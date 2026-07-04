@@ -72,6 +72,13 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /** @class */
 export class PptxExtractor {
+  // pptxtojson returns image dimensions in points; all other coordinates are in EMU.
+  // 1 pt = 914400 / 72 = 12700 EMU.
+  static #PT_TO_EMU = 12700;
+  // Images with both dimensions below this threshold (in EMU) are treated as
+  // decorative icons, bullets, or ornaments.  ~15 pt ≈ 20 px at 96 DPI.
+  static #MIN_SIZE_EMU = 15 * 12700;
+
   /**
    * Parse a PPTX file (as ArrayBuffer) and return structured extraction data.
    * @static
@@ -167,6 +174,98 @@ export class PptxExtractor {
   }
 
   /**
+   * Check if an element tree contains any non-tiny images.
+   * Tiny images (both dimensions < 15pt) are treated as decorative.
+   * @static
+   * @param {import('pptxtojson').Element} el
+   * @returns {boolean}
+   */
+  static #hasSignificantImages(el) {
+    if (el.type === "image") {
+      const w = (el.width || 0) * this.#PT_TO_EMU;
+      const h = (el.height || 0) * this.#PT_TO_EMU;
+      // A significant image has at least one dimension above the threshold.
+      // Tiny square icons are decorative; thin separator lines are content.
+      return w >= this.#MIN_SIZE_EMU || h >= this.#MIN_SIZE_EMU;
+    }
+    if (el.type === "group" && el.elements) {
+      return el.elements.some((child) => this.#hasSignificantImages(child));
+    }
+    return false;
+  }
+
+  /**
+   * Determine whether a group contains only decorative images (no text).
+   * Agenda slides and section openers often wrap background art and logos in a
+   * group that has no text children.  If every child is an image and the images
+   * together cover most of the group's bounding box, the group is decorative.
+   *
+   * Groups that contain shapes (borders, frames, callouts) alongside images are
+   * treated as content — e.g. a code screenshot inside a rounded-rect border.
+   * @static
+   * @param {import('pptxtojson').Element} group
+   * @returns {boolean}
+   */
+  static #isGroupDecorativeImages(group) {
+    const children = group.elements || [];
+    if (children.length === 0) return false;
+
+    // Must have no text, tables, charts, or diagrams
+    const hasTextualContent = children.some(
+      (child) =>
+        child.type === "text" ||
+        child.type === "table" ||
+        child.type === "chart" ||
+        child.type === "diagram",
+    );
+    if (hasTextualContent) return false;
+
+    // If the group contains shapes (borders, frames, callouts) alongside
+    // images, it is content — e.g. a screenshot inside a styled border.
+    const hasShapes = children.some((child) => child.type === "shape");
+    if (hasShapes) return false;
+
+    const images = children.filter((child) => child.type === "image");
+    if (images.length === 0) return false;
+
+    // Compute the group's bounding box from ALL children (including shapes).
+    // Shapes intentionally expand the bounding box, diluting the image-to-group
+    // area ratio.  This prevents a tiny image inside a large border from being
+    // misclassified as decorative.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const child of children) {
+      const cl = (child.left || 0) * this.#PT_TO_EMU;
+      const ct = (child.top || 0) * this.#PT_TO_EMU;
+      const cw = (child.width || 0) * this.#PT_TO_EMU;
+      const ch = (child.height || 0) * this.#PT_TO_EMU;
+      if (cl < minX) minX = cl;
+      if (ct < minY) minY = ct;
+      if (cl + cw > maxX) maxX = cl + cw;
+      if (ct + ch > maxY) maxY = ct + ch;
+    }
+    const groupW = maxX - minX;
+    const groupH = maxY - minY;
+    const groupArea = groupW * groupH;
+    if (groupArea === 0) return false;
+
+    // Sum image areas, skipping tiny icons
+    let totalImageArea = 0;
+    for (const img of images) {
+      const w = (img.width || 0) * this.#PT_TO_EMU;
+      const h = (img.height || 0) * this.#PT_TO_EMU;
+      if (w < this.#MIN_SIZE_EMU && h < this.#MIN_SIZE_EMU) continue;
+      totalImageArea += w * h;
+    }
+
+    // Images must cover > 50% of the group's bounding box to be considered
+    // a decorative background cluster.
+    return totalImageArea / groupArea > 0.5;
+  }
+
+  /**
    * Process a single element.
    * @static
    * @param {import('pptxtojson').Element} el
@@ -176,13 +275,21 @@ export class PptxExtractor {
    */
   static #processElement(el, slideIndex, imagesAccum) {
     if (el.type === "group" && el.elements) {
-      // Skip groups that contain only images (decorative backgrounds, theme art)
-      if (!this.#hasTextContent(el)) {
+      // Skip groups that contain no renderable content — only tiny decorative
+      // images, empty shapes, or unrecognized types.  Keep groups that have
+      // text, tables, charts, diagrams, or any non-tiny image.
+      if (!this.#hasTextContent(el) && !this.#hasSignificantImages(el)) {
         return null;
       }
-      // Flatten group elements, adjusting positions to be slide-relative
+      // Flatten group elements, adjusting positions to be slide-relative.
+      // Skip all images in groups that are purely decorative (no text,
+      // images cover >50% of group area — e.g. agenda background art).
+      const isDecorative = this.#isGroupDecorativeImages(el);
       const results = [];
       for (const child of el.elements) {
+        if (isDecorative && child.type === "image") {
+          continue;
+        }
         const r = this.#processElement(child, slideIndex, imagesAccum);
         if (r) {
           if (Array.isArray(r)) {
@@ -226,12 +333,17 @@ export class PptxExtractor {
     if (el.type === "image") {
       const mime = this.#inferMimeType(el.ref);
 
+      // pptxtojson returns image dimensions in points while all other
+      // element coordinates (left, top) are in EMU.  Normalise to EMU
+      // so layout inference can compare image sizes against the slide
+      // dimensions without unit-mismatch errors.
+      const widthEmu = (el.width || 0) * this.#PT_TO_EMU;
+      const heightEmu = (el.height || 0) * this.#PT_TO_EMU;
+
       // Skip tiny images (likely decorative icons, bullets, or ornaments).
       // Uses AND: both dimensions must be small.  A thin separator line
       // (e.g. 5×500pt) is intentional content and should be kept.
-      // Dimensions from pptxtojson are in points; threshold: ~15pt ≈ 20px
-      const MIN_SIZE_PT = 15;
-      if ((el.width || 0) < MIN_SIZE_PT && (el.height || 0) < MIN_SIZE_PT) {
+      if (widthEmu < this.#MIN_SIZE_EMU && heightEmu < this.#MIN_SIZE_EMU) {
         return null;
       }
 
@@ -253,8 +365,8 @@ export class PptxExtractor {
         order: el.order,
         left: el.left,
         top: el.top,
-        width: el.width,
-        height: el.height,
+        width: widthEmu,
+        height: heightEmu,
       };
     }
 
