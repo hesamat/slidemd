@@ -96,8 +96,8 @@
   --slide-secondary: var(--slide-secondary-dark);
 
   /* Code surface (dark slides) */
-  --code-surface: rgba(0, 0, 0, 0.45);
-  --code-ink: rgba(240, 242, 245, 0.95);
+  --code-surface: #d4d4dd;
+  --code-ink: rgba(15, 23, 42, 0.92);
   --code-border-color: rgba(255, 255, 255, 0.16);
 }
 
@@ -531,9 +531,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border: 1px solid var(--border-subtle);
 }
 
-/* Relatively positioned images (edit mode drag/resize) */
-.slide__area img[style*="position: relative"],
-.slide__area img.image-selected {
+/* Relatively positioned images (edit mode drag/resize) — only images
+   that were converted from markdown syntax get the layout overrides.
+   Existing HTML <img> tags (e.g. from PPTX import) keep their normal
+   flow position and are excluded via the .img-positioned gate. */
+.slide__area img.img-positioned {
   margin: 0;
   border-radius: 0;
   max-width: none !important;

@@ -208,9 +208,14 @@ export class ImageInteractionHandler {
     this.deselect();
 
     // If this is a markdown image (no position style), convert to HTML
-    // in the markdown source and apply styles to the existing DOM element
-    if (!img.style.position) {
+    // in the markdown source and apply styles to the existing DOM element.
+    // Existing HTML <img> tags (from PPTX import) already have correct
+    // dimensions and position — skip conversion to avoid layout shift.
+    const isExistingHtmlImg =
+      img.getAttribute("width") && img.getAttribute("height") && !img.style.position;
+    if (!img.style.position && !isExistingHtmlImg) {
       this._convertMdImgToHtml(img);
+      img.classList.add("img-positioned");
     }
 
     this._selectedImg = img;
@@ -222,6 +227,7 @@ export class ImageInteractionHandler {
   static deselect() {
     if (this._selectedImg) {
       this._selectedImg.classList.remove("image-selected");
+      this._selectedImg.classList.remove("img-positioned");
       this._selectedImg = null;
     }
     if (this._overlay) {
@@ -685,8 +691,8 @@ export class ImageInteractionHandler {
     let areaH = 1080;
     let visualCenterX = areaW / 2;
     let visualCenterY = areaH / 2;
+    const scale = this._getStageScale();
     if (area) {
-      const scale = this._getStageScale();
       const areaRect = area.getBoundingClientRect();
       areaW = Math.max(1, areaRect.width / scale);
       areaH = Math.max(1, areaRect.height / scale);
@@ -708,9 +714,11 @@ export class ImageInteractionHandler {
     //   `width`/`height` attributes that express the intended design-pixel
     //   dimensions.  Read these directly so CSS constraints (e.g. the
     //   `p > img:only-child` rule) cannot shrink them before we convert.
+    const isExistingHtmlImg =
+      entry.type === "html" && img.getAttribute("width") && img.getAttribute("height");
     let natW;
     let natH;
-    if (entry.type === "html" && img.getAttribute("width") && img.getAttribute("height")) {
+    if (isExistingHtmlImg) {
       natW = parseInt(img.getAttribute("width"), 10) || img.offsetWidth || 320;
       natH = parseInt(img.getAttribute("height"), 10) || img.offsetHeight || 240;
     } else {
@@ -730,8 +738,14 @@ export class ImageInteractionHandler {
     w = Math.max(1, Math.round(w));
     h = Math.max(1, Math.round(h));
 
-    const left = Math.round(visualCenterX - w / 2);
-    const top = Math.round(visualCenterY - h / 2);
+    // For existing HTML images (e.g. PPTX-imported), the element is already
+    // positioned correctly by CSS.  Use left/top = 0 so `position: relative`
+    // doesn't shift it — relative positioning offsets are added to the
+    // element's in-flow position, so any non-zero value moves it.
+    // For markdown images being converted, compute offsets that keep the
+    // visual centre in the same place.
+    const left = isExistingHtmlImg ? 0 : Math.round(visualCenterX - w / 2);
+    const top = isExistingHtmlImg ? 0 : Math.round(visualCenterY - h / 2);
 
     const alt = this._extractAlt(entry);
     const src = entry.src;

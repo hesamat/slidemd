@@ -226,8 +226,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       .replace(REGEX.NOTES_HTML_COMMENT_START, "< !--")
       .replace(REGEX.NOTES_HTML_COMMENT_END, "-- >")
       .replace(REGEX.NOTES_HTML_BR, "\n")
-      .replace(REGEX.NOTES_HTML_TAGS, "");
-    parts.push(`${DEFAULTS.NOTES_COMMENT_START}${sanitized}${DEFAULTS.NOTES_COMMENT_END}`);
+      .replace(REGEX.NOTES_HTML_TAGS, "")
+      .trim();
+    if (sanitized) {
+      parts.push(`${DEFAULTS.NOTES_COMMENT_START}${sanitized}${DEFAULTS.NOTES_COMMENT_END}`);
+    }
   }
 
   // 1. Identify layout-defining images first to ensure they are never filtered out
@@ -352,7 +355,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     if (singleImage) {
-      parts.push(formatImage(bodyElements[0], deckName, { omitDimensions: true }));
+      // Only omit dimensions for markdown images (no width/height properties).
+      // Extracted PPTX images need explicit dimensions for the click/drag handler.
+      const el = bodyElements[0];
+      const hasExplicitDims = el.width && el.height;
+      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
     } else {
       parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
