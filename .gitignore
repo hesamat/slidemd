@@ -4,6 +4,8 @@ dist/
 .DS_Store
 .claude/*
 .vscode/
+agents.config.json
+tasks.json
 
 # Optional local overrides
 decks/
