@@ -15,7 +15,7 @@ const P = "conversion-modal__";
  * @property {string} markdown - The converted SlideMD markdown.
  * @property {string[]} imageRefs - Image filenames that need to be saved.
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
- * @property {string} fileName - Original PPTX filename (for naming the .md output).
+ * @property {string} deckName - User-editable deck name (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
  */
 
@@ -60,6 +60,8 @@ export class ConversionModal {
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
       const errorEl = backdrop.querySelector(`.${P}error`);
       const resultEl = backdrop.querySelector(`.${P}result`);
+      const nameSection = backdrop.querySelector(`.${P}name-section`);
+      const deckNameInput = backdrop.querySelector(`[data-field="deck-name"]`);
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -220,6 +222,10 @@ export class ConversionModal {
           saveBtn.disabled = false;
           cancelBtn.disabled = false;
           isConverting = false;
+
+          // Show deck name input with sanitized name
+          deckNameInput.value = deckName;
+          nameSection.hidden = false;
         } catch (err) {
           hideSpinner();
           showError(`Conversion failed: ${err.message}`);
@@ -229,6 +235,9 @@ export class ConversionModal {
       };
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
+        // Read the user-edited deck name
+        const editedName = deckNameInput.value.trim() || deckName;
+
         // If user opted out of images, strip <img> tags from markdown
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
         // If user opted out of backgrounds/themes, strip those directives
@@ -261,7 +270,7 @@ export class ConversionModal {
           markdown: finalMarkdown,
           imageRefs: importImages ? extractionResult.images.map((img) => img.ref) : [],
           images: importImages ? extractionResult.images : [],
-          fileName: selectedFile.name || "presentation.pptx",
+          deckName: editedName,
           importImages,
         });
       });
@@ -326,6 +335,12 @@ export class ConversionModal {
         <div class="${P}error" hidden></div>
         <div class="${P}result" hidden></div>
 
+        <div class="${P}section ${P}name-section" hidden>
+          <label class="${P}label" for="${P}deck-name">Deck name</label>
+          <input type="text" id="${P}deck-name" class="${P}input" data-field="deck-name" />
+          <p class="${P}hint">This will be the folder and file name for your presentation.</p>
+        </div>
+
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Save as Deck</button>
@@ -387,6 +402,13 @@ export class ConversionModal {
         border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
+      .${P}input {
+        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); box-sizing: border-box;
+      }
+      .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); }
+      .${P}hint { font-size: 12px; color: var(--text-medium, #999); margin: 4px 0 0; }
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }
