@@ -105,12 +105,7 @@ export function syncSliderLabels(rootEl) {
 
 export function syncTitleDisabled(rootEl, { titleBtnSelector, hintSelector } = {}) {
   const bw = rootEl.querySelector('[data-field="border-width"]');
-  const r = rootEl.querySelector('[data-field="radius"]');
-  const p = rootEl.querySelector('[data-field="padding"]');
-  const hasBorders =
-    (bw && parseInt(bw.value, 10) > 0) ||
-    (r && parseInt(r.value, 10) > 0) ||
-    (p && parseInt(p.value, 10) !== 10);
+  const hasBorders = bw && parseInt(bw.value, 10) > 0;
   const btns = rootEl.querySelectorAll(titleBtnSelector || ".style-btn-option");
   const hint = rootEl.querySelector(hintSelector || ".style-disabled-hint");
   btns.forEach((btn) => {
