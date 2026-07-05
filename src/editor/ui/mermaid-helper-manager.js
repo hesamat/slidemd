@@ -25,16 +25,18 @@ export class MermaidHelperManager {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.mermaidHelperPanel
-   * @param {object} opts.markdownEditor
+   * @param {() => object|null} opts.getMarkdownEditor — lazy getter so we
+   *   can read the editor at insert time, after `toggleEditMode` has
+   *   created it (capturing the value here would be `null`).
    */
-  constructor({ mermaidHelperPanel, markdownEditor }) {
+  constructor({ mermaidHelperPanel, getMarkdownEditor }) {
     this._panel = mermaidHelperPanel;
-    this._markdownEditor = markdownEditor;
+    this._getMarkdownEditor = getMarkdownEditor;
     this._abortController = null;
   }
 
   get markdownEditor() {
-    return this._markdownEditor;
+    return this._getMarkdownEditor?.() ?? null;
   }
 
   init() {
@@ -68,10 +70,11 @@ export class MermaidHelperManager {
   }
 
   insertTemplate(templateName) {
-    if (!this._markdownEditor) return;
+    const editor = this._getMarkdownEditor?.();
+    if (!editor) return;
     const snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
-    this._markdownEditor.insertText(snippet);
-    this._markdownEditor.focus();
+    editor.insertText(snippet);
+    editor.focus();
   }
 
   destroy() {

@@ -18,7 +18,7 @@ import { UiActions } from "../ui/ui-actions.js";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
-import { MarkdownParser } from "../data/markdown-parser.js";
+import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
 
@@ -534,6 +534,7 @@ export class DeckController extends EventEmitter {
             typographer: false,
             breaks: true,
           });
+          applyOpenInNewTabToLinks(this._md);
         }
         return `<div class="notes-content">${this._md.render(notes)}</div>`;
       } catch (e) {

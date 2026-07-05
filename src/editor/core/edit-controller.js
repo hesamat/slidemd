@@ -176,7 +176,7 @@ export class EditController {
 
     this.mermaidHelper = new MermaidHelperManager({
       mermaidHelperPanel: this.elements.mermaidHelperPanel,
-      markdownEditor: this.markdownEditor,
+      getMarkdownEditor: () => this.markdownEditor,
     });
 
     this.layoutManager = new LayoutManager({
