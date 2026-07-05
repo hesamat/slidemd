@@ -348,12 +348,16 @@ export class Notification {
     progressBar.className = "notification-modal__progress-bar";
     progressWrap.appendChild(progressBar);
 
+    const loading = document.createElement("div");
+    loading.className = "notification-modal__loading";
+    loading.appendChild(spinner);
+    loading.appendChild(progressWrap);
+
     const copy = document.createElement("div");
     copy.className = "notification-modal__copy";
     copy.appendChild(titleEl);
     copy.appendChild(messageEl);
-    copy.appendChild(spinner);
-    copy.appendChild(progressWrap);
+    copy.appendChild(loading);
 
     const content = document.createElement("div");
     content.className = "notification-modal__content";
