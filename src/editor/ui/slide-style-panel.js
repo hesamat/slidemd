@@ -21,6 +21,7 @@ import {
   buildTitlePanelHtml,
   syncBgState,
   parseBackgroundValue,
+  getDefaultBorderColor,
 } from "./style-helpers.js";
 
 const STORAGE_KEY_AREA_STYLE = "webdeck:default-area-style";
@@ -209,7 +210,7 @@ export class SlideStylePanel {
     };
 
     setNum('[data-field="border-width"]', border.width);
-    setVal('[data-field="border-color"]', border.color);
+    setVal('[data-field="border-color"]', border.color || getDefaultBorderColor());
     setNum('[data-field="radius"]', radius);
     setNum('[data-field="padding"]', parsed["padding"] !== undefined ? padding : 10);
 
@@ -339,16 +340,18 @@ export class SlideStylePanel {
     });
 
     // Border/radius/padding sliders
+    const syncBorderState = () => {
+      syncSliderLabels(this.el);
+      syncTitleDisabled(this.el, {
+        titleBtnSelector: '[data-panel="title"] .style-btn-option',
+        hintSelector: ".style-disabled-hint",
+      });
+    };
     el.querySelectorAll(
       'input[data-field="border-width"], input[data-field="radius"], input[data-field="padding"]',
     ).forEach((input) => {
-      input.addEventListener("input", () => {
-        syncSliderLabels(this.el);
-        syncTitleDisabled(this.el, {
-          titleBtnSelector: '[data-panel="title"] .style-btn-option',
-          hintSelector: ".style-disabled-hint",
-        });
-      });
+      input.addEventListener("input", syncBorderState);
+      input.addEventListener("change", syncBorderState);
     });
 
     // Border color

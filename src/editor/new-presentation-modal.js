@@ -273,7 +273,7 @@ export class NewPresentationModal {
           if (btn.disabled) return;
           titleBtns.forEach((b) => b.classList.remove("selected"));
           btn.classList.add("selected");
-          selectedTitleStyle = btn.dataset.titleStyle;
+          selectedTitleStyle = btn.dataset.headerStyle;
         });
       });
 
@@ -285,10 +285,16 @@ export class NewPresentationModal {
 
       const updateLabels = () => {
         syncSliderLabels(backdrop);
-        syncTitleDisabled(backdrop, {
+        const hasBorders = syncTitleDisabled(backdrop, {
           titleBtnSelector: ".style-btn-option",
           hintSelector: ".style-disabled-hint",
         });
+        if (hasBorders) {
+          selectedTitleStyle = "none";
+        } else {
+          const selectedBtn = backdrop.querySelector(".style-btn-option.selected");
+          selectedTitleStyle = selectedBtn?.dataset.headerStyle || "short";
+        }
       };
       [borderWidth, radius, padding].forEach((el) => el?.addEventListener("input", updateLabels));
 
