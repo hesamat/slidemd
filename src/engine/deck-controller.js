@@ -685,11 +685,18 @@ export class DeckController extends EventEmitter {
         imageCount > 0
           ? `Saving ${mdName} and ${imageCount} image${imageCount !== 1 ? "s" : ""}…`
           : `Saving ${mdName}…`;
+      const abortController = new AbortController();
       const savingModal = Notification.showLoadingModal(initialMessage, {
         title: "Saving Deck",
         type: "info",
+        cancelLabel: "Cancel",
+        cancelConfirmMessage:
+          "Some files may already have been saved. Cancel the remaining save operation?",
+        onCancel: () => abortController.abort(),
       });
       try {
+        const { signal } = abortController;
+
         // Save the markdown file using the PPTX-derived name
         const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
         const mdWritable = await mdFile.createWritable();
@@ -704,6 +711,7 @@ export class DeckController extends EventEmitter {
           let savedCount = 0;
           const imageTotal = images.length;
           for (const img of images) {
+            if (signal.aborted) throw new Error("cancelled");
             if (!img.base64 || !img.ref) continue;
             try {
               const rawName = img.ref.split("/").pop();
@@ -752,6 +760,11 @@ export class DeckController extends EventEmitter {
           window.__WEBDECK_MARKDOWN__ = markdown;
         }
       } catch (e) {
+        if (abortController.signal.aborted) {
+          Notification.warning("Import cancelled. No files were saved.");
+          ConversionModal.close();
+          return;
+        }
         console.warn("Failed to save deck to filesystem:", e);
         Notification.warning("Failed to save deck. Try again.");
         ConversionModal.close();
