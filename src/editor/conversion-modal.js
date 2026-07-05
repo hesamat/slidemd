@@ -62,6 +62,10 @@ export class ConversionModal {
       const resultEl = backdrop.querySelector(`.${P}result`);
       const nameSection = backdrop.querySelector(`.${P}name-section`);
       const deckNameInput = backdrop.querySelector(`[data-field="deck-name"]`);
+      const dialog = backdrop.querySelector(`.${P}dialog`);
+
+      // Prevent clicks inside the dialog from closing the modal
+      dialog.addEventListener("click", (e) => e.stopPropagation());
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -125,7 +129,10 @@ export class ConversionModal {
         dropZone.classList.remove(`${P}drop-zone--active`);
         handleFile(e.dataTransfer.files[0]);
       });
-      dropZone.addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
 
       // Conversion logic — called automatically when file is selected
       const startConversion = async () => {
@@ -134,6 +141,7 @@ export class ConversionModal {
         cancelBtn.disabled = true;
         hideError();
         hideResult();
+        nameSection.hidden = true;
         showSpinner("Converting...");
 
         const started = Date.now();
@@ -217,15 +225,15 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
+          // Show deck name input with sanitized name
+          deckNameInput.value = deckName;
+          nameSection.hidden = false;
+
           // Show Save as Deck button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
           cancelBtn.disabled = false;
           isConverting = false;
-
-          // Show deck name input with sanitized name
-          deckNameInput.value = deckName;
-          nameSection.hidden = false;
         } catch (err) {
           hideSpinner();
           showError(`Conversion failed: ${err.message}`);
@@ -280,7 +288,7 @@ export class ConversionModal {
         resolve(null);
       });
 
-      // Close on backdrop click
+      // Close on backdrop click (only when clicking the backdrop itself, not the dialog)
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) {
           backdrop.remove();
@@ -366,55 +374,60 @@ export class ConversionModal {
       }
       .${P}dialog {
         background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 28px; width: 520px; max-width: 90vw;
+        border-radius: 12px; padding: 32px; width: 600px; max-width: 90vw;
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
       .${P}title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
-      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.5; }
-      .${P}section { margin-bottom: 16px; }
+      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 20px; line-height: 1.5; }
+      .${P}section { margin-bottom: 20px; }
       .${P}label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
       .${P}drop-zone {
         border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
-        padding: 24px; text-align: center; cursor: pointer;
+        padding: 28px; text-align: center; cursor: pointer;
         display: flex; flex-direction: column; align-items: center; gap: 8px;
         transition: border-color 0.2s, background 0.2s;
       }
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 6px; }
+      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 8px; }
       .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
+      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 16px 0 8px; }
       .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; cursor: pointer; margin: 6px 0 0;
+        font-size: 15px; cursor: pointer; margin: 8px 0 0;
       }
       .${P}checkbox { width: 18px; height: 18px; cursor: pointer; }
       .${P}select-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; margin: 10px 0 0;
+        font-size: 15px; margin: 12px 0 0;
       }
       .${P}select-label { font-size: 14px; color: var(--text-medium, #666); white-space: nowrap; }
       .${P}select {
-        padding: 5px 10px; border: 1px solid var(--border-medium, #ccc);
+        padding: 6px 10px; border: 1px solid var(--border-medium, #ccc);
         border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
+      .${P}name-section {
+        background: var(--surface-hover, #f8f8fa);
+        border: 1px solid var(--border-light, #e8e8ec);
+        border-radius: 8px; padding: 16px;
+      }
       .${P}input {
-        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
+        width: 100%; padding: 8px 12px; border: 1px solid var(--border-medium, #ccc);
         border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); box-sizing: border-box;
       }
-      .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); }
-      .${P}hint { font-size: 12px; color: var(--text-medium, #999); margin: 4px 0 0; }
+      .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+      .${P}hint { font-size: 12px; color: var(--text-medium, #999); margin: 6px 0 0; }
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-light, #e8e8ec); }
       .${P}btn {
-        padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+        padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 500;
         cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
       }
       .${P}btn:disabled { opacity: 0.5; cursor: not-allowed; }
