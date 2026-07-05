@@ -45,9 +45,6 @@ export class MarkdownEditor {
 
     // Render immediately so DOM elements exist
     this.render();
-
-    // Setup listeners immediately
-    this.setupEventListeners();
   }
 
   /**
@@ -62,13 +59,6 @@ export class MarkdownEditor {
 
     this.editorRoot = this.container.querySelector(".markdown-editor-codemirror");
     this.initializeCodeMirror();
-  }
-
-  /**
-   * Set up event listeners
-   */
-  setupEventListeners() {
-    // CodeMirror handles its own input events.
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────
