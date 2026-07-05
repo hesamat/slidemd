@@ -814,6 +814,9 @@ export class DeckController extends EventEmitter {
     if (this.breakManager) this.breakManager.destroy();
     if (this.freezeManager) this.freezeManager.destroy();
     if (this.roleManager) this.roleManager.destroy();
+    if (window.__WEBDECK_EDIT_CONTROLLER__?.destroy) {
+      window.__WEBDECK_EDIT_CONTROLLER__.destroy();
+    }
     this.removeAllListeners();
   }
 }

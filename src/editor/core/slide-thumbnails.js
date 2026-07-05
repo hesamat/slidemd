@@ -3,6 +3,10 @@
  * Manages the slide thumbnails sidebar in the editor.
  * Renders thumbnails of all slides and handles navigation via thumbnail clicks,
  * right-click context menu, and the pinned "Add Slide" footer button.
+ *
+ * Slide lifecycle actions (add/duplicate/delete/move) are injected as
+ * callbacks by EditController so this module has no knowledge of
+ * EditController or the global window handle.
  */
 
 // Touch long-press: how long (in ms) the user must hold a thumbnail
@@ -14,13 +18,34 @@ const LONG_PRESS_MS = 650;
 const LONG_PRESS_HAPTIC_MS = 10;
 
 export class SlideThumbnails {
-  constructor(deck, controller, elements) {
+  /**
+   * @param {object} deck
+   * @param {object} controller
+   * @param {object} elements
+   * @param {object} [opts]
+   * @param {(afterIndex?: number) => void} [opts.onAddSlide]      — open the layout picker; when called with an index, navigates there first
+   * @param {() => void} [opts.onDuplicateSlide]
+   * @param {() => void} [opts.onDeleteSlide]
+   * @param {() => void} [opts.onMoveSlideUp]
+   * @param {() => void} [opts.onMoveSlideDown]
+   */
+  constructor(deck, controller, elements, opts = {}) {
     this._deck = deck;
     this._controller = controller;
     this._elements = elements;
+    this._onAddSlide = opts.onAddSlide;
+    this._onDuplicateSlide = opts.onDuplicateSlide;
+    this._onDeleteSlide = opts.onDeleteSlide;
+    this._onMoveSlideUp = opts.onMoveSlideUp;
+    this._onMoveSlideDown = opts.onMoveSlideDown;
     this._container = null;
     this._currentIndex = 0;
     this._contextMenu = null;
+    this._onSlideChange = () => this.updateCurrentSlide();
+    this._onDeckChange = (data) => {
+      this._deck = data.deck;
+      this.render();
+    };
 
     this.init();
   }
@@ -34,18 +59,27 @@ export class SlideThumbnails {
     this._addBtn = this._container.querySelector(".slide-thumbnails__add-btn");
 
     // Listen for slide changes to update current thumbnail highlight
-    this._controller.addEventListener("slidechange", () => this.updateCurrentSlide());
+    this._controller.addEventListener("slidechange", this._onSlideChange);
 
     // Listen for deck changes to update our deck reference and re-render
-    this._controller.addEventListener("deckchange", (data) => {
-      this._deck = data.deck;
-      this.render();
-    });
+    this._controller.addEventListener("deckchange", this._onDeckChange);
 
-    this._contextMenu = new SlideContextMenu(this);
+    this._contextMenu = new SlideContextMenu(this, {
+      onDuplicate: this._onDuplicateSlide,
+      onDelete: this._onDeleteSlide,
+      onMoveUp: this._onMoveSlideUp,
+      onMoveDown: this._onMoveSlideDown,
+    });
     this._contextMenu.init();
 
     this._bindAddSlideFooter();
+  }
+
+  destroy() {
+    this._controller.removeEventListener("slidechange", this._onSlideChange);
+    this._controller.removeEventListener("deckchange", this._onDeckChange);
+    this._contextMenu?.destroy();
+    this._contextMenu = null;
   }
 
   /**
@@ -205,9 +239,8 @@ export class SlideThumbnails {
    *   (the footer button's contract).
    */
   _addNewSlide(afterIndex) {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) {
-      console.warn("Edit controller not available");
+    if (!this._onAddSlide) {
+      console.warn("Add-slide action not wired");
       return;
     }
     if (typeof afterIndex === "number") {
@@ -218,7 +251,7 @@ export class SlideThumbnails {
       const lastIndex = Math.max(0, (this._deck?.slides?.length ?? 1) - 1);
       this._controller.slideNavigator.goTo(lastIndex);
     }
-    editController.layoutManager.showPicker();
+    this._onAddSlide();
   }
 
   /**
@@ -283,8 +316,20 @@ export class SlideThumbnails {
  * to call back into it for "New after this slide".
  */
 class SlideContextMenu {
-  constructor(thumbnails) {
+  /**
+   * @param {object} thumbnails  — owning SlideThumbnails instance
+   * @param {object} [opts]
+   * @param {() => void} [opts.onDuplicate]
+   * @param {() => void} [opts.onDelete]
+   * @param {() => void} [opts.onMoveUp]
+   * @param {() => void} [opts.onMoveDown]
+   */
+  constructor(thumbnails, opts = {}) {
     this._thumbnails = thumbnails;
+    this._onDuplicate = opts.onDuplicate;
+    this._onDelete = opts.onDelete;
+    this._onMoveUp = opts.onMoveUp;
+    this._onMoveDown = opts.onMoveDown;
     this._menuEl = null;
     this._index = -1;
     this._abortController = null;
@@ -403,32 +448,26 @@ class SlideContextMenu {
   }
 
   _duplicate() {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) return;
-    editController.slideOps.duplicateSlide();
+    this._onDuplicate?.();
   }
 
   _delete() {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) return;
-    editController.slideOps.deleteSlide();
+    this._onDelete?.();
   }
 
   _moveUp(index) {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) return;
+    if (!this._onMoveUp) return;
     this._thumbnails._controller.slideNavigator.goTo(index);
     setTimeout(() => {
-      editController.slideOps.moveSlideUp();
+      this._onMoveUp();
     }, 50);
   }
 
   _moveDown(index) {
-    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
-    if (!editController) return;
+    if (!this._onMoveDown) return;
     this._thumbnails._controller.slideNavigator.goTo(index);
     setTimeout(() => {
-      editController.slideOps.moveSlideDown();
+      this._onMoveDown();
     }, 50);
   }
 }

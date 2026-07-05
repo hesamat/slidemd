@@ -153,6 +153,12 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
     try {
       const editController = new EditController(deck, controller, elements);
       window.__WEBDECK_EDIT_CONTROLLER__ = editController;
+      // Tear down the editor (and all its sub-module listeners) on
+      // page navigation so we don't leak document/window listeners
+      // back into a fresh page load.
+      window.addEventListener("beforeunload", () => {
+        editController.destroy();
+      });
     } catch (e) {
       console.error("EditController initialization failed:", e);
     }

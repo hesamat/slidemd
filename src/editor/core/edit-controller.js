@@ -47,7 +47,43 @@ export class EditController {
 
     this.placeholderDialogEl = null;
 
-    this.thumbnails = new SlideThumbnails(deck, controller, elements);
+    this._destroyed = false;
+    this._onSlideChange = () => {
+      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+      ImageInteractionHandler.deactivate();
+      SlideStylePanel.hide();
+      this.loadSlideIntoEditor();
+    };
+    this._onDeckChange = (data) => {
+      this.deck = data.deck;
+      this.originalMarkdown = this._cacheOriginalMarkdown();
+      this.unsavedMarkdown.clear();
+      this.hasUnsavedChanges = false;
+      this.saveManager.updateButton();
+      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+      this.loadSlideIntoEditor();
+      this.imageBg.deckDirectoryHandle = null;
+      this.imageBg._deckDirMode = null;
+    };
+    this._onSlidesContainerClick = (e) => {
+      if (!this.isEditMode) return;
+      const img = e.target.closest("img");
+      if (!img) return;
+      if (img.closest(".editor-area-label, .editor-slide-warning")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      ImageInteractionHandler.select(img);
+    };
+
+    this.thumbnails = new SlideThumbnails(deck, controller, elements, {
+      onAddSlide: () => this.layoutManager.showPicker(),
+      onDuplicateSlide: () => this.slideOps.duplicateSlide(),
+      onDeleteSlide: () => this.slideOps.deleteSlide(),
+      onMoveSlideUp: () => this.slideOps.moveSlideUp(),
+      onMoveSlideDown: () => this.slideOps.moveSlideDown(),
+    });
 
     this.imageBg = new ImageBackgroundHandler();
 
@@ -223,46 +259,20 @@ export class EditController {
   init() {
     this.panelResizer.init();
 
-    if (this.elements.toggleThumbnailsBtn) {
-      this.elements.toggleThumbnailsBtn.addEventListener("click", () => this.toggleThumbnails());
-    }
+    this._toggleThumbnailsBound = () => this.toggleThumbnails();
+    this._toggleEditModeBound = () => this.toggleEditMode();
+    this._addSlideBound = () => this.layoutManager.showPicker();
+    this._deleteSlideBound = () => this.slideOps.deleteSlide();
+    this._duplicateSlideBound = () => this.slideOps.duplicateSlide();
 
-    if (this.elements.toggleEditModeBtn) {
-      this.elements.toggleEditModeBtn.addEventListener("click", () => this.toggleEditMode());
-    }
+    this.elements.toggleThumbnailsBtn?.addEventListener("click", this._toggleThumbnailsBound);
+    this.elements.toggleEditModeBtn?.addEventListener("click", this._toggleEditModeBound);
+    this.elements.addSlideBtn?.addEventListener("click", this._addSlideBound);
+    this.elements.deleteSlideBtn?.addEventListener("click", this._deleteSlideBound);
+    this.elements.duplicateSlideBtn?.addEventListener("click", this._duplicateSlideBound);
 
-    this.controller.addEventListener("slidechange", () => {
-      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      ImageInteractionHandler.deactivate();
-      SlideStylePanel.hide();
-      this.loadSlideIntoEditor();
-    });
-
-    this.controller.addEventListener("deckchange", (data) => {
-      this.deck = data.deck;
-      this.originalMarkdown = this._cacheOriginalMarkdown();
-      this.unsavedMarkdown.clear();
-      this.hasUnsavedChanges = false;
-      this.saveManager.updateButton();
-      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      this.loadSlideIntoEditor();
-      this.imageBg.deckDirectoryHandle = null;
-      this.imageBg._deckDirMode = null;
-    });
-
-    if (this.elements.addSlideBtn) {
-      this.elements.addSlideBtn.addEventListener("click", () => this.layoutManager.showPicker());
-    }
-
-    if (this.elements.deleteSlideBtn) {
-      this.elements.deleteSlideBtn.addEventListener("click", () => this.slideOps.deleteSlide());
-    }
-
-    if (this.elements.duplicateSlideBtn) {
-      this.elements.duplicateSlideBtn.addEventListener("click", () =>
-        this.slideOps.duplicateSlide(),
-      );
-    }
+    this.controller.addEventListener("slidechange", this._onSlideChange);
+    this.controller.addEventListener("deckchange", this._onDeckChange);
 
     this.insertDropdown.init();
     this.mermaidHelper.init();
@@ -313,6 +323,44 @@ export class EditController {
     this.sourceJump.init();
 
     this.thumbnails.render();
+  }
+
+  /**
+   * Tear down all sub-module listeners and clear the global handle.
+   * Idempotent — safe to call more than once.
+   */
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    // Controller EventEmitter listeners
+    this.controller.removeEventListener("slidechange", this._onSlideChange);
+    this.controller.removeEventListener("deckchange", this._onDeckChange);
+
+    // DOM listeners on top-bar buttons
+    this.elements.toggleThumbnailsBtn?.removeEventListener("click", this._toggleThumbnailsBound);
+    this.elements.toggleEditModeBtn?.removeEventListener("click", this._toggleEditModeBound);
+    this.elements.addSlideBtn?.removeEventListener("click", this._addSlideBound);
+    this.elements.deleteSlideBtn?.removeEventListener("click", this._deleteSlideBound);
+    this.elements.duplicateSlideBtn?.removeEventListener("click", this._duplicateSlideBound);
+
+    // slidesContainer click → image selection
+    this.elements.slidesContainer?.removeEventListener("click", this._onSlidesContainerClick);
+
+    // Sub-modules with their own listeners
+    this.thumbnails?.destroy();
+    this.sourceJump?.destroy();
+    this.imageInserter?.destroy();
+    this.insertDropdown?.destroy();
+    this.mermaidHelper?.destroy();
+    this.panelResizer?.destroy();
+
+    // Release the global handle so a recreated EditController can register
+    if (window.__WEBDECK_EDIT_CONTROLLER__ === this) {
+      window.__WEBDECK_EDIT_CONTROLLER__ = null;
+    }
+
+    this.markdownEditor?.view?.destroy?.();
   }
 
   /**
@@ -448,17 +496,7 @@ export class EditController {
     const slidesContainer = this.elements.slidesContainer;
     if (!slidesContainer) return;
 
-    slidesContainer.addEventListener("click", (e) => {
-      if (!this.isEditMode) return;
-      const img = e.target.closest("img");
-      if (!img) return;
-      if (img.closest(".editor-area-label, .editor-slide-warning")) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      ImageInteractionHandler.select(img);
-    });
+    slidesContainer.addEventListener("click", this._onSlidesContainerClick);
 
     this.imageInserter.initDropAndPaste(slidesContainer);
   }
