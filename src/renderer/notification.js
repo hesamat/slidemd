@@ -423,7 +423,7 @@ export class Notification {
         const val = Math.min(100, Math.max(0, pct));
         progressBar.style.width = `${val}%`;
         progressWrap.hidden = false;
-        spinner.hidden = true;
+        spinner.remove();
       },
       updateMessage(msg) {
         messageEl.textContent = msg;
