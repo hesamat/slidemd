@@ -9,25 +9,15 @@
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 
 export class ImageBackgroundHandler {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
-
-    // Cached directory handle for saving images next to the deck file
+  constructor() {
     this.deckDirectoryHandle = null;
     this._deckDirMode = null;
-  }
-
-  get markdownEditor() {
-    return this.ctrl.markdownEditor;
   }
 
   /** Current mode of the directory handle ('parent' | 'images' | null). */
   get deckDirMode() {
     return this._deckDirMode || "parent";
   }
-
-  // ─── Upload ───────────────────────────────────────────────────────────
 
   async uploadImage(file) {
     let serverPath = null;
@@ -65,8 +55,6 @@ export class ImageBackgroundHandler {
 
     return relativePath;
   }
-
-  // ─── Directory handle ─────────────────────────────────────────────────
 
   async _resolveDeckDirectoryHandle() {
     if (this.deckDirectoryHandle) return this.deckDirectoryHandle;

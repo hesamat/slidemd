@@ -2,8 +2,7 @@
  * SlideOperations
  *
  * Slide lifecycle helpers extracted from EditController: add, delete,
- * move, duplicate, and layout-based creation.  Each method receives
- * (or accesses via `ctrl`) the shared editor state it needs.
+ * move, duplicate, and layout-based creation.
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
@@ -15,36 +14,91 @@ import { LayoutData } from "../../data/layout-data.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
 
 export class SlideOperations {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object} opts.getDeck
+   * @param {() => object} opts.getElements
+   * @param {() => object} opts.getController
+   * @param {() => object} opts.getThumbnails
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {(v: number) => void} opts.setCurrentSlideIndex
+   * @param {() => string[]} opts.getOriginalMarkdown
+   * @param {() => Map} opts.getUnsavedMarkdown
+   * @param {(v: Map) => void} opts.setUnsavedMarkdown
+   * @param {() => boolean} opts.getHasUnsavedChanges
+   * @param {(v: boolean) => void} opts.setHasUnsavedChanges
+   * @param {() => object} opts.getSaveManager
+   */
+  constructor({
+    getDeck,
+    getElements,
+    getController,
+    getThumbnails,
+    getMarkdownEditor,
+    getCurrentSlideIndex,
+    setCurrentSlideIndex,
+    getOriginalMarkdown,
+    getUnsavedMarkdown,
+    setUnsavedMarkdown,
+    getHasUnsavedChanges,
+    setHasUnsavedChanges,
+    getSaveManager,
+  }) {
+    this._getDeck = getDeck;
+    this._getElements = getElements;
+    this._getController = getController;
+    this._getThumbnails = getThumbnails;
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._setCurrentSlideIndex = setCurrentSlideIndex;
+    this._getOriginalMarkdown = getOriginalMarkdown;
+    this._getUnsavedMarkdown = getUnsavedMarkdown;
+    this._setUnsavedMarkdown = setUnsavedMarkdown;
+    this._getHasUnsavedChanges = getHasUnsavedChanges;
+    this._setHasUnsavedChanges = setHasUnsavedChanges;
+    this._getSaveManager = getSaveManager;
   }
-
-  // ─── Shortcuts ────────────────────────────────────────────────────────────
 
   get deck() {
-    return this.ctrl.deck;
+    return this._getDeck();
   }
   get elements() {
-    return this.ctrl.elements;
+    return this._getElements();
   }
   get controller() {
-    return this.ctrl.controller;
+    return this._getController();
   }
   get thumbnails() {
-    return this.ctrl.thumbnails;
+    return this._getThumbnails();
   }
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
   set currentSlideIndex(v) {
-    this.ctrl.currentSlideIndex = v;
+    this._setCurrentSlideIndex(v);
   }
-
-  // ─── Add ──────────────────────────────────────────────────────────────────
+  get originalMarkdown() {
+    return this._getOriginalMarkdown();
+  }
+  get unsavedMarkdown() {
+    return this._getUnsavedMarkdown();
+  }
+  set unsavedMarkdown(v) {
+    this._setUnsavedMarkdown(v);
+  }
+  get hasUnsavedChanges() {
+    return this._getHasUnsavedChanges();
+  }
+  set hasUnsavedChanges(v) {
+    this._setHasUnsavedChanges(v);
+  }
+  get saveManager() {
+    return this._getSaveManager();
+  }
 
   addSlide() {
     if (this.deck.slides.length === 0) return;
@@ -62,7 +116,7 @@ export class SlideOperations {
 
     this.deck.slides.splice(insertIndex, 0, newSlide);
     const newSlideMarkdown = "## New Slide\n\nAdd your content here";
-    this.ctrl.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
+    this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
 
     const visibleSlideCount = this.deck.slides.filter((s) => !s.hidden).length;
     if (this.elements.slideCountEl) {
@@ -82,8 +136,6 @@ export class SlideOperations {
     this.controller.slideNavigator.goTo(insertIndex);
   }
 
-  // ─── Delete ─────────────────────────────────────────────────────────────
-
   async deleteSlide() {
     if (this.deck.slides.length <= 1) {
       Notification.warning("Cannot delete the only slide");
@@ -96,7 +148,7 @@ export class SlideOperations {
     const indexToDelete = this.currentSlideIndex;
 
     this.deck.slides.splice(indexToDelete, 1);
-    this.ctrl.originalMarkdown.splice(indexToDelete, 1);
+    this.originalMarkdown.splice(indexToDelete, 1);
 
     const visibleSlideCount = this.deck.slides.filter((s) => !s.hidden).length;
     if (this.elements.slideCountEl) {
@@ -112,16 +164,14 @@ export class SlideOperations {
 
     this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
 
-    if (this.ctrl.unsavedMarkdown.size === 0) {
-      this.ctrl.unsavedMarkdown.set(0, this.ctrl.originalMarkdown[0] || "");
+    if (this.unsavedMarkdown.size === 0) {
+      this.unsavedMarkdown.set(0, this.originalMarkdown[0] || "");
     }
-    this.ctrl.hasUnsavedChanges = true;
-    this.ctrl.updateSaveButton();
+    this.hasUnsavedChanges = true;
+    this.saveManager.updateButton();
 
     this.thumbnails.refresh();
   }
-
-  // ─── Move ──────────────────────────────────────────────────────────────
 
   moveSlideUp() {
     if (this.currentSlideIndex <= 0) {
@@ -157,14 +207,12 @@ export class SlideOperations {
 
   /** Swap two adjacent slides in data, DOM, and unsaved-map. */
   _swapSlides(a, b) {
-    // Data
     [this.deck.slides[a], this.deck.slides[b]] = [this.deck.slides[b], this.deck.slides[a]];
-    [this.ctrl.originalMarkdown[a], this.ctrl.originalMarkdown[b]] = [
-      this.ctrl.originalMarkdown[b],
-      this.ctrl.originalMarkdown[a],
+    [this.originalMarkdown[a], this.originalMarkdown[b]] = [
+      this.originalMarkdown[b],
+      this.originalMarkdown[a],
     ];
 
-    // DOM
     const allSlides = this.elements.slidesContainer.querySelectorAll(".slide");
     const elA = allSlides[a];
     const elB = allSlides[b];
@@ -177,26 +225,23 @@ export class SlideOperations {
       cloneA.classList.add("active");
     }
 
-    // Unsaved map
     const newMap = new Map();
-    for (const [idx, content] of this.ctrl.unsavedMarkdown) {
+    for (const [idx, content] of this.unsavedMarkdown) {
       if (idx === a) newMap.set(b, content);
       else if (idx === b) newMap.set(a, content);
       else newMap.set(idx, content);
     }
-    this.ctrl.unsavedMarkdown = newMap;
-    this.ctrl.hasUnsavedChanges = true;
-    this.ctrl.updateSaveButton();
+    this.unsavedMarkdown = newMap;
+    this.hasUnsavedChanges = true;
+    this.saveManager.updateButton();
   }
-
-  // ─── Duplicate ────────────────────────────────────────────────────────
 
   async duplicateSlide() {
     const sourceIndex = this.currentSlideIndex;
     const insertIndex = sourceIndex + 1;
 
     const markdown =
-      this.ctrl.unsavedMarkdown.get(sourceIndex) ?? this.ctrl.originalMarkdown[sourceIndex] ?? "";
+      this.unsavedMarkdown.get(sourceIndex) ?? this.originalMarkdown[sourceIndex] ?? "";
 
     if (!markdown) {
       Notification.warning("Cannot duplicate empty slide");
@@ -216,7 +261,7 @@ export class SlideOperations {
       const newSlide = { ...deckData.slides[0], id: Date.now() };
 
       this.deck.slides.splice(insertIndex, 0, newSlide);
-      this.ctrl.originalMarkdown.splice(insertIndex, 0, markdown);
+      this.originalMarkdown.splice(insertIndex, 0, markdown);
 
       if (this.elements.slideCountEl) {
         this.elements.slideCountEl.textContent = String(this.deck.slides.length);
@@ -250,15 +295,12 @@ export class SlideOperations {
     }
   }
 
-  // ─── Add with layout ───────────────────────────────────────────────────
-
   addSlideWithLayout(layoutName) {
     if (this.deck.slides.length === 0) return;
 
     const template = LayoutData.getTemplate(layoutName);
     const insertIndex = this.currentSlideIndex + 1;
 
-    // Apply persisted default styles to the new slide template
     const defaultAreaStyle = SlideStylePanel.getDefaultAreaStyle();
     const defaultHeaderStyle = SlideStylePanel.getDefaultHeaderStyle();
     const defaultBackground = SlideStylePanel.getDefaultBackground();
@@ -289,11 +331,11 @@ export class SlideOperations {
           areas: { main: "<h2>New Slide</h2>\n\nAdd your content here" },
         };
         this.deck.slides.splice(insertIndex, 0, newSlide);
-        this.ctrl.originalMarkdown.splice(insertIndex, 0, styledTemplate);
+        this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       } else {
         const newSlide = deckData.slides[0];
         this.deck.slides.splice(insertIndex, 0, newSlide);
-        this.ctrl.originalMarkdown.splice(insertIndex, 0, styledTemplate);
+        this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       }
 
       if (this.elements.slideCountEl) {
@@ -328,8 +370,6 @@ export class SlideOperations {
     }
   }
 
-  // ─── Unsaved-map helpers ───────────────────────────────────────────────
-
   rebuildUnsavedMarkdownMap(
     insertAtIndex = -1,
     deleteAtIndex = -1,
@@ -338,7 +378,7 @@ export class SlideOperations {
   ) {
     const newMap = new Map();
 
-    for (const [index, content] of this.ctrl.unsavedMarkdown) {
+    for (const [index, content] of this.unsavedMarkdown) {
       let newIndex = index;
 
       if (deleteAtIndex >= 0 && index > deleteAtIndex) newIndex = index - 1;
@@ -352,8 +392,8 @@ export class SlideOperations {
       newMap.set(newSlideIndex, newSlideMarkdown);
     }
 
-    this.ctrl.unsavedMarkdown = newMap;
-    this.ctrl.hasUnsavedChanges = this.ctrl.unsavedMarkdown.size > 0;
-    this.ctrl.updateSaveButton();
+    this.unsavedMarkdown = newMap;
+    this.hasUnsavedChanges = this.unsavedMarkdown.size > 0;
+    this.saveManager.updateButton();
   }
 }

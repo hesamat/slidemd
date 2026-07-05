@@ -21,25 +21,23 @@ const TEMPLATES = {
 };
 
 export class MermaidHelperManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
-  }
-
-  get elements() {
-    return this.ctrl.elements;
-  }
-  get markdownEditor() {
-    return this.ctrl.markdownEditor;
-  }
-
   /**
-   * Initialize template button click handlers.
+   * @param {object} opts
+   * @param {HTMLElement} opts.mermaidHelperPanel
+   * @param {object} opts.markdownEditor
    */
+  constructor({ mermaidHelperPanel, markdownEditor }) {
+    this._panel = mermaidHelperPanel;
+    this._markdownEditor = markdownEditor;
+  }
+
+  get markdownEditor() {
+    return this._markdownEditor;
+  }
+
   init() {
-    if (!this.elements.mermaidHelperPanel) return;
-    const templateButtons =
-      this.elements.mermaidHelperPanel.querySelectorAll("[data-mermaid-template]");
+    if (!this._panel) return;
+    const templateButtons = this._panel.querySelectorAll("[data-mermaid-template]");
     templateButtons.forEach((button) => {
       button.addEventListener("click", () => {
         const template = button.getAttribute("data-mermaid-template");
@@ -49,21 +47,21 @@ export class MermaidHelperManager {
   }
 
   toggle() {
-    if (!this.elements.mermaidHelperPanel) return;
-    const isHidden = this.elements.mermaidHelperPanel.classList.toggle("webdeck-hidden");
-    this.elements.mermaidHelperPanel.setAttribute("aria-hidden", String(isHidden));
+    if (!this._panel) return;
+    const isHidden = this._panel.classList.toggle("webdeck-hidden");
+    this._panel.setAttribute("aria-hidden", String(isHidden));
   }
 
   hide() {
-    if (!this.elements.mermaidHelperPanel) return;
-    this.elements.mermaidHelperPanel.classList.add("webdeck-hidden");
-    this.elements.mermaidHelperPanel.setAttribute("aria-hidden", "true");
+    if (!this._panel) return;
+    this._panel.classList.add("webdeck-hidden");
+    this._panel.setAttribute("aria-hidden", "true");
   }
 
   insertTemplate(templateName) {
-    if (!this.markdownEditor) return;
+    if (!this._markdownEditor) return;
     const snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
-    this.markdownEditor.insertText(snippet);
-    this.markdownEditor.focus();
+    this._markdownEditor.insertText(snippet);
+    this._markdownEditor.focus();
   }
 }

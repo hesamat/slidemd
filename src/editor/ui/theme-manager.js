@@ -8,19 +8,28 @@ import { MarkdownParser } from "../../data/markdown-parser.js";
 import { updateThemeDirective } from "../core/directive-utils.js";
 
 export class ThemeManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => object} opts.getDeck
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {() => Promise<void>} opts.onPreviewUpdate
+   */
+  constructor({ getMarkdownEditor, getDeck, getCurrentSlideIndex, onPreviewUpdate }) {
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getDeck = getDeck;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._onPreviewUpdate = onPreviewUpdate;
   }
 
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
   get deck() {
-    return this.ctrl.deck;
+    return this._getDeck();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
 
   toggle() {
@@ -31,7 +40,7 @@ export class ThemeManager {
     const next = currentTheme === "dark" ? "light" : "dark";
     const updated = updateThemeDirective(markdown, next);
     this.markdownEditor.setValue(updated, { suppressOnChange: true });
-    this.ctrl.updatePreview();
+    this._onPreviewUpdate();
     this.deck.slides[this.currentSlideIndex].theme = next;
     this._syncMenuItemIcon(next);
   }

@@ -20,6 +20,7 @@ import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
+import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -132,77 +133,77 @@ export class DeckController extends EventEmitter {
       },
       styles: () => {
         try {
-          edit()?.openSlideStylePanel?.();
+          SlideStylePanel.toggle();
         } catch {
           /* style panel may not be available */
         }
       },
       save: () => {
         try {
-          edit()?.saveChanges?.();
+          edit()?.saveManager?.save?.();
         } catch (e) {
           console.warn("Save shortcut failed:", e);
         }
       },
       newSlide: () => {
         try {
-          edit()?.showLayoutPicker?.();
+          edit()?.layoutManager?.showPicker?.();
         } catch (e) {
           console.warn("New slide shortcut failed:", e);
         }
       },
       duplicateSlide: () => {
         try {
-          edit()?.duplicateSlide?.();
+          edit()?.slideOps?.duplicateSlide?.();
         } catch (e) {
           console.warn("Duplicate slide shortcut failed:", e);
         }
       },
       deleteSlide: () => {
         try {
-          edit()?.deleteSlide?.();
+          edit()?.slideOps?.deleteSlide?.();
         } catch (e) {
           console.warn("Delete slide shortcut failed:", e);
         }
       },
       insertImage: () => {
         try {
-          edit()?.pickAndInsertImage?.();
+          edit()?.imageInserter?.pickAndInsert?.();
         } catch (e) {
           console.warn("Insert image shortcut failed:", e);
         }
       },
       openLayout: () => {
         try {
-          edit()?.showLayoutPickerForCurrentSlide?.();
+          edit()?.layoutManager?.showPickerForCurrentSlide?.();
         } catch (e) {
           console.warn("Open layout shortcut failed:", e);
         }
       },
       toggleMermaid: () => {
         try {
-          edit()?.toggleMermaidHelperPanel?.();
+          edit()?.mermaidHelper?.toggle?.();
         } catch (e) {
           console.warn("Toggle Mermaid shortcut failed:", e);
         }
       },
       adjustColumns: () => {
         try {
-          edit()?.toggleGridResizer?.();
+          edit()?.gridResizer?.toggle?.();
         } catch (e) {
           console.warn("Adjust columns shortcut failed:", e);
         }
       },
       moveSlideUp: () => {
         try {
-          edit()?.moveSlideUp?.();
+          edit()?.slideOps?.moveSlideUp?.();
         } catch (e) {
           console.warn("Move slide up shortcut failed:", e);
         }
       },
       moveSlideDown: () => {
         try {
-          edit()?.moveSlideDown?.();
+          edit()?.slideOps?.moveSlideDown?.();
         } catch (e) {
           console.warn("Move slide down shortcut failed:", e);
         }
@@ -413,8 +414,8 @@ export class DeckController extends EventEmitter {
     });
     listen(this.elements.menuSaveBtn, "click", () => {
       const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (this.isEditMode() && editCtrl?.saveChanges) {
-        editCtrl.saveChanges();
+      if (this.isEditMode() && editCtrl?.saveManager) {
+        editCtrl.saveManager.save();
       } else {
         Notification.info("Open edit mode (E) to save changes");
       }

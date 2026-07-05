@@ -7,28 +7,45 @@
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 
 export class AreaGuideManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => boolean} opts.getIsEditMode
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {() => object} opts.getDeck
+   * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   * @param {(areaName: string) => void} opts.onNavigateToArea
+   * @param {(slideEl: HTMLElement, slideData: object) => void} opts.onAttachGridResizer
+   */
+  constructor({
+    getIsEditMode,
+    getCurrentSlideIndex,
+    getDeck,
+    getSlideElementByIndex,
+    onNavigateToArea,
+    onAttachGridResizer,
+  }) {
+    this._getIsEditMode = getIsEditMode;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getDeck = getDeck;
+    this._getSlideElementByIndex = getSlideElementByIndex;
+    this._onNavigateToArea = onNavigateToArea;
+    this._onAttachGridResizer = onAttachGridResizer;
   }
 
   get isEditMode() {
-    return this.ctrl.isEditMode;
+    return this._getIsEditMode();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
   get deck() {
-    return this.ctrl.deck;
+    return this._getDeck();
   }
 
   getSlideElementByIndex(index) {
-    return this.ctrl.getSlideElementByIndex(index);
+    return this._getSlideElementByIndex(index);
   }
 
-  /**
-   * Apply @area labels and click-to-navigate on a slide element.
-   */
   applyAreaGuides(slideEl, slideData) {
     if (!this.isEditMode || !slideEl) return;
 
@@ -37,12 +54,10 @@ export class AreaGuideManager {
       const name = areaEl.style.gridArea || areaEl.dataset.areaName || "main";
       areaEl.dataset.areaName = name;
 
-      // Check if area has meaningful content (text or non-label elements)
       const hasContent =
         areaEl.textContent.trim().length > 0 ||
         areaEl.querySelectorAll(":scope > *:not(.editor-area-label)").length > 0;
 
-      // Skip adding label to empty optional areas (let CSS collapse them)
       if (!hasContent && (name === "header" || name === "footer")) return;
 
       let label = areaEl.querySelector(":scope > .editor-area-label");
@@ -58,7 +73,7 @@ export class AreaGuideManager {
       label.onclick = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.ctrl.navigateToArea(name);
+        this._onNavigateToArea(name);
       };
     });
 
@@ -67,21 +82,16 @@ export class AreaGuideManager {
     }
   }
 
-  /**
-   * Update overflow indicators on area elements.
-   */
   updateAreaOverflow(slideEl) {
     if (!this.isEditMode || !slideEl) return;
     const areas = slideEl.querySelectorAll(".slide__area");
     areas.forEach((area) => {
       const name = area.dataset.areaName;
 
-      // Check if area has meaningful content
       const hasContent =
         area.textContent.trim().length > 0 ||
         area.querySelectorAll(":scope > *:not(.editor-area-label)").length > 0;
 
-      // Skip overflow check for empty optional areas
       if (!hasContent && (name === "header" || name === "footer")) {
         area.classList.remove("editor-area-overflow");
         return;
@@ -103,9 +113,6 @@ export class AreaGuideManager {
     });
   }
 
-  /**
-   * Refresh all area guides for the current slide.
-   */
   refresh() {
     if (!this.isEditMode) return;
     const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
@@ -115,13 +122,13 @@ export class AreaGuideManager {
     this.applyAreaGuides(slideEl, slideData);
     requestAnimationFrame(() => {
       this.updateAreaOverflow(slideEl);
-      this.ctrl.gridResizer.attachForSlide(slideEl, slideData);
-      // Activate image drag/resize on the current slide's grid.  This is
-      // needed because updatePreview() (which normally calls activate) is
-      // skipped when loadSlideIntoEditor() runs with suppressOnChange —
-      // e.g. when entering edit mode or navigating slides.  Without this,
-      // existing images can only be moved via keyboard arrows, not dragged
-      // or resized.
+      this._onAttachGridResizer(slideEl, slideData);
+      // Re-activate image drag/resize on the current slide's grid.
+      // This is needed because updatePreview() (which normally calls
+      // activate) is skipped when loadSlideIntoEditor() runs with
+      // suppressOnChange — e.g. when entering edit mode or navigating
+      // slides.  Without this, existing images can only be moved via
+      // keyboard arrows, not dragged or resized.
       const grid = slideEl.querySelector(".slide__grid");
       if (grid) {
         ImageInteractionHandler.activate(grid);

@@ -7,23 +7,21 @@
 import { StageScaler } from "../../renderer/stage-scaler.js";
 
 export class PanelResizer {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
-  }
-
-  get elements() {
-    return this.ctrl.elements;
-  }
-
   /**
-   * Initialize panel resize functionality.
+   * @param {object} opts
+   * @param {HTMLElement} opts.editorPanel
+   * @param {HTMLElement} opts.stageHost
    */
+  constructor({ editorPanel, stageHost }) {
+    this._editorPanel = editorPanel;
+    this._stageHost = stageHost;
+    this._onMouseMove = null;
+    this._onMouseUp = null;
+  }
+
   init() {
     const resizeHandle = document.querySelector(".editor__resize-handle");
-    const editorPanel = this.elements.editorPanel;
-
-    if (!resizeHandle || !editorPanel) return;
+    if (!resizeHandle || !this._editorPanel) return;
 
     let isResizing = false;
     let startX = 0;
@@ -32,31 +30,29 @@ export class PanelResizer {
     const onMouseDown = (e) => {
       isResizing = true;
       startX = e.clientX;
-      startWidth = editorPanel.offsetWidth;
+      startWidth = this._editorPanel.offsetWidth;
       resizeHandle.classList.add("dragging");
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     };
 
-    const onMouseMove = (e) => {
+    this._onMouseMove = (e) => {
       if (!isResizing) return;
 
       const deltaX = e.clientX - startX;
       const newWidth = startWidth + deltaX;
 
-      // Constrain width between min and max
       const minWidth = 300;
       const maxWidth = 800;
       const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
-      editorPanel.style.width = constrainedWidth + "px";
-      editorPanel.style.flex = "none";
+      this._editorPanel.style.width = constrainedWidth + "px";
+      this._editorPanel.style.flex = "none";
 
-      // Re-scale the stage to fit the new available space
-      StageScaler.applyStageScale(this.elements);
+      StageScaler.applyStageScale({ stageHost: this._stageHost });
     };
 
-    const onMouseUp = () => {
+    this._onMouseUp = () => {
       if (!isResizing) return;
       isResizing = false;
       resizeHandle.classList.remove("dragging");
@@ -65,7 +61,12 @@ export class PanelResizer {
     };
 
     resizeHandle.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("mousemove", this._onMouseMove);
+    document.addEventListener("mouseup", this._onMouseUp);
+  }
+
+  destroy() {
+    if (this._onMouseMove) document.removeEventListener("mousemove", this._onMouseMove);
+    if (this._onMouseUp) document.removeEventListener("mouseup", this._onMouseUp);
   }
 }

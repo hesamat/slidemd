@@ -218,7 +218,7 @@ export class SlideThumbnails {
       const lastIndex = Math.max(0, (this._deck?.slides?.length ?? 1) - 1);
       this._controller.slideNavigator.goTo(lastIndex);
     }
-    editController.showLayoutPicker();
+    editController.layoutManager.showPicker();
   }
 
   /**
@@ -391,13 +391,13 @@ class SlideContextMenu {
   _duplicate() {
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
     if (!editController) return;
-    editController.duplicateSlide();
+    editController.slideOps.duplicateSlide();
   }
 
   _delete() {
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
     if (!editController) return;
-    editController.deleteSlide();
+    editController.slideOps.deleteSlide();
   }
 
   _moveUp(index) {
@@ -405,7 +405,7 @@ class SlideContextMenu {
     if (!editController) return;
     this._thumbnails._controller.slideNavigator.goTo(index);
     setTimeout(() => {
-      editController.moveSlideUp();
+      editController.slideOps.moveSlideUp();
     }, 50);
   }
 
@@ -414,7 +414,7 @@ class SlideContextMenu {
     if (!editController) return;
     this._thumbnails._controller.slideNavigator.goTo(index);
     setTimeout(() => {
-      editController.moveSlideDown();
+      editController.slideOps.moveSlideDown();
     }, 50);
   }
 }

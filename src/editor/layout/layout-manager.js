@@ -11,41 +11,28 @@ import { LayoutPicker } from "./layout-picker.js";
 import { updateLayoutDirective } from "../core/directive-utils.js";
 
 export class LayoutManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {(layoutName: string) => void} opts.onAddSlideWithLayout
+   */
+  constructor({ getMarkdownEditor, onAddSlideWithLayout }) {
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._onAddSlideWithLayout = onAddSlideWithLayout;
   }
 
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
-  }
-  get deck() {
-    return this.ctrl.deck;
-  }
-  get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
-  }
-  get slideOps() {
-    return this.ctrl.slideOps;
+    return this._getMarkdownEditor();
   }
 
-  /**
-   * Show the layout picker for adding a new slide.
-   */
   showPicker() {
-    LayoutPicker.show((layoutName) => this.slideOps.addSlideWithLayout(layoutName));
+    LayoutPicker.show((layoutName) => this._onAddSlideWithLayout(layoutName));
   }
 
-  /**
-   * Show the layout picker for the current slide.
-   */
   showPickerForCurrentSlide() {
     LayoutPicker.show((layoutName) => this.applyToCurrentSlide(layoutName));
   }
 
-  /**
-   * Apply a layout to the current slide, with compatibility check and auto-area creation.
-   */
   async applyToCurrentSlide(layoutName) {
     if (!this.markdownEditor) return;
 
@@ -68,7 +55,6 @@ export class LayoutManager {
 
     let updatedMarkdown = updateLayoutDirective(markdown, layoutName);
 
-    // Auto-add missing required areas (e.g. @secondary for three-column)
     const parser = new MarkdownParser();
     const { areas: currentAreas } = parser.parseAreas(updatedMarkdown);
     const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
@@ -85,7 +71,6 @@ export class LayoutManager {
     };
 
     for (const area of requiredAreas) {
-      // Skip title/header checks as they are symmetric
       if (area === "header" || area === "title" || area === "footer") continue;
 
       if (!currentAreas[area] && areaPlaceholders[area]) {
@@ -101,9 +86,6 @@ export class LayoutManager {
     Notification.success(`Layout changed to "${layoutName}"`);
   }
 
-  /**
-   * Check if a layout is compatible with the current slide's areas.
-   */
   getCompatibilityWarning(markdown, layoutName) {
     const currentAreas = this._normalizeAreasForLayout(markdown, layoutName);
     const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
