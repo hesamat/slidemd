@@ -10,17 +10,24 @@
 import { MarkdownParser } from "../../data/markdown-parser.js";
 
 export class SourceJumpHandler {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => HTMLElement|null} opts.getSlidesContainer
+   * @param {() => boolean} opts.getIsEditMode
+   * @param {() => object|null} opts.getMarkdownEditor
+   */
+  constructor({ getSlidesContainer, getIsEditMode, getMarkdownEditor }) {
+    this._getSlidesContainer = getSlidesContainer;
+    this._getIsEditMode = getIsEditMode;
+    this._getMarkdownEditor = getMarkdownEditor;
   }
 
   init() {
-    const slidesContainer = this.ctrl.elements.slidesContainer;
+    const slidesContainer = this._getSlidesContainer();
     if (!slidesContainer) return;
 
     slidesContainer.addEventListener("click", (e) => {
-      if (!this.ctrl.isEditMode) return;
+      if (!this._getIsEditMode()) return;
       if (
         e.target.closest(
           ".editor-area-label, .editor-slide-warning, .image-overlay, .image-properties-panel, .grid-resize-handle",
@@ -39,13 +46,15 @@ export class SourceJumpHandler {
       const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
       if (isNaN(sourceLine)) return;
 
-      const editorMarkdown = this.ctrl.markdownEditor?.getValue() ?? "";
+      const markdownEditor = this._getMarkdownEditor();
+      const editorMarkdown = markdownEditor?.getValue() ?? "";
       const lines = editorMarkdown.split("\n");
 
       const parser = new MarkdownParser();
       const areaOffsets = parser.computeAreaOffsets(editorMarkdown);
       let areaStart = areaOffsets[areaName];
       if (areaStart === undefined) {
+        // @title / @header alias handling
         if (areaName === "title" && areaOffsets.header !== undefined) {
           areaStart = areaOffsets.header;
         } else if (areaName === "header" && areaOffsets.title !== undefined) {
@@ -63,11 +72,11 @@ export class SourceJumpHandler {
       }
       pos = Math.min(pos, editorMarkdown.length);
 
-      this.ctrl.markdownEditor.setValueWithCursor(editorMarkdown, pos, {
+      markdownEditor.setValueWithCursor(editorMarkdown, pos, {
         suppressOnChange: true,
         scrollIntoView: true,
       });
-      this.ctrl.markdownEditor.highlightLine(targetLine);
+      markdownEditor.highlightLine(targetLine);
     });
   }
 }

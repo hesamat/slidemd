@@ -19,31 +19,54 @@ import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { Notification } from "../../renderer/notification.js";
 
 export class SlidePreviewUpdater {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => object} opts.getWarnings
+   * @param {() => object} opts.getDeck
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {() => object} opts.getThumbnails
+   * @param {() => object} opts.getAreaGuides
+   * @param {() => object} opts.getGridResizer
+   */
+  constructor({
+    getMarkdownEditor,
+    getWarnings,
+    getDeck,
+    getCurrentSlideIndex,
+    getThumbnails,
+    getAreaGuides,
+    getGridResizer,
+  }) {
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getWarnings = getWarnings;
+    this._getDeck = getDeck;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getThumbnails = getThumbnails;
+    this._getAreaGuides = getAreaGuides;
+    this._getGridResizer = getGridResizer;
   }
 
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
   get warnings() {
-    return this.ctrl.warnings;
+    return this._getWarnings();
   }
   get deck() {
-    return this.ctrl.deck;
+    return this._getDeck();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
   get thumbnails() {
-    return this.ctrl.thumbnails;
+    return this._getThumbnails();
   }
   get areaGuides() {
-    return this.ctrl.areaGuides;
+    return this._getAreaGuides();
   }
   get gridResizer() {
-    return this.ctrl.gridResizer;
+    return this._getGridResizer();
   }
 
   async update() {

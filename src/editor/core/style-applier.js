@@ -14,25 +14,57 @@ import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { Notification } from "../../renderer/notification.js";
 
 export class StyleApplier {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => string[]} opts.getOriginalMarkdown
+   * @param {() => Map} opts.getUnsavedMarkdown
+   * @param {(v: Map) => void} opts.setUnsavedMarkdown
+   * @param {() => object} opts.getDeck
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {(v: boolean) => void} opts.setHasUnsavedChanges
+   * @param {() => void} opts.onUpdateSaveButton
+   * @param {() => object} opts.getImageBg
+   */
+  constructor({
+    getOriginalMarkdown,
+    getUnsavedMarkdown,
+    setUnsavedMarkdown,
+    getDeck,
+    getCurrentSlideIndex,
+    getMarkdownEditor,
+    setHasUnsavedChanges,
+    onUpdateSaveButton,
+    getImageBg,
+  }) {
+    this._getOriginalMarkdown = getOriginalMarkdown;
+    this._getUnsavedMarkdown = getUnsavedMarkdown;
+    this._setUnsavedMarkdown = setUnsavedMarkdown;
+    this._getDeck = getDeck;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._setHasUnsavedChanges = setHasUnsavedChanges;
+    this._onUpdateSaveButton = onUpdateSaveButton;
+    this._getImageBg = getImageBg;
   }
 
   get originalMarkdown() {
-    return this.ctrl.originalMarkdown;
+    return this._getOriginalMarkdown();
   }
   get unsavedMarkdown() {
-    return this.ctrl.unsavedMarkdown;
+    return this._getUnsavedMarkdown();
+  }
+  set unsavedMarkdown(v) {
+    this._setUnsavedMarkdown(v);
   }
   get deck() {
-    return this.ctrl.deck;
+    return this._getDeck();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
 
   async applyToAll(cssString, headerStyle, background, theme) {
@@ -81,8 +113,8 @@ export class StyleApplier {
 
       this.unsavedMarkdown.set(i, withoutTheme);
     }
-    this.ctrl.hasUnsavedChanges = true;
-    this.ctrl.updateSaveButton();
+    this._setHasUnsavedChanges(true);
+    this._onUpdateSaveButton();
 
     const slidesContainer = document.getElementById("slidesContainer");
     if (slidesContainer) {
@@ -108,15 +140,16 @@ export class StyleApplier {
   async pickImage(onSelect) {
     const { ImagePicker } = await import("../image/image-picker.js");
     const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-    const deckDirHandle = await this.ctrl.imageBg._resolveDeckDirectoryHandle();
-    DeckImagesResolver.setDeckDir(deckDirHandle, this.ctrl.imageBg.deckDirMode);
+    const imageBg = this._getImageBg();
+    const deckDirHandle = await imageBg._resolveDeckDirectoryHandle();
+    DeckImagesResolver.setDeckDir(deckDirHandle, imageBg.deckDirMode);
     ImagePicker.show(
       (path) => {
         onSelect(path);
       },
       {
         deckDirHandle,
-        deckDirMode: this.ctrl.imageBg.deckDirMode,
+        deckDirMode: imageBg.deckDirMode,
         pathOnly: true,
       },
     );

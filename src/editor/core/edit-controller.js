@@ -160,9 +160,37 @@ export class EditController {
       stageHost: this.elements.stageHost,
     });
 
-    this.previewUpdater = new SlidePreviewUpdater(this);
-    this.styleApplier = new StyleApplier(this);
-    this.sourceJump = new SourceJumpHandler(this);
+    this.previewUpdater = new SlidePreviewUpdater({
+      getMarkdownEditor: () => this.markdownEditor,
+      getWarnings: () => this.warnings,
+      getDeck: () => this.deck,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getThumbnails: () => this.thumbnails,
+      getAreaGuides: () => this.areaGuides,
+      getGridResizer: () => this.gridResizer,
+    });
+
+    this.styleApplier = new StyleApplier({
+      getOriginalMarkdown: () => this.originalMarkdown,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        this.unsavedMarkdown = v;
+      },
+      getDeck: () => this.deck,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getMarkdownEditor: () => this.markdownEditor,
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+      onUpdateSaveButton: () => this.saveManager.updateButton(),
+      getImageBg: () => this.imageBg,
+    });
+
+    this.sourceJump = new SourceJumpHandler({
+      getSlidesContainer: () => this.elements.slidesContainer,
+      getIsEditMode: () => this.isEditMode,
+      getMarkdownEditor: () => this.markdownEditor,
+    });
 
     this.init();
   }

@@ -7,9 +7,7 @@
 import { MarkdownParser } from "../data/markdown-parser.js";
 
 export class EditStateManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  constructor() {
     this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
   }
