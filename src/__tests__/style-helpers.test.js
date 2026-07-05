@@ -8,6 +8,7 @@ import {
   parseBorder,
   parsePx,
   buildAreaStyle,
+  getDefaultBorderColor,
 } from "../editor/ui/style-helpers.js";
 
 describe("COLOR_SWATCHES", () => {
@@ -144,12 +145,12 @@ describe("parseBorder", () => {
 
   it("defaults color to light gray", () => {
     const result = parseBorder("3px solid");
-    expect(result).toEqual({ width: 3, color: "#d3d3d3" });
+    expect(result).toEqual({ width: 3, color: getDefaultBorderColor() });
   });
 
   it("returns 0 width for empty string", () => {
     const result = parseBorder("");
-    expect(result).toEqual({ width: 0, color: "#d3d3d3" });
+    expect(result).toEqual({ width: 0, color: getDefaultBorderColor() });
   });
 
   it("returns 0 width for non-numeric", () => {
@@ -159,7 +160,7 @@ describe("parseBorder", () => {
 
   it("parses width only", () => {
     const result = parseBorder("4px");
-    expect(result).toEqual({ width: 4, color: "#d3d3d3" });
+    expect(result).toEqual({ width: 4, color: getDefaultBorderColor() });
   });
 });
 

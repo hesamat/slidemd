@@ -4,6 +4,18 @@
  * and title-decoration logic in one place.
  */
 
+const DARK_BORDER_COLOR = "#94a3b8";
+const LIGHT_BORDER_COLOR = "#64748b";
+
+export function getDefaultBorderColor() {
+  const theme =
+    (typeof document !== "undefined" && document.documentElement?.getAttribute("data-theme")) ||
+    (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light");
+  return theme === "dark" ? DARK_BORDER_COLOR : LIGHT_BORDER_COLOR;
+}
+
 export const COLOR_SWATCHES = [
   { name: "Light gray", value: "#f1f5f9" },
   { name: "Warm gray", value: "#e7e5e4" },
@@ -54,7 +66,7 @@ export function parseBorder(val) {
   const parts = val.split(/\s+/);
   return {
     width: parseInt(parts[0], 10) || 0,
-    color: parts[2] || "#d3d3d3",
+    color: parts[2] || getDefaultBorderColor(),
   };
 }
 
@@ -72,7 +84,7 @@ export function buildAreaStyle(borderWidth, borderColor, radius, padding) {
 
 export function buildAreaStyleFromElements(rootEl) {
   const bw = rootEl.querySelector('[data-field="border-width"]')?.value ?? 0;
-  const bc = rootEl.querySelector('[data-field="border-color"]')?.value ?? "#d3d3d3";
+  const bc = rootEl.querySelector('[data-field="border-color"]')?.value ?? getDefaultBorderColor();
   const r = rootEl.querySelector('[data-field="radius"]')?.value ?? 0;
   const p = rootEl.querySelector('[data-field="padding"]')?.value ?? 10;
   return buildAreaStyle(bw, bc, r, p);
@@ -174,7 +186,7 @@ export function buildAreaStylePanelHtml({ showHint = false } = {}) {
         <span class="style-control-label">Border</span>
         <input type="range" class="style-range" data-field="border-width" min="0" max="12" value="0" />
         <span class="style-control-value" data-display="border-width">0px</span>
-        <input type="color" class="style-color" data-field="border-color" value="#d3d3d3" />
+        <input type="color" class="style-color" data-field="border-color" value="${getDefaultBorderColor()}" />
       </div>
       <div class="style-control-row">
         <span class="style-control-label">Radius</span>
