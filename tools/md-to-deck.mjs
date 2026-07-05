@@ -1,21 +1,5 @@
 import MarkdownIt from "markdown-it";
-
-function safeString(v) {
-    return typeof v === "string" ? v : "";
-}
-
-function slugifyTitle(title) {
-    const s = safeString(title)
-        .trim()
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-    return s || "slide";
-}
+import { safeString, slugifyTitle } from "../src/core/utils.js";
 
 function splitSlides(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");

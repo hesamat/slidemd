@@ -71,19 +71,6 @@ export class MarkdownEditor {
     // CodeMirror handles its own input events.
   }
 
-  /**
-   * Escape HTML special characters
-   */
-  escapeHtml(text) {
-    if (!text) return "";
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
   // ── Text manipulation ────────────────────────────────────────────────────
 
   /**
