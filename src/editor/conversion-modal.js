@@ -288,12 +288,18 @@ export class ConversionModal {
         resolve(null);
       });
 
-      // Close on backdrop click (only when clicking the backdrop itself, not the dialog)
+      // Close on backdrop click — track mousedown origin to prevent
+      // drag-release-outside from closing the modal.
+      let backdropMouseDown = false;
+      backdrop.addEventListener("mousedown", (e) => {
+        backdropMouseDown = e.target === backdrop;
+      });
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) {
+        if (backdropMouseDown && e.target === backdrop) {
           backdrop.remove();
           resolve(null);
         }
+        backdropMouseDown = false;
       });
     });
   }
