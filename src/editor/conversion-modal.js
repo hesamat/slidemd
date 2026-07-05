@@ -419,7 +419,7 @@ export class ConversionModal {
       .${P}name-section {
         background: var(--surface-hover, #f8f8fa);
         border: 1px solid var(--border-light, #e8e8ec);
-        border-radius: 8px; padding: 16px;
+        border-radius: 8px; padding: 16px; margin-top: 16px;
       }
       .${P}input {
         width: 100%; padding: 8px 12px; border: 1px solid var(--border-medium, #ccc);
@@ -431,7 +431,7 @@ export class ConversionModal {
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-light, #e8e8ec); }
+      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; }
       .${P}btn {
         padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 500;
         cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
