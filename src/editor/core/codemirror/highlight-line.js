@@ -12,6 +12,9 @@ import { Decoration, EditorView } from "@codemirror/view";
  * The `highlightField` StateField wires the effects into the editor's
  * decoration layer.  `highlightLine()` on MarkdownEditor dispatches the
  * effects with a timed sequence (clear → apply → clear after 1.2 s).
+ *
+ * The `cm-highlighted-line` CSS class used by the decoration is defined in
+ * `styles/editor.css`.
  */
 
 export const addHighlight = StateEffect.define();
