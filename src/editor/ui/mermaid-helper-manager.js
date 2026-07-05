@@ -2,6 +2,7 @@
  * MermaidHelperManager
  *
  * Manages the Mermaid template helper panel.
+ * Uses event delegation and AbortController for clean teardown.
  * Extracted from EditController.
  */
 
@@ -29,6 +30,7 @@ export class MermaidHelperManager {
   constructor({ mermaidHelperPanel, markdownEditor }) {
     this._panel = mermaidHelperPanel;
     this._markdownEditor = markdownEditor;
+    this._abortController = null;
   }
 
   get markdownEditor() {
@@ -37,13 +39,20 @@ export class MermaidHelperManager {
 
   init() {
     if (!this._panel) return;
-    const templateButtons = this._panel.querySelectorAll("[data-mermaid-template]");
-    templateButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const template = button.getAttribute("data-mermaid-template");
-        this.insertTemplate(template);
-      });
-    });
+
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    // Event delegation: one listener for all template buttons
+    this._panel.addEventListener(
+      "click",
+      (e) => {
+        const btn = e.target.closest("[data-mermaid-template]");
+        if (!btn) return;
+        this.insertTemplate(btn.getAttribute("data-mermaid-template"));
+      },
+      { signal },
+    );
   }
 
   toggle() {
@@ -63,5 +72,10 @@ export class MermaidHelperManager {
     const snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
     this._markdownEditor.insertText(snippet);
     this._markdownEditor.focus();
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
   }
 }

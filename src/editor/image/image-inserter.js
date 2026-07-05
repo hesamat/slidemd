@@ -3,6 +3,7 @@
  *
  * Handles inserting images into slide markdown via the image picker,
  * drag-drop, and clipboard paste.
+ * Uses AbortController for clean teardown of drag/drop/paste listeners.
  */
 
 import { ImagePicker } from "./image-picker.js";
@@ -38,6 +39,7 @@ export class ImageInserter {
     this._getImageBg = getImageBg;
     this._getAreaNav = getAreaNav;
     this._getStageScale = getStageScale;
+    this._abortController = null;
   }
 
   get markdownEditor() {
@@ -109,72 +111,87 @@ export class ImageInserter {
   // ─── Drag-drop and clipboard paste ───────────────────────────
 
   initDropAndPaste(slidesContainer) {
-    slidesContainer.addEventListener("dragover", (e) => {
-      if (!this._getIsEditMode()) return;
-      const types = [...(e.dataTransfer?.types || [])];
-      const items = [...(e.dataTransfer?.items || [])];
-      const hasImagePath = types.includes("text/x-webdeck-image");
-      const hasImageFile = items.some((i) => i.kind === "file" && i.type.startsWith("image/"));
-      if (hasImagePath || hasImageFile) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-      }
-    });
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
 
-    slidesContainer.addEventListener("drop", async (e) => {
-      if (!this._getIsEditMode()) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-      if (dirHandle) {
-        DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-      }
-
-      let imgPath = e.dataTransfer.getData("text/x-webdeck-image");
-      if (!imgPath) {
-        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
-        if (file) {
-          imgPath = await this.imageBg.uploadImage(file);
-        }
-      }
-      if (!imgPath) return;
-
-      this._insertImageAtDropPosition(imgPath, e.clientX, e.clientY, e.target);
-    });
-
-    slidesContainer.addEventListener("paste", async (e) => {
-      if (!this._getIsEditMode()) return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
+    slidesContainer.addEventListener(
+      "dragover",
+      (e) => {
+        if (!this._getIsEditMode()) return;
+        const types = [...(e.dataTransfer?.types || [])];
+        const items = [...(e.dataTransfer?.items || [])];
+        const hasImagePath = types.includes("text/x-webdeck-image");
+        const hasImageFile = items.some((i) => i.kind === "file" && i.type.startsWith("image/"));
+        if (hasImagePath || hasImageFile) {
           e.preventDefault();
-          const file = item.getAsFile();
+          e.dataTransfer.dropEffect = "copy";
+        }
+      },
+      { signal },
+    );
+
+    slidesContainer.addEventListener(
+      "drop",
+      async (e) => {
+        if (!this._getIsEditMode()) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
+        if (dirHandle) {
+          DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
+        }
+
+        let imgPath = e.dataTransfer.getData("text/x-webdeck-image");
+        if (!imgPath) {
+          const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
           if (file) {
-            const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-            if (dirHandle) {
-              DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-            }
-            const imgPath = await this.imageBg.uploadImage(file);
-            if (imgPath) {
-              const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
-              const grid = slideEl?.querySelector(".slide__grid");
-              if (grid) {
-                const rect = grid.getBoundingClientRect();
-                this._insertImageAtDropPosition(
-                  imgPath,
-                  rect.left + rect.width / 2,
-                  rect.top + rect.height / 2,
-                  slideEl,
-                );
+            imgPath = await this.imageBg.uploadImage(file);
+          }
+        }
+        if (!imgPath) return;
+
+        this._insertImageAtDropPosition(imgPath, e.clientX, e.clientY, e.target);
+      },
+      { signal },
+    );
+
+    slidesContainer.addEventListener(
+      "paste",
+      async (e) => {
+        if (!this._getIsEditMode()) return;
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            e.preventDefault();
+            const file = item.getAsFile();
+            if (file) {
+              const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
+              if (dirHandle) {
+                DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
+              }
+              const imgPath = await this.imageBg.uploadImage(file);
+              if (imgPath) {
+                const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
+                const grid = slideEl?.querySelector(".slide__grid");
+                if (grid) {
+                  const rect = grid.getBoundingClientRect();
+                  this._insertImageAtDropPosition(
+                    imgPath,
+                    rect.left + rect.width / 2,
+                    rect.top + rect.height / 2,
+                    slideEl,
+                  );
+                }
               }
             }
+            return;
           }
-          return;
         }
-      }
-    });
+      },
+      { signal },
+    );
   }
 
   /**
@@ -222,5 +239,10 @@ export class ImageInserter {
     const range = this._getAreaNav().getAreaContentRange(markdown, areaName);
     const insertText = `${snippet}\n`;
     this.markdownEditor?.replaceRange(range.to, range.to, insertText);
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
   }
 }

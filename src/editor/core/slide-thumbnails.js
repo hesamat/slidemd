@@ -287,17 +287,25 @@ class SlideContextMenu {
     this._thumbnails = thumbnails;
     this._menuEl = null;
     this._index = -1;
+    this._abortController = null;
   }
 
   init() {
     // Global handlers — close the menu on any outside click, scroll,
-    // resize, or Escape.  Registered once at startup.
-    document.addEventListener("click", () => this.close());
-    document.addEventListener("scroll", () => this.close(), true);
-    window.addEventListener("resize", () => this.close());
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close();
-    });
+    // resize, or Escape.  Uses AbortController for clean teardown.
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    document.addEventListener("click", () => this.close(), { signal });
+    document.addEventListener("scroll", () => this.close(), { signal, capture: true });
+    window.addEventListener("resize", () => this.close(), { signal });
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") this.close();
+      },
+      { signal },
+    );
   }
 
   /**
@@ -377,6 +385,12 @@ class SlideContextMenu {
       this._menuEl = null;
       this._index = -1;
     }
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
+    this.close();
   }
 
   _newAfter(index) {
