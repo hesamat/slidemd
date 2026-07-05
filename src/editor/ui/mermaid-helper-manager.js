@@ -2,6 +2,7 @@
  * MermaidHelperManager
  *
  * Manages the Mermaid template helper panel.
+ * Uses event delegation and AbortController for clean teardown.
  * Extracted from EditController.
  */
 
@@ -21,49 +22,63 @@ const TEMPLATES = {
 };
 
 export class MermaidHelperManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
-  }
-
-  get elements() {
-    return this.ctrl.elements;
-  }
-  get markdownEditor() {
-    return this.ctrl.markdownEditor;
-  }
-
   /**
-   * Initialize template button click handlers.
+   * @param {object} opts
+   * @param {HTMLElement} opts.mermaidHelperPanel
+   * @param {() => object|null} opts.getMarkdownEditor — lazy getter so we
+   *   can read the editor at insert time, after `toggleEditMode` has
+   *   created it (capturing the value here would be `null`).
    */
+  constructor({ mermaidHelperPanel, getMarkdownEditor }) {
+    this._panel = mermaidHelperPanel;
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._abortController = null;
+  }
+
+  get markdownEditor() {
+    return this._getMarkdownEditor?.() ?? null;
+  }
+
   init() {
-    if (!this.elements.mermaidHelperPanel) return;
-    const templateButtons =
-      this.elements.mermaidHelperPanel.querySelectorAll("[data-mermaid-template]");
-    templateButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const template = button.getAttribute("data-mermaid-template");
-        this.insertTemplate(template);
-      });
-    });
+    if (!this._panel) return;
+
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    // Event delegation: one listener for all template buttons
+    this._panel.addEventListener(
+      "click",
+      (e) => {
+        const btn = e.target.closest("[data-mermaid-template]");
+        if (!btn) return;
+        this.insertTemplate(btn.getAttribute("data-mermaid-template"));
+      },
+      { signal },
+    );
   }
 
   toggle() {
-    if (!this.elements.mermaidHelperPanel) return;
-    const isHidden = this.elements.mermaidHelperPanel.classList.toggle("webdeck-hidden");
-    this.elements.mermaidHelperPanel.setAttribute("aria-hidden", String(isHidden));
+    if (!this._panel) return;
+    const isHidden = this._panel.classList.toggle("webdeck-hidden");
+    this._panel.setAttribute("aria-hidden", String(isHidden));
   }
 
   hide() {
-    if (!this.elements.mermaidHelperPanel) return;
-    this.elements.mermaidHelperPanel.classList.add("webdeck-hidden");
-    this.elements.mermaidHelperPanel.setAttribute("aria-hidden", "true");
+    if (!this._panel) return;
+    this._panel.classList.add("webdeck-hidden");
+    this._panel.setAttribute("aria-hidden", "true");
   }
 
   insertTemplate(templateName) {
-    if (!this.markdownEditor) return;
+    const editor = this._getMarkdownEditor?.();
+    if (!editor) return;
     const snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
-    this.markdownEditor.insertText(snippet);
-    this.markdownEditor.focus();
+    editor.insertText(snippet);
+    editor.focus();
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
   }
 }

@@ -33,6 +33,29 @@ class FenceTracker {
   }
 }
 
+/**
+ * Make every markdown link open in a new tab with `rel="noopener noreferrer"`.
+ * In-page anchor links (`#…`) are left alone so they don't open a blank tab
+ * when used for in-deck navigation.
+ * @param {object} md — markdown-it instance
+ * @returns {void}
+ */
+export function applyOpenInNewTabToLinks(md) {
+  if (!md?.renderer) return;
+  const defaultRender =
+    md.renderer.rules.link_open ||
+    ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+  md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+    const token = tokens[idx];
+    const href = token.attrGet("href") || "";
+    if (!href.startsWith("#")) {
+      token.attrSet("target", "_blank");
+      token.attrSet("rel", "noopener noreferrer");
+    }
+    return defaultRender(tokens, idx, options, env, self);
+  };
+}
+
 export class MarkdownParser {
   constructor() {
     this.md = null;
@@ -91,6 +114,8 @@ export class MarkdownParser {
       typographer: false,
       breaks: true,
     });
+
+    applyOpenInNewTabToLinks(this.md);
 
     // Source-map plugin: add data-source-line to all block-level opening tags.
     // token.map[0] is the 0-indexed physical line inside the rendered area

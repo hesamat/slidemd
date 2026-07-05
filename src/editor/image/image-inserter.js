@@ -3,22 +3,50 @@
  *
  * Handles inserting images into slide markdown via the image picker,
  * drag-drop, and clipboard paste.
+ * Uses AbortController for clean teardown of drag/drop/paste listeners.
  */
 
 import { ImagePicker } from "./image-picker.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 
 export class ImageInserter {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => boolean} opts.getIsEditMode
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {() => HTMLElement|null} opts.getSlidesContainer
+   * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   * @param {() => object} opts.getImageBg
+   * @param {() => object} opts.getAreaNav
+   * @param {() => object} opts.getStageScale
+   */
+  constructor({
+    getMarkdownEditor,
+    getIsEditMode,
+    getCurrentSlideIndex,
+    getSlidesContainer,
+    getSlideElementByIndex,
+    getImageBg,
+    getAreaNav,
+    getStageScale,
+  }) {
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getIsEditMode = getIsEditMode;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getSlidesContainer = getSlidesContainer;
+    this._getSlideElementByIndex = getSlideElementByIndex;
+    this._getImageBg = getImageBg;
+    this._getAreaNav = getAreaNav;
+    this._getStageScale = getStageScale;
+    this._abortController = null;
   }
 
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
   get imageBg() {
-    return this.ctrl.imageBg;
+    return this._getImageBg();
   }
 
   // ─── Image picker insertion ──────────────────────────────────
@@ -26,7 +54,6 @@ export class ImageInserter {
   async pickAndInsert() {
     if (!this.markdownEditor) return;
 
-    // Capture cursor position before the modal steals focus
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
 
     const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
@@ -84,91 +111,101 @@ export class ImageInserter {
   // ─── Drag-drop and clipboard paste ───────────────────────────
 
   initDropAndPaste(slidesContainer) {
-    // ── Drag-over: allow drop when image data or image files are present
-    slidesContainer.addEventListener("dragover", (e) => {
-      if (!this.ctrl.isEditMode) return;
-      const types = [...(e.dataTransfer?.types || [])];
-      const items = [...(e.dataTransfer?.items || [])];
-      const hasImagePath = types.includes("text/x-webdeck-image");
-      const hasImageFile = items.some((i) => i.kind === "file" && i.type.startsWith("image/"));
-      if (hasImagePath || hasImageFile) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-      }
-    });
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
 
-    // ── Drop: insert image from picker grid or desktop file
-    slidesContainer.addEventListener("drop", async (e) => {
-      if (!this.ctrl.isEditMode) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-      if (dirHandle) {
-        DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-      }
-
-      let imgPath = e.dataTransfer.getData("text/x-webdeck-image");
-      if (!imgPath) {
-        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
-        if (file) {
-          imgPath = await this.imageBg.uploadImage(file);
-        }
-      }
-      if (!imgPath) return;
-
-      this._insertImageAtDropPosition(imgPath, e.clientX, e.clientY, e.target);
-    });
-
-    // ── Paste: insert image from clipboard
-    slidesContainer.addEventListener("paste", async (e) => {
-      if (!this.ctrl.isEditMode) return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
+    slidesContainer.addEventListener(
+      "dragover",
+      (e) => {
+        if (!this._getIsEditMode()) return;
+        const types = [...(e.dataTransfer?.types || [])];
+        const items = [...(e.dataTransfer?.items || [])];
+        const hasImagePath = types.includes("text/x-webdeck-image");
+        const hasImageFile = items.some((i) => i.kind === "file" && i.type.startsWith("image/"));
+        if (hasImagePath || hasImageFile) {
           e.preventDefault();
-          const file = item.getAsFile();
+          e.dataTransfer.dropEffect = "copy";
+        }
+      },
+      { signal },
+    );
+
+    slidesContainer.addEventListener(
+      "drop",
+      async (e) => {
+        if (!this._getIsEditMode()) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
+        if (dirHandle) {
+          DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
+        }
+
+        let imgPath = e.dataTransfer.getData("text/x-webdeck-image");
+        if (!imgPath) {
+          const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
           if (file) {
-            const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-            if (dirHandle) {
-              DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-            }
-            const imgPath = await this.imageBg.uploadImage(file);
-            if (imgPath) {
-              const slideEl = this.ctrl.getSlideElementByIndex(this.ctrl.currentSlideIndex);
-              const grid = slideEl?.querySelector(".slide__grid");
-              if (grid) {
-                const rect = grid.getBoundingClientRect();
-                this._insertImageAtDropPosition(
-                  imgPath,
-                  rect.left + rect.width / 2,
-                  rect.top + rect.height / 2,
-                  slideEl,
-                );
+            imgPath = await this.imageBg.uploadImage(file);
+          }
+        }
+        if (!imgPath) return;
+
+        this._insertImageAtDropPosition(imgPath, e.clientX, e.clientY, e.target);
+      },
+      { signal },
+    );
+
+    slidesContainer.addEventListener(
+      "paste",
+      async (e) => {
+        if (!this._getIsEditMode()) return;
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            e.preventDefault();
+            const file = item.getAsFile();
+            if (file) {
+              const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
+              if (dirHandle) {
+                DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
+              }
+              const imgPath = await this.imageBg.uploadImage(file);
+              if (imgPath) {
+                const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
+                const grid = slideEl?.querySelector(".slide__grid");
+                if (grid) {
+                  const rect = grid.getBoundingClientRect();
+                  this._insertImageAtDropPosition(
+                    imgPath,
+                    rect.left + rect.width / 2,
+                    rect.top + rect.height / 2,
+                    slideEl,
+                  );
+                }
               }
             }
+            return;
           }
-          return;
         }
-      }
-    });
+      },
+      { signal },
+    );
   }
 
   /**
-   * Insert an image at the given screen coordinates, computing design-space
-   * position relative to the slide grid.
+   * Insert an image at the given screen coordinates, computing
+   * design-space position relative to the slide grid.
    */
   _insertImageAtDropPosition(imgPath, clientX, clientY, eventTarget) {
     const slideEl =
-      eventTarget.closest?.(".slide") ||
-      this.ctrl.getSlideElementByIndex(this.ctrl.currentSlideIndex);
+      eventTarget.closest?.(".slide") || this._getSlideElementByIndex(this._getCurrentSlideIndex());
     if (!slideEl) return;
     const grid = slideEl.querySelector(".slide__grid");
     if (!grid) return;
 
-    const scale =
-      parseFloat(this.ctrl.elements.deckStage?.style.getPropertyValue("--stage-scale")) || 1;
+    const scale = this._getStageScale() || 1;
     const gridRect = grid.getBoundingClientRect();
 
     const dropGridX = (clientX - gridRect.left) / scale;
@@ -199,8 +236,13 @@ export class ImageInserter {
     const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${left}px; top: ${top}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
 
     const markdown = this.markdownEditor?.getValue() ?? "";
-    const range = this.ctrl.areaNav.getAreaContentRange(markdown, areaName);
+    const range = this._getAreaNav().getAreaContentRange(markdown, areaName);
     const insertText = `${snippet}\n`;
     this.markdownEditor?.replaceRange(range.to, range.to, insertText);
+  }
+
+  destroy() {
+    this._abortController?.abort();
+    this._abortController = null;
   }
 }

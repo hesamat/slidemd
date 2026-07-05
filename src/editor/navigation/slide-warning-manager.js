@@ -6,25 +6,27 @@
  */
 
 export class SlideWarningManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   */
+  constructor({ getCurrentSlideIndex, getSlideElementByIndex }) {
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getSlideElementByIndex = getSlideElementByIndex;
     this.lastDiagnostics = new Map();
     this.editorWarningsEnabled = true;
     this.pendingSlideWarning = "";
   }
 
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
 
   getSlideElementByIndex(index) {
-    return this.ctrl.getSlideElementByIndex(index);
+    return this._getSlideElementByIndex(index);
   }
 
-  /**
-   * Show a throttled editor warning.
-   */
   showEditorWarning(key, message, duration = 2500) {
     if (!this.editorWarningsEnabled) return;
     const now = Date.now();
@@ -34,9 +36,6 @@ export class SlideWarningManager {
     this.pendingSlideWarning = message;
   }
 
-  /**
-   * Show a warning banner on a slide element.
-   */
   showSlideWarning(message) {
     const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
     if (!slideEl) return;
@@ -53,9 +52,6 @@ export class SlideWarningManager {
     banner.setAttribute("aria-live", "polite");
   }
 
-  /**
-   * Remove the warning banner from the current slide.
-   */
   clearSlideWarning() {
     const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
     if (!slideEl) return;
@@ -63,9 +59,6 @@ export class SlideWarningManager {
     if (banner) banner.remove();
   }
 
-  /**
-   * Apply a pending warning to a slide element (e.g. after re-render).
-   */
   applyPendingSlideWarning(targetSlideEl = null) {
     if (!this.pendingSlideWarning) return;
     const slideEl = targetSlideEl || this.getSlideElementByIndex(this.currentSlideIndex);
@@ -83,9 +76,6 @@ export class SlideWarningManager {
     banner.setAttribute("aria-live", "polite");
   }
 
-  /**
-   * Reset pending warning state.
-   */
   resetPending() {
     this.pendingSlideWarning = "";
   }

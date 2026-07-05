@@ -9,29 +9,40 @@ import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
 import { updateLayoutDirective } from "../core/directive-utils.js";
 
 export class GridResizerManager {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {HTMLElement} opts.adjustColumnsMenuItem
+   * @param {HTMLElement} opts.deckStage
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   */
+  constructor({
+    adjustColumnsMenuItem,
+    deckStage,
+    getMarkdownEditor,
+    getCurrentSlideIndex,
+    getSlideElementByIndex,
+  }) {
+    this._adjustColumnsMenuItem = adjustColumnsMenuItem;
+    this._deckStage = deckStage;
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getSlideElementByIndex = getSlideElementByIndex;
     this._gridResizerVisible = false;
   }
 
-  get elements() {
-    return this.ctrl.elements;
-  }
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
   get currentSlideIndex() {
-    return this.ctrl.currentSlideIndex;
+    return this._getCurrentSlideIndex();
   }
 
   getSlideElementByIndex(index) {
-    return this.ctrl.getSlideElementByIndex(index);
+    return this._getSlideElementByIndex(index);
   }
 
-  /**
-   * Attach grid resize handles to a slide element.
-   */
   attachForSlide(slideEl, slideData) {
     if (!slideEl || !slideData) return;
 
@@ -42,11 +53,10 @@ export class GridResizerManager {
       fallbackAreas: areaNames.length ? areaNames : ["main"],
     });
 
-    attachGridResizer(slideEl, layoutInfo, this.elements.deckStage, (change) =>
+    attachGridResizer(slideEl, layoutInfo, this._deckStage, (change) =>
       this._onGridResize(change, layoutInfo),
     );
 
-    // Apply current toggle state to handles
     slideEl.querySelectorAll(".grid-resize-handle").forEach((h) => {
       h.style.display = this._gridResizerVisible ? "" : "none";
     });
@@ -60,9 +70,11 @@ export class GridResizerManager {
    * the current slide has multiple column tracks.
    */
   updateAdjustColumnsState(layoutInfo) {
-    const btn = this.elements.adjustColumnsMenuItem;
+    const btn = this._adjustColumnsMenuItem;
     if (!btn) return;
 
+    // Count top-level column tokens in the grid-template-columns value,
+    // skipping nested parenthesized groups (e.g. repeat(2, 1fr)).
     const colStr = layoutInfo?.gridTemplateColumns || "1fr";
     let depth = 0;
     let count = 0;
@@ -84,11 +96,8 @@ export class GridResizerManager {
     btn.title = multiColumn ? "Toggle column resize handles" : "Multiple columns required";
   }
 
-  /**
-   * Toggle column resize handles on the current slide only.
-   */
   toggle() {
-    const btn = this.elements.adjustColumnsMenuItem;
+    const btn = this._adjustColumnsMenuItem;
     if (btn && btn.disabled) return;
 
     this._gridResizerVisible = !this._gridResizerVisible;
@@ -104,14 +113,11 @@ export class GridResizerManager {
   }
 
   _updateAdjustColumnsToggleUI() {
-    const btn = this.elements.adjustColumnsMenuItem;
+    const btn = this._adjustColumnsMenuItem;
     if (!btn) return;
     btn.classList.toggle("active", this._gridResizerVisible);
   }
 
-  /**
-   * Called by GridResizer when the user finishes dragging a column or row handle.
-   */
   _onGridResize(change, layoutInfo) {
     if (!this.markdownEditor) return;
     const newSpec = buildLayoutSpec(layoutInfo, change.cols, change.rows);

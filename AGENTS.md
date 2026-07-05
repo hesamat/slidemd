@@ -31,7 +31,7 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 - **core/** - Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config)
 - **data/** - Data parsing (layout-data, layout-parser, markdown-parser, deck-loader, layouts.json)
 - **editor/** - Live editing features
-  - **core/** - Edit controller, markdown editor, slide thumbnails, slide operations, directive utils, edit state manager
+  - **core/** - Edit controller, markdown editor, slide thumbnails, slide operations, slide preview updater, style applier, source jump handler, directive utils, edit state manager
   - **image/** - Image picker, inserter, interaction handler, properties panel, background handler, deck images resolver
   - **layout/** - Layout picker, layout manager, grid resizer, grid resizer manager
   - **navigation/** - Area navigation, area guide manager, slide warning manager
@@ -77,12 +77,35 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 
 ### When Working with Editor Features
 
-- Edit controller: [src/editor/core/edit-controller.js](src/editor/core/edit-controller.js)
+- Edit controller: [src/editor/core/edit-controller.js](src/editor/core/edit-controller.js) — orchestrator, delegates to sub-modules
+- Slide preview updater: [src/editor/core/slide-preview-updater.js](src/editor/core/slide-preview-updater.js) — parses markdown and re-renders slide preview
+- Style applier: [src/editor/core/style-applier.js](src/editor/core/style-applier.js) — applies style directives to all slides
+- Source jump handler: [src/editor/core/source-jump-handler.js](src/editor/core/source-jump-handler.js) — click-to-jump markdown source
 - Markdown editor: [src/editor/core/markdown-editor.js](src/editor/core/markdown-editor.js)
 - Layout picker: [src/editor/layout/layout-picker.js](src/editor/layout/layout-picker.js)
 - Slide thumbnails: [src/editor/core/slide-thumbnails.js](src/editor/core/slide-thumbnails.js)
 - Image handling: [src/editor/image/](src/editor/image/)
 - Grid resizer: [src/editor/layout/grid-resizer.js](src/editor/layout/grid-resizer.js)
+
+#### Editor Sub-Module Architecture
+
+All editor sub-modules use **dependency injection** — they receive only the specific dependencies they need via constructor parameters, not the full EditController instance. Mutable state is accessed via getter functions (e.g., `getCurrentSlideIndex`), and cross-module actions are passed as callbacks (e.g., `onPreviewUpdate`). The EditController constructor wires everything together.
+
+Pattern for new sub-modules:
+
+```javascript
+export class NewModule {
+  /**
+   * @param {object} opts
+   * @param {() => Type} opts.getSomething  — getter for mutable state
+   * @param {(arg: Type) => void} opts.onAction  — callback for actions
+   */
+  constructor({ getSomething, onAction }) {
+    this._getSomething = getSomething;
+    this._onAction = onAction;
+  }
+}
+```
 
 ## Common Tasks
 

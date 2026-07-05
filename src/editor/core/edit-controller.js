@@ -3,15 +3,9 @@
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
 import { MarkdownParser } from "../../data/markdown-parser.js";
-import { SlideRenderer } from "../../renderer/slide-renderer.js";
-import { AssetLoader } from "../../core/asset-loader.js";
 import { Notification } from "../../renderer/notification.js";
-import { ContentEnhancer } from "../../renderer/content-enhancer.js";
-import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData } from "../../data/layout-data.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
-import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
 import { SlideOperations } from "./slide-operations.js";
@@ -32,6 +26,9 @@ import { ThemeManager } from "../ui/theme-manager.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
+import { SlidePreviewUpdater } from "./slide-preview-updater.js";
+import { StyleApplier } from "./style-applier.js";
+import { SourceJumpHandler } from "./source-jump-handler.js";
 
 export class EditController {
   constructor(deck, controller, elements) {
@@ -43,34 +40,193 @@ export class EditController {
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
     this.hasUnsavedChanges = false;
 
-    this.markdownEditor = null; // Will be initialized when edit mode is enabled
+    this.markdownEditor = null;
 
-    // Cache original markdown from localStorage
     this.originalMarkdown = this._cacheOriginalMarkdown();
-    // Store unsaved changes in memory (per-slide)
     this.unsavedMarkdown = new Map();
 
     this.placeholderDialogEl = null;
 
-    // Initialize slide thumbnails
-    this.thumbnails = new SlideThumbnails(deck, controller, elements);
+    this._destroyed = false;
+    this._onSlideChange = () => {
+      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+      ImageInteractionHandler.deactivate();
+      SlideStylePanel.hide();
+      this.loadSlideIntoEditor();
+    };
+    this._onDeckChange = (data) => {
+      this.deck = data.deck;
+      this.originalMarkdown = this._cacheOriginalMarkdown();
+      this.unsavedMarkdown.clear();
+      this.hasUnsavedChanges = false;
+      this.saveManager.updateButton();
+      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+      this.loadSlideIntoEditor();
+      this.imageBg.deckDirectoryHandle = null;
+      this.imageBg._deckDirMode = null;
+    };
+    this._onSlidesContainerClick = (e) => {
+      if (!this.isEditMode) return;
+      const img = e.target.closest("img");
+      if (!img) return;
+      if (img.closest(".editor-area-label, .editor-slide-warning")) return;
 
-    // Sub-modules extracted to keep this file manageable
-    this.slideOps = new SlideOperations(this);
-    this.imageBg = new ImageBackgroundHandler(this);
-    this.imageInserter = new ImageInserter(this);
-    this.areaNav = new AreaNavigation(this);
+      e.preventDefault();
+      e.stopPropagation();
 
-    // Further-extracted sub-modules
-    this.gridResizer = new GridResizerManager(this);
-    this.areaGuides = new AreaGuideManager(this);
-    this.warnings = new SlideWarningManager(this);
-    this.insertDropdown = new InsertDropdownManager(this);
-    this.mermaidHelper = new MermaidHelperManager(this);
-    this.layoutManager = new LayoutManager(this);
-    this.themeManager = new ThemeManager(this);
-    this.panelResizer = new PanelResizer(this);
-    this.saveManager = new SaveManager(this);
+      ImageInteractionHandler.select(img);
+    };
+
+    this.thumbnails = new SlideThumbnails(deck, controller, elements, {
+      onAddSlide: () => this.layoutManager.showPicker(),
+      onDuplicateSlide: () => this.slideOps.duplicateSlide(),
+      onDeleteSlide: () => this.slideOps.deleteSlide(),
+      onMoveSlideUp: () => this.slideOps.moveSlideUp(),
+      onMoveSlideDown: () => this.slideOps.moveSlideDown(),
+    });
+
+    this.imageBg = new ImageBackgroundHandler();
+
+    this.saveManager = new SaveManager({
+      getDeck: () => this.deck,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      getOriginalMarkdown: () => this.originalMarkdown,
+      getHasUnsavedChanges: () => this.hasUnsavedChanges,
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+    });
+
+    this.areaNav = new AreaNavigation({
+      getMarkdownEditor: () => this.markdownEditor,
+      onEditorInput: (v) => this.onEditorInput(v),
+    });
+
+    this.slideOps = new SlideOperations({
+      getDeck: () => this.deck,
+      getElements: () => this.elements,
+      getController: () => this.controller,
+      getThumbnails: () => this.thumbnails,
+      getMarkdownEditor: () => this.markdownEditor,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      setCurrentSlideIndex: (v) => {
+        this.currentSlideIndex = v;
+      },
+      getOriginalMarkdown: () => this.originalMarkdown,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        this.unsavedMarkdown = v;
+      },
+      getHasUnsavedChanges: () => this.hasUnsavedChanges,
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+      getSaveManager: () => this.saveManager,
+    });
+
+    this.imageInserter = new ImageInserter({
+      getMarkdownEditor: () => this.markdownEditor,
+      getIsEditMode: () => this.isEditMode,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getSlidesContainer: () => this.elements.slidesContainer,
+      getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+      getImageBg: () => this.imageBg,
+      getAreaNav: () => this.areaNav,
+      getStageScale: () =>
+        parseFloat(this.elements.deckStage?.style.getPropertyValue("--stage-scale")) || 1,
+    });
+
+    this.gridResizer = new GridResizerManager({
+      adjustColumnsMenuItem: this.elements.adjustColumnsMenuItem,
+      deckStage: this.elements.deckStage,
+      getMarkdownEditor: () => this.markdownEditor,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+    });
+
+    this.areaGuides = new AreaGuideManager({
+      getIsEditMode: () => this.isEditMode,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getDeck: () => this.deck,
+      getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+      onNavigateToArea: (name) => this.areaNav.navigateToArea(name),
+      onAttachGridResizer: (el, data) => this.gridResizer.attachForSlide(el, data),
+    });
+
+    this.warnings = new SlideWarningManager({
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+    });
+
+    this.insertDropdown = new InsertDropdownManager({
+      btn: this.elements.insertDropdownBtn,
+      content: this.elements.insertDropdownContent,
+      actions: {
+        layout: () => this.layoutManager.showPickerForCurrentSlide(),
+        "adjust-columns": () => this.gridResizer.toggle(),
+        image: () => this.imageInserter.pickAndInsert(),
+        mermaid: () => this.mermaidHelper.toggle(),
+        theme: () => this.themeManager.toggle(),
+        "area-style": () => SlideStylePanel.toggle(),
+        new: () => this.layoutManager.showPicker(),
+        duplicate: () => this.slideOps.duplicateSlide(),
+        delete: () => this.slideOps.deleteSlide(),
+      },
+    });
+
+    this.mermaidHelper = new MermaidHelperManager({
+      mermaidHelperPanel: this.elements.mermaidHelperPanel,
+      getMarkdownEditor: () => this.markdownEditor,
+    });
+
+    this.layoutManager = new LayoutManager({
+      getMarkdownEditor: () => this.markdownEditor,
+      onAddSlideWithLayout: (name) => this.slideOps.addSlideWithLayout(name),
+    });
+
+    this.themeManager = new ThemeManager({
+      getMarkdownEditor: () => this.markdownEditor,
+      getDeck: () => this.deck,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      onPreviewUpdate: () => this.previewUpdater.update(),
+    });
+
+    this.panelResizer = new PanelResizer({
+      editorPanel: this.elements.editorPanel,
+      stageHost: this.elements.stageHost,
+    });
+
+    this.previewUpdater = new SlidePreviewUpdater({
+      getMarkdownEditor: () => this.markdownEditor,
+      getWarnings: () => this.warnings,
+      getDeck: () => this.deck,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getThumbnails: () => this.thumbnails,
+      getAreaGuides: () => this.areaGuides,
+      getGridResizer: () => this.gridResizer,
+    });
+
+    this.styleApplier = new StyleApplier({
+      getOriginalMarkdown: () => this.originalMarkdown,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        this.unsavedMarkdown = v;
+      },
+      getDeck: () => this.deck,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getMarkdownEditor: () => this.markdownEditor,
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+      onUpdateSaveButton: () => this.saveManager.updateButton(),
+      getImageBg: () => this.imageBg,
+    });
+
+    this.sourceJump = new SourceJumpHandler({
+      getSlidesContainer: () => this.elements.slidesContainer,
+      getIsEditMode: () => this.isEditMode,
+      getMarkdownEditor: () => this.markdownEditor,
+    });
 
     this.init();
   }
@@ -83,6 +239,7 @@ export class EditController {
   _getSourceMarkdown() {
     return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
   }
+
   _cacheOriginalMarkdown() {
     const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
@@ -100,69 +257,28 @@ export class EditController {
    * Initialize the edit controller
    */
   init() {
-    // Set up panel resize functionality
     this.panelResizer.init();
 
-    // Set up thumbnails toggle
-    if (this.elements.toggleThumbnailsBtn) {
-      this.elements.toggleThumbnailsBtn.addEventListener("click", () => this.toggleThumbnails());
-    }
+    this._toggleThumbnailsBound = () => this.toggleThumbnails();
+    this._toggleEditModeBound = () => this.toggleEditMode();
+    this._addSlideBound = () => this.layoutManager.showPicker();
+    this._deleteSlideBound = () => this.slideOps.deleteSlide();
+    this._duplicateSlideBound = () => this.slideOps.duplicateSlide();
 
-    // Set up edit mode toggle
-    if (this.elements.toggleEditModeBtn) {
-      this.elements.toggleEditModeBtn.addEventListener("click", () => this.toggleEditMode());
-    }
+    this.elements.toggleThumbnailsBtn?.addEventListener("click", this._toggleThumbnailsBound);
+    this.elements.toggleEditModeBtn?.addEventListener("click", this._toggleEditModeBound);
+    this.elements.addSlideBtn?.addEventListener("click", this._addSlideBound);
+    this.elements.deleteSlideBtn?.addEventListener("click", this._deleteSlideBound);
+    this.elements.duplicateSlideBtn?.addEventListener("click", this._duplicateSlideBound);
 
-    // Listen for slide navigation events
-    this.controller.addEventListener("slidechange", () => {
-      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      ImageInteractionHandler.deactivate();
-      SlideStylePanel.hide();
-      this.loadSlideIntoEditor();
-    });
+    this.controller.addEventListener("slidechange", this._onSlideChange);
+    this.controller.addEventListener("deckchange", this._onDeckChange);
 
-    // Listen for deck replacement events
-    this.controller.addEventListener("deckchange", (data) => {
-      this.deck = data.deck;
-      this.originalMarkdown = this._cacheOriginalMarkdown();
-      // Clear unsaved changes when a new file is loaded
-      this.unsavedMarkdown.clear();
-      this.hasUnsavedChanges = false;
-      this.updateSaveButton();
-      this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      this.loadSlideIntoEditor();
-      // Reset the in-memory directory handle cache so the next image
-      // insert re-checks permission.  The persisted IndexedDB handle
-      // is NOT cleared here — the browser will re-prompt only if
-      // permission was revoked, so the user doesn't have to re-pick
-      // the same folder every time they load a file.
-      this.imageBg.deckDirectoryHandle = null;
-      this.imageBg._deckDirMode = null;
-    });
-
-    // Set up add slide button - show layout picker
-    if (this.elements.addSlideBtn) {
-      this.elements.addSlideBtn.addEventListener("click", () => this.showLayoutPicker());
-    }
-
-    // Set up delete slide button
-    if (this.elements.deleteSlideBtn) {
-      this.elements.deleteSlideBtn.addEventListener("click", () => this.deleteSlide());
-    }
-
-    // Set up duplicate slide button
-    if (this.elements.duplicateSlideBtn) {
-      this.elements.duplicateSlideBtn.addEventListener("click", () => this.duplicateSlide());
-    }
-
-    // Insert dropdown (Layout / Image / Mermaid)
     this.insertDropdown.init();
     this.mermaidHelper.init();
 
-    // Initialize layout picker modal
     LayoutPicker.initModal();
 
-    // Initialize image picker modal
     ImagePicker.init();
 
     // Image interaction — drag/resize
@@ -172,13 +288,6 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: true });
         this.unsavedMarkdown.set(this.currentSlideIndex, updated);
         this.updateUnsavedChangesFlag();
-        // Image drag/resize mutates a positioned <img>'s inline style
-        // directly on the live slide element, then writes back to the
-        // markdown with suppressOnChange so the preview doesn't re-render.
-        // Area overflow indicators (the red @label state) are not part of
-        // the markdown and therefore don't get re-evaluated automatically
-        // — re-measure here so resizing an image out of an overflowing area
-        // clears the red badge immediately instead of lingering forever.
         const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
         if (slideEl) this.areaGuides.updateAreaOverflow(slideEl);
       },
@@ -187,13 +296,13 @@ export class EditController {
           this.markdownEditor?.setValue(updated, { suppressOnChange: false });
           this.unsavedMarkdown.set(this.currentSlideIndex, updated);
           this.updateUnsavedChangesFlag();
-          this.updatePreview();
+          this.previewUpdater.update();
         },
         onMoveArea: (updated) => {
           this.markdownEditor?.setValue(updated, { suppressOnChange: true });
           this.unsavedMarkdown.set(this.currentSlideIndex, updated);
           this.updateUnsavedChangesFlag();
-          this.updatePreview();
+          this.previewUpdater.update();
         },
       },
     );
@@ -206,22 +315,58 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: false });
       },
       (cssString, headerStyle, background, theme) =>
-        this._applySlideStyleToAll(cssString, headerStyle, background, theme),
-      (onSelect) => this._pickImageForStylePanel(onSelect),
+        this.styleApplier.applyToAll(cssString, headerStyle, background, theme),
+      (onSelect) => this.styleApplier.pickImage(onSelect),
     );
 
     // Source-jump: click text in slide → jump to markdown source
-    this._initSourceJumpHandler();
+    this.sourceJump.init();
 
-    // Render initial thumbnails
     this.thumbnails.render();
+  }
+
+  /**
+   * Tear down all sub-module listeners and clear the global handle.
+   * Idempotent — safe to call more than once.
+   */
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    // Controller EventEmitter listeners
+    this.controller.removeEventListener("slidechange", this._onSlideChange);
+    this.controller.removeEventListener("deckchange", this._onDeckChange);
+
+    // DOM listeners on top-bar buttons
+    this.elements.toggleThumbnailsBtn?.removeEventListener("click", this._toggleThumbnailsBound);
+    this.elements.toggleEditModeBtn?.removeEventListener("click", this._toggleEditModeBound);
+    this.elements.addSlideBtn?.removeEventListener("click", this._addSlideBound);
+    this.elements.deleteSlideBtn?.removeEventListener("click", this._deleteSlideBound);
+    this.elements.duplicateSlideBtn?.removeEventListener("click", this._duplicateSlideBound);
+
+    // slidesContainer click → image selection
+    this.elements.slidesContainer?.removeEventListener("click", this._onSlidesContainerClick);
+
+    // Sub-modules with their own listeners
+    this.thumbnails?.destroy();
+    this.sourceJump?.destroy();
+    this.imageInserter?.destroy();
+    this.insertDropdown?.destroy();
+    this.mermaidHelper?.destroy();
+    this.panelResizer?.destroy();
+
+    // Release the global handle so a recreated EditController can register
+    if (window.__WEBDECK_EDIT_CONTROLLER__ === this) {
+      window.__WEBDECK_EDIT_CONTROLLER__ = null;
+    }
+
+    this.markdownEditor?.view?.destroy?.();
   }
 
   /**
    * Toggle edit mode on/off
    */
   toggleEditMode() {
-    // Prevent entering edit mode when no file has been loaded
     if (!this.isEditMode && !this._getSourceMarkdown()) {
       Notification.warning("Open a markdown file first to enable the editor");
       return;
@@ -229,7 +374,6 @@ export class EditController {
 
     this.isEditMode = !this.isEditMode;
 
-    // Notify the controller so it can adjust navigation
     this.controller.onEditModeChanged?.();
 
     if (this.isEditMode) {
@@ -265,7 +409,7 @@ export class EditController {
       // Discard unsaved changes when exiting edit mode
       if (this.hasUnsavedChanges) {
         this.hasUnsavedChanges = false;
-        this.updateSaveButton();
+        this.saveManager.updateButton();
       }
     }
 
@@ -293,7 +437,6 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    // Get markdown - first check unsaved changes, then fall back to original
     const markdown =
       this.unsavedMarkdown.get(this.currentSlideIndex) ??
       this.originalMarkdown[this.currentSlideIndex] ??
@@ -301,7 +444,7 @@ export class EditController {
 
     this.markdownEditor.setValue(markdown, { suppressOnChange: true });
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
-    this.updateSaveButton();
+    this.saveManager.updateButton();
     this.areaGuides.refresh();
   }
 
@@ -309,14 +452,9 @@ export class EditController {
    * Handle editor input events
    */
   onEditorInput(value) {
-    // Save current editor content to unsaved cache
     this.unsavedMarkdown.set(this.currentSlideIndex, value);
-
-    // Check if there are any unsaved changes across all slides
     this.updateUnsavedChangesFlag();
-
-    // Update preview
-    this.updatePreview();
+    this.previewUpdater.update();
   }
 
   /**
@@ -325,7 +463,7 @@ export class EditController {
   updateUnsavedChangesFlag() {
     const hasUnsaved = this.unsavedMarkdown.size > 0;
     this.hasUnsavedChanges = hasUnsaved;
-    this.updateSaveButton();
+    this.saveManager.updateButton();
   }
 
   getSlideElementByIndex(index) {
@@ -339,155 +477,8 @@ export class EditController {
     this.areaNav.navigateToArea(areaName);
   }
 
-  /**
-   * Update the preview with the edited markdown
-   */
-  async updatePreview() {
-    const markdown = this.markdownEditor?.getValue() ?? "";
-    this.warnings.clearSlideWarning();
-    this.warnings.resetPending();
-
-    try {
-      await AssetLoader.ensureMarkdownItLoaded();
-      const parser = new MarkdownParser();
-
-      const slideCount = parser.splitSlides(markdown).length;
-      if (slideCount > 1) {
-        this.warnings.showEditorWarning(
-          "multi-slide-preview",
-          "This editor previews a single slide. Split slides with --- in the full deck, not inside the editor.",
-        );
-      }
-
-      // Parse fragment
-      const fullDeckData = parser.parseDeckMarkdown(markdown);
-
-      // Handle case where parsing produces no slides
-      if (!fullDeckData.slides || fullDeckData.slides.length === 0) {
-        Notification.warning("Invalid markdown: Unable to generate slide from current content");
-        return;
-      }
-
-      const slideData = fullDeckData.slides[0];
-
-      const layoutSpec = (slideData.layout || "").trim();
-      const layoutKey = layoutSpec.toLowerCase();
-      const looksLikeGridSpec = /["']/.test(layoutSpec) || layoutSpec.includes("/");
-      if (layoutSpec && !looksLikeGridSpec && !LayoutData.hasLayout(layoutKey)) {
-        this.warnings.showEditorWarning(
-          `unknown-layout-${layoutKey}`,
-          `Unknown layout "${layoutSpec}". Pick a preset or use a full grid template.`,
-        );
-      }
-
-      const areaNames = Object.keys(slideData.areas || {});
-      const resolvedLayout = LayoutParser.resolvePreset(layoutSpec);
-      const layoutInfo = LayoutParser.parse(resolvedLayout, {
-        fallbackAreas: areaNames.length ? areaNames : ["main"],
-      });
-      const layoutAreas = layoutInfo.orderedAreas || [];
-
-      if (areaNames.length) {
-        const unknownAreas = areaNames.filter((name) => !layoutAreas.includes(name));
-        if (unknownAreas.length) {
-          this.warnings.showEditorWarning(
-            `unknown-areas-${unknownAreas.join("-")}`,
-            `Areas not in layout: ${unknownAreas.map((name) => `@${name}`).join(", ")}.`,
-          );
-        }
-
-        const optionalAreas = ["footer", "header"];
-        const missingAreas = layoutAreas.filter(
-          (name) => !areaNames.includes(name) && !optionalAreas.includes(name),
-        );
-        if (missingAreas.length) {
-          this.warnings.showEditorWarning(
-            `missing-areas-${missingAreas.join("-")}`,
-            `Layout expects: ${missingAreas.map((name) => `@${name}`).join(", ")}.`,
-          );
-        }
-      }
-
-      // Update the current slide in the deck object
-      this.deck.slides[this.currentSlideIndex] = slideData;
-
-      // Update thumbnail title if it changed
-      this.thumbnails.updateThumbnailTitle(this.currentSlideIndex, slideData.title);
-
-      // Find and replace the DOM element
-      // Use the slides container to get slides in correct order
-      const slidesContainer = document.getElementById("slidesContainer");
-      if (!slidesContainer) return;
-
-      const allSlides = slidesContainer.querySelectorAll(":scope > .slide");
-      const slideEl = allSlides[this.currentSlideIndex];
-
-      if (slideEl) {
-        const wasActive = slideEl.classList.contains("active");
-        const newSlideEl = SlideRenderer.createSlideElement(
-          this.deck,
-          slideData,
-          this.currentSlideIndex,
-          wasActive, // Preserve the active state
-        );
-        slideEl.replaceWith(newSlideEl);
-
-        this.warnings.applyPendingSlideWarning(newSlideEl);
-        this.areaGuides.applyAreaGuides(newSlideEl, slideData);
-
-        // Rewrite `images/foo.png` srcs and background url()s to blob
-        // URLs the browser can render in the preview (since the deck
-        // file lives outside the project root, the dev server can't
-        // serve them).
-        DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch((err) => {
-          console.warn("Image rewrite failed:", err);
-        });
-        DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch((err) => {
-          console.warn("Background image rewrite failed:", err);
-        });
-
-        const attachPreviewOverlays = () => {
-          // Attach overlays after paint so layout geometry is measurable.
-          requestAnimationFrame(() => {
-            this.areaGuides.updateAreaOverflow(newSlideEl);
-            this.gridResizer.attachForSlide(newSlideEl, slideData);
-            // Re-activate image drag/resize on the new slide element
-            const grid = newSlideEl.querySelector(".slide__grid");
-            if (grid) {
-              ImageInteractionHandler.activate(grid);
-            }
-          });
-        };
-
-        // Re-enhance the new slide content (Mermaid, Prism, etc.)
-        ContentEnhancer.enhanceRenderedContent(newSlideEl)
-          .then(() => {
-            this.areaGuides.applyAreaGuides(newSlideEl, slideData);
-            // Re-rewrite after enhancement (which may inject more imgs).
-            DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => {});
-            DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch(() => {});
-          })
-          .catch((err) => {
-            console.warn("Failed to enhance slide preview:", err);
-          })
-          .finally(() => {
-            attachPreviewOverlays();
-          });
-      } else {
-        this.warnings.applyPendingSlideWarning();
-      }
-    } catch (error) {
-      console.error("Failed to update preview:", error);
-      Notification.error("Failed to parse markdown: " + (error.message || "Unknown error"));
-    }
-  }
-
   _getAreaAtCursor(markdown, position) {
     return this.areaNav.getAreaAtCursor(markdown, position);
-  }
-
-  async pickAndInsertImage() {
-    return this.imageInserter.pickAndInsert();
   }
 
   _initImagePropertiesPanel() {
@@ -505,336 +496,8 @@ export class EditController {
     const slidesContainer = this.elements.slidesContainer;
     if (!slidesContainer) return;
 
-    slidesContainer.addEventListener("click", (e) => {
-      if (!this.isEditMode) return;
-      const img = e.target.closest("img");
-      if (!img) return;
-      if (img.closest(".editor-area-label, .editor-slide-warning")) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      ImageInteractionHandler.select(img);
-    });
+    slidesContainer.addEventListener("click", this._onSlidesContainerClick);
 
     this.imageInserter.initDropAndPaste(slidesContainer);
-  }
-
-  /**
-   * Initialize click-to-jump: clicking a text element in the slide preview
-   * jumps the CodeMirror cursor to the corresponding markdown source line.
-   */
-  _initSourceJumpHandler() {
-    const slidesContainer = this.elements.slidesContainer;
-    if (!slidesContainer) return;
-
-    slidesContainer.addEventListener("click", (e) => {
-      if (!this.isEditMode) return;
-      if (
-        e.target.closest(
-          ".editor-area-label, .editor-slide-warning, .image-overlay, .image-properties-panel, .grid-resize-handle",
-        )
-      )
-        return;
-      if (e.target.closest("img")) return;
-
-      const areaEl = e.target.closest(".slide__area");
-      if (!areaEl) return;
-
-      const blockEl = e.target.closest("[data-source-line]");
-      if (!blockEl) return;
-
-      const areaName = areaEl.dataset.areaName || "main";
-      const sourceLine = parseInt(blockEl.dataset.sourceLine, 10);
-      if (isNaN(sourceLine)) return;
-
-      const editorMarkdown = this.markdownEditor?.getValue() ?? "";
-      const lines = editorMarkdown.split("\n");
-
-      // Compute content-start offsets from the current editor markdown.
-      // token.map[0] is a physical line index inside the rendered area
-      // string; adding the area's editor start line gives the absolute
-      // target line. Directives are treated as non-content lines.
-      const parser = new MarkdownParser();
-      const areaOffsets = parser.computeAreaOffsets(editorMarkdown);
-      let areaStart = areaOffsets[areaName];
-      if (areaStart === undefined) {
-        // @title / @header alias handling
-        if (areaName === "title" && areaOffsets.header !== undefined) {
-          areaStart = areaOffsets.header;
-        } else if (areaName === "header" && areaOffsets.title !== undefined) {
-          areaStart = areaOffsets.title;
-        }
-      }
-      if (areaStart === undefined) areaStart = 0;
-
-      let targetLine = areaStart + sourceLine;
-      targetLine = Math.max(0, Math.min(targetLine, lines.length - 1));
-
-      let pos = 0;
-      for (let i = 0; i < targetLine; i++) {
-        pos += lines[i].length + 1;
-      }
-      pos = Math.min(pos, editorMarkdown.length);
-
-      this.markdownEditor.setValueWithCursor(editorMarkdown, pos, {
-        suppressOnChange: true,
-        scrollIntoView: true,
-      });
-      this.markdownEditor.highlightLine(targetLine);
-    });
-  }
-
-  async _resolveDeckDirectoryHandle() {
-    return this.imageBg._resolveDeckDirectoryHandle();
-  }
-
-  async _detectDeckDirMode(dir) {
-    return this.imageBg._detectDeckDirMode(dir);
-  }
-
-  get deckDirMode() {
-    return this.imageBg.deckDirMode;
-  }
-
-  async clearDeckDirectoryHandle() {
-    return this.imageBg.clearDeckDirectoryHandle();
-  }
-
-  async uploadImage(file) {
-    return this.imageBg.uploadImage(file);
-  }
-
-  _resolveAreaInsertPositionByRatio(markdown, areaName, ratioY = 1) {
-    return this.areaNav.resolveAreaInsertPositionByRatio(markdown, areaName, ratioY);
-  }
-
-  /**
-   * Return the character range for the content inside a named @area block.
-   */
-  _getAreaContentRange(markdown, areaName) {
-    return this.areaNav.getAreaContentRange(markdown, areaName);
-  }
-
-  // ─── Delegated public API (kept for backward compatibility) ────────────
-
-  updateSaveButton() {
-    this.saveManager.updateButton();
-  }
-
-  async saveChanges() {
-    return this.saveManager.save();
-  }
-
-  _rebuildUnsavedMarkdownMap(
-    insertAtIndex = -1,
-    deleteAtIndex = -1,
-    newSlideIndex = -1,
-    newSlideMarkdown = "",
-  ) {
-    return this.slideOps.rebuildUnsavedMarkdownMap(
-      insertAtIndex,
-      deleteAtIndex,
-      newSlideIndex,
-      newSlideMarkdown,
-    );
-  }
-
-  addSlide() {
-    return this.slideOps.addSlide();
-  }
-
-  async deleteSlide() {
-    return this.slideOps.deleteSlide();
-  }
-
-  moveSlideUp() {
-    return this.slideOps.moveSlideUp();
-  }
-
-  moveSlideDown() {
-    return this.slideOps.moveSlideDown();
-  }
-
-  async duplicateSlide() {
-    return this.slideOps.duplicateSlide();
-  }
-
-  showLayoutPicker() {
-    return this.layoutManager.showPicker();
-  }
-
-  showLayoutPickerForCurrentSlide() {
-    return this.layoutManager.showPickerForCurrentSlide();
-  }
-
-  openSlideStylePanel() {
-    SlideStylePanel.toggle();
-  }
-
-  async _applySlideStyleToAll(cssString, headerStyle, background, theme) {
-    const parser = new MarkdownParser();
-    await AssetLoader.ensureMarkdownItLoaded();
-    const total = this.originalMarkdown.length;
-    for (let i = 0; i < total; i++) {
-      const current = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-
-      // Check if this is a title slide — skip area-style for title slides
-      const { value: layout } = parser.extractDirective(current, "layout");
-      const isTitleSlide = layout === "title-slide";
-
-      let { markdown: stripped } = parser.extractDirective(current, "area-style");
-      const trimmedCss = String(cssString || "").trim();
-      if (trimmedCss && !isTitleSlide) {
-        stripped = `area-style: ${trimmedCss}\n${stripped}`;
-      }
-
-      // Also apply header-style
-      let { markdown: withoutHeaderStyle } = parser.extractDirective(stripped, "header-style");
-      const trimmedHeaderStyle = String(headerStyle || "")
-        .trim()
-        .toLowerCase();
-      if (trimmedHeaderStyle && trimmedHeaderStyle !== "line") {
-        withoutHeaderStyle = `header-style: ${trimmedHeaderStyle}\n${withoutHeaderStyle}`;
-      }
-
-      // Also apply background
-      let { markdown: withoutBg } = parser.extractDirective(withoutHeaderStyle, "background");
-      const trimmedBg = String(background || "").trim();
-      if (trimmedBg) {
-        // Multi-line values (gradients, layered backgrounds) should keep working.
-        const indented = trimmedBg
-          .split("\n")
-          .map((line, i) => (i === 0 ? line : `  ${line}`))
-          .join("\n");
-        withoutBg = `background: ${indented}\n${withoutBg}`;
-      }
-
-      // Also apply theme
-      let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
-      const trimmedTheme = String(theme || "")
-        .trim()
-        .toLowerCase();
-      if (trimmedTheme) {
-        withoutTheme = `theme: ${trimmedTheme}\n${withoutTheme}`;
-      }
-
-      this.unsavedMarkdown.set(i, withoutTheme);
-    }
-    this.hasUnsavedChanges = true;
-    this.updateSaveButton();
-
-    // Re-render every slide element so styles apply visually
-    const slidesContainer = document.getElementById("slidesContainer");
-    if (slidesContainer) {
-      const allSlideEls = slidesContainer.querySelectorAll(":scope > .slide");
-      for (let i = 0; i < allSlideEls.length; i++) {
-        const md = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-        const fullDeckData = parser.parseDeckMarkdown(md);
-        const slideData = fullDeckData.slides?.[0];
-        if (!slideData) continue;
-        this.deck.slides[i] = slideData;
-        const wasActive = allSlideEls[i].classList.contains("active");
-        const newEl = SlideRenderer.createSlideElement(this.deck, slideData, i, wasActive);
-        allSlideEls[i].replaceWith(newEl);
-      }
-    }
-
-    // Refresh the editor with the current slide's markdown
-    this.markdownEditor?.setValue(this.unsavedMarkdown.get(this.currentSlideIndex) ?? "", {
-      suppressOnChange: true,
-    });
-    Notification.success("Style applied to all slides");
-  }
-
-  async _pickImageForStylePanel(onSelect) {
-    const { ImagePicker } = await import("../image/image-picker.js");
-    const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-    const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-    DeckImagesResolver.setDeckDir(deckDirHandle, this.imageBg.deckDirMode);
-    ImagePicker.show(
-      (path) => {
-        onSelect(path);
-      },
-      {
-        deckDirHandle,
-        deckDirMode: this.imageBg.deckDirMode,
-        pathOnly: true,
-      },
-    );
-  }
-
-  addSlideWithLayout(layoutName) {
-    return this.slideOps.addSlideWithLayout(layoutName);
-  }
-
-  // Warning methods delegated for backward compatibility
-  showEditorWarning(key, message, duration) {
-    return this.warnings.showEditorWarning(key, message, duration);
-  }
-
-  showSlideWarning(message) {
-    return this.warnings.showSlideWarning(message);
-  }
-
-  clearSlideWarning() {
-    return this.warnings.clearSlideWarning();
-  }
-
-  applyPendingSlideWarning(targetSlideEl) {
-    return this.warnings.applyPendingSlideWarning(targetSlideEl);
-  }
-
-  // Area guide methods delegated for backward compatibility
-  applyAreaGuides(slideEl, slideData) {
-    return this.areaGuides.applyAreaGuides(slideEl, slideData);
-  }
-
-  updateAreaOverflow(slideEl) {
-    return this.areaGuides.updateAreaOverflow(slideEl);
-  }
-
-  refreshAreaGuides() {
-    return this.areaGuides.refresh();
-  }
-
-  // Grid resizer methods delegated for backward compatibility
-  attachGridResizerForSlide(slideEl, slideData) {
-    return this.gridResizer.attachForSlide(slideEl, slideData);
-  }
-
-  updateAdjustColumnsState(layoutInfo) {
-    return this.gridResizer.updateAdjustColumnsState(layoutInfo);
-  }
-
-  toggleGridResizer() {
-    return this.gridResizer.toggle();
-  }
-
-  // Mermaid helper delegated for backward compatibility
-  toggleMermaidHelperPanel() {
-    return this.mermaidHelper.toggle();
-  }
-
-  hideMermaidHelperPanel() {
-    return this.mermaidHelper.hide();
-  }
-
-  insertMermaidTemplate(templateName) {
-    return this.mermaidHelper.insertTemplate(templateName);
-  }
-
-  // Theme delegated for backward compatibility
-  toggleSlideTheme() {
-    return this.themeManager.toggle();
-  }
-
-  // Layout delegated for backward compatibility
-  async applyLayoutToCurrentSlide(layoutName) {
-    return this.layoutManager.applyToCurrentSlide(layoutName);
-  }
-
-  getLayoutCompatibilityWarning(markdown, layoutName) {
-    return this.layoutManager.getCompatibilityWarning(markdown, layoutName);
   }
 }

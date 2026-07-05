@@ -6,19 +6,20 @@
  */
 
 export class AreaNavigation {
-  /** @param {import('./edit-controller.js').EditController} ctrl */
-  constructor(ctrl) {
-    this.ctrl = ctrl;
+  /**
+   * @param {object} opts
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {(value: string) => void} opts.onEditorInput
+   */
+  constructor({ getMarkdownEditor, onEditorInput }) {
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._onEditorInput = onEditorInput;
   }
 
   get markdownEditor() {
-    return this.ctrl.markdownEditor;
+    return this._getMarkdownEditor();
   }
 
-  /**
-   * Jump the cursor to the given @area in the editor, or append the
-   * area marker if it doesn't exist yet.
-   */
   navigateToArea(areaName) {
     if (!this.markdownEditor) return;
 
@@ -50,13 +51,9 @@ export class AreaNavigation {
       suppressOnChange: true,
       scrollIntoView: true,
     });
-    this.ctrl.onEditorInput(updated);
+    this._onEditorInput(updated);
   }
 
-  /**
-   * Determine which @area the cursor (or a given character offset) falls
-   * inside.  Defaults to `'main'` when no marker precedes the position.
-   */
   getAreaAtCursor(markdown, position) {
     const text = String(markdown || "").replace(/\r\n?/g, "\n");
     const lines = text.split("\n");
@@ -77,11 +74,6 @@ export class AreaNavigation {
     return currentArea;
   }
 
-  /**
-   * Return the character range for the content inside a named @area block.
-   * The range excludes the @area marker line itself and ends at the next
-   * area marker or the end of the document.
-   */
   getAreaContentRange(markdown, areaName) {
     const text = String(markdown || "").replace(/\r\n?/g, "\n");
     const lines = text.split("\n");
@@ -122,10 +114,6 @@ export class AreaNavigation {
     };
   }
 
-  /**
-   * Resolve an insertion position inside an @area block as a ratio (0–1)
-   * of the block's line count.  Useful for drag-and-drop insertion.
-   */
   resolveAreaInsertPositionByRatio(markdown, areaName, ratioY = 1) {
     const text = String(markdown || "").replace(/\r\n?/g, "\n");
     const range = this.getAreaContentRange(text, areaName);
