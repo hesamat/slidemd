@@ -54,12 +54,10 @@ export class ConversionModal {
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
-      const fileName = backdrop.querySelector(`.${P}file-name`);
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
       const errorEl = backdrop.querySelector(`.${P}error`);
-      const resultEl = backdrop.querySelector(`.${P}result`);
       const nameSection = backdrop.querySelector(`.${P}name-section`);
       const deckNameInput = backdrop.querySelector(`[data-field="deck-name"]`);
       const dialog = backdrop.querySelector(`.${P}dialog`);
@@ -87,20 +85,6 @@ export class ConversionModal {
         spinnerEl.innerHTML = "";
       };
 
-      const showResult = (msg) => {
-        resultEl.textContent = msg;
-        resultEl.hidden = false;
-      };
-
-      const hideResult = () => {
-        resultEl.hidden = true;
-        resultEl.textContent = "";
-        // Remove any dynamically added rows from previous conversion
-        backdrop
-          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
-          .forEach((el) => el.remove());
-      };
-
       // File handling — auto-convert when file is selected
       const handleFile = async (file) => {
         if (!file || !file.name.endsWith(".pptx")) {
@@ -109,7 +93,6 @@ export class ConversionModal {
         }
         if (isConverting) return;
         selectedFile = file;
-        fileName.textContent = file.name;
         hideError();
         await startConversion();
       };
@@ -140,8 +123,11 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         hideError();
-        hideResult();
         nameSection.hidden = true;
+        // Remove any dynamically added rows from previous conversion
+        backdrop
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .forEach((el) => el.remove());
         showSpinner("Converting...");
 
         const started = Date.now();
@@ -163,14 +149,11 @@ export class ConversionModal {
 
           hideSpinner();
 
-          // Show conversion summary
-          const slideCount = extractionResult.slides.length;
           const imageCount = extractionResult.images.length;
           const hasCodeBlocks = /^```\n/gm.test(markdown);
-          showResult(`${slideCount} slide${slideCount !== 1 ? "s" : ""} converted`);
 
           // Insert elements in order: language selector, then checkboxes
-          let insertAfter = resultEl;
+          let insertAfter = spinnerEl;
 
           // Show code language selector with hint
           const langRow = document.createElement("div");
@@ -342,12 +325,10 @@ export class ConversionModal {
             <span>Drop .pptx file here or click to browse</span>
           </div>
           <input type="file" data-field="file" accept=".pptx" style="display:none" />
-          <div class="${P}file-name"></div>
         </div>
 
         <div class="${P}spinner-container" hidden></div>
         <div class="${P}error" hidden></div>
-        <div class="${P}result" hidden></div>
 
         <div class="${P}section ${P}name-section" hidden>
           <label class="${P}label" for="${P}deck-name">Deck name</label>
@@ -397,9 +378,7 @@ export class ConversionModal {
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 8px; }
       .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 16px 0 8px; }
       .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
