@@ -214,18 +214,6 @@ export class KeyboardHandler {
     // Backspace, to navigate).
     if (e.key === "Backspace" && !this.#isInThumbnails(e)) return;
 
-    // Skip navigation actions when an image is selected in edit mode.
-    // `reload` is also in this list: the image handler intercepts `R`
-    // for "replace image", and since the global keydown listener is
-    // registered before the image handler's, without this bail the
-    // deck would reload before the replace picker can open.
-    if (
-      this.actions.isImageSelected?.() &&
-      ["next", "prev", "first", "last", "reload"].includes(singleAction)
-    ) {
-      return;
-    }
-
     // If break mode is active, any navigation key ends the break
     if (
       this.actions.isBreakActive?.() &&

@@ -15,7 +15,6 @@ import { PrintManager } from "../renderer/print-manager.js";
 import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
-import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
@@ -213,7 +212,6 @@ export class DeckController extends EventEmitter {
       endBreak: () => this.breakManager.setActive(false),
       isEditorWindow: () => this.roleManager.isEditorWindow,
       isEmbedded: isEmbedded,
-      isImageSelected: () => ImageInteractionHandler.isSelected(),
     });
   }
 

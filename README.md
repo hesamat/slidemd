@@ -167,17 +167,6 @@ Insert content (work even while typing in the editor):
 - `Alt+T`: Toggle the current slide's theme (per-slide `theme:` directive)
 - `Alt+S`: Toggle the slide styles panel
 
-Image selected (contextual — only the image overlay is active):
-
-- `C`: Center image on slide
-- `W`: Fit image to area width
-- `]`: Bring to front
-- `[`: Send to back
-- `R`: Replace image (opens the picker)
-- Arrow keys / `Shift+Arrow`: move 1px / 10px
-- `Escape`: deselect
-- `Delete`: delete image from the slide
-
 Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`) because those `Ctrl` combinations are reserved by the browser for "new window" and "bookmark" and cannot be intercepted by web pages.
 
 ## Rendering Features

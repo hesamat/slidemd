@@ -116,14 +116,14 @@ html[data-embedded="true"] body {
 
   /* Text colors - lighter for dark backgrounds */
   --text-high: rgba(var(--color-slate), 0.95);
-  --text-medium: rgba(var(--color-slate), 0.75);
-  --text-low: rgba(var(--color-slate), 0.55);
-  --text-muted: rgba(var(--color-slate), 0.45);
+  --text-medium: rgba(var(--color-slate), 0.88);
+  --text-low: rgba(var(--color-slate), 0.72);
+  --text-muted: rgba(var(--color-slate), 0.58);
 
   /* Borders - lighter and more visible on dark */
-  --border-subtle: rgba(255, 255, 255, 0.1);
-  --border-medium: rgba(255, 255, 255, 0.18);
-  --border-strong: rgba(255, 255, 255, 0.28);
+  --border-subtle: rgba(255, 255, 255, 0.15);
+  --border-medium: rgba(255, 255, 255, 0.3);
+  --border-strong: rgba(255, 255, 255, 0.4);
 
   /* Surfaces - dark backgrounds */
   --surface-bg: rgba(15, 23, 42, 0.95);
@@ -134,8 +134,8 @@ html[data-embedded="true"] body {
   --theme-bg: rgba(7, 10, 19, 0.98);
 
   /* Accent states for dark mode */
-  --accent-bg: rgba(var(--color-primary), 0.15);
-  --accent-border: rgba(var(--color-primary), 0.4);
-  --accent-text: rgba(var(--color-primary), 0.9);
-  --accent: rgba(186, 205, 222, 0.85);
+  --accent-bg: rgba(var(--color-primary), 0.2);
+  --accent-border: rgba(var(--color-primary), 0.5);
+  --accent-text: rgba(var(--color-primary), 0.95);
+  --accent: rgba(186, 205, 222, 0.9);
 }

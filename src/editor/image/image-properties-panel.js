@@ -4,20 +4,17 @@
  * Tabbed popover for repositioning, resizing, and styling images in the
  * slide preview.  Works with ImageInteractionHandler for drag/resize and
  * provides precise numeric inputs plus style controls (opacity, radius,
- * shadow, rotation, z-order) and alt-text / replace-image actions.
+ * shadow, rotation) and alt-text / replace-image actions.
  *
  * Design principle: the markdown source is the single source of truth.
  * We always parse styles from the markdown, apply changes, and write back.
  *
  * Tabs:
- *   • Size     — Replace / Delete at the top (the two most-used
- *                actions), then W×H, aspect-ratio lock, presets
- *                (Small/Medium/Large/Full/Center/Fit)
- *   • Position — X/Y, z-order (bring to front / send to back)
- *   • Style    — opacity, border-radius, shadow, rotation, alt-text
- *
- * Keyboard shortcuts are shown next to the buttons that own them
- * (Replace → R, Delete → Del) so the user can discover them.
+ *   • Size      — Replace / Delete at the top (the two most-used
+ *                 actions), then W×H, aspect-ratio lock, presets
+ *                 (Small/Medium/Large/Fit/Center)
+ *   • Style     — opacity, border-radius, shadow
+ *   • Transform — rotation, alt-text
  */
 
 const SHADOW_PRESETS = [
@@ -135,8 +132,8 @@ export class ImagePropertiesPanel {
     el.innerHTML = `
             <div class="image-properties-panel__tabs" role="tablist">
                 <button type="button" class="image-properties-panel__tab active" data-tab="size" role="tab">Size</button>
-                <button type="button" class="image-properties-panel__tab" data-tab="position" role="tab">Position</button>
                 <button type="button" class="image-properties-panel__tab" data-tab="style" role="tab">Style</button>
+                <button type="button" class="image-properties-panel__tab" data-tab="transform" role="tab">Transform</button>
             </div>
 
             <div class="image-properties-panel__body">
@@ -145,11 +142,9 @@ export class ImagePropertiesPanel {
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__btn" data-action="replace">
                             <span>Replace</span>
-                            <kbd class="image-properties-panel__hint">R</kbd>
                         </button>
                         <button type="button" class="image-properties-panel__btn image-properties-panel__btn--danger" data-action="delete">
                             <span>Delete</span>
-                            <kbd class="image-properties-panel__hint">Del</kbd>
                         </button>
                     </div>
                     <div class="image-properties-panel__row">
@@ -167,31 +162,10 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="small">Small</button>
                         <button type="button" class="image-properties-panel__chip" data-action="medium">Medium</button>
                         <button type="button" class="image-properties-panel__chip" data-action="large">Large</button>
-                        <button type="button" class="image-properties-panel__chip" data-action="full">Full</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="full">Fit</button>
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="center" title="Center on slide">⊞ Center</button>
-                        <button type="button" class="image-properties-panel__chip" data-action="fit" title="Fit to slide width">↔ Fit width</button>
-                    </div>
-
-                </div>
-
-                <!-- Position tab -->
-                <div class="image-properties-panel__panel" data-panel="position">
-                    <div class="image-properties-panel__row">
-                        <label class="image-properties-panel__field">
-                            <span class="image-properties-panel__field-label">X</span>
-                            <input type="number" class="image-properties-panel__input" data-field="left" min="0" max="1920" placeholder="X" />
-                        </label>
-                        <label class="image-properties-panel__field">
-                            <span class="image-properties-panel__field-label">Y</span>
-                            <input type="number" class="image-properties-panel__input" data-field="top" min="0" max="1080" placeholder="Y" />
-                        </label>
-                    </div>
-                    <div class="image-properties-panel__row">
-                        <span class="image-properties-panel__field-label">Layer</span>
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="front" title="Bring to front">⬆ Front</button>
-                        <button type="button" class="image-properties-panel__icon-btn" data-action="back" title="Send to back">⬇ Back</button>
                     </div>
                 </div>
 
@@ -216,8 +190,14 @@ export class ImagePropertiesPanel {
                             ${SHADOW_PRESETS.map((p) => `<button type="button" class="image-properties-panel__seg-btn" data-shadow="${p.key}" title="${p.label}">${p.label}</button>`).join("")}
                         </div>
                     </div>
+                </div>
+
+                <!-- Transform tab -->
+                <div class="image-properties-panel__panel" data-panel="transform">
                     <div class="image-properties-panel__row">
                         <span class="image-properties-panel__field-label">Rotate</span>
+                    </div>
+                    <div class="image-properties-panel__row image-properties-panel__row--compact">
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-left" title="Rotate 90° left">↺</button>
                         <input type="range" class="image-properties-panel__range image-properties-panel__range--grow" data-field="rotation" min="0" max="360" step="1" />
                         <button type="button" class="image-properties-panel__icon-btn" data-action="rot-right" title="Rotate 90° right">↻</button>
@@ -337,15 +317,6 @@ export class ImagePropertiesPanel {
         break;
       case "center":
         ImageInteractionHandler.centerOnSlide();
-        break;
-      case "fit":
-        ImageInteractionHandler.fitToWidth();
-        break;
-      case "front":
-        ImageInteractionHandler.bringToFront();
-        break;
-      case "back":
-        ImageInteractionHandler.sendToBack();
         break;
       case "rot-left":
         ImageInteractionHandler.rotateBy(-90);
