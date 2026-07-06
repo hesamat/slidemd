@@ -595,6 +595,10 @@
   margin-bottom: 0;
 }
 
+.image-properties-panel__row--compact {
+  gap: 6px;
+}
+
 /* Fields */
 .image-properties-panel__field {
   display: flex;
@@ -609,9 +613,9 @@
 }
 
 .image-properties-panel__field-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-low);
+  color: var(--text-medium);
 }
 
 /* Inputs */
@@ -728,12 +732,12 @@
 
 .image-properties-panel__seg-btn {
   flex: 1;
-  padding: 4px 6px;
+  padding: 6px 8px;
   background: var(--surface-bg);
   border: none;
   border-right: 1px solid var(--border-medium);
   color: var(--text-medium);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.12s ease;
@@ -793,13 +797,13 @@
 }
 
 .image-properties-panel__btn--danger {
-  color: #dc2626;
+  color: #ef4444;
 }
 
 .image-properties-panel__btn--danger:hover {
-  background: rgba(220, 38, 38, 0.08);
-  color: #b91c1c;
-  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 /* Make images in the slide preview clickable in edit mode */
