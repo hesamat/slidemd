@@ -9,13 +9,13 @@ import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 
 const P = "conversion-modal__";
+const STORAGE_KEY = "webdeck_import_defaults";
 
 /**
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
- * @property {string[]} imageRefs - Image filenames that need to be saved.
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
- * @property {string} fileName - Original PPTX filename (for naming the .md output).
+ * @property {string} deckName - User-editable deck name (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
  */
 
@@ -54,12 +54,25 @@ export class ConversionModal {
 
       const fileInput = backdrop.querySelector(`[data-field="file"]`);
       const dropZone = backdrop.querySelector(`.${P}drop-zone`);
-      const fileName = backdrop.querySelector(`.${P}file-name`);
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
       const errorEl = backdrop.querySelector(`.${P}error`);
-      const resultEl = backdrop.querySelector(`.${P}result`);
+      const nameSection = backdrop.querySelector(`.${P}name-section`);
+      const deckNameInput = backdrop.querySelector(`[data-field="deck-name"]`);
+      const dialog = backdrop.querySelector(`.${P}dialog`);
+
+      // Prevent clicks inside the dialog from closing the modal
+      dialog.addEventListener("click", (e) => e.stopPropagation());
+
+      const saveDefaults = (patch) => {
+        try {
+          const current = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...patch }));
+        } catch {
+          /* ignore */
+        }
+      };
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -81,20 +94,6 @@ export class ConversionModal {
         spinnerEl.innerHTML = "";
       };
 
-      const showResult = (msg) => {
-        resultEl.textContent = msg;
-        resultEl.hidden = false;
-      };
-
-      const hideResult = () => {
-        resultEl.hidden = true;
-        resultEl.textContent = "";
-        // Remove any dynamically added rows from previous conversion
-        backdrop
-          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
-          .forEach((el) => el.remove());
-      };
-
       // File handling — auto-convert when file is selected
       const handleFile = async (file) => {
         if (!file || !file.name.endsWith(".pptx")) {
@@ -103,7 +102,6 @@ export class ConversionModal {
         }
         if (isConverting) return;
         selectedFile = file;
-        fileName.textContent = file.name;
         hideError();
         await startConversion();
       };
@@ -123,7 +121,10 @@ export class ConversionModal {
         dropZone.classList.remove(`${P}drop-zone--active`);
         handleFile(e.dataTransfer.files[0]);
       });
-      dropZone.addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
 
       // Conversion logic — called automatically when file is selected
       const startConversion = async () => {
@@ -131,7 +132,11 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         hideError();
-        hideResult();
+        nameSection.hidden = true;
+        // Remove any dynamically added rows from previous conversion
+        backdrop
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .forEach((el) => el.remove());
         showSpinner("Converting...");
 
         const started = Date.now();
@@ -153,14 +158,19 @@ export class ConversionModal {
 
           hideSpinner();
 
-          // Show conversion summary
-          const slideCount = extractionResult.slides.length;
           const imageCount = extractionResult.images.length;
           const hasCodeBlocks = /^```\n/gm.test(markdown);
-          showResult(`${slideCount} slide${slideCount !== 1 ? "s" : ""} converted`);
+
+          // Load saved defaults from localStorage
+          let savedDefaults = {};
+          try {
+            savedDefaults = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+          } catch {
+            /* ignore */
+          }
 
           // Insert elements in order: language selector, then checkboxes
-          let insertAfter = resultEl;
+          let insertAfter = spinnerEl;
 
           // Show code language selector with hint
           const langRow = document.createElement("div");
@@ -183,37 +193,48 @@ export class ConversionModal {
             <span class="${P}code-hint">${hasCodeBlocks ? "Code blocks detected" : ""}</span>
           `;
           const langSelect = langRow.querySelector(`[data-field="code-language"]`);
+          if (savedDefaults.codeLanguage) {
+            langSelect.value = savedDefaults.codeLanguage;
+            codeLanguage = savedDefaults.codeLanguage;
+          }
           langSelect.addEventListener("change", () => {
             codeLanguage = langSelect.value;
+            saveDefaults({ codeLanguage });
           });
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
           // If images detected, show checkbox with description
           if (imageCount > 0) {
-            importImages = true;
+            importImages = savedDefaults.importImages !== false;
             const checkboxRow = document.createElement("label");
             checkboxRow.className = `${P}checkbox-row`;
-            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
+            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
             const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
             checkboxInput.addEventListener("change", () => {
               importImages = checkboxInput.checked;
               markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+              saveDefaults({ importImages });
             });
             insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
             insertAfter = checkboxRow;
           }
 
           // Show background/theme checkbox
-          keepBackgrounds = true;
+          keepBackgrounds = savedDefaults.keepBackgrounds !== false;
           const bgCheckboxRow = document.createElement("label");
           bgCheckboxRow.className = `${P}checkbox-row`;
-          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
+          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${keepBackgrounds ? "checked" : ""} /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
           const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
           bgCheckboxInput.addEventListener("change", () => {
             keepBackgrounds = bgCheckboxInput.checked;
+            saveDefaults({ keepBackgrounds });
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
+
+          // Show deck name input with sanitized name
+          deckNameInput.value = deckName;
+          nameSection.hidden = false;
 
           // Show Save as Deck button
           saveBtn.hidden = false;
@@ -229,6 +250,9 @@ export class ConversionModal {
       };
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
+        // Read the user-edited deck name
+        const editedName = deckNameInput.value.trim() || deckName;
+
         // If user opted out of images, strip <img> tags from markdown
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
         // If user opted out of backgrounds/themes, strip those directives
@@ -259,9 +283,8 @@ export class ConversionModal {
         backdrop.remove();
         resolve({
           markdown: finalMarkdown,
-          imageRefs: importImages ? extractionResult.images.map((img) => img.ref) : [],
           images: importImages ? extractionResult.images : [],
-          fileName: selectedFile.name || "presentation.pptx",
+          deckName: editedName,
           importImages,
         });
       });
@@ -271,12 +294,18 @@ export class ConversionModal {
         resolve(null);
       });
 
-      // Close on backdrop click
+      // Close on backdrop click — track mousedown origin to prevent
+      // drag-release-outside from closing the modal.
+      let backdropMouseDown = false;
+      backdrop.addEventListener("mousedown", (e) => {
+        backdropMouseDown = e.target === backdrop;
+      });
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) {
+        if (backdropMouseDown && e.target === backdrop) {
           backdrop.remove();
           resolve(null);
         }
+        backdropMouseDown = false;
       });
     });
   }
@@ -319,12 +348,16 @@ export class ConversionModal {
             <span>Drop .pptx file here or click to browse</span>
           </div>
           <input type="file" data-field="file" accept=".pptx" style="display:none" />
-          <div class="${P}file-name"></div>
         </div>
 
         <div class="${P}spinner-container" hidden></div>
         <div class="${P}error" hidden></div>
-        <div class="${P}result" hidden></div>
+
+        <div class="${P}section ${P}name-section" hidden>
+          <label class="${P}label" for="${P}deck-name">Deck name</label>
+          <input type="text" id="${P}deck-name" class="${P}input" data-field="deck-name" />
+          <p class="${P}hint">This will be the folder and file name for your presentation.</p>
+        </div>
 
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
@@ -351,48 +384,58 @@ export class ConversionModal {
       }
       .${P}dialog {
         background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 28px; width: 520px; max-width: 90vw;
+        border-radius: 12px; padding: 32px; width: 600px; max-width: 90vw;
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
       .${P}title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
-      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 16px; line-height: 1.5; }
-      .${P}section { margin-bottom: 16px; }
+      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 20px; line-height: 1.5; }
+      .${P}section { margin-bottom: 20px; }
       .${P}label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
       .${P}drop-zone {
         border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
-        padding: 24px; text-align: center; cursor: pointer;
+        padding: 28px; text-align: center; cursor: pointer;
         display: flex; flex-direction: column; align-items: center; gap: 8px;
         transition: border-color 0.2s, background 0.2s;
       }
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}file-name { font-size: 14px; color: var(--text-medium, #666); margin-top: 6px; }
       .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
-      .${P}result { font-size: 16px; font-weight: 600; color: var(--text-high, #111); margin: 14px 0 8px; }
       .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; cursor: pointer; margin: 6px 0 0;
+        font-size: 15px; cursor: pointer; margin: 8px 0 0;
       }
       .${P}checkbox { width: 18px; height: 18px; cursor: pointer; }
       .${P}select-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; margin: 10px 0 0;
+        font-size: 15px; margin: 12px 0 0;
       }
       .${P}select-label { font-size: 14px; color: var(--text-medium, #666); white-space: nowrap; }
       .${P}select {
-        padding: 5px 10px; border: 1px solid var(--border-medium, #ccc);
+        padding: 6px 10px; border: 1px solid var(--border-medium, #ccc);
         border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
+      .${P}name-section {
+        background: var(--surface-hover, #f8f8fa);
+        border: 1px solid var(--border-light, #e8e8ec);
+        border-radius: 8px; padding: 16px; margin-top: 16px;
+      }
+      .${P}input {
+        width: 100%; padding: 8px 12px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); box-sizing: border-box;
+      }
+      .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+      .${P}hint { font-size: 12px; color: var(--text-medium, #999); margin: 6px 0 0; }
       .${P}spinner-container {
         font-size: 13px; margin: 12px 0; min-height: 20px;
       }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; }
       .${P}btn {
-        padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+        padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 500;
         cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
       }
       .${P}btn:disabled { opacity: 0.5; cursor: not-allowed; }

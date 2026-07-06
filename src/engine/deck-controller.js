@@ -662,8 +662,8 @@ export class DeckController extends EventEmitter {
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
-    const { markdown, images, fileName, importImages } = result;
-    const mdName = (fileName || "presentation.pptx").replace(/\.pptx$/i, ".md");
+    const { markdown, images, deckName, importImages } = result;
+    const mdName = `${deckName}.md`;
 
     // Prompt user to pick a save directory
     let dirHandle = null;
@@ -676,6 +676,9 @@ export class DeckController extends EventEmitter {
     }
 
     if (dirHandle) {
+      // Create a dedicated folder for this deck inside the picked directory
+      const deckDir = await dirHandle.getDirectoryHandle(deckName, { create: true });
+
       const imageCount = importImages ? (images?.length ?? 0) : 0;
       // Progress milestones: saving the .md file counts for the first 10 %,
       // the remaining 85 % is spread across images (totalling 95 %), and the
@@ -699,17 +702,16 @@ export class DeckController extends EventEmitter {
       try {
         const { signal } = abortController;
 
-        // Save the markdown file using the PPTX-derived name
-        const mdFile = await dirHandle.getFileHandle(mdName, { create: true });
+        // Save the markdown file inside the deck folder
+        const mdFile = await deckDir.getFileHandle(mdName, { create: true });
         const mdWritable = await mdFile.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
         savingModal.updateProgress(PROGRESS_AFTER_MD);
 
-        // Save images to images/ subdirectory with deck-prefixed filenames
+        // Save images to images/ subdirectory inside the deck folder
         if (importImages && images?.length) {
-          const deckName = mdName.replace(/\.md$/i, "").replace(/[^a-zA-Z0-9_-]/g, "_");
-          const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          const imagesDir = await deckDir.getDirectoryHandle("images", { create: true });
           let savedCount = 0;
           const imageTotal = images.length;
           for (const img of images) {
@@ -720,7 +722,7 @@ export class DeckController extends EventEmitter {
               if (!rawName) continue;
               // EMF/WMF images are converted to PNG during extraction
               const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
-              const filename = `${deckName}_${safeName}`;
+              const filename = safeName;
               const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
               const binary = atob(raw);
               const bytes = new Uint8Array(binary.length);
@@ -743,13 +745,13 @@ export class DeckController extends EventEmitter {
 
         savingModal.updateProgress(100);
 
-        // Save the directory handle for future use
+        // Save the deck folder handle for future use (not the parent)
         const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-        await DirectoryHandleStore.save(dirHandle);
+        await DirectoryHandleStore.save(deckDir, "parent");
 
-        // Configure the image resolver with this directory so images render
+        // Configure the image resolver with the deck folder so images render
         const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-        DeckImagesResolver.setDeckDir(dirHandle, "parent");
+        DeckImagesResolver.setDeckDir(deckDir, "parent");
         DeckImagesResolver.prime();
 
         // Store markdown info in localStorage so edit mode can find it

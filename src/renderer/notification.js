@@ -338,9 +338,6 @@ export class Notification {
     messageEl.className = "notification-modal__message";
     messageEl.textContent = message;
 
-    const spinner = document.createElement("div");
-    spinner.className = "notification-modal__spinner";
-
     const progressWrap = document.createElement("div");
     progressWrap.className = "notification-modal__progress";
     progressWrap.hidden = true;
@@ -352,7 +349,6 @@ export class Notification {
     copy.className = "notification-modal__copy";
     copy.appendChild(titleEl);
     copy.appendChild(messageEl);
-    copy.appendChild(spinner);
     copy.appendChild(progressWrap);
 
     const content = document.createElement("div");
@@ -419,7 +415,6 @@ export class Notification {
         const val = Math.min(100, Math.max(0, pct));
         progressBar.style.width = `${val}%`;
         progressWrap.hidden = false;
-        if (val >= 100) spinner.hidden = true;
       },
       updateMessage(msg) {
         messageEl.textContent = msg;

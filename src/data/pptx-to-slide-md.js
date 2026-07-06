@@ -785,12 +785,11 @@ function formatTextElement(raw) {
   return result.join("\n").replace(REGEX.TRIPLE_NEWLINE_OR_MORE, REGEX.DOUBLE_NEWLINE).trim();
 }
 
-function formatImage(img, deckName = DEFAULTS.DECK_NAME, { omitDimensions = false } = {}) {
+function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = false } = {}) {
   const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
   const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-  const safeName = deckName.replace(REGEX.DECK_NAME_SANITIZE, "_");
 
-  const src = img.blob || `${DEFAULTS.IMAGE_SUBDIR}${safeName}_${filename}`;
+  const src = img.blob || `${DEFAULTS.IMAGE_SUBDIR}${filename}`;
   const altText = filename.replace(REGEX.FILE_EXTENSION, "").replace(REGEX.HYPHEN_UNDERSCORE, " ");
 
   if (!omitDimensions) {
