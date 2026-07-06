@@ -23,6 +23,7 @@ import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
+import { removeAreaFromLayout } from "./directive-utils.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
@@ -151,6 +152,10 @@ export class EditController {
       getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
       onNavigateToArea: (name) => this.areaNav.navigateToArea(name),
       onAttachGridResizer: (el, data) => this.gridResizer.attachForSlide(el, data),
+      onDeleteArea: (name) => this._deleteAreaFromMarkdown(name),
+      canDeleteArea: (name) => this._canDeleteArea(name),
+      onSwapArea: (name) => this._swapAreaInMarkdown(name),
+      canSwapArea: (name) => this._canSwapArea(name),
     });
 
     this.warnings = new SlideWarningManager({
@@ -499,5 +504,47 @@ export class EditController {
     slidesContainer.addEventListener("click", this._onSlidesContainerClick);
 
     this.imageInserter.initDropAndPaste(slidesContainer);
+  }
+
+  _canDeleteArea(areaName) {
+    const name = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!name || name === "main") return false;
+
+    // Check that the area actually has content in the markdown.
+    const markdown = this.markdownEditor?.getValue() || "";
+    const range = this.areaNav.getAreaContentRange(markdown, name);
+    return range.from < range.to;
+  }
+
+  _deleteAreaFromMarkdown(areaName) {
+    if (!this.markdownEditor) return;
+    let markdown = this.markdownEditor.getValue();
+    // Remove the area's content from the markdown.
+    const afterContentDelete = this.areaNav.deleteArea(markdown, areaName);
+    if (afterContentDelete === null) return;
+    markdown = afterContentDelete;
+    // Also remove the area from the layout directive so the grid doesn't
+    // reference a non-existent area.
+    markdown = removeAreaFromLayout(markdown, areaName);
+    this.markdownEditor.setValue(markdown, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _canSwapArea(areaName) {
+    if (!this.markdownEditor) return false;
+    const markdown = this.markdownEditor.getValue();
+    const result = this.areaNav.swapAreas(markdown, areaName);
+    return result !== null;
+  }
+
+  _swapAreaInMarkdown(areaName) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const updated = this.areaNav.swapAreas(markdown, areaName);
+    if (updated === null) return;
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
   }
 }

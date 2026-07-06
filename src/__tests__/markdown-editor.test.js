@@ -11,17 +11,17 @@ describe("MarkdownEditor suppression reset", () => {
       value: "",
       view: {
         scrollDOM: { scrollTop: 0 },
-        setState() {
-          throw new Error("setState failed");
+        state: { doc: { length: 0 } },
+        dispatch() {
+          throw new Error("dispatch failed");
         },
       },
-      extensions: [],
       suppressChange: false,
     };
 
     expect(() =>
       MarkdownEditor.prototype.setValue.call(editor, "next", { suppressOnChange: true }),
-    ).toThrow("setState failed");
+    ).toThrow("dispatch failed");
     expect(editor.suppressChange).toBe(false);
   });
 
@@ -53,9 +53,9 @@ describe("MarkdownEditor suppression reset", () => {
       value: "",
       view: {
         scrollDOM: { scrollTop: 0 },
-        setState() {},
+        state: { doc: { length: 0 } },
+        dispatch() {},
       },
-      extensions: [],
       suppressChange: false,
       debounceTimer: null,
       options: { onChange, debounceDelay: 50 },

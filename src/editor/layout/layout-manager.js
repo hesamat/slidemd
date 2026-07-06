@@ -33,26 +33,10 @@ export class LayoutManager {
     LayoutPicker.show((layoutName) => this.applyToCurrentSlide(layoutName));
   }
 
-  async applyToCurrentSlide(layoutName) {
+  applyToCurrentSlide(layoutName) {
     if (!this.markdownEditor) return;
 
     const markdown = this.markdownEditor.getValue();
-    const warning = this.getCompatibilityWarning(markdown, layoutName);
-    if (warning) {
-      const confirmed = await Notification.showModal({
-        title: "Layout may break this slide",
-        message: warning,
-        buttons: [
-          { label: "Cancel", isPrimary: false, resolvesTo: false },
-          { label: "Apply anyway", isPrimary: true, resolvesTo: true },
-        ],
-        focusPrimary: true,
-        closeResolvesTo: false,
-      });
-
-      if (!confirmed) return;
-    }
-
     let updatedMarkdown = updateLayoutDirective(markdown, layoutName);
 
     const parser = new MarkdownParser();
@@ -61,6 +45,12 @@ export class LayoutManager {
       fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
     });
     const requiredAreas = resolvedLayout.orderedAreas || [];
+
+    // Strip unsupported areas and normalize header<->title aliases.
+    updatedMarkdown = parser.collapseUnsupportedAreas(updatedMarkdown, requiredAreas);
+
+    // Re-parse after collapsing to get the updated area state.
+    const { areas: areasAfterCollapse } = parser.parseAreas(updatedMarkdown);
 
     let appendedContent = "";
     const areaPlaceholders = {
@@ -73,7 +63,7 @@ export class LayoutManager {
     for (const area of requiredAreas) {
       if (area === "header" || area === "title" || area === "footer") continue;
 
-      if (!currentAreas[area] && areaPlaceholders[area]) {
+      if (!areasAfterCollapse[area] && areaPlaceholders[area]) {
         appendedContent += areaPlaceholders[area];
       }
     }
@@ -83,45 +73,7 @@ export class LayoutManager {
     }
 
     this.markdownEditor.setValue(updatedMarkdown, { suppressOnChange: false });
+    this.markdownEditor.focus();
     Notification.success(`Layout changed to "${layoutName}"`);
-  }
-
-  getCompatibilityWarning(markdown, layoutName) {
-    const currentAreas = this._normalizeAreasForLayout(markdown, layoutName);
-    const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
-      fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
-    });
-    const allowedAreas = new Set(resolvedLayout.orderedAreas);
-    const unsupportedAreas = Object.entries(currentAreas)
-      .filter(([areaName, content]) => content && !allowedAreas.has(areaName))
-      .map(([areaName]) => `@${areaName}`);
-
-    if (!unsupportedAreas.length) return "";
-
-    const renderedList = unsupportedAreas.join(", ");
-    return `This layout does not include ${renderedList}. Their content may be moved, hidden, or rendered as extra blocks after the layout change.`;
-  }
-
-  _normalizeAreasForLayout(markdown, layoutName) {
-    const parser = new MarkdownParser();
-    const { areas } = parser.parseAreas(markdown);
-    const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
-      fallbackAreas: Object.keys(areas).length ? Object.keys(areas) : ["main"],
-    });
-
-    const allowsTitle = resolvedLayout.orderedAreas.includes("title");
-    if (allowsTitle) {
-      if (!areas.title && areas.header) {
-        areas.title = areas.header;
-      }
-      delete areas.header;
-    } else {
-      if (!areas.header && areas.title) {
-        areas.header = areas.title;
-      }
-      delete areas.title;
-    }
-
-    return areas;
   }
 }

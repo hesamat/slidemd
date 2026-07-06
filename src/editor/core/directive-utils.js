@@ -6,6 +6,7 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
@@ -109,4 +110,45 @@ export function describeBackground(css) {
   else if (/^url\(/i.test(value)) type = "image";
 
   return { type, value, preview: value };
+}
+
+/**
+ * Remove an area from the slide's layout directive by switching to the
+ * appropriate standard preset.
+ *
+ * - 3+ content columns → switch to "two-column"
+ * - 2 content columns  → switch to "header-content"
+ * - 1 content column   → no change (main area cannot be deleted)
+ *
+ * @param {string} markdown  — slide markdown source
+ * @param {string} areaName  — area to remove (e.g. "media", "secondary")
+ * @returns {string} updated markdown
+ */
+export function removeAreaFromLayout(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name) return markdown;
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) return markdown;
+
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+  const contentAreas = (layout.orderedAreas || []).filter(
+    (a) => a !== "header" && a !== "footer" && a !== "title",
+  );
+
+  // How many content areas remain after removing the deleted one?
+  const remaining = contentAreas.filter((a) => a !== name).length;
+
+  let newLayout;
+  if (remaining >= 2) {
+    newLayout = "two-column";
+  } else {
+    newLayout = "header-content";
+  }
+
+  return updateLayoutDirective(stripped, newLayout);
 }

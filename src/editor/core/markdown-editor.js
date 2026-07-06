@@ -94,14 +94,11 @@ export class MarkdownEditor {
     try {
       const scrollTop = this.view.scrollDOM.scrollTop;
 
-      // Rebuild state entirely to avoid decoration mapping errors when the
-      // new document is shorter than the old one (out-of-range positions).
-      this.view.setState(
-        EditorState.create({
-          doc: this.value,
-          extensions: this.extensions,
-        }),
-      );
+      // Use dispatch (not setState) so the change is recorded in the undo
+      // history — Ctrl+Z / Cmd+Z will revert it.
+      this.view.dispatch({
+        changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
+      });
 
       this.view.scrollDOM.scrollTop = scrollTop;
 

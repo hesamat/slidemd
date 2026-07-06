@@ -5,6 +5,7 @@
  * Extracted from EditController.
  */
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
+import { AreaContextMenu } from "./area-context-menu.js";
 
 export class AreaGuideManager {
   /**
@@ -15,6 +16,10 @@ export class AreaGuideManager {
    * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
    * @param {(areaName: string) => void} opts.onNavigateToArea
    * @param {(slideEl: HTMLElement, slideData: object) => void} opts.onAttachGridResizer
+   * @param {(areaName: string) => void} opts.onDeleteArea
+   * @param {(areaName: string) => boolean} opts.canDeleteArea
+   * @param {(areaName: string) => void} opts.onSwapArea
+   * @param {(areaName: string) => boolean} opts.canSwapArea
    */
   constructor({
     getIsEditMode,
@@ -23,6 +28,10 @@ export class AreaGuideManager {
     getSlideElementByIndex,
     onNavigateToArea,
     onAttachGridResizer,
+    onDeleteArea,
+    canDeleteArea,
+    onSwapArea,
+    canSwapArea,
   }) {
     this._getIsEditMode = getIsEditMode;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
@@ -30,6 +39,16 @@ export class AreaGuideManager {
     this._getSlideElementByIndex = getSlideElementByIndex;
     this._onNavigateToArea = onNavigateToArea;
     this._onAttachGridResizer = onAttachGridResizer;
+    this._onDeleteArea = onDeleteArea;
+    this._canDeleteArea = canDeleteArea;
+    this._onSwapArea = onSwapArea;
+    this._canSwapArea = canSwapArea;
+
+    this._contextMenu = new AreaContextMenu({
+      onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
+      onSwapArea: (areaName) => this._onSwapArea?.(areaName),
+    });
+    this._contextMenu.init();
   }
 
   get isEditMode() {
@@ -75,6 +94,13 @@ export class AreaGuideManager {
         event.stopPropagation();
         this._onNavigateToArea(name);
       };
+      label.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
+        const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
+        this._contextMenu.open(e.clientX, e.clientY, name, { canDelete, canSwap });
+      });
     });
 
     if (slideData?.layout) {
@@ -134,5 +160,9 @@ export class AreaGuideManager {
         ImageInteractionHandler.activate(grid);
       }
     });
+  }
+
+  destroy() {
+    this._contextMenu?.destroy();
   }
 }
