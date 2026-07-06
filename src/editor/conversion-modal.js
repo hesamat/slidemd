@@ -14,7 +14,6 @@ const STORAGE_KEY = "webdeck_import_defaults";
 /**
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
- * @property {string[]} imageRefs - Image filenames that need to be saved.
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} deckName - User-editable deck name (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
@@ -284,7 +283,6 @@ export class ConversionModal {
         backdrop.remove();
         resolve({
           markdown: finalMarkdown,
-          imageRefs: importImages ? extractionResult.images.map((img) => img.ref) : [],
           images: importImages ? extractionResult.images : [],
           deckName: editedName,
           importImages,
