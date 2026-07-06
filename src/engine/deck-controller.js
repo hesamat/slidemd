@@ -722,7 +722,7 @@ export class DeckController extends EventEmitter {
               if (!rawName) continue;
               // EMF/WMF images are converted to PNG during extraction
               const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
-              const filename = `${deckName}_${safeName}`;
+              const filename = safeName;
               const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
               const binary = atob(raw);
               const bytes = new Uint8Array(binary.length);

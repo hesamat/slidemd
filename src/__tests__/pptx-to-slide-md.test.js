@@ -202,7 +202,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain('src="images/presentation_image1.png"');
+    expect(md).toContain('src="images/image1.png"');
     // Extracted images keep explicit dimensions for click/drag handler
     expect(md).toContain("width=");
     expect(md).toContain("height=");
@@ -249,7 +249,7 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     const mainIndex = md.indexOf("@main");
     const mediaIndex = md.indexOf("@media");
-    const imageIndex = md.indexOf("presentation_dominant.png");
+    const imageIndex = md.indexOf("dominant.png");
 
     expect(md).toContain("layout: two-column");
     expect(md).not.toContain("@secondary");
@@ -335,8 +335,8 @@ describe("convertToSlideMd", () => {
     const mediaIndex = md.indexOf("@media");
     const secondaryIndex = md.indexOf("@secondary");
     const textIndex = md.indexOf("Summary text stays in the main column");
-    const firstImageIndex = md.indexOf("presentation_dominant-1.png");
-    const secondImageIndex = md.indexOf("presentation_dominant-2.png");
+    const firstImageIndex = md.indexOf("dominant-1.png");
+    const secondImageIndex = md.indexOf("dominant-2.png");
 
     expect(md).toContain("layout: three-column");
     expect(mainIndex).toBeGreaterThan(-1);
@@ -375,7 +375,7 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).not.toContain("@media");
     expect(md).not.toContain("@secondary");
-    expect(md).toContain("presentation_full-slide.png");
+    expect(md).toContain("full-slide.png");
   });
 
   it("does not use multi-column layout for non-dominant images", () => {
