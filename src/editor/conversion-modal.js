@@ -9,6 +9,7 @@ import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 
 const P = "conversion-modal__";
+const STORAGE_KEY = "webdeck_import_defaults";
 
 /**
  * @typedef {Object} ConversionResult
@@ -64,6 +65,15 @@ export class ConversionModal {
 
       // Prevent clicks inside the dialog from closing the modal
       dialog.addEventListener("click", (e) => e.stopPropagation());
+
+      const saveDefaults = (patch) => {
+        try {
+          const current = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...patch }));
+        } catch {
+          /* ignore */
+        }
+      };
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -152,6 +162,14 @@ export class ConversionModal {
           const imageCount = extractionResult.images.length;
           const hasCodeBlocks = /^```\n/gm.test(markdown);
 
+          // Load saved defaults from localStorage
+          let savedDefaults = {};
+          try {
+            savedDefaults = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+          } catch {
+            /* ignore */
+          }
+
           // Insert elements in order: language selector, then checkboxes
           let insertAfter = spinnerEl;
 
@@ -176,35 +194,42 @@ export class ConversionModal {
             <span class="${P}code-hint">${hasCodeBlocks ? "Code blocks detected" : ""}</span>
           `;
           const langSelect = langRow.querySelector(`[data-field="code-language"]`);
+          if (savedDefaults.codeLanguage) {
+            langSelect.value = savedDefaults.codeLanguage;
+            codeLanguage = savedDefaults.codeLanguage;
+          }
           langSelect.addEventListener("change", () => {
             codeLanguage = langSelect.value;
+            saveDefaults({ codeLanguage });
           });
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
           // If images detected, show checkbox with description
           if (imageCount > 0) {
-            importImages = true;
+            importImages = savedDefaults.importImages !== false;
             const checkboxRow = document.createElement("label");
             checkboxRow.className = `${P}checkbox-row`;
-            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
+            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
             const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
             checkboxInput.addEventListener("change", () => {
               importImages = checkboxInput.checked;
               markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+              saveDefaults({ importImages });
             });
             insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
             insertAfter = checkboxRow;
           }
 
           // Show background/theme checkbox
-          keepBackgrounds = true;
+          keepBackgrounds = savedDefaults.keepBackgrounds !== false;
           const bgCheckboxRow = document.createElement("label");
           bgCheckboxRow.className = `${P}checkbox-row`;
-          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" checked /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
+          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${keepBackgrounds ? "checked" : ""} /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
           const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
           bgCheckboxInput.addEventListener("change", () => {
             keepBackgrounds = bgCheckboxInput.checked;
+            saveDefaults({ keepBackgrounds });
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
