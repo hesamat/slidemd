@@ -5,6 +5,8 @@
  * editor extracted from EditController.
  */
 
+const MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+
 export class AreaNavigation {
   /**
    * @param {object} opts
@@ -57,16 +59,31 @@ export class AreaNavigation {
   getAreaAtCursor(markdown, position) {
     const text = String(markdown || "").replace(/\r\n?/g, "\n");
     const lines = text.split("\n");
-    const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
 
     let currentArea = "main";
     let currentOffset = 0;
+    let inFence = false;
+    let fenceMarker = null;
 
     for (const line of lines) {
-      const match = line.match(markerRegex);
-      if (match) {
-        if (position >= currentOffset) {
-          currentArea = match[1].toLowerCase();
+      const fenceMatch = line.match(/^\s*(```+|~~~+)\s*/);
+      if (fenceMatch) {
+        const marker = fenceMatch[1][0];
+        if (!inFence) {
+          inFence = true;
+          fenceMarker = marker;
+        } else if (fenceMarker === marker) {
+          inFence = false;
+          fenceMarker = null;
+        }
+      }
+
+      if (!inFence) {
+        const match = line.match(MARKER_RE);
+        if (match) {
+          if (position >= currentOffset) {
+            currentArea = match[1].toLowerCase();
+          }
         }
       }
       currentOffset += line.length + 1;
@@ -81,24 +98,15 @@ export class AreaNavigation {
       .trim()
       .toLowerCase();
 
-    const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-    let areaMarkerIdx = -1;
-    let nextMarkerIdx = lines.length;
-
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(markerRegex);
-      if (!match) continue;
-      if (match[1].toLowerCase() === target) {
-        areaMarkerIdx = i;
-      } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
-        nextMarkerIdx = i;
-        break;
-      }
-    }
-
-    if (areaMarkerIdx < 0) {
+    const markers = this._collectMarkers(lines);
+    const targetEntry = markers.find((m) => m.name === target);
+    if (!targetEntry) {
       return { from: text.length, to: text.length };
     }
+
+    const targetIdx = markers.indexOf(targetEntry);
+    const nextMarkerIdx =
+      targetIdx + 1 < markers.length ? markers[targetIdx + 1].idx : lines.length;
 
     const lineToChar = (lineIndex) => {
       let pos = 0;
@@ -109,9 +117,102 @@ export class AreaNavigation {
     };
 
     return {
-      from: lineToChar(areaMarkerIdx + 1),
+      from: lineToChar(targetEntry.idx + 1),
       to: lineToChar(nextMarkerIdx),
     };
+  }
+
+  /**
+   * Remove an @area marker line from the markdown, preserving all content.
+   * The content that followed the marker is absorbed into the preceding area.
+   * Returns the updated markdown string (does NOT write to the editor).
+   * Returns null if the area marker was not found.
+   *
+   * @param {string} markdown
+   * @param {string} areaName
+   * @returns {string|null}
+   */
+  deleteArea(markdown, areaName) {
+    const text = String(markdown || "").replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const target = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!target) return null;
+
+    const markers = this._collectMarkers(lines);
+    const entry = markers.find((m) => m.name === target);
+    if (!entry) return null;
+
+    lines.splice(entry.idx, 1);
+    return lines.join("\n");
+  }
+
+  /**
+   * Swap the content of an area with the content of the next area.
+   * If the area is the last content column, wraps around to swap with the
+   * first content column. Only the content lines are moved — the @area
+   * markers stay in place.
+   * Returns the updated markdown string (does NOT write to the editor).
+   * Returns null if the area cannot be found.
+   *
+   * @param {string} markdown
+   * @param {string} areaName
+   * @returns {string|null}
+   */
+  swapAreas(markdown, areaName) {
+    const text = String(markdown || "").replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const target = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!target) return null;
+
+    const markers = this._collectMarkers(lines).filter(
+      (m) => m.name !== "header" && m.name !== "footer" && m.name !== "title",
+    );
+    if (markers.length < 2) return null;
+    const targetPos = markers.findIndex((m) => m.name === target);
+    if (targetPos < 0) return null;
+
+    // Determine next area — wrap around for the last one.
+    const nextPos = (targetPos + 1) % markers.length;
+    if (nextPos === targetPos) return null; // only one marker
+
+    const current = markers[targetPos];
+    const next = markers[nextPos];
+
+    // Content ranges (between markers, excluding the markers themselves).
+    const nextEndPos = (nextPos + 1) % markers.length;
+    const nextEnd = nextEndPos === 0 ? lines.length : markers[nextEndPos].idx;
+
+    // For wrap-around (last swaps with first), the layout is different:
+    // current content is between current marker and the end of markers list,
+    // next content is between first marker and second marker.
+    if (nextPos === 0) {
+      // Wrap-around case: last column swaps with first column.
+      const afterLast = targetPos + 1 < markers.length ? markers[targetPos + 1].idx : lines.length;
+      const firstContent = lines.slice(markers[0].idx + 1, markers[1]?.idx ?? lines.length);
+      const lastContent = lines.slice(current.idx + 1, afterLast);
+
+      // Replace first content and last content.
+      const out = [...lines];
+      // Replace content after first marker with last content.
+      out.splice(markers[0].idx + 1, firstContent.length, ...lastContent);
+      // Recalculate: after first splice, the last marker position may have shifted.
+      const shift = lastContent.length - firstContent.length;
+      out.splice(current.idx + 1 + shift, lastContent.length, ...firstContent);
+      return out.join("\n");
+    }
+
+    // Normal case: adjacent columns.
+    const currentContent = lines.slice(current.idx + 1, next.idx);
+    const nextContent = lines.slice(next.idx + 1, nextEnd);
+
+    const before = lines.slice(0, current.idx + 1);
+    const after = lines.slice(nextEnd);
+
+    return [...before, ...nextContent, lines[next.idx], ...currentContent, ...after].join("\n");
   }
 
   resolveAreaInsertPositionByRatio(markdown, areaName, ratioY = 1) {
@@ -131,5 +232,40 @@ export class AreaNavigation {
       offset += lines[i].length + 1;
     }
     return Math.min(range.to, range.from + offset);
+  }
+
+  /**
+   * Collect @area markers from lines, respecting code fences.
+   * Returns an array of { name, idx } sorted by line index.
+   * @param {string[]} lines
+   * @returns {{ name: string, idx: number }[]}
+   */
+  _collectMarkers(lines) {
+    const markers = [];
+    let inFence = false;
+    let fenceMarker = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const fenceMatch = lines[i].match(/^\s*(```+|~~~+)\s*/);
+      if (fenceMatch) {
+        const marker = fenceMatch[1][0];
+        if (!inFence) {
+          inFence = true;
+          fenceMarker = marker;
+        } else if (fenceMarker === marker) {
+          inFence = false;
+          fenceMarker = null;
+        }
+      }
+
+      if (!inFence) {
+        const match = lines[i].match(MARKER_RE);
+        if (match) {
+          markers.push({ name: match[1].toLowerCase(), idx: i });
+        }
+      }
+    }
+
+    return markers;
   }
 }

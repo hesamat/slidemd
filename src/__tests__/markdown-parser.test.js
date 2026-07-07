@@ -267,6 +267,71 @@ describe("MarkdownParser.parseAreas", () => {
   });
 });
 
+describe("MarkdownParser.collapseUnsupportedAreas", () => {
+  it("strips unsupported area markers but preserves their content", () => {
+    const md = "@main\nMain\n@secondary\nExtra";
+    const result = parser.collapseUnsupportedAreas(md, ["main", "media"]);
+    expect(result).toContain("@main");
+    expect(result).toContain("Main");
+    expect(result).not.toContain("@secondary");
+    // Content from @secondary is absorbed into @main
+    expect(result).toContain("Extra");
+  });
+
+  it("renames @header to @title when layout expects title", () => {
+    const md = "@header\nTitle content";
+    const result = parser.collapseUnsupportedAreas(md, ["title", "footer"]);
+    expect(result).toContain("@title");
+    expect(result).not.toContain("@header");
+    expect(result).toContain("Title content");
+  });
+
+  it("renames @title to @header when layout expects header", () => {
+    const md = "@title\nTitle content";
+    const result = parser.collapseUnsupportedAreas(md, ["header", "main", "footer"]);
+    expect(result).toContain("@header");
+    expect(result).not.toContain("@title");
+    expect(result).toContain("Title content");
+  });
+
+  it("preserves content before first area marker", () => {
+    const md = "Preamble\n@media\nMedia content";
+    const result = parser.collapseUnsupportedAreas(md, ["main", "media"]);
+    expect(result).toContain("Preamble");
+    expect(result).toContain("@media");
+  });
+
+  it("ignores @area markers inside code fences", () => {
+    const md = "```\n@fake\n```\n@main\nContent";
+    const result = parser.collapseUnsupportedAreas(md, ["main"]);
+    expect(result).toContain("@fake");
+    expect(result).toContain("@main");
+  });
+
+  it("returns unchanged when all areas are supported", () => {
+    const md = "@main\nHello\n@media\nWorld";
+    const result = parser.collapseUnsupportedAreas(md, ["main", "media"]);
+    expect(result).toBe(md);
+  });
+
+  it("handles multiple unsupported areas — content absorbed into main", () => {
+    const md = "@main\nA\n@secondary\nB\n@sidebar\nC";
+    const result = parser.collapseUnsupportedAreas(md, ["main"]);
+    expect(result).toContain("@main");
+    expect(result).not.toContain("@secondary");
+    expect(result).not.toContain("@sidebar");
+    expect(result).toContain("B");
+    expect(result).toContain("C");
+  });
+
+  it("does not rename alias when layout already supports both", () => {
+    const md = "@header\nHello";
+    const result = parser.collapseUnsupportedAreas(md, ["header", "main"]);
+    expect(result).toContain("@header");
+    expect(result).not.toContain("@title");
+  });
+});
+
 describe("MarkdownParser.computeAreaOffsets", () => {
   it("returns main offset at 0 for simple content", () => {
     const offsets = parser.computeAreaOffsets("# Hello\nWorld");

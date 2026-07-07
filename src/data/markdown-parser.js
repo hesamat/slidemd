@@ -392,6 +392,69 @@ export class MarkdownParser {
   }
 
   /**
+   * Remove @area markers and their content for areas not in `allowedAreas`,
+   * and normalize header<->title aliases to match the target layout.
+   *
+   * Content before the first @area marker (the implicit "main" area) is
+   * always preserved. Markers inside code fences are left untouched.
+   *
+   * @param {string} markdownText
+   * @param {string[]} allowedAreas  — area names the target layout supports
+   * @returns {string} cleaned markdown
+   */
+  collapseUnsupportedAreas(markdownText, allowedAreas) {
+    const allowed = new Set((allowedAreas || []).map((a) => a.toLowerCase()));
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+    const fence = new FenceTracker();
+    const markerRe = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+
+    // Determine which alias the layout expects.
+    const wantsTitle = allowed.has("title");
+    const wantsHeader = allowed.has("header");
+
+    const out = [];
+
+    for (const line of lines) {
+      fence.toggle(line);
+
+      if (!fence.isInFence) {
+        const m = line.match(markerRe);
+        if (m) {
+          const rawName = m[1].toLowerCase();
+
+          // --- alias normalization ---
+          let name = rawName;
+          if (rawName === "header" && wantsTitle && !wantsHeader) {
+            name = "title";
+          } else if (rawName === "title" && wantsHeader && !wantsTitle) {
+            name = "header";
+          }
+
+          if (!allowed.has(name)) {
+            // Unsupported area: skip the marker but keep its content
+            // (it gets absorbed into the previous supported area).
+            continue;
+          }
+
+          // Supported area — emit (possibly renamed) marker.
+          if (name !== rawName) {
+            out.push(`@${name}`);
+          } else {
+            out.push(line);
+          }
+          continue;
+        }
+      }
+
+      // Content lines are always emitted — content from unsupported areas
+      // is absorbed into the preceding supported area.
+      out.push(line);
+    }
+
+    return out.join("\n");
+  }
+
+  /**
    * Compute the 0-indexed editor line where each area's content begins in the
    * raw slide markdown. Directives (layout, background, etc.) and HTML
    * comments (e.g. <!-- notes: ... -->) are treated as non-content lines:
