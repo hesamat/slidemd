@@ -168,7 +168,9 @@ export class AreaNavigation {
       .toLowerCase();
     if (!target) return null;
 
-    const markers = this._collectMarkers(lines).filter((m) => m.name !== "header" && m.name !== "footer" && m.name !== "title");
+    const markers = this._collectMarkers(lines).filter(
+      (m) => m.name !== "header" && m.name !== "footer" && m.name !== "title",
+    );
     if (markers.length < 2) return null;
     const targetPos = markers.findIndex((m) => m.name === target);
     if (targetPos < 0) return null;
