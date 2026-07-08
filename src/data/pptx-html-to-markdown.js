@@ -433,9 +433,10 @@ function processInlineNodes(nodes, out) {
       const raw = inner.join("");
       const trimmed = raw.trim();
       if (trimmed) {
-        out.push("**" + trimmed + "**");
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
+        out.push("**" + trimmed + "**" + suffix);
       } else if (raw) {
-        // Preserve whitespace-only spans as a single space
         out.push(" ");
       } else {
         out.push(raw);
@@ -449,9 +450,10 @@ function processInlineNodes(nodes, out) {
       const raw = inner.join("");
       const trimmed = raw.trim();
       if (trimmed) {
-        out.push("*" + trimmed + "*");
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
+        out.push("*" + trimmed + "*" + suffix);
       } else if (raw) {
-        // Preserve whitespace-only spans as a single space
         out.push(" ");
       } else {
         out.push(raw);
@@ -475,16 +477,18 @@ function processInlineNodes(nodes, out) {
 
       if (trimmed) {
         let text = isMono ? raw : trimmed;
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
         if (isMono) {
           // Monospace text — use backticks, skip bold/italic markers
           text = "`" + text.replace(/`/g, "\\`") + "`";
           out.push(text);
         } else if (isBold && isItalic) {
-          out.push("***" + trimmed + "***");
+          out.push("***" + trimmed + "***" + suffix);
         } else if (isBold) {
-          out.push("**" + trimmed + "**");
+          out.push("**" + trimmed + "**" + suffix);
         } else if (isItalic) {
-          out.push("*" + trimmed + "*");
+          out.push("*" + trimmed + "*" + suffix);
         } else {
           // Plain text span — preserve original spacing
           out.push(raw);

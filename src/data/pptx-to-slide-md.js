@@ -666,16 +666,21 @@ function inferLayout(
   const hasHeader = !!headerEl;
 
   if (!hasMedia) {
-    const maxRowDiff = slideHeight * CONFIG.rowMaxVerticalDiffRatio;
     const minSpread = slideWidth * CONFIG.minColumnSpreadRatio;
 
+    // Two elements are in a spread row if they are horizontally separated
+    // AND have significant vertical overlap (not just close top positions).
     const hasSpreadRow = contentEls.some((a) =>
-      contentEls.some(
-        (b) =>
-          a !== b &&
-          Math.abs(a.top - b.top) <= maxRowDiff &&
-          Math.abs(a.left - b.left) >= minSpread,
-      ),
+      contentEls.some((b) => {
+        if (a === b) return false;
+        if (Math.abs(a.left - b.left) < minSpread) return false;
+        // Check vertical overlap, not just top-position proximity
+        const overlapTop = Math.max(a.top, b.top);
+        const overlapBottom = Math.min(a.top + (a.height || 0), b.top + (b.height || 0));
+        const overlap = overlapBottom - overlapTop;
+        const minHeight = Math.min(a.height || 0, b.height || 0);
+        return overlap > 0 && minHeight > 0 && overlap / minHeight > 0.5;
+      }),
     );
 
     if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
@@ -777,18 +782,33 @@ function findDominantImages(allEls, slideWidth, slideHeight) {
   });
 }
 
-function isColorDark(colorHex) {
-  if (!colorHex || !colorHex.startsWith("#")) return false;
-  const hex = colorHex.replace("#", "");
-  if (hex.length < LUMINANCE.HEX_MIN_LENGTH) return false;
+function hexToLuminance(hex) {
+  if (!hex || hex.length < LUMINANCE.HEX_MIN_LENGTH) return Infinity;
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
-  return (
-    (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
-      LUMINANCE.SCALE_DIVISOR <
-    LUMINANCE.DARK_THRESHOLD
-  );
+  return (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
+    LUMINANCE.SCALE_DIVISOR;
+}
+
+function isColorDark(colorHex) {
+  if (!colorHex) return false;
+
+  // Handle gradients: extract all hex colors, pick darkest
+  if (!colorHex.startsWith("#")) {
+    const matches = colorHex.match(/#[0-9a-fA-F]{6}/g);
+    if (!matches) return false;
+    // Find the color with lowest luminance (darkest)
+    let darkestLum = Infinity;
+    for (const m of matches) {
+      const lum = hexToLuminance(m.replace("#", ""));
+      if (lum < darkestLum) darkestLum = lum;
+    }
+    return darkestLum < LUMINANCE.DARK_THRESHOLD;
+  }
+
+  const hex = colorHex.replace("#", "");
+  return hexToLuminance(hex) < LUMINANCE.DARK_THRESHOLD;
 }
 
 function formatTextElement(raw) {
