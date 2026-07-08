@@ -316,7 +316,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         el.type === ELEMENT_TYPES.DIAGRAM),
   );
 
-  const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
+  // Check for actual renderable media — "data:image" alone is just a MIME
+  // prefix without encoded image data and cannot be displayed.  Raw base64
+  // strings (like "abc" in tests) are valid.
+  const hasMedia = allElements.some(
+    (el) =>
+      el.type !== ELEMENT_TYPES.TEXT &&
+      (el.type !== ELEMENT_TYPES.IMAGE ||
+        (el.base64 && !(el.base64.startsWith("data:") && !el.base64.includes(",")))),
+  );
 
   let layout = inferLayout(
     textElements,
@@ -766,7 +774,12 @@ function inferLayout(
 
 function findDominantImages(allEls, slideWidth, slideHeight) {
   const slideArea = slideWidth * slideHeight;
-  const images = allEls.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
+  const images = allEls.filter(
+    (el) =>
+      el.type === ELEMENT_TYPES.IMAGE &&
+      el.base64 &&
+      !(el.base64.startsWith("data:") && !el.base64.includes(",")),
+  );
 
   return images.filter((el) => {
     const w = el.width || 0;
