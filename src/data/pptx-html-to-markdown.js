@@ -7,11 +7,15 @@
  * bullet detection, and font-size-based heading detection.
  */
 
-// Font-size threshold for heading detection (in points).
-// Text >= 28pt is treated as a heading (uses ## for all heading sizes).
+// Font-size thresholds for heading detection (in points).
+// Maps font-size bands to markdown heading levels to preserve visual hierarchy.
 // Based on typical PowerPoint default font sizes:
 // Title: 36-44pt, Subtitle: 24-28pt, Body: 18-24pt, Small: 12-14pt
-const HEADING_THRESHOLD = 28;
+const HEADING_BANDS = [
+  { min: 44, prefix: "## " },
+  { min: 30, prefix: "### " },
+  { min: 28, prefix: "#### " },
+];
 
 // Monospace font-family pattern for detecting code content
 const MONOSPACE_PATTERN =
@@ -139,6 +143,22 @@ export function htmlToMarkdown(html) {
  * @param {string} html
  * @returns {string}
  */
+/**
+ * Escape a string for safe inclusion inside inline HTML (e.g. when the
+ * converter emits raw HTML elements). Escapes the five XML-significant
+ * characters so user text can never break out of an attribute or tag.
+ * @param {string} text
+ * @returns {string}
+ */
+export function escapeHtml(text) {
+  return (text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function stripHtml(html) {
   if (!html) return "";
   return html
@@ -174,7 +194,7 @@ function processBlockNodes(nodes, out) {
     const tag = node.tagName;
 
     if (tag === "UL" || tag === "OL") {
-      processList(node, 0, out);
+      processList(node, 0, out, {});
       out.push("\n");
       continue;
     }
@@ -213,21 +233,33 @@ function processBlockNodes(nodes, out) {
         if (allMono) {
           out.push(merged + "\n\n");
         } else {
-          // Escape # at start of lines so PPTX text like "# Print using..."
-          // is preserved as literal text. Skip lines starting with backticks
-          // (monospace code) since # inside code blocks should not be escaped.
-          merged = merged
-            .split("\n")
-            .map((line) => (/^`/.test(line.trim()) ? line : line.replace(/^#/gm, "\\#")))
-            .join("\n");
-          // Detect headings by font size — use ## for heading-sized text
-          // but only if the text is short enough to be a heading
+          // Detect headings by font size — use band-specific heading level
+          // but only if the text is short enough to be a heading. This must
+          // run on the *un-escaped* text, because # literals below are
+          // escaped and would otherwise leak a backslash into the heading.
           const fontSize = getLargestFontSize(node);
-          if (fontSize >= HEADING_THRESHOLD && merged.trim().length <= 80) {
-            out.push(`## ${merged.trim()}\n\n`);
-          } else {
-            out.push(merged + "\n\n");
+          const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
+          if (headingBand && merged.trim().length <= 80) {
+            out.push(`${headingBand.prefix}${merged.trim()}\n\n`);
+            continue;
           }
+          // Escape # at start of lines so PPTX text like "# Print using..."
+          // is preserved as literal text. Skip lines inside fenced code blocks
+          // and lines starting with backticks (inline code).
+          const lines = merged.split("\n");
+          let inCodeBlock = false;
+          merged = lines
+            .map((line) => {
+              const t = line.trim();
+              if (t === "```") {
+                inCodeBlock = !inCodeBlock;
+                return line;
+              }
+              if (inCodeBlock || /^`/.test(t)) return line;
+              return line.replace(/^#/gm, "\\#");
+            })
+            .join("\n");
+          out.push(merged + "\n\n");
         }
       }
       continue;
@@ -253,7 +285,11 @@ function processBlockNodes(nodes, out) {
  * @param {number} depth
  * @param {string[]} out
  */
-function processList(listNode, depth, out) {
+function processList(listNode, depth, out, counters) {
+  if (!counters) counters = {};
+  counters[depth] = 0;
+  const isOrdered = listNode.tagName === "OL";
+
   for (const child of listNode.children) {
     if (child.tagName !== "LI") continue;
 
@@ -268,10 +304,15 @@ function processList(listNode, depth, out) {
     }
     const merged = mergeAdjacentMarkers(inline.join("").trim());
     if (merged) {
-      out.push("  ".repeat(depth) + "- " + merged + "\n");
+      if (isOrdered) {
+        counters[depth]++;
+        out.push("  ".repeat(depth) + counters[depth] + ". " + merged + "\n");
+      } else {
+        out.push("  ".repeat(depth) + "- " + merged + "\n");
+      }
     }
     for (const nl of nestedLists) {
-      processList(nl, depth + 1, out);
+      processList(nl, depth + 1, out, counters);
     }
   }
 }

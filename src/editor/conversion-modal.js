@@ -158,7 +158,6 @@ export class ConversionModal {
 
           hideSpinner();
 
-          const imageCount = extractionResult.images.length;
           const hasCodeBlocks = /^```\n/gm.test(markdown);
 
           // Load saved defaults from localStorage
@@ -204,21 +203,19 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
-          // If images detected, show checkbox with description
-          if (imageCount > 0) {
-            importImages = savedDefaults.importImages !== false;
-            const checkboxRow = document.createElement("label");
-            checkboxRow.className = `${P}checkbox-row`;
-            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
-            const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
-            checkboxInput.addEventListener("change", () => {
-              importImages = checkboxInput.checked;
-              markdown = convertToSlideMd(extractionResult, deckName, { importImages });
-              saveDefaults({ importImages });
-            });
-            insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
-            insertAfter = checkboxRow;
-          }
+          // Image import checkbox
+          importImages = savedDefaults.importImages !== false;
+          const imgCheckboxRow = document.createElement("label");
+          imgCheckboxRow.className = `${P}checkbox-row`;
+          imgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import images</span>`;
+          const imgCheckboxInput = imgCheckboxRow.querySelector(`.${P}checkbox`);
+          imgCheckboxInput.addEventListener("change", () => {
+            importImages = imgCheckboxInput.checked;
+            markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+            saveDefaults({ importImages });
+          });
+          insertAfter.parentNode.insertBefore(imgCheckboxRow, insertAfter.nextSibling);
+          insertAfter = imgCheckboxRow;
 
           // Show background/theme checkbox
           keepBackgrounds = savedDefaults.keepBackgrounds !== false;

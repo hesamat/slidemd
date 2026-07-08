@@ -376,6 +376,7 @@ export class PptxExtractor {
           text: this.#stripHtml(cell.text || ""),
           rowSpan: cell.rowSpan,
           colSpan: cell.colSpan,
+          fillColor: cell.fillColor || null,
         })),
       );
       return {
@@ -527,63 +528,5 @@ export class PptxExtractor {
    */
   static #stripHtml(html) {
     return stripHtml(html);
-  }
-
-  /**
-   * Convert extraction result to a plain-text representation suitable
-   * for preview or external processing.
-   * @static
-   * @param {ExtractionResult} result
-   * @returns {string}
-   */
-  static toPlainText(result) {
-    const lines = [];
-    for (const slide of result.slides) {
-      lines.push(`--- Slide ${slide.index + 1} ---`);
-      if (slide.title) lines.push(`Title: ${slide.title}`);
-      if (slide.background) lines.push(`Background: ${slide.background}`);
-      if (slide.notes) lines.push(`Notes: ${this.#stripHtml(slide.notes)}`);
-      lines.push("");
-
-      for (const el of slide.elements) {
-        if (el.type === "text") {
-          lines.push(el.content);
-          lines.push("");
-        } else if (el.type === "table" && el.rows) {
-          for (const row of el.rows) {
-            lines.push(row.map((c) => c.text).join(" | "));
-          }
-          lines.push("");
-        } else if (el.type === "image") {
-          lines.push(`[Image: ${el.ref || "unknown"}]`);
-          lines.push("");
-        } else if (el.type === "chart") {
-          if (el.chartData?.length) {
-            lines.push(`[Chart: ${el.chartType || "unknown"}]`);
-            const { headers, rows } = buildChartDataRows(el.chartData);
-            lines.push(headers.join(" | "));
-            lines.push("---".repeat(headers.length));
-            for (const row of rows) {
-              lines.push(row.join(" | "));
-            }
-            lines.push("");
-          } else {
-            lines.push(el.content || "[Chart]");
-            lines.push("");
-          }
-        } else if (el.type === "diagram") {
-          if (el.content) {
-            const items = el.content.split(", ");
-            for (const item of items) {
-              lines.push(`- ${item}`);
-            }
-          }
-          lines.push("");
-        }
-      }
-      lines.push("---");
-      lines.push("");
-    }
-    return lines.join("\n");
   }
 }

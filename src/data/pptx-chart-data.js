@@ -2,12 +2,12 @@
  * Chart data formatting for PPTX extraction.
  *
  * Builds structured data from chart series for use in
- * markdown table formatting and plain-text output.
+ * markdown table formatting.
  */
 
 /**
  * Build structured chart data (headers + rows) from extracted chart data.
- * Shared by toPlainText and markdown chart formatting.
+ * Shared by markdown chart formatting.
  * @param {import('./pptx-extractor.js').ChartData[]} chartData
  * @returns {{ headers: string[], rows: string[][] }}
  */

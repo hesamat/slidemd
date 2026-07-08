@@ -8,6 +8,7 @@
  * @class
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
+import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
 
 // Layout Definitions
 const LAYOUT = {
@@ -234,7 +235,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   }
 
   // 1. Identify layout-defining images first to ensure they are never filtered out
-  const dominantImages = importImages
+  let dominantImages = importImages
     ? findDominantImages(slide.elements, slideWidth, slideHeight)
     : [];
 
@@ -245,6 +246,38 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     slideHeight,
     dominantImages,
   );
+
+  // Rebuild dominantImages to only include images that survived filtering
+  dominantImages = dominantImages.filter((dom) =>
+    meaningfulElements.some(
+      (el) =>
+        el.type === ELEMENT_TYPES.IMAGE &&
+        el.ref === dom.ref &&
+        el.left === dom.left &&
+        el.top === dom.top,
+    ),
+  );
+
+  // Detect full-page background images: large images with text overlaid.
+  // These become the slide's CSS background instead of @media content.
+  const textEls = meaningfulElements.filter(
+    (el) => el.type === ELEMENT_TYPES.TEXT && el.content?.trim(),
+  );
+  const bgImage = dominantImages.find((img) => {
+    const imgArea = (img.width || 0) * (img.height || 0);
+    if (imgArea < slideWidth * slideHeight * 0.8) return false;
+    return textEls.some((textEl) => {
+      const overlap = getOverlapArea(img, textEl);
+      return overlap / imgArea > 0.1;
+    });
+  });
+  if (bgImage) {
+    const rawName = (bgImage.ref || "").split("/").pop();
+    const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
+    slide.background = `linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    // Remove the background image from dominant so it doesn't appear in @media
+    dominantImages = dominantImages.filter((el) => el !== bgImage);
+  }
 
   // 3. Separate structural footer elements from standard slide body elements
   const footerElements = slide.elements.filter((el) => el.placeholderType === ELEMENT_TYPES.FOOTER);
@@ -257,6 +290,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   );
   const allElements = meaningfulElements.filter(
     (el) =>
+      el !== bgImage &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER &&
       ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
         (importImages && el.type === ELEMENT_TYPES.IMAGE && el.base64) ||
@@ -279,7 +313,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
-    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el);
+    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth, slideHeight);
     if (el.type === ELEMENT_TYPES.CHART) return formatChart(el);
     if (el.type === ELEMENT_TYPES.DIAGRAM) return formatDiagram(el);
     return "";
@@ -323,7 +357,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
-    if (isColorDark(slide.background)) {
+    if (bgImage || isColorDark(slide.background)) {
       parts.push("theme: dark");
     }
   }
@@ -767,7 +801,12 @@ function formatTextElement(raw) {
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
 
-    if (REGEX.BULLET.test(trimmed)) {
+    const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
+    const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
+
+    if (isProperBullet || isNumberedList) {
+      result.push(line);
+    } else if (REGEX.BULLET.test(trimmed)) {
       const content = trimmed.replace(REGEX.BULLET, "");
       result.push(`${prefix}- ${content}`);
     } else if (REGEX.NUMBER.test(trimmed)) {
@@ -802,8 +841,33 @@ function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = fal
   return `<img src="${src}" alt="${altText}">`;
 }
 
-function formatTable(table) {
+function formatTable(table, slideWidth, slideHeight) {
   if (!table.rows?.length) return "";
+
+  // Full-page tables (covering ≥80% of the slide) are visual layouts
+  // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
+  // to preserve the 2D visual structure.
+  const tableArea = (table.width || 0) * (table.height || 0);
+  const slideArea = (slideWidth || 960) * (slideHeight || 540);
+  const isFullScreen = tableArea >= slideArea * 0.8;
+
+  if (isFullScreen) {
+    const cols = table.rows[0].length;
+    const rows = table.rows.length;
+    const cells = [];
+    for (const row of table.rows) {
+      for (const cell of row) {
+        const text = escapeHtml(stripHtml(cell.text || "").trim());
+        const bg = cell.fillColor || "transparent";
+        const isDarkBg = /(?:^|\s)(?:#[0-9a-f]{3,8}|white|black|light|dark)/i.test(bg);
+        cells.push(
+          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${escapeHtml(bg)}">${text}</div>`,
+        );
+      }
+    }
+    return `<div class="fullpage-grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">${cells.join("")}</div>`;
+  }
+
   const escapeCell = (text) =>
     (text || "")
       .replace(REGEX.NEWLINE_CRLF, "\n")

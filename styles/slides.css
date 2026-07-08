@@ -822,6 +822,41 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
+/* --- FULL-PAGE GRID (PPTX visual-layout tables) --- */
+
+/* Emitted by the PPTX converter for full-slide tables (≥80% of the
+   slide) that act as visual layouts (pillar grids, matrices). The
+   converter sets the per-instance column/row counts via inline
+   grid-template-*; everything else is styled here so the markup stays
+   declarative. */
+.slide__area .fullpage-grid {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.slide__area .fullpage-grid__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  color: var(--slide-ink);
+  font-size: 0.95em;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+/* When a cell has a colored fill, switch to high-contrast text.
+   The converter adds this modifier for dark fills. */
+.slide__area .fullpage-grid__cell--on-color {
+  color: #fff;
+}
+
 /* ==========================================================================
    7. Animation & Accessibility
    ========================================================================== */
