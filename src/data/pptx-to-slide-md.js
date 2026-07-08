@@ -119,6 +119,12 @@ const CONFIG = {
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,
   overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
+  backgroundImageThreshold: 0.8, // Minimum area ratio for background image detection
+  backgroundOverlapThreshold: 0.1, // Minimum overlap ratio for background/content
+  spreadOverlapThreshold: 0.5, // Minimum overlap ratio for two-column detection
+  partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
+  tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
+  fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
 };
 
 /**
@@ -246,7 +252,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     ? slide.elements.find((el) => {
         if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
         const imgArea = (el.width || 0) * (el.height || 0);
-        if (imgArea < slideArea * 0.8) return false;
+        if (imgArea < slideArea * CONFIG.backgroundImageThreshold) return false;
         // Must have at least one content element overlapping it
         const contentEls = slide.elements.filter(
           (other) =>
@@ -260,7 +266,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         );
         return contentEls.some((cel) => {
           const overlap = getOverlapArea(el, cel);
-          return overlap / imgArea > 0.1;
+          return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
         });
       })
     : null;
@@ -679,7 +685,7 @@ function inferLayout(
         const overlapBottom = Math.min(a.top + (a.height || 0), b.top + (b.height || 0));
         const overlap = overlapBottom - overlapTop;
         const minHeight = Math.min(a.height || 0, b.height || 0);
-        return overlap > 0 && minHeight > 0 && overlap / minHeight > 0.5;
+        return overlap > 0 && minHeight > 0 && overlap / minHeight > CONFIG.spreadOverlapThreshold;
       }),
     );
 
@@ -717,7 +723,7 @@ function inferLayout(
   // If the center is near the midpoint (ambiguous), use the left edge — wide
   // text boxes in two-column PPTX slides commonly start on the left but extend
   // past center.
-  const nearMidTol = slideWidth * 0.05;
+  const nearMidTol = slideWidth * CONFIG.partitionMidTolerance;
   const partition = (el) => {
     if (el === headerEl || isCentered(el)) return null;
     const cx = el.left + el.width / 2;
@@ -758,7 +764,9 @@ function inferLayout(
   if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
-  const hasTallColumn = bodyEls.some((e) => (e.height || 0) > slideHeight * 0.5);
+  const hasTallColumn = bodyEls.some(
+    (e) => (e.height || 0) > slideHeight * CONFIG.tallColumnHeightRatio,
+  );
   if (
     hasTwoColumns &&
     (hasTallColumn || (bodyEls.length >= 2 && bodyLength > CONFIG.minSubstantialBodyLength))
@@ -787,8 +795,11 @@ function hexToLuminance(hex) {
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
-  return (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
-    LUMINANCE.SCALE_DIVISOR;
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return Infinity;
+  return (
+    (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
+    LUMINANCE.SCALE_DIVISOR
+  );
 }
 
 function isColorDark(colorHex) {
@@ -889,7 +900,7 @@ function formatTable(table, slideWidth, slideHeight) {
   // to preserve the 2D visual structure.
   const tableArea = (table.width || 0) * (table.height || 0);
   const slideArea = (slideWidth || 960) * (slideHeight || 540);
-  const isFullScreen = tableArea >= slideArea * 0.8;
+  const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
 
   if (isFullScreen) {
     const cols = table.rows[0].length;
@@ -899,7 +910,7 @@ function formatTable(table, slideWidth, slideHeight) {
       for (const cell of row) {
         const text = escapeHtml(stripHtml(cell.text || "").trim());
         const bg = cell.fillColor || "transparent";
-        const isDarkBg = /(?:^|\s)(?:#[0-9a-f]{3,8}|white|black|light|dark)/i.test(bg);
+        const isDarkBg = isColorDark(bg);
         cells.push(
           `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${escapeHtml(bg)}">${text}</div>`,
         );

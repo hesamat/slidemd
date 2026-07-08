@@ -223,7 +223,7 @@ describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-family: Consolas;">`backticks`</span></p>',
     );
-    expect(result).toContain("`\\`backticks\\``");
+    expect(result).toContain("`` `backticks` ``");
   });
 
   it("groups consecutive monospace lines into fenced code block", () => {

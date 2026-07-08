@@ -480,8 +480,12 @@ function processInlineNodes(nodes, out) {
         // Preserve trailing space outside the markers for proper spacing
         const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
         if (isMono) {
-          // Monospace text — use backticks, skip bold/italic markers
-          text = "`" + text.replace(/`/g, "\\`") + "`";
+          // Monospace text — use double backticks if text contains backtick
+          if (text.includes("`")) {
+            text = "`` " + text + " ``";
+          } else {
+            text = "`" + text + "`";
+          }
           out.push(text);
         } else if (isBold && isItalic) {
           out.push("***" + trimmed + "***" + suffix);
