@@ -54,10 +54,10 @@ export class LayoutManager {
 
     let appendedContent = "";
     const areaPlaceholders = {
-      secondary: "\n@secondary\n\n### Column Three\n\nContent for third column\n",
-      media: "\n@media\n\n### Column Two\n\nContent for second column\n",
-      sidebar: "\n@sidebar\n\n### Sidebar\n\nSidebar content\n",
-      main: "\n@main\n\n### Main Content\n\nContent here\n",
+      secondary: "\n@secondary\n\n",
+      media: "\n@media\n\n",
+      sidebar: "\n@sidebar\n\n",
+      main: "\n@main\n\n",
     };
 
     for (const area of requiredAreas) {
