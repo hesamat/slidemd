@@ -316,7 +316,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         el.type === ELEMENT_TYPES.DIAGRAM),
   );
 
-  const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
+  // Only count images with actual renderable data as media.  A base64 string
+  // starting with "data:" but lacking a comma is just a MIME prefix (e.g.
+  // "data:image") without encoded bytes and cannot display.
+  const hasMedia = allElements.some(
+    (el) =>
+      el.type !== ELEMENT_TYPES.TEXT &&
+      (el.type !== ELEMENT_TYPES.IMAGE ||
+        (el.base64 && !(el.base64.startsWith("data:") && !el.base64.includes(",")))),
+  );
 
   let layout = inferLayout(
     textElements,
@@ -766,7 +774,12 @@ function inferLayout(
 
 function findDominantImages(allEls, slideWidth, slideHeight) {
   const slideArea = slideWidth * slideHeight;
-  const images = allEls.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
+  const images = allEls.filter(
+    (el) =>
+      el.type === ELEMENT_TYPES.IMAGE &&
+      el.base64 &&
+      !(el.base64.startsWith("data:") && !el.base64.includes(",")),
+  );
 
   return images.filter((el) => {
     const w = el.width || 0;
