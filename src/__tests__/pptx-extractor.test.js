@@ -65,6 +65,46 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("4. d");
   });
 
+  it("continues numbering across split lists with <p> separators (PPTX sub-items)", () => {
+    // PowerPoint often splits a numbered list into single-item <ol> blocks
+    // with <p> sub-items (Windows/Unix variants) between them.
+    const html =
+      "<ol><li><p>Clear the terminal screen:</p></li></ol>" +
+      "<p>Windows:    cls</p>" +
+      "<p>Unix:    clear</p>" +
+      "<ol><li><p>Display the name of the current directory:</p></li></ol>" +
+      "<p>Windows:    cd</p>" +
+      "<p>Unix:    pwd</p>" +
+      "<ol><li><p>Print contents of current directory:</p></li></ol>" +
+      "<p>Windows:    dir</p>" +
+      "<p>Unix:    ls</p>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Clear the terminal screen:");
+    expect(result).toContain("2. Display the name of the current directory:");
+    expect(result).toContain("3. Print contents of current directory:");
+  });
+
+  it("continues numbering with real PPTX HTML (text-indent bullet sub-items)", () => {
+    // Real PPTX HTML: sub-items have text-indent: -18pt which triggers CSS bullet detection
+    const html =
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Clear the terminal screen:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: cls</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: clear</span></p>' +
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Display the name of the current directory:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: cd</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: pwd</span></p>' +
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Print contents of current directory:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: dir</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: ls</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Clear the terminal screen:");
+    expect(result).toContain("2. Display the name of the current directory:");
+    expect(result).toContain("3. Print contents of current directory:");
+    // Sub-bullets should be indented under their parent numbered item
+    expect(result).toContain("   - Windows: cls");
+    expect(result).toContain("   - Unix: clear");
+  });
+
   it("honours HTML start attribute on ordered lists", () => {
     const html = '<ol start="5"><li>a</li><li>b</li><li>c</li></ol>';
     const result = PptxExtractor.htmlToMarkdown(html);
@@ -126,8 +166,26 @@ describe("PptxExtractor.htmlToMarkdown", () => {
   });
 
   it("handles non-breaking spaces inside paragraphs", () => {
-    const result = PptxExtractor.htmlToMarkdown("<p>a b</p>");
+    const result = PptxExtractor.htmlToMarkdown("<p>a b</p>");
     expect(result).toContain("a b");
+  });
+
+  it("indents sub-bullets by margin-left when no <ol> precedes them", () => {
+    // All items have text-indent: -18pt so CSS bullet detection wraps them all
+    // in <li>, but parent items have margin-left: 18pt and sub-items have
+    // margin-left: 54pt.  The margin-left gap should indent sub-items.
+    const html =
+      '<p style="text-align: left;line-height: 0.9;margin-top: 10pt;margin-left: 18pt;text-indent: -18pt;"><span style="text-decoration: underline;">Lectures</span>:</p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>Thursdays</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>10:30 AM</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 10pt;margin-left: 18pt;text-indent: -18pt;"><span style="text-decoration: underline;">Lab:</span> </p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>Mondays</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("- Lectures:");
+    expect(result).toContain("   - Thursdays");
+    expect(result).toContain("   - 10:30 AM");
+    expect(result).toContain("- Lab:");
+    expect(result).toContain("   - Mondays");
   });
 });
 
@@ -247,5 +305,84 @@ describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {
     );
     // Multiple lines are grouped into a fenced code block with indentation preserved
     expect(result).toContain("```\nline 1\n    indented line\nline 3\n```");
+  });
+});
+
+describe("PptxExtractor ordered list start attribute injection", () => {
+  it("injects start attribute into <ol> tags when start != 1", () => {
+    const html = "<ol><li>item 1</li><li>item 2</li></ol>";
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5"><li>item 1</li><li>item 2</li></ol>');
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("does not inject start attribute when start is 1 (default)", () => {
+    const html = "<ol><li>item 1</li><li>item 2</li></ol>";
+    const startValues = [1];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe("<ol><li>item 1</li><li>item 2</li></ol>");
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("injects start attributes into multiple <ol> tags", () => {
+    const html = "<ol><li>a</li></ol><ol><li>b</li></ol>";
+    const startValues = [3, 7];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="3"><li>a</li></ol><ol start="7"><li>b</li></ol>');
+    expect(startIdxRef.value).toBe(2);
+  });
+
+  it("leaves <ol> without start values unchanged", () => {
+    const html = "<ol><li>a</li></ol><ol><li>b</li></ol>";
+    const startValues = [];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe("<ol><li>a</li></ol><ol><li>b</li></ol>");
+    expect(startIdxRef.value).toBe(0);
+  });
+
+  it("preserves existing start attribute", () => {
+    const html = '<ol start="10"><li>item</li></ol>';
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="10"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(0);
+  });
+
+  it("tracks startIdxRef across multiple calls", () => {
+    const html1 = "<ol><li>a</li></ol>";
+    const html2 = "<ol><li>b</li></ol>";
+    const startValues = [3, 8];
+    const startIdxRef = { value: 0 };
+
+    const result1 = PptxExtractor.injectOlStartAttributes(html1, startValues, startIdxRef);
+    const result2 = PptxExtractor.injectOlStartAttributes(html2, startValues, startIdxRef);
+
+    expect(result1).toBe('<ol start="3"><li>a</li></ol>');
+    expect(result2).toBe('<ol start="8"><li>b</li></ol>');
+    expect(startIdxRef.value).toBe(2);
+  });
+
+  it("handles <ol> with attributes", () => {
+    const html = '<ol class="custom"><li>item</li></ol>';
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5" class="custom"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("handles <ol> with only opening bracket (no attributes)", () => {
+    const html = "<ol><li>item</li></ol>";
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(1);
   });
 });

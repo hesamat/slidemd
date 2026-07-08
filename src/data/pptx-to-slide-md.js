@@ -239,6 +239,32 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     ? findDominantImages(slide.elements, slideWidth, slideHeight)
     : [];
 
+  // Detect full-page background images BEFORE filtering, so they survive
+  // filterMeaningfulElements (which strips massive images when other content exists).
+  const slideArea = slideWidth * slideHeight;
+  const bgCandidate = importImages
+    ? slide.elements.find((el) => {
+        if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
+        const imgArea = (el.width || 0) * (el.height || 0);
+        if (imgArea < slideArea * 0.8) return false;
+        // Must have at least one content element overlapping it
+        const contentEls = slide.elements.filter(
+          (other) =>
+            other !== el &&
+            [
+              ELEMENT_TYPES.TEXT,
+              ELEMENT_TYPES.TABLE,
+              ELEMENT_TYPES.CHART,
+              ELEMENT_TYPES.DIAGRAM,
+            ].includes(other.type),
+        );
+        return contentEls.some((cel) => {
+          const overlap = getOverlapArea(el, cel);
+          return overlap / imgArea > 0.1;
+        });
+      })
+    : null;
+
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
     slide.elements,
@@ -258,29 +284,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     ),
   );
 
-  // Detect full-page background images: large images with text overlaid.
-  // These become the slide's CSS background instead of @media content.
-  // Any content element sitting on top of the image counts as overlay
-  // (text, tables, charts, diagrams) — not just plain text.
-  const overlayEls = meaningfulElements.filter((el) =>
-    [ELEMENT_TYPES.TEXT, ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(
-      el.type,
-    ),
-  );
-  const bgImage = dominantImages.find((img) => {
-    const imgArea = (img.width || 0) * (img.height || 0);
-    if (imgArea < slideWidth * slideHeight * 0.8) return false;
-    return overlayEls.some((overlayEl) => {
-      const overlap = getOverlapArea(img, overlayEl);
-      return overlap / imgArea > 0.1;
-    });
-  });
-  if (bgImage) {
-    const rawName = (bgImage.ref || "").split("/").pop();
+  // Use pre-detected background candidate (identified before filtering).
+  if (bgCandidate && bgCandidate.base64) {
+    const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
     slide.background = `linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
-    dominantImages = dominantImages.filter((el) => el !== bgImage);
+    dominantImages = dominantImages.filter(
+      (el) =>
+        !(el.ref === bgCandidate.ref && el.left === bgCandidate.left && el.top === bgCandidate.top),
+    );
   }
 
   // 3. Separate structural footer elements from standard slide body elements
@@ -294,7 +307,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   );
   const allElements = meaningfulElements.filter(
     (el) =>
-      el !== bgImage &&
+      el !== bgCandidate &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER &&
       ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
         (importImages && el.type === ELEMENT_TYPES.IMAGE && el.base64) ||
@@ -361,7 +374,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
-    if (bgImage || isColorDark(slide.background)) {
+    if (bgCandidate || isColorDark(slide.background)) {
       parts.push("theme: dark");
     }
   }
@@ -836,6 +849,7 @@ function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = fal
   const altText = filename.replace(REGEX.FILE_EXTENSION, "").replace(REGEX.HYPHEN_UNDERSCORE, " ");
 
   if (!omitDimensions) {
+    // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {

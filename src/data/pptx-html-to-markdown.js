@@ -188,6 +188,11 @@ function processBlockNodes(nodes, out) {
   // into multiple <ol>/<ul> blocks).
   const counters = {};
   let lastListType = null;
+  let lastWasOl = false;
+  // Track minimum margin-left among standalone <li> items for nested bullet
+  // detection.  Items with margin-left significantly larger than the minimum
+  // are indented as sub-bullets.
+  let minMarginLeft = Infinity;
 
   for (const node of nodes) {
     if (node.nodeType === 3) {
@@ -209,10 +214,16 @@ function processBlockNodes(nodes, out) {
       processList(node, 0, out, counters, { reset });
       out.push("\n");
       lastListType = tag;
+      lastWasOl = tag === "OL";
+      minMarginLeft = Infinity;
       continue;
-    } else {
-      // Any non-list block breaks the continuation chain.
+    } else if (tag !== "P" && tag !== "DIV" && tag !== "LI") {
+      // Non-list blocks break the continuation chain, except for <p>/<div>
+      // which are common sub-item formatting between split lists in PPTX,
+      // and <li> which are standalone list items from CSS bullet detection.
       lastListType = null;
+      lastWasOl = false;
+      minMarginLeft = Infinity;
     }
 
     // Standalone <li> (from CSS bullet detection) — treat as a list item
@@ -221,7 +232,26 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       const merged = mergeAdjacentMarkers(inline.join("").trim());
       if (merged) {
-        out.push("- " + merged + "\n");
+        // Determine nesting depth from margin-left on the inner <p>.
+        // Items with margin-left significantly larger than the minimum are
+        // sub-bullets (e.g. "Thursdays" at margin-left 54pt under "Lectures"
+        // at margin-left 18pt).
+        let indent = lastWasOl ? "   " : "";
+        if (!indent) {
+          const innerP = node.querySelector("p");
+          if (innerP) {
+            const pStyle = innerP.getAttribute("style") || "";
+            const mlMatch = pStyle.match(/margin-left:\s*([\d.]+)pt/);
+            if (mlMatch) {
+              const ml = parseFloat(mlMatch[1]);
+              if (ml < minMarginLeft) minMarginLeft = ml;
+              if (minMarginLeft !== Infinity && ml > minMarginLeft + 5) {
+                indent = "   ";
+              }
+            }
+          }
+        }
+        out.push(indent + "- " + merged + "\n");
       }
       continue;
     }
