@@ -476,7 +476,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   box-shadow: var(--code-shadow);
   max-width: 100%;
   margin: var(--spacing-xs) 0;
-  min-height: 3em;
   line-height: 1.1;
   color: var(--code-ink);
   text-shadow: none;
