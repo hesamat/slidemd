@@ -415,7 +415,6 @@ export class ImageInteractionHandler {
       const onUp = () => {
         this._resizeState = null;
         this._syncToMarkdown();
-        this._expandAreaForRow();
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
       };
@@ -432,39 +431,6 @@ export class ImageInteractionHandler {
     if (!transform || transform === "none") return 1;
     const match = transform.match(/matrix\(([^,]+),/);
     return match ? parseFloat(match[1]) : 1;
-  }
-
-  static _expandAreaForRow() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const area = img.closest(".slide__area");
-    if (!area) return;
-    const grid = area.closest(".slide__grid");
-    if (!grid) return;
-
-    const overflow = area.scrollHeight - area.clientHeight;
-    if (overflow <= 6) return;
-
-    const gridAreas = grid.style.gridTemplateAreas || "";
-    const rows = gridAreas.match(/"[^"]*"/g) || [];
-    const areaName = area.dataset.areaName || "main";
-    let rowIndex = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].includes(areaName)) {
-        rowIndex = i;
-        break;
-      }
-    }
-    if (rowIndex < 0) return;
-
-    const rowSizes = (grid.style.gridTemplateRows || "").match(
-      /minmax\([^)]+\)|auto|\d+(\.\d+)?(fr|px|em|rem|%)/g,
-    );
-    if (!rowSizes || rowIndex >= rowSizes.length) return;
-
-    const newHeight = area.scrollHeight + 12;
-    rowSizes[rowIndex] = `${newHeight}px`;
-    grid.style.gridTemplateRows = rowSizes.join(" ");
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
