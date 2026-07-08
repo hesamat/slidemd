@@ -717,12 +717,11 @@ function inferLayout(
   const centerTol = slideWidth * CONFIG.centerToleranceRatio;
   const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 
-  const leftEls = allEls.filter(
-    (el) => el !== headerEl && el.left + el.width / 2 < midX && !isCentered(el),
-  );
-  const rightEls = allEls.filter(
-    (el) => el !== headerEl && el.left + el.width / 2 >= midX && !isCentered(el),
-  );
+  // Use left edge for partitioning: an element "belongs" to the column where
+  // its left edge sits, even if its center crosses the midpoint (common with
+  // wide text boxes in two-column PPTX slides).
+  const leftEls = allEls.filter((el) => el !== headerEl && el.left < midX && !isCentered(el));
+  const rightEls = allEls.filter((el) => el !== headerEl && el.left >= midX && !isCentered(el));
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
   const hasTextColumns =
