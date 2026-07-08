@@ -428,28 +428,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    if (dominantImages.length > 0) {
-      const mediaImage = dominantImages[0];
-      const mainEls = bodyElements.filter((el) => el !== mediaImage);
-      parts.push(MARKDOWN_TAGS.MAIN);
-      parts.push("");
-      parts.push(mainEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-      parts.push("");
-      parts.push(MARKDOWN_TAGS.MEDIA);
-      parts.push("");
-      parts.push(formatSingleElement(mediaImage));
-    } else {
-      const midX = slideWidth / 2;
-      const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
-      const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
-      parts.push(MARKDOWN_TAGS.MAIN);
-      parts.push("");
-      parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-      parts.push("");
-      parts.push(MARKDOWN_TAGS.MEDIA);
-      parts.push("");
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-    }
+    const midX = slideWidth / 2;
+    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MEDIA);
+    parts.push("");
+    parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
