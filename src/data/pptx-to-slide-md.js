@@ -655,7 +655,9 @@ function inferLayout(
 
     if (isHeadingMarker(el)) return true;
 
-    const text = el.content || "";
+    // Extract plain text from HTML for length/bullet checks — raw HTML is
+    // often much longer than the visible text due to inline styles.
+    const text = stripHtml(el.content || "");
     const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
     return text.length <= CONFIG.maxHeaderLength && !hasBullet;
   };
