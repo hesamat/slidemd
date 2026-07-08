@@ -472,10 +472,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border: 1px solid var(--code-border-color);
   border-radius: var(--radius-lg);
   padding: 12px 18px;
-  overflow: auto;
+  overflow: visible;
   box-shadow: var(--code-shadow);
   max-width: 100%;
   margin: var(--spacing-xs) 0;
+  flex: 0 0 auto;
   line-height: 1.1;
   color: var(--code-ink);
   text-shadow: none;
