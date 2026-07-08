@@ -33,7 +33,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node scripts/patch-pptxtojson.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",

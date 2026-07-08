@@ -260,14 +260,18 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   // Detect full-page background images: large images with text overlaid.
   // These become the slide's CSS background instead of @media content.
-  const textEls = meaningfulElements.filter(
-    (el) => el.type === ELEMENT_TYPES.TEXT && el.content?.trim(),
+  // Any content element sitting on top of the image counts as overlay
+  // (text, tables, charts, diagrams) — not just plain text.
+  const overlayEls = meaningfulElements.filter((el) =>
+    [ELEMENT_TYPES.TEXT, ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(
+      el.type,
+    ),
   );
   const bgImage = dominantImages.find((img) => {
     const imgArea = (img.width || 0) * (img.height || 0);
     if (imgArea < slideWidth * slideHeight * 0.8) return false;
-    return textEls.some((textEl) => {
-      const overlap = getOverlapArea(img, textEl);
+    return overlayEls.some((overlayEl) => {
+      const overlap = getOverlapArea(img, overlayEl);
       return overlap / imgArea > 0.1;
     });
   });

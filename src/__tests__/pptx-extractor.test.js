@@ -49,6 +49,48 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("  - b");
   });
 
+  it("converts ordered lists with per-item numbering", () => {
+    const result = PptxExtractor.htmlToMarkdown("<ol><li>a</li><li>b</li><li>c</li></ol>");
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("3. c");
+  });
+
+  it("continues numbering across adjacent same-type lists (PowerPoint split list)", () => {
+    const html = "<ol><li>a</li><li>b</li></ol><ol><li>c</li><li>d</li></ol>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("3. c");
+    expect(result).toContain("4. d");
+  });
+
+  it("honours HTML start attribute on ordered lists", () => {
+    const html = '<ol start="5"><li>a</li><li>b</li><li>c</li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("5. a");
+    expect(result).toContain("6. b");
+    expect(result).toContain("7. c");
+  });
+
+  it("restarts numbering across different list types", () => {
+    const html = "<ol><li>a</li><li>b</li></ol><ul><li>c</li><li>d</li></ul>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("- c");
+    expect(result).toContain("- d");
+  });
+  it("converts nested lists emitted as siblings of <li> (PowerPoint style)", () => {
+    const html = "<ol><li>a</li><li>b</li><ol><li>c</li><li>d</li></ol><li>e</li></ol>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("  a. c");
+    expect(result).toContain("  b. d");
+    expect(result).toContain("3. e");
+  });
+
   it("detects CSS-based bullets from negative text-indent", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p style="text-indent: -24pt; margin-left: 24pt">item</p>',
