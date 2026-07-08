@@ -670,15 +670,20 @@ function inferLayout(
 
   const headerEl = contentEls.find(isHeader) || null;
   const hasHeader = !!headerEl;
+  const midX = slideWidth / 2;
+  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
+  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 
   if (!hasMedia) {
     const minSpread = slideWidth * CONFIG.minColumnSpreadRatio;
 
     // Two elements are in a spread row if they are horizontally separated
     // AND have significant vertical overlap (not just close top positions).
+    // Skip centered elements — they span both columns and should not trigger two-column.
     const hasSpreadRow = contentEls.some((a) =>
       contentEls.some((b) => {
         if (a === b) return false;
+        if (isCentered(a) || isCentered(b)) return false;
         if (Math.abs(a.left - b.left) < minSpread) return false;
         // Check vertical overlap, not just top-position proximity
         const overlapTop = Math.max(a.top, b.top);
@@ -713,10 +718,6 @@ function inferLayout(
     if (hasHeader && hasBodyBelowHeader) return LAYOUT.HEADER_CONTENT;
     if (totalLength < CONFIG.maxTitleLength) return LAYOUT.TITLE_SLIDE;
   }
-
-  const midX = slideWidth / 2;
-  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
-  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 
   // Partition elements into left vs right columns.
   // If the element's center is clearly on one side, use it directly.
@@ -892,6 +893,15 @@ function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = fal
   return `<img src="${src}" alt="${altText}">`;
 }
 
+function isFirstRowHeader(rows) {
+  if (rows.length < 2) return false;
+  const firstRowBg = rows[0][0]?.fillColor;
+  // If no background info available, fall back to old behavior (treat as header)
+  if (!firstRowBg) return true;
+  // Check if any cell in the second row has a different background
+  return rows[1].some((cell) => cell.fillColor !== firstRowBg);
+}
+
 function formatTable(table, slideWidth, slideHeight) {
   if (!table.rows?.length) return "";
 
@@ -926,14 +936,20 @@ function formatTable(table, slideWidth, slideHeight) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const headerRow = table.rows[0];
-  const separator = headerRow.map(() => "---").join(" | ");
+  const hasHeader = isFirstRowHeader(table.rows);
+  const separator = table.rows[0].map(() => "---").join(" | ");
   const rows = table.rows.map(formatRow);
   const parts = [];
-  parts.push(`| ${rows[0]} |`);
-  parts.push(`| ${separator} |`);
-  for (let i = 1; i < rows.length; i++) {
-    parts.push(`| ${rows[i]} |`);
+  if (hasHeader) {
+    parts.push(`| ${rows[0]} |`);
+    parts.push(`| ${separator} |`);
+    for (let i = 1; i < rows.length; i++) {
+      parts.push(`| ${rows[i]} |`);
+    }
+  } else {
+    for (let i = 0; i < rows.length; i++) {
+      parts.push(`| ${rows[i]} |`);
+    }
   }
   return parts.join("\n");
 }
