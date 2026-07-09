@@ -303,10 +303,13 @@ export class DeckController extends EventEmitter {
   async #loadDeckImagesResolver() {
     try {
       const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-      const { handle, mode } = await DirectoryHandleStore.load();
-      if (!handle) return;
-
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      // Immediately clear any stale handle from a previous deck so
+      // #rewriteImages() doesn't resolve images from the wrong directory.
+      DeckImagesResolver.setDeckDir(null, "parent");
+      const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
+      const { handle, mode } = await DirectoryHandleStore.load(fileName);
+      if (!handle) return;
 
       // Check if we have permission to read the directory.
       // After a page reload, stored handles reset to "prompt" permission.
@@ -327,13 +330,11 @@ export class DeckController extends EventEmitter {
               if (p === "granted") {
                 DeckImagesResolver.setDeckDir(handle, mode || "parent");
                 await DeckImagesResolver.prime();
-                DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-                DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(
-                  () => {},
-                );
+                await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
+                await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
               }
-            } catch (_) {
-              /* ignore */
+            } catch (retryErr) {
+              console.warn("Image resolution retry failed:", retryErr);
             }
           };
           document.addEventListener("click", retry, { once: true });
@@ -343,9 +344,12 @@ export class DeckController extends EventEmitter {
       }
 
       DeckImagesResolver.setDeckDir(handle, mode || "parent");
-      await DeckImagesResolver.prime();
-      DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-      DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
+      const primed = await DeckImagesResolver.prime();
+      if (primed.size === 0) {
+        console.warn("DeckImagesResolver.prime() found no images — check images/ directory");
+      }
+      await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
+      await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
     } catch (err) {
       console.warn("Could not load deck images resolver:", err);
     }
@@ -448,6 +452,15 @@ export class DeckController extends EventEmitter {
   }
 
   async handleLocalFileLoad(event) {
+    // Clear stale resolver state BEFORE the deck changes so
+    // #rewriteImages() (triggered by deckchange) doesn't resolve
+    // images from the previous deck's directory.
+    try {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      DeckImagesResolver.setDeckDir(null, "parent");
+    } catch {
+      // ignore
+    }
     await this.reloadManager.handleLocalFileLoad(event);
     // Reconfigure image resolver for the newly loaded file
     this.#loadDeckImagesResolver();
@@ -745,7 +758,7 @@ export class DeckController extends EventEmitter {
 
         // Save the deck folder handle for future use (not the parent)
         const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-        await DirectoryHandleStore.save(deckDir, "parent");
+        await DirectoryHandleStore.save(deckDir, "parent", mdName);
 
         // Configure the image resolver with the deck folder so images render
         const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");

@@ -59,14 +59,26 @@ export class DeckImagesResolver {
   static async prime() {
     if (!this._dirHandle) return new Map();
     try {
-      const targetDir =
-        this._mode === "images"
-          ? this._dirHandle
-          : await this._dirHandle.getDirectoryHandle("images", { create: false });
+      let targetDir;
+      if (this._mode === "images") {
+        targetDir = this._dirHandle;
+      } else {
+        try {
+          targetDir = await this._dirHandle.getDirectoryHandle("images", { create: false });
+        } catch (e) {
+          console.warn(`[ImagesResolver] "images/" not found in dir="${this._dirHandle.name}"`, e);
+          return new Map();
+        }
+      }
       const IMAGE_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
       const out = new Map();
       for await (const [name, handle] of targetDir.entries()) {
-        if (handle.kind !== "file" || !IMAGE_RE.test(name)) continue;
+        if (handle.kind !== "file") {
+          continue;
+        }
+        if (!IMAGE_RE.test(name)) {
+          continue;
+        }
         const file = await handle.getFile();
         const rel = `images/${name}`;
         this._cache.set(rel, file);
@@ -110,11 +122,12 @@ export class DeckImagesResolver {
     if (this._urls.has(relPath)) return this._urls.get(relPath);
 
     try {
-      const targetDir =
-        this._mode === "images"
-          ? this._dirHandle
-          : await this._dirHandle.getDirectoryHandle("images", { create: false });
-
+      let targetDir;
+      if (this._mode === "images") {
+        targetDir = this._dirHandle;
+      } else {
+        targetDir = await this._dirHandle.getDirectoryHandle("images", { create: false });
+      }
       const name = relPath.split("/").pop();
       const fileHandle = await targetDir.getFileHandle(name);
       const file = await fileHandle.getFile();
@@ -123,9 +136,10 @@ export class DeckImagesResolver {
       this._urls.set(relPath, url);
       return url;
     } catch (err) {
-      if (err.name !== "NotFoundError") {
-        console.warn("Could not resolve image", relPath, err);
-      }
+      console.warn(
+        `[ImagesResolver] failed to resolve "${relPath}" from dir="${this._dirHandle.name}" mode=${this._mode}`,
+        err,
+      );
       return relPath;
     }
   }
@@ -149,7 +163,11 @@ export class DeckImagesResolver {
       tasks.push(
         (async () => {
           const resolved = await this.resolvePreviewSrc(src);
-          if (resolved !== src) img.src = resolved;
+          if (resolved !== src) {
+            img.src = resolved;
+          } else {
+            console.warn(`Image not resolved (still relative): ${src}`);
+          }
         })(),
       );
     }

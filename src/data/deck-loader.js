@@ -206,6 +206,37 @@ Markdown-based presentations made simple.
 
           DeckLoader.fileHandleRegistry.set(file.name, handle);
 
+          // Persist the deck directory handle so images can be resolved on reload.
+          // FileSystemFileHandle.getParent() is not supported in any shipping
+          // browser, so fall back to showDirectoryPicker positioned at the
+          // file's location via the `startIn` option (same user gesture).
+          {
+            const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+            let dirHandle = null;
+            // If a valid handle is already stored for this deck, reuse it.
+            const { handle: existing } = await DirectoryHandleStore.load(file.name);
+            if (existing) {
+              dirHandle = existing;
+            } else if (typeof window.showDirectoryPicker === "function") {
+              try {
+                // startIn positions the picker at the file's containing folder
+                // so the user can confirm with a single click.
+                dirHandle = await window.showDirectoryPicker({
+                  id: "deck-images",
+                  mode: "readwrite",
+                  startIn: handle,
+                });
+              } catch (dirErr) {
+                if (dirErr.name !== "AbortError") {
+                  console.warn("Could not pick deck directory:", dirErr);
+                }
+              }
+            }
+            if (dirHandle) {
+              await DirectoryHandleStore.save(dirHandle, "parent", file.name);
+            }
+          }
+
           localStorage.setItem("webdeck_local_file", rawText);
           localStorage.setItem("webdeck_local_file_type", "md");
           localStorage.setItem("webdeck_local_file_name", file.name);
@@ -243,6 +274,25 @@ Markdown-based presentations made simple.
         localStorage.setItem("webdeck_local_file_name", file.name);
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
+
+        // Try to persist a directory handle so images resolve on reload.
+        if (typeof window.showDirectoryPicker === "function") {
+          try {
+            const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+            Notification.info("Pick the deck folder so images can load on reload");
+            const dirHandle = await window.showDirectoryPicker({ mode: "read" });
+            if (dirHandle) {
+              await DirectoryHandleStore.save(dirHandle, "parent", file.name);
+              console.log(
+                `[DeckLoader] file-input: saved dir="${dirHandle.name}" for "${file.name}"`,
+              );
+            }
+          } catch (dirErr) {
+            if (dirErr.name !== "AbortError") {
+              console.warn("Could not persist directory handle:", dirErr);
+            }
+          }
+        }
 
         const loadEvent = new CustomEvent("webdeck-load-local", {
           detail: { text, fileType: "md", fileName: file.name },
