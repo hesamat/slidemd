@@ -96,13 +96,11 @@ export class AreaGuideManager {
         areaEl.prepend(label);
       }
 
-      // When an area is full-height, shift overlapping labels to the left
+      // Nudge header/footer labels left to avoid overlapping the full-height area's label
       if (fullHeightArea && name !== fullHeightArea && name !== "main") {
-        label.style.right = "auto";
-        label.style.left = "6px";
+        label.style.right = "46px";
       } else {
         label.style.right = "";
-        label.style.left = "";
       }
 
       label.textContent = `@${name}`;

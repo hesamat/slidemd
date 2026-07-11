@@ -125,7 +125,6 @@ export class SlideRenderer {
         area.style.gridRow = "1 / -1";
         area.style.gridColumn = "2 / -1";
         area.style.paddingRight = "0";
-        area.style.zIndex = "1";
       }
 
       area.innerHTML = html;
