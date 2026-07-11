@@ -404,7 +404,7 @@ export class ImageInteractionHandler {
         }
 
         img.style.left = `${Math.max(0, newLeft)}px`;
-        img.style.top = `${Math.max(0, newTop)}px`;
+        img.style.top = `${newTop}px`;
         img.style.width = `${newW}px`;
         img.style.height = `${newH}px`;
 

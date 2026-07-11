@@ -23,7 +23,7 @@ import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
-import { removeAreaFromLayout } from "./directive-utils.js";
+import { removeAreaFromLayout, toggleFullHeight } from "./directive-utils.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
@@ -156,6 +156,8 @@ export class EditController {
       canDeleteArea: (name) => this._canDeleteArea(name),
       onSwapArea: (name) => this._swapAreaInMarkdown(name),
       canSwapArea: (name) => this._canSwapArea(name),
+      onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
+      canMakeFullHeight: (name) => this._canMakeFullHeight(name),
     });
 
     this.warnings = new SlideWarningManager({
@@ -544,6 +546,26 @@ export class EditController {
     const markdown = this.markdownEditor.getValue();
     const updated = this.areaNav.swapAreas(markdown, areaName);
     if (updated === null) return;
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _canMakeFullHeight(areaName) {
+    const name = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!name || name === "main") return false;
+    if (!this.markdownEditor) return false;
+    const markdown = this.markdownEditor.getValue();
+    const updated = toggleFullHeight(markdown, name);
+    return updated !== markdown;
+  }
+
+  _makeAreaFullHeight(areaName) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const updated = toggleFullHeight(markdown, areaName);
+    if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

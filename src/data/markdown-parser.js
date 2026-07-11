@@ -489,7 +489,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(line);
+      /^\s*(layout|background|theme|hidden|hide|align|area-style|full-height)\s*:/i.test(line);
 
     let lineIdx = 0;
     let seenMarker = false;
@@ -611,6 +611,12 @@ export class MarkdownParser {
       );
       cleaned = withoutAreaStyle;
 
+      const { value: fullHeight, markdown: withoutFullHeight } = this.extractDirective(
+        cleaned,
+        "full-height",
+      );
+      cleaned = withoutFullHeight;
+
       // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
       const {
         value: hiddenValue,
@@ -706,6 +712,7 @@ export class MarkdownParser {
         hidden,
         areas,
         areaStyle: areaStyle || "",
+        fullHeight: safeString(fullHeight).toLowerCase() || "",
         _areaOffsets: rawAreaOffsets,
       };
     });

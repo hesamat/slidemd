@@ -93,6 +93,7 @@ export class SlideRenderer {
     }
 
     const areaStyle = safeString(slide?.areaStyle);
+    const fullHeightArea = safeString(slide?.fullHeight).toLowerCase() || "";
 
     names.forEach((name) => {
       const isAliasTitle = name === "title" && !layoutAreaNames.has("title");
@@ -117,6 +118,14 @@ export class SlideRenderer {
 
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
+      }
+
+      // Full-height area spans all rows in the last column
+      if (fullHeightArea && name === fullHeightArea) {
+        area.style.gridRow = "1 / -1";
+        area.style.gridColumn = "2 / -1";
+        area.style.paddingRight = "0";
+        area.style.zIndex = "1";
       }
 
       area.innerHTML = html;
@@ -151,37 +160,37 @@ export class SlideRenderer {
       slide && typeof slide === "object"
         ? slide
         : {
-            title: "",
-            notes: "",
-            layout: "",
-            areas: { main: "" },
-            areaStyle: "",
-          };
+          title: "",
+          notes: "",
+          layout: "",
+          areas: { main: "" },
+          areaStyle: "",
+        };
     const d =
       deck && typeof deck === "object"
         ? deck
         : DeckLoader.normalizeDeck({
-            meta: {
-              id: "webdeck",
-              title: "",
-              course: "",
-              aspect: "16:9",
-              stage: { ...DESIGN_SIZE },
+          meta: {
+            id: "webdeck",
+            title: "",
+            course: "",
+            aspect: "16:9",
+            stage: { ...DESIGN_SIZE },
+          },
+          slides: [
+            {
+              id: normalizedSlide.id ?? 1,
+              title: normalizedSlide.title ?? "",
+              notes: normalizedSlide.notes ?? "",
+              layout: normalizedSlide.layout ?? "",
+              areas:
+                normalizedSlide.areas && typeof normalizedSlide.areas === "object"
+                  ? normalizedSlide.areas
+                  : { main: "" },
+              areaStyle: safeString(normalizedSlide.areaStyle),
             },
-            slides: [
-              {
-                id: normalizedSlide.id ?? 1,
-                title: normalizedSlide.title ?? "",
-                notes: normalizedSlide.notes ?? "",
-                layout: normalizedSlide.layout ?? "",
-                areas:
-                  normalizedSlide.areas && typeof normalizedSlide.areas === "object"
-                    ? normalizedSlide.areas
-                    : { main: "" },
-                areaStyle: safeString(normalizedSlide.areaStyle),
-              },
-            ],
-          });
+          ],
+        });
 
     const s = d.slides[index] || d.slides[0];
     return this.createSlideElement(d, s, index, isActive);

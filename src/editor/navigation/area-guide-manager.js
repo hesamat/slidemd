@@ -20,6 +20,8 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canDeleteArea
    * @param {(areaName: string) => void} opts.onSwapArea
    * @param {(areaName: string) => boolean} opts.canSwapArea
+   * @param {(areaName: string) => void} opts.onMakeFullHeight
+   * @param {(areaName: string) => boolean} opts.canMakeFullHeight
    */
   constructor({
     getIsEditMode,
@@ -32,6 +34,8 @@ export class AreaGuideManager {
     canDeleteArea,
     onSwapArea,
     canSwapArea,
+    onMakeFullHeight,
+    canMakeFullHeight,
   }) {
     this._getIsEditMode = getIsEditMode;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
@@ -43,10 +47,13 @@ export class AreaGuideManager {
     this._canDeleteArea = canDeleteArea;
     this._onSwapArea = onSwapArea;
     this._canSwapArea = canSwapArea;
+    this._onMakeFullHeight = onMakeFullHeight;
+    this._canMakeFullHeight = canMakeFullHeight;
 
     this._contextMenu = new AreaContextMenu({
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
       onSwapArea: (areaName) => this._onSwapArea?.(areaName),
+      onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
     });
     this._contextMenu.init();
   }
@@ -68,9 +75,11 @@ export class AreaGuideManager {
   applyAreaGuides(slideEl, slideData) {
     if (!this.isEditMode || !slideEl) return;
 
+    const fullHeightArea = (slideData?.fullHeight || "").toLowerCase();
+
     const areaEls = slideEl.querySelectorAll(".slide__area");
     areaEls.forEach((areaEl) => {
-      const name = areaEl.style.gridArea || areaEl.dataset.areaName || "main";
+      const name = areaEl.dataset.areaName || areaEl.style.gridArea || "main";
       areaEl.dataset.areaName = name;
 
       const hasContent =
@@ -87,6 +96,15 @@ export class AreaGuideManager {
         areaEl.prepend(label);
       }
 
+      // When an area is full-height, shift overlapping labels to the left
+      if (fullHeightArea && name !== fullHeightArea && name !== "main") {
+        label.style.right = "auto";
+        label.style.left = "6px";
+      } else {
+        label.style.right = "";
+        label.style.left = "";
+      }
+
       label.textContent = `@${name}`;
       label.setAttribute("title", `Jump to @${name}`);
       label.onclick = (event) => {
@@ -99,7 +117,14 @@ export class AreaGuideManager {
         e.stopPropagation();
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
-        this._contextMenu.open(e.clientX, e.clientY, name, { canDelete, canSwap });
+        const canMakeFullHeight = this._canMakeFullHeight
+          ? this._canMakeFullHeight(name)
+          : name !== "main";
+        this._contextMenu.open(e.clientX, e.clientY, name, {
+          canDelete,
+          canSwap,
+          canMakeFullHeight,
+        });
       });
     });
 

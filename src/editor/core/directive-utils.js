@@ -113,6 +113,35 @@ export function describeBackground(css) {
 }
 
 /**
+ * Toggle a `full-height:` directive for an area in the slide's markdown.
+ * When present, the renderer will make the specified area span all rows.
+ *
+ * @param {string} markdown  — slide markdown source
+ * @param {string} areaName  — area to make full-height (e.g. "media")
+ * @returns {string} updated markdown
+ */
+export function toggleFullHeight(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name) return markdown;
+
+  const parser = new MarkdownParser();
+  const { value: currentValue, markdown: stripped } = parser.extractDirective(
+    markdown,
+    "full-height",
+  );
+
+  // If already set to this area, remove it (toggle off)
+  if (currentValue?.trim().toLowerCase() === name) {
+    return stripped;
+  }
+
+  // Otherwise, set it
+  return `full-height: ${name}\n${stripped}`;
+}
+
+/**
  * Remove an area from the slide's layout directive by switching to the
  * appropriate standard preset.
  *
