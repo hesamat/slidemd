@@ -159,37 +159,37 @@ export class SlideRenderer {
       slide && typeof slide === "object"
         ? slide
         : {
-          title: "",
-          notes: "",
-          layout: "",
-          areas: { main: "" },
-          areaStyle: "",
-        };
+            title: "",
+            notes: "",
+            layout: "",
+            areas: { main: "" },
+            areaStyle: "",
+          };
     const d =
       deck && typeof deck === "object"
         ? deck
         : DeckLoader.normalizeDeck({
-          meta: {
-            id: "webdeck",
-            title: "",
-            course: "",
-            aspect: "16:9",
-            stage: { ...DESIGN_SIZE },
-          },
-          slides: [
-            {
-              id: normalizedSlide.id ?? 1,
-              title: normalizedSlide.title ?? "",
-              notes: normalizedSlide.notes ?? "",
-              layout: normalizedSlide.layout ?? "",
-              areas:
-                normalizedSlide.areas && typeof normalizedSlide.areas === "object"
-                  ? normalizedSlide.areas
-                  : { main: "" },
-              areaStyle: safeString(normalizedSlide.areaStyle),
+            meta: {
+              id: "webdeck",
+              title: "",
+              course: "",
+              aspect: "16:9",
+              stage: { ...DESIGN_SIZE },
             },
-          ],
-        });
+            slides: [
+              {
+                id: normalizedSlide.id ?? 1,
+                title: normalizedSlide.title ?? "",
+                notes: normalizedSlide.notes ?? "",
+                layout: normalizedSlide.layout ?? "",
+                areas:
+                  normalizedSlide.areas && typeof normalizedSlide.areas === "object"
+                    ? normalizedSlide.areas
+                    : { main: "" },
+                areaStyle: safeString(normalizedSlide.areaStyle),
+              },
+            ],
+          });
 
     const s = d.slides[index] || d.slides[0];
     return this.createSlideElement(d, s, index, isActive);

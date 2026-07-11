@@ -24,6 +24,7 @@ import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
 import { removeAreaFromLayout, toggleFullHeight } from "./directive-utils.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
@@ -554,11 +555,23 @@ export class EditController {
     const name = String(areaName || "")
       .trim()
       .toLowerCase();
-    if (!name || name === "main") return false;
+    if (!name) return false;
     if (!this.markdownEditor) return false;
-    const markdown = this.markdownEditor.getValue();
-    const updated = toggleFullHeight(markdown, name);
-    return updated !== markdown;
+
+    // Only allow full-height on the right-most column area
+    const slide = this.deck?.slides?.[this.currentSlideIndex];
+    const resolvedLayout = LayoutParser.resolvePreset(slide?.layout);
+    const layout = LayoutParser.parse(resolvedLayout);
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    if (rowMatches.length === 0) return false;
+    const contentRow = rowMatches.find((q) => {
+      const cells = q.slice(1, -1).split(/\s+/);
+      return cells.some((c) => c !== "header" && c !== "footer" && c !== "title");
+    });
+    if (!contentRow) return false;
+    const cells = contentRow.slice(1, -1).split(/\s+/);
+    const rightMostCol = cells[cells.length - 1];
+    return name === rightMostCol;
   }
 
   _makeAreaFullHeight(areaName) {

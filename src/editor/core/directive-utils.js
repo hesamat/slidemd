@@ -113,8 +113,8 @@ export function describeBackground(css) {
 }
 
 /**
- * Toggle a `full-height:` directive for an area in the slide's markdown.
- * When present, the renderer will make the specified area span all rows.
+ * Toggle a full-height marker comment for an area in the slide's markdown.
+ * Uses an HTML comment (not a directive) so the markdown stays clean.
  *
  * @param {string} markdown  — slide markdown source
  * @param {string} areaName  — area to make full-height (e.g. "media")
@@ -126,19 +126,36 @@ export function toggleFullHeight(markdown, areaName) {
     .toLowerCase();
   if (!name) return markdown;
 
-  const parser = new MarkdownParser();
-  const { value: currentValue, markdown: stripped } = parser.extractDirective(
-    markdown,
-    "full-height",
-  );
+  const marker = `<!-- full-height: ${name} -->`;
+  const markerRegex = /<!--\s*full-height:\s*\S+\s*-->/;
 
   // If already set to this area, remove it (toggle off)
-  if (currentValue?.trim().toLowerCase() === name) {
-    return stripped;
+  if (markerRegex.test(markdown) && markdown.includes(marker)) {
+    return (
+      markdown
+        .replace(markerRegex, "")
+        .replace(/\n{2,}/g, "\n")
+        .trim() + "\n"
+    );
   }
 
-  // Otherwise, set it
-  return `full-height: ${name}\n${stripped}`;
+  // If set to a different area, replace it
+  if (markerRegex.test(markdown)) {
+    return markdown.replace(markerRegex, marker);
+  }
+
+  // Otherwise, insert after the last directive line (layout, background, theme, etc.)
+  const lines = markdown.split("\n");
+  let insertIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (
+      /^\s*(layout|background|theme|hidden|hide|align|area-style|header-style)\s*:/i.test(lines[i])
+    ) {
+      insertIdx = i + 1;
+    }
+  }
+  lines.splice(insertIdx, 0, marker);
+  return lines.join("\n");
 }
 
 /**
