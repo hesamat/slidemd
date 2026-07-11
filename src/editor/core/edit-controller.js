@@ -23,7 +23,7 @@ import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
-import { removeAreaFromLayout, toggleFullHeight } from "./directive-utils.js";
+import { removeAreaFromLayout, makeAreaFullHeight } from "./directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
@@ -577,7 +577,7 @@ export class EditController {
   _makeAreaFullHeight(areaName) {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const updated = toggleFullHeight(markdown, areaName);
+    const updated = makeAreaFullHeight(markdown, areaName);
     if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();

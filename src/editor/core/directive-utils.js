@@ -113,49 +113,58 @@ export function describeBackground(css) {
 }
 
 /**
- * Toggle a full-height marker comment for an area in the slide's markdown.
- * Uses an HTML comment (not a directive) so the markdown stays clean.
+ * Make an area span all rows by rewriting the layout to a custom grid.
+ * The target area is placed in the last column of every row, keeping
+ * header/footer in column 1 only.
  *
  * @param {string} markdown  — slide markdown source
  * @param {string} areaName  — area to make full-height (e.g. "media")
- * @returns {string} updated markdown
+ * @returns {string} updated markdown with custom layout grid
  */
-export function toggleFullHeight(markdown, areaName) {
+export function makeAreaFullHeight(markdown, areaName) {
   const name = String(areaName || "")
     .trim()
     .toLowerCase();
   if (!name) return markdown;
 
-  const marker = `<!-- full-height: ${name} -->`;
-  const markerRegex = /<!--\s*full-height:\s*\S+\s*-->/;
+  const parser = new MarkdownParser();
+  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) return markdown;
 
-  // If already set to this area, remove it (toggle off)
-  if (markerRegex.test(markdown) && markdown.includes(marker)) {
-    return (
-      markdown
-        .replace(markerRegex, "")
-        .replace(/\n{2,}/g, "\n")
-        .trim() + "\n"
-    );
-  }
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
 
-  // If set to a different area, replace it
-  if (markerRegex.test(markdown)) {
-    return markdown.replace(markerRegex, marker);
-  }
+  // Parse grid-template-areas into rows of cell names
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return markdown;
 
-  // Otherwise, insert after the last directive line (layout, background, theme, etc.)
-  const lines = markdown.split("\n");
-  let insertIdx = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (
-      /^\s*(layout|background|theme|hidden|hide|align|area-style|header-style)\s*:/i.test(lines[i])
-    ) {
-      insertIdx = i + 1;
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+
+  // Find which column the target area occupies (from the content row)
+  const contentRow = rows.find((row) => row.includes(name));
+  if (!contentRow) return markdown;
+  const colIdx = contentRow.indexOf(name);
+
+  // Rebuild every row: put the target in colIdx, others shifted left
+  const newRows = rows.map((row) => {
+    if (row.includes(name)) return row;
+    const otherCells = row.filter((c) => c !== name);
+    const result = [];
+    for (let i = 0; i < row.length; i++) {
+      if (i === colIdx) {
+        result.push(name);
+      } else {
+        const cellIdx = i < colIdx ? i : i - 1;
+        result.push(otherCells[cellIdx] || ".");
+      }
     }
-  }
-  lines.splice(insertIdx, 0, marker);
-  return lines.join("\n");
+    return result;
+  });
+
+  const newAreas = newRows.map((row) => `"${row.join(" ")}"`).join(" ");
+  const newLayout = `${newAreas} / ${layout.gridTemplateColumns}`;
+
+  return updateLayoutDirective(stripped, newLayout);
 }
 
 /**

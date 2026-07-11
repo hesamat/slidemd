@@ -430,7 +430,6 @@ Markdown-based presentations made simple.
         hidden: Boolean(s.hidden),
         areas: s.areas || {},
         areaStyle: safeString(s.areaStyle),
-        fullHeight: safeString(s.fullHeight),
       };
     });
 

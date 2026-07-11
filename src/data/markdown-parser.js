@@ -611,10 +611,6 @@ export class MarkdownParser {
       );
       cleaned = withoutAreaStyle;
 
-      // Detect full-height marker comment (<!-- full-height: media -->)
-      const fullHeightMatch = cleaned.match(/<!--\s*full-height:\s*(\S+)\s*-->/);
-      const fullHeight = fullHeightMatch ? fullHeightMatch[1] : "";
-
       // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
       const {
         value: hiddenValue,
@@ -710,7 +706,6 @@ export class MarkdownParser {
         hidden,
         areas,
         areaStyle: areaStyle || "",
-        fullHeight: safeString(fullHeight).toLowerCase() || "",
         _areaOffsets: rawAreaOffsets,
       };
     });
