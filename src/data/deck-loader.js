@@ -207,33 +207,15 @@ Markdown-based presentations made simple.
           DeckLoader.fileHandleRegistry.set(file.name, handle);
 
           // Persist the deck directory handle so images can be resolved on reload.
-          // FileSystemFileHandle.getParent() is not supported in any shipping
-          // browser, so fall back to showDirectoryPicker positioned at the
-          // file's location via the `startIn` option (same user gesture).
+          // Reuse any previously stored handle for this deck. A new handle is
+          // obtained lazily via ImageBackgroundHandler when the user first
+          // inserts or uploads an image (avoids a second picker prompt at
+          // file-open time).
           {
             const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-            let dirHandle = null;
-            // If a valid handle is already stored for this deck, reuse it.
             const { handle: existing } = await DirectoryHandleStore.load(file.name);
             if (existing) {
-              dirHandle = existing;
-            } else if (typeof window.showDirectoryPicker === "function") {
-              try {
-                // startIn positions the picker at the file's containing folder
-                // so the user can confirm with a single click.
-                dirHandle = await window.showDirectoryPicker({
-                  id: "deck-images",
-                  mode: "readwrite",
-                  startIn: handle,
-                });
-              } catch (dirErr) {
-                if (dirErr.name !== "AbortError") {
-                  console.warn("Could not pick deck directory:", dirErr);
-                }
-              }
-            }
-            if (dirHandle) {
-              await DirectoryHandleStore.save(dirHandle, "parent", file.name);
+              await DirectoryHandleStore.save(existing, "parent", file.name);
             }
           }
 
