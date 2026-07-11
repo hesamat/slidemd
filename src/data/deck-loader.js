@@ -195,29 +195,45 @@ Markdown-based presentations made simple.
     openFileBtn.addEventListener("click", async () => {
       if (this.supportsFileSystemAPI) {
         try {
-          const [handle] = await window.showOpenFilePicker({
-            types: [{ description: "Markdown files", accept: { "text/markdown": [".md"] } }],
-            multiple: false,
-          });
-          if (!handle) return;
+          const dirHandle = await window.showDirectoryPicker({ id: "deck-folder" });
+          const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
 
-          const file = await handle.getFile();
-          const rawText = await file.text();
-
-          DeckLoader.fileHandleRegistry.set(file.name, handle);
-
-          // Persist the deck directory handle so images can be resolved on reload.
-          // Reuse any previously stored handle for this deck. A new handle is
-          // obtained lazily via ImageBackgroundHandler when the user first
-          // inserts or uploads an image (avoids a second picker prompt at
-          // file-open time).
-          {
-            const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-            const { handle: existing } = await DirectoryHandleStore.load(file.name);
-            if (existing) {
-              await DirectoryHandleStore.save(existing, "parent", file.name);
+          // Find .md files in the picked folder
+          const IMAGE_RE = /\.md$/i;
+          const mdFiles = [];
+          for await (const [name, handle] of dirHandle.entries()) {
+            if (handle.kind === "file" && IMAGE_RE.test(name)) {
+              mdFiles.push({ name, handle });
             }
           }
+
+          if (mdFiles.length === 0) {
+            Notification.warning("No .md files found in the selected folder.");
+            return;
+          }
+
+          // Pick the .md file to load
+          let fileHandle;
+          if (mdFiles.length === 1) {
+            fileHandle = mdFiles[0].handle;
+          } else {
+            // Multiple .md files — let the user pick one
+            const picked = await window.showOpenFilePicker({
+              types: [{ description: "Markdown files", accept: { "text/markdown": [".md"] } }],
+              multiple: false,
+              startIn: dirHandle,
+            });
+            fileHandle = picked[0];
+          }
+          if (!fileHandle) return;
+
+          const file = await fileHandle.getFile();
+          const rawText = await file.text();
+
+          DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+
+          // Save the directory handle so images resolve on reload
+          await DirectoryHandleStore.save(dirHandle, "parent", file.name);
 
           localStorage.setItem("webdeck_local_file", rawText);
           localStorage.setItem("webdeck_local_file_type", "md");

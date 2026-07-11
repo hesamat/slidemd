@@ -309,33 +309,7 @@ export class DeckController extends EventEmitter {
       DeckImagesResolver.setDeckDir(null, "parent");
       const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
       const { handle, mode } = await DirectoryHandleStore.load(fileName);
-
-      if (!handle) {
-        // No stored handle — prompt user to pick the deck folder on first gesture.
-        Notification.info("Click to pick the deck folder for image preview");
-        let picked = false;
-        const pickFolder = async () => {
-          if (picked) return;
-          picked = true;
-          try {
-            const dirHandle = await window.showDirectoryPicker({
-              id: "deck-images",
-              mode: "readwrite",
-            });
-            await DirectoryHandleStore.save(dirHandle, "parent", fileName);
-            DeckImagesResolver.setDeckDir(dirHandle, "parent");
-            await DeckImagesResolver.prime();
-            await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
-            await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
-          } catch (err) {
-            if (err.name !== "AbortError") {
-              console.warn("Could not pick deck directory:", err);
-            }
-          }
-        };
-        document.addEventListener("click", pickFolder, { once: true });
-        return;
-      }
+      if (!handle) return;
 
       // Check if we have permission to read the directory.
       // After a page reload, stored handles reset to "prompt" permission.
@@ -345,8 +319,6 @@ export class DeckController extends EventEmitter {
         const requested = await handle.requestPermission({ mode: "read" });
         if (requested !== "granted") {
           Notification.info("Click anywhere to load images from disk");
-          // Retry after any user gesture — flag prevents double execution
-          // if both click and keydown fire in quick succession.
           let retried = false;
           const retry = async () => {
             if (retried) return;
