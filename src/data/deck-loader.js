@@ -195,16 +195,45 @@ Markdown-based presentations made simple.
     openFileBtn.addEventListener("click", async () => {
       if (this.supportsFileSystemAPI) {
         try {
-          const [handle] = await window.showOpenFilePicker({
-            types: [{ description: "Markdown files", accept: { "text/markdown": [".md"] } }],
-            multiple: false,
-          });
-          if (!handle) return;
+          const dirHandle = await window.showDirectoryPicker({ id: "deck-folder" });
+          const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
 
-          const file = await handle.getFile();
+          // Find .md files in the picked folder
+          const IMAGE_RE = /\.md$/i;
+          const mdFiles = [];
+          for await (const [name, handle] of dirHandle.entries()) {
+            if (handle.kind === "file" && IMAGE_RE.test(name)) {
+              mdFiles.push({ name, handle });
+            }
+          }
+
+          if (mdFiles.length === 0) {
+            Notification.warning("No .md files found in the selected folder.");
+            return;
+          }
+
+          // Pick the .md file to load
+          let fileHandle;
+          if (mdFiles.length === 1) {
+            fileHandle = mdFiles[0].handle;
+          } else {
+            // Multiple .md files — let the user pick one
+            const picked = await window.showOpenFilePicker({
+              types: [{ description: "Markdown files", accept: { "text/markdown": [".md"] } }],
+              multiple: false,
+              startIn: dirHandle,
+            });
+            fileHandle = picked[0];
+          }
+          if (!fileHandle) return;
+
+          const file = await fileHandle.getFile();
           const rawText = await file.text();
 
-          DeckLoader.fileHandleRegistry.set(file.name, handle);
+          DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+
+          // Save the directory handle so images resolve on reload
+          await DirectoryHandleStore.save(dirHandle, "parent", file.name);
 
           localStorage.setItem("webdeck_local_file", rawText);
           localStorage.setItem("webdeck_local_file_type", "md");
@@ -243,6 +272,25 @@ Markdown-based presentations made simple.
         localStorage.setItem("webdeck_local_file_name", file.name);
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
+
+        // Try to persist a directory handle so images resolve on reload.
+        if (typeof window.showDirectoryPicker === "function") {
+          try {
+            const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
+            Notification.info("Pick the deck folder so images can load on reload");
+            const dirHandle = await window.showDirectoryPicker({ mode: "read" });
+            if (dirHandle) {
+              await DirectoryHandleStore.save(dirHandle, "parent", file.name);
+              console.log(
+                `[DeckLoader] file-input: saved dir="${dirHandle.name}" for "${file.name}"`,
+              );
+            }
+          } catch (dirErr) {
+            if (dirErr.name !== "AbortError") {
+              console.warn("Could not persist directory handle:", dirErr);
+            }
+          }
+        }
 
         const loadEvent = new CustomEvent("webdeck-load-local", {
           detail: { text, fileType: "md", fileName: file.name },

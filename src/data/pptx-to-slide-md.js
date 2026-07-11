@@ -8,6 +8,7 @@
  * @class
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
+import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
 
 // Layout Definitions
 const LAYOUT = {
@@ -118,6 +119,12 @@ const CONFIG = {
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,
   overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
+  backgroundImageThreshold: 0.8, // Minimum area ratio for background image detection
+  backgroundOverlapThreshold: 0.1, // Minimum overlap ratio for background/content
+  spreadOverlapThreshold: 0.5, // Minimum overlap ratio for two-column detection
+  partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
+  tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
+  fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
 };
 
 /**
@@ -234,9 +241,35 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   }
 
   // 1. Identify layout-defining images first to ensure they are never filtered out
-  const dominantImages = importImages
+  let dominantImages = importImages
     ? findDominantImages(slide.elements, slideWidth, slideHeight)
     : [];
+
+  // Detect full-page background images BEFORE filtering, so they survive
+  // filterMeaningfulElements (which strips massive images when other content exists).
+  const slideArea = slideWidth * slideHeight;
+  const bgCandidate = importImages
+    ? slide.elements.find((el) => {
+        if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
+        const imgArea = (el.width || 0) * (el.height || 0);
+        if (imgArea < slideArea * CONFIG.backgroundImageThreshold) return false;
+        // Must have at least one content element overlapping it
+        const contentEls = slide.elements.filter(
+          (other) =>
+            other !== el &&
+            [
+              ELEMENT_TYPES.TEXT,
+              ELEMENT_TYPES.TABLE,
+              ELEMENT_TYPES.CHART,
+              ELEMENT_TYPES.DIAGRAM,
+            ].includes(other.type),
+        );
+        return contentEls.some((cel) => {
+          const overlap = getOverlapArea(el, cel);
+          return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+        });
+      })
+    : null;
 
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
@@ -245,6 +278,29 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     slideHeight,
     dominantImages,
   );
+
+  // Rebuild dominantImages to only include images that survived filtering
+  dominantImages = dominantImages.filter((dom) =>
+    meaningfulElements.some(
+      (el) =>
+        el.type === ELEMENT_TYPES.IMAGE &&
+        el.ref === dom.ref &&
+        el.left === dom.left &&
+        el.top === dom.top,
+    ),
+  );
+
+  // Use pre-detected background candidate (identified before filtering).
+  if (bgCandidate && bgCandidate.base64) {
+    const rawName = (bgCandidate.ref || "").split("/").pop();
+    const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
+    slide.background = `linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    // Remove the background image from dominant so it doesn't appear in @media
+    dominantImages = dominantImages.filter(
+      (el) =>
+        !(el.ref === bgCandidate.ref && el.left === bgCandidate.left && el.top === bgCandidate.top),
+    );
+  }
 
   // 3. Separate structural footer elements from standard slide body elements
   const footerElements = slide.elements.filter((el) => el.placeholderType === ELEMENT_TYPES.FOOTER);
@@ -257,6 +313,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   );
   const allElements = meaningfulElements.filter(
     (el) =>
+      el !== bgCandidate &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER &&
       ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
         (importImages && el.type === ELEMENT_TYPES.IMAGE && el.base64) ||
@@ -279,7 +336,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
-    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el);
+    if (el.type === ELEMENT_TYPES.TABLE) return formatTable(el, slideWidth, slideHeight);
     if (el.type === ELEMENT_TYPES.CHART) return formatChart(el);
     if (el.type === ELEMENT_TYPES.DIAGRAM) return formatDiagram(el);
     return "";
@@ -323,7 +380,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   if (slide.background) {
     parts.push(`background: ${slide.background}`);
-    if (isColorDark(slide.background)) {
+    if (bgCandidate || isColorDark(slide.background)) {
       parts.push("theme: dark");
     }
   }
@@ -377,28 +434,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    if (dominantImages.length > 0) {
-      const mediaImage = dominantImages[0];
-      const mainEls = bodyElements.filter((el) => el !== mediaImage);
-      parts.push(MARKDOWN_TAGS.MAIN);
-      parts.push("");
-      parts.push(mainEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-      parts.push("");
-      parts.push(MARKDOWN_TAGS.MEDIA);
-      parts.push("");
-      parts.push(formatSingleElement(mediaImage));
-    } else {
-      const midX = slideWidth / 2;
-      const leftEls = bodyElements.filter((el) => el.left + el.width / 2 < midX);
-      const rightEls = bodyElements.filter((el) => el.left + el.width / 2 >= midX);
-      parts.push(MARKDOWN_TAGS.MAIN);
-      parts.push("");
-      parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-      parts.push("");
-      parts.push(MARKDOWN_TAGS.MEDIA);
-      parts.push("");
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-    }
+    const midX = slideWidth / 2;
+    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MEDIA);
+    parts.push("");
+    parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
@@ -616,25 +661,37 @@ function inferLayout(
 
     if (isHeadingMarker(el)) return true;
 
-    const text = el.content || "";
+    // Extract plain text from HTML for length/bullet checks — raw HTML is
+    // often much longer than the visible text due to inline styles.
+    const text = stripHtml(el.content || "");
     const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
     return text.length <= CONFIG.maxHeaderLength && !hasBullet;
   };
 
   const headerEl = contentEls.find(isHeader) || null;
   const hasHeader = !!headerEl;
+  const midX = slideWidth / 2;
+  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
+  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 
   if (!hasMedia) {
-    const maxRowDiff = slideHeight * CONFIG.rowMaxVerticalDiffRatio;
     const minSpread = slideWidth * CONFIG.minColumnSpreadRatio;
 
+    // Two elements are in a spread row if they are horizontally separated
+    // AND have significant vertical overlap (not just close top positions).
+    // Skip centered elements — they span both columns and should not trigger two-column.
     const hasSpreadRow = contentEls.some((a) =>
-      contentEls.some(
-        (b) =>
-          a !== b &&
-          Math.abs(a.top - b.top) <= maxRowDiff &&
-          Math.abs(a.left - b.left) >= minSpread,
-      ),
+      contentEls.some((b) => {
+        if (a === b) return false;
+        if (isCentered(a) || isCentered(b)) return false;
+        if (Math.abs(a.left - b.left) < minSpread) return false;
+        // Check vertical overlap, not just top-position proximity
+        const overlapTop = Math.max(a.top, b.top);
+        const overlapBottom = Math.min(a.top + (a.height || 0), b.top + (b.height || 0));
+        const overlap = overlapBottom - overlapTop;
+        const minHeight = Math.min(a.height || 0, b.height || 0);
+        return overlap > 0 && minHeight > 0 && overlap / minHeight > CONFIG.spreadOverlapThreshold;
+      }),
     );
 
     if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
@@ -662,16 +719,24 @@ function inferLayout(
     if (totalLength < CONFIG.maxTitleLength) return LAYOUT.TITLE_SLIDE;
   }
 
-  const midX = slideWidth / 2;
-  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
-  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
-
-  const leftEls = allEls.filter(
-    (el) => el !== headerEl && el.left + el.width / 2 < midX && !isCentered(el),
-  );
-  const rightEls = allEls.filter(
-    (el) => el !== headerEl && el.left + el.width / 2 >= midX && !isCentered(el),
-  );
+  // Partition elements into left vs right columns.
+  // If the element's center is clearly on one side, use it directly.
+  // If the center is near the midpoint (ambiguous), use the left edge — wide
+  // text boxes in two-column PPTX slides commonly start on the left but extend
+  // past center.
+  const nearMidTol = slideWidth * CONFIG.partitionMidTolerance;
+  const partition = (el) => {
+    if (el === headerEl || isCentered(el)) return null;
+    const cx = el.left + el.width / 2;
+    const distFromMid = Math.abs(cx - midX);
+    if (distFromMid > nearMidTol) {
+      return cx < midX ? "left" : "right";
+    }
+    // Center is near midpoint — use left edge for wide spanning elements
+    return el.left < midX ? "left" : "right";
+  };
+  const leftEls = allEls.filter((el) => partition(el) === "left");
+  const rightEls = allEls.filter((el) => partition(el) === "right");
 
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
   const hasTextColumns =
@@ -700,7 +765,9 @@ function inferLayout(
   if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
-  const hasTallColumn = bodyEls.some((e) => (e.height || 0) > slideHeight * 0.5);
+  const hasTallColumn = bodyEls.some(
+    (e) => (e.height || 0) > slideHeight * CONFIG.tallColumnHeightRatio,
+  );
   if (
     hasTwoColumns &&
     (hasTallColumn || (bodyEls.length >= 2 && bodyLength > CONFIG.minSubstantialBodyLength))
@@ -724,18 +791,69 @@ function findDominantImages(allEls, slideWidth, slideHeight) {
   });
 }
 
-function isColorDark(colorHex) {
-  if (!colorHex || !colorHex.startsWith("#")) return false;
-  const hex = colorHex.replace("#", "");
-  if (hex.length < LUMINANCE.HEX_MIN_LENGTH) return false;
+function hexToLuminance(hex) {
+  if (!hex || hex.length < LUMINANCE.HEX_MIN_LENGTH) return Infinity;
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return Infinity;
   return (
     (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
-      LUMINANCE.SCALE_DIVISOR <
-    LUMINANCE.DARK_THRESHOLD
+    LUMINANCE.SCALE_DIVISOR
   );
+}
+
+/**
+ * Whitelist-safe CSS color sanitizer for untrusted PPTX fill colors.
+ * Allows only hex colors, rgb()/rgba(), and named keyword colors that
+ * are known-safe (transparent, white, black, etc.).
+ * Returns "transparent" for anything that doesn't match.
+ *
+ * @param {string} color
+ * @returns {string}
+ */
+function sanitizeCssColor(color) {
+  if (!color || typeof color !== "string") return "transparent";
+  const trimmed = color.trim();
+  // Named keywords we allow (non-exhaustive, safe list)
+  const SAFE_KEYWORDS =
+    /^(?:transparent|white|black|red|green|blue|yellow|gray|grey|orange|purple|pink|brown|cyan|magenta)$/i;
+  if (SAFE_KEYWORDS.test(trimmed)) return trimmed;
+  // Hex color: #RGB, #RRGGBB, #RRGGBBAA
+  if (/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3}([0-9a-fA-F]{2})?)?$/.test(trimmed)) return trimmed;
+  // rgb()/rgba() with comma-separated or space-separated values
+  if (
+    /^rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$/i.test(
+      trimmed,
+    )
+  )
+    return trimmed;
+  // rgb()/rgba() with space-separated values and optional alpha (e.g. rgb(255 0 0 / 0.5))
+  if (
+    /^rgba?\s*\(\s*\d{1,3}\s+[\d.]+%?\s+[\d.]+%?\s*(?:\/\s*(?:0|1|0?\.\d+)%?\s*)?\)$/i.test(trimmed)
+  )
+    return trimmed;
+  return "transparent";
+}
+
+function isColorDark(colorHex) {
+  if (!colorHex) return false;
+
+  // Handle gradients: extract all hex colors, pick darkest
+  if (!colorHex.startsWith("#")) {
+    const matches = colorHex.match(/#[0-9a-fA-F]{6}/g);
+    if (!matches) return false;
+    // Find the color with lowest luminance (darkest)
+    let darkestLum = Infinity;
+    for (const m of matches) {
+      const lum = hexToLuminance(m.replace("#", ""));
+      if (lum < darkestLum) darkestLum = lum;
+    }
+    return darkestLum < LUMINANCE.DARK_THRESHOLD;
+  }
+
+  const hex = colorHex.replace("#", "");
+  return hexToLuminance(hex) < LUMINANCE.DARK_THRESHOLD;
 }
 
 function formatTextElement(raw) {
@@ -767,7 +885,12 @@ function formatTextElement(raw) {
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
 
-    if (REGEX.BULLET.test(trimmed)) {
+    const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
+    const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
+
+    if (isProperBullet || isNumberedList) {
+      result.push(line);
+    } else if (REGEX.BULLET.test(trimmed)) {
       const content = trimmed.replace(REGEX.BULLET, "");
       result.push(`${prefix}- ${content}`);
     } else if (REGEX.NUMBER.test(trimmed)) {
@@ -793,6 +916,7 @@ function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = fal
   const altText = filename.replace(REGEX.FILE_EXTENSION, "").replace(REGEX.HYPHEN_UNDERSCORE, " ");
 
   if (!omitDimensions) {
+    // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {
@@ -802,8 +926,42 @@ function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = fal
   return `<img src="${src}" alt="${altText}">`;
 }
 
-function formatTable(table) {
+function isFirstRowHeader(rows) {
+  if (rows.length < 2) return false;
+  const firstRowBg = rows[0][0]?.fillColor;
+  // If no background info available, fall back to old behavior (treat as header)
+  if (!firstRowBg) return true;
+  // Check if any cell in the second row has a different background
+  return rows[1].some((cell) => cell.fillColor !== firstRowBg);
+}
+
+function formatTable(table, slideWidth, slideHeight) {
   if (!table.rows?.length) return "";
+
+  // Full-page tables (covering ≥80% of the slide) are visual layouts
+  // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
+  // to preserve the 2D visual structure.
+  const tableArea = (table.width || 0) * (table.height || 0);
+  const slideArea = (slideWidth || 960) * (slideHeight || 540);
+  const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
+
+  if (isFullScreen) {
+    const cols = table.rows[0].length;
+    const rows = table.rows.length;
+    const cells = [];
+    for (const row of table.rows) {
+      for (const cell of row) {
+        const text = escapeHtml(stripHtml(cell.text || "").trim());
+        const bg = sanitizeCssColor(cell.fillColor);
+        const isDarkBg = isColorDark(bg);
+        cells.push(
+          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${bg}">${text}</div>`,
+        );
+      }
+    }
+    return `<div class="fullpage-grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">${cells.join("")}</div>`;
+  }
+
   const escapeCell = (text) =>
     (text || "")
       .replace(REGEX.NEWLINE_CRLF, "\n")
@@ -811,14 +969,20 @@ function formatTable(table) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const headerRow = table.rows[0];
-  const separator = headerRow.map(() => "---").join(" | ");
+  const hasHeader = isFirstRowHeader(table.rows);
+  const separator = table.rows[0].map(() => "---").join(" | ");
   const rows = table.rows.map(formatRow);
   const parts = [];
-  parts.push(`| ${rows[0]} |`);
-  parts.push(`| ${separator} |`);
-  for (let i = 1; i < rows.length; i++) {
-    parts.push(`| ${rows[i]} |`);
+  if (hasHeader) {
+    parts.push(`| ${rows[0]} |`);
+    parts.push(`| ${separator} |`);
+    for (let i = 1; i < rows.length; i++) {
+      parts.push(`| ${rows[i]} |`);
+    }
+  } else {
+    for (let i = 0; i < rows.length; i++) {
+      parts.push(`| ${rows[i]} |`);
+    }
   }
   return parts.join("\n");
 }

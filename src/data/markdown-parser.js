@@ -392,6 +392,28 @@ export class MarkdownParser {
   }
 
   /**
+   * Return the physical `@area` markers in the source, in document order,
+   * each with its 0-indexed line number. Markers inside code fences are
+   * ignored. Used by the editor to position inserted area placeholders.
+   * @param {string} markdownText
+   * @returns {{name: string, line: number}[]}
+   */
+  findAreaMarkers(markdownText) {
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+    const fence = new FenceTracker();
+    const markerRe = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+    const markers = [];
+    lines.forEach((line, i) => {
+      fence.toggle(line);
+      if (!fence.isInFence) {
+        const m = line.match(markerRe);
+        if (m) markers.push({ name: m[1].toLowerCase(), line: i });
+      }
+    });
+    return markers;
+  }
+
+  /**
    * Remove @area markers and their content for areas not in `allowedAreas`,
    * and normalize header<->title aliases to match the target layout.
    *

@@ -60,7 +60,8 @@ export class ImageBackgroundHandler {
     if (this.deckDirectoryHandle) return this.deckDirectoryHandle;
     if (!window.showDirectoryPicker) return null;
 
-    const { handle: stored, mode } = await DirectoryHandleStore.load();
+    const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
+    const { handle: stored, mode } = await DirectoryHandleStore.load(fileName);
     if (stored) {
       const perm = await stored.queryPermission({ mode: "readwrite" });
       if (
@@ -93,7 +94,8 @@ export class ImageBackgroundHandler {
       });
 
       const detectedMode = await this._detectDeckDirMode(picked);
-      await DirectoryHandleStore.save(picked, detectedMode);
+      const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
+      await DirectoryHandleStore.save(picked, detectedMode, fileName);
       this.deckDirectoryHandle = picked;
       this._deckDirMode = detectedMode;
       return picked;
@@ -121,6 +123,7 @@ export class ImageBackgroundHandler {
   async clearDeckDirectoryHandle() {
     this.deckDirectoryHandle = null;
     this._deckDirMode = null;
-    await DirectoryHandleStore.clear();
+    const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
+    await DirectoryHandleStore.clear(fileName);
   }
 }

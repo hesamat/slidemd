@@ -27,6 +27,7 @@ export class ConversionModal {
    */
   static close() {
     if (this._currentBackdrop) {
+      document.body.style.overflow = "";
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
     }
@@ -42,6 +43,13 @@ export class ConversionModal {
       const backdrop = this.#createDom();
       document.body.appendChild(backdrop);
       this._currentBackdrop = backdrop;
+
+      // Prevent background scroll while modal is open
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      const restoreScroll = () => {
+        document.body.style.overflow = prevOverflow;
+      };
 
       let selectedFile = null;
       let extractionResult = null;
@@ -158,7 +166,6 @@ export class ConversionModal {
 
           hideSpinner();
 
-          const imageCount = extractionResult.images.length;
           const hasCodeBlocks = /^```\n/gm.test(markdown);
 
           // Load saved defaults from localStorage
@@ -204,21 +211,19 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
-          // If images detected, show checkbox with description
-          if (imageCount > 0) {
-            importImages = savedDefaults.importImages !== false;
-            const checkboxRow = document.createElement("label");
-            checkboxRow.className = `${P}checkbox-row`;
-            checkboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import ${imageCount} image${imageCount !== 1 ? "s" : ""} detected</span>`;
-            const checkboxInput = checkboxRow.querySelector(`.${P}checkbox`);
-            checkboxInput.addEventListener("change", () => {
-              importImages = checkboxInput.checked;
-              markdown = convertToSlideMd(extractionResult, deckName, { importImages });
-              saveDefaults({ importImages });
-            });
-            insertAfter.parentNode.insertBefore(checkboxRow, insertAfter.nextSibling);
-            insertAfter = checkboxRow;
-          }
+          // Image import checkbox
+          importImages = savedDefaults.importImages !== false;
+          const imgCheckboxRow = document.createElement("label");
+          imgCheckboxRow.className = `${P}checkbox-row`;
+          imgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import images</span>`;
+          const imgCheckboxInput = imgCheckboxRow.querySelector(`.${P}checkbox`);
+          imgCheckboxInput.addEventListener("change", () => {
+            importImages = imgCheckboxInput.checked;
+            markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+            saveDefaults({ importImages });
+          });
+          insertAfter.parentNode.insertBefore(imgCheckboxRow, insertAfter.nextSibling);
+          insertAfter = imgCheckboxRow;
 
           // Show background/theme checkbox
           keepBackgrounds = savedDefaults.keepBackgrounds !== false;
@@ -280,6 +285,7 @@ export class ConversionModal {
           }
           finalMarkdown = mdLines.join("\n");
         }
+        restoreScroll();
         backdrop.remove();
         resolve({
           markdown: finalMarkdown,
@@ -290,6 +296,7 @@ export class ConversionModal {
       });
       // Cancel
       cancelBtn.addEventListener("click", () => {
+        restoreScroll();
         backdrop.remove();
         resolve(null);
       });
@@ -302,6 +309,7 @@ export class ConversionModal {
       });
       backdrop.addEventListener("click", (e) => {
         if (backdropMouseDown && e.target === backdrop) {
+          restoreScroll();
           backdrop.remove();
           resolve(null);
         }
@@ -335,28 +343,24 @@ export class ConversionModal {
     backdrop.innerHTML = `
       <div class="${P}dialog">
         <h2 class="${P}title">Import PowerPoint</h2>
-        <p class="${P}description">Convert a .pptx file into a SlideMD presentation. Code blocks, images, and slide structure will be detected automatically.</p>
 
-        <div class="${P}section">
-          <label class="${P}label">PowerPoint File</label>
-          <div class="${P}drop-zone" tabindex="0" role="button" aria-label="Upload PPTX file">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <span>Drop .pptx file here or click to browse</span>
-          </div>
-          <input type="file" data-field="file" accept=".pptx" style="display:none" />
+        <div class="${P}drop-zone" tabindex="0" role="button" aria-label="Upload PPTX file">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>Drop .pptx file here or click to browse</span>
         </div>
+        <input type="file" data-field="file" accept=".pptx" style="display:none" />
 
         <div class="${P}spinner-container" hidden></div>
         <div class="${P}error" hidden></div>
 
-        <div class="${P}section ${P}name-section" hidden>
+        <div class="${P}name-section" hidden>
           <label class="${P}label" for="${P}deck-name">Deck name</label>
           <input type="text" id="${P}deck-name" class="${P}input" data-field="deck-name" />
-          <p class="${P}hint">This will be the folder and file name for your presentation.</p>
+          <p class="${P}hint">Used as the folder and file name.</p>
         </div>
 
         <div class="${P}actions">
@@ -384,58 +388,56 @@ export class ConversionModal {
       }
       .${P}dialog {
         background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 32px; width: 600px; max-width: 90vw;
+        border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw;
         max-height: 85vh; overflow-y: auto;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       }
-      .${P}title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
-      .${P}description { font-size: 14px; color: var(--text-medium, #666); margin: 0 0 20px; line-height: 1.5; }
-      .${P}section { margin-bottom: 20px; }
-      .${P}label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text-medium, #666); }
+      .${P}title { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
       .${P}drop-zone {
         border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
-        padding: 28px; text-align: center; cursor: pointer;
-        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 20px; text-align: center; cursor: pointer;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
         transition: border-color 0.2s, background 0.2s;
       }
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
       }
-      .${P}error { font-size: 14px; color: #dc2626; margin: 12px 0; }
-      .${P}code-hint { font-size: 13px; color: var(--text-medium, #666); margin: 2px 0 0; }
+      .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
+      .${P}code-hint { font-size: 12px; color: var(--text-medium, #666); margin: 2px 0 0; }
       .${P}checkbox-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; cursor: pointer; margin: 8px 0 0;
+        font-size: 14px; cursor: pointer; margin: 8px 0 0;
       }
-      .${P}checkbox { width: 18px; height: 18px; cursor: pointer; }
+      .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
       .${P}select-row {
         display: flex; align-items: center; gap: 8px;
-        font-size: 15px; margin: 12px 0 0;
+        font-size: 14px; margin: 10px 0 0;
       }
-      .${P}select-label { font-size: 14px; color: var(--text-medium, #666); white-space: nowrap; }
+      .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
       .${P}select {
-        padding: 6px 10px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
+        padding: 5px 8px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
       .${P}name-section {
         background: var(--surface-hover, #f8f8fa);
         border: 1px solid var(--border-light, #e8e8ec);
-        border-radius: 8px; padding: 16px; margin-top: 16px;
+        border-radius: 8px; padding: 12px; margin-top: 14px;
       }
+      .${P}label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text-medium, #666); }
       .${P}input {
-        width: 100%; padding: 8px 12px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 14px; background: var(--surface-bg, #fff);
+        width: 100%; padding: 6px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); box-sizing: border-box;
       }
       .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
-      .${P}hint { font-size: 12px; color: var(--text-medium, #999); margin: 6px 0 0; }
+      .${P}hint { font-size: 11px; color: var(--text-medium, #999); margin: 4px 0 0; }
       .${P}spinner-container {
-        font-size: 13px; margin: 12px 0; min-height: 20px;
+        font-size: 12px; margin: 10px 0; min-height: 18px;
       }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; }
+      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
       .${P}btn {
-        padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 500;
+        padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
         cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
       }
       .${P}btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -443,7 +445,7 @@ export class ConversionModal {
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
       .${P}spinner {
-        display: inline-block; width: 14px; height: 14px;
+        display: inline-block; width: 12px; height: 12px;
         border: 2px solid var(--border-medium, #ccc);
         border-top-color: var(--accent, #6366f1);
         border-radius: 50%;

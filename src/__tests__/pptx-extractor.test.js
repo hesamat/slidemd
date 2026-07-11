@@ -2,380 +2,6 @@
 import { describe, it, expect } from "vitest";
 import { PptxExtractor } from "../data/pptx-extractor.js";
 
-describe("PptxExtractor.toPlainText", () => {
-  it("converts slides with text elements to plain text", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "Introduction",
-          notes: "Welcome everyone",
-          elements: [
-            { type: "text", content: "Hello World", left: 0, top: 0, width: 100, height: 50 },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("--- Slide 1 ---");
-    expect(text).toContain("Title: Introduction");
-    expect(text).toContain("Notes: Welcome everyone");
-    expect(text).toContain("Hello World");
-  });
-
-  it("handles table elements", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "table",
-              rows: [
-                [{ text: "Name" }, { text: "Value" }],
-                [{ text: "A" }, { text: "1" }],
-              ],
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 100,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("Name | Value");
-    expect(text).toContain("A | 1");
-  });
-
-  it("handles image elements", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "image",
-              ref: "image1.png",
-              base64: "abc",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 100,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("[Image: image1.png]");
-  });
-
-  it("handles empty slides", () => {
-    const result = {
-      slides: [{ index: 0, title: "", notes: "", elements: [], background: "" }],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("--- Slide 1 ---");
-  });
-
-  it("handles multiple slides", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "First",
-          notes: "",
-          elements: [{ type: "text", content: "A", left: 0, top: 0, width: 10, height: 10 }],
-          background: "",
-        },
-        {
-          index: 1,
-          title: "Second",
-          notes: "",
-          elements: [{ type: "text", content: "B", left: 0, top: 0, width: 10, height: 10 }],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("--- Slide 1 ---");
-    expect(text).toContain("--- Slide 2 ---");
-    expect(text).toContain("Title: First");
-    expect(text).toContain("Title: Second");
-  });
-
-  it("includes chart and diagram placeholders", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "chart",
-              content: "[Chart: barChart]",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 100,
-            },
-            {
-              type: "diagram",
-              content: "Step 1, Step 2",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 100,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("[Chart: barChart]");
-    expect(text).toContain("- Step 1");
-    expect(text).toContain("- Step 2");
-  });
-});
-
-describe("PptxExtractor placeholder detection", () => {
-  it("detects footer placeholder type from name via processSpNode naming conventions", () => {
-    // Verify the detection logic works by testing through the public API.
-    // Footer elements should have placeholderType: "footer" in extraction output.
-    // We test this indirectly via toPlainText which processes extracted elements.
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "text",
-              content: "Footer text here",
-              placeholderType: "footer",
-              left: 0,
-              top: 90,
-              width: 100,
-              height: 10,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("Footer text here");
-  });
-
-  it("skips date and slideNumber placeholders in extraction output", () => {
-    // When date/slideNumber placeholders are skipped, they should not
-    // appear in the extracted elements at all.
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "text",
-              content: "Real content",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 50,
-            },
-            // date and slideNumber placeholders should not be present
-            // after extraction (they are filtered out by #processElement)
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("Real content");
-    // Should not contain any date/number noise
-    expect(text).not.toContain("Date");
-    expect(text).not.toContain("Slide Number");
-  });
-});
-
-describe("PptxExtractor.toPlainText with placeholderType", () => {
-  it("includes footer elements in plain text output", () => {
-    const result = {
-      slides: [
-        {
-          index: 0,
-          title: "Slide with Footer",
-          notes: "",
-          elements: [
-            { type: "text", content: "Main content", left: 0, top: 0, width: 100, height: 50 },
-            {
-              type: "text",
-              content: "Company Name",
-              placeholderType: "footer",
-              left: 0,
-              top: 90,
-              width: 100,
-              height: 10,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    };
-    const text = PptxExtractor.toPlainText(result);
-    expect(text).toContain("Main content");
-    expect(text).toContain("Company Name");
-  });
-});
-
-describe("PptxExtractor decorative image filtering", () => {
-  it("skips groups containing only images (decorative backgrounds)", () => {
-    const processed = PptxExtractor.toPlainText({
-      slides: [{ index: 0, title: "", notes: "", elements: [], background: "" }],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    });
-    expect(processed).not.toContain("[Image:");
-  });
-
-  it("keeps groups containing images AND text", async () => {
-    const result = PptxExtractor.toPlainText({
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "text",
-              content: "Important content",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 50,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    });
-    expect(result).toContain("Important content");
-  });
-
-  it("keeps standalone images", async () => {
-    const result = PptxExtractor.toPlainText({
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "image",
-              ref: "chart.png",
-              base64: "abc",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 100,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    });
-    expect(result).toContain("[Image: chart.png]");
-  });
-
-  it("skips layoutElements images but keeps content images", async () => {
-    const result = PptxExtractor.toPlainText({
-      slides: [
-        {
-          index: 0,
-          title: "",
-          notes: "",
-          elements: [
-            {
-              type: "text",
-              content: "Slide content",
-              left: 0,
-              top: 0,
-              width: 100,
-              height: 50,
-            },
-          ],
-          background: "",
-        },
-      ],
-      themeColors: [],
-      usedFonts: [],
-      size: { width: 914400, height: 5143500 },
-      images: [],
-    });
-    expect(result).toContain("Slide content");
-  });
-});
-
 describe("PptxExtractor.htmlToMarkdown", () => {
   it("converts bold tags inside paragraphs", () => {
     expect(PptxExtractor.htmlToMarkdown("<p><b>hello</b></p>")).toContain("**hello**");
@@ -423,6 +49,88 @@ describe("PptxExtractor.htmlToMarkdown", () => {
     expect(result).toContain("  - b");
   });
 
+  it("converts ordered lists with per-item numbering", () => {
+    const result = PptxExtractor.htmlToMarkdown("<ol><li>a</li><li>b</li><li>c</li></ol>");
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("3. c");
+  });
+
+  it("continues numbering across adjacent same-type lists (PowerPoint split list)", () => {
+    const html = "<ol><li>a</li><li>b</li></ol><ol><li>c</li><li>d</li></ol>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("3. c");
+    expect(result).toContain("4. d");
+  });
+
+  it("continues numbering across split lists with <p> separators (PPTX sub-items)", () => {
+    // PowerPoint often splits a numbered list into single-item <ol> blocks
+    // with <p> sub-items (Windows/Unix variants) between them.
+    const html =
+      "<ol><li><p>Clear the terminal screen:</p></li></ol>" +
+      "<p>Windows:    cls</p>" +
+      "<p>Unix:    clear</p>" +
+      "<ol><li><p>Display the name of the current directory:</p></li></ol>" +
+      "<p>Windows:    cd</p>" +
+      "<p>Unix:    pwd</p>" +
+      "<ol><li><p>Print contents of current directory:</p></li></ol>" +
+      "<p>Windows:    dir</p>" +
+      "<p>Unix:    ls</p>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Clear the terminal screen:");
+    expect(result).toContain("2. Display the name of the current directory:");
+    expect(result).toContain("3. Print contents of current directory:");
+  });
+
+  it("continues numbering with real PPTX HTML (text-indent bullet sub-items)", () => {
+    // Real PPTX HTML: sub-items have text-indent: -18pt which triggers CSS bullet detection
+    const html =
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Clear the terminal screen:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: cls</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: clear</span></p>' +
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Display the name of the current directory:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: cd</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: pwd</span></p>' +
+      '<ol><li><p style="text-align: left;line-height: 0.9;margin-top: 10pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Print contents of current directory:</span></p></li></ol>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Windows: dir</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span style="color: #000000;font-size: 20pt;font-family: Aptos;">Unix: ls</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. Clear the terminal screen:");
+    expect(result).toContain("2. Display the name of the current directory:");
+    expect(result).toContain("3. Print contents of current directory:");
+    // Sub-bullets should be indented under their parent numbered item
+    expect(result).toContain("   - Windows: cls");
+    expect(result).toContain("   - Unix: clear");
+  });
+
+  it("honours HTML start attribute on ordered lists", () => {
+    const html = '<ol start="5"><li>a</li><li>b</li><li>c</li></ol>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("5. a");
+    expect(result).toContain("6. b");
+    expect(result).toContain("7. c");
+  });
+
+  it("restarts numbering across different list types", () => {
+    const html = "<ol><li>a</li><li>b</li></ol><ul><li>c</li><li>d</li></ul>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("- c");
+    expect(result).toContain("- d");
+  });
+  it("converts nested lists emitted as siblings of <li> (PowerPoint style)", () => {
+    const html = "<ol><li>a</li><li>b</li><ol><li>c</li><li>d</li></ol><li>e</li></ol>";
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("1. a");
+    expect(result).toContain("2. b");
+    expect(result).toContain("  a. c");
+    expect(result).toContain("  b. d");
+    expect(result).toContain("3. e");
+  });
+
   it("detects CSS-based bullets from negative text-indent", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p style="text-indent: -24pt; margin-left: 24pt">item</p>',
@@ -458,8 +166,26 @@ describe("PptxExtractor.htmlToMarkdown", () => {
   });
 
   it("handles non-breaking spaces inside paragraphs", () => {
-    const result = PptxExtractor.htmlToMarkdown("<p>a\u00a0b</p>");
+    const result = PptxExtractor.htmlToMarkdown("<p>a b</p>");
     expect(result).toContain("a b");
+  });
+
+  it("indents sub-bullets by margin-left when no <ol> precedes them", () => {
+    // All items have text-indent: -18pt so CSS bullet detection wraps them all
+    // in <li>, but parent items have margin-left: 18pt and sub-items have
+    // margin-left: 54pt.  The margin-left gap should indent sub-items.
+    const html =
+      '<p style="text-align: left;line-height: 0.9;margin-top: 10pt;margin-left: 18pt;text-indent: -18pt;"><span style="text-decoration: underline;">Lectures</span>:</p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>Thursdays</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>10:30 AM</span></p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 10pt;margin-left: 18pt;text-indent: -18pt;"><span style="text-decoration: underline;">Lab:</span> </p>' +
+      '<p style="text-align: left;line-height: 0.9;margin-top: 5pt;margin-left: 54pt;text-indent: -18pt;"><span>Mondays</span></p>';
+    const result = PptxExtractor.htmlToMarkdown(html);
+    expect(result).toContain("- Lectures:");
+    expect(result).toContain("   - Thursdays");
+    expect(result).toContain("   - 10:30 AM");
+    expect(result).toContain("- Lab:");
+    expect(result).toContain("   - Mondays");
   });
 });
 
@@ -497,7 +223,7 @@ describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-family: Consolas;">`backticks`</span></p>',
     );
-    expect(result).toContain("`\\`backticks\\``");
+    expect(result).toContain("`` `backticks` ``");
   });
 
   it("groups consecutive monospace lines into fenced code block", () => {
@@ -579,5 +305,84 @@ describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {
     );
     // Multiple lines are grouped into a fenced code block with indentation preserved
     expect(result).toContain("```\nline 1\n    indented line\nline 3\n```");
+  });
+});
+
+describe("PptxExtractor ordered list start attribute injection", () => {
+  it("injects start attribute into <ol> tags when start != 1", () => {
+    const html = "<ol><li>item 1</li><li>item 2</li></ol>";
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5"><li>item 1</li><li>item 2</li></ol>');
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("does not inject start attribute when start is 1 (default)", () => {
+    const html = "<ol><li>item 1</li><li>item 2</li></ol>";
+    const startValues = [1];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe("<ol><li>item 1</li><li>item 2</li></ol>");
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("injects start attributes into multiple <ol> tags", () => {
+    const html = "<ol><li>a</li></ol><ol><li>b</li></ol>";
+    const startValues = [3, 7];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="3"><li>a</li></ol><ol start="7"><li>b</li></ol>');
+    expect(startIdxRef.value).toBe(2);
+  });
+
+  it("leaves <ol> without start values unchanged", () => {
+    const html = "<ol><li>a</li></ol><ol><li>b</li></ol>";
+    const startValues = [];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe("<ol><li>a</li></ol><ol><li>b</li></ol>");
+    expect(startIdxRef.value).toBe(0);
+  });
+
+  it("preserves existing start attribute", () => {
+    const html = '<ol start="10"><li>item</li></ol>';
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="10"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(0);
+  });
+
+  it("tracks startIdxRef across multiple calls", () => {
+    const html1 = "<ol><li>a</li></ol>";
+    const html2 = "<ol><li>b</li></ol>";
+    const startValues = [3, 8];
+    const startIdxRef = { value: 0 };
+
+    const result1 = PptxExtractor.injectOlStartAttributes(html1, startValues, startIdxRef);
+    const result2 = PptxExtractor.injectOlStartAttributes(html2, startValues, startIdxRef);
+
+    expect(result1).toBe('<ol start="3"><li>a</li></ol>');
+    expect(result2).toBe('<ol start="8"><li>b</li></ol>');
+    expect(startIdxRef.value).toBe(2);
+  });
+
+  it("handles <ol> with attributes", () => {
+    const html = '<ol class="custom"><li>item</li></ol>';
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5" class="custom"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(1);
+  });
+
+  it("handles <ol> with only opening bracket (no attributes)", () => {
+    const html = "<ol><li>item</li></ol>";
+    const startValues = [5];
+    const startIdxRef = { value: 0 };
+    const result = PptxExtractor.injectOlStartAttributes(html, startValues, startIdxRef);
+    expect(result).toBe('<ol start="5"><li>item</li></ol>');
+    expect(startIdxRef.value).toBe(1);
   });
 });

@@ -7,6 +7,7 @@
  * @class
  */
 import { parse } from "pptxtojson";
+import JSZip from "jszip";
 import { htmlToMarkdown, stripHtml } from "./pptx-html-to-markdown.js";
 import { convertEmfImages, convertTiffImages } from "./pptx-image-converter.js";
 import { buildChartDataRows } from "./pptx-chart-data.js";
@@ -88,9 +89,16 @@ export class PptxExtractor {
   static async extract(buffer) {
     const raw = await parse(buffer);
 
+    // Extract ordered list start values from raw PPTX XML before pptxtojson
+    // drops them from the generated HTML.
+    // NOTE: This calls JSZip.loadAsync separately from pptxtojson.parse(),
+    // so the ZIP is parsed twice. This is unavoidable because pptxtojson
+    // only accepts ArrayBuffer and drops <ol start="X"> attributes.
+    const olStartValues = await this.#extractOlStartValues(buffer);
+
     const images = [];
     const slides = (raw.slides || []).map((slide, index) =>
-      this.#processSlide(slide, index, images),
+      this.#processSlide(slide, index, images, olStartValues.get(index) || []),
     );
 
     // Convert EMF/WMF images to PNG
@@ -124,20 +132,36 @@ export class PptxExtractor {
    * @param {Object} slide
    * @param {number} index
    * @param {ExtractedImage[]} imagesAccum
+   * @param {number[]} [olStartValues] - Ordered list start values for this slide.
    * @returns {ExtractedSlide}
    */
-  static #processSlide(slide, index, imagesAccum) {
+  static #processSlide(slide, index, imagesAccum, olStartValues = []) {
     // Process layout elements first (backgrounds, placeholders), then content
     const raw = [];
+    // Track which start values have been consumed so each <ol> gets the right one.
+    let startIdx = 0;
     for (const el of slide.layoutElements || []) {
       // Skip images from layout — they are theme decorations, not slide content
       if (el.type === "image") continue;
-      const extracted = this.#processElement(el, index, imagesAccum);
-      if (extracted) raw.push(extracted);
+      const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
+        startIdxRef: { value: startIdx },
+      });
+      if (extracted) {
+        // Update startIdx from the mutable ref after processing.
+        startIdx = extracted._startIdx ?? startIdx;
+        raw.push(extracted);
+        delete extracted._startIdx;
+      }
     }
     for (const el of slide.elements || []) {
-      const extracted = this.#processElement(el, index, imagesAccum);
-      if (extracted) raw.push(extracted);
+      const extracted = this.#processElement(el, index, imagesAccum, olStartValues, {
+        startIdxRef: { value: startIdx },
+      });
+      if (extracted) {
+        startIdx = extracted._startIdx ?? startIdx;
+        raw.push(extracted);
+        delete extracted._startIdx;
+      }
     }
 
     // Sort by PPTX element order to preserve author's layout intent
@@ -271,9 +295,11 @@ export class PptxExtractor {
    * @param {import('pptxtojson').Element} el
    * @param {number} slideIndex
    * @param {ExtractedImage[]} imagesAccum
+   * @param {number[]} [olStartValues] - Ordered list start values for this slide.
+   * @param {{ startIdxRef: { value: number } }} [opts] - Mutable ref to track consumed start values.
    * @returns {ExtractedElement|null}
    */
-  static #processElement(el, slideIndex, imagesAccum) {
+  static #processElement(el, slideIndex, imagesAccum, olStartValues = [], opts) {
     if (el.type === "group" && el.elements) {
       // Skip groups that contain no renderable content — only tiny decorative
       // images, empty shapes, or unrecognized types.  Keep groups that have
@@ -290,7 +316,7 @@ export class PptxExtractor {
         if (isDecorative && child.type === "image") {
           continue;
         }
-        const r = this.#processElement(child, slideIndex, imagesAccum);
+        const r = this.#processElement(child, slideIndex, imagesAccum, olStartValues, opts);
         if (r) {
           if (Array.isArray(r)) {
             for (const item of r) {
@@ -316,9 +342,15 @@ export class PptxExtractor {
     }
 
     if (el.type === "text" || el.type === "shape") {
-      const content = htmlToMarkdown(el.content || "");
+      let html = el.content || "";
+      // Inject <ol start="X"> attributes from raw PPTX XML.
+      // pptxtojson drops the start attribute, so we reconstruct it here.
+      if (html.includes("<ol") && olStartValues.length > 0 && opts?.startIdxRef) {
+        html = this.injectOlStartAttributes(html, olStartValues, opts.startIdxRef);
+      }
+      const content = htmlToMarkdown(html);
       if (!content.trim()) return null;
-      return {
+      const result = {
         type: "text",
         content,
         placeholderType,
@@ -328,6 +360,11 @@ export class PptxExtractor {
         width: el.width,
         height: el.height,
       };
+      // Propagate the updated startIdx back through the mutable ref.
+      if (opts?.startIdxRef) {
+        result._startIdx = opts.startIdxRef.value;
+      }
+      return result;
     }
 
     if (el.type === "image") {
@@ -376,6 +413,7 @@ export class PptxExtractor {
           text: this.#stripHtml(cell.text || ""),
           rowSpan: cell.rowSpan,
           colSpan: cell.colSpan,
+          fillColor: cell.fillColor || null,
         })),
       );
       return {
@@ -510,6 +548,74 @@ export class PptxExtractor {
   }
 
   /**
+   * Extract ordered list start values from raw PPTX XML.
+   * PptxToJSON drops <ol start="X"> attributes, so we read them directly.
+   *
+   * @static
+   * @param {ArrayBuffer} buffer - PPTX file buffer.
+   * @returns {Promise<Map<number, number[]>>} Slide index → array of start values.
+   */
+  static async #extractOlStartValues(buffer) {
+    const startValues = new Map();
+    try {
+      const zip = await JSZip.loadAsync(buffer);
+      const slideFiles = Object.keys(zip.files).filter(
+        (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
+      );
+      slideFiles.sort();
+
+      for (const slideFile of slideFiles) {
+        const match = slideFile.match(/slide(\d+)\.xml/);
+        if (!match) continue;
+        const slideIndex = Number(match[1]) - 1;
+
+        const xml = await zip.files[slideFile].async("text");
+        // Find <a:buAutoNum start="X"> elements in document order.
+        // The start attribute indicates where numbering begins for that list.
+        const starts = [];
+        const re = /<a:buAutoNum[^>]*\s+start="(\d+)"[^>]*>/gi;
+        let m;
+        while ((m = re.exec(xml)) !== null) {
+          starts.push(Number(m[1]));
+        }
+        if (starts.length > 0) {
+          startValues.set(slideIndex, starts);
+        }
+      }
+    } catch {
+      // If ZIP parsing fails (corrupted file, etc.), silently return empty map.
+      // The converter will fall back to default numbering.
+    }
+    return startValues;
+  }
+
+  /**
+   * Inject <ol start="X"> attributes into HTML content.
+   * PptxToJSON drops these attributes, so we reconstruct them from raw XML data.
+   *
+   * @static
+   * @param {string} html - HTML content from pptxtojson.
+   * @param {number[]} olStartValues - Start values for this slide's ordered lists.
+   * @param {{ value: number }} startIdxRef - Mutable ref tracking the current position in olStartValues.
+   * @returns {string} HTML with <ol start="X"> attributes injected.
+   */
+  static injectOlStartAttributes(html, olStartValues, startIdxRef) {
+    // Match <ol> or <ol ...> tags.
+    return html.replace(/<ol(\s[^>]*)?>/gi, (fullMatch, attrs) => {
+      // If there's already a start attribute, leave it alone.
+      if (attrs && /\bstart\s*=/i.test(attrs)) return fullMatch;
+      // Get the next unused start value for this slide.
+      const idx = startIdxRef.value;
+      if (idx >= olStartValues.length) return fullMatch;
+      const startVal = olStartValues[idx];
+      startIdxRef.value = idx + 1;
+      // Only inject if start != 1 (default is already 1).
+      if (startVal <= 1) return fullMatch;
+      return `<ol start="${startVal}"${attrs || ""}>`;
+    });
+  }
+
+  /**
    * Build structured chart data. Re-exports from pptx-chart-data.js.
    * @static
    * @param {ChartData[]} chartData
@@ -527,63 +633,5 @@ export class PptxExtractor {
    */
   static #stripHtml(html) {
     return stripHtml(html);
-  }
-
-  /**
-   * Convert extraction result to a plain-text representation suitable
-   * for preview or external processing.
-   * @static
-   * @param {ExtractionResult} result
-   * @returns {string}
-   */
-  static toPlainText(result) {
-    const lines = [];
-    for (const slide of result.slides) {
-      lines.push(`--- Slide ${slide.index + 1} ---`);
-      if (slide.title) lines.push(`Title: ${slide.title}`);
-      if (slide.background) lines.push(`Background: ${slide.background}`);
-      if (slide.notes) lines.push(`Notes: ${this.#stripHtml(slide.notes)}`);
-      lines.push("");
-
-      for (const el of slide.elements) {
-        if (el.type === "text") {
-          lines.push(el.content);
-          lines.push("");
-        } else if (el.type === "table" && el.rows) {
-          for (const row of el.rows) {
-            lines.push(row.map((c) => c.text).join(" | "));
-          }
-          lines.push("");
-        } else if (el.type === "image") {
-          lines.push(`[Image: ${el.ref || "unknown"}]`);
-          lines.push("");
-        } else if (el.type === "chart") {
-          if (el.chartData?.length) {
-            lines.push(`[Chart: ${el.chartType || "unknown"}]`);
-            const { headers, rows } = buildChartDataRows(el.chartData);
-            lines.push(headers.join(" | "));
-            lines.push("---".repeat(headers.length));
-            for (const row of rows) {
-              lines.push(row.join(" | "));
-            }
-            lines.push("");
-          } else {
-            lines.push(el.content || "[Chart]");
-            lines.push("");
-          }
-        } else if (el.type === "diagram") {
-          if (el.content) {
-            const items = el.content.split(", ");
-            for (const item of items) {
-              lines.push(`- ${item}`);
-            }
-          }
-          lines.push("");
-        }
-      }
-      lines.push("---");
-      lines.push("");
-    }
-    return lines.join("\n");
   }
 }

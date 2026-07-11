@@ -7,11 +7,15 @@
  * bullet detection, and font-size-based heading detection.
  */
 
-// Font-size threshold for heading detection (in points).
-// Text >= 28pt is treated as a heading (uses ## for all heading sizes).
+// Font-size thresholds for heading detection (in points).
+// Maps font-size bands to markdown heading levels to preserve visual hierarchy.
 // Based on typical PowerPoint default font sizes:
 // Title: 36-44pt, Subtitle: 24-28pt, Body: 18-24pt, Small: 12-14pt
-const HEADING_THRESHOLD = 28;
+const HEADING_BANDS = [
+  { min: 44, prefix: "## " },
+  { min: 30, prefix: "### " },
+  { min: 28, prefix: "#### " },
+];
 
 // Monospace font-family pattern for detecting code content
 const MONOSPACE_PATTERN =
@@ -139,6 +143,22 @@ export function htmlToMarkdown(html) {
  * @param {string} html
  * @returns {string}
  */
+/**
+ * Escape a string for safe inclusion inside inline HTML (e.g. when the
+ * converter emits raw HTML elements). Escapes the five XML-significant
+ * characters so user text can never break out of an attribute or tag.
+ * @param {string} text
+ * @returns {string}
+ */
+export function escapeHtml(text) {
+  return (text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function stripHtml(html) {
   if (!html) return "";
   return html
@@ -163,6 +183,17 @@ export function stripHtml(html) {
  * @param {string[]} out
  */
 function processBlockNodes(nodes, out) {
+  // Shared across all top-level lists in this text box so adjacent same-type
+  // lists continue numbering (PowerPoint frequently splits one logical list
+  // into multiple <ol>/<ul> blocks).
+  const counters = {};
+  let lastListType = null;
+  let lastWasOl = false;
+  // Track minimum margin-left among standalone <li> items for nested bullet
+  // detection.  Items with margin-left significantly larger than the minimum
+  // are indented as sub-bullets.
+  let minMarginLeft = Infinity;
+
   for (const node of nodes) {
     if (node.nodeType === 3) {
       const text = node.textContent;
@@ -174,9 +205,25 @@ function processBlockNodes(nodes, out) {
     const tag = node.tagName;
 
     if (tag === "UL" || tag === "OL") {
-      processList(node, 0, out);
+      // Share one counter object across all top-level lists in this text box
+      // so that PowerPoint's split lists (separated into distinct <ol>/<ul>
+      // blocks, often with only whitespace between) continue numbering
+      // instead of restarting. A list continues only when the immediately
+      // preceding top-level block was a list of the same type.
+      const reset = !(lastListType && lastListType === tag);
+      processList(node, 0, out, counters, { reset });
       out.push("\n");
+      lastListType = tag;
+      lastWasOl = tag === "OL";
+      minMarginLeft = Infinity;
       continue;
+    } else if (tag !== "P" && tag !== "DIV" && tag !== "LI") {
+      // Non-list blocks break the continuation chain, except for <p>/<div>
+      // which are common sub-item formatting between split lists in PPTX,
+      // and <li> which are standalone list items from CSS bullet detection.
+      lastListType = null;
+      lastWasOl = false;
+      minMarginLeft = Infinity;
     }
 
     // Standalone <li> (from CSS bullet detection) — treat as a list item
@@ -185,7 +232,26 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       const merged = mergeAdjacentMarkers(inline.join("").trim());
       if (merged) {
-        out.push("- " + merged + "\n");
+        // Determine nesting depth from margin-left on the inner <p>.
+        // Items with margin-left significantly larger than the minimum are
+        // sub-bullets (e.g. "Thursdays" at margin-left 54pt under "Lectures"
+        // at margin-left 18pt).
+        let indent = lastWasOl ? "   " : "";
+        if (!indent) {
+          const innerP = node.querySelector("p");
+          if (innerP) {
+            const pStyle = innerP.getAttribute("style") || "";
+            const mlMatch = pStyle.match(/margin-left:\s*([\d.]+)pt/);
+            if (mlMatch) {
+              const ml = parseFloat(mlMatch[1]);
+              if (ml < minMarginLeft) minMarginLeft = ml;
+              if (minMarginLeft !== Infinity && ml > minMarginLeft + 5) {
+                indent = "   ";
+              }
+            }
+          }
+        }
+        out.push(indent + "- " + merged + "\n");
       }
       continue;
     }
@@ -213,21 +279,33 @@ function processBlockNodes(nodes, out) {
         if (allMono) {
           out.push(merged + "\n\n");
         } else {
-          // Escape # at start of lines so PPTX text like "# Print using..."
-          // is preserved as literal text. Skip lines starting with backticks
-          // (monospace code) since # inside code blocks should not be escaped.
-          merged = merged
-            .split("\n")
-            .map((line) => (/^`/.test(line.trim()) ? line : line.replace(/^#/gm, "\\#")))
-            .join("\n");
-          // Detect headings by font size — use ## for heading-sized text
-          // but only if the text is short enough to be a heading
+          // Detect headings by font size — use band-specific heading level
+          // but only if the text is short enough to be a heading. This must
+          // run on the *un-escaped* text, because # literals below are
+          // escaped and would otherwise leak a backslash into the heading.
           const fontSize = getLargestFontSize(node);
-          if (fontSize >= HEADING_THRESHOLD && merged.trim().length <= 80) {
-            out.push(`## ${merged.trim()}\n\n`);
-          } else {
-            out.push(merged + "\n\n");
+          const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
+          if (headingBand && merged.trim().length <= 80) {
+            out.push(`${headingBand.prefix}${merged.trim()}\n\n`);
+            continue;
           }
+          // Escape # at start of lines so PPTX text like "# Print using..."
+          // is preserved as literal text. Skip lines inside fenced code blocks
+          // and lines starting with backticks (inline code).
+          const lines = merged.split("\n");
+          let inCodeBlock = false;
+          merged = lines
+            .map((line) => {
+              const t = line.trim();
+              if (t === "```") {
+                inCodeBlock = !inCodeBlock;
+                return line;
+              }
+              if (inCodeBlock || /^`/.test(t)) return line;
+              return line.replace(/^#/gm, "\\#");
+            })
+            .join("\n");
+          out.push(merged + "\n\n");
         }
       }
       continue;
@@ -248,13 +326,62 @@ function processBlockNodes(nodes, out) {
 }
 
 /**
+ * Convert a 1-based index to a lowercase alphabetic marker, Excel-style
+ * (1 -> a, 26 -> z, 27 -> aa). Used for nested ordered-list items.
+ * @param {number} n
+ * @returns {string}
+ */
+function toLetter(n) {
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(97 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/**
  * Process a list element and its children with proper indentation.
+ *
+ * Counters are shared across the whole text box so that adjacent lists of the
+ * same type (which PowerPoint often splits into separate <ol>/<ul> blocks)
+ * continue numbering instead of restarting. A list only resets its own depth
+ * counter when `reset` is true — true for genuine sub-lists nested inside an
+ * <li> (each parent item gets its own 1/a sequence) and for the first list of
+ * a type, but false when this list is a continuation of a preceding sibling.
+ *
  * @param {Element} listNode
  * @param {number} depth
  * @param {string[]} out
+ * @param {Record<number, number>} counters
+ * @param {{ reset?: boolean }} [opts]
  */
-function processList(listNode, depth, out) {
+function processList(listNode, depth, out, counters, { reset = true } = {}) {
+  if (!counters) counters = {};
+  const isOrdered = listNode.tagName === "OL";
+  if (reset || counters[depth] === undefined) {
+    // Honour the HTML start attribute (e.g. <ol start="5">) so lists that
+    // begin mid-sequence render with the correct first number. Only apply
+    // when the attribute is actually present — omitting it means default 1.
+    const rawStart = isOrdered ? listNode.getAttribute?.("start") : null;
+    const start = rawStart != null && isFinite(Number(rawStart)) ? Number(rawStart) : 1;
+    counters[depth] = start - 1;
+  }
+
+  // Track the last emitted list item so a nested list that appears as a
+  // direct child of this list (PowerPoint emits <ol> as a sibling of <li>,
+  // not wrapped inside the <li>) is attached to the preceding item. Such a
+  // nested list continues the parent's sequence, so it is not reset.
+  let lastItemPushed = false;
+
   for (const child of listNode.children) {
+    if (child.tagName === "UL" || child.tagName === "OL") {
+      if (lastItemPushed) {
+        processList(child, depth + 1, out, counters, { reset: false });
+      }
+      continue;
+    }
     if (child.tagName !== "LI") continue;
 
     const inline = [];
@@ -268,10 +395,19 @@ function processList(listNode, depth, out) {
     }
     const merged = mergeAdjacentMarkers(inline.join("").trim());
     if (merged) {
-      out.push("  ".repeat(depth) + "- " + merged + "\n");
+      if (isOrdered) {
+        counters[depth]++;
+        // Top-level ordered lists use numbers; nested ordered lists use
+        // letters (a., b., c.) to match PowerPoint's outline convention.
+        const marker = depth === 0 ? `${counters[depth]}.` : `${toLetter(counters[depth])}.`;
+        out.push("  ".repeat(depth) + marker + " " + merged + "\n");
+      } else {
+        out.push("  ".repeat(depth) + "- " + merged + "\n");
+      }
+      lastItemPushed = true;
     }
     for (const nl of nestedLists) {
-      processList(nl, depth + 1, out);
+      processList(nl, depth + 1, out, counters, { reset: true });
     }
   }
 }
@@ -297,9 +433,10 @@ function processInlineNodes(nodes, out) {
       const raw = inner.join("");
       const trimmed = raw.trim();
       if (trimmed) {
-        out.push("**" + trimmed + "**");
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
+        out.push("**" + trimmed + "**" + suffix);
       } else if (raw) {
-        // Preserve whitespace-only spans as a single space
         out.push(" ");
       } else {
         out.push(raw);
@@ -313,9 +450,10 @@ function processInlineNodes(nodes, out) {
       const raw = inner.join("");
       const trimmed = raw.trim();
       if (trimmed) {
-        out.push("*" + trimmed + "*");
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
+        out.push("*" + trimmed + "*" + suffix);
       } else if (raw) {
-        // Preserve whitespace-only spans as a single space
         out.push(" ");
       } else {
         out.push(raw);
@@ -339,16 +477,22 @@ function processInlineNodes(nodes, out) {
 
       if (trimmed) {
         let text = isMono ? raw : trimmed;
+        // Preserve trailing space outside the markers for proper spacing
+        const suffix = raw.endsWith(" ") && !trimmed.endsWith(" ") ? " " : "";
         if (isMono) {
-          // Monospace text — use backticks, skip bold/italic markers
-          text = "`" + text.replace(/`/g, "\\`") + "`";
+          // Monospace text — use double backticks if text contains backtick
+          if (text.includes("`")) {
+            text = "`` " + text + " ``";
+          } else {
+            text = "`" + text + "`";
+          }
           out.push(text);
         } else if (isBold && isItalic) {
-          out.push("***" + trimmed + "***");
+          out.push("***" + trimmed + "***" + suffix);
         } else if (isBold) {
-          out.push("**" + trimmed + "**");
+          out.push("**" + trimmed + "**" + suffix);
         } else if (isItalic) {
-          out.push("*" + trimmed + "*");
+          out.push("*" + trimmed + "*" + suffix);
         } else {
           // Plain text span — preserve original spacing
           out.push(raw);
