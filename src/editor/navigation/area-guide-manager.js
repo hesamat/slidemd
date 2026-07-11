@@ -98,7 +98,7 @@ export class AreaGuideManager {
 
       // Nudge header/footer labels left to avoid overlapping the full-height area's label
       if (fullHeightArea && name !== fullHeightArea && name !== "main") {
-        label.style.right = "46px";
+        label.style.right = "90px";
       } else {
         label.style.right = "";
       }
