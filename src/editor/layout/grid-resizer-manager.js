@@ -60,46 +60,11 @@ export class GridResizerManager {
     slideEl.querySelectorAll(".grid-resize-handle").forEach((h) => {
       h.style.display = this._gridResizerVisible ? "" : "none";
     });
+    slideEl.classList.toggle("grid-visible", this._gridResizerVisible);
     this._updateAdjustColumnsToggleUI();
-
-    this.updateAdjustColumnsState(layoutInfo);
-  }
-
-  /**
-   * Enable or disable the "Adjust Columns" menu item based on whether
-   * the current slide has multiple column tracks.
-   */
-  updateAdjustColumnsState(layoutInfo) {
-    const btn = this._adjustColumnsMenuItem;
-    if (!btn) return;
-
-    // Count top-level column tokens in the grid-template-columns value,
-    // skipping nested parenthesized groups (e.g. repeat(2, 1fr)).
-    const colStr = layoutInfo?.gridTemplateColumns || "1fr";
-    let depth = 0;
-    let count = 0;
-    let hasToken = false;
-    for (const ch of colStr) {
-      if (ch === "(") depth++;
-      else if (ch === ")") depth--;
-      else if (ch === " " && depth === 0) {
-        if (hasToken) count++;
-        hasToken = false;
-      } else {
-        hasToken = true;
-      }
-    }
-    if (hasToken) count++;
-
-    const multiColumn = count >= 2;
-    btn.disabled = !multiColumn;
-    btn.title = multiColumn ? "Toggle column resize handles" : "Multiple columns required";
   }
 
   toggle() {
-    const btn = this._adjustColumnsMenuItem;
-    if (btn && btn.disabled) return;
-
     this._gridResizerVisible = !this._gridResizerVisible;
 
     const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
@@ -107,6 +72,7 @@ export class GridResizerManager {
       slideEl.querySelectorAll(".grid-resize-handle").forEach((h) => {
         h.style.display = this._gridResizerVisible ? "" : "none";
       });
+      slideEl.classList.toggle("grid-visible", this._gridResizerVisible);
     }
 
     this._updateAdjustColumnsToggleUI();

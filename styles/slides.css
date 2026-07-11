@@ -136,7 +136,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   padding: 10px;
 }
 
-body[data-edit-mode="true"] .slide__area {
+body[data-edit-mode="true"] .slide.grid-visible .slide__area {
   outline: 3px dashed rgba(2, 132, 199, 0.5);
   outline-offset: -3px;
 }
