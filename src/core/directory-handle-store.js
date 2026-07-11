@@ -129,9 +129,6 @@ export class DirectoryHandleStore {
         }
       }
 
-      // Clean up stale legacy keys in the background (non-blocking)
-      this.clearLegacy().catch(() => {});
-
       return result;
     } catch (err) {
       console.warn("DirectoryHandleStore.load failed:", err);
@@ -145,51 +142,6 @@ export class DirectoryHandleStore {
    * @param {string} [fileName] Deck file name to clear.
    * @returns {Promise<void>}
    */
-  /**
-   * Remove the legacy static keys (`images_dir` / `images_dir_mode`) that
-   * pre-date per-file-name keying. Safe to call even if they don't exist.
-   * @static
-   * @returns {Promise<void>}
-   */
-  static async clearLegacy() {
-    try {
-      const db = await this.openDb();
-      const legacyKeys = [];
-      // Collect all keys so we can remove old .md-suffixed ones
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readonly");
-        const req = tx.objectStore(this.STORE).openKeyCursor();
-        req.onsuccess = () => {
-          const cursor = req.result;
-          if (cursor) {
-            const key = cursor.key;
-            if (
-              key === "images_dir" ||
-              key === "images_dir_mode" ||
-              /images_dir(_mode)?:.*\.md$/i.test(key)
-            ) {
-              legacyKeys.push(key);
-            }
-            cursor.continue();
-          }
-        };
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      if (legacyKeys.length === 0) return;
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readwrite");
-        for (const key of legacyKeys) {
-          tx.objectStore(this.STORE).delete(key);
-        }
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch {
-      // ignore
-    }
-  }
-
   static async clear(fileName) {
     try {
       const { handleKey, modeKey } = this.keysFor(fileName);

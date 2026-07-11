@@ -91,6 +91,9 @@ export class PptxExtractor {
 
     // Extract ordered list start values from raw PPTX XML before pptxtojson
     // drops them from the generated HTML.
+    // NOTE: This calls JSZip.loadAsync separately from pptxtojson.parse(),
+    // so the ZIP is parsed twice. This is unavoidable because pptxtojson
+    // only accepts ArrayBuffer and drops <ol start="X"> attributes.
     const olStartValues = await this.#extractOlStartValues(buffer);
 
     const images = [];

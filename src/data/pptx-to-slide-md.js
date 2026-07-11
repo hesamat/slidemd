@@ -803,6 +803,39 @@ function hexToLuminance(hex) {
   );
 }
 
+/**
+ * Whitelist-safe CSS color sanitizer for untrusted PPTX fill colors.
+ * Allows only hex colors, rgb()/rgba(), and named keyword colors that
+ * are known-safe (transparent, white, black, etc.).
+ * Returns "transparent" for anything that doesn't match.
+ *
+ * @param {string} color
+ * @returns {string}
+ */
+function sanitizeCssColor(color) {
+  if (!color || typeof color !== "string") return "transparent";
+  const trimmed = color.trim();
+  // Named keywords we allow (non-exhaustive, safe list)
+  const SAFE_KEYWORDS =
+    /^(?:transparent|white|black|red|green|blue|yellow|gray|grey|orange|purple|pink|brown|cyan|magenta)$/i;
+  if (SAFE_KEYWORDS.test(trimmed)) return trimmed;
+  // Hex color: #RGB, #RRGGBB, #RRGGBBAA
+  if (/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3}([0-9a-fA-F]{2})?)?$/.test(trimmed)) return trimmed;
+  // rgb()/rgba() with comma-separated or space-separated values
+  if (
+    /^rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$/i.test(
+      trimmed,
+    )
+  )
+    return trimmed;
+  // rgb()/rgba() with space-separated values and optional alpha (e.g. rgb(255 0 0 / 0.5))
+  if (
+    /^rgba?\s*\(\s*\d{1,3}\s+[\d.]+%?\s+[\d.]+%?\s*(?:\/\s*(?:0|1|0?\.\d+)%?\s*)?\)$/i.test(trimmed)
+  )
+    return trimmed;
+  return "transparent";
+}
+
 function isColorDark(colorHex) {
   if (!colorHex) return false;
 
@@ -919,10 +952,10 @@ function formatTable(table, slideWidth, slideHeight) {
     for (const row of table.rows) {
       for (const cell of row) {
         const text = escapeHtml(stripHtml(cell.text || "").trim());
-        const bg = cell.fillColor || "transparent";
+        const bg = sanitizeCssColor(cell.fillColor);
         const isDarkBg = isColorDark(bg);
         cells.push(
-          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${escapeHtml(bg)}">${text}</div>`,
+          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${bg}">${text}</div>`,
         );
       }
     }
