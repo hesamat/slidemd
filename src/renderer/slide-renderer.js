@@ -133,6 +133,10 @@ export class SlideRenderer {
         this._applyAreaStyle(area, areaStyle);
       }
 
+      // Footer spans full width when full-height areas exist
+      if (fullHeightAreas.size > 0 && name === "footer") {
+        area.style.gridColumn = "1 / -1";
+      }
       // Full-height areas touch the right slide border
       if (fullHeightAreas.has(name)) {
         area.style.paddingRight = "0";

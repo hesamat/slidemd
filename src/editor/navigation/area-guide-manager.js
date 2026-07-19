@@ -112,7 +112,14 @@ export class AreaGuideManager {
       }
 
       // Nudge header/footer labels left to avoid overlapping the full-height area's label
-      if (fullHeightAreas.size > 0 && !fullHeightAreas.has(name) && name !== "main") {
+      // Nudge header labels left to avoid overlapping the full-height area's label.
+      // Footer spans full width so no nudge needed.
+      if (
+        fullHeightAreas.size > 0 &&
+        !fullHeightAreas.has(name) &&
+        name !== "main" &&
+        name !== "footer"
+      ) {
         label.style.right = "90px";
       } else {
         label.style.right = "";
