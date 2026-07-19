@@ -108,6 +108,10 @@ export class SlideRenderer {
       }
     }
 
+    if (fullHeightAreas.size > 0) {
+      grid.classList.add("slide__grid--full-height");
+    }
+
     names.forEach((name) => {
       const isAliasTitle = name === "title" && !layoutAreaNames.has("title");
       const isAliasHeader = name === "header" && layoutAreaNames.has("title");

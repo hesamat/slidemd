@@ -187,6 +187,10 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   height: 3px;
 }
 
+.slide__grid--full-height .slide__area--header::after {
+  width: 90%;
+}
+
 .slide__area--header:empty {
   display: none;
 }
