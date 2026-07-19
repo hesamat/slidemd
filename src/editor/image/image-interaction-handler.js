@@ -823,8 +823,13 @@ export class ImageInteractionHandler {
     const areaRect = area.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
 
-    const areaWidthDesign = areaRect.width / scale;
-    const areaHeightDesign = areaRect.height / scale;
+    // getBoundingClientRect() returns the border box; subtract padding to
+    // get the content-box dimensions the image is actually positioned within.
+    const cs = getComputedStyle(area);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const areaWidthDesign = (areaRect.width - padX) / scale;
+    const areaHeightDesign = (areaRect.height - padY) / scale;
     const ratio =
       (img.naturalWidth || imgRect.width || 1) / (img.naturalHeight || imgRect.height || 1);
     const width = Math.min(areaWidthDesign, areaHeightDesign * ratio);
