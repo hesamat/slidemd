@@ -133,10 +133,6 @@ export class SlideRenderer {
         this._applyAreaStyle(area, areaStyle);
       }
 
-      // Full-height areas exist: header/footer span all columns
-      if (fullHeightAreas.size > 0 && (name === "header" || name === "footer")) {
-        area.style.gridColumn = "1 / -1";
-      }
       // Full-height areas touch the right slide border
       if (fullHeightAreas.has(name)) {
         area.style.paddingRight = "0";
