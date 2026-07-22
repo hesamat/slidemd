@@ -589,7 +589,10 @@ export class EditController {
       const imgs = areaEl.querySelectorAll("img");
       console.log("[fit] imgs found:", imgs.length);
       if (imgs.length !== 1) return;
-      const textContent = areaEl.textContent.trim();
+      // Check for real content, ignoring the editor area-label overlay
+      const clone = areaEl.cloneNode(true);
+      clone.querySelectorAll(".editor-area-label").forEach((el) => el.remove());
+      const textContent = clone.textContent.trim();
       console.log("[fit] textContent:", JSON.stringify(textContent));
       if (textContent) return;
       const img = imgs[0];
