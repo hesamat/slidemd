@@ -187,6 +187,7 @@ export class SlidePreviewUpdater {
             if (this._pendingReadyCallback) {
               const cb = this._pendingReadyCallback;
               this._pendingReadyCallback = null;
+              console.log("[preview] onReadyOnce callback firing");
               cb(newSlideEl);
             }
           });
