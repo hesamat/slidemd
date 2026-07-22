@@ -45,6 +45,7 @@ export class SlidePreviewUpdater {
     this._getThumbnails = getThumbnails;
     this._getAreaGuides = getAreaGuides;
     this._getGridResizer = getGridResizer;
+    this._pendingReadyCallback = null;
   }
 
   get markdownEditor() {
@@ -67,6 +68,14 @@ export class SlidePreviewUpdater {
   }
   get gridResizer() {
     return this._getGridResizer();
+  }
+
+  /**
+   * Register a one-shot callback to run after the next preview update
+   * finishes attaching overlays (image handlers, area guides, etc.).
+   */
+  onReadyOnce(callback) {
+    this._pendingReadyCallback = callback;
   }
 
   async update() {
@@ -174,6 +183,11 @@ export class SlidePreviewUpdater {
             const grid = newSlideEl.querySelector(".slide__grid");
             if (grid) {
               ImageInteractionHandler.activate(grid);
+            }
+            if (this._pendingReadyCallback) {
+              const cb = this._pendingReadyCallback;
+              this._pendingReadyCallback = null;
+              cb(newSlideEl);
             }
           });
         };

@@ -579,6 +579,20 @@ export class EditController {
     const markdown = this.markdownEditor.getValue();
     const updated = makeAreaFullHeight(markdown, areaName);
     if (updated === markdown) return;
+
+    // After the preview re-renders, auto-fit any image that is the sole
+    // content of the target area (e.g. @media with just an <img>).
+    this.previewUpdater.onReadyOnce((slideEl) => {
+      const areaEl = slideEl.querySelector(`.slide__area--${areaName}`);
+      if (!areaEl) return;
+      const imgs = areaEl.querySelectorAll("img");
+      if (imgs.length !== 1) return;
+      const textContent = areaEl.textContent.trim();
+      if (textContent) return;
+      ImageInteractionHandler._selectedImg = imgs[0];
+      ImageInteractionHandler.fitToWidth();
+    });
+
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

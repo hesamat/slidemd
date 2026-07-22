@@ -29,7 +29,7 @@ export class GridResizerManager {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._getSlideElementByIndex = getSlideElementByIndex;
-    this._gridResizerVisible = false;
+    this._gridResizerVisible = true;
   }
 
   get markdownEditor() {
