@@ -583,29 +583,23 @@ export class EditController {
     // After the preview re-renders, auto-fit any image that is the sole
     // content of the target area (e.g. @media with just an <img>).
     this.previewUpdater.onReadyOnce((slideEl) => {
-      console.log("[fit] onReadyOnce fired, areaName=", areaName);
       const areaEl = slideEl.querySelector(`.slide__area--${areaName}`);
-      if (!areaEl) { console.log("[fit] area not found"); return; }
+      if (!areaEl) return;
       const imgs = areaEl.querySelectorAll("img");
-      console.log("[fit] imgs found:", imgs.length);
       if (imgs.length !== 1) return;
       // Check for real content, ignoring the editor area-label overlay
       const clone = areaEl.cloneNode(true);
       clone.querySelectorAll(".editor-area-label").forEach((el) => el.remove());
       const textContent = clone.textContent.trim();
-      console.log("[fit] textContent:", JSON.stringify(textContent));
       if (textContent) return;
       const img = imgs[0];
       const fit = () => {
-        console.log("[fit] fitting img, natural:", img.naturalWidth, img.naturalHeight);
         ImageInteractionHandler._selectedImg = img;
         ImageInteractionHandler.fitToWidth();
       };
       if (img.complete && img.naturalWidth > 0) {
-        console.log("[fit] image already loaded");
         fit();
       } else {
-        console.log("[fit] waiting for image load, complete:", img.complete);
         img.addEventListener("load", fit, { once: true });
       }
     });
