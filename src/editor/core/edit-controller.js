@@ -589,8 +589,16 @@ export class EditController {
       if (imgs.length !== 1) return;
       const textContent = areaEl.textContent.trim();
       if (textContent) return;
-      ImageInteractionHandler._selectedImg = imgs[0];
-      ImageInteractionHandler.fitToWidth();
+      const img = imgs[0];
+      const fit = () => {
+        ImageInteractionHandler._selectedImg = img;
+        ImageInteractionHandler.fitToWidth();
+      };
+      if (img.complete && img.naturalWidth > 0) {
+        fit();
+      } else {
+        img.addEventListener("load", fit, { once: true });
+      }
     });
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
