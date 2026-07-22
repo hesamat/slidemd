@@ -15,6 +15,7 @@ const LAYOUT = {
   TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
+  MEDIA_SPAN: { type: "media-span", spec: "media-span" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },
 };
 
@@ -376,6 +377,29 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
   }
 
+  // --- MEDIA-SPAN UPGRADE ---
+  // If we have a two-column layout and the right column contains exactly one
+  // image, upgrade to media-span so the image spans the full slide height.
+  if (layout.type === LAYOUT.TWO_COLUMN.type) {
+    const { header, bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
+    const midX = slideWidth / 2;
+    const centerTol = slideWidth * CONFIG.centerToleranceRatio;
+    const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
+
+    const rightEls = bodyElements.filter((el) => {
+      if (isCentered(el)) return false;
+      if (header && el === header) return false;
+      return (el.left || 0) + (el.width || 0) / 2 >= midX;
+    });
+
+    const singleImageOnRight =
+      rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64;
+
+    if (singleImageOnRight) {
+      layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
+    }
+  }
+
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
@@ -444,6 +468,35 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
     parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+  } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const { header, isHeaderValid, bodyElements } = extractHeader(
+      textElements,
+      allElements,
+      slideHeight,
+      false,
+    );
+    parts.push("");
+    if (isHeaderValid) {
+      parts.push(MARKDOWN_TAGS.HEADER);
+      parts.push("");
+      parts.push(formatTextElement(header.content));
+      parts.push("");
+    }
+    const midX = slideWidth / 2;
+    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    const mediaImage = rightEls.find((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MEDIA);
+    parts.push("");
+    parts.push(
+      mediaImage
+        ? formatImage(mediaImage, deckName, { fitColumn: true })
+        : rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE),
+    );
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
@@ -908,22 +961,28 @@ function formatTextElement(raw) {
   return result.join("\n").replace(REGEX.TRIPLE_NEWLINE_OR_MORE, REGEX.DOUBLE_NEWLINE).trim();
 }
 
-function formatImage(img, _deckName = DEFAULTS.DECK_NAME, { omitDimensions = false } = {}) {
+function formatImage(
+  img,
+  _deckName = DEFAULTS.DECK_NAME,
+  { omitDimensions = false, fitColumn = false } = {},
+) {
   const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
   const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
 
   const src = img.blob || `${DEFAULTS.IMAGE_SUBDIR}${filename}`;
   const altText = filename.replace(REGEX.FILE_EXTENSION, "").replace(REGEX.HYPHEN_UNDERSCORE, " ");
 
+  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
+
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
     const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
     const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
     if (w && h) {
-      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}">`;
+      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
     }
   }
-  return `<img src="${src}" alt="${altText}">`;
+  return `<img src="${src}" alt="${altText}"${style}>`;
 }
 
 function isFirstRowHeader(rows) {

@@ -82,6 +82,7 @@ Use `---` to separate slides. Define the layout first, then place content with `
 | `header-content` | `@header` `@main` `@footer`                       |
 | `title-slide`    | `@title`                                          |
 | `two-column`     | `@header` `@main` `@media` `@footer`              |
+| `media-span`     | `@header` `@main` `@media` `@footer`              |
 | `left-heavy`     | `@header` `@main` `@media` `@footer`              |
 | `right-heavy`    | `@header` `@main` `@media` `@footer`              |
 | `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |

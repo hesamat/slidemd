@@ -179,10 +179,7 @@ export class LayoutPicker {
 
         // Each row definition needs a height
         const rowsWithHeights = rowDefinitions
-          .map(
-            (rowDef) =>
-              `${rowDef} ${rowDef.includes("main") || rowDef.includes("media") ? "2fr" : "1fr"}`,
-          )
+          .map((rowDef) => `${rowDef} ${rowDef.includes("main") ? "2fr" : "1fr"}`)
           .join(" ");
         return `grid: ${rowsWithHeights} / ${cols};`;
       }

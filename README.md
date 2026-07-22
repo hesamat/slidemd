@@ -72,6 +72,7 @@ Use preset names instead of full CSS grid strings:
 - `title-slide` - Full-screen centered content
 - `header-content` - Header, content, footer stacked
 - `two-column` - Two equal columns with optional header and footer
+- `media-span` - Two columns with media spanning full height (1.2:0.8)
 - `left-heavy` - Two columns with left side larger (2:1)
 - `right-heavy` - Two columns with right side larger (1:2)
 - `three-column` - Three equal columns

@@ -169,6 +169,17 @@ export class ImageInteractionHandler {
         start: (e) => {
           const img = e.target.closest("img");
           if (img) {
+            // For markdown-rendered images (no position style yet), apply
+            // the positioning styles directly to the DOM element BEFORE
+            // calling select().  This lets select() see that the image is
+            // already an "HTML" image and skip _convertMdImgToHtml(), which
+            // would write markdown mid-drag and disrupt the interact.js
+            // session.  The markdown write is deferred to _syncToMarkdown()
+            // at drag end.
+            if (!img.style.position) {
+              this._prepareMdImgForDrag(img);
+              img.classList.add("img-positioned");
+            }
             this.select(img);
             const sourceArea = img.closest(".slide__area");
             this._dragSourceArea = sourceArea?.dataset.areaName || null;
@@ -446,7 +457,10 @@ export class ImageInteractionHandler {
     const el = document.elementFromPoint(clientX, clientY);
     if (img) img.style.pointerEvents = "";
     const area = el?.closest?.(".slide__area");
-    const targetName = area?.dataset.areaName || null;
+    const rawName = area?.dataset.areaName || null;
+    // Only allow content columns as drop targets — reject header / footer
+    const REJECTED_AREAS = ["header", "footer"];
+    const targetName = rawName && !REJECTED_AREAS.includes(rawName) ? rawName : null;
 
     if (targetName !== this._dragTargetArea) {
       this._clearDropTargetHighlight();
@@ -584,6 +598,74 @@ export class ImageInteractionHandler {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  /**
+   * Compute and apply inline positioning styles to a markdown-rendered
+   * image **without** writing markdown.  Used by the drag-start handler
+   * so that the interact.js drag session is not disrupted by a
+   * CodeMirror transaction mid-drag.
+   */
+  static _prepareMdImgForDrag(img) {
+    const md = this._getMarkdown?.();
+    if (!md) return;
+
+    const entries = this._findAllImages(md);
+    const idx = this._getImageIndex(img);
+    if (idx < 0 || idx >= entries.length) return;
+
+    const entry = entries[idx];
+
+    const area = img.closest(".slide__area");
+    let areaW = 1920;
+    let areaH = 1080;
+    let visualCenterX = areaW / 2;
+    let visualCenterY = areaH / 2;
+    const scale = this._getStageScale();
+    if (area) {
+      const areaRect = area.getBoundingClientRect();
+      areaW = Math.max(1, areaRect.width / scale);
+      areaH = Math.max(1, areaRect.height / scale);
+      const imgRect = img.getBoundingClientRect();
+      visualCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
+      visualCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
+    }
+
+    const isExistingHtmlImg =
+      entry.type === "html" && img.getAttribute("width") && img.getAttribute("height");
+    let natW;
+    let natH;
+    if (isExistingHtmlImg) {
+      natW = parseInt(img.getAttribute("width"), 10) || img.offsetWidth || 320;
+      natH = parseInt(img.getAttribute("height"), 10) || img.offsetHeight || 240;
+    } else {
+      natW = img.naturalWidth || img.offsetWidth || 320;
+      natH = img.naturalHeight || img.offsetHeight || 240;
+    }
+    let w = natW;
+    let h = natH;
+    if (w > areaW) {
+      w = areaW;
+      h = Math.round((w * natH) / natW);
+    }
+    if (h > areaH) {
+      h = areaH;
+      w = Math.round((h * natW) / natH);
+    }
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+
+    const left = isExistingHtmlImg ? 0 : Math.round(visualCenterX - w / 2);
+    const top = isExistingHtmlImg ? 0 : Math.round(visualCenterY - h / 2);
+
+    img.style.position = "relative";
+    img.style.left = `${left}px`;
+    img.style.top = `${top}px`;
+    img.style.width = `${w}px`;
+    img.style.height = `${h}px`;
+    img.style.border = "none";
+    img.style.objectFit = "contain";
+    img.style.cursor = "move";
+  }
 
   static _convertMdImgToHtml(img) {
     const md = this._getMarkdown?.();
