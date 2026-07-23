@@ -5,8 +5,8 @@
  * Works directly on <img> elements with a selection overlay.
  * No wrappers — the overlay tracks the image's position/size.
  */
-import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
+import { ImageDragController } from "./image-drag-controller.js";
 import {
   parseAllImages,
   getImageOrdinalIndex,
@@ -37,18 +37,8 @@ export class ImageInteractionHandler {
   static _onDelete = null;
   static _onMoveArea = null;
   static _overlay = null;
-  static _resizeState = null;
   static _pendingSelectSrc = null;
   static _aspectLocked = true;
-  static _dragSourceArea = null;
-  static _dragTargetArea = null;
-  static _dragStartX = 0;
-  static _dragStartY = 0;
-  static _dragSnapped = false;
-  static _dropInsertBeforeEl = null;
-  static _dragStartInsertBefore = null;
-  static _dropTargetAreaEl = null;
-  static _dropIndicator = null;
 
   static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
     if (this._initialized) return;
@@ -81,11 +71,23 @@ export class ImageInteractionHandler {
   static activate(slideContainer) {
     this._slideContainer = slideContainer;
     this._createOverlay(slideContainer);
-    this._setupDraggable(slideContainer);
-    this._setupResizeHandles();
+    ImageDragController.activate(slideContainer, {
+      getSelectedImg: () => this._selectedImg,
+      select: (img) => this.select(img),
+      updateOverlay: () => this._updateOverlay(),
+      syncToMarkdown: () => this._syncToMarkdown(),
+      prepareMdImgForDrag: (img) => this._prepareMdImgForDrag(img),
+      buildMoveMarkdownAtPosition: (img, from, to, slot) =>
+        this._buildMoveMarkdownAtPosition(img, from, to, slot),
+      reorderImageInMarkdown: (img, slot) => this._reorderImageInMarkdown(img, slot),
+      findInsertBeforeSlot: (areaEl, ref, y) => this._findInsertBeforeSlot(areaEl, ref, y),
+      getMarkdown: () => this._getMarkdown?.(),
+      setMarkdown: (md) => this._setMarkdown?.(md),
+      onMoveArea: (md) => this._onMoveArea?.(md),
+      getOverlay: () => this._overlay,
+      isAspectLocked: () => this._aspectLocked,
+    });
 
-    // If an image was already selected (e.g., clicked before activate ran),
-    // position the overlay on it now that the overlay exists.
     if (this._selectedImg) {
       this._updateOverlay();
     }
@@ -93,9 +95,7 @@ export class ImageInteractionHandler {
 
   static deactivate() {
     this.deselect();
-    if (this._slideContainer) {
-      interact(".slide__area img", { context: this._slideContainer }).draggable(false);
-    }
+    ImageDragController.deactivate();
     this._removeOverlay();
     this._slideContainer = null;
   }
@@ -204,237 +204,6 @@ export class ImageInteractionHandler {
     return !!this._selectedImg;
   }
 
-  // ── Drag (via interact.js on the grid container) ─────────────────────────
-
-  static _setupDraggable(container) {
-    interact(".slide__area img", { context: container }).draggable({
-      listeners: {
-        start: (e) => {
-          const img = e.target.closest("img");
-          if (img) {
-            // If _selectedImg is stale (removed by a preview re-render),
-            // clear it so select() can start fresh with the new element.
-            if (this._selectedImg && !this._selectedImg.isConnected) {
-              this._selectedImg = null;
-            }
-
-            // For markdown-rendered images (no position style yet), apply
-            // the positioning styles directly to the DOM element BEFORE
-            // calling select().  This lets select() see that the image is
-            // already an "HTML" image and skip _convertMdImgToHtml(), which
-            // would write markdown mid-drag and disrupt the interact.js
-            // session.  The markdown write is deferred to _syncToMarkdown()
-            // at drag end.
-            if (!img.style.position) {
-              this._prepareMdImgForDrag(img);
-              img.classList.add("img-positioned");
-            }
-            this.select(img);
-            // Hide properties panel during drag — it would be in the wrong
-            // position and add visual clutter while the image is moving.
-            ImagePropertiesPanel.hide();
-            const sourceArea = img.closest(".slide__area");
-            this._dragSourceArea = sourceArea?.dataset.areaName || null;
-            this._dragTargetArea = null;
-            this._dragStartX = e.clientX;
-            this._dragStartY = e.clientY;
-            this._dragSnapped = false;
-
-            // Track which element the image is currently before (its "slot")
-            const areaEl = img.closest(".slide__area");
-            if (areaEl) {
-              const allElements = [...areaEl.children].filter(
-                (el) => el !== img && !el.classList.contains("image-drop-indicator"),
-              );
-              const cursorY = e.clientY;
-              let insertBefore = null;
-              for (const el of allElements) {
-                const rect = el.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                if (cursorY < midY) {
-                  insertBefore = el;
-                  break;
-                }
-              }
-              this._dragStartInsertBefore = insertBefore;
-            }
-          }
-        },
-        move: (e) => {
-          const img = this._selectedImg;
-          if (!img) return;
-
-          // Detect which area the cursor is over
-          this._updateDragTarget(e.clientX, e.clientY);
-
-          const targetArea = this._dragTargetArea;
-          const sourceArea = this._dragSourceArea;
-          const isCrossArea = targetArea && sourceArea && targetArea !== sourceArea;
-
-          if (isCrossArea) {
-            // Show gap in the target area at cursor position
-            const targetAreaEl = container.querySelector(
-              `.slide__area[data-area-name="${targetArea}"]`,
-            );
-            if (targetAreaEl) {
-              // Find which element to insert before in the target area
-              const allElements = [...targetAreaEl.children].filter(
-                (el) => !el.classList.contains("image-drop-indicator"),
-              );
-
-              let insertBefore = null;
-              const cursorY = e.clientY;
-              for (const el of allElements) {
-                const rect = el.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                if (cursorY < midY) {
-                  insertBefore = el;
-                  break;
-                }
-              }
-
-              this._showDropGap(targetAreaEl, insertBefore);
-              this._dropInsertBeforeEl = insertBefore;
-              this._dropTargetAreaEl = targetAreaEl;
-            }
-          } else if (!isCrossArea && this._dropTargetAreaEl) {
-            // Moved back to source area — clear the gap
-            this._hideDropGap();
-            this._dropTargetAreaEl = null;
-          }
-
-          // Within-area reorder: move image visually and track drop slot
-          const scale = getStageScale();
-          const dDesignX = e.dx / scale;
-          const dDesignY = e.dy / scale;
-
-          const curStyleLeft = parseFloat(img.style.left) || 0;
-          const curStyleTop = parseFloat(img.style.top) || 0;
-
-          img.style.left = `${curStyleLeft + dDesignX}px`;
-          img.style.top = `${curStyleTop + dDesignY}px`;
-
-          this._updateOverlay();
-
-          // If still in source area, track slot for within-area reorder
-          if (!isCrossArea) {
-            const areaEl = img.closest(".slide__area");
-            if (areaEl) {
-              const allElements = [...areaEl.children].filter(
-                (el) => el !== img && !el.classList.contains("image-drop-indicator"),
-              );
-
-              if (allElements.length > 0) {
-                const cursorY = e.clientY;
-                let insertBefore = null;
-
-                for (const el of allElements) {
-                  const rect = el.getBoundingClientRect();
-                  const midY = rect.top + rect.height / 2;
-                  if (cursorY < midY) {
-                    insertBefore = el;
-                    break;
-                  }
-                }
-
-                // Only update gap when slot changes
-                if (insertBefore !== this._dropInsertBeforeEl) {
-                  this._showDropGap(areaEl, insertBefore);
-                }
-                this._dropInsertBeforeEl = insertBefore;
-              }
-            }
-          }
-        },
-        end: (event) => {
-          this._clearDropTargetHighlight();
-
-          const img = this._selectedImg;
-          const fromArea = this._dragSourceArea;
-          const toArea = this._dragTargetArea;
-          const targetAreaEl = this._dropTargetAreaEl;
-
-          // Compute the current slot fresh from cursor Y at end, instead
-          // of using _dropInsertBeforeEl which is stale when no move
-          // happened.  Same logic as the start handler.
-          const currentAreaEl = img?.closest?.(".slide__area");
-          const currentSlot = currentAreaEl
-            ? this._findInsertBeforeSlot(currentAreaEl, img, event.clientY)
-            : null;
-
-          const isCrossArea = fromArea && toArea && fromArea !== toArea;
-
-          if (isCrossArea && targetAreaEl) {
-            // Cross-area drop: move image in DOM, then update markdown
-            const movedSrc = img?.dataset?.originalSrc || img?.getAttribute("src") || "";
-
-            if (currentSlot && currentSlot.parentNode === targetAreaEl) {
-              targetAreaEl.insertBefore(img, currentSlot);
-            } else {
-              targetAreaEl.appendChild(img);
-            }
-            img.style.left = "0px";
-            img.style.top = "0px";
-            // Delay overlay update so browser recalculates layout first
-            requestAnimationFrame(() => this._updateOverlay());
-            this._hideDropGap();
-
-            // Build markdown with image inserted at the target position
-            const newMd = this._buildMoveMarkdownAtPosition(img, fromArea, toArea, currentSlot);
-            if (newMd) {
-              if (this._onMoveArea) {
-                this._onMoveArea(newMd);
-              } else {
-                this._setMarkdown?.(newMd);
-              }
-              // Re-select the moved image by src after re-render
-              const targetName = toArea;
-              setTimeout(() => {
-                if (!movedSrc) return;
-                const imgs = this._slideContainer?.querySelectorAll(
-                  `.slide__area[data-area-name="${targetName}"] img`,
-                );
-                const match = Array.from(imgs || []).find((el) => {
-                  const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
-                  return elSrc === movedSrc;
-                });
-                if (match) this.select(match);
-              }, 400);
-            }
-          } else if (currentSlot !== null) {
-            // Within-area: check if the image actually moved to a different slot
-            this._hideDropGap();
-
-            if (currentSlot !== this._dragStartInsertBefore) {
-              // Image moved to a different slot — reorder + snap
-              this._reorderImageInMarkdown(img, currentSlot);
-            } else {
-              // Image stayed in the same slot — free positioning
-              this._syncToMarkdown();
-              if (img?.isConnected) {
-                this.select(img);
-              }
-            }
-          } else {
-            // No drop indicator — free positioning
-            this._hideDropGap();
-            this._syncToMarkdown();
-            if (img?.isConnected) {
-              this.select(img);
-            }
-          }
-
-          this._dragSourceArea = null;
-          this._dragTargetArea = null;
-          this._dragSnapped = false;
-          this._dragStartInsertBefore = null;
-          this._dropInsertBeforeEl = null;
-          this._dropTargetAreaEl = null;
-        },
-      },
-    });
-  }
-
   /**
    * Build the updated markdown for a cross-area image move.
    * Finds the image by src within the source area's content range
@@ -518,141 +287,7 @@ export class ImageInteractionHandler {
     return before + needsNewline + newTag + "\n" + after;
   }
 
-  // ── Resize (manual mouse events on overlay handles) ─────────────────────
-
-  static _setupResizeHandles() {
-    const overlay = this._overlay;
-    if (!overlay) return;
-
-    overlay.addEventListener("mousedown", (e) => {
-      const handle = e.target.closest("[data-edge]");
-      if (!handle) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      const img = this._selectedImg;
-      if (!img) return;
-
-      this._resizeState = {
-        edge: handle.dataset.edge,
-        startX: e.clientX,
-        startY: e.clientY,
-        startLeft: parseFloat(img.style.left) || 0,
-        startTop: parseFloat(img.style.top) || 0,
-        startW: img.offsetWidth,
-        startH: img.offsetHeight,
-        ratio: img.offsetWidth / (img.offsetHeight || 1),
-        shiftHeld: e.shiftKey,
-      };
-
-      const onMove = (ev) => {
-        const s = this._resizeState;
-        if (!s) return;
-
-        const dx = ev.clientX - s.startX;
-        const dy = ev.clientY - s.startY;
-        const scale = getStageScale();
-
-        const sdx = dx / scale;
-        const sdy = dy / scale;
-
-        let newLeft = s.startLeft;
-        let newTop = s.startTop;
-        let newW = s.startW;
-        let newH = s.startH;
-
-        const isCorner = s.edge.length > 4; // top-left, top-right, etc.
-        const lockRatio = this._aspectLocked || (ev.shiftKey && isCorner);
-
-        if (s.edge.includes("right")) newW = Math.max(50, s.startW + sdx);
-        if (s.edge.includes("left")) {
-          newW = Math.max(50, s.startW - sdx);
-          newLeft = s.startLeft + s.startW - newW;
-        }
-        if (s.edge.includes("bottom")) newH = Math.max(50, s.startH + sdy);
-        if (s.edge.includes("top")) {
-          newH = Math.max(50, s.startH - sdy);
-          newTop = s.startTop + s.startH - newH;
-        }
-
-        // Aspect-ratio lock: derive the unfixed dimension from the fixed one.
-        // For corner drags we let the dominant axis (the one with the larger
-        // mouse delta) drive; for edge drags we adjust the cross axis.
-        if (lockRatio && s.startH) {
-          if (isCorner) {
-            if (Math.abs(sdx) >= Math.abs(sdy)) {
-              newH = newW / s.ratio;
-            } else {
-              newW = newH * s.ratio;
-            }
-            // Re-anchor left/top for left/top edges after ratio adjust
-            if (s.edge.includes("left")) newLeft = s.startLeft + s.startW - newW;
-            if (s.edge.includes("top")) newTop = s.startTop + s.startH - newH;
-          } else if (s.edge === "left" || s.edge === "right") {
-            newH = newW / s.ratio;
-          } else if (s.edge === "top" || s.edge === "bottom") {
-            newW = newH * s.ratio;
-          }
-        }
-
-        img.style.left = `${Math.max(0, newLeft)}px`;
-        img.style.top = `${newTop}px`;
-        img.style.width = `${newW}px`;
-        img.style.height = `${newH}px`;
-
-        this._updateOverlay();
-        ImagePropertiesPanel._syncUI(readImageSettings(img));
-      };
-
-      const onUp = () => {
-        this._resizeState = null;
-        this._syncToMarkdown();
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-      };
-
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
-    });
-  }
-
   // ── Cross-area drag helpers ────────────────────────────────────────────────
-
-  /**
-   * Detect which .slide__area the cursor is over during a drag and
-   * toggle the drop-target highlight class.
-   */
-  static _updateDragTarget(clientX, clientY) {
-    const img = this._selectedImg;
-    // Temporarily hide the dragged image so elementFromPoint hits the area below
-    if (img) img.style.pointerEvents = "none";
-    const el = document.elementFromPoint(clientX, clientY);
-    if (img) img.style.pointerEvents = "";
-    const area = el?.closest?.(".slide__area");
-    const rawName = area?.dataset.areaName || null;
-    // Only allow content columns as drop targets — reject header / footer
-    const REJECTED_AREAS = ["header", "footer"];
-    const targetName = rawName && !REJECTED_AREAS.includes(rawName) ? rawName : null;
-
-    if (targetName !== this._dragTargetArea) {
-      this._clearDropTargetHighlight();
-      this._dragTargetArea = targetName;
-      if (area && targetName !== this._dragSourceArea) {
-        area.classList.add("slide__area--drop-target");
-      }
-    }
-  }
-
-  /**
-   * Remove the drop-target highlight from all areas.
-   */
-  static _clearDropTargetHighlight() {
-    if (!this._slideContainer) return;
-    this._slideContainer
-      .querySelectorAll(".slide__area--drop-target")
-      .forEach((el) => el.classList.remove("slide__area--drop-target"));
-  }
 
   /**
    * Find which child element in an area the cursor Y position falls
@@ -670,52 +305,6 @@ export class ImageInteractionHandler {
       if (clientY < midY) return el;
     }
     return null;
-  }
-
-  // ── Within-area reorder ────────────────────────────────────────────────────
-
-  /**
-   * Show a gap element in the area to indicate where the image will land.
-   * @param {HTMLElement} areaEl
-   * @param {HTMLElement|null} insertBeforeEl - Element to insert before, or null for end
-   */
-  static _showDropGap(areaEl, insertBeforeEl) {
-    const gap = this._dropIndicator;
-    if (gap) {
-      // Reuse existing gap element — just move it to the new position
-      if (insertBeforeEl && insertBeforeEl.parentNode) {
-        insertBeforeEl.parentNode.insertBefore(gap, insertBeforeEl);
-      } else {
-        areaEl.appendChild(gap);
-      }
-      return;
-    }
-
-    const newGap = document.createElement("div");
-    newGap.className = "image-drop-indicator";
-    newGap.style.height = "40px";
-    newGap.style.minHeight = "40px";
-    newGap.style.margin = "4px 0";
-    newGap.style.borderRadius = "8px";
-    newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
-    newGap.style.background = "rgba(2, 132, 199, 0.06)";
-    newGap.style.pointerEvents = "none";
-    newGap.style.flexShrink = "0";
-
-    if (insertBeforeEl) {
-      insertBeforeEl.parentNode.insertBefore(newGap, insertBeforeEl);
-    } else {
-      areaEl.appendChild(newGap);
-    }
-
-    this._dropIndicator = newGap;
-  }
-
-  static _hideDropGap() {
-    if (this._dropIndicator) {
-      this._dropIndicator.remove();
-      this._dropIndicator = null;
-    }
   }
 
   /**

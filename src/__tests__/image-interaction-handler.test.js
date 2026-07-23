@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
+import { ImageDragController } from "../editor/image/image-drag-controller.js";
 
 /**
  * Create a mock img element with a mock slide parent.
@@ -391,17 +392,17 @@ describe("ImageInteractionHandler", () => {
   describe("_hideDropGap", () => {
     it("removes the gap element from DOM", () => {
       const gap = { remove: vi.fn() };
-      ImageInteractionHandler._dropIndicator = gap;
+      ImageDragController._dropIndicator = gap;
 
-      ImageInteractionHandler._hideDropGap();
+      ImageDragController._hideDropGap();
 
       expect(gap.remove).toHaveBeenCalledTimes(1);
-      expect(ImageInteractionHandler._dropIndicator).toBeNull();
+      expect(ImageDragController._dropIndicator).toBeNull();
     });
 
     it("does nothing when no gap element exists", () => {
-      ImageInteractionHandler._dropIndicator = null;
-      expect(() => ImageInteractionHandler._hideDropGap()).not.toThrow();
+      ImageDragController._dropIndicator = null;
+      expect(() => ImageDragController._hideDropGap()).not.toThrow();
     });
   });
 });

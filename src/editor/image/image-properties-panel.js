@@ -92,8 +92,6 @@ export class ImagePropertiesPanel {
     return this.el && !this.el.classList.contains("webdeck-hidden");
   }
 
-
-
   /**
    * Compute the width of the containing .slide__area in design-space pixels.
    */
