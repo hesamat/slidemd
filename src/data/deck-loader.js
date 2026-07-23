@@ -94,6 +94,21 @@ export class DeckLoader {
   }
 
   /**
+   * In-memory cache for .smd images: relative path → blob URL.
+   * Populated when opening a .smd file, used by DeckImagesResolver.
+   * @static
+   * @type {Map<string, string>}
+   */
+  static smdImageCache = new Map();
+
+  /**
+   * Whether the currently loaded deck is in .smd format.
+   * @static
+   * @type {boolean}
+   */
+  static isSmdMode = false;
+
+  /**
    * Whether the browser supports the File System Access API.
    * @static
    * @type {boolean}
