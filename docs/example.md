@@ -32,7 +32,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="../public/icon.png" alt="SlideMD Icon" style="position: relative; left: 48px; top: 5px; width: 699px; height: 676px; border-radius: 19px; box-shadow: rgba(0, 0, 0, 0.35) 0px 6px 16px; border: none; object-fit: contain; cursor: move" />
+<img src="../public/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(0, 0, 0, 0.35) 0px 6px 16px; border: none; object-fit: contain; cursor: move" />
 
 ---
 

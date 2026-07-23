@@ -346,7 +346,8 @@ export class ImageInteractionHandler {
             }
             img.style.left = "0px";
             img.style.top = "0px";
-            this._updateOverlay();
+            // Delay overlay update so browser recalculates layout first
+            requestAnimationFrame(() => this._updateOverlay());
             this._hideDropGap();
 
             // Build markdown with image inserted at the target position
@@ -780,7 +781,8 @@ export class ImageInteractionHandler {
     }
     img.style.left = "0px";
     img.style.top = "0px";
-    this._updateOverlay();
+    // Delay overlay update so browser recalculates layout first
+    requestAnimationFrame(() => this._updateOverlay());
 
     if (this._onMoveArea) {
       this._onMoveArea(updated);
