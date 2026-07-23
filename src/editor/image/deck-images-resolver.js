@@ -18,10 +18,13 @@ export class DeckImagesResolver {
 
   /**
    * Set images from an .smd file for in-memory resolution.
+   * Does NOT revoke blob URLs — they are owned by DeckLoader.smdImageCache.
    * @param {Map<string, string>} imageMap - Map of relative paths to blob URLs
    */
   static setSmdImages(imageMap) {
-    this.clearCache();
+    // Clear internal state without revoking URLs (they're owned by smdImageCache)
+    this._cache.clear();
+    this._urls.clear();
     for (const [path, url] of imageMap) {
       this._urls.set(path, url);
     }
