@@ -27,6 +27,7 @@ export class ImageInteractionHandler {
   static _dragSnapped = false;
   static _dropInsertBeforeEl = null;
   static _dragStartInsertBefore = null;
+  static _dropTargetAreaEl = null;
 
   static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
     if (this._initialized) return;
@@ -245,36 +246,40 @@ export class ImageInteractionHandler {
           // Detect which area the cursor is over
           this._updateDragTarget(e.clientX, e.clientY);
 
-          // If already snapped, don't move the image further
-          if (this._dragSnapped) return;
-
           const targetArea = this._dragTargetArea;
           const sourceArea = this._dragSourceArea;
+          const isCrossArea = targetArea && sourceArea && targetArea !== sourceArea;
 
-          if (targetArea && sourceArea && targetArea !== sourceArea) {
-            // Check distance threshold from drag start
-            const dx = e.clientX - this._dragStartX;
-            const dy = e.clientY - this._dragStartY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > 25) {
-              // Snap: move the img element directly in the DOM for instant feedback
-              const targetAreaEl = container.querySelector(
-                `.slide__area[data-area-name="${targetArea}"]`,
+          if (isCrossArea) {
+            // Show gap in the target area at cursor position
+            const targetAreaEl = container.querySelector(
+              `.slide__area[data-area-name="${targetArea}"]`,
+            );
+            if (targetAreaEl) {
+              // Find which element to insert before in the target area
+              const allElements = [...targetAreaEl.children].filter(
+                (el) => !el.classList.contains("image-drop-indicator"),
               );
-              if (targetAreaEl) {
-                this._dragSnapped = true;
-                this._clearDropTargetHighlight();
 
-                // Move img in DOM — prepend to top so it's visible
-                // even if the target column already has content.
-                targetAreaEl.prepend(img);
-                img.style.left = "0px";
-                img.style.top = "0px";
-                this._updateOverlay();
+              let insertBefore = null;
+              const cursorY = e.clientY;
+              for (const el of allElements) {
+                const rect = el.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (cursorY < midY) {
+                  insertBefore = el;
+                  break;
+                }
               }
-              return;
+
+              this._showDropGap(targetAreaEl, insertBefore);
+              this._dropInsertBeforeEl = insertBefore;
+              this._dropTargetAreaEl = targetAreaEl;
             }
+          } else if (!isCrossArea && this._dropTargetAreaEl) {
+            // Moved back to source area — clear the gap
+            this._hideDropGap();
+            this._dropTargetAreaEl = null;
           }
 
           // Within-area reorder: move image visually and track drop slot
@@ -290,88 +295,100 @@ export class ImageInteractionHandler {
 
           this._updateOverlay();
 
-          // Track which element the cursor is over and show a gap
-          const areaEl = img.closest(".slide__area");
-          if (areaEl) {
-            const allElements = [...areaEl.children].filter(
-              (el) => el !== img && !el.classList.contains("image-drop-indicator"),
-            );
+          // If still in source area, track slot for within-area reorder
+          if (!isCrossArea) {
+            const areaEl = img.closest(".slide__area");
+            if (areaEl) {
+              const allElements = [...areaEl.children].filter(
+                (el) => el !== img && !el.classList.contains("image-drop-indicator"),
+              );
 
-            if (allElements.length > 0) {
-              const cursorY = e.clientY;
-              let insertBefore = null;
+              if (allElements.length > 0) {
+                const cursorY = e.clientY;
+                let insertBefore = null;
 
-              for (const el of allElements) {
-                const rect = el.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                if (cursorY < midY) {
-                  insertBefore = el;
-                  break;
+                for (const el of allElements) {
+                  const rect = el.getBoundingClientRect();
+                  const midY = rect.top + rect.height / 2;
+                  if (cursorY < midY) {
+                    insertBefore = el;
+                    break;
+                  }
                 }
-              }
 
-              this._showDropGap(areaEl, insertBefore);
-              this._dropInsertBeforeEl = insertBefore;
+                this._showDropGap(areaEl, insertBefore);
+                this._dropInsertBeforeEl = insertBefore;
+              }
             }
           }
         },
         end: () => {
           this._clearDropTargetHighlight();
 
-          if (this._dragSnapped) {
-            const img = this._selectedImg;
-            const fromArea = this._dragSourceArea;
-            const toArea = this._dragTargetArea;
-            // Capture src before deselect clears the img reference
+          const img = this._selectedImg;
+          const fromArea = this._dragSourceArea;
+          const toArea = this._dragTargetArea;
+          const targetAreaEl = this._dropTargetAreaEl;
+          const insertBeforeEl = this._dropInsertBeforeEl;
+          const isCrossArea = fromArea && toArea && fromArea !== toArea;
+
+          if (isCrossArea && targetAreaEl) {
+            // Cross-area drop: move image in DOM, then update markdown
             const movedSrc = img?.dataset?.originalSrc || img?.getAttribute("src") || "";
 
-            this.deselect();
-
-            if (img && fromArea && toArea) {
-              const newMd = this._buildMoveMarkdown(img, fromArea, toArea);
-              if (newMd) {
-                if (this._onMoveArea) {
-                  this._onMoveArea(newMd);
-                } else {
-                  this._setMarkdown?.(newMd);
-                }
-                // Re-select the moved image by src after re-render
-                const targetName = toArea;
-                setTimeout(() => {
-                  if (!movedSrc) return;
-                  const imgs = this._slideContainer?.querySelectorAll(
-                    `.slide__area[data-area-name="${targetName}"] img`,
-                  );
-                  const match = Array.from(imgs || []).find((el) => {
-                    const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
-                    return elSrc === movedSrc;
-                  });
-                  if (match) this.select(match);
-                }, 400);
-              }
+            if (insertBeforeEl && insertBeforeEl.parentNode === targetAreaEl) {
+              targetAreaEl.insertBefore(img, insertBeforeEl);
+            } else {
+              targetAreaEl.appendChild(img);
             }
-          } else if (this._dropInsertBeforeEl !== undefined) {
+            img.style.left = "0px";
+            img.style.top = "0px";
+            this._updateOverlay();
+            this._hideDropGap();
+
+            // Build markdown with image inserted at the target position
+            const newMd = this._buildMoveMarkdownAtPosition(img, fromArea, toArea, insertBeforeEl);
+            if (newMd) {
+              if (this._onMoveArea) {
+                this._onMoveArea(newMd);
+              } else {
+                this._setMarkdown?.(newMd);
+              }
+              // Re-select the moved image by src after re-render
+              const targetName = toArea;
+              setTimeout(() => {
+                if (!movedSrc) return;
+                const imgs = this._slideContainer?.querySelectorAll(
+                  `.slide__area[data-area-name="${targetName}"] img`,
+                );
+                const match = Array.from(imgs || []).find((el) => {
+                  const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
+                  return elSrc === movedSrc;
+                });
+                if (match) this.select(match);
+              }, 400);
+            }
+          } else if (insertBeforeEl !== undefined) {
             // Within-area: check if the image actually moved to a different slot
-            const targetEl = this._dropInsertBeforeEl;
             this._hideDropGap();
 
             // Compare current slot to the slot at drag start
-            if (targetEl !== this._dragStartInsertBefore) {
+            if (insertBeforeEl !== this._dragStartInsertBefore) {
               // Image moved to a different slot — reorder + snap
-              this._reorderImageInMarkdown(this._selectedImg, targetEl);
+              this._reorderImageInMarkdown(img, insertBeforeEl);
             } else {
               // Image stayed in the same slot — free positioning
               this._syncToMarkdown();
-              if (this._selectedImg?.isConnected) {
-                this.select(this._selectedImg);
+              if (img?.isConnected) {
+                this.select(img);
               }
             }
           } else {
-            // No drop indicator and no cross-area snap — free positioning
+            // No drop indicator — free positioning
             this._hideDropGap();
             this._syncToMarkdown();
-            if (this._selectedImg?.isConnected) {
-              this.select(this._selectedImg);
+            if (img?.isConnected) {
+              this.select(img);
             }
           }
 
@@ -380,6 +397,7 @@ export class ImageInteractionHandler {
           this._dragSnapped = false;
           this._dragStartInsertBefore = null;
           this._dropInsertBeforeEl = null;
+          this._dropTargetAreaEl = null;
         },
       },
     });
@@ -426,6 +444,62 @@ export class ImageInteractionHandler {
     let updated = withoutImage.replace(/\n{3,}/g, "\n\n");
     const targetRange = this._getAreaContentRange(updated, toAreaName);
     const insertAt = targetRange.to;
+    const before = updated.slice(0, insertAt);
+    const after = updated.slice(insertAt);
+    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    return before + needsNewline + newTag + "\n" + after;
+  }
+
+  /**
+   * Build updated markdown for a cross-area image move, inserting at a
+   * specific position within the target area.
+   */
+  static _buildMoveMarkdownAtPosition(img, fromAreaName, toAreaName, insertBeforeEl) {
+    const md = this._getMarkdown?.();
+    if (!md) return null;
+
+    const src = img.dataset.originalSrc || img.getAttribute("src") || "";
+
+    // Find the image entry within the source area
+    const entries = this._findAllImages(md);
+    const sourceRange = this._getAreaContentRange(md, fromAreaName);
+    const entry = entries.find(
+      (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
+    );
+    if (!entry) return null;
+
+    // Remove from source
+    let updated = md.slice(0, entry.start) + md.slice(entry.end);
+    updated = updated.replace(/\n{3,}/g, "\n\n");
+
+    // Build a fresh <img> tag
+    const alt = img.getAttribute("alt") ?? entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] ?? "";
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
+    const styleParts = [
+      "position: relative",
+      "left: 0px",
+      "top: 0px",
+      `width: ${w}px`,
+      h ? `height: ${h}px` : "",
+      "border: none",
+      "object-fit: contain",
+      "cursor: move",
+    ];
+    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+
+    // Find insert position in target area
+    const targetRange = this._getAreaContentRange(updated, toAreaName);
+    let insertAt = targetRange.to; // default: end of area
+
+    if (insertBeforeEl) {
+      // Find the markdown position of the target element
+      const targetMdPos = this._findElementMarkdownPosition(updated, insertBeforeEl);
+      if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
+        insertAt = targetMdPos;
+      }
+    }
+
     const before = updated.slice(0, insertAt);
     const after = updated.slice(insertAt);
     const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
