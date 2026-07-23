@@ -1,3 +1,5 @@
+import { getStageScale } from "./image-position-presets.js";
+
 /**
  * ImagePropertiesPanel
  *
@@ -19,9 +21,9 @@
 
 const SHADOW_PRESETS = [
   { key: "none", label: "None", value: "none" },
-  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(0,0,0,0.25)" },
-  { key: "medium", label: "Medium", value: "0 6px 16px rgba(0,0,0,0.35)" },
-  { key: "strong", label: "Strong", value: "0 12px 32px rgba(0,0,0,0.5)" },
+  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(120,120,120,0.3)" },
+  { key: "medium", label: "Medium", value: "0 6px 20px rgba(120,120,120,0.4)" },
+  { key: "strong", label: "Strong", value: "0 12px 32px rgba(120,120,120,0.5)" },
 ];
 
 export class ImagePropertiesPanel {
@@ -63,7 +65,7 @@ export class ImagePropertiesPanel {
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
     const panelW = this.el.offsetWidth || 300;
-    const scale = this._getStageScale();
+    const scale = getStageScale();
 
     // Position panel to the left of the image
     let left = rect.left + window.scrollX - panelW - 8 * scale;
@@ -90,15 +92,6 @@ export class ImagePropertiesPanel {
     return this.el && !this.el.classList.contains("webdeck-hidden");
   }
 
-  static _getStageScale() {
-    const stage = document.querySelector(".stage__inner");
-    if (!stage) return 1;
-    const transform = getComputedStyle(stage).transform;
-    if (!transform || transform === "none") return 1;
-    const match = transform.match(/matrix\(([^,]+),/);
-    return match ? parseFloat(match[1]) : 1;
-  }
-
   /**
    * Compute the width of the containing .slide__area in design-space pixels.
    */
@@ -108,7 +101,7 @@ export class ImagePropertiesPanel {
       this._areaWidth = 960;
       return;
     }
-    const scale = this._getStageScale();
+    const scale = getStageScale();
     const rect = area.getBoundingClientRect();
     this._areaWidth = Math.round(rect.width / scale) || 960;
   }
@@ -165,7 +158,9 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="full">Fit</button>
                     </div>
                     <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center on slide">⊞ Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center horizontally">↔ Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
                     </div>
                 </div>
 
@@ -317,6 +312,12 @@ export class ImagePropertiesPanel {
         break;
       case "center":
         ImageInteractionHandler.centerOnSlide();
+        break;
+      case "align-left":
+        ImageInteractionHandler.alignLeft();
+        break;
+      case "align-right":
+        ImageInteractionHandler.alignRight();
         break;
       case "rot-left":
         ImageInteractionHandler.rotateBy(-90);
