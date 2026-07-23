@@ -11,6 +11,7 @@ import { Notification } from "./src/renderer/notification.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
+import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
 (() => {
   "use strict";
 
@@ -95,9 +96,10 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
     // 2. Gather DOM Elements
     const elements = ElementGatherer.gatherElements();
 
-    // 3. Setup File Handlers
-    if (elements.menuOpenFileBtn && elements.fileInput) {
-      DeckLoader.setupLocalFileHandler(elements.menuOpenFileBtn, elements.fileInput);
+    // 3. Setup Open Deck Modal
+    OpenDeckModal.init();
+    if (elements.menuOpenFileBtn) {
+      elements.menuOpenFileBtn.addEventListener("click", () => OpenDeckModal.show());
     }
 
     // 4. Update UI Initial State

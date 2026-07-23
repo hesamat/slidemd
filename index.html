@@ -795,6 +795,54 @@
       </div>
     </div>
 
+    <!-- Open Deck Modal -->
+    <div
+      id="openDeckModal"
+      class="modal webdeck-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="openDeckModalTitle"
+    >
+      <div class="modal__overlay" id="openDeckModalOverlay"></div>
+      <div class="modal__dialog modal__dialog--open-deck">
+        <div class="modal__header">
+          <h2 id="openDeckModalTitle" class="modal__title">Open Deck</h2>
+          <button id="closeOpenDeckModalBtn" class="modal__close" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <div class="modal__body">
+          <div class="open-deck__actions">
+            <button id="openDeckBrowseBtn" class="btn btn--primary" type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                ></path>
+              </svg>
+              Open Presentation Folder
+            </button>
+            <span id="openDeckFolderPath" class="open-deck__path"></span>
+          </div>
+          <div id="openDeckFileList" class="open-deck__file-list"></div>
+          <div class="open-deck__notes">
+            <p>
+              Select the folder that contains your <kbd>.md</kbd> presentation and its images, then
+              choose the file to open.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="deck.js"></script>
   </body>
 </html>
