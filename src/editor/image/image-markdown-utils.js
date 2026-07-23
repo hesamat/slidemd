@@ -288,13 +288,16 @@ export function buildRepositionedImgTag(imgElement, src, alt, width, height) {
  */
 export function getNaturalDimensions(imgElement) {
   const hasExplicitSize = imgElement.getAttribute("width") && imgElement.getAttribute("height");
+  // Explicit attributes (PPTX imports) > naturalWidth/naturalHeight > offsetWidth/Height > fallback
   const w = hasExplicitSize
     ? parseInt(imgElement.getAttribute("width"), 10) ||
+      imgElement.naturalWidth ||
       imgElement.offsetWidth ||
       FALLBACK_IMG_NATURAL_W
     : imgElement.naturalWidth || imgElement.offsetWidth || FALLBACK_IMG_NATURAL_W;
   const h = hasExplicitSize
     ? parseInt(imgElement.getAttribute("height"), 10) ||
+      imgElement.naturalHeight ||
       imgElement.offsetHeight ||
       FALLBACK_IMG_NATURAL_H
     : imgElement.naturalHeight || imgElement.offsetHeight || FALLBACK_IMG_NATURAL_H;
