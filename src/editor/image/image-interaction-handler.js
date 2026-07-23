@@ -316,6 +316,10 @@ export class ImageInteractionHandler {
                   }
                 }
 
+                // Only update gap when slot changes
+                if (insertBefore !== this._dropInsertBeforeEl) {
+                  this._showDropGap(areaEl, insertBefore);
+                }
                 this._dropInsertBeforeEl = insertBefore;
               }
             }
