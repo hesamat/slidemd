@@ -41,6 +41,14 @@ export class ImageInteractionHandler {
         !e.target.closest("img") &&
         !e.target.closest(".image-properties-panel")
       ) {
+        // If _selectedImg was removed by a preview re-render, clear the
+        // stale reference so the next image click can start fresh.
+        if (!this._selectedImg.isConnected) {
+          this._selectedImg = null;
+          if (this._overlay) this._overlay.style.display = "none";
+          ImagePropertiesPanel.hide();
+          return;
+        }
         this.deselect();
       }
     });
@@ -126,7 +134,14 @@ export class ImageInteractionHandler {
       ImagePropertiesPanel.show(img, this._readSettings(img));
       return;
     }
-    this.deselect();
+    // If _selectedImg is stale (removed by a re-render), force a clean
+    // deselect before selecting the new image.
+    if (this._selectedImg && !this._selectedImg.isConnected) {
+      this._selectedImg = null;
+      if (this._overlay) this._overlay.style.display = "none";
+    } else {
+      this.deselect();
+    }
 
     // If this is a markdown image (no position style), convert to HTML
     // in the markdown source and apply styles to the existing DOM element.
@@ -147,8 +162,12 @@ export class ImageInteractionHandler {
 
   static deselect() {
     if (this._selectedImg) {
-      this._selectedImg.classList.remove("image-selected");
-      this._selectedImg.classList.remove("img-positioned");
+      // If the element was removed by a preview re-render, skip
+      // classList removal to avoid errors on orphaned nodes.
+      if (this._selectedImg.isConnected) {
+        this._selectedImg.classList.remove("image-selected");
+        this._selectedImg.classList.remove("img-positioned");
+      }
       this._selectedImg = null;
     }
     if (this._overlay) {
@@ -169,7 +188,27 @@ export class ImageInteractionHandler {
         start: (e) => {
           const img = e.target.closest("img");
           if (img) {
+            // If _selectedImg is stale (removed by a preview re-render),
+            // clear it so select() can start fresh with the new element.
+            if (this._selectedImg && !this._selectedImg.isConnected) {
+              this._selectedImg = null;
+            }
+
+            // For markdown-rendered images (no position style yet), apply
+            // the positioning styles directly to the DOM element BEFORE
+            // calling select().  This lets select() see that the image is
+            // already an "HTML" image and skip _convertMdImgToHtml(), which
+            // would write markdown mid-drag and disrupt the interact.js
+            // session.  The markdown write is deferred to _syncToMarkdown()
+            // at drag end.
+            if (!img.style.position) {
+              this._prepareMdImgForDrag(img);
+              img.classList.add("img-positioned");
+            }
             this.select(img);
+            // Hide properties panel during drag — it would be in the wrong
+            // position and add visual clutter while the image is moving.
+            ImagePropertiesPanel.hide();
             const sourceArea = img.closest(".slide__area");
             this._dragSourceArea = sourceArea?.dataset.areaName || null;
             this._dragTargetArea = null;
@@ -208,8 +247,9 @@ export class ImageInteractionHandler {
                 this._dragSnapped = true;
                 this._clearDropTargetHighlight();
 
-                // Move img in DOM
-                targetAreaEl.appendChild(img);
+                // Move img in DOM — prepend to top so it's visible
+                // even if the target column already has content.
+                targetAreaEl.prepend(img);
                 img.style.left = "0px";
                 img.style.top = "0px";
                 this._updateOverlay();
@@ -268,6 +308,10 @@ export class ImageInteractionHandler {
             }
           } else {
             this._syncToMarkdown();
+            // Re-select to restore the properties panel after markdown sync
+            if (this._selectedImg?.isConnected) {
+              this.select(this._selectedImg);
+            }
           }
 
           this._dragSourceArea = null;
@@ -404,7 +448,7 @@ export class ImageInteractionHandler {
         }
 
         img.style.left = `${Math.max(0, newLeft)}px`;
-        img.style.top = `${Math.max(0, newTop)}px`;
+        img.style.top = `${newTop}px`;
         img.style.width = `${newW}px`;
         img.style.height = `${newH}px`;
 
@@ -446,7 +490,10 @@ export class ImageInteractionHandler {
     const el = document.elementFromPoint(clientX, clientY);
     if (img) img.style.pointerEvents = "";
     const area = el?.closest?.(".slide__area");
-    const targetName = area?.dataset.areaName || null;
+    const rawName = area?.dataset.areaName || null;
+    // Only allow content columns as drop targets — reject header / footer
+    const REJECTED_AREAS = ["header", "footer"];
+    const targetName = rawName && !REJECTED_AREAS.includes(rawName) ? rawName : null;
 
     if (targetName !== this._dragTargetArea) {
       this._clearDropTargetHighlight();
@@ -584,6 +631,53 @@ export class ImageInteractionHandler {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  /**
+   * Compute and apply inline positioning styles to a markdown-rendered
+   * image **without** writing markdown.  Used by the drag-start handler
+   * so that the interact.js drag session is not disrupted by a
+   * CodeMirror transaction mid-drag.
+   */
+  static _prepareMdImgForDrag(img) {
+    const md = this._getMarkdown?.();
+    if (!md) return;
+
+    const entries = this._findAllImages(md);
+    const idx = this._getImageIndex(img);
+    if (idx < 0 || idx >= entries.length) return;
+
+    const area = img.closest(".slide__area");
+    const scale = this._getStageScale();
+
+    // Use the actual rendered size from the bounding rect so the image
+    // keeps its current visual dimensions during the drag.  Using
+    // naturalWidth/naturalHeight can fail (0 if not loaded) or produce
+    // wrong sizes (full area for flex-centered markdown images).
+    const imgRect = img.getBoundingClientRect();
+    let w = Math.max(1, Math.round(imgRect.width / scale));
+    let h = Math.max(1, Math.round(imgRect.height / scale));
+
+    // Compute position relative to the area's content box
+    let left = 0;
+    let top = 0;
+    if (area) {
+      const areaRect = area.getBoundingClientRect();
+      const cs = getComputedStyle(area);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      left = Math.round((imgRect.left - areaRect.left) / scale - padL / scale);
+      top = Math.round((imgRect.top - areaRect.top) / scale - padT / scale);
+    }
+
+    img.style.position = "relative";
+    img.style.left = `${left}px`;
+    img.style.top = `${top}px`;
+    img.style.width = `${w}px`;
+    img.style.height = `${h}px`;
+    img.style.border = "none";
+    img.style.objectFit = "contain";
+    img.style.cursor = "move";
+  }
 
   static _convertMdImgToHtml(img) {
     const md = this._getMarkdown?.();
@@ -823,8 +917,14 @@ export class ImageInteractionHandler {
     const areaRect = area.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
 
-    const areaWidthDesign = areaRect.width / scale;
-    const areaHeightDesign = areaRect.height / scale;
+    // getBoundingClientRect() returns the border box; subtract padding to
+    // get the content-box dimensions the image is actually positioned within.
+    const cs = getComputedStyle(area);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    // Convert rendered px → design px first, then subtract design-unit padding
+    const areaWidthDesign = areaRect.width / scale - padX;
+    const areaHeightDesign = areaRect.height / scale - padY;
     const ratio =
       (img.naturalWidth || imgRect.width || 1) / (img.naturalHeight || imgRect.height || 1);
     const width = Math.min(areaWidthDesign, areaHeightDesign * ratio);

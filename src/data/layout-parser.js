@@ -45,11 +45,14 @@ export class LayoutParser {
       } else {
         // Determine size based on area names in this row
         const rowContent = rowsRaw[i] || "";
-        const isContentRow = /\b(main|media|left|right|secondary|content|sidebar)\b/i.test(
+        const hasContentArea = /\b(main|media|left|right|secondary|content|sidebar)\b/i.test(
           rowContent,
         );
-        // Header/footer rows should size to content; main content rows grow
-        rowSizes.push(isContentRow ? "minmax(0, 1fr)" : "auto");
+        const isHeaderFooter = /\b(header|footer)\b/i.test(rowContent);
+        // Header/footer rows size to content; main content rows grow.
+        // If a row has both a content area and header/footer (e.g. full-height
+        // "header media"), treat it as a header/footer row so it stays compact.
+        rowSizes.push(hasContentArea && !isHeaderFooter ? "minmax(0, 1fr)" : "auto");
       }
     }
 

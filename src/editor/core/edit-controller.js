@@ -23,7 +23,8 @@ import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
-import { removeAreaFromLayout } from "./directive-utils.js";
+import { removeAreaFromLayout, makeAreaFullHeight } from "./directive-utils.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
@@ -156,6 +157,8 @@ export class EditController {
       canDeleteArea: (name) => this._canDeleteArea(name),
       onSwapArea: (name) => this._swapAreaInMarkdown(name),
       canSwapArea: (name) => this._canSwapArea(name),
+      onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
+      canMakeFullHeight: (name) => this._canMakeFullHeight(name),
     });
 
     this.warnings = new SlideWarningManager({
@@ -307,7 +310,6 @@ export class EditController {
           this.markdownEditor?.setValue(updated, { suppressOnChange: true });
           this.unsavedMarkdown.set(this.currentSlideIndex, updated);
           this.updateUnsavedChangesFlag();
-          this.previewUpdater.update();
         },
       },
     );
@@ -544,6 +546,63 @@ export class EditController {
     const markdown = this.markdownEditor.getValue();
     const updated = this.areaNav.swapAreas(markdown, areaName);
     if (updated === null) return;
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _canMakeFullHeight(areaName) {
+    const name = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!name) return false;
+    if (!this.markdownEditor) return false;
+
+    // Only allow full-height on the right-most column area
+    const slide = this.deck?.slides?.[this.currentSlideIndex];
+    const resolvedLayout = LayoutParser.resolvePreset(slide?.layout);
+    const layout = LayoutParser.parse(resolvedLayout);
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    if (rowMatches.length === 0) return false;
+    const contentRow = rowMatches.find((q) => {
+      const cells = q.slice(1, -1).split(/\s+/);
+      return cells.some((c) => c !== "header" && c !== "footer" && c !== "title");
+    });
+    if (!contentRow) return false;
+    const cells = contentRow.slice(1, -1).split(/\s+/);
+    const rightMostCol = cells[cells.length - 1];
+    return name === rightMostCol;
+  }
+
+  _makeAreaFullHeight(areaName) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const updated = makeAreaFullHeight(markdown, areaName);
+    if (updated === markdown) return;
+
+    // After the preview re-renders, auto-fit any image that is the sole
+    // content of the target area (e.g. @media with just an <img>).
+    this.previewUpdater.onReadyOnce((slideEl) => {
+      const areaEl = slideEl.querySelector(`.slide__area--${areaName}`);
+      if (!areaEl) return;
+      const imgs = areaEl.querySelectorAll("img");
+      if (imgs.length !== 1) return;
+      // Check for real content, ignoring the editor area-label overlay
+      const clone = areaEl.cloneNode(true);
+      clone.querySelectorAll(".editor-area-label").forEach((el) => el.remove());
+      const textContent = clone.textContent.trim();
+      if (textContent) return;
+      const img = imgs[0];
+      const fit = () => {
+        ImageInteractionHandler._selectedImg = img;
+        ImageInteractionHandler.fitToWidth();
+      };
+      if (img.complete && img.naturalWidth > 0) {
+        fit();
+      } else {
+        img.addEventListener("load", fit, { once: true });
+      }
+    });
+
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

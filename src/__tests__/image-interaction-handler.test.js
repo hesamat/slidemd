@@ -229,11 +229,24 @@ describe("ImageInteractionHandler", () => {
       ImageInteractionHandler._selectedImg = img;
       ImageInteractionHandler._getStageScale = () => 1;
 
+      // Mock getComputedStyle to return 10px padding on all sides
+      const origGetCS = globalThis.getComputedStyle;
+      globalThis.getComputedStyle = () => ({
+        paddingLeft: "10px",
+        paddingRight: "10px",
+        paddingTop: "10px",
+        paddingBottom: "10px",
+      });
+
       ImageInteractionHandler.fitToWidth();
 
+      globalThis.getComputedStyle = origGetCS;
+
+      // Content box is 1900×1060 after subtracting 20px padding
+      // ratio = 300/400 = 0.75 → width = min(1900, 1060*0.75) = 795
       expect(applySettings).toHaveBeenCalledWith({
-        width: 810,
-        height: 1080,
+        width: 795,
+        height: 1060,
         left: 0,
         top: 0,
       });

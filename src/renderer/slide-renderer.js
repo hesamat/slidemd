@@ -94,6 +94,24 @@ export class SlideRenderer {
 
     const areaStyle = safeString(slide?.areaStyle);
 
+    // Auto-detect full-height areas: areas that appear in every row at the same column
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+    const fullHeightAreas = new Set();
+    if (allRowCells.length > 1) {
+      const numCols = allRowCells[0]?.length || 0;
+      for (let col = 0; col < numCols; col++) {
+        const areaName = allRowCells[0][col];
+        if (!areaName || areaName === ".") continue;
+        const spansAll = allRowCells.every((row) => row[col] === areaName);
+        if (spansAll) fullHeightAreas.add(areaName);
+      }
+    }
+
+    if (fullHeightAreas.size > 0) {
+      grid.classList.add("slide__grid--full-height");
+    }
+
     names.forEach((name) => {
       const isAliasTitle = name === "title" && !layoutAreaNames.has("title");
       const isAliasHeader = name === "header" && layoutAreaNames.has("title");
@@ -117,6 +135,15 @@ export class SlideRenderer {
 
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
+      }
+
+      // Footer spans full width when full-height areas exist
+      if (fullHeightAreas.size > 0 && name === "footer") {
+        area.style.gridColumn = "1 / -1";
+      }
+      // Full-height areas touch the right slide border
+      if (fullHeightAreas.has(name)) {
+        area.style.paddingRight = "0";
       }
 
       area.innerHTML = html;

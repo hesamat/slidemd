@@ -10,10 +10,12 @@ export class AreaContextMenu {
    * @param {object} opts
    * @param {(areaName: string) => void} opts.onDeleteArea
    * @param {(areaName: string) => void} opts.onSwapArea
+   * @param {(areaName: string) => void} opts.onMakeFullHeight
    */
-  constructor({ onDeleteArea, onSwapArea }) {
+  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
+    this._onMakeFullHeight = onMakeFullHeight;
     this._menuEl = null;
     this._abortController = null;
   }
@@ -42,12 +44,14 @@ export class AreaContextMenu {
    * @param {object} [opts]
    * @param {boolean} [opts.canDelete=true]
    * @param {boolean} [opts.canSwap=false]  — show swap option
+   * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    */
   open(clientX, clientY, areaName, opts = {}) {
     this.close();
     const canDelete = opts.canDelete !== false;
     const canSwap = opts.canSwap === true;
-    if (!canDelete && !canSwap) return;
+    const canMakeFullHeight = opts.canMakeFullHeight === true;
+    if (!canDelete && !canSwap && !canMakeFullHeight) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -65,6 +69,20 @@ export class AreaContextMenu {
         e.stopPropagation();
         this.close();
         this._onSwapArea?.(areaName);
+      });
+      menu.appendChild(btn);
+    }
+
+    if (canMakeFullHeight) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-context-menu__item";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = `<span class="area-context-menu__label">Make full height</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.close();
+        this._onMakeFullHeight?.(areaName);
       });
       menu.appendChild(btn);
     }

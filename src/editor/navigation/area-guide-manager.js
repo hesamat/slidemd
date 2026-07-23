@@ -6,6 +6,7 @@
  */
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 
 export class AreaGuideManager {
   /**
@@ -20,6 +21,8 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canDeleteArea
    * @param {(areaName: string) => void} opts.onSwapArea
    * @param {(areaName: string) => boolean} opts.canSwapArea
+   * @param {(areaName: string) => void} opts.onMakeFullHeight
+   * @param {(areaName: string) => boolean} opts.canMakeFullHeight
    */
   constructor({
     getIsEditMode,
@@ -32,6 +35,8 @@ export class AreaGuideManager {
     canDeleteArea,
     onSwapArea,
     canSwapArea,
+    onMakeFullHeight,
+    canMakeFullHeight,
   }) {
     this._getIsEditMode = getIsEditMode;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
@@ -43,10 +48,13 @@ export class AreaGuideManager {
     this._canDeleteArea = canDeleteArea;
     this._onSwapArea = onSwapArea;
     this._canSwapArea = canSwapArea;
+    this._onMakeFullHeight = onMakeFullHeight;
+    this._canMakeFullHeight = canMakeFullHeight;
 
     this._contextMenu = new AreaContextMenu({
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
       onSwapArea: (areaName) => this._onSwapArea?.(areaName),
+      onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
     });
     this._contextMenu.init();
   }
@@ -68,9 +76,25 @@ export class AreaGuideManager {
   applyAreaGuides(slideEl, slideData) {
     if (!this.isEditMode || !slideEl) return;
 
+    // Detect full-height areas from the layout grid template
+    const resolvedLayout = LayoutParser.resolvePreset(slideData?.layout);
+    const layout = LayoutParser.parse(resolvedLayout);
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+    const fullHeightAreas = new Set();
+    if (allRowCells.length > 1) {
+      const numCols = allRowCells[0]?.length || 0;
+      for (let col = 0; col < numCols; col++) {
+        const areaName = allRowCells[0][col];
+        if (!areaName || areaName === ".") continue;
+        const spansAll = allRowCells.every((row) => row[col] === areaName);
+        if (spansAll) fullHeightAreas.add(areaName);
+      }
+    }
+
     const areaEls = slideEl.querySelectorAll(".slide__area");
     areaEls.forEach((areaEl) => {
-      const name = areaEl.style.gridArea || areaEl.dataset.areaName || "main";
+      const name = areaEl.dataset.areaName || areaEl.style.gridArea || "main";
       areaEl.dataset.areaName = name;
 
       const hasContent =
@@ -87,6 +111,20 @@ export class AreaGuideManager {
         areaEl.prepend(label);
       }
 
+      // Nudge header/footer labels left to avoid overlapping the full-height area's label
+      // Nudge header labels left to avoid overlapping the full-height area's label.
+      // Footer spans full width so no nudge needed.
+      if (
+        fullHeightAreas.size > 0 &&
+        !fullHeightAreas.has(name) &&
+        name !== "main" &&
+        name !== "footer"
+      ) {
+        label.style.right = "90px";
+      } else {
+        label.style.right = "";
+      }
+
       label.textContent = `@${name}`;
       label.setAttribute("title", `Jump to @${name}`);
       label.onclick = (event) => {
@@ -99,7 +137,14 @@ export class AreaGuideManager {
         e.stopPropagation();
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
-        this._contextMenu.open(e.clientX, e.clientY, name, { canDelete, canSwap });
+        const canMakeFullHeight = this._canMakeFullHeight
+          ? this._canMakeFullHeight(name)
+          : name !== "main";
+        this._contextMenu.open(e.clientX, e.clientY, name, {
+          canDelete,
+          canSwap,
+          canMakeFullHeight,
+        });
       });
     });
 

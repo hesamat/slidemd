@@ -251,7 +251,7 @@ describe("convertToSlideMd", () => {
     const mediaIndex = md.indexOf("@media");
     const imageIndex = md.indexOf("dominant.png");
 
-    expect(md).toContain("layout: two-column");
+    expect(md).toContain("layout: media-span");
     expect(md).not.toContain("@secondary");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
@@ -474,7 +474,7 @@ describe("convertToSlideMd", () => {
     const headingIdx = md.indexOf("escape sequences");
     const imageIdx = md.indexOf("code-example.png");
 
-    expect(md).toContain("layout: two-column");
+    expect(md).toContain("layout: media-span");
     // Heading must appear in the @header section (between @header and @main)
     expect(headingIdx).toBeGreaterThan(headerIdx);
     expect(headingIdx).toBeLessThan(mainIdx);

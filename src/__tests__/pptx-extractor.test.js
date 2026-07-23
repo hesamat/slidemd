@@ -257,26 +257,34 @@ describe("PptxExtractor.htmlToMarkdown monospace detection", () => {
 });
 
 describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
-  it("detects h2 heading from large font-size (44pt)", () => {
+  it("detects h1 heading from large font-size (46pt)", () => {
     const result = PptxExtractor.htmlToMarkdown(
-      '<p><span style="font-size: 44pt;">Big Title</span></p>',
+      '<p><span style="font-size: 46pt;">Big Title</span></p>',
     );
-    expect(result).toContain("## Big Title");
+    expect(result).toContain("# Big Title");
   });
 
-  it("detects h2 heading from medium font-size (30pt)", () => {
+  it("detects h2 heading from medium font-size (34pt)", () => {
     const result = PptxExtractor.htmlToMarkdown(
-      '<p><span style="font-size: 30pt;">Subtitle</span></p>',
+      '<p><span style="font-size: 34pt;">Subtitle</span></p>',
     );
     expect(result).toContain("## Subtitle");
+  });
+
+  it("detects h3 heading from font-size (28pt)", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 28pt;">Section</span></p>',
+    );
+    expect(result).toContain("### Section");
   });
 
   it("does not add heading for body text (18pt)", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="font-size: 18pt;">Body text</span></p>',
     );
-    expect(result).not.toContain("##");
-    expect(result).not.toContain("###");
+    expect(result).not.toContain("# ");
+    expect(result).not.toContain("## ");
+    expect(result).not.toContain("### ");
     expect(result).toContain("Body text");
   });
 
@@ -284,7 +292,7 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
     const result = PptxExtractor.htmlToMarkdown(
       '<p><span style="color: #333;">Plain text</span></p>',
     );
-    expect(result).not.toContain("##");
+    expect(result).not.toContain("# ");
     expect(result).toContain("Plain text");
   });
 });

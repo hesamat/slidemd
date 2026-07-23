@@ -10,11 +10,11 @@
 // Font-size thresholds for heading detection (in points).
 // Maps font-size bands to markdown heading levels to preserve visual hierarchy.
 // Based on typical PowerPoint default font sizes:
-// Title: 36-44pt, Subtitle: 24-28pt, Body: 18-24pt, Small: 12-14pt
+// Title: 36-46pt, Subtitle: 28-34pt, Body: 18-24pt, Small: 12-14pt
 const HEADING_BANDS = [
-  { min: 44, prefix: "## " },
-  { min: 30, prefix: "### " },
-  { min: 28, prefix: "#### " },
+  { min: 46, prefix: "# " },
+  { min: 34, prefix: "## " },
+  { min: 28, prefix: "### " },
 ];
 
 // Monospace font-family pattern for detecting code content
