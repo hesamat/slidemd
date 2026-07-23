@@ -10,6 +10,9 @@ import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
 import { Notification } from "../renderer/notification.js";
 
+const RECENT_DECKS_KEY = "webdeck_recent_decks";
+const MAX_RECENT_DECKS = 10;
+
 /** @class */
 export class DeckLoader {
   /**
@@ -23,6 +26,59 @@ export class DeckLoader {
     if (localFileName) return localFileName;
 
     return safeString(deck?.meta?.title) || "Slide Deck";
+  }
+
+  // ── Recent decks ────────────────────────────────────────────────────────
+
+  /**
+   * Get the list of recently opened decks from localStorage.
+   * @static
+   * @returns {Array<{name: string, timestamp: number}>}
+   */
+  static getRecentDecks() {
+    try {
+      return JSON.parse(localStorage.getItem(RECENT_DECKS_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Add a file to the recent decks list (most recent first, max 10).
+   * @static
+   * @param {string} fileName
+   */
+  static addRecentDeck(fileName) {
+    const recent = this.getRecentDecks().filter((d) => d.name !== fileName);
+    recent.unshift({ name: fileName, timestamp: Date.now() });
+    localStorage.setItem(RECENT_DECKS_KEY, JSON.stringify(recent.slice(0, MAX_RECENT_DECKS)));
+  }
+
+  /**
+   * Load a deck from the recent list (reopens from localStorage cache).
+   * @static
+   * @param {string} fileName
+   */
+  static loadRecentDeck(fileName) {
+    const recent = this.getRecentDecks();
+    const entry = recent.find((d) => d.name === fileName);
+    if (!entry) {
+      Notification.warning(`"${fileName}" not found in recent decks.`);
+      return;
+    }
+
+    const text = localStorage.getItem("webdeck_local_file");
+    const storedName = localStorage.getItem("webdeck_local_file_name");
+    if (text && storedName === fileName) {
+      // Already loaded — just re-dispatch
+      window.dispatchEvent(
+        new CustomEvent("webdeck-load-local", {
+          detail: { text, fileType: "md", fileName },
+        }),
+      );
+    } else {
+      Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
+    }
   }
 
   /**
@@ -173,6 +229,8 @@ Markdown-based presentations made simple.
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
+      this.addRecentDeck("example.md");
+
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
           detail: { text: rawText, fileType: "md", fileName: "example.md" },
@@ -199,10 +257,9 @@ Markdown-based presentations made simple.
           const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
 
           // Find .md files in the picked folder
-          const IMAGE_RE = /\.md$/i;
           const mdFiles = [];
           for await (const [name, handle] of dirHandle.entries()) {
-            if (handle.kind === "file" && IMAGE_RE.test(name)) {
+            if (handle.kind === "file" && /\.md$/i.test(name)) {
               mdFiles.push({ name, handle });
             }
           }
@@ -217,7 +274,6 @@ Markdown-based presentations made simple.
           if (mdFiles.length === 1) {
             fileHandle = mdFiles[0].handle;
           } else {
-            // Multiple .md files — let the user pick one
             const picked = await window.showOpenFilePicker({
               types: [{ description: "Markdown files", accept: { "text/markdown": [".md"] } }],
               multiple: false,
@@ -231,8 +287,6 @@ Markdown-based presentations made simple.
           const rawText = await file.text();
 
           DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
-
-          // Save the directory handle so images resolve on reload
           await DirectoryHandleStore.save(dirHandle, "parent", file.name);
 
           localStorage.setItem("webdeck_local_file", rawText);
@@ -240,6 +294,8 @@ Markdown-based presentations made simple.
           localStorage.setItem("webdeck_local_file_name", file.name);
           localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
           localStorage.removeItem("webdeck_source_url");
+
+          this.addRecentDeck(file.name);
 
           const loadEvent = new CustomEvent("webdeck-load-local", {
             detail: { text: rawText, fileType: "md", fileName: file.name },
@@ -273,24 +329,7 @@ Markdown-based presentations made simple.
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
 
-        // Try to persist a directory handle so images resolve on reload.
-        if (typeof window.showDirectoryPicker === "function") {
-          try {
-            const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-            Notification.info("Pick the deck folder so images can load on reload");
-            const dirHandle = await window.showDirectoryPicker({ mode: "read" });
-            if (dirHandle) {
-              await DirectoryHandleStore.save(dirHandle, "parent", file.name);
-              console.log(
-                `[DeckLoader] file-input: saved dir="${dirHandle.name}" for "${file.name}"`,
-              );
-            }
-          } catch (dirErr) {
-            if (dirErr.name !== "AbortError") {
-              console.warn("Could not persist directory handle:", dirErr);
-            }
-          }
-        }
+        this.addRecentDeck(file.name);
 
         const loadEvent = new CustomEvent("webdeck-load-local", {
           detail: { text, fileType: "md", fileName: file.name },
