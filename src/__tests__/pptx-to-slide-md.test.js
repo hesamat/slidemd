@@ -1373,4 +1373,55 @@ describe("convertToSlideMd", () => {
     expect(md).toMatch(/layout: (two-column|media-span)/);
     expect(md).toContain(longBody);
   });
+
+  it("detects h1 heading and splits overflowing content with image", () => {
+    // Simulates the user's slide: numbered list + h1 heading + image
+    // The h1 should be in @header, not @main, and overflow should trigger two-column
+    const items = Array.from({ length: 21 }, (_, i) => `${i + 1}. Topic ${i + 1}`).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Week 3",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: items,
+            left: 500000,
+            top: 1000000,
+            width: 4000000,
+            height: 3500000,
+          },
+          {
+            type: "text",
+            content: "# Week 3",
+            left: 500000,
+            top: 600000,
+            width: 8000000,
+            height: 400000,
+          },
+          {
+            type: "image",
+            ref: "image1.jpeg",
+            base64: "abc",
+            left: 5500000,
+            top: 500000,
+            width: DEFAULT_SIZE.width * 0.45,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // h1 should be in @header
+    expect(md).toContain("@header");
+    expect(md).toContain("Week 3");
+    const headerIdx = md.indexOf("@header");
+    const weekIdx = md.indexOf("Week 3");
+    expect(weekIdx).toBeGreaterThan(headerIdx);
+    // Overflowing body should trigger two-column
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@media");
+  });
 });

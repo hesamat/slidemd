@@ -76,12 +76,12 @@ const LUMINANCE = {
 const REGEX = {
   BULLET: /^(?:[\u2022\u2023\u25E6\u2043\u2219•-]\s*)+/,
   NUMBER: /^\d+[.)]\s*/,
-  HEADING_MARKER: /^#{2,3}\s/,
+  HEADING_MARKER: /^#{1,3}\s/,
   BULLET_LINE: /(?:^|\n)\s*[-*•]\s/,
   NUMBER_LINE: /(?:^|\n)\s*\d+[.)]\s/,
   CODE_BLOCK: /```/,
   BOLD_HEADING: /^\*\*[^*]+\*\*$/,
-  HEADING_REPLACE: /^##\s+/,
+  HEADING_REPLACE: /^#{1,3}\s+/,
   NOTES_HTML_COMMENT_START: /<!--/g,
   NOTES_HTML_COMMENT_END: /-->/g,
   NOTES_HTML_BR: /<br\s*\/?>/gi,
@@ -339,19 +339,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     dominantImages,
   );
 
-  // --- OVERFLOW POST-PROCESSING ---
-  // If a single-column layout has too much body content, upgrade to two-column
-  // so the content is split across @main and @media.
-  let overflowUpgraded = false;
-  if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
-    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-    const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
-    if (bodyLength > CONFIG.overflowBodyLength) {
-      layout = LAYOUT.TWO_COLUMN;
-      overflowUpgraded = true;
-    }
-  }
-
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
@@ -403,9 +390,21 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       .trim();
 
     if (!leftContent || !rightContent) {
-      // Don't downgrade if this layout was upgraded from header-content due
-      // to overflow — the rendering step will split the single body element.
-      if (!overflowUpgraded) {
+      // Don't downgrade if body has too much content — the rendering step
+      // will split the single body element across columns.
+      const { bodyElements: heBodyEls } = extractHeader(
+        textElements,
+        allElements,
+        slideHeight,
+        false,
+      );
+      const heBodyLen = heBodyEls.reduce((s, el) => s + (el.content || "").trim().length, 0);
+      const heContentLines = heBodyEls.reduce((c, el) => {
+        if (el.type !== ELEMENT_TYPES.TEXT) return c;
+        return c + (el.content || "").split("\n").filter((l) => l.trim()).length;
+      }, 0);
+      const hasHeOverflow = heBodyLen > CONFIG.overflowBodyLength || heContentLines > 8;
+      if (!hasHeOverflow) {
         layout = { type: LAYOUT.HEADER_CONTENT.type, spec: LAYOUT.HEADER_CONTENT.spec };
       }
     }
@@ -431,6 +430,23 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
     if (singleImageOnRight) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
+    }
+  }
+
+  // --- OVERFLOW POST-PROCESSING ---
+  // After media-span upgrade, check if the layout has too much body content.
+  // If so, upgrade to two-column so content splits across @main and @media.
+  if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
+    const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
+    const contentLines = bodyElements.reduce((count, el) => {
+      if (el.type !== ELEMENT_TYPES.TEXT) return count;
+      const lines = (el.content || "").split("\n").filter((l) => l.trim());
+      return count + lines.length;
+    }, 0);
+    const hasOverflow = bodyLength > CONFIG.overflowBodyLength || contentLines > 8;
+    if (hasOverflow) {
+      layout = LAYOUT.TWO_COLUMN;
     }
   }
 
