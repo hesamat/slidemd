@@ -25,7 +25,7 @@ export class ImageInteractionHandler {
   static _dragStartX = 0;
   static _dragStartY = 0;
   static _dragSnapped = false;
-  static _dropIndicator = null;
+  static _dropInsertBeforeEl = null;
   static _dragStartInsertBefore = null;
 
   static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
@@ -277,7 +277,7 @@ export class ImageInteractionHandler {
             }
           }
 
-          // Within-area reorder: move image visually and show drop indicator
+          // Within-area reorder: move image visually and track drop slot
           const scale = this._getStageScale();
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
@@ -290,10 +290,9 @@ export class ImageInteractionHandler {
 
           this._updateOverlay();
 
-          // Show drop indicator between other elements (images, text, code blocks)
+          // Track which element the cursor is over (for slot comparison at drop)
           const areaEl = img.closest(".slide__area");
           if (areaEl) {
-            // Get all direct child elements that are content (not the dragged image)
             const allElements = [...areaEl.children].filter(
               (el) => el !== img && !el.classList.contains("image-drop-indicator"),
             );
@@ -311,7 +310,7 @@ export class ImageInteractionHandler {
                 }
               }
 
-              this._showDropIndicator(areaEl, insertBefore);
+              this._dropInsertBeforeEl = insertBefore;
             }
           }
         },
@@ -350,11 +349,9 @@ export class ImageInteractionHandler {
                 }, 400);
               }
             }
-          } else if (this._dropIndicator) {
+          } else if (this._dropInsertBeforeEl !== undefined) {
             // Within-area: check if the image actually moved to a different slot
-            const indicator = this._dropIndicator;
-            const targetEl = indicator.nextElementSibling;
-            this._hideDropIndicator();
+            const targetEl = this._dropInsertBeforeEl;
 
             // Compare current slot to the slot at drag start
             if (targetEl !== this._dragStartInsertBefore) {
@@ -380,6 +377,7 @@ export class ImageInteractionHandler {
           this._dragTargetArea = null;
           this._dragSnapped = false;
           this._dragStartInsertBefore = null;
+          this._dropInsertBeforeEl = null;
         },
       },
     });
@@ -580,33 +578,6 @@ export class ImageInteractionHandler {
   // ── Within-area reorder ────────────────────────────────────────────────────
 
   /**
-   * Show a drop indicator line at the given position within an area.
-   * @param {HTMLElement} areaEl
-   * @param {HTMLElement|null} insertBeforeImg - Image to insert before, or null for end
-   */
-  static _showDropIndicator(areaEl, insertBeforeImg) {
-    this._hideDropIndicator();
-
-    const indicator = document.createElement("div");
-    indicator.className = "image-drop-indicator";
-
-    if (insertBeforeImg) {
-      insertBeforeImg.parentNode.insertBefore(indicator, insertBeforeImg);
-    } else {
-      areaEl.appendChild(indicator);
-    }
-
-    this._dropIndicator = indicator;
-  }
-
-  static _hideDropIndicator() {
-    if (this._dropIndicator) {
-      this._dropIndicator.remove();
-      this._dropIndicator = null;
-    }
-  }
-
-  /**
    * Reorder an image within its area by moving its tag in the markdown source.
    * The image snaps to its new position (left/top reset to 0).
    * @param {HTMLElement} img - The image being moved
@@ -666,9 +637,7 @@ export class ImageInteractionHandler {
     // Build a new image tag with left/top reset to 0 (snap to new position)
     const src = img.dataset.originalSrc || draggedEntry.src || "";
     const alt =
-      img.getAttribute("alt") ||
-      draggedEntry.fullMatch.match(/alt=["']([^"']*)["']/i)?.[1] ||
-      "";
+      img.getAttribute("alt") || draggedEntry.fullMatch.match(/alt=["']([^"']*)["']/i)?.[1] || "";
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
     const styleParts = [
