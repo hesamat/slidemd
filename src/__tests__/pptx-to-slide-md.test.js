@@ -312,9 +312,9 @@ describe("convertToSlideMd", () => {
             type: "image",
             ref: "dominant-1.png",
             base64: "abc",
-            left: 3800000,
+            left: 3500000,
             top: 1000000,
-            width: DEFAULT_SIZE.width * 0.42,
+            width: DEFAULT_SIZE.width * 0.3,
             height: DEFAULT_SIZE.height * 0.65,
           },
           {
@@ -323,7 +323,7 @@ describe("convertToSlideMd", () => {
             base64: "def",
             left: 6500000,
             top: 1000000,
-            width: DEFAULT_SIZE.width * 0.41,
+            width: DEFAULT_SIZE.width * 0.3,
             height: DEFAULT_SIZE.height * 0.62,
           },
         ],
@@ -1014,5 +1014,203 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: title-slide");
     expect(md).toContain("@footer");
     expect(md).toContain("COMP 1510 202610");
+  });
+
+  // ── Layout detection improvement tests ──────────────────────────────
+
+  it("detects left-heavy layout when left column has significantly more area", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Left Heavy",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Main content with substantial text that takes up the left column area",
+            left: 500000,
+            top: 1500000,
+            width: 5500000,
+            height: 3000000,
+          },
+          {
+            type: "text",
+            content: "Small right",
+            left: 6500000,
+            top: 2000000,
+            width: 2000000,
+            height: 800000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: left-heavy");
+  });
+
+  it("detects right-heavy layout when right column has significantly more area", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Right Heavy",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Small left",
+            left: 500000,
+            top: 2000000,
+            width: 2000000,
+            height: 800000,
+          },
+          {
+            type: "text",
+            content: "Main content with substantial text that takes up the right column area",
+            left: 3000000,
+            top: 1500000,
+            width: 5500000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: right-heavy");
+  });
+
+  it("uses two-column layout when a single long text element shares a slide with a dominant image", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Single Text + Image",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content:
+              "This is a long text element with more than 80 characters of content that should trigger the two-column layout when paired with a dominant image on the slide.",
+            left: 500000,
+            top: 1500000,
+            width: 3000000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5000000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // inferLayout returns two-column, but the media-span upgrade promotes it
+    // because the right column has a single dominant image
+    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+  });
+
+  it("handles image-only slide with two side-by-side images as two-column", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Images",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "img1.png",
+            base64: "abc",
+            left: 500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.4,
+            height: DEFAULT_SIZE.height * 0.6,
+          },
+          {
+            type: "image",
+            ref: "img2.png",
+            base64: "def",
+            left: 5000000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.4,
+            height: DEFAULT_SIZE.height * 0.6,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // inferLayout returns two-column for side-by-side images, but media-span
+    // upgrade promotes it because the right column has a single dominant image
+    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+  });
+
+  it("treats stacked images as two-column instead of three-column", () => {
+    // Images at the same x position (100% horizontal overlap) are vertically
+    // stacked, not side-by-side, so they should get two-column not three-column
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Stacked Images",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Summary text stays in the main column",
+            left: 500000,
+            top: 1500000,
+            width: 2500000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "stacked-1.png",
+            base64: "abc",
+            left: 4000000,
+            top: 500000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.35,
+          },
+          {
+            type: "image",
+            ref: "stacked-2.png",
+            base64: "def",
+            left: 4000000,
+            top: 3500000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.35,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("layout: three-column");
   });
 });

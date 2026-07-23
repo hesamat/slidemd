@@ -15,6 +15,8 @@ const LAYOUT = {
   TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
+  LEFT_HEAVY: { type: "left-heavy", spec: "left-heavy" },
+  RIGHT_HEAVY: { type: "right-heavy", spec: "right-heavy" },
   MEDIA_SPAN: { type: "media-span", spec: "media-span" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },
 };
@@ -420,7 +422,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       textElements,
       allElements,
       slideHeight,
-      true,
+      false,
     );
     const singleImage =
       bodyElements.length === 1 &&
@@ -444,7 +446,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     } else {
       parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
-  } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
+  } else if (
+    layout.type === LAYOUT.TWO_COLUMN.type ||
+    layout.type === LAYOUT.LEFT_HEAVY.type ||
+    layout.type === LAYOUT.RIGHT_HEAVY.type
+  ) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
       allElements,
@@ -695,6 +701,20 @@ function inferLayout(
   const contentEls = textEls.filter((el) => el.content?.trim());
 
   if (contentEls.length === 0) {
+    // Image-only slide: determine layout from dominant images
+    if (dominantImages.length >= 3) return LAYOUT.THREE_COLUMN;
+    if (dominantImages.length === 2) {
+      // Check if images are truly side-by-side (horizontal overlap < 30%)
+      const [img1, img2] = dominantImages;
+      const horizontalOverlap = Math.max(
+        0,
+        Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
+      );
+      if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.5) {
+        return LAYOUT.TWO_COLUMN;
+      }
+      return LAYOUT.HEADER_CONTENT;
+    }
     return LAYOUT.HEADER_CONTENT;
   }
 
@@ -747,7 +767,18 @@ function inferLayout(
       }),
     );
 
-    if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
+    if (hasSpreadRow) {
+      // Spread row detected — check area balance for left-heavy/right-heavy
+      const leftArea = contentEls
+        .filter((el) => el.left + el.width / 2 < midX)
+        .reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
+      const rightArea = contentEls
+        .filter((el) => el.left + el.width / 2 >= midX)
+        .reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
+      if (leftArea > rightArea * 1.5) return LAYOUT.LEFT_HEAVY;
+      if (rightArea > leftArea * 1.5) return LAYOUT.RIGHT_HEAVY;
+      return LAYOUT.TWO_COLUMN;
+    }
 
     const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
@@ -777,16 +808,25 @@ function inferLayout(
   // If the center is near the midpoint (ambiguous), use the left edge — wide
   // text boxes in two-column PPTX slides commonly start on the left but extend
   // past center.
-  const nearMidTol = slideWidth * CONFIG.partitionMidTolerance;
+  // Use area-overlap analysis instead of center-point to handle wide elements
+  // that straddle the midpoint.
   const partition = (el) => {
     if (el === headerEl || isCentered(el)) return null;
-    const cx = el.left + el.width / 2;
-    const distFromMid = Math.abs(cx - midX);
-    if (distFromMid > nearMidTol) {
-      return cx < midX ? "left" : "right";
-    }
-    // Center is near midpoint — use left edge for wide spanning elements
-    return el.left < midX ? "left" : "right";
+    const overlapLeft = getOverlapArea(el, {
+      left: 0,
+      top: 0,
+      width: midX,
+      height: slideHeight,
+    });
+    const overlapRight = getOverlapArea(el, {
+      left: midX,
+      top: 0,
+      width: midX,
+      height: slideHeight,
+    });
+    if (overlapLeft > overlapRight * 1.5) return "left";
+    if (overlapRight > overlapLeft * 1.5) return "right";
+    return null; // truly ambiguous — don't force
   };
   const leftEls = allEls.filter((el) => partition(el) === "left");
   const rightEls = allEls.filter((el) => partition(el) === "right");
@@ -796,10 +836,26 @@ function inferLayout(
     leftEls.some((el) => el.type === ELEMENT_TYPES.TEXT) ||
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
-  if (hasHeader && hasTwoColumns && hasTextColumns) return LAYOUT.TWO_COLUMN;
+  if (hasHeader && hasTwoColumns && hasTextColumns) {
+    // Compare total area of each column to detect left-heavy/right-heavy
+    const leftArea = leftEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
+    const rightArea = rightEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
+    if (leftArea > rightArea * 1.5) return LAYOUT.LEFT_HEAVY;
+    if (rightArea > leftArea * 1.5) return LAYOUT.RIGHT_HEAVY;
+    return LAYOUT.TWO_COLUMN;
+  }
 
   if (!hasHeader && dominantImages.length >= 2 && contentEls.length > 0) {
-    return LAYOUT.THREE_COLUMN;
+    // Validate images are truly side-by-side (horizontal overlap < 30%)
+    const [img1, img2] = dominantImages;
+    const horizontalOverlap = Math.max(
+      0,
+      Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
+    );
+    if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
+      return LAYOUT.THREE_COLUMN;
+    }
+    return LAYOUT.TWO_COLUMN;
   }
 
   const bodyEls = contentEls.filter((el) => el !== headerEl);
@@ -812,8 +868,7 @@ function inferLayout(
       [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type),
   );
 
-  const hasSubstantialBody =
-    bodyRichEls.length > 0 || (bodyEls.length >= 2 && bodyLength > CONFIG.minSubstantialBodyLength);
+  const hasSubstantialBody = bodyRichEls.length > 0 || bodyLength > CONFIG.minSubstantialBodyLength;
 
   if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
