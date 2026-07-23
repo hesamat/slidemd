@@ -46,6 +46,7 @@ export class SlidePreviewUpdater {
     this._getAreaGuides = getAreaGuides;
     this._getGridResizer = getGridResizer;
     this._pendingReadyCallback = null;
+    this._updateGeneration = 0;
   }
 
   get markdownEditor() {
@@ -79,6 +80,7 @@ export class SlidePreviewUpdater {
   }
 
   async update() {
+    const generation = ++this._updateGeneration;
     const markdown = this.markdownEditor?.getValue() ?? "";
     this.warnings.clearSlideWarning();
     this.warnings.resetPending();
@@ -213,6 +215,7 @@ export class SlidePreviewUpdater {
             } catch {
               /* best-effort enhancement */
             }
+            if (generation !== this._updateGeneration) return;
             const enhancedHtml = temp.innerHTML;
             if (areaEl.innerHTML !== enhancedHtml) {
               areaEl.innerHTML = enhancedHtml;
@@ -247,6 +250,7 @@ export class SlidePreviewUpdater {
             console.warn("Failed to enhance slide preview:", err);
           }
 
+          if (generation !== this._updateGeneration) return;
           slideEl.replaceWith(newSlideEl);
           this.warnings.applyPendingSlideWarning(newSlideEl);
 
