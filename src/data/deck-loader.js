@@ -172,7 +172,7 @@ export class DeckLoader {
         if (age < 30000 || reloadFlag === "1") {
           if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
 
-          if (fileType === "md") {
+          if (fileType === "md" || fileType === "smd") {
             await AssetLoader.ensureMarkdownItLoaded();
             return new MarkdownParser().parseDeckMarkdown(localFile);
           }
@@ -183,6 +183,47 @@ export class DeckLoader {
       // Don't delete localStorage data on any error - let it fall through
       // to try other sources (embedded, welcome deck)
       // Only clear localStorage explicitly when user loads a new file
+    }
+
+    // 1b. Try IndexedDB draft (crash recovery)
+    try {
+      const { DraftManager } = await import("../core/draft-manager.js");
+      const draft = await DraftManager.loadDraft();
+      if (draft) {
+        const fileName =
+          localStorage.getItem("webdeck_local_file_name") || "recovered-deck";
+        const confirmed = window.confirm(
+          "Unsaved draft found from a previous session. Restore it?",
+        );
+        if (confirmed) {
+          // Restore images into smdImageCache
+          this.smdImageCache.clear();
+          for (const [path, blob] of draft.images) {
+            const url = URL.createObjectURL(blob);
+            this.smdImageCache.set(path, url);
+          }
+          this.isSmdMode = draft.images.size > 0;
+
+          localStorage.setItem("webdeck_local_file", draft.markdown);
+          localStorage.setItem(
+            "webdeck_local_file_type",
+            draft.images.size > 0 ? "smd" : "md",
+          );
+          localStorage.setItem("webdeck_local_file_name", fileName);
+          localStorage.setItem(
+            "webdeck_local_file_timestamp",
+            Date.now().toString(),
+          );
+
+          await DraftManager.clearDraft();
+          await AssetLoader.ensureMarkdownItLoaded();
+          return new MarkdownParser().parseDeckMarkdown(draft.markdown);
+        } else {
+          await DraftManager.clearDraft();
+        }
+      }
+    } catch (err) {
+      console.warn("Draft recovery failed:", err);
     }
 
     // 2. Try Embedded JSON
