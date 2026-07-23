@@ -316,6 +316,7 @@ export class ImageInteractionHandler {
                   }
                 }
 
+                this._showDropGap(areaEl, insertBefore);
                 this._dropInsertBeforeEl = insertBefore;
               }
             }
@@ -1228,10 +1229,7 @@ export class ImageInteractionHandler {
   // ── Position presets ───────────────────────────────────────────────────
 
   /**
-   * Center the selected image within its containing `.slide__area`.
-   * Uses a delta-based approach that works with `position: relative`:
-   * compute how far the image's current center is from the area's center,
-   * then add that delta to the existing left/top offsets.
+   * Center the image vertically within its area. Left stays at 0.
    */
   static centerOnSlide() {
     const img = this._selectedImg;
@@ -1243,22 +1241,42 @@ export class ImageInteractionHandler {
     const areaRect = area.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
 
-    const currentCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
     const currentCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
-
-    const areaCenterX = areaRect.width / scale / 2;
     const areaCenterY = areaRect.height / scale / 2;
-
-    const deltaX = areaCenterX - currentCenterX;
     const deltaY = areaCenterY - currentCenterY;
 
-    const curLeft = parseFloat(img.style.left) || 0;
     const curTop = parseFloat(img.style.top) || 0;
 
     this.applySettings({
-      left: Math.round(curLeft + deltaX),
+      left: 0,
       top: Math.round(curTop + deltaY),
     });
+  }
+
+  /**
+   * Align the image to the left of its area.
+   */
+  static alignLeft() {
+    const img = this._selectedImg;
+    if (!img) return;
+
+    this.applySettings({ left: 0 });
+  }
+
+  /**
+   * Align the image to the right of its area.
+   */
+  static alignRight() {
+    const img = this._selectedImg;
+    if (!img) return;
+    const area = img.closest(".slide__area");
+    if (!area) return;
+
+    const scale = this._getStageScale();
+    const areaWidth = area.getBoundingClientRect().width / scale;
+    const imgWidth = parseFloat(img.style.width) || img.offsetWidth || 0;
+
+    this.applySettings({ left: Math.round(areaWidth - imgWidth) });
   }
 
   /**

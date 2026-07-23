@@ -165,7 +165,9 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="full">Fit</button>
                     </div>
                     <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center on slide">⊞ Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center vertically">↕ Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
                     </div>
                 </div>
 
@@ -317,6 +319,12 @@ export class ImagePropertiesPanel {
         break;
       case "center":
         ImageInteractionHandler.centerOnSlide();
+        break;
+      case "align-left":
+        ImageInteractionHandler.alignLeft();
+        break;
+      case "align-right":
+        ImageInteractionHandler.alignRight();
         break;
       case "rot-left":
         ImageInteractionHandler.rotateBy(-90);
