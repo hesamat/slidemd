@@ -65,7 +65,7 @@ export class ImagePropertiesPanel {
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
     const panelW = this.el.offsetWidth || 300;
-    const scale = this._getStageScale();
+    const scale = getStageScale();
 
     // Position panel to the left of the image
     let left = rect.left + window.scrollX - panelW - 8 * scale;
@@ -92,9 +92,7 @@ export class ImagePropertiesPanel {
     return this.el && !this.el.classList.contains("webdeck-hidden");
   }
 
-  static _getStageScale() {
-    return getStageScale();
-  }
+
 
   /**
    * Compute the width of the containing .slide__area in design-space pixels.
@@ -105,7 +103,7 @@ export class ImagePropertiesPanel {
       this._areaWidth = 960;
       return;
     }
-    const scale = this._getStageScale();
+    const scale = getStageScale();
     const rect = area.getBoundingClientRect();
     this._areaWidth = Math.round(rect.width / scale) || 960;
   }

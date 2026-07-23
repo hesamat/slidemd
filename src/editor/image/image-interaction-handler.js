@@ -136,7 +136,7 @@ export class ImageInteractionHandler {
 
     const imgRect = img.getBoundingClientRect();
     const gridRect = grid.getBoundingClientRect();
-    const scale = this._getStageScale();
+    const scale = getStageScale();
 
     const left = (imgRect.left - gridRect.left) / scale;
     const top = (imgRect.top - gridRect.top) / scale;
@@ -304,7 +304,7 @@ export class ImageInteractionHandler {
           }
 
           // Within-area reorder: move image visually and track drop slot
-          const scale = this._getStageScale();
+          const scale = getStageScale();
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
 
@@ -552,7 +552,7 @@ export class ImageInteractionHandler {
 
         const dx = ev.clientX - s.startX;
         const dy = ev.clientY - s.startY;
-        const scale = this._getStageScale();
+        const scale = getStageScale();
 
         const sdx = dx / scale;
         const sdy = dy / scale;
@@ -615,10 +615,6 @@ export class ImageInteractionHandler {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     });
-  }
-
-  static _getStageScale() {
-    return getStageScale();
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
@@ -922,7 +918,7 @@ export class ImageInteractionHandler {
     if (idx < 0 || idx >= entries.length) return;
 
     const area = img.closest(".slide__area");
-    const scale = this._getStageScale();
+    const scale = getStageScale();
 
     // Use the actual rendered size from the bounding rect so the image
     // keeps its current visual dimensions during the drag.  Using
@@ -981,7 +977,7 @@ export class ImageInteractionHandler {
     let areaH = 1080;
     let visualCenterX = areaW / 2;
     let visualCenterY = areaH / 2;
-    const scale = this._getStageScale();
+    const scale = getStageScale();
     if (area) {
       const areaRect = area.getBoundingClientRect();
       areaW = Math.max(1, areaRect.width / scale);
@@ -1105,22 +1101,22 @@ export class ImageInteractionHandler {
 
   static centerOnSlide() {
     if (!this._selectedImg) return;
-    centerOnSlide(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
+    centerOnSlide(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
   }
 
   static alignLeft() {
     if (!this._selectedImg) return;
-    alignLeft(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
+    alignLeft(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
   }
 
   static alignRight() {
     if (!this._selectedImg) return;
-    alignRight(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
+    alignRight(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
   }
 
   static fitToWidth() {
     if (!this._selectedImg) return;
-    fitToWidth(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
+    fitToWidth(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
   }
 
   static rotateBy(delta) {

@@ -38,10 +38,12 @@ describe("ImageInteractionHandler", () => {
     ImageInteractionHandler._onDelete = null;
     ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
     ImageInteractionHandler.applySettings = vi.fn();
-    ImageInteractionHandler._getStageScale = () => 1;
+    // Make the imported getStageScale() return 1 in Node test env
+    globalThis.document = { querySelector: () => null };
   });
 
   afterEach(() => {
+    delete globalThis.document;
     vi.restoreAllMocks();
   });
 
@@ -243,7 +245,6 @@ describe("ImageInteractionHandler", () => {
         .spyOn(ImageInteractionHandler, "applySettings")
         .mockImplementation(() => {});
       ImageInteractionHandler._selectedImg = img;
-      ImageInteractionHandler._getStageScale = () => 1;
 
       // Mock getComputedStyle to return 10px padding on all sides
       const origGetCS = globalThis.getComputedStyle;
@@ -305,8 +306,6 @@ describe("ImageInteractionHandler", () => {
       ImageInteractionHandler._setMarkdown = (updated) => {
         saved = updated;
       };
-      ImageInteractionHandler._getStageScale = () => 1;
-
       ImageInteractionHandler._convertMdImgToHtml(img);
 
       // The generated inline style must use the attribute values (384×720),
@@ -362,7 +361,6 @@ describe("ImageInteractionHandler", () => {
         saved = updated;
       };
       ImageInteractionHandler._selectedImg = img;
-      ImageInteractionHandler._getStageScale = () => 1;
 
       const targetSlide = { querySelectorAll: () => allImgs };
       const targetEl = {
