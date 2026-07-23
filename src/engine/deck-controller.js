@@ -430,18 +430,21 @@ export class DeckController extends EventEmitter {
   }
 
   async handleLocalFileLoad(event) {
-    // Clear stale resolver state BEFORE the deck changes so
-    // #rewriteImages() (triggered by deckchange) doesn't resolve
-    // images from the previous deck's directory.
+    // Repopulate resolver cache from smdImageCache BEFORE the deck changes,
+    // so #rewriteImages() (triggered by deckchange) can resolve images.
     try {
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+      const { DeckLoader } = await import("../data/deck-loader.js");
       DeckImagesResolver.clearCache();
+      if (DeckLoader.isSmdMode && DeckLoader.smdImageCache.size > 0) {
+        DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
+      }
     } catch {
       // ignore
     }
     await this.reloadManager.handleLocalFileLoad(event);
     // Reconfigure image resolver for the newly loaded file
-    this.#loadDeckImagesResolver();
+    await this.#loadDeckImagesResolver();
   }
 
   handleKeyboard(e) {
