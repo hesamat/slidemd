@@ -8,6 +8,7 @@
 
 import { ImagePicker } from "./image-picker.js";
 import { DeckImagesResolver } from "./deck-images-resolver.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 
 export class ImageInserter {
   /**
@@ -54,6 +55,20 @@ export class ImageInserter {
   async pickAndInsert() {
     if (!this.markdownEditor) return;
 
+    // In .md mode: prompt for image URL directly
+    if (!DeckLoader.isSmdMode) {
+      const url = prompt("Enter image URL (https://...):");
+      if (!url || !url.startsWith("http")) return;
+      const alt = url.split("/").pop()?.split("?")[0] || "image";
+      const snippet = `![${alt}](${url})`;
+      const current = this.markdownEditor.getValue();
+      const insertPos = current.length;
+      this.markdownEditor.replaceRange(insertPos, insertPos, `\n\n${snippet}\n`);
+      this.markdownEditor.focus();
+      return;
+    }
+
+    // In .smd mode: use the full image picker
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
 
     const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
@@ -134,6 +149,7 @@ export class ImageInserter {
       "drop",
       async (e) => {
         if (!this._getIsEditMode()) return;
+        if (!DeckLoader.isSmdMode) return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -160,6 +176,7 @@ export class ImageInserter {
       "paste",
       async (e) => {
         if (!this._getIsEditMode()) return;
+        if (!DeckLoader.isSmdMode) return;
         const items = e.clipboardData?.items;
         if (!items) return;
         for (const item of items) {

@@ -1,12 +1,14 @@
 /**
  * ImageBackgroundHandler
  *
- * FS Access API and image-picker integration
- * extracted from EditController.  Manages the deck directory handle,
- * image insertion, background selection, and file uploads.
+ * Manages image uploads. Behavior adapts based on file type:
+ * - .smd mode: file picker for local images, stored in memory
+ * - .md mode: URL input only, inserts remote image URLs
  */
 
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+import { DeckLoader } from "../../data/deck-loader.js";
+import { DraftManager } from "../../core/draft-manager.js";
 
 export class ImageBackgroundHandler {
   constructor() {
@@ -19,41 +21,46 @@ export class ImageBackgroundHandler {
     return this._deckDirMode || "parent";
   }
 
+  /**
+   * Whether local file upload is supported (true for .smd mode).
+   * @returns {boolean}
+   */
+  get supportsLocalUpload() {
+    return DeckLoader.isSmdMode;
+  }
+
+  /**
+   * Upload an image file from disk. Only works in .smd mode.
+   * @param {File} file
+   * @returns {Promise<string|null>} Relative path (images/<filename>) or null
+   */
   async uploadImage(file) {
-    let serverPath = null;
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const response = await fetch("/api/upload-image", { method: "POST", body: formData });
-      if (response.ok) {
-        const result = await response.json();
-        serverPath = result.path;
-      }
-    } catch (_) {
-      /* server unavailable */
+    if (!DeckLoader.isSmdMode) {
+      console.warn("uploadImage called in .md mode — use insertImageUrl instead");
+      return null;
     }
 
-    const relativePath =
-      serverPath ||
-      `images/${Date.now()}-${Math.random().toString(36).slice(2, 10)}${file.name.match(/\.[^.]+$/)?.[0] || ".png"}`;
+    const ext = file.name.match(/\.[^.]+$/)?.[0] || ".png";
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
+    const relativePath = `images/${fileName}`;
 
-    try {
-      const dirHandle = await this._resolveDeckDirectoryHandle();
-      if (dirHandle) {
-        const imagesDir = await dirHandle.getDirectoryHandle("images", { create: true });
-        const fileName = relativePath.split("/").pop();
-        const fh = await imagesDir.getFileHandle(fileName, { create: true });
-        const writable = await fh.createWritable();
-        await writable.write(file);
-        await writable.close();
-      }
-    } catch (err) {
-      if (err.name !== "AbortError") {
-        console.warn("Could not save image next to deck file:", err);
-      }
-    }
+    const blobUrl = URL.createObjectURL(file);
+    DeckLoader.smdImageCache.set(relativePath, blobUrl);
+
+    const md = localStorage.getItem("webdeck_local_file") || "";
+    await DraftManager.saveDraft(md, DeckLoader.smdImageCache);
 
     return relativePath;
+  }
+
+  /**
+   * Insert a remote image URL into the markdown.
+   * @param {string} url
+   * @returns {string} The markdown image tag
+   */
+  insertImageUrl(url) {
+    const alt = url.split("/").pop()?.split("?")[0] || "image";
+    return `![${alt}](${url})`;
   }
 
   async _resolveDeckDirectoryHandle() {
