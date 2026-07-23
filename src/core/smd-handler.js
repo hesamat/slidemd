@@ -1,6 +1,10 @@
 import JSZip from "jszip";
 
 async function blobToArrayBuffer(blob) {
+  if (typeof blob === "string") {
+    const response = await fetch(blob);
+    return response.arrayBuffer();
+  }
   return blob.arrayBuffer();
 }
 
