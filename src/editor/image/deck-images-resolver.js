@@ -16,17 +16,22 @@ export class DeckImagesResolver {
   /** Cached File objects by relative path ("images/foo.png"). */
   static _cache = new Map();
 
+  /** URLs borrowed from smdImageCache — must NOT be revoked by clearCache(). */
+  static _borrowedUrls = new Set();
+
   /**
    * Set images from an .smd file for in-memory resolution.
-   * Does NOT revoke blob URLs — they are owned by DeckLoader.smdImageCache.
+   * Borrowed URLs are tracked and not revoked by clearCache().
    * @param {Map<string, string>} imageMap - Map of relative paths to blob URLs
    */
   static setSmdImages(imageMap) {
-    // Clear internal state without revoking URLs (they're owned by smdImageCache)
+    // Clear internal state without revoking borrowed URLs
     this._cache.clear();
+    this._borrowedUrls.clear();
     this._urls.clear();
     for (const [path, url] of imageMap) {
       this._urls.set(path, url);
+      this._borrowedUrls.add(url);
     }
   }
 
@@ -46,12 +51,18 @@ export class DeckImagesResolver {
   }
 
   /**
-   * Clear cached files + revoke blob URLs.
+   * Clear cached files + revoke owned blob URLs.
+   * Borrowed URLs (from smdImageCache) are NOT revoked.
    */
   static clearCache() {
-    for (const url of this._urls.values()) URL.revokeObjectURL(url);
+    for (const [path, url] of this._urls) {
+      if (!this._borrowedUrls.has(url)) {
+        URL.revokeObjectURL(url);
+      }
+    }
     this._cache.clear();
     this._urls.clear();
+    this._borrowedUrls.clear();
   }
 
   /**
@@ -82,7 +93,9 @@ export class DeckImagesResolver {
 
     // Check in-memory cache
     if (force && this._urls.has(relPath)) {
-      URL.revokeObjectURL(this._urls.get(relPath));
+      if (!this._borrowedUrls.has(this._urls.get(relPath))) {
+        URL.revokeObjectURL(this._urls.get(relPath));
+      }
       this._urls.delete(relPath);
       this._cache.delete(relPath);
     }
@@ -143,7 +156,10 @@ export class DeckImagesResolver {
             const relPath = `images/${m[2]}`;
             const blobUrl = await this.resolvePreviewSrc(relPath);
             if (blobUrl !== relPath) {
-              resolved = resolved.replace(m[0], m[0].replace(`images/${m[2]}`, blobUrl));
+              resolved = resolved.replace(
+                m[0],
+                m[0].replace(`images/${m[2]}`, blobUrl),
+              );
             }
           }
           if (resolved !== bg) el.style.background = resolved;
