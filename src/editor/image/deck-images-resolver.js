@@ -44,6 +44,32 @@ export class DeckImagesResolver {
   }
 
   /**
+   * Set images from an .smd file for in-memory resolution.
+   * @param {Map<string, string>} imageMap - Map of relative paths to blob URLs
+   */
+  static setSmdImages(imageMap) {
+    this.clearCache();
+    for (const [path, url] of imageMap) {
+      this._urls.set(path, url);
+    }
+  }
+
+  /**
+   * Generate a data URI placeholder for a missing image.
+   * @param {string} relPath
+   * @returns {string} A data URI placeholder image
+   */
+  static _missingImagePlaceholder(relPath) {
+    const name = relPath.split("/").pop() || relPath;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">
+      <rect width="200" height="120" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+      <text x="100" y="50" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#999">Missing Image</text>
+      <text x="100" y="70" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#bbb">${name}</text>
+    </svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
+
+  /**
    * Clear cached files + revoke blob URLs.
    */
   static clearCache() {
@@ -108,11 +134,23 @@ export class DeckImagesResolver {
    * @returns {Promise<string>}
    */
   static async resolvePreviewSrc(relPath, { force = false } = {}) {
-    if (!this._dirHandle || !relPath) return relPath;
-    if (!/^images\//.test(relPath) && !relPath.startsWith("images/")) {
+    if (!relPath) return relPath;
+
+    // Pass through remote URLs and data URIs unchanged
+    if (
+      relPath.startsWith("http://") ||
+      relPath.startsWith("https://") ||
+      relPath.startsWith("data:")
+    ) {
       return relPath;
     }
 
+    // Only handle images/ paths
+    if (!relPath.startsWith("images/")) {
+      return relPath;
+    }
+
+    // Check in-memory cache (SMD mode or primed directory)
     if (force && this._urls.has(relPath)) {
       URL.revokeObjectURL(this._urls.get(relPath));
       this._urls.delete(relPath);
@@ -120,6 +158,14 @@ export class DeckImagesResolver {
     }
 
     if (this._urls.has(relPath)) return this._urls.get(relPath);
+
+    // Fall back to directory handle (legacy mode)
+    if (!this._dirHandle) {
+      console.warn(
+        `[ImagesResolver] image not found: "${relPath}" — no directory handle available`,
+      );
+      return this._missingImagePlaceholder(relPath);
+    }
 
     try {
       let targetDir;
@@ -136,11 +182,8 @@ export class DeckImagesResolver {
       this._urls.set(relPath, url);
       return url;
     } catch (err) {
-      console.warn(
-        `[ImagesResolver] failed to resolve "${relPath}" from dir="${this._dirHandle.name}" mode=${this._mode}`,
-        err,
-      );
-      return relPath;
+      console.warn(`[ImagesResolver] failed to resolve "${relPath}"`, err);
+      return this._missingImagePlaceholder(relPath);
     }
   }
 
@@ -152,21 +195,19 @@ export class DeckImagesResolver {
    * @param {HTMLElement} rootEl
    */
   static async rewriteImgSrcs(rootEl) {
-    if (!this._dirHandle || !rootEl) return;
+    if (!rootEl) return;
     const imgs = rootEl.querySelectorAll("img[src]");
     const tasks = [];
     for (const img of imgs) {
       const src = img.getAttribute("src");
       if (!src || src.startsWith("blob:") || src.startsWith("data:")) continue;
-      if (!/^images\//.test(src)) continue;
+      if (!src.startsWith("images/")) continue;
       img.dataset.originalSrc = src;
       tasks.push(
         (async () => {
           const resolved = await this.resolvePreviewSrc(src);
           if (resolved !== src) {
             img.src = resolved;
-          } else {
-            console.warn(`Image not resolved (still relative): ${src}`);
           }
         })(),
       );
@@ -239,7 +280,7 @@ export class DeckImagesResolver {
    * @param {HTMLElement} rootEl
    */
   static async rewriteBackgroundUrls(rootEl) {
-    if (!this._dirHandle || !rootEl) return;
+    if (!rootEl) return;
     const IMAGE_RE = /url\(\s*(['"]?)images\/([^'")]+)\1\s*\)/i;
     const candidates = [rootEl, ...rootEl.querySelectorAll("[style]")];
     const tasks = [];
