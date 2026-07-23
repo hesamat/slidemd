@@ -41,6 +41,14 @@ export class ImageInteractionHandler {
         !e.target.closest("img") &&
         !e.target.closest(".image-properties-panel")
       ) {
+        // If _selectedImg was removed by a preview re-render, clear the
+        // stale reference so the next image click can start fresh.
+        if (!this._selectedImg.isConnected) {
+          this._selectedImg = null;
+          if (this._overlay) this._overlay.style.display = "none";
+          ImagePropertiesPanel.hide();
+          return;
+        }
         this.deselect();
       }
     });
@@ -126,7 +134,14 @@ export class ImageInteractionHandler {
       ImagePropertiesPanel.show(img, this._readSettings(img));
       return;
     }
-    this.deselect();
+    // If _selectedImg is stale (removed by a re-render), force a clean
+    // deselect before selecting the new image.
+    if (this._selectedImg && !this._selectedImg.isConnected) {
+      this._selectedImg = null;
+      if (this._overlay) this._overlay.style.display = "none";
+    } else {
+      this.deselect();
+    }
 
     // If this is a markdown image (no position style), convert to HTML
     // in the markdown source and apply styles to the existing DOM element.
@@ -147,8 +162,12 @@ export class ImageInteractionHandler {
 
   static deselect() {
     if (this._selectedImg) {
-      this._selectedImg.classList.remove("image-selected");
-      this._selectedImg.classList.remove("img-positioned");
+      // If the element was removed by a preview re-render, skip
+      // classList removal to avoid errors on orphaned nodes.
+      if (this._selectedImg.isConnected) {
+        this._selectedImg.classList.remove("image-selected");
+        this._selectedImg.classList.remove("img-positioned");
+      }
       this._selectedImg = null;
     }
     if (this._overlay) {
@@ -169,6 +188,12 @@ export class ImageInteractionHandler {
         start: (e) => {
           const img = e.target.closest("img");
           if (img) {
+            // If _selectedImg is stale (removed by a preview re-render),
+            // clear it so select() can start fresh with the new element.
+            if (this._selectedImg && !this._selectedImg.isConnected) {
+              this._selectedImg = null;
+            }
+
             // For markdown-rendered images (no position style yet), apply
             // the positioning styles directly to the DOM element BEFORE
             // calling select().  This lets select() see that the image is
@@ -181,6 +206,9 @@ export class ImageInteractionHandler {
               img.classList.add("img-positioned");
             }
             this.select(img);
+            // Hide properties panel during drag — it would be in the wrong
+            // position and add visual clutter while the image is moving.
+            ImagePropertiesPanel.hide();
             const sourceArea = img.closest(".slide__area");
             this._dragSourceArea = sourceArea?.dataset.areaName || null;
             this._dragTargetArea = null;
@@ -219,8 +247,9 @@ export class ImageInteractionHandler {
                 this._dragSnapped = true;
                 this._clearDropTargetHighlight();
 
-                // Move img in DOM
-                targetAreaEl.appendChild(img);
+                // Move img in DOM — prepend to top so it's visible
+                // even if the target column already has content.
+                targetAreaEl.prepend(img);
                 img.style.left = "0px";
                 img.style.top = "0px";
                 this._updateOverlay();
@@ -279,6 +308,10 @@ export class ImageInteractionHandler {
             }
           } else {
             this._syncToMarkdown();
+            // Re-select to restore the properties panel after markdown sync
+            if (this._selectedImg?.isConnected) {
+              this.select(this._selectedImg);
+            }
           }
 
           this._dragSourceArea = null;
@@ -613,49 +646,28 @@ export class ImageInteractionHandler {
     const idx = this._getImageIndex(img);
     if (idx < 0 || idx >= entries.length) return;
 
-    const entry = entries[idx];
-
     const area = img.closest(".slide__area");
-    let areaW = 1920;
-    let areaH = 1080;
-    let visualCenterX = areaW / 2;
-    let visualCenterY = areaH / 2;
     const scale = this._getStageScale();
+
+    // Use the actual rendered size from the bounding rect so the image
+    // keeps its current visual dimensions during the drag.  Using
+    // naturalWidth/naturalHeight can fail (0 if not loaded) or produce
+    // wrong sizes (full area for flex-centered markdown images).
+    const imgRect = img.getBoundingClientRect();
+    let w = Math.max(1, Math.round(imgRect.width / scale));
+    let h = Math.max(1, Math.round(imgRect.height / scale));
+
+    // Compute position relative to the area's content box
+    let left = 0;
+    let top = 0;
     if (area) {
       const areaRect = area.getBoundingClientRect();
-      areaW = Math.max(1, areaRect.width / scale);
-      areaH = Math.max(1, areaRect.height / scale);
-      const imgRect = img.getBoundingClientRect();
-      visualCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
-      visualCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
+      const cs = getComputedStyle(area);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      left = Math.round((imgRect.left - areaRect.left) / scale - padL / scale);
+      top = Math.round((imgRect.top - areaRect.top) / scale - padT / scale);
     }
-
-    const isExistingHtmlImg =
-      entry.type === "html" && img.getAttribute("width") && img.getAttribute("height");
-    let natW;
-    let natH;
-    if (isExistingHtmlImg) {
-      natW = parseInt(img.getAttribute("width"), 10) || img.offsetWidth || 320;
-      natH = parseInt(img.getAttribute("height"), 10) || img.offsetHeight || 240;
-    } else {
-      natW = img.naturalWidth || img.offsetWidth || 320;
-      natH = img.naturalHeight || img.offsetHeight || 240;
-    }
-    let w = natW;
-    let h = natH;
-    if (w > areaW) {
-      w = areaW;
-      h = Math.round((w * natH) / natW);
-    }
-    if (h > areaH) {
-      h = areaH;
-      w = Math.round((h * natW) / natH);
-    }
-    w = Math.max(1, Math.round(w));
-    h = Math.max(1, Math.round(h));
-
-    const left = isExistingHtmlImg ? 0 : Math.round(visualCenterX - w / 2);
-    const top = isExistingHtmlImg ? 0 : Math.round(visualCenterY - h / 2);
 
     img.style.position = "relative";
     img.style.left = `${left}px`;
