@@ -207,6 +207,20 @@ export class DeckController extends EventEmitter {
           console.warn("Move slide down shortcut failed:", e);
         }
       },
+      undo: () => {
+        try {
+          edit()?.markdownEditor?.undo?.();
+        } catch (e) {
+          console.warn("Undo shortcut failed:", e);
+        }
+      },
+      redo: () => {
+        try {
+          edit()?.markdownEditor?.redo?.();
+        } catch (e) {
+          console.warn("Redo shortcut failed:", e);
+        }
+      },
       isEditMode: () => this.isEditMode(),
       isBreakActive: () => this.breakManager.isActive,
       endBreak: () => this.breakManager.setActive(false),

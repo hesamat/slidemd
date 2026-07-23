@@ -6,7 +6,14 @@ import {
   highlightActiveLineGutter,
   placeholder,
 } from "@codemirror/view";
-import { history, historyKeymap, indentWithTab, defaultKeymap } from "@codemirror/commands";
+import {
+  history,
+  historyKeymap,
+  indentWithTab,
+  defaultKeymap,
+  undo,
+  redo,
+} from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
@@ -124,7 +131,7 @@ export class MarkdownEditor {
     this.value = value || "";
     if (!this.view) return;
 
-    const { suppressOnChange = false, scrollIntoView = true } = options;
+    const { suppressOnChange = false, scrollIntoView = true, focus = true } = options;
     if (suppressOnChange) this.suppressChange = true;
 
     try {
@@ -137,7 +144,7 @@ export class MarkdownEditor {
         selection: EditorSelection.cursor(position),
         scrollIntoView,
       });
-      this.view.focus();
+      if (focus) this.view.focus();
     } finally {
       if (suppressOnChange) this.suppressChange = false;
     }
@@ -209,6 +216,20 @@ export class MarkdownEditor {
    */
   focus() {
     this.view?.focus();
+  }
+
+  /**
+   * Undo the last edit
+   */
+  undo() {
+    if (this.view) undo(this.view);
+  }
+
+  /**
+   * Redo the last undone edit
+   */
+  redo() {
+    if (this.view) redo(this.view);
   }
 
   // ── Line highlight (click-to-jump) ───────────────────────────────────────

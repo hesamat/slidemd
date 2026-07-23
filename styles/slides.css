@@ -111,6 +111,12 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Suppress the entrance animation during live edit-mode preview updates
+   to prevent the slide from flickering on every keystroke. */
+[data-edit-mode="true"] .slide.active {
+  animation: none;
+}
+
 /* Grid layout for multi-area slides */
 .slide__grid {
   width: 100%;
