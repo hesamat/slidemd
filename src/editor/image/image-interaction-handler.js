@@ -290,7 +290,7 @@ export class ImageInteractionHandler {
 
           this._updateOverlay();
 
-          // Track which element the cursor is over (for slot comparison at drop)
+          // Track which element the cursor is over and show a gap
           const areaEl = img.closest(".slide__area");
           if (areaEl) {
             const allElements = [...areaEl.children].filter(
@@ -310,6 +310,7 @@ export class ImageInteractionHandler {
                 }
               }
 
+              this._showDropGap(areaEl, insertBefore);
               this._dropInsertBeforeEl = insertBefore;
             }
           }
@@ -352,6 +353,7 @@ export class ImageInteractionHandler {
           } else if (this._dropInsertBeforeEl !== undefined) {
             // Within-area: check if the image actually moved to a different slot
             const targetEl = this._dropInsertBeforeEl;
+            this._hideDropGap();
 
             // Compare current slot to the slot at drag start
             if (targetEl !== this._dragStartInsertBefore) {
@@ -366,7 +368,7 @@ export class ImageInteractionHandler {
             }
           } else {
             // No drop indicator and no cross-area snap — free positioning
-            this._hideDropIndicator();
+            this._hideDropGap();
             this._syncToMarkdown();
             if (this._selectedImg?.isConnected) {
               this.select(this._selectedImg);
@@ -576,6 +578,41 @@ export class ImageInteractionHandler {
   }
 
   // ── Within-area reorder ────────────────────────────────────────────────────
+
+  /**
+   * Show a gap element in the area to indicate where the image will land.
+   * @param {HTMLElement} areaEl
+   * @param {HTMLElement|null} insertBeforeEl - Element to insert before, or null for end
+   */
+  static _showDropGap(areaEl, insertBeforeEl) {
+    this._hideDropGap();
+
+    const gap = document.createElement("div");
+    gap.className = "image-drop-indicator";
+    gap.style.height = "40px";
+    gap.style.minHeight = "40px";
+    gap.style.margin = "4px 0";
+    gap.style.borderRadius = "8px";
+    gap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
+    gap.style.background = "rgba(2, 132, 199, 0.06)";
+    gap.style.pointerEvents = "none";
+    gap.style.flexShrink = "0";
+
+    if (insertBeforeEl) {
+      insertBeforeEl.parentNode.insertBefore(gap, insertBeforeEl);
+    } else {
+      areaEl.appendChild(gap);
+    }
+
+    this._dropIndicator = gap;
+  }
+
+  static _hideDropGap() {
+    if (this._dropIndicator) {
+      this._dropIndicator.remove();
+      this._dropIndicator = null;
+    }
+  }
 
   /**
    * Reorder an image within its area by moving its tag in the markdown source.
