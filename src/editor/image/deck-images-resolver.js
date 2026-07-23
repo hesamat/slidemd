@@ -156,10 +156,7 @@ export class DeckImagesResolver {
             const relPath = `images/${m[2]}`;
             const blobUrl = await this.resolvePreviewSrc(relPath);
             if (blobUrl !== relPath) {
-              resolved = resolved.replace(
-                m[0],
-                m[0].replace(`images/${m[2]}`, blobUrl),
-              );
+              resolved = resolved.replace(m[0], m[0].replace(`images/${m[2]}`, blobUrl));
             }
           }
           if (resolved !== bg) el.style.background = resolved;
