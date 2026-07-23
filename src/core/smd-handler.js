@@ -35,7 +35,10 @@ export class SmdHandler {
       for (const entry of imageFiles) {
         const arrayBuffer = await entry.async("arraybuffer");
         const blob = new Blob([arrayBuffer]);
-        images.set(entry.name, blob);
+        // entry.name is the full path from zip root (e.g., "images/icon.png"),
+        // but we want just the filename relative to images/
+        const name = entry.name.split("/").pop();
+        images.set(`images/${name}`, blob);
       }
     }
     return { markdown, images };
