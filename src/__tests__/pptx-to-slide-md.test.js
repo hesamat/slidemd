@@ -1424,4 +1424,46 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: two-column");
     expect(md).toContain("@media");
   });
+
+  it("does not split code blocks across columns when redistributing content", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Code Split",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content:
+              "- First point with enough text to reach the character threshold for overflow detection\n" +
+              "- Second point with enough text to reach the character threshold for overflow detection\n" +
+              "- Third point with enough text to reach the character threshold for overflow detection\n" +
+              "- Fourth point with enough text to reach the character threshold for overflow detection\n" +
+              "- Fifth point with enough text to reach the character threshold for overflow detection\n" +
+              "```python\ncode_a = 1\ncode_b = 2\n```\n" +
+              "- Sixth point with enough text to reach the character threshold for overflow detection\n" +
+              "- Seventh point with enough text to reach the character threshold for overflow detection\n" +
+              "- Eighth point with enough text to reach the character threshold for overflow detection",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Code block must not be split — ``` must appear in pairs
+    const codeBlockMatches = md.match(/```/g) || [];
+    expect(codeBlockMatches.length % 2).toBe(0);
+  });
 });

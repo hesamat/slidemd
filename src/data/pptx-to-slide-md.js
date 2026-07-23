@@ -132,6 +132,51 @@ const CONFIG = {
 };
 
 /**
+ * Split text content into two halves, respecting code block boundaries.
+ * Never splits inside a ``` fenced code block.
+ * @param {string} text
+ * @returns {[string, string]} [left, right]
+ */
+function splitTextContent(text) {
+  const lines = text.split("\n");
+  if (lines.length <= 1) return [text, ""];
+
+  let inCodeBlock = false;
+  let bestSplit = Math.ceil(lines.length / 2);
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+    }
+    // Prefer splitting just before a code block starts, or just after it ends
+    if (!inCodeBlock && i > 0 && i < lines.length - 1) {
+      const nextIsCode = lines[i + 1]?.trim().startsWith("```");
+      if (nextIsCode) {
+        bestSplit = i + 1;
+      }
+    }
+  }
+
+  // If we're inside a code block at the default split, find the nearest
+  // safe boundary (before the code block starts or after it ends)
+  inCodeBlock = false;
+  for (let i = 0; i < bestSplit; i++) {
+    if (lines[i].trim().startsWith("```")) inCodeBlock = !inCodeBlock;
+  }
+  if (inCodeBlock) {
+    // Find the closing ``` after bestSplit
+    for (let i = bestSplit; i < lines.length; i++) {
+      if (lines[i].trim().startsWith("```")) {
+        bestSplit = i + 1;
+        break;
+      }
+    }
+  }
+
+  return [lines.slice(0, bestSplit).join("\n"), lines.slice(bestSplit).join("\n")];
+}
+
+/**
  * Convert English Metric Units (EMUs) to standard slide points.
  * @param {number} val
  * @returns {number}
@@ -348,68 +393,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     return "";
   };
 
-  // --- SELF-HEALING ENGINE ---
-  // If we inferred a two-column layout, pre-format both sides. If either side is completely
-  // empty of renderable content, automatically downgrade to a single "header-content" column [1.1.4, 1.1.5].
-  if (
-    layout.type === LAYOUT.TWO_COLUMN.type ||
-    layout.type === LAYOUT.LEFT_HEAVY.type ||
-    layout.type === LAYOUT.RIGHT_HEAVY.type
-  ) {
-    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-
-    const hasDominantImages = dominantImages.length > 0;
-    const mediaImage = hasDominantImages ? dominantImages[0] : null;
-    const midX = slideWidth / 2;
-
-    let leftEls = hasDominantImages
-      ? bodyElements.filter((el) => el !== mediaImage)
-      : bodyElements.filter((el) => el.left + el.width / 2 < midX);
-
-    let rightEls = hasDominantImages
-      ? [mediaImage]
-      : bodyElements.filter((el) => el.left + el.width / 2 >= midX);
-
-    // When upgrading from header-content, all elements may be on one side.
-    // Split by index to fill both columns instead of downgrading.
-    if (leftEls.length > 0 && rightEls.length === 0 && !hasDominantImages) {
-      const mid = Math.ceil(leftEls.length / 2);
-      rightEls = leftEls.slice(mid);
-      leftEls = leftEls.slice(0, mid);
-    }
-
-    const leftContent = leftEls
-      .map(formatSingleElement)
-      .filter(Boolean)
-      .join(REGEX.DOUBLE_NEWLINE)
-      .trim();
-    const rightContent = rightEls
-      .map(formatSingleElement)
-      .filter(Boolean)
-      .join(REGEX.DOUBLE_NEWLINE)
-      .trim();
-
-    if (!leftContent || !rightContent) {
-      // Don't downgrade if body has too much content — the rendering step
-      // will split the single body element across columns.
-      const { bodyElements: heBodyEls } = extractHeader(
-        textElements,
-        allElements,
-        slideHeight,
-        false,
-      );
-      const heBodyLen = heBodyEls.reduce((s, el) => s + (el.content || "").trim().length, 0);
-      const heContentLines = heBodyEls.reduce((c, el) => {
-        if (el.type !== ELEMENT_TYPES.TEXT) return c;
-        return c + (el.content || "").split("\n").filter((l) => l.trim()).length;
-      }, 0);
-      const hasHeOverflow = heBodyLen > CONFIG.overflowBodyLength || heContentLines > 8;
-      if (!hasHeOverflow) {
-        layout = { type: LAYOUT.HEADER_CONTENT.type, spec: LAYOUT.HEADER_CONTENT.spec };
-      }
-    }
-  }
-
   // --- MEDIA-SPAN UPGRADE ---
   // If we have a two-column layout and the right column contains exactly one
   // image, upgrade to media-span so the image spans the full slide height.
@@ -436,15 +419,26 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   // --- OVERFLOW POST-PROCESSING ---
   // After media-span upgrade, check if the layout has too much body content.
   // If so, upgrade to two-column so content splits across @main and @media.
+  // Require BOTH sufficient text length AND many lines to avoid false positives.
   if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
     const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
     const contentLines = bodyElements.reduce((count, el) => {
       if (el.type !== ELEMENT_TYPES.TEXT) return count;
-      const lines = (el.content || "").split("\n").filter((l) => l.trim());
-      return count + lines.length;
+      const lines = (el.content || "").split("\n");
+      let inCode = false;
+      let textLines = 0;
+      for (const line of lines) {
+        if (line.trim().startsWith("```")) {
+          inCode = !inCode;
+          continue;
+        }
+        if (!inCode && line.trim()) textLines++;
+      }
+      return count + textLines;
     }, 0);
-    const hasOverflow = bodyLength > CONFIG.overflowBodyLength || contentLines > 8;
+    const hasOverflow =
+      bodyLength > CONFIG.overflowBodyLength || (bodyLength > 200 && contentLines > 8);
     if (hasOverflow) {
       layout = LAYOUT.TWO_COLUMN;
     }
@@ -515,12 +509,42 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     const midX = slideWidth / 2;
     let leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
     let rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
-    // When upgrading from header-content, all elements may be on one side.
-    // Split by index to fill both columns.
+    // When one side is empty, redistribute content to fill both columns.
     if (leftEls.length > 0 && rightEls.length === 0) {
-      const mid = Math.ceil(leftEls.length / 2);
-      rightEls = leftEls.slice(mid);
-      leftEls = leftEls.slice(0, mid);
+      // Check if a single text element has many lines — split the text itself
+      if (leftEls.length === 1 && leftEls[0].type === ELEMENT_TYPES.TEXT) {
+        const lines = (leftEls[0].content || "").split("\n").filter((l) => l.trim());
+        if (lines.length > 6) {
+          const [leftText, rightText] = splitTextContent(leftEls[0].content || "");
+          leftEls = [{ ...leftEls[0], content: leftText }];
+          rightEls = [{ ...leftEls[0], content: rightText }];
+        } else {
+          const mid = Math.ceil(leftEls.length / 2);
+          rightEls = leftEls.slice(mid);
+          leftEls = leftEls.slice(0, mid);
+        }
+      } else {
+        const mid = Math.ceil(leftEls.length / 2);
+        rightEls = leftEls.slice(mid);
+        leftEls = leftEls.slice(0, mid);
+      }
+    } else if (rightEls.length > 0 && leftEls.length === 0) {
+      if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.TEXT) {
+        const lines = (rightEls[0].content || "").split("\n").filter((l) => l.trim());
+        if (lines.length > 6) {
+          const [leftText, rightText] = splitTextContent(rightEls[0].content || "");
+          leftEls = [{ ...rightEls[0], content: leftText }];
+          rightEls = [{ ...rightEls[0], content: rightText }];
+        } else {
+          const mid = Math.ceil(rightEls.length / 2);
+          leftEls = rightEls.slice(0, mid);
+          rightEls = rightEls.slice(mid);
+        }
+      } else {
+        const mid = Math.ceil(rightEls.length / 2);
+        leftEls = rightEls.slice(0, mid);
+        rightEls = rightEls.slice(mid);
+      }
     }
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
