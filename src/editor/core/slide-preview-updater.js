@@ -176,8 +176,9 @@ export class SlidePreviewUpdater {
 
         if (!layoutChanged && !areasChanged) {
           // ── Fast path: patch existing element in-place ────────────────
-          // Update wrapper attributes
-          slideEl.className = `slide${wasActive ? " active" : ""}${slideData?.hidden ? " slide--hidden" : ""}`;
+          // Update wrapper attributes — preserve existing classes (e.g. grid-visible)
+          slideEl.classList.toggle("active", wasActive);
+          slideEl.classList.toggle("slide--hidden", !!slideData?.hidden);
           if (slideData?.theme) slideEl.setAttribute("data-theme", slideData.theme);
           else slideEl.removeAttribute("data-theme");
           if (slideData?.headerStyle)
