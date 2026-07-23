@@ -479,6 +479,22 @@ export class DeckController extends EventEmitter {
   }
 
   handleKeyboard(e) {
+    // Arrow keys move the selected image when an image is selected in edit mode
+    if (e.key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const edit = window.__WEBDECK_EDIT_CONTROLLER__;
+      if (edit?.isEditMode) {
+        import("../editor/image/image-interaction-handler.js").then(
+          ({ ImageInteractionHandler }) => {
+            if (ImageInteractionHandler.isSelected()) {
+              ImageInteractionHandler.handleKeyDown(e);
+            } else {
+              this.keyboardHandler?.handleKeyboard(e);
+            }
+          },
+        );
+        return;
+      }
+    }
     this.keyboardHandler?.handleKeyboard(e);
   }
 

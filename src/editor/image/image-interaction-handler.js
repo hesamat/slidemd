@@ -25,6 +25,8 @@ export class ImageInteractionHandler {
   static _dragStartX = 0;
   static _dragStartY = 0;
   static _dragSnapped = false;
+  static _dropIndicator = null;
+  static _dragStartInsertBefore = null;
 
   static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
     if (this._initialized) return;
@@ -215,13 +217,30 @@ export class ImageInteractionHandler {
             this._dragStartX = e.clientX;
             this._dragStartY = e.clientY;
             this._dragSnapped = false;
+
+            // Track which element the image is currently before (its "slot")
+            const areaEl = img.closest(".slide__area");
+            if (areaEl) {
+              const allElements = [...areaEl.children].filter(
+                (el) => el !== img && !el.classList.contains("image-drop-indicator"),
+              );
+              const cursorY = e.clientY;
+              let insertBefore = null;
+              for (const el of allElements) {
+                const rect = el.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (cursorY < midY) {
+                  insertBefore = el;
+                  break;
+                }
+              }
+              this._dragStartInsertBefore = insertBefore;
+            }
           }
         },
         move: (e) => {
           const img = this._selectedImg;
           if (!img) return;
-
-          const scale = this._getStageScale();
 
           // Detect which area the cursor is over
           this._updateDragTarget(e.clientX, e.clientY);
@@ -258,7 +277,8 @@ export class ImageInteractionHandler {
             }
           }
 
-          // Normal within-area drag
+          // Within-area reorder: move image visually and show drop indicator
+          const scale = this._getStageScale();
           const dDesignX = e.dx / scale;
           const dDesignY = e.dy / scale;
 
@@ -269,7 +289,31 @@ export class ImageInteractionHandler {
           img.style.top = `${curStyleTop + dDesignY}px`;
 
           this._updateOverlay();
-          ImagePropertiesPanel._syncUI(this._readSettings(img));
+
+          // Show drop indicator between other elements (images, text, code blocks)
+          const areaEl = img.closest(".slide__area");
+          if (areaEl) {
+            // Get all direct child elements that are content (not the dragged image)
+            const allElements = [...areaEl.children].filter(
+              (el) => el !== img && !el.classList.contains("image-drop-indicator"),
+            );
+
+            if (allElements.length > 0) {
+              const cursorY = e.clientY;
+              let insertBefore = null;
+
+              for (const el of allElements) {
+                const rect = el.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (cursorY < midY) {
+                  insertBefore = el;
+                  break;
+                }
+              }
+
+              this._showDropIndicator(areaEl, insertBefore);
+            }
+          }
         },
         end: () => {
           this._clearDropTargetHighlight();
@@ -306,9 +350,27 @@ export class ImageInteractionHandler {
                 }, 400);
               }
             }
+          } else if (this._dropIndicator) {
+            // Within-area: check if the image actually moved to a different slot
+            const indicator = this._dropIndicator;
+            const targetEl = indicator.nextElementSibling;
+            this._hideDropIndicator();
+
+            // Compare current slot to the slot at drag start
+            if (targetEl !== this._dragStartInsertBefore) {
+              // Image moved to a different slot — reorder + snap
+              this._reorderImageInMarkdown(this._selectedImg, targetEl);
+            } else {
+              // Image stayed in the same slot — free positioning
+              this._syncToMarkdown();
+              if (this._selectedImg?.isConnected) {
+                this.select(this._selectedImg);
+              }
+            }
           } else {
+            // No drop indicator and no cross-area snap — free positioning
+            this._hideDropIndicator();
             this._syncToMarkdown();
-            // Re-select to restore the properties panel after markdown sync
             if (this._selectedImg?.isConnected) {
               this.select(this._selectedImg);
             }
@@ -317,6 +379,7 @@ export class ImageInteractionHandler {
           this._dragSourceArea = null;
           this._dragTargetArea = null;
           this._dragSnapped = false;
+          this._dragStartInsertBefore = null;
         },
       },
     });
@@ -512,6 +575,222 @@ export class ImageInteractionHandler {
     this._slideContainer
       .querySelectorAll(".slide__area--drop-target")
       .forEach((el) => el.classList.remove("slide__area--drop-target"));
+  }
+
+  // ── Within-area reorder ────────────────────────────────────────────────────
+
+  /**
+   * Show a drop indicator line at the given position within an area.
+   * @param {HTMLElement} areaEl
+   * @param {HTMLElement|null} insertBeforeImg - Image to insert before, or null for end
+   */
+  static _showDropIndicator(areaEl, insertBeforeImg) {
+    this._hideDropIndicator();
+
+    const indicator = document.createElement("div");
+    indicator.className = "image-drop-indicator";
+
+    if (insertBeforeImg) {
+      insertBeforeImg.parentNode.insertBefore(indicator, insertBeforeImg);
+    } else {
+      areaEl.appendChild(indicator);
+    }
+
+    this._dropIndicator = indicator;
+  }
+
+  static _hideDropIndicator() {
+    if (this._dropIndicator) {
+      this._dropIndicator.remove();
+      this._dropIndicator = null;
+    }
+  }
+
+  /**
+   * Reorder an image within its area by moving its tag in the markdown source.
+   * The image snaps to its new position (left/top reset to 0).
+   * @param {HTMLElement} img - The image being moved
+   * @param {HTMLElement|null} targetEl - Element to insert before, or null for end
+   */
+  static _reorderImageInMarkdown(img, targetEl) {
+    const md = this._getMarkdown?.();
+    if (!md || !img) return;
+
+    const entries = this._findAllImages(md);
+    const draggedIdx = this._getImageIndex(img);
+    if (draggedIdx < 0 || draggedIdx >= entries.length) return;
+
+    const draggedEntry = entries[draggedIdx];
+
+    // Find the markdown position of the target element
+    let insertAt = -1;
+    if (targetEl) {
+      if (targetEl.tagName === "IMG") {
+        // Target is another image - find its entry
+        const targetIdx = this._getImageIndex(targetEl);
+        if (targetIdx >= 0 && targetIdx < entries.length) {
+          // Adjust if target was after dragged
+          const adjustedIdx = targetIdx > draggedIdx ? targetIdx - 1 : targetIdx;
+          if (adjustedIdx >= 0 && adjustedIdx < entries.length) {
+            insertAt = entries[adjustedIdx].start;
+            // Offset for the removed dragged entry
+            if (entries[adjustedIdx].start > draggedEntry.start) {
+              insertAt -= draggedEntry.fullTag.length;
+            }
+          }
+        }
+      } else {
+        // Target is a text/code block - find its content in markdown
+        insertAt = this._findElementMarkdownPosition(md, targetEl);
+      }
+    }
+
+    // If target not found, insert at end of area
+    if (insertAt < 0) {
+      const area = img.closest(".slide__area");
+      const areaName = area?.dataset.areaName || "main";
+      const withoutImage = md.slice(0, draggedEntry.start) + md.slice(draggedEntry.end);
+      const range = this._getAreaContentRange(withoutImage, areaName);
+      insertAt = range.to;
+    }
+
+    // Remove the dragged entry from the markdown
+    const withoutImage = md.slice(0, draggedEntry.start) + md.slice(draggedEntry.end);
+
+    // Adjust insertAt if it was after the dragged entry
+    if (insertAt > draggedEntry.start) {
+      insertAt -= draggedEntry.fullTag.length;
+    }
+    insertAt = Math.max(0, insertAt);
+
+    // Build a new image tag with left/top reset to 0 (snap to new position)
+    const src = img.dataset.originalSrc || draggedEntry.src || "";
+    const alt =
+      img.getAttribute("alt") ||
+      draggedEntry.fullMatch.match(/alt=["']([^"']*)["']/i)?.[1] ||
+      "";
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
+    const styleParts = [
+      "position: relative",
+      "left: 0px",
+      "top: 0px",
+      `width: ${w}px`,
+      h ? `height: ${h}px` : "",
+      "border: none",
+      "object-fit: contain",
+      "cursor: move",
+    ];
+    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+
+    // Insert the new tag at the new position
+    const before = withoutImage.slice(0, insertAt);
+    const after = withoutImage.slice(insertAt);
+    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    const updated = before + needsNewline + newTag + "\n" + after;
+
+    // Move the image in the DOM immediately for visual snap, then update markdown.
+    // The markdown update uses suppressOnChange so it won't trigger a re-render
+    // that would undo the DOM manipulation.
+    if (targetEl && targetEl.parentNode) {
+      targetEl.parentNode.insertBefore(img, targetEl);
+    }
+    img.style.left = "0px";
+    img.style.top = "0px";
+    this._updateOverlay();
+
+    if (this._onMoveArea) {
+      this._onMoveArea(updated);
+    } else {
+      this._setMarkdown?.(updated);
+    }
+  }
+
+  /**
+   * Find the markdown position of a non-image DOM element.
+   * Uses data-source-line if available, otherwise falls back to text matching.
+   */
+  static _findElementMarkdownPosition(md, element) {
+    const area = element.closest(".slide__area");
+    if (!area) return -1;
+
+    const areaName = area.dataset.areaName || "main";
+    const range = this._getAreaContentRange(md, areaName);
+
+    // Prefer data-source-line attribute (set by markdown parser)
+    const sourceLine = parseInt(element.dataset?.sourceLine, 10);
+    if (!isNaN(sourceLine)) {
+      // Convert line number to character position within the area
+      const lines = md.slice(range.from, range.to).split("\n");
+      let charOffset = 0;
+      for (let i = 0; i < Math.min(sourceLine, lines.length); i++) {
+        charOffset += lines[i].length + 1; // +1 for newline
+      }
+      return range.from + charOffset;
+    }
+
+    // Fallback: find by text content
+    const text = element.textContent?.trim();
+    if (!text) return -1;
+
+    const areaContent = md.slice(range.from, range.to);
+    const lines = areaContent.split("\n");
+    let charOffset = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && text.startsWith(trimmed.slice(0, 50))) {
+        return range.from + charOffset;
+      }
+      charOffset += line.length + 1;
+    }
+
+    return -1;
+  }
+
+  // ── Arrow key movement ─────────────────────────────────────────────────────
+
+  /**
+   * Handle arrow key presses to move the selected image.
+   * @param {KeyboardEvent} e
+   * @returns {boolean} true if the event was consumed
+   */
+  static handleKeyDown(e) {
+    if (!this._selectedImg || !this._selectedImg.isConnected) return false;
+
+    const step = e.shiftKey ? 1 : 10;
+    let dx = 0;
+    let dy = 0;
+
+    switch (e.key) {
+      case "ArrowLeft":
+        dx = -step;
+        break;
+      case "ArrowRight":
+        dx = step;
+        break;
+      case "ArrowUp":
+        dy = -step;
+        break;
+      case "ArrowDown":
+        dy = step;
+        break;
+      default:
+        return false;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const img = this._selectedImg;
+    const curLeft = parseFloat(img.style.left) || 0;
+    const curTop = parseFloat(img.style.top) || 0;
+
+    img.style.left = `${curLeft + dx}px`;
+    img.style.top = `${curTop + dy}px`;
+
+    this._updateOverlay();
+    this._syncToMarkdown();
+    return true;
   }
 
   /**

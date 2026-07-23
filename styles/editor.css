@@ -927,6 +927,35 @@
   background-color: rgba(2, 132, 199, 0.06);
 }
 
+/* ── Within-area image reorder: drop indicator line ──────────────────── */
+
+.image-drop-indicator {
+  display: block;
+  height: 3px;
+  margin: 4px 0;
+  background: rgba(2, 132, 199, 0.8);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(2, 132, 199, 0.4);
+  pointer-events: none;
+  animation: dropIndicatorPulse 1s ease-in-out infinite;
+}
+
+@keyframes dropIndicatorPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Image selected state — subtle outline */
+.slide__area img.image-selected {
+  outline: 2px solid rgba(2, 132, 199, 0.6);
+  outline-offset: 2px;
+}
+
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
 
 [data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {
