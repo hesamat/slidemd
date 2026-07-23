@@ -19,9 +19,9 @@
 
 const SHADOW_PRESETS = [
   { key: "none", label: "None", value: "none" },
-  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(0,0,0,0.25)" },
-  { key: "medium", label: "Medium", value: "0 6px 16px rgba(0,0,0,0.35)" },
-  { key: "strong", label: "Strong", value: "0 12px 32px rgba(0,0,0,0.5)" },
+  { key: "subtle", label: "Subtle", value: "0 2px 6px rgba(120,120,120,0.3)" },
+  { key: "medium", label: "Medium", value: "0 6px 20px rgba(120,120,120,0.4)" },
+  { key: "strong", label: "Strong", value: "0 12px 32px rgba(120,120,120,0.5)" },
 ];
 
 export class ImagePropertiesPanel {
