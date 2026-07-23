@@ -3,6 +3,7 @@
  *
  * Custom modal for opening deck files.
  * Supports .smd (ZIP archive with images) and .md (remote URLs only).
+ * Uses File System Access API on Chromium, falls back to <input> on Safari/Firefox.
  */
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
@@ -53,22 +54,27 @@ export class OpenDeckModal {
   }
 
   static async _openSmdFile() {
-    if (!("showOpenFilePicker" in window)) {
-      Notification.warning("File picker requires a Chromium-based browser.");
-      return;
-    }
-
     try {
-      const [fileHandle] = await window.showOpenFilePicker({
-        types: [
-          {
-            description: "SlideMD Presentation",
-            accept: { "application/octet-stream": [".smd"] },
-          },
-        ],
-      });
+      let file;
+      let fileHandle = null;
 
-      const file = await fileHandle.getFile();
+      // Chromium: use File System Access API for direct re-saving later
+      if ("showOpenFilePicker" in window) {
+        [fileHandle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: "SlideMD Presentation",
+              accept: { "application/octet-stream": [".smd"] },
+            },
+          ],
+        });
+        file = await fileHandle.getFile();
+      } else {
+        // Safari/Firefox fallback
+        file = await this._pickFileViaInput(".smd");
+        if (!file) return;
+      }
+
       const { markdown, images } = await SmdHandler.extractFromSmd(file);
 
       DeckLoader.smdImageCache.clear();
@@ -78,7 +84,9 @@ export class OpenDeckModal {
       }
       DeckLoader.isSmdMode = true;
 
-      DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+      if (fileHandle) {
+        DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+      }
 
       localStorage.setItem("webdeck_local_file", markdown);
       localStorage.setItem("webdeck_local_file_type", "smd");
@@ -87,7 +95,6 @@ export class OpenDeckModal {
       localStorage.removeItem("webdeck_source_url");
 
       DeckLoader.addRecentDeck(file.name);
-
       await DraftManager.saveDraft(markdown, images);
 
       this.hide();
@@ -106,27 +113,34 @@ export class OpenDeckModal {
   }
 
   static async _openMdFile() {
-    if (!("showOpenFilePicker" in window)) {
-      Notification.warning("File picker requires a Chromium-based browser.");
-      return;
-    }
-
     try {
-      const [fileHandle] = await window.showOpenFilePicker({
-        types: [
-          {
-            description: "Markdown file",
-            accept: { "text/markdown": [".md"] },
-          },
-        ],
-      });
+      let file;
+      let fileHandle = null;
 
-      const file = await fileHandle.getFile();
+      if ("showOpenFilePicker" in window) {
+        [fileHandle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: "Markdown file",
+              accept: { "text/markdown": [".md"] },
+            },
+          ],
+        });
+        file = await fileHandle.getFile();
+      } else {
+        // Safari/Firefox fallback
+        file = await this._pickFileViaInput(".md");
+        if (!file) return;
+      }
+
       const rawText = await file.text();
 
       DeckLoader.isSmdMode = false;
       DeckLoader.smdImageCache.clear();
-      DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+
+      if (fileHandle) {
+        DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+      }
 
       localStorage.setItem("webdeck_local_file", rawText);
       localStorage.setItem("webdeck_local_file_type", "md");
@@ -135,7 +149,6 @@ export class OpenDeckModal {
       localStorage.removeItem("webdeck_source_url");
 
       DeckLoader.addRecentDeck(file.name);
-
       await DraftManager.saveDraft(rawText, new Map());
 
       this.hide();
@@ -151,6 +164,42 @@ export class OpenDeckModal {
         Notification.error("Failed to open .md file");
       }
     }
+  }
+
+  /**
+   * Safari/Firefox fallback: creates a hidden <input type="file"> to pick files.
+   * @param {string} accept - e.g. ".smd" or ".md"
+   * @returns {Promise<File | null>}
+   */
+  static _pickFileViaInput(accept) {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = accept;
+      input.style.display = "none";
+      document.body.appendChild(input);
+
+      input.onchange = () => {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+        resolve(file || null);
+      };
+
+      window.addEventListener(
+        "focus",
+        () => {
+          setTimeout(() => {
+            if (document.body.contains(input)) {
+              document.body.removeChild(input);
+              resolve(null);
+            }
+          }, 500);
+        },
+        { once: true },
+      );
+
+      input.click();
+    });
   }
 
   static _renderRecentDecks() {

@@ -316,50 +316,16 @@ export class DeckController extends EventEmitter {
 
   async #loadDeckImagesResolver() {
     try {
-      const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      // Immediately clear any stale handle from a previous deck so
-      // #rewriteImages() doesn't resolve images from the wrong directory.
-      DeckImagesResolver.setDeckDir(null, "parent");
-      const fileName = localStorage.getItem("webdeck_local_file_name") || undefined;
-      const { handle, mode } = await DirectoryHandleStore.load(fileName);
-      if (!handle) return;
+      const { DeckLoader } = await import("../data/deck-loader.js");
 
-      // Check if we have permission to read the directory.
-      // After a page reload, stored handles reset to "prompt" permission.
-      const permission = await handle.queryPermission({ mode: "read" });
-      if (permission !== "granted") {
-        // Try to request read permission (requires user gesture in some browsers)
-        const requested = await handle.requestPermission({ mode: "read" });
-        if (requested !== "granted") {
-          Notification.info("Click anywhere to load images from disk");
-          let retried = false;
-          const retry = async () => {
-            if (retried) return;
-            retried = true;
-            try {
-              const p = await handle.requestPermission({ mode: "read" });
-              if (p === "granted") {
-                DeckImagesResolver.setDeckDir(handle, mode || "parent");
-                await DeckImagesResolver.prime();
-                await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
-                await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
-              }
-            } catch (retryErr) {
-              console.warn("Image resolution retry failed:", retryErr);
-            }
-          };
-          document.addEventListener("click", retry, { once: true });
-          document.addEventListener("keydown", retry, { once: true });
-          return;
-        }
+      DeckImagesResolver.clearCache();
+
+      // Populate resolver cache from in-memory smdImageCache
+      if (DeckLoader.isSmdMode && DeckLoader.smdImageCache.size > 0) {
+        DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
       }
 
-      DeckImagesResolver.setDeckDir(handle, mode || "parent");
-      const primed = await DeckImagesResolver.prime();
-      if (primed.size === 0) {
-        console.warn("DeckImagesResolver.prime() found no images — check images/ directory");
-      }
       await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
       await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
     } catch (err) {
@@ -469,7 +435,7 @@ export class DeckController extends EventEmitter {
     // images from the previous deck's directory.
     try {
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      DeckImagesResolver.setDeckDir(null, "parent");
+      DeckImagesResolver.clearCache();
     } catch {
       // ignore
     }
@@ -787,14 +753,24 @@ export class DeckController extends EventEmitter {
 
         savingModal.updateProgress(100);
 
-        // Save the deck folder handle for future use (not the parent)
-        const { DirectoryHandleStore } = await import("../core/directory-handle-store.js");
-        await DirectoryHandleStore.save(deckDir, "parent", mdName);
-
-        // Configure the image resolver with the deck folder so images render
+        // Store images in memory for in-session rendering
+        const { DeckLoader } = await import("../data/deck-loader.js");
         const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-        DeckImagesResolver.setDeckDir(deckDir, "parent");
-        DeckImagesResolver.prime();
+        if (importImages && images?.length) {
+          DeckLoader.isSmdMode = true;
+          DeckLoader.smdImageCache.clear();
+          for (const img of images) {
+            if (!img.base64 || !img.ref) continue;
+            const rawName = img.ref.split("/").pop();
+            if (!rawName) continue;
+            const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+            const relPath = `images/${safeName}`;
+            const blob = await fetch(img.base64).then((r) => r.blob());
+            const blobUrl = URL.createObjectURL(blob);
+            DeckLoader.smdImageCache.set(relPath, blobUrl);
+          }
+          DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
+        }
 
         // Store markdown info in localStorage so edit mode can find it
         try {
