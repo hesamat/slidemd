@@ -293,7 +293,7 @@ export class ReloadManager extends EventEmitter {
 
       const newDeck = await DeckLoader.parseMarkdown(text);
       await this.replaceDeck(newDeck, { startAtFirstSlide: true });
-      // Note: No need to broadcastReload here since setupLocalFileHandler
+      // Note: No need to broadcastReload here since the file-open modal
       // already stored the data in localStorage with a timestamp,
       // which will trigger storage events in other tabs
     } catch (err) {

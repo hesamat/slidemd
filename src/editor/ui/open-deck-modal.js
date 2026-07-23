@@ -8,14 +8,13 @@
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 
-const LAST_FOLDER_KEY = "webdeck_last_folder_name";
-
 export class OpenDeckModal {
   static _el = null;
   static _fileListEl = null;
   static _folderPathEl = null;
   static _browseBtn = null;
   static _dirHandle = null;
+  static _previousFocus = null;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
@@ -38,15 +37,19 @@ export class OpenDeckModal {
 
   static show() {
     if (!this._el) return;
+    this._previousFocus = document.activeElement;
     this._el.classList.remove("webdeck-hidden");
     this._fileListEl.innerHTML = "";
     this._folderPathEl.textContent = "";
     this._renderRecentDecks();
+    this._browseBtn?.focus();
   }
 
   static hide() {
     if (!this._el) return;
     this._el.classList.add("webdeck-hidden");
+    this._previousFocus?.focus();
+    this._previousFocus = null;
   }
 
   static async _browseFolder() {
@@ -58,7 +61,6 @@ export class OpenDeckModal {
     try {
       this._dirHandle = await window.showDirectoryPicker({ id: "deck-folder" });
       this._folderPathEl.textContent = this._dirHandle.name;
-      localStorage.setItem(LAST_FOLDER_KEY, this._dirHandle.name);
       await this._listMdFiles();
     } catch (e) {
       if (e.name !== "AbortError") {
@@ -78,8 +80,11 @@ export class OpenDeckModal {
     }
 
     if (mdFiles.length === 0) {
-      this._fileListEl.innerHTML =
-        '<div class="open-deck__empty">No .md files found in this folder.</div>';
+      const empty = document.createElement("div");
+      empty.className = "open-deck__empty";
+      empty.textContent = "No .md files found in this folder.";
+      this._fileListEl.innerHTML = "";
+      this._fileListEl.appendChild(empty);
       return;
     }
 
@@ -98,13 +103,28 @@ export class OpenDeckModal {
       const btn = document.createElement("button");
       btn.className = "open-deck__file-item";
       btn.dataset.fileName = f.name;
-      btn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-        </svg>
-        ${f.name}
-      `;
+
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("width", "16");
+      icon.setAttribute("height", "16");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("fill", "none");
+      icon.setAttribute("stroke", "currentColor");
+      icon.setAttribute("stroke-width", "2");
+      icon.setAttribute("stroke-linecap", "round");
+      icon.setAttribute("stroke-linejoin", "round");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z");
+      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      polyline.setAttribute("points", "14 2 14 8 20 8");
+      icon.appendChild(path);
+      icon.appendChild(polyline);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = f.name;
+
+      btn.appendChild(icon);
+      btn.appendChild(nameSpan);
       btn.addEventListener("click", () => this._loadFile(f.name));
       list.appendChild(btn);
     }
@@ -165,15 +185,35 @@ export class OpenDeckModal {
       btn.className = "open-deck__recent-item";
       btn.dataset.recentFile = entry.name;
 
-      const timeAgo = this._timeAgo(entry.timestamp);
-      btn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-        <span class="open-deck__recent-name">${entry.name}</span>
-        <span class="open-deck__recent-time">${timeAgo}</span>
-      `;
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("width", "14");
+      icon.setAttribute("height", "14");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("fill", "none");
+      icon.setAttribute("stroke", "currentColor");
+      icon.setAttribute("stroke-width", "2");
+      icon.setAttribute("stroke-linecap", "round");
+      icon.setAttribute("stroke-linejoin", "round");
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", "12");
+      circle.setAttribute("cy", "12");
+      circle.setAttribute("r", "10");
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      poly.setAttribute("points", "12 6 12 12 16 14");
+      icon.appendChild(circle);
+      icon.appendChild(poly);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "open-deck__recent-name";
+      nameSpan.textContent = entry.name;
+
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "open-deck__recent-time";
+      timeSpan.textContent = this._timeAgo(entry.timestamp);
+
+      btn.appendChild(icon);
+      btn.appendChild(nameSpan);
+      btn.appendChild(timeSpan);
 
       btn.addEventListener("click", () => {
         DeckLoader.loadRecentDeck(entry.name);
