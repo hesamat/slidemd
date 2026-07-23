@@ -348,7 +348,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   // --- SELF-HEALING ENGINE ---
   // If we inferred a two-column layout, pre-format both sides. If either side is completely
   // empty of renderable content, automatically downgrade to a single "header-content" column [1.1.4, 1.1.5].
-  if (layout.type === LAYOUT.TWO_COLUMN.type) {
+  if (
+    layout.type === LAYOUT.TWO_COLUMN.type ||
+    layout.type === LAYOUT.LEFT_HEAVY.type ||
+    layout.type === LAYOUT.RIGHT_HEAVY.type
+  ) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
 
     const hasDominantImages = dominantImages.length > 0;
@@ -841,7 +845,13 @@ function inferLayout(
     const leftArea = leftEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
     const rightArea = rightEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
     if (leftArea > rightArea * 1.5) return LAYOUT.LEFT_HEAVY;
-    if (rightArea > leftArea * 1.5) return LAYOUT.RIGHT_HEAVY;
+    if (rightArea > leftArea * 1.5) {
+      // When the right column has only images (no text), media-span is a
+      // better fit — the image spans the full slide height.
+      const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
+      if (!rightHasText) return LAYOUT.MEDIA_SPAN;
+      return LAYOUT.RIGHT_HEAVY;
+    }
     return LAYOUT.TWO_COLUMN;
   }
 

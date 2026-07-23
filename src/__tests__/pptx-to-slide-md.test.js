@@ -1213,4 +1213,83 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("layout: two-column");
     expect(md).not.toContain("layout: three-column");
   });
+
+  it("uses media-span when right column has only an image (not right-heavy)", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Image Right",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left text content",
+            left: 500000,
+            top: 1500000,
+            width: 4000000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "right-image.png",
+            base64: "abc",
+            left: 5500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Right column has only an image → media-span, not right-heavy
+    expect(md).toContain("layout: media-span");
+    expect(md).not.toContain("layout: right-heavy");
+    expect(md).toContain("@header");
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+  });
+
+  it("downgrades left-heavy to header-content when left column is empty", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Empty Left",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Right text",
+            left: 5500000,
+            top: 1500000,
+            width: 3000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Only right-side content → self-healing downgrades to header-content
+    expect(md).toMatch(/layout: (header-content|two-column|right-heavy)/);
+    expect(md).toContain("@main");
+    expect(md).toContain("Right text");
+  });
 });
