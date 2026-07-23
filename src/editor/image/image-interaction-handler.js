@@ -27,6 +27,12 @@ import {
   rotateBy,
   getStageScale,
 } from "./image-position-presets.js";
+import { AREA_DEFAULT_W, AREA_DEFAULT_H } from "./image-markdown-utils.js";
+
+const OVERLAY_BORDER = 2;
+const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
+const IMG_FALLBACK_W = 480;
+const ARROW_KEY_STEP = 10;
 
 export class ImageInteractionHandler {
   static _initialized = false;
@@ -144,10 +150,10 @@ export class ImageInteractionHandler {
     const h = imgRect.height / scale;
 
     overlay.style.display = "block";
-    overlay.style.left = `${left - 2}px`;
-    overlay.style.top = `${top - 2}px`;
-    overlay.style.width = `${w + 4}px`;
-    overlay.style.height = `${h + 4}px`;
+    overlay.style.left = `${left - OVERLAY_BORDER}px`;
+    overlay.style.top = `${top - OVERLAY_BORDER}px`;
+    overlay.style.width = `${w + OVERLAY_BORDER_DOUBLE}px`;
+    overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
   }
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -227,7 +233,7 @@ export class ImageInteractionHandler {
     const withoutImage = md.slice(0, entry.start) + md.slice(entry.end);
 
     // Build a fresh <img> tag preserving all style properties
-    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
     const alt = img.getAttribute("alt") || extractAltText(entry) || "";
     const newTag = buildRepositionedImgTag(img, src, alt, w, h);
@@ -264,7 +270,7 @@ export class ImageInteractionHandler {
     updated = updated.replace(/\n{3,}/g, "\n\n");
 
     // Build a fresh <img> tag preserving all style properties
-    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
     const alt = img.getAttribute("alt") || extractAltText(entry) || "";
     const newTag = buildRepositionedImgTag(img, src, alt, w, h);
@@ -367,7 +373,7 @@ export class ImageInteractionHandler {
     // Build a new image tag with left/top reset to 0 (snap to new position)
     // but preserving all other style properties (rotation, opacity, etc.)
     const src = img.dataset.originalSrc || draggedEntry.src || "";
-    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
+    const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
     const alt = img.getAttribute("alt") || extractAltText(draggedEntry) || "";
     const newTag = buildRepositionedImgTag(img, src, alt, w, h);
@@ -406,7 +412,7 @@ export class ImageInteractionHandler {
   static handleKeyDown(e) {
     if (!this._selectedImg || !this._selectedImg.isConnected) return false;
 
-    const step = e.shiftKey ? 1 : 10;
+    const step = e.shiftKey ? 1 : ARROW_KEY_STEP;
     let dx = 0;
     let dy = 0;
 
@@ -562,8 +568,8 @@ export class ImageInteractionHandler {
     // and then choose left/top offsets that put the new fixed-size
     // element's centre at the same point, so the picture stays put.
     const area = img.closest(".slide__area");
-    let areaW = 1920;
-    let areaH = 1080;
+    let areaW = AREA_DEFAULT_W;
+    let areaH = AREA_DEFAULT_H;
     let visualCenterX = areaW / 2;
     let visualCenterY = areaH / 2;
     const scale = getStageScale();

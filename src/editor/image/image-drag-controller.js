@@ -13,6 +13,13 @@ import { ImagePropertiesPanel } from "./image-properties-panel.js";
 import { getStageScale } from "./image-position-presets.js";
 import { readImageSettings } from "./image-markdown-utils.js";
 
+const MIN_RESIZE_DIM = 50;
+const DROP_GAP_HEIGHT = 40;
+const DROP_GAP_MARGIN = 4;
+const DROP_GAP_RADIUS = 8;
+const CROSS_AREA_RESELECT_MS = 400;
+const CORNER_EDGE_LEN_THRESHOLD = 4;
+
 export class ImageDragController {
   /** @type {HTMLElement|null} */
   static _dropIndicator = null;
@@ -243,7 +250,7 @@ export class ImageDragController {
             return elSrc === movedSrc;
           });
           if (match) ctx.select(match);
-        }, 400);
+        }, CROSS_AREA_RESELECT_MS);
       }
     } else {
       // Within-area: compute slot fresh from cursor Y
@@ -320,17 +327,17 @@ export class ImageDragController {
         let newW = s.startW;
         let newH = s.startH;
 
-        const isCorner = s.edge.length > 4;
+        const isCorner = s.edge.length > CORNER_EDGE_LEN_THRESHOLD;
         const lockRatio = ctx.isAspectLocked() || (ev.shiftKey && isCorner);
 
-        if (s.edge.includes("right")) newW = Math.max(50, s.startW + sdx);
+        if (s.edge.includes("right")) newW = Math.max(MIN_RESIZE_DIM, s.startW + sdx);
         if (s.edge.includes("left")) {
-          newW = Math.max(50, s.startW - sdx);
+          newW = Math.max(MIN_RESIZE_DIM, s.startW - sdx);
           newLeft = s.startLeft + s.startW - newW;
         }
-        if (s.edge.includes("bottom")) newH = Math.max(50, s.startH + sdy);
+        if (s.edge.includes("bottom")) newH = Math.max(MIN_RESIZE_DIM, s.startH + sdy);
         if (s.edge.includes("top")) {
-          newH = Math.max(50, s.startH - sdy);
+          newH = Math.max(MIN_RESIZE_DIM, s.startH - sdy);
           newTop = s.startTop + s.startH - newH;
         }
 
@@ -386,10 +393,10 @@ export class ImageDragController {
 
     const newGap = document.createElement("div");
     newGap.className = "image-drop-indicator";
-    newGap.style.height = "40px";
-    newGap.style.minHeight = "40px";
-    newGap.style.margin = "4px 0";
-    newGap.style.borderRadius = "8px";
+    newGap.style.height = `${DROP_GAP_HEIGHT}px`;
+    newGap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
+    newGap.style.margin = `${DROP_GAP_MARGIN}px 0`;
+    newGap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
     newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
     newGap.style.background = "rgba(2, 132, 199, 0.06)";
     newGap.style.pointerEvents = "none";

@@ -16,10 +16,10 @@ const ALT_MD_RE = /!\[([^\]]*)\]/;
 const ROTATION_RE = /rotate\(([-\d.]+)deg\)/i;
 const SOURCE_LINE_ATTR = "sourceLine";
 const MAX_TEXT_MATCH_LEN = 50;
-const LINE_HEIGHT_DEFAULT_PX = 320;
 const IMG_WIDTH_DEFAULT_PX = 320;
-const AREA_DEFAULT_W = 1920;
-const AREA_DEFAULT_H = 1080;
+export const AREA_DEFAULT_W = 1920;
+export const AREA_DEFAULT_H = 1080;
+
 const FALLBACK_IMG_NATURAL_W = 320;
 const FALLBACK_IMG_NATURAL_H = 240;
 
