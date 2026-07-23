@@ -96,6 +96,8 @@ export class OpenDeckModal {
 
       DeckLoader.addRecentDeck(file.name);
       await DraftManager.saveDraft(markdown, images);
+      // Persist image cache for page refresh recovery
+      await DraftManager.saveImageCache(images);
 
       this.hide();
 
@@ -104,6 +106,9 @@ export class OpenDeckModal {
           detail: { text: markdown, fileType: "smd", fileName: file.name },
         }),
       );
+
+      // Clear stale draft (crash recovery) — image cache persists separately
+      await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
         console.error("Failed to open .smd file:", e);
@@ -158,6 +163,9 @@ export class OpenDeckModal {
           detail: { text: rawText, fileType: "md", fileName: file.name },
         }),
       );
+
+      // Clear stale draft from any previously opened deck
+      await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
         console.error("Failed to open .md file:", e);

@@ -55,7 +55,7 @@ export class DeckImagesResolver {
    * Borrowed URLs (from smdImageCache) are NOT revoked.
    */
   static clearCache() {
-    for (const [path, url] of this._urls) {
+    for (const [, url] of this._urls) {
       if (!this._borrowedUrls.has(url)) {
         URL.revokeObjectURL(url);
       }

@@ -710,15 +710,8 @@ export class DeckController extends EventEmitter {
     if (importImages && images?.length) {
       DeckLoader.isSmdMode = true;
       DeckLoader.smdImageCache.clear();
-      for (const img of images) {
-        if (!img.base64 || !img.ref) continue;
-        const rawName = img.ref.split("/").pop();
-        if (!rawName) continue;
-        const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
-        const relPath = `images/${safeName}`;
-        const blob = await fetch(img.base64).then((r) => r.blob());
-        const blobUrl = URL.createObjectURL(blob);
-        DeckLoader.smdImageCache.set(relPath, blobUrl);
+      for (const [path, blob] of imageMap) {
+        DeckLoader.smdImageCache.set(path, URL.createObjectURL(blob));
       }
       DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
     }

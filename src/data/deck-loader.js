@@ -173,6 +173,23 @@ export class DeckLoader {
           if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
 
           if (fileType === "md" || fileType === "smd") {
+            // For .smd files, restore images from persistent IndexedDB cache
+            if (fileType === "smd") {
+              try {
+                const { DraftManager } = await import("../core/draft-manager.js");
+                const cachedImages = await DraftManager.loadImageCache();
+                if (cachedImages && cachedImages.size > 0) {
+                  this.smdImageCache.clear();
+                  for (const [path, blob] of cachedImages) {
+                    const url = URL.createObjectURL(blob);
+                    this.smdImageCache.set(path, url);
+                  }
+                  this.isSmdMode = true;
+                }
+              } catch {
+                // Image cache load failed — images won't render, but markdown still loads
+              }
+            }
             await AssetLoader.ensureMarkdownItLoaded();
             return new MarkdownParser().parseDeckMarkdown(localFile);
           }
@@ -279,6 +296,10 @@ Markdown-based presentations made simple.
       }
       this.isSmdMode = true;
       DeckImagesResolver.setSmdImages(this.smdImageCache);
+
+      // Persist image cache for page refresh recovery
+      const { DraftManager } = await import("../core/draft-manager.js");
+      await DraftManager.saveImageCache(images);
 
       localStorage.setItem("webdeck_local_file", markdown);
       localStorage.setItem("webdeck_local_file_type", "smd");

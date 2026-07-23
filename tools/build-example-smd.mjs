@@ -2,7 +2,7 @@
  * Build docs/example.smd from docs/example.md + public images.
  * Run: node tools/build-example-smd.mjs
  */
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import JSZip from "jszip";

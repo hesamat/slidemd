@@ -222,6 +222,10 @@ export class SlidePreviewUpdater {
             }
           }
 
+          // Rewrite image srcs to blob URLs in the fast path too
+          DeckImagesResolver.rewriteImgSrcs(slideEl).catch(() => {});
+          DeckImagesResolver.rewriteBackgroundUrls(slideEl).catch(() => {});
+
           this.warnings.applyPendingSlideWarning(slideEl);
 
           requestAnimationFrame(() => {
