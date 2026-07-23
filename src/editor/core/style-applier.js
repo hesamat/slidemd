@@ -138,20 +138,27 @@ export class StyleApplier {
   }
 
   async pickImage(onSelect) {
-    const { ImagePicker } = await import("../image/image-picker.js");
-    const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-    const imageBg = this._getImageBg();
-    const deckDirHandle = await imageBg._resolveDeckDirectoryHandle();
-    DeckImagesResolver.setDeckDir(deckDirHandle, imageBg.deckDirMode);
-    ImagePicker.show(
-      (path) => {
-        onSelect(path);
-      },
-      {
-        deckDirHandle,
-        deckDirMode: imageBg.deckDirMode,
-        pathOnly: true,
-      },
-    );
+    const { DeckLoader } = await import("../../data/deck-loader.js");
+
+    // In .md mode: prompt for image URL
+    if (!DeckLoader.isSmdMode) {
+      const url = prompt("Enter image URL (https://...):");
+      if (url && url.startsWith("http")) {
+        onSelect(url);
+      }
+      return;
+    }
+
+    // In .smd mode: use native file picker
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const blobUrl = URL.createObjectURL(file);
+      onSelect(blobUrl);
+    };
+    input.click();
   }
 }

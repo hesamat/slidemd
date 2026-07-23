@@ -94,6 +94,21 @@ export class DeckLoader {
   }
 
   /**
+   * In-memory cache for .smd images: relative path → blob URL.
+   * Populated when opening a .smd file, used by DeckImagesResolver.
+   * @static
+   * @type {Map<string, string>}
+   */
+  static smdImageCache = new Map();
+
+  /**
+   * Whether the currently loaded deck is in .smd format.
+   * @static
+   * @type {boolean}
+   */
+  static isSmdMode = false;
+
+  /**
    * Whether the browser supports the File System Access API.
    * @static
    * @type {boolean}
@@ -157,7 +172,24 @@ export class DeckLoader {
         if (age < 30000 || reloadFlag === "1") {
           if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
 
-          if (fileType === "md") {
+          if (fileType === "md" || fileType === "smd") {
+            // For .smd files, restore images from persistent IndexedDB cache
+            if (fileType === "smd") {
+              try {
+                const { DraftManager } = await import("../core/draft-manager.js");
+                const cachedImages = await DraftManager.loadImageCache();
+                if (cachedImages && cachedImages.size > 0) {
+                  this.smdImageCache.clear();
+                  for (const [path, blob] of cachedImages) {
+                    const url = URL.createObjectURL(blob);
+                    this.smdImageCache.set(path, url);
+                  }
+                  this.isSmdMode = true;
+                }
+              } catch {
+                // Image cache load failed — images won't render, but markdown still loads
+              }
+            }
             await AssetLoader.ensureMarkdownItLoaded();
             return new MarkdownParser().parseDeckMarkdown(localFile);
           }
@@ -168,6 +200,40 @@ export class DeckLoader {
       // Don't delete localStorage data on any error - let it fall through
       // to try other sources (embedded, welcome deck)
       // Only clear localStorage explicitly when user loads a new file
+    }
+
+    // 1b. Try IndexedDB draft (crash recovery)
+    try {
+      const { DraftManager } = await import("../core/draft-manager.js");
+      const draft = await DraftManager.loadDraft();
+      if (draft) {
+        const fileName = localStorage.getItem("webdeck_local_file_name") || "recovered-deck";
+        const confirmed = window.confirm(
+          "Unsaved draft found from a previous session. Restore it?",
+        );
+        if (confirmed) {
+          // Restore images into smdImageCache
+          this.smdImageCache.clear();
+          for (const [path, blob] of draft.images) {
+            const url = URL.createObjectURL(blob);
+            this.smdImageCache.set(path, url);
+          }
+          this.isSmdMode = draft.images.size > 0;
+
+          localStorage.setItem("webdeck_local_file", draft.markdown);
+          localStorage.setItem("webdeck_local_file_type", draft.images.size > 0 ? "smd" : "md");
+          localStorage.setItem("webdeck_local_file_name", fileName);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
+          await DraftManager.clearDraft();
+          await AssetLoader.ensureMarkdownItLoaded();
+          return new MarkdownParser().parseDeckMarkdown(draft.markdown);
+        } else {
+          await DraftManager.clearDraft();
+        }
+      }
+    } catch (err) {
+      console.warn("Draft recovery failed:", err);
     }
 
     // 2. Try Embedded JSON
@@ -197,43 +263,55 @@ Markdown-based presentations made simple.
 
 ### What you can do
 
-- **Open a .md file** to start presenting
+- **Open a .smd or .md file** to start presenting
 - **Press \`E\`** to toggle edit mode with live preview
 - **Press \`P\`** to open a viewer for your audience
 - **Press \`D\`** to switch between dark and light themes
 
 <button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>
 
-*Loads \`docs/example.md\` — covers layouts, themes, code, math, and more.*`,
+*Loads \`docs/example.smd\` — covers layouts, themes, code, math, and more.*`,
     );
   }
 
   /**
-   * Loads the bundled example.md from docs/ via HTTP fetch.
+   * Loads the bundled example.smd from docs/ via HTTP fetch.
    * No file picker needed — the file is served by the dev server / host.
-   */
-  /**
-   * Load the bundled example.md from docs/ via HTTP fetch and store in localStorage.
-   * @static
-   * @returns {Promise<void>}
    */
   static async openExampleFile() {
     try {
-      const res = await fetch("docs/example.md");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rawText = await res.text();
+      const { SmdHandler } = await import("../core/smd-handler.js");
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
 
-      localStorage.setItem("webdeck_local_file", rawText);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", "example.md");
+      const res = await fetch("docs/example.smd");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const { markdown, images } = await SmdHandler.extractFromSmd(blob);
+
+      // Store images for rendering
+      this.smdImageCache.clear();
+      for (const [path, imgBlob] of images) {
+        const url = URL.createObjectURL(imgBlob);
+        this.smdImageCache.set(path, url);
+      }
+      this.isSmdMode = true;
+      DeckImagesResolver.setSmdImages(this.smdImageCache);
+
+      // Persist image cache for page refresh recovery
+      const { DraftManager } = await import("../core/draft-manager.js");
+      await DraftManager.saveImageCache(images);
+
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_type", "smd");
+      localStorage.setItem("webdeck_local_file_name", "example.smd");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      this.addRecentDeck("example.md");
+      this.addRecentDeck("example.smd");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: rawText, fileType: "md", fileName: "example.md" },
+          detail: { text: markdown, fileType: "smd", fileName: "example.smd" },
         }),
       );
     } catch (e) {

@@ -1,13 +1,12 @@
 /**
  * ImageInserter
  *
- * Handles inserting images into slide markdown via the image picker,
+ * Handles inserting images into slide markdown via native file picker,
  * drag-drop, and clipboard paste.
  * Uses AbortController for clean teardown of drag/drop/paste listeners.
  */
 
-import { ImagePicker } from "./image-picker.js";
-import { DeckImagesResolver } from "./deck-images-resolver.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 
 export class ImageInserter {
   /**
@@ -49,63 +48,77 @@ export class ImageInserter {
     return this._getImageBg();
   }
 
-  // ─── Image picker insertion ──────────────────────────────────
+  // ─── Image insertion ──────────────────────────────────────
 
   async pickAndInsert() {
     if (!this.markdownEditor) return;
 
+    // In .md mode: prompt for image URL directly
+    if (!DeckLoader.isSmdMode) {
+      const url = prompt("Enter image URL (https://...):");
+      if (!url || !url.startsWith("http")) return;
+      const snippet = this.imageBg.insertImageUrl(url);
+      this._insertSnippet(snippet);
+      return;
+    }
+
+    // In .smd mode: use a native file picker to select an image
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const relativePath = await this.imageBg.uploadImage(file);
+      if (!relativePath) return;
+
+      const alt = file.name.replace(/\.[^.]+$/, "");
+      const snippet = `![${alt}](${relativePath})`;
+      this._insertSnippet(snippet);
+    };
+    input.click();
+  }
+
+  /**
+   * Insert a markdown snippet at the correct cursor position.
+   * @param {string} snippet
+   */
+  _insertSnippet(snippet) {
+    const current = this.markdownEditor.getValue();
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
+    const hasSavedPosition =
+      savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length;
 
-    const deckDirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-    DeckImagesResolver.setDeckDir(deckDirHandle, this.imageBg.deckDirMode);
+    let insertPos;
+    let afterSnippet;
 
-    ImagePicker.show(
-      (snippet) => {
-        const current = this.markdownEditor.getValue();
-        const hasSavedPosition =
-          savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length;
+    if (hasSavedPosition) {
+      const pos = savedCursorPos;
+      const isAtStart = pos === 0;
+      const isAtEnd = pos >= current.length;
+      const prevChar = isAtStart ? "\n" : current[pos - 1];
+      const nextChar = isAtEnd ? "\n" : current[pos];
 
-        let insertPos;
-        let afterSnippet;
+      const before = prevChar === "\n" ? "" : "\n\n";
+      const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
+      const leadTrim = isAtStart ? before.replace(/^\n+/, "") : before;
 
-        if (hasSavedPosition) {
-          const pos = savedCursorPos;
-          const isAtStart = pos === 0;
-          const isAtEnd = pos >= current.length;
-          const prevChar = isAtStart ? "\n" : current[pos - 1];
-          const nextChar = isAtEnd ? "\n" : current[pos];
+      insertPos = pos;
+      afterSnippet = `${leadTrim}${snippet}${after}`;
+    } else {
+      const footerIdx = current.search(/^@footer\b/m);
+      if (footerIdx > 0) {
+        insertPos = footerIdx;
+        afterSnippet = `${snippet}\n\n`;
+      } else {
+        insertPos = current.length;
+        afterSnippet = `\n\n${snippet}\n`;
+      }
+    }
 
-          const before = prevChar === "\n" ? "" : "\n\n";
-          const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
-          const leadTrim = isAtStart ? before.replace(/^\n+/, "") : before;
-
-          insertPos = pos;
-          afterSnippet = `${leadTrim}${snippet}${after}`;
-        } else {
-          const footerIdx = current.search(/^@footer\b/m);
-          if (footerIdx > 0) {
-            insertPos = footerIdx;
-            afterSnippet = `${snippet}\n\n`;
-          } else {
-            insertPos = current.length;
-            afterSnippet = `\n\n${snippet}\n`;
-          }
-        }
-
-        this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
-        this.markdownEditor.focus();
-      },
-      {
-        deckDirHandle,
-        deckDirMode: this.imageBg.deckDirMode,
-        onChangeFolder: async () => {
-          await this.imageBg.clearDeckDirectoryHandle();
-          const next = await this.imageBg._resolveDeckDirectoryHandle();
-          if (next) DeckImagesResolver.setDeckDir(next, this.imageBg.deckDirMode);
-          return next ? { handle: next, mode: this.imageBg.deckDirMode } : null;
-        },
-      },
-    );
+    this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+    this.markdownEditor.focus();
   }
 
   // ─── Drag-drop and clipboard paste ───────────────────────────
@@ -118,6 +131,7 @@ export class ImageInserter {
       "dragover",
       (e) => {
         if (!this._getIsEditMode()) return;
+        if (!DeckLoader.isSmdMode) return;
         const types = [...(e.dataTransfer?.types || [])];
         const items = [...(e.dataTransfer?.items || [])];
         const hasImagePath = types.includes("text/x-webdeck-image");
@@ -134,13 +148,9 @@ export class ImageInserter {
       "drop",
       async (e) => {
         if (!this._getIsEditMode()) return;
+        if (!DeckLoader.isSmdMode) return;
         e.preventDefault();
         e.stopPropagation();
-
-        const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-        if (dirHandle) {
-          DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-        }
 
         let imgPath = e.dataTransfer.getData("text/x-webdeck-image");
         if (!imgPath) {
@@ -160,6 +170,7 @@ export class ImageInserter {
       "paste",
       async (e) => {
         if (!this._getIsEditMode()) return;
+        if (!DeckLoader.isSmdMode) return;
         const items = e.clipboardData?.items;
         if (!items) return;
         for (const item of items) {
@@ -167,10 +178,6 @@ export class ImageInserter {
             e.preventDefault();
             const file = item.getAsFile();
             if (file) {
-              const dirHandle = await this.imageBg._resolveDeckDirectoryHandle();
-              if (dirHandle) {
-                DeckImagesResolver.setDeckDir(dirHandle, this.imageBg.deckDirMode);
-              }
               const imgPath = await this.imageBg.uploadImage(file);
               if (imgPath) {
                 const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
