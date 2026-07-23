@@ -1254,14 +1254,28 @@ export class ImageInteractionHandler {
   }
 
   /**
-   * Align the image to the left of its area.
+   * Align the image to the left edge of its area.
    */
   static alignLeft() {
-    this.applySettings({ left: 0 });
+    const img = this._selectedImg;
+    if (!img) return;
+    const area = img.closest(".slide__area");
+    if (!area) return;
+
+    const scale = this._getStageScale();
+    const areaRect = area.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+
+    const currentLeftX = (imgRect.left - areaRect.left) / scale;
+    const curLeft = parseFloat(img.style.left) || 0;
+
+    this.applySettings({
+      left: Math.round(curLeft - currentLeftX),
+    });
   }
 
   /**
-   * Align the image to the right of its area.
+   * Align the image to the right edge of its area.
    */
   static alignRight() {
     const img = this._selectedImg;
@@ -1270,12 +1284,18 @@ export class ImageInteractionHandler {
     if (!area) return;
 
     const scale = this._getStageScale();
-    const cs = getComputedStyle(area);
-    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-    const areaContentWidth = (area.getBoundingClientRect().width - padX) / scale;
-    const imgWidth = parseFloat(img.style.width) || img.offsetWidth || 0;
+    const areaRect = area.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
 
-    this.applySettings({ left: Math.round(areaContentWidth - imgWidth) });
+    const currentRightX = (imgRect.right - areaRect.left) / scale;
+    const areaWidth = areaRect.width / scale;
+    const deltaX = areaWidth - currentRightX;
+
+    const curLeft = parseFloat(img.style.left) || 0;
+
+    this.applySettings({
+      left: Math.round(curLeft + deltaX),
+    });
   }
 
   /**

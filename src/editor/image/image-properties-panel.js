@@ -166,7 +166,7 @@ export class ImagePropertiesPanel {
                     </div>
                     <div class="image-properties-panel__row">
                         <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
-                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center vertically">↕ Center</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="center" title="Center horizontally">↔ Center</button>
                         <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
                     </div>
                 </div>
