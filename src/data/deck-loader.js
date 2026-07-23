@@ -246,43 +246,51 @@ Markdown-based presentations made simple.
 
 ### What you can do
 
-- **Open a .md file** to start presenting
+- **Open a .smd or .md file** to start presenting
 - **Press \`E\`** to toggle edit mode with live preview
 - **Press \`P\`** to open a viewer for your audience
 - **Press \`D\`** to switch between dark and light themes
 
 <button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>
 
-*Loads \`docs/example.md\` — covers layouts, themes, code, math, and more.*`,
+*Loads \`docs/example.smd\` — covers layouts, themes, code, math, and more.*`,
     );
   }
 
   /**
-   * Loads the bundled example.md from docs/ via HTTP fetch.
+   * Loads the bundled example.smd from docs/ via HTTP fetch.
    * No file picker needed — the file is served by the dev server / host.
-   */
-  /**
-   * Load the bundled example.md from docs/ via HTTP fetch and store in localStorage.
-   * @static
-   * @returns {Promise<void>}
    */
   static async openExampleFile() {
     try {
-      const res = await fetch("docs/example.md");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rawText = await res.text();
+      const { SmdHandler } = await import("../core/smd-handler.js");
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
 
-      localStorage.setItem("webdeck_local_file", rawText);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", "example.md");
+      const res = await fetch("docs/example.smd");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const { markdown, images } = await SmdHandler.extractFromSmd(blob);
+
+      // Store images for rendering
+      this.smdImageCache.clear();
+      for (const [path, imgBlob] of images) {
+        const url = URL.createObjectURL(imgBlob);
+        this.smdImageCache.set(path, url);
+      }
+      this.isSmdMode = true;
+      DeckImagesResolver.setSmdImages(this.smdImageCache);
+
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_type", "smd");
+      localStorage.setItem("webdeck_local_file_name", "example.smd");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      this.addRecentDeck("example.md");
+      this.addRecentDeck("example.smd");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: rawText, fileType: "md", fileName: "example.md" },
+          detail: { text: markdown, fileType: "smd", fileName: "example.smd" },
         }),
       );
     } catch (e) {
