@@ -1229,7 +1229,8 @@ export class ImageInteractionHandler {
   // ── Position presets ───────────────────────────────────────────────────
 
   /**
-   * Center the image vertically within its area. Left stays at 0.
+  /**
+   * Center the image horizontally within its area. Top stays unchanged.
    */
   static centerOnSlide() {
     const img = this._selectedImg;
@@ -1241,15 +1242,14 @@ export class ImageInteractionHandler {
     const areaRect = area.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
 
-    const currentCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
-    const areaCenterY = areaRect.height / scale / 2;
-    const deltaY = areaCenterY - currentCenterY;
+    const currentCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
+    const areaCenterX = areaRect.width / scale / 2;
+    const deltaX = areaCenterX - currentCenterX;
 
-    const curTop = parseFloat(img.style.top) || 0;
+    const curLeft = parseFloat(img.style.left) || 0;
 
     this.applySettings({
-      left: 0,
-      top: Math.round(curTop + deltaY),
+      left: Math.round(curLeft + deltaX),
     });
   }
 
@@ -1257,9 +1257,6 @@ export class ImageInteractionHandler {
    * Align the image to the left of its area.
    */
   static alignLeft() {
-    const img = this._selectedImg;
-    if (!img) return;
-
     this.applySettings({ left: 0 });
   }
 
@@ -1273,10 +1270,12 @@ export class ImageInteractionHandler {
     if (!area) return;
 
     const scale = this._getStageScale();
-    const areaWidth = area.getBoundingClientRect().width / scale;
+    const cs = getComputedStyle(area);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const areaContentWidth = (area.getBoundingClientRect().width - padX) / scale;
     const imgWidth = parseFloat(img.style.width) || img.offsetWidth || 0;
 
-    this.applySettings({ left: Math.round(areaWidth - imgWidth) });
+    this.applySettings({ left: Math.round(areaContentWidth - imgWidth) });
   }
 
   /**
