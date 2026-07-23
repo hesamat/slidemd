@@ -180,12 +180,29 @@ describe("ImageInteractionHandler", () => {
   });
 
   describe("rotateBy", () => {
+    function mockImgWithStyle(index, total, styleOverrides) {
+      const img = mockImg(index, total);
+      const style = {
+        left: "",
+        top: "",
+        width: "",
+        height: "",
+        opacity: "",
+        borderRadius: "",
+        boxShadow: "",
+        transform: "",
+        zIndex: "",
+        ...styleOverrides,
+      };
+      img.style = style;
+      img.getAttribute = () => null;
+      return img;
+    }
+
     it("wraps negative rotation into the 0-359 range", () => {
-      ImageInteractionHandler._selectedImg = mockImg(0, 1);
-      ImageInteractionHandler._readSettings = () => ({
-        rotation: 0,
-        width: 120,
-        height: 80,
+      ImageInteractionHandler._selectedImg = mockImgWithStyle(0, 1, {
+        width: "120px",
+        height: "80px",
       });
 
       ImageInteractionHandler.rotateBy(-90);
@@ -198,11 +215,10 @@ describe("ImageInteractionHandler", () => {
     });
 
     it("wraps positive rotation past 360 back to zero", () => {
-      ImageInteractionHandler._selectedImg = mockImg(0, 1);
-      ImageInteractionHandler._readSettings = () => ({
-        rotation: 270,
-        width: 120,
-        height: 80,
+      ImageInteractionHandler._selectedImg = mockImgWithStyle(0, 1, {
+        width: "120px",
+        height: "80px",
+        transform: "rotate(270deg)",
       });
 
       ImageInteractionHandler.rotateBy(90);
@@ -299,6 +315,95 @@ describe("ImageInteractionHandler", () => {
       expect(saved).toContain("height: 720px");
       expect(saved).not.toContain("width: 190px");
       expect(saved).not.toContain("height: 357px");
+    });
+  });
+
+  describe("_reorderImageInMarkdown", () => {
+    it("preserves rotation, opacity, borderRadius, boxShadow in the output", () => {
+      const md =
+        '<img src="images/test.png" alt="test" style="width: 100px" />\n\n<img src="images/other.png" alt="other" />';
+      let saved = null;
+      const allImgs = [{}, {}];
+      const slide = { querySelectorAll: () => allImgs };
+
+      const style = {
+        left: "0px",
+        top: "0px",
+        width: "100px",
+        height: "80px",
+        opacity: "0.5",
+        borderRadius: "8px",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+        transform: "rotate(45deg)",
+        zIndex: "5",
+      };
+      const img = {
+        closest: (sel) => (sel === ".slide" ? slide : null),
+        classList: {
+          add() {},
+          remove() {},
+          contains() {
+            return false;
+          },
+          _classes: new Set(),
+        },
+        style,
+        getAttribute: () => "test",
+        dataset: { originalSrc: "images/test.png" },
+        offsetWidth: 100,
+        offsetHeight: 80,
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 80 }),
+        isConnected: true,
+      };
+      allImgs[0] = img;
+
+      ImageInteractionHandler._getMarkdown = () => md;
+      ImageInteractionHandler._setMarkdown = (updated) => {
+        saved = updated;
+      };
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getStageScale = () => 1;
+
+      const targetSlide = { querySelectorAll: () => allImgs };
+      const targetEl = {
+        tagName: "IMG",
+        parentNode: { insertBefore() {} },
+        closest: (sel) => (sel === ".slide" ? targetSlide : null),
+      };
+
+      const origRAF = globalThis.requestAnimationFrame;
+      globalThis.requestAnimationFrame = (cb) => {
+        cb();
+        return 0;
+      };
+
+      ImageInteractionHandler._reorderImageInMarkdown(img, targetEl);
+
+      globalThis.requestAnimationFrame = origRAF;
+
+      expect(saved).toBeTruthy();
+      expect(saved).toContain("opacity: 0.5");
+      expect(saved).toContain("border-radius: 8px");
+      expect(saved).toContain("box-shadow");
+      expect(saved).toContain("rotate(45deg)");
+      expect(saved).toContain("z-index: 5");
+    });
+  });
+
+  describe("_hideDropGap", () => {
+    it("removes the gap element from DOM", () => {
+      const gap = { remove: vi.fn() };
+      ImageInteractionHandler._dropIndicator = gap;
+
+      ImageInteractionHandler._hideDropGap();
+
+      expect(gap.remove).toHaveBeenCalledTimes(1);
+      expect(ImageInteractionHandler._dropIndicator).toBeNull();
+    });
+
+    it("does nothing when no gap element exists", () => {
+      ImageInteractionHandler._dropIndicator = null;
+      expect(() => ImageInteractionHandler._hideDropGap()).not.toThrow();
     });
   });
 });

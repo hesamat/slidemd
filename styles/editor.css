@@ -928,7 +928,7 @@
 }
 
 /* Image selected state — subtle outline */
-.slide__area img.image-selected {
+[data-edit-mode="true"] .slide__area img.image-selected {
   outline: 2px solid rgba(2, 132, 199, 0.6);
   outline-offset: 2px;
 }

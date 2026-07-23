@@ -1,3 +1,5 @@
+import { getStageScale } from "./image-position-presets.js";
+
 /**
  * ImagePropertiesPanel
  *
@@ -91,12 +93,7 @@ export class ImagePropertiesPanel {
   }
 
   static _getStageScale() {
-    const stage = document.querySelector(".stage__inner");
-    if (!stage) return 1;
-    const transform = getComputedStyle(stage).transform;
-    if (!transform || transform === "none") return 1;
-    const match = transform.match(/matrix\(([^,]+),/);
-    return match ? parseFloat(match[1]) : 1;
+    return getStageScale();
   }
 
   /**

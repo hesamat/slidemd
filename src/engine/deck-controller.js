@@ -486,6 +486,7 @@ export class DeckController extends EventEmitter {
     if (e.key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const edit = window.__WEBDECK_EDIT_CONTROLLER__;
       if (edit?.isEditMode) {
+        e.preventDefault();
         import("../editor/image/image-interaction-handler.js").then(
           ({ ImageInteractionHandler }) => {
             if (ImageInteractionHandler.isSelected()) {

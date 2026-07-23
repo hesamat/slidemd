@@ -7,6 +7,26 @@
  */
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
+import {
+  parseAllImages,
+  getImageOrdinalIndex,
+  extractAltText,
+  getAreaContentRange,
+  findMarkdownPositionOfElement,
+  readImageSettings,
+  buildInlineStyleString,
+  buildRepositionedImgTag,
+  getNaturalDimensions,
+  clampToAreaDimensions,
+} from "./image-markdown-utils.js";
+import {
+  centerOnSlide,
+  alignLeft,
+  alignRight,
+  fitToWidth,
+  rotateBy,
+  getStageScale,
+} from "./image-position-presets.js";
 
 export class ImageInteractionHandler {
   static _initialized = false;
@@ -28,6 +48,7 @@ export class ImageInteractionHandler {
   static _dropInsertBeforeEl = null;
   static _dragStartInsertBefore = null;
   static _dropTargetAreaEl = null;
+  static _dropIndicator = null;
 
   static init(getMarkdown, setMarkdown, { onDelete, onMoveArea } = {}) {
     if (this._initialized) return;
@@ -134,7 +155,7 @@ export class ImageInteractionHandler {
   static select(img) {
     if (this._selectedImg === img) {
       this._updateOverlay();
-      ImagePropertiesPanel.show(img, this._readSettings(img));
+      ImagePropertiesPanel.show(img, readImageSettings(img));
       return;
     }
     // If _selectedImg is stale (removed by a re-render), force a clean
@@ -160,7 +181,7 @@ export class ImageInteractionHandler {
     this._selectedImg = img;
     img.classList.add("image-selected");
     this._updateOverlay();
-    ImagePropertiesPanel.show(img, this._readSettings(img));
+    ImagePropertiesPanel.show(img, readImageSettings(img));
   }
 
   static deselect() {
@@ -325,22 +346,30 @@ export class ImageInteractionHandler {
             }
           }
         },
-        end: () => {
+        end: (event) => {
           this._clearDropTargetHighlight();
 
           const img = this._selectedImg;
           const fromArea = this._dragSourceArea;
           const toArea = this._dragTargetArea;
           const targetAreaEl = this._dropTargetAreaEl;
-          const insertBeforeEl = this._dropInsertBeforeEl;
+
+          // Compute the current slot fresh from cursor Y at end, instead
+          // of using _dropInsertBeforeEl which is stale when no move
+          // happened.  Same logic as the start handler.
+          const currentAreaEl = img?.closest?.(".slide__area");
+          const currentSlot = currentAreaEl
+            ? this._findInsertBeforeSlot(currentAreaEl, img, event.clientY)
+            : null;
+
           const isCrossArea = fromArea && toArea && fromArea !== toArea;
 
           if (isCrossArea && targetAreaEl) {
             // Cross-area drop: move image in DOM, then update markdown
             const movedSrc = img?.dataset?.originalSrc || img?.getAttribute("src") || "";
 
-            if (insertBeforeEl && insertBeforeEl.parentNode === targetAreaEl) {
-              targetAreaEl.insertBefore(img, insertBeforeEl);
+            if (currentSlot && currentSlot.parentNode === targetAreaEl) {
+              targetAreaEl.insertBefore(img, currentSlot);
             } else {
               targetAreaEl.appendChild(img);
             }
@@ -351,7 +380,7 @@ export class ImageInteractionHandler {
             this._hideDropGap();
 
             // Build markdown with image inserted at the target position
-            const newMd = this._buildMoveMarkdownAtPosition(img, fromArea, toArea, insertBeforeEl);
+            const newMd = this._buildMoveMarkdownAtPosition(img, fromArea, toArea, currentSlot);
             if (newMd) {
               if (this._onMoveArea) {
                 this._onMoveArea(newMd);
@@ -372,14 +401,13 @@ export class ImageInteractionHandler {
                 if (match) this.select(match);
               }, 400);
             }
-          } else if (insertBeforeEl !== undefined) {
+          } else if (currentSlot !== null) {
             // Within-area: check if the image actually moved to a different slot
             this._hideDropGap();
 
-            // Compare current slot to the slot at drag start
-            if (insertBeforeEl !== this._dragStartInsertBefore) {
+            if (currentSlot !== this._dragStartInsertBefore) {
               // Image moved to a different slot — reorder + snap
-              this._reorderImageInMarkdown(img, insertBeforeEl);
+              this._reorderImageInMarkdown(img, currentSlot);
             } else {
               // Image stayed in the same slot — free positioning
               this._syncToMarkdown();
@@ -419,8 +447,8 @@ export class ImageInteractionHandler {
     const src = img.dataset.originalSrc || img.getAttribute("src") || "";
 
     // Find the image entry within the source area
-    const entries = this._findAllImages(md);
-    const sourceRange = this._getAreaContentRange(md, fromAreaName);
+    const entries = parseAllImages(md);
+    const sourceRange = getAreaContentRange(md, fromAreaName);
     const entry = entries.find(
       (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
     );
@@ -429,24 +457,14 @@ export class ImageInteractionHandler {
     // Remove from source
     const withoutImage = md.slice(0, entry.start) + md.slice(entry.end);
 
-    // Build a fresh <img> tag at origin (CSS centers it in the area)
-    const alt = img.getAttribute("alt") ?? entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] ?? "";
+    // Build a fresh <img> tag preserving all style properties
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
-    const styleParts = [
-      "position: relative",
-      "left: 0px",
-      "top: 0px",
-      `width: ${w}px`,
-      h ? `height: ${h}px` : "",
-      "border: none",
-      "object-fit: contain",
-      "cursor: move",
-    ];
-    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+    const alt = img.getAttribute("alt") || extractAltText(entry) || "";
+    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
 
     let updated = withoutImage.replace(/\n{3,}/g, "\n\n");
-    const targetRange = this._getAreaContentRange(updated, toAreaName);
+    const targetRange = getAreaContentRange(updated, toAreaName);
     const insertAt = targetRange.to;
     const before = updated.slice(0, insertAt);
     const after = updated.slice(insertAt);
@@ -465,8 +483,8 @@ export class ImageInteractionHandler {
     const src = img.dataset.originalSrc || img.getAttribute("src") || "";
 
     // Find the image entry within the source area
-    const entries = this._findAllImages(md);
-    const sourceRange = this._getAreaContentRange(md, fromAreaName);
+    const entries = parseAllImages(md);
+    const sourceRange = getAreaContentRange(md, fromAreaName);
     const entry = entries.find(
       (e) => e.src === src && e.start >= sourceRange.from && e.start < sourceRange.to,
     );
@@ -476,29 +494,19 @@ export class ImageInteractionHandler {
     let updated = md.slice(0, entry.start) + md.slice(entry.end);
     updated = updated.replace(/\n{3,}/g, "\n\n");
 
-    // Build a fresh <img> tag
-    const alt = img.getAttribute("alt") ?? entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] ?? "";
+    // Build a fresh <img> tag preserving all style properties
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
-    const styleParts = [
-      "position: relative",
-      "left: 0px",
-      "top: 0px",
-      `width: ${w}px`,
-      h ? `height: ${h}px` : "",
-      "border: none",
-      "object-fit: contain",
-      "cursor: move",
-    ];
-    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+    const alt = img.getAttribute("alt") || extractAltText(entry) || "";
+    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
 
     // Find insert position in target area
-    const targetRange = this._getAreaContentRange(updated, toAreaName);
+    const targetRange = getAreaContentRange(updated, toAreaName);
     let insertAt = targetRange.to; // default: end of area
 
     if (insertBeforeEl) {
       // Find the markdown position of the target element
-      const targetMdPos = this._findElementMarkdownPosition(updated, insertBeforeEl);
+      const targetMdPos = findMarkdownPositionOfElement(updated, insertBeforeEl);
       if (targetMdPos >= targetRange.from && targetMdPos <= targetRange.to) {
         insertAt = targetMdPos;
       }
@@ -594,7 +602,7 @@ export class ImageInteractionHandler {
         img.style.height = `${newH}px`;
 
         this._updateOverlay();
-        ImagePropertiesPanel._syncUI(this._readSettings(img));
+        ImagePropertiesPanel._syncUI(readImageSettings(img));
       };
 
       const onUp = () => {
@@ -610,12 +618,7 @@ export class ImageInteractionHandler {
   }
 
   static _getStageScale() {
-    const stage = document.querySelector(".stage__inner");
-    if (!stage) return 1;
-    const transform = getComputedStyle(stage).transform;
-    if (!transform || transform === "none") return 1;
-    const match = transform.match(/matrix\(([^,]+),/);
-    return match ? parseFloat(match[1]) : 1;
+    return getStageScale();
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
@@ -655,6 +658,24 @@ export class ImageInteractionHandler {
       .forEach((el) => el.classList.remove("slide__area--drop-target"));
   }
 
+  /**
+   * Find which child element in an area the cursor Y position falls
+   * before.  Returns the element to insert before, or null to append
+   * at the end.
+   */
+  static _findInsertBeforeSlot(areaEl, referenceEl, clientY) {
+    const allElements = [...areaEl.children].filter(
+      (el) => el !== referenceEl && !el.classList.contains("image-drop-indicator"),
+    );
+    if (allElements.length === 0) return null;
+    for (const el of allElements) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (clientY < midY) return el;
+    }
+    return null;
+  }
+
   // ── Within-area reorder ────────────────────────────────────────────────────
 
   /**
@@ -663,26 +684,35 @@ export class ImageInteractionHandler {
    * @param {HTMLElement|null} insertBeforeEl - Element to insert before, or null for end
    */
   static _showDropGap(areaEl, insertBeforeEl) {
-    this._hideDropGap();
-
-    const gap = document.createElement("div");
-    gap.className = "image-drop-indicator";
-    gap.style.height = "40px";
-    gap.style.minHeight = "40px";
-    gap.style.margin = "4px 0";
-    gap.style.borderRadius = "8px";
-    gap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
-    gap.style.background = "rgba(2, 132, 199, 0.06)";
-    gap.style.pointerEvents = "none";
-    gap.style.flexShrink = "0";
-
-    if (insertBeforeEl) {
-      insertBeforeEl.parentNode.insertBefore(gap, insertBeforeEl);
-    } else {
-      areaEl.appendChild(gap);
+    const gap = this._dropIndicator;
+    if (gap) {
+      // Reuse existing gap element — just move it to the new position
+      if (insertBeforeEl && insertBeforeEl.parentNode) {
+        insertBeforeEl.parentNode.insertBefore(gap, insertBeforeEl);
+      } else {
+        areaEl.appendChild(gap);
+      }
+      return;
     }
 
-    this._dropIndicator = gap;
+    const newGap = document.createElement("div");
+    newGap.className = "image-drop-indicator";
+    newGap.style.height = "40px";
+    newGap.style.minHeight = "40px";
+    newGap.style.margin = "4px 0";
+    newGap.style.borderRadius = "8px";
+    newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
+    newGap.style.background = "rgba(2, 132, 199, 0.06)";
+    newGap.style.pointerEvents = "none";
+    newGap.style.flexShrink = "0";
+
+    if (insertBeforeEl) {
+      insertBeforeEl.parentNode.insertBefore(newGap, insertBeforeEl);
+    } else {
+      areaEl.appendChild(newGap);
+    }
+
+    this._dropIndicator = newGap;
   }
 
   static _hideDropGap() {
@@ -702,8 +732,8 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !img) return;
 
-    const entries = this._findAllImages(md);
-    const draggedIdx = this._getImageIndex(img);
+    const entries = parseAllImages(md);
+    const draggedIdx = getImageOrdinalIndex(img);
     if (draggedIdx < 0 || draggedIdx >= entries.length) return;
 
     const draggedEntry = entries[draggedIdx];
@@ -713,7 +743,7 @@ export class ImageInteractionHandler {
     if (targetEl) {
       if (targetEl.tagName === "IMG") {
         // Target is another image - find its entry
-        const targetIdx = this._getImageIndex(targetEl);
+        const targetIdx = getImageOrdinalIndex(targetEl);
         if (targetIdx >= 0 && targetIdx < entries.length) {
           // Adjust if target was after dragged
           const adjustedIdx = targetIdx > draggedIdx ? targetIdx - 1 : targetIdx;
@@ -727,7 +757,7 @@ export class ImageInteractionHandler {
         }
       } else {
         // Target is a text/code block - find its content in markdown
-        insertAt = this._findElementMarkdownPosition(md, targetEl);
+        insertAt = findMarkdownPositionOfElement(md, targetEl);
       }
     }
 
@@ -736,7 +766,7 @@ export class ImageInteractionHandler {
       const area = img.closest(".slide__area");
       const areaName = area?.dataset.areaName || "main";
       const withoutImage = md.slice(0, draggedEntry.start) + md.slice(draggedEntry.end);
-      const range = this._getAreaContentRange(withoutImage, areaName);
+      const range = getAreaContentRange(withoutImage, areaName);
       insertAt = range.to;
     }
 
@@ -750,22 +780,12 @@ export class ImageInteractionHandler {
     insertAt = Math.max(0, insertAt);
 
     // Build a new image tag with left/top reset to 0 (snap to new position)
+    // but preserving all other style properties (rotation, opacity, etc.)
     const src = img.dataset.originalSrc || draggedEntry.src || "";
-    const alt =
-      img.getAttribute("alt") || draggedEntry.fullMatch.match(/alt=["']([^"']*)["']/i)?.[1] || "";
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || 480);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
-    const styleParts = [
-      "position: relative",
-      "left: 0px",
-      "top: 0px",
-      `width: ${w}px`,
-      h ? `height: ${h}px` : "",
-      "border: none",
-      "object-fit: contain",
-      "cursor: move",
-    ];
-    const newTag = `<img src="${src}" alt="${alt}" style="${styleParts.filter(Boolean).join("; ")}" />`;
+    const alt = img.getAttribute("alt") || extractAltText(draggedEntry) || "";
+    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
 
     // Insert the new tag at the new position
     const before = withoutImage.slice(0, insertAt);
@@ -789,47 +809,6 @@ export class ImageInteractionHandler {
     } else {
       this._setMarkdown?.(updated);
     }
-  }
-
-  /**
-   * Find the markdown position of a non-image DOM element.
-   * Uses data-source-line if available, otherwise falls back to text matching.
-   */
-  static _findElementMarkdownPosition(md, element) {
-    const area = element.closest(".slide__area");
-    if (!area) return -1;
-
-    const areaName = area.dataset.areaName || "main";
-    const range = this._getAreaContentRange(md, areaName);
-
-    // Prefer data-source-line attribute (set by markdown parser)
-    const sourceLine = parseInt(element.dataset?.sourceLine, 10);
-    if (!isNaN(sourceLine)) {
-      // Convert line number to character position within the area
-      const lines = md.slice(range.from, range.to).split("\n");
-      let charOffset = 0;
-      for (let i = 0; i < Math.min(sourceLine, lines.length); i++) {
-        charOffset += lines[i].length + 1; // +1 for newline
-      }
-      return range.from + charOffset;
-    }
-
-    // Fallback: find by text content
-    const text = element.textContent?.trim();
-    if (!text) return -1;
-
-    const areaContent = md.slice(range.from, range.to);
-    const lines = areaContent.split("\n");
-    let charOffset = 0;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed && text.startsWith(trimmed.slice(0, 50))) {
-        return range.from + charOffset;
-      }
-      charOffset += line.length + 1;
-    }
-
-    return -1;
   }
 
   // ── Arrow key movement ─────────────────────────────────────────────────────
@@ -878,58 +857,14 @@ export class ImageInteractionHandler {
     return true;
   }
 
-  /**
-   * Return the character range for the content inside a named @area block.
-   * Same logic as AreaNavigation.getAreaContentRange but standalone.
-   */
-  static _getAreaContentRange(markdown, areaName) {
-    const text = String(markdown || "").replace(/\r\n?/g, "\n");
-    const lines = text.split("\n");
-    const target = String(areaName || "main")
-      .trim()
-      .toLowerCase();
-
-    const markerRegex = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-    let areaMarkerIdx = -1;
-    let nextMarkerIdx = lines.length;
-
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(markerRegex);
-      if (!match) continue;
-      if (match[1].toLowerCase() === target) {
-        areaMarkerIdx = i;
-      } else if (areaMarkerIdx >= 0 && i > areaMarkerIdx) {
-        nextMarkerIdx = i;
-        break;
-      }
-    }
-
-    if (areaMarkerIdx < 0) {
-      return { from: text.length, to: text.length };
-    }
-
-    const lineToChar = (lineIndex) => {
-      let pos = 0;
-      for (let i = 0; i < lineIndex; i++) {
-        pos += lines[i].length + 1;
-      }
-      return pos;
-    };
-
-    return {
-      from: lineToChar(areaMarkerIdx + 1),
-      to: lineToChar(nextMarkerIdx),
-    };
-  }
-
   // ── Delete ──────────────────────────────────────────────────────────────
 
   static deleteSelected() {
     const md = this._getMarkdown?.();
     if (!md || !this._selectedImg) return;
 
-    const entries = this._findAllImages(md);
-    const idx = this._getImageIndex(this._selectedImg);
+    const entries = parseAllImages(md);
+    const idx = getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
@@ -950,13 +885,13 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !this._selectedImg) return;
 
-    const entries = this._findAllImages(md);
-    const idx = this._getImageIndex(this._selectedImg);
+    const entries = parseAllImages(md);
+    const idx = getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const img = this._selectedImg;
     const entry = entries[idx];
-    const alt = img.getAttribute("alt") ?? this._extractAlt(entry);
+    const alt = img.getAttribute("alt") ?? extractAltText(entry);
 
     // The preview rewrites `src="images/..."` to a `blob:` URL so the
     // browser can render it in dev mode (see DeckImagesResolver).  The
@@ -965,33 +900,9 @@ export class ImageInteractionHandler {
     // throwaway blob URL into the saved markdown.
     const src = img.dataset.originalSrc || entry.src || img.getAttribute("src") || "";
 
-    const style = this._buildStyleString(img);
+    const style = buildInlineStyleString(img);
     const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
     this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
-  }
-
-  /**
-   * Build the inline `style` string for the selected image from its DOM state.
-   * Preserves all supported style properties.
-   */
-  static _buildStyleString(img) {
-    const s = this._readSettings(img);
-    const parts = [
-      "position: relative",
-      `left: ${Math.round(s.left)}px`,
-      `top: ${Math.round(s.top)}px`,
-      `width: ${Math.round(s.width)}px`,
-      s.height ? `height: ${Math.round(s.height)}px` : "",
-      s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
-      s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
-      s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
-      s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
-      s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
-      "border: none",
-      "object-fit: contain",
-      "cursor: move",
-    ];
-    return parts.filter(Boolean).join("; ");
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -1006,8 +917,8 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md) return;
 
-    const entries = this._findAllImages(md);
-    const idx = this._getImageIndex(img);
+    const entries = parseAllImages(md);
+    const idx = getImageOrdinalIndex(img);
     if (idx < 0 || idx >= entries.length) return;
 
     const area = img.closest(".slide__area");
@@ -1047,8 +958,8 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md) return;
 
-    const entries = this._findAllImages(md);
-    const idx = this._getImageIndex(img);
+    const entries = parseAllImages(md);
+    const idx = getImageOrdinalIndex(img);
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
@@ -1095,27 +1006,8 @@ export class ImageInteractionHandler {
     //   `p > img:only-child` rule) cannot shrink them before we convert.
     const isExistingHtmlImg =
       entry.type === "html" && img.getAttribute("width") && img.getAttribute("height");
-    let natW;
-    let natH;
-    if (isExistingHtmlImg) {
-      natW = parseInt(img.getAttribute("width"), 10) || img.offsetWidth || 320;
-      natH = parseInt(img.getAttribute("height"), 10) || img.offsetHeight || 240;
-    } else {
-      natW = img.naturalWidth || img.offsetWidth || 320;
-      natH = img.naturalHeight || img.offsetHeight || 240;
-    }
-    let w = natW;
-    let h = natH;
-    if (w > areaW) {
-      w = areaW;
-      h = Math.round((w * natH) / natW);
-    }
-    if (h > areaH) {
-      h = areaH;
-      w = Math.round((h * natW) / natH);
-    }
-    w = Math.max(1, Math.round(w));
-    h = Math.max(1, Math.round(h));
+    const { naturalWidth: natW, naturalHeight: natH } = getNaturalDimensions(img);
+    const { width: w, height: h } = clampToAreaDimensions(natW, natH, areaW, areaH);
 
     // For existing HTML images (e.g. PPTX-imported), the element is already
     // positioned correctly by CSS.  Use left/top = 0 so `position: relative`
@@ -1126,7 +1018,7 @@ export class ImageInteractionHandler {
     const left = isExistingHtmlImg ? 0 : Math.round(visualCenterX - w / 2);
     const top = isExistingHtmlImg ? 0 : Math.round(visualCenterY - h / 2);
 
-    const alt = this._extractAlt(entry);
+    const alt = extractAltText(entry);
     const src = entry.src;
     const style = [
       "position: relative",
@@ -1157,28 +1049,6 @@ export class ImageInteractionHandler {
   // ── Settings API (used by ImagePropertiesPanel) ─────────────────────────────────
 
   /**
-   * Read the current style settings of an img element into a structured object.
-   * @param {HTMLElement} img
-   */
-  static _readSettings(img) {
-    const style = img.style;
-    const transform = style.transform || "";
-    const rotMatch = transform.match(/rotate\(([-\d.]+)deg\)/i);
-    return {
-      left: parseFloat(style.left) || 0,
-      top: parseFloat(style.top) || 0,
-      width: parseFloat(style.width) || img.offsetWidth || 320,
-      height: parseFloat(style.height) || null,
-      opacity: style.opacity !== "" ? parseFloat(style.opacity) : 1,
-      borderRadius: parseFloat(style.borderRadius) || 0,
-      boxShadow: style.boxShadow || "none",
-      rotation: rotMatch ? parseFloat(rotMatch[1]) : 0,
-      zIndex: parseInt(style.zIndex, 10) || 0,
-      alt: img.getAttribute("alt") || "",
-    };
-  }
-
-  /**
    * Apply a partial settings object to the currently selected image.
    * Updates DOM styles/attributes, the overlay, the toolbar UI, and syncs
    * the change back to the markdown source.
@@ -1203,7 +1073,7 @@ export class ImageInteractionHandler {
     if (s.alt != null) img.setAttribute("alt", s.alt);
 
     this._updateOverlay();
-    ImagePropertiesPanel._syncUI(this._readSettings(img));
+    ImagePropertiesPanel._syncUI(readImageSettings(img));
     this._syncToMarkdown();
   }
 
@@ -1223,7 +1093,7 @@ export class ImageInteractionHandler {
       });
     }
 
-    ImagePropertiesPanel._syncUI(this._readSettings(img));
+    ImagePropertiesPanel._syncUI(readImageSettings(img));
     this._syncToMarkdown();
   }
 
@@ -1233,177 +1103,28 @@ export class ImageInteractionHandler {
 
   // ── Position presets ───────────────────────────────────────────────────
 
-  /**
-  /**
-   * Center the image horizontally within its area. Top stays unchanged.
-   */
   static centerOnSlide() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const area = img.closest(".slide__area");
-    if (!area) return;
-
-    const scale = this._getStageScale();
-    const areaRect = area.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-
-    const currentCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
-    const areaCenterX = areaRect.width / scale / 2;
-    const deltaX = areaCenterX - currentCenterX;
-
-    const curLeft = parseFloat(img.style.left) || 0;
-
-    this.applySettings({
-      left: Math.round(curLeft + deltaX),
-    });
+    if (!this._selectedImg) return;
+    centerOnSlide(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
   }
 
-  /**
-   * Align the image to the left edge of its area.
-   */
   static alignLeft() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const area = img.closest(".slide__area");
-    if (!area) return;
-
-    const scale = this._getStageScale();
-    const areaRect = area.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-
-    const currentLeftX = (imgRect.left - areaRect.left) / scale;
-    const curLeft = parseFloat(img.style.left) || 0;
-
-    this.applySettings({
-      left: Math.round(curLeft - currentLeftX),
-    });
+    if (!this._selectedImg) return;
+    alignLeft(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
   }
 
-  /**
-   * Align the image to the right edge of its area.
-   */
   static alignRight() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const area = img.closest(".slide__area");
-    if (!area) return;
-
-    const scale = this._getStageScale();
-    const areaRect = area.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-
-    const currentRightX = (imgRect.right - areaRect.left) / scale;
-    const areaWidth = areaRect.width / scale;
-    const deltaX = areaWidth - currentRightX;
-
-    const curLeft = parseFloat(img.style.left) || 0;
-
-    this.applySettings({
-      left: Math.round(curLeft + deltaX),
-    });
+    if (!this._selectedImg) return;
+    alignRight(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
   }
 
-  /**
-   * Fit the selected image within its containing `.slide__area`, using the
-   * widest size that still keeps the full image inside the slide bounds.
-   */
   static fitToWidth() {
-    const img = this._selectedImg;
-    if (!img) return;
-    const area = img.closest(".slide__area");
-    if (!area) return;
-
-    const scale = this._getStageScale();
-    const areaRect = area.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-
-    // getBoundingClientRect() returns the border box; subtract padding to
-    // get the content-box dimensions the image is actually positioned within.
-    const cs = getComputedStyle(area);
-    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-    // Convert rendered px → design px first, then subtract design-unit padding
-    const areaWidthDesign = areaRect.width / scale - padX;
-    const areaHeightDesign = areaRect.height / scale - padY;
-    const ratio =
-      (img.naturalWidth || imgRect.width || 1) / (img.naturalHeight || imgRect.height || 1);
-    const width = Math.min(areaWidthDesign, areaHeightDesign * ratio);
-    const height = width / ratio;
-    const top = (areaHeightDesign - height) / 2;
-
-    this.applySettings({
-      width: Math.round(width),
-      height: Math.round(height),
-      left: 0,
-      top: Math.round(top),
-    });
+    if (!this._selectedImg) return;
+    fitToWidth(this._selectedImg, this._getStageScale(), (s) => this.applySettings(s));
   }
 
-  /**
-   * Rotate the selected image by `delta` degrees (typically ±90).
-   * For 90°/270° increments, swap width/height so the bounding box stays
-   * consistent.  Free rotation just adjusts the transform.
-   */
   static rotateBy(delta) {
-    const img = this._selectedImg;
-    if (!img) return;
-    const s = this._readSettings(img);
-    const newRot = (((Math.round(s.rotation) + delta) % 360) + 360) % 360;
-
-    const settings = { rotation: newRot };
-
-    // For 90°/270° swaps, the visible bounding box swaps W/H.  Keep the
-    // stored width/height matching the rotated box so resize handles
-    // remain sensible.
-    if (Math.abs(newRot) % 180 === 90 && s.height) {
-      settings.width = s.height;
-      settings.height = s.width;
-    }
-
-    this.applySettings(settings);
-  }
-
-  static _getImageIndex(img) {
-    const slide = img.closest(".slide");
-    if (!slide) return -1;
-    return Array.from(slide.querySelectorAll("img")).indexOf(img);
-  }
-
-  static _extractAlt(entry) {
-    if (entry.type === "html") {
-      return entry.fullTag.match(/alt=["']([^"']*)["']/i)?.[1] || "";
-    }
-    return entry.fullMatch.match(/!\[([^\]]*)\]/)?.[1] || "";
-  }
-
-  static _findAllImages(md) {
-    const results = [];
-    const htmlRe = /<img\b([^>]*?)>/gi;
-    let m;
-    while ((m = htmlRe.exec(md)) !== null) {
-      const srcMatch = m[1].match(/src=["']([^"']*)["']/i);
-      if (!srcMatch) continue;
-      results.push({
-        type: "html",
-        src: srcMatch[1],
-        fullMatch: m[0],
-        fullTag: m[0],
-        start: m.index,
-        end: m.index + m[0].length,
-      });
-    }
-    const mdRe = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
-    while ((m = mdRe.exec(md)) !== null) {
-      results.push({
-        type: "md",
-        src: m[2],
-        fullMatch: m[0],
-        fullTag: m[0],
-        start: m.index,
-        end: m.index + m[0].length,
-      });
-    }
-    results.sort((a, b) => a.start - b.start);
-    return results;
+    if (!this._selectedImg) return;
+    rotateBy(this._selectedImg, delta, (s) => this.applySettings(s));
   }
 }
