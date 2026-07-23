@@ -42,9 +42,7 @@ describe("DraftManager", () => {
     });
 
     it("saves and retrieves images as Blobs", async () => {
-      const images = new Map([
-        ["images/photo.png", new Blob([new Uint8Array([0x89])])],
-      ]);
+      const images = new Map([["images/photo.png", new Blob([new Uint8Array([0x89])])]]);
       await DraftManager.saveDraft("# Deck", images);
       const draft = await DraftManager.loadDraft();
       expect(draft.images.size).toBe(1);

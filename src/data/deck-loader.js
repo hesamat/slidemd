@@ -190,8 +190,7 @@ export class DeckLoader {
       const { DraftManager } = await import("../core/draft-manager.js");
       const draft = await DraftManager.loadDraft();
       if (draft) {
-        const fileName =
-          localStorage.getItem("webdeck_local_file_name") || "recovered-deck";
+        const fileName = localStorage.getItem("webdeck_local_file_name") || "recovered-deck";
         const confirmed = window.confirm(
           "Unsaved draft found from a previous session. Restore it?",
         );
@@ -205,15 +204,9 @@ export class DeckLoader {
           this.isSmdMode = draft.images.size > 0;
 
           localStorage.setItem("webdeck_local_file", draft.markdown);
-          localStorage.setItem(
-            "webdeck_local_file_type",
-            draft.images.size > 0 ? "smd" : "md",
-          );
+          localStorage.setItem("webdeck_local_file_type", draft.images.size > 0 ? "smd" : "md");
           localStorage.setItem("webdeck_local_file_name", fileName);
-          localStorage.setItem(
-            "webdeck_local_file_timestamp",
-            Date.now().toString(),
-          );
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
 
           await DraftManager.clearDraft();
           await AssetLoader.ensureMarkdownItLoaded();

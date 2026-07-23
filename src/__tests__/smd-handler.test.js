@@ -64,9 +64,7 @@ describe("SmdHandler", () => {
     });
 
     it("includes images in images/ folder", async () => {
-      const images = new Map([
-        ["images/photo.png", new Blob([new Uint8Array([0x89])])],
-      ]);
+      const images = new Map([["images/photo.png", new Blob([new Uint8Array([0x89])])]]);
       const blob = await SmdHandler.buildSmd("# Deck", images);
       const extracted = await SmdHandler.extractFromSmd(blob);
       expect(extracted.images.has("images/photo.png")).toBe(true);
