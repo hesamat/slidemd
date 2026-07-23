@@ -76,10 +76,6 @@ export class ImageDragController {
     this._resizeState = null;
   }
 
-  // ── Drag handlers
-
-  // ── Drag handlers ─────────────────────────────────────────────────────
-
   static _onDragStart(e) {
     const img = e.target.closest("img");
     const ctx = this._ctx;

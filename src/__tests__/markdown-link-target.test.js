@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import MarkdownIt from "markdown-it";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 
