@@ -5,6 +5,9 @@
  * Extracted from EditController.
  */
 import { Notification } from "../../renderer/notification.js";
+import { DeckLoader } from "../../data/deck-loader.js";
+import { SmdHandler } from "../../core/smd-handler.js";
+import { DraftManager } from "../../core/draft-manager.js";
 
 export class SaveManager {
   /**
@@ -68,45 +71,52 @@ export class SaveManager {
 
     try {
       const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
+      const hasLocalImages = DeckLoader.smdImageCache.size > 0;
 
-      if (window.showSaveFilePicker) {
-        const fileHandle = await window.showSaveFilePicker({
-          suggestedName: "deck.md",
-          types: [
-            {
-              description: "Markdown file",
-              accept: { "text/markdown": [".md"] },
-            },
-            {
-              description: "Text file",
-              accept: { "text/plain": [".txt"] },
-            },
-          ],
-        });
-
-        if (!fileHandle) return;
-
-        const writable = await fileHandle.createWritable();
-        await writable.write(fullMarkdown);
-        await writable.close();
-
-        Notification.success("Deck saved successfully!");
+      if (hasLocalImages) {
+        const zipBlob = await SmdHandler.buildSmd(fullMarkdown, DeckLoader.smdImageCache);
+        await this._saveBlob(zipBlob, "presentation.smd", "application/octet-stream");
       } else {
-        const blob = new Blob([fullMarkdown], { type: "text/markdown" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "deck.md";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
+        await this._saveBlob(mdBlob, "deck.md", "text/markdown");
       }
+
+      await DraftManager.clearDraft();
+      Notification.success("Deck saved successfully!");
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);
         Notification.error("Failed to save file: " + (error.message || error));
       }
+    }
+  }
+
+  async _saveBlob(blob, fileName, mimeType) {
+    if (window.showSaveFilePicker) {
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: fileName.endsWith(".smd") ? "SlideMD Presentation" : "Markdown file",
+            accept: { [mimeType]: [`.${fileName.split(".").pop()}`] },
+          },
+        ],
+      });
+
+      if (!fileHandle) return;
+
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   }
 }
