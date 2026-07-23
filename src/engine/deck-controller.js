@@ -671,130 +671,62 @@ export class DeckController extends EventEmitter {
     if (!result || !result.markdown) return;
 
     const { markdown, images, deckName, importImages } = result;
-    const mdName = `${deckName}.md`;
+    const smdName = `${deckName}.smd`;
 
-    // Prompt user to pick a save directory
-    let dirHandle = null;
-    try {
-      dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-    } catch {
-      Notification.warning(
-        "Save cancelled. Deck will be loaded in memory but images won't be saved.",
-      );
+    // Build image map for .smd ZIP
+    const imageMap = new Map();
+    if (importImages && images?.length) {
+      for (const img of images) {
+        if (!img.base64 || !img.ref) continue;
+        const rawName = img.ref.split("/").pop();
+        if (!rawName) continue;
+        const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+        const binary = atob(raw);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        imageMap.set(`images/${safeName}`, new Blob([bytes]));
+      }
     }
 
-    if (dirHandle) {
-      // Create a dedicated folder for this deck inside the picked directory
-      const deckDir = await dirHandle.getDirectoryHandle(deckName, { create: true });
+    // Generate .smd ZIP blob and trigger download
+    const { SmdHandler } = await import("../core/smd-handler.js");
+    const zipBlob = await SmdHandler.buildSmd(markdown, imageMap);
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = smdName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      const imageCount = importImages ? (images?.length ?? 0) : 0;
-      // Progress milestones: saving the .md file counts for the first 10 %,
-      // the remaining 85 % is spread across images (totalling 95 %), and the
-      // final bookkeeping step brings it to 100 %.
-      const PROGRESS_AFTER_MD = imageCount > 0 ? 10 : 80;
-      const PROGRESS_IMAGES_START = PROGRESS_AFTER_MD;
-      const PROGRESS_IMAGES_RANGE = 85;
-      const initialMessage =
-        imageCount > 0
-          ? `Saving ${mdName} and ${imageCount} image${imageCount !== 1 ? "s" : ""}…`
-          : `Saving ${mdName}…`;
-      const abortController = new AbortController();
-      const savingModal = Notification.showLoadingModal(initialMessage, {
-        title: "Saving Deck",
-        type: "info",
-        cancelLabel: "Cancel",
-        cancelConfirmMessage:
-          "Some files may already have been saved. Cancel the remaining save operation?",
-        onCancel: () => abortController.abort(),
-      });
-      try {
-        const { signal } = abortController;
-
-        // Save the markdown file inside the deck folder
-        const mdFile = await deckDir.getFileHandle(mdName, { create: true });
-        const mdWritable = await mdFile.createWritable();
-        await mdWritable.write(markdown);
-        await mdWritable.close();
-        savingModal.updateProgress(PROGRESS_AFTER_MD);
-
-        // Save images to images/ subdirectory inside the deck folder
-        if (importImages && images?.length) {
-          const imagesDir = await deckDir.getDirectoryHandle("images", { create: true });
-          let savedCount = 0;
-          const imageTotal = images.length;
-          for (const img of images) {
-            if (signal.aborted) throw new Error("cancelled");
-            if (!img.base64 || !img.ref) continue;
-            try {
-              const rawName = img.ref.split("/").pop();
-              if (!rawName) continue;
-              // EMF/WMF images are converted to PNG during extraction
-              const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
-              const filename = safeName;
-              const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-              const binary = atob(raw);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              const fileHandle = await imagesDir.getFileHandle(filename, { create: true });
-              const writable = await fileHandle.createWritable();
-              await writable.write(bytes);
-              await writable.close();
-              savedCount++;
-              savingModal.updateProgress(
-                PROGRESS_IMAGES_START +
-                  Math.round((savedCount / imageTotal) * PROGRESS_IMAGES_RANGE),
-              );
-              savingModal.updateMessage(`Saving images… ${savedCount} / ${imageTotal}`);
-            } catch (imgErr) {
-              console.warn(`Could not save image ${img.ref}:`, imgErr);
-            }
-          }
-        }
-
-        savingModal.updateProgress(100);
-
-        // Store images in memory for in-session rendering
-        const { DeckLoader } = await import("../data/deck-loader.js");
-        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-        if (importImages && images?.length) {
-          DeckLoader.isSmdMode = true;
-          DeckLoader.smdImageCache.clear();
-          for (const img of images) {
-            if (!img.base64 || !img.ref) continue;
-            const rawName = img.ref.split("/").pop();
-            if (!rawName) continue;
-            const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
-            const relPath = `images/${safeName}`;
-            const blob = await fetch(img.base64).then((r) => r.blob());
-            const blobUrl = URL.createObjectURL(blob);
-            DeckLoader.smdImageCache.set(relPath, blobUrl);
-          }
-          DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
-        }
-
-        // Store markdown info in localStorage so edit mode can find it
-        try {
-          localStorage.setItem("webdeck_local_file", markdown);
-          localStorage.setItem("webdeck_local_file_type", "md");
-          localStorage.setItem("webdeck_local_file_name", mdName);
-          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-        } catch {
-          window.__WEBDECK_MARKDOWN__ = markdown;
-        }
-      } catch (e) {
-        if (abortController.signal.aborted) {
-          Notification.warning("Import cancelled. No files were saved.");
-          ConversionModal.close();
-          return;
-        }
-        console.warn("Failed to save deck to filesystem:", e);
-        Notification.warning("Failed to save deck. Try again.");
-        ConversionModal.close();
-        return;
-      } finally {
-        savingModal.dismiss();
+    // Store images in memory for in-session rendering
+    const { DeckLoader } = await import("../data/deck-loader.js");
+    const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+    if (importImages && images?.length) {
+      DeckLoader.isSmdMode = true;
+      DeckLoader.smdImageCache.clear();
+      for (const img of images) {
+        if (!img.base64 || !img.ref) continue;
+        const rawName = img.ref.split("/").pop();
+        if (!rawName) continue;
+        const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+        const relPath = `images/${safeName}`;
+        const blob = await fetch(img.base64).then((r) => r.blob());
+        const blobUrl = URL.createObjectURL(blob);
+        DeckLoader.smdImageCache.set(relPath, blobUrl);
       }
-    } else {
+      DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
+    }
+
+    // Store markdown info in localStorage so edit mode can find it
+    try {
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_type", "smd");
+      localStorage.setItem("webdeck_local_file_name", smdName);
+      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+    } catch {
       window.__WEBDECK_MARKDOWN__ = markdown;
     }
 
@@ -815,7 +747,6 @@ export class DeckController extends EventEmitter {
     // The editor re-renders slides asynchronously, so we retry with
     // increasing delays to catch whenever the DOM is ready.
     if (this.elements.slidesContainer) {
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
       const rewrite = () => {
         DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
         DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
