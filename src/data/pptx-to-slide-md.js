@@ -106,7 +106,7 @@ const CONFIG = {
   maxTitleElements: 3,
   headerThinRatio: 0.4,
   maxHeaderHeightRatio: 0.35,
-  overflowBodyLength: 500, // Max body text length before upgrading to two-column
+  overflowBodyLength: 300, // Max body text length before upgrading to two-column
   centerToleranceRatio: 0.1,
   minSubstantialBodyLength: 80,
   maxHeaderLength: 150,
@@ -200,6 +200,8 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
     return text.length <= CONFIG.maxHeaderLengthShort;
   };
 
+  // 1. Prefer explicit heading markers (## / ###) — always a header
+  // 2. Fallback: short text in the top portion of the slide
   const header =
     textElements.find((el) => isHeading(el) && isShortEnough(el)) ||
     textElements.find((el) => el.top < slideHeight * CONFIG.bodyTopRatio && isShortEnough(el)) ||
@@ -298,7 +300,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   if (bgCandidate && bgCandidate.base64) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    slide.background = `linear-gradient(rgba(0,0,0,0.75),rgba(0,0,0,0.75)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
@@ -341,7 +343,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   // If a single-column layout has too much body content, upgrade to two-column
   // so the content is split across @main and @media.
   let overflowUpgraded = false;
-  if (layout.type === LAYOUT.HEADER_CONTENT.type) {
+  if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
     const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
     if (bodyLength > CONFIG.overflowBodyLength) {

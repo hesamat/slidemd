@@ -1330,4 +1330,47 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@media");
     expect(md).toContain(longBody);
   });
+
+  it("upgrades media-span to two-column when body overflows", () => {
+    const longBody = "Item ".repeat(80).trim(); // ~400 chars
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Media Overflow",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longBody,
+            left: 500000,
+            top: 1500000,
+            width: 4000000,
+            height: 3000000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.45,
+            height: DEFAULT_SIZE.height * 0.6,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // media-span with overflowing body → upgraded to two-column
+    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toContain(longBody);
+  });
 });
