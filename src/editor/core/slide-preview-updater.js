@@ -227,6 +227,9 @@ export class SlidePreviewUpdater {
           DeckImagesResolver.rewriteImgSrcs(slideEl).catch(() => {});
           DeckImagesResolver.rewriteBackgroundUrls(slideEl).catch(() => {});
 
+          // Re-apply area guides (innerHTML replacement destroyed label buttons)
+          this.areaGuides.applyAreaGuides(slideEl, slideData);
+
           this.warnings.applyPendingSlideWarning(slideEl);
 
           requestAnimationFrame(() => {
