@@ -154,29 +154,102 @@ export class SlidePreviewUpdater {
 
       if (slideEl) {
         const wasActive = slideEl.classList.contains("active");
-        const newSlideEl = SlideRenderer.createSlideElement(
-          this.deck,
-          slideData,
-          this.currentSlideIndex,
-          wasActive,
-        );
-        slideEl.replaceWith(newSlideEl);
 
-        this.warnings.applyPendingSlideWarning(newSlideEl);
-        this.areaGuides.applyAreaGuides(newSlideEl, slideData);
+        // Check whether the layout/structure changed since the last render.
+        // If not, we can patch the existing element in-place (no DOM removal,
+        // no blink).  If yes, we fall back to a full replace.
+        const prevLayoutName = slideEl.dataset.layoutName || "";
+        const newLayoutName = (slideData.layout || "").trim();
+        const layoutChanged = prevLayoutName !== newLayoutName;
 
-        // Rewrite image srcs and background url()s to blob URLs the
-        // browser can render in the preview (since the deck file lives
-        // outside the project root, the dev server can't serve them).
-        DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch((err) => {
-          console.warn("Image rewrite failed:", err);
-        });
-        DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch((err) => {
-          console.warn("Background image rewrite failed:", err);
-        });
+        // Check whether area names changed (add/remove @area markers).
+        const prevAreaNames = [...slideEl.querySelectorAll(".slide__area")]
+          .map((el) => el.dataset.areaName)
+          .sort()
+          .join(",");
+        const newAreaNames = Object.keys(slideData.areas || {})
+          .sort()
+          .join(",");
+        const areasChanged = prevAreaNames !== newAreaNames;
 
-        const attachPreviewOverlays = () => {
-          // Attach overlays after paint so layout geometry is measurable.
+        if (!layoutChanged && !areasChanged) {
+          // ── Fast path: patch existing element in-place ────────────────
+          // Update wrapper attributes
+          slideEl.className = `slide${wasActive ? " active" : ""}${slideData?.hidden ? " slide--hidden" : ""}`;
+          if (slideData?.theme) slideEl.setAttribute("data-theme", slideData.theme);
+          else slideEl.removeAttribute("data-theme");
+          if (slideData?.headerStyle)
+            slideEl.setAttribute("data-header-style", slideData.headerStyle);
+          else slideEl.removeAttribute("data-header-style");
+          if (slideData?.background) slideEl.style.background = slideData.background;
+          else slideEl.style.removeProperty("background");
+          if (slideData?.areaStyle) slideEl.setAttribute("data-has-borders", "");
+          else slideEl.removeAttribute("data-has-borders");
+
+          const grid = slideEl.querySelector(".slide__grid");
+          if (grid) {
+            const resolvedLayout = LayoutParser.resolvePreset(slideData?.layout);
+            const layout = LayoutParser.parse(resolvedLayout, {
+              fallbackAreas: newAreaNames.length ? newAreaNames.split(",") : ["main"],
+            });
+            grid.style.gridTemplateAreas = layout.gridTemplateAreas;
+            grid.style.gridTemplateColumns = layout.gridTemplateColumns;
+            grid.style.gridTemplateRows = layout.gridTemplateRows;
+          }
+
+          // Enhance new HTML off-screen, then patch innerHTML once with
+          // the fully enhanced result.  This avoids a flash of raw HTML
+          // (un-styled code blocks, un-rendered math, etc.).
+          const areas = slideData.areas || {};
+          for (const [name, html] of Object.entries(areas)) {
+            const areaEl = slideEl.querySelector(`.slide__area[data-area-name="${name}"]`);
+            if (!areaEl) continue;
+
+            // Build a temporary off-screen container with the new HTML
+            const temp = document.createElement("div");
+            temp.innerHTML = html;
+            try {
+              await ContentEnhancer.enhanceRenderedContent(temp, { force: true });
+            } catch {
+              /* best-effort enhancement */
+            }
+            const enhancedHtml = temp.innerHTML;
+            if (areaEl.innerHTML !== enhancedHtml) {
+              areaEl.innerHTML = enhancedHtml;
+            }
+          }
+
+          this.warnings.applyPendingSlideWarning(slideEl);
+
+          requestAnimationFrame(() => {
+            this.areaGuides.updateAreaOverflow(slideEl);
+            if (this._pendingReadyCallback) {
+              const cb = this._pendingReadyCallback;
+              this._pendingReadyCallback = null;
+              cb(slideEl);
+            }
+          });
+        } else {
+          // ── Slow path: layout or areas changed — full replace ──────────
+          const newSlideEl = SlideRenderer.createSlideElement(
+            this.deck,
+            slideData,
+            this.currentSlideIndex,
+            wasActive,
+          );
+
+          try {
+            await ContentEnhancer.enhanceRenderedContent(newSlideEl);
+            this.areaGuides.applyAreaGuides(newSlideEl, slideData);
+            DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => {});
+            DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch(() => {});
+          } catch (err) {
+            console.warn("Failed to enhance slide preview:", err);
+          }
+
+          slideEl.replaceWith(newSlideEl);
+          this.warnings.applyPendingSlideWarning(newSlideEl);
+
           requestAnimationFrame(() => {
             this.areaGuides.updateAreaOverflow(newSlideEl);
             this.gridResizer.attachForSlide(newSlideEl, slideData);
@@ -190,20 +263,7 @@ export class SlidePreviewUpdater {
               cb(newSlideEl);
             }
           });
-        };
-
-        ContentEnhancer.enhanceRenderedContent(newSlideEl)
-          .then(() => {
-            this.areaGuides.applyAreaGuides(newSlideEl, slideData);
-            DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => {});
-            DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch(() => {});
-          })
-          .catch((err) => {
-            console.warn("Failed to enhance slide preview:", err);
-          })
-          .finally(() => {
-            attachPreviewOverlays();
-          });
+        }
       } else {
         this.warnings.applyPendingSlideWarning();
       }

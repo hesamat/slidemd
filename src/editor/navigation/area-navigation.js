@@ -41,7 +41,6 @@ export class AreaNavigation {
         suppressOnChange: true,
         scrollIntoView: true,
       });
-      this.markdownEditor.focus();
       return;
     }
 

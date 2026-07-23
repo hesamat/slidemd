@@ -82,6 +82,7 @@ export class SourceJumpHandler {
         markdownEditor.setValueWithCursor(editorMarkdown, pos, {
           suppressOnChange: true,
           scrollIntoView: true,
+          focus: false,
         });
         markdownEditor.highlightLine(targetLine);
       },

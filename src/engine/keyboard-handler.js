@@ -71,6 +71,9 @@ export class KeyboardHandler {
     { key: "s", ctrl: false, shift: false, alt: true, action: "styles" },
     { key: "ArrowUp", ctrl: false, shift: true, alt: true, action: "moveSlideUp" },
     { key: "ArrowDown", ctrl: false, shift: true, alt: true, action: "moveSlideDown" },
+    { key: "z", ctrl: true, shift: false, alt: false, action: "undo" },
+    { key: "z", ctrl: true, shift: true, alt: false, action: "redo" },
+    { key: "y", ctrl: true, shift: false, alt: false, action: "redo" },
   ];
 
   /**
@@ -152,7 +155,11 @@ export class KeyboardHandler {
    */
   #findModifierAction(e) {
     for (const entry of KeyboardHandler.#EDIT_MODE_MODIFIER_ACTIONS) {
-      if (e.key.toLowerCase() !== entry.key.toLowerCase()) continue;
+      const keyMatch =
+        e.key.toLowerCase() === entry.key.toLowerCase() ||
+        (entry.key.length === 1 && e.code === `Key${entry.key.toUpperCase()}`) ||
+        e.code === entry.key;
+      if (!keyMatch) continue;
       if (!!e.ctrlKey !== entry.ctrl) continue;
       if (!!e.shiftKey !== entry.shift) continue;
       if (!!e.altKey !== entry.alt) continue;
@@ -180,6 +187,12 @@ export class KeyboardHandler {
     if (isEditMode && isEditorWindow && (inCodeMirror || !isEditable)) {
       const modifierAction = this.#findModifierAction(e);
       if (modifierAction && this.actions[modifierAction]) {
+        // Undo/Redo are handled by CodeMirror's own keymap when focus is
+        // inside the editor.  Only fire from the document handler when
+        // focus is outside the editor (e.g. on the slide preview).
+        if ((modifierAction === "undo" || modifierAction === "redo") && inCodeMirror) {
+          return;
+        }
         e.preventDefault();
         this.actions[modifierAction]();
         return;
