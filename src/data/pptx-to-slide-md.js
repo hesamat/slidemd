@@ -106,6 +106,7 @@ const CONFIG = {
   maxTitleElements: 3,
   headerThinRatio: 0.4,
   maxHeaderHeightRatio: 0.35,
+  overflowBodyLength: 500, // Max body text length before upgrading to two-column
   centerToleranceRatio: 0.1,
   minSubstantialBodyLength: 80,
   maxHeaderLength: 150,
@@ -336,6 +337,19 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     dominantImages,
   );
 
+  // --- OVERFLOW POST-PROCESSING ---
+  // If a single-column layout has too much body content, upgrade to two-column
+  // so the content is split across @main and @media.
+  let overflowUpgraded = false;
+  if (layout.type === LAYOUT.HEADER_CONTENT.type) {
+    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
+    const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
+    if (bodyLength > CONFIG.overflowBodyLength) {
+      layout = LAYOUT.TWO_COLUMN;
+      overflowUpgraded = true;
+    }
+  }
+
   const formatSingleElement = (el) => {
     if (el.type === ELEMENT_TYPES.TEXT) return formatTextElement(el.content);
     if (el.type === ELEMENT_TYPES.IMAGE) return formatImage(el, deckName);
@@ -359,13 +373,21 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     const mediaImage = hasDominantImages ? dominantImages[0] : null;
     const midX = slideWidth / 2;
 
-    const leftEls = hasDominantImages
+    let leftEls = hasDominantImages
       ? bodyElements.filter((el) => el !== mediaImage)
       : bodyElements.filter((el) => el.left + el.width / 2 < midX);
 
-    const rightEls = hasDominantImages
+    let rightEls = hasDominantImages
       ? [mediaImage]
       : bodyElements.filter((el) => el.left + el.width / 2 >= midX);
+
+    // When upgrading from header-content, all elements may be on one side.
+    // Split by index to fill both columns instead of downgrading.
+    if (leftEls.length > 0 && rightEls.length === 0 && !hasDominantImages) {
+      const mid = Math.ceil(leftEls.length / 2);
+      rightEls = leftEls.slice(mid);
+      leftEls = leftEls.slice(0, mid);
+    }
 
     const leftContent = leftEls
       .map(formatSingleElement)
@@ -379,7 +401,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       .trim();
 
     if (!leftContent || !rightContent) {
-      layout = { type: LAYOUT.HEADER_CONTENT.type, spec: LAYOUT.HEADER_CONTENT.spec };
+      // Don't downgrade if this layout was upgraded from header-content due
+      // to overflow — the rendering step will split the single body element.
+      if (!overflowUpgraded) {
+        layout = { type: LAYOUT.HEADER_CONTENT.type, spec: LAYOUT.HEADER_CONTENT.spec };
+      }
     }
   }
 
@@ -469,8 +495,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push("");
     }
     const midX = slideWidth / 2;
-    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
-    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    let leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    let rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    // When upgrading from header-content, all elements may be on one side.
+    // Split by index to fill both columns.
+    if (leftEls.length > 0 && rightEls.length === 0) {
+      const mid = Math.ceil(leftEls.length / 2);
+      rightEls = leftEls.slice(mid);
+      leftEls = leftEls.slice(0, mid);
+    }
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));

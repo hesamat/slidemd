@@ -1292,4 +1292,42 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).toContain("Right text");
   });
+
+  it("upgrades header-content to two-column when body overflows", () => {
+    // A slide with a header and a long body (>500 chars) should auto-split
+    // into two columns so the content doesn't overflow a single column.
+    const longBody = "Word ".repeat(120).trim(); // ~600 chars
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Overflow",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Section Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longBody,
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Should be upgraded to two-column with content split across columns
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+    expect(md).toContain(longBody);
+  });
 });
