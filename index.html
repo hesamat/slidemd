@@ -812,8 +812,8 @@
           </button>
         </div>
         <div class="modal__body">
-          <div class="open-deck__actions">
-            <button id="openDeckBrowseBtn" class="btn btn--primary" type="button">
+          <div class="open-deck__actions open-deck__actions--column">
+            <button id="openDeckSmdBtn" class="open-deck__browse-btn" type="button">
               <svg
                 width="16"
                 height="16"
@@ -825,20 +825,42 @@
                 stroke-linejoin="round"
               >
                 <path
-                  d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
                 ></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
               </svg>
-              Open Presentation Folder
+              <div>
+                <div>Open .smd File</div>
+                <div class="open-deck__subtitle">
+                  Self-contained presentation with embedded local images.
+                </div>
+              </div>
             </button>
-            <span id="openDeckFolderPath" class="open-deck__path"></span>
+            <button id="openDeckMdBtn" class="open-deck__browse-btn" type="button">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                ></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <div>
+                <div>Open .md File</div>
+                <div class="open-deck__subtitle">
+                  Plain markdown. Requires external image URLs (e.g., https://...).
+                </div>
+              </div>
+            </button>
           </div>
           <div id="openDeckFileList" class="open-deck__file-list"></div>
-          <div class="open-deck__notes">
-            <p>
-              Select the folder that contains your <kbd>.md</kbd> presentation and its images, then
-              choose the file to open.
-            </p>
-          </div>
         </div>
       </div>
     </div>
