@@ -316,7 +316,6 @@ export class ImageInteractionHandler {
                   }
                 }
 
-                this._showDropGap(areaEl, insertBefore);
                 this._dropInsertBeforeEl = insertBefore;
               }
             }
