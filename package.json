@@ -26,9 +26,10 @@
     "self-contained"
   ],
   "scripts": {
-    "dev": "node tools/dev-server.mjs docs/example.textbundle",
+    "dev": "node tools/dev.mjs",
+    "dev:cli": "node tools/dev-server.mjs",
     "dev:vite": "vite",
-    "build": "node tools/build.mjs -- docs/example.smd",
+    "build": "node tools/build.mjs -- docs/example.textbundle",
     "prepdf": "npx playwright install chromium",
     "pdf": "node tools/pdf.mjs",
     "preview": "npx http-server dist -p 8001 -c-1",

@@ -312,35 +312,31 @@ if (fs.existsSync(prismCssPath)) {
 }
 const js = fs.readFileSync(inJs, "utf8");
 
-// Load and parse the deck (.md or .smd)
+// Load and parse the deck (.md or .textbundle directory)
 let deck;
 let smdImages = null;
 const ext = path.extname(inDeck).toLowerCase();
+const isDir = fs.existsSync(inDeck) && fs.statSync(inDeck).isDirectory();
 
-if (ext === ".smd") {
-    // Extract markdown and images from .smd (ZIP) file
-    const smdBuf = fs.readFileSync(inDeck);
-    const zip = await JSZip.loadAsync(smdBuf);
-    const mdFile = zip.file("deck.md");
-    if (!mdFile) {
-        console.error("Error: Invalid .smd file: missing deck.md");
+if (isDir && inDeck.endsWith(".textbundle")) {
+    // Read text.markdown and assets/ from .textbundle directory
+    const mdFile = path.join(inDeck, "text.markdown");
+    if (!fs.existsSync(mdFile)) {
+        console.error("Error: Invalid .textbundle: missing text.markdown");
         process.exit(1);
     }
-    const deckMd = await mdFile.async("text");
+    const deckMd = fs.readFileSync(mdFile, "utf8");
     deck = parseDeckMarkdown(deckMd);
 
-    // Extract images for inlining
+    // Read assets for inlining
+    const assetsDir = path.join(inDeck, "assets");
     smdImages = new Map();
-    const imagesFolder = zip.folder("images");
-    if (imagesFolder) {
-        const entries = [];
-        imagesFolder.forEach((entryPath, entry) => {
-            if (!entry.dir) entries.push(entry);
-        });
-        for (const entry of entries) {
-            const data = await entry.async("nodebuffer");
-            const name = entry.name.split("/").pop();
-            smdImages.set(name, data);
+    if (fs.existsSync(assetsDir)) {
+        for (const name of fs.readdirSync(assetsDir)) {
+            const filePath = path.join(assetsDir, name);
+            if (fs.statSync(filePath).isFile()) {
+                smdImages.set(name, fs.readFileSync(filePath));
+            }
         }
     }
 } else {

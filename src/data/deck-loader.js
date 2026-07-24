@@ -320,48 +320,54 @@ Markdown-based presentations made simple.
 - **Press \`P\`** to open a viewer for your audience
 - **Press \`D\`** to switch between dark and light themes
 
-*Run \`node tools/dev-server.mjs <deck.md>\` for live-reload with file watching.*`,
+<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>`,
     );
   }
 
   /**
-   * Loads the bundled example.smd from docs/ via HTTP fetch.
-   * No file picker needed — the file is served by the dev server / host.
+   * Load the bundled example deck from docs/example.textbundle/ via HTTP.
+   * Works when served by the dev server or any static file server.
    */
   static async openExampleFile() {
     try {
-      const { SmdHandler } = await import("../core/smd-handler.js");
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
 
-      const res = await fetch("docs/example.smd");
+      const res = await fetch("docs/example.textbundle/text.markdown");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const { markdown, images } = await SmdHandler.extractFromSmd(blob);
+      const markdown = await res.text();
 
-      // Store images for rendering
+      // Load assets from the textbundle
       this.smdImageCache.clear();
-      for (const [path, imgBlob] of images) {
-        const url = URL.createObjectURL(imgBlob);
-        this.smdImageCache.set(path, url);
+      const assetNames = ["icon.png", "edit-mode.png"];
+      for (const name of assetNames) {
+        try {
+          const imgRes = await fetch(`docs/example.textbundle/assets/${name}`);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            const url = URL.createObjectURL(blob);
+            this.smdImageCache.set(`assets/${name}`, url);
+          }
+        } catch {
+          // Skip missing assets
+        }
       }
-      this.isSmdMode = true;
-      DeckImagesResolver.setSmdImages(this.smdImageCache);
 
-      // Persist image cache for page refresh recovery
-      const { DraftManager } = await import("../core/draft-manager.js");
-      await DraftManager.saveImageCache(images);
+      if (this.smdImageCache.size > 0) {
+        this.isSmdMode = true;
+        DeckImagesResolver.setSmdImages(this.smdImageCache);
+      }
 
       localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "smd");
-      localStorage.setItem("webdeck_local_file_name", "example.smd");
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", "example.textbundle");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      this.addRecentDeck("example.smd");
+      this.addRecentDeck("example.textbundle");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "smd", fileName: "example.smd" },
+          detail: { text: markdown, fileType: "md", fileName: "example.textbundle" },
         }),
       );
     } catch (e) {

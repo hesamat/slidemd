@@ -104,6 +104,34 @@ function detectFormat(deckPath) {
   process.exit(1);
 }
 
+// ── Asset discovery ──────────────────────────────────────────────────────────
+
+/**
+ * Discover all textbundle assets in docs/ directory.
+ * @returns {Map<string, string>} Map of asset filename → full path
+ */
+function discoverAssets() {
+  const assetMap = new Map();
+  const docsDir = path.join(ROOT, "docs");
+
+  if (!fs.existsSync(docsDir)) return assetMap;
+
+  for (const entry of fs.readdirSync(docsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.endsWith(".textbundle")) continue;
+    const assetsDir = path.join(docsDir, entry.name, "assets");
+    if (!fs.existsSync(assetsDir)) continue;
+
+    for (const name of fs.readdirSync(assetsDir)) {
+      const fullPath = path.join(assetsDir, name);
+      if (fs.statSync(fullPath).isFile()) {
+        assetMap.set(name, fullPath);
+      }
+    }
+  }
+
+  return assetMap;
+}
+
 // ── SSE ───────────────────────────────────────────────────────────────────────
 
 /** @type {Set<http.ServerResponse>} */
@@ -127,6 +155,11 @@ function scheduleReload() {
 }
 
 function startWatching(format) {
+  if (!format) {
+    console.log(`  No deck to watch (API-only mode)`);
+    return;
+  }
+
   const watchPaths = [format.mdFile];
   if (fs.existsSync(format.assetsDir)) {
     watchPaths.push(format.assetsDir);
@@ -214,7 +247,7 @@ function readJsonBody(req) {
 
 // ── Request handler ───────────────────────────────────────────────────────────
 
-function createHandler(format) {
+function createHandler(format, assetMap) {
   /** @type {Map<string, http.ServerResponse>} */
   const watchers = new Map();
   let watcherId = 0;
@@ -256,6 +289,11 @@ function createHandler(format) {
 
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
+      if (!format) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const markdown = fs.readFileSync(format.mdFile, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -269,6 +307,11 @@ function createHandler(format) {
 
     // ── POST /api/deck ──
     if (pathname === "/api/deck" && req.method === "POST") {
+      if (!format) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const { markdown } = await readJsonBody(req);
         fs.writeFileSync(format.mdFile, markdown, "utf8");
@@ -283,6 +326,11 @@ function createHandler(format) {
 
     // ── GET /api/assets ──
     if (pathname === "/api/assets" && req.method === "GET") {
+      if (!format) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ assets: [] }));
+        return;
+      }
       try {
         if (!fs.existsSync(format.assetsDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -304,6 +352,11 @@ function createHandler(format) {
 
     // ── POST /api/upload-asset ──
     if (pathname === "/api/upload-asset" && req.method === "POST") {
+      if (!format) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const contentType = req.headers["content-type"] || "";
         const boundaryMatch = contentType.match(/boundary=(.+)/i);
@@ -344,13 +397,26 @@ function createHandler(format) {
     // ── Static assets: /assets/* ──
     if (pathname.startsWith("/assets/")) {
       const fileName = pathname.slice("/assets/".length);
-      const filePath = path.join(format.assetsDir, fileName);
 
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        const ext = path.extname(filePath).toLowerCase();
+      // Try explicit format first
+      if (format) {
+        const filePath = path.join(format.assetsDir, fileName);
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          const ext = path.extname(filePath).toLowerCase();
+          const mime = MIME[ext] || "application/octet-stream";
+          res.writeHead(200, { "Content-Type": mime });
+          fs.createReadStream(filePath).pipe(res);
+          return;
+        }
+      }
+
+      // Fallback: discovered assets from textbundles
+      const discoveredPath = assetMap.get(fileName);
+      if (discoveredPath && fs.existsSync(discoveredPath)) {
+        const ext = path.extname(discoveredPath).toLowerCase();
         const mime = MIME[ext] || "application/octet-stream";
         res.writeHead(200, { "Content-Type": mime });
-        fs.createReadStream(filePath).pipe(res);
+        fs.createReadStream(discoveredPath).pipe(res);
         return;
       }
 
@@ -398,27 +464,23 @@ function createHandler(format) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 function main() {
-  if (!DECK_ARG) {
-    console.error("Usage: node tools/dev-server.mjs <path> [--port 8000]");
-    console.error("");
-    console.error("  <path>   .textbundle directory or .md file");
-    console.error("  --port   Port number (default: 8000)");
-    process.exit(1);
-  }
-
-  const format = detectFormat(DECK_ARG);
+  const format = DECK_ARG ? detectFormat(DECK_ARG) : null;
 
   console.log(`SlideMD Dev Server`);
-  console.log(`  Deck:      ${format.mdFile}`);
-  console.log(`  Assets:    ${format.assetsDir}`);
-  console.log(`  Format:    ${format.type}`);
+  if (format) {
+    console.log(`  Deck:      ${format.mdFile}`);
+    console.log(`  Assets:    ${format.assetsDir}`);
+    console.log(`  Format:    ${format.type}`);
+  } else {
+    console.log(`  Mode:      API-only (no deck loaded)`);
+  }
 
-  // Ensure assets dir exists
-  if (!fs.existsSync(format.assetsDir)) {
+  if (format && !fs.existsSync(format.assetsDir)) {
     fs.mkdirSync(format.assetsDir, { recursive: true });
   }
 
-  const handler = createHandler(format);
+  const assetMap = discoverAssets();
+  const handler = createHandler(format, assetMap);
   const server = http.createServer(handler);
 
   server.listen(PORT, () => {
