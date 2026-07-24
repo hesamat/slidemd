@@ -21,9 +21,16 @@ docker run -p 8080:80 hesamat/html-presentation
 
 Then open http://localhost:8080.
 
+### Self-Contained .smd Format
+
+SlideMD supports a self-contained `.smd` format that bundles your markdown deck and all images into a single file. This is ideal for sharing presentations without worrying about image dependencies.
+
+- **Open .smd files** via the Open Deck modal (Menu → Open File)
+- **PPTX Import** creates .smd files with embedded images
+
 ## Run Locally
 
-Because the runtime fetches and parses `docs/example.md` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
+Because the runtime fetches and parses `docs/example.smd` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
 
 ```powershell
 npm install
@@ -36,14 +43,14 @@ Opens automatically at http://localhost:8000/index.html.
 
 - `index.html` - main deck page
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
-- `docs/example.md` - default deck content (Markdown with `layout:` and `@area` markers)
+- `docs/example.smd` - self-contained presentation bundle (ZIP with deck + images)
 - `tools/` - build and export scripts
 - `dist/example.html` - generated single-file deck for sharing (build output)
 - `dist/example.pdf` - generated deterministic PDF (optional)
 
-## Authoring docs/example.md
+## Authoring docs/example.smd
 
-- Slides are separated by `---`; the default input file is `docs/example.md`.
+- Slides are separated by `---`; the default input file is `docs/example.smd`.
 - Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
@@ -63,7 +70,7 @@ layout: header-content
 - Point B
 ```
 
-More layouts, backgrounds, and theming recipes live in [docs/example.md](docs/example.md).
+More layouts, backgrounds, and theming recipes live in [docs/example.smd](docs/example.smd).
 
 ## Layout Presets
 
@@ -90,6 +97,8 @@ Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork
 - The layout picker shows area tags for each preset.
 - Mermaid helper panel inserts common diagram skeletons.
 - Warnings show on the slide when layout or area markers are mismatched.
+- **Image drag reorder**: Drag images across columns to reposition them in the markdown.
+- **Dashed area outlines**: Toggle visibility of layout grid outlines with the Columns button.
 
 ## Keyboard Shortcuts
 
@@ -174,7 +183,7 @@ Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`)
 
 - Syntax highlighting via Prism; the build inlines assets so it works offline.
 - Math via KaTeX auto-render. Inline: `$...$` or `\(...\)`; display: `$$...$$` or `\[...\]`.
-- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/example.md](docs/example.md) for syntax guide.
+- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/example.smd](docs/example.smd) for syntax guide.
 
 ### Math Formatting (KaTeX)
 

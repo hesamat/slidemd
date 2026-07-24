@@ -1,5 +1,121 @@
 # Changelog
 
+## 0.6.0 (2026-07-24)
+
+### Self-Contained .smd Format
+
+- New binary ZIP-based format that bundles `deck.md` + all images into a single `.smd` file
+- Uses JSZip with STORE compression to avoid UI thread freezing
+- `SmdHandler` class handles extraction and building
+- Build tooling: `tools/build-example-smd.mjs` and `tools/inspect-smd.mjs`
+- First bundled example deck: `docs/example.smd` (~1.2 MB)
+
+### Custom Open-Deck Modal
+
+- New `OpenDeckModal` with recent-decks list
+- Two open buttons: one for `.smd` (ZIP archive with images), one for `.md` (remote URLs)
+- Uses File System Access API on Chromium, falls back to `<input>` on Safari/Firefox
+
+### Image Drag Reorder and Alignment
+
+- New `ImageDragController` for cross-area drag with drop-gap indicators and reorder in markdown
+- New `ImageMarkdownUtils` for image markdown manipulation
+- New `ImagePositionPresets` for positioning presets
+- Interact.js powered draggable setup with resize handles
+- Cap image size presets to column width; enable cross-column drag
+
+### PPTX Import Improvements
+
+- **Layout detection improvements**: better heading threshold detection using font size
+- **Per-deck folder structure and editable filename**: organized imported deck files
+- **Code block detection**: auto-convert on file select, language tag regex fixes
+- **Dominant image handling**: auto-detect dominant images, filter tiny decorative images
+- **Chart data tables** and diagram rendering as markdown lists
+- **TIFF image support** via utif2
+- **Keep-backgrounds checkbox** and image import checkbox in conversion modal
+- **Header detection improvements**: markdown markers, font-size thresholds, bold subheadings
+- Blocking loading modal during save operation
+
+### Notification System Redesign
+
+- Bottom-center snackbar-style toasts replacing native alerts
+- `Notification.critical()` with blurred backdrop and cancel confirmation
+- Fullscreen-aware: re-parents to fullscreenElement when active
+- Blocking notifications with overlay and shake feedback
+- Max 4 visible toasts with queue system
+
+### UI/UX Improvements
+
+- Toggle dashed area outlines with Columns button
+- Full-height media column for better image display
+- Simplified image editor panel
+- Increased slide area bounding box border on edit mode
+- Image drag reorder with cross-area support and drop-gap indicators
+
+### Bug Fixes
+
+**PPTX Conversion Fixes:**
+
+- Fix blob.arrayBuffer error when saving `.smd` with images
+- Skip white backgrounds during PPTX conversion
+- Adjust group child positions during flattening
+- Require text on both sides for two-column layout
+- Require substantial body text for two-column layout
+- Only use two-column for dominant images when body text exists
+- Reject long text as headers in PPTX conversion (max 60 chars)
+- Use H2 for all headings; omit dimensions for single-image slides
+- Use H2 for bold subheadings; add space after closing bold markers
+- Escape hash at start of lines so PPTX text like `# Print` is preserved
+- Preserve angle brackets in code blocks; merge consecutive backtick lines
+- Bullet lists at top of slide should not be treated as header
+- Preserve spaces around italic spans; fix btoa unicode error
+- Skip code blocks in header detection; language tag only on opening fences
+- Skip `#` escaping inside code blocks; only escape in non-monospace text
+- Prevent font-size detection from heading long text
+- Apply length check to markdown-detected headings too
+- Correct image dimension conversion; filter tiny decorative images
+- Correct image dimension preservation when clicking HTML img tags with explicit dimensions
+
+**Image Handling Fixes:**
+
+- Fix image rotation wraparound (negative values)
+- Fix portrait image fit-to-width sizing
+- Fix image fit proportions
+- Preserve HTML image width/height attributes when clicked in editor
+
+**Editor Fixes:**
+
+- Fix edit-mode keyboard shortcuts: global undo/redo and no-preview-blink
+- Code blocks size to content with no scrollbar
+- Improve area handling for layout switches and context menu
+- Title decoration still disabled when only border width cleared
+- Suppress duplicate slide refresh when toggling per-slide theme
+- Title decoration stays disabled after removing borders; theme-aware border color
+- Allow cancelling the saving deck dialog during PPTX import
+- Prompt user for File System API permission on load
+- Restore edit mode area outlines and fix content overflow
+- Strip markdown bold/italic markers from slide thumbnail titles
+- Preserve indentation inside fenced code blocks in formatTextElement
+- Add footer area to title-slide layout
+- Fix markdown editor suppressChange reset on exceptions
+- Ensure setValue propagates preview updates
+- Make notifications fullscreen-aware
+
+### Infrastructure / Refactoring
+
+- Refactor: decouple edit-controller via dependency injection
+- Refactor: split pptx-extractor into smaller modules
+- Refactor: code-review fixes, duplicate logic cleanup
+- New test files added (12 new test files)
+- Major test expansions for pptx-extractor.test.js and pptx-to-slide-md.test.js
+- New core modules: draft-manager.js, smd-handler.js
+- New editor modules: slide-preview-updater.js, style-applier.js, source-jump-handler.js, directive-utils.js, area-context-menu.js
+- New image modules: image-drag-controller.js, image-markdown-utils.js, image-position-presets.js
+- New UI modules: open-deck-modal.js
+- New CSS: open-deck-modal.css, notification.css (expanded)
+- Updated AGENTS.md with new editor sub-module architecture documentation
+- Package dependencies updated
+
 ## 0.5.0 (2026-07-02)
 
 ### PPTX Import
