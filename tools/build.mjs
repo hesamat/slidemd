@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import parseDeckMarkdown from "./md-to-deck.mjs";
 import { build as esbuild } from "esbuild";
+import JSZip from "jszip";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -217,6 +218,24 @@ function inlineLocalImagesInHtml(htmlText) {
     });
 }
 
+function inlineSmdImagesInHtml(htmlText, images) {
+    if (!htmlText || !images) return htmlText;
+    return htmlText.replace(/\s(src|poster)=(['"])([^'">\s]+)\2/gi, (m, attr, quote, relPath) => {
+        if (relPath.startsWith('/') || relPath.startsWith('http://') || relPath.startsWith('https://') || relPath.startsWith('data:')) {
+            return m;
+        }
+        // Extract filename from path (e.g., "images/icon.png" -> "icon.png")
+        const fileName = relPath.split("/").pop();
+        const buf = images.get(fileName);
+        if (!buf) return m;
+        const ext = path.extname(fileName).toLowerCase();
+        const mime = mimeForExt(ext);
+        if (!mime) return m;
+        const b64 = buf.toString("base64");
+        return ` ${attr}=${quote}data:${mime};base64,${b64}${quote}`;
+    });
+}
+
 function inlineImagesInDeck(deck) {
     if (!deck || typeof deck !== "object") return deck;
     if (!Array.isArray(deck.slides)) return deck;
@@ -225,18 +244,31 @@ function inlineImagesInDeck(deck) {
         const areas = s && typeof s === "object" && s.areas && typeof s.areas === "object" ? s.areas : {};
         const outAreas = {};
         for (const [k, html] of Object.entries(areas)) {
-            outAreas[k] = inlineLocalImagesInHtml(html);
+            outAreas[k] = smdImages
+                ? inlineSmdImagesInHtml(html, smdImages)
+                : inlineLocalImagesInHtml(html);
         }
 
         // Inline background images if they reference local files
         let background = s.background || "";
         if (background && background.includes("url(")) {
             background = background.replace(/url\((['"]?)([^'")\s]+)\1\)/g, (m, quote, url) => {
-                // Skip if it's an absolute path, URL, or already a data URI
                 if (url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
                     return m;
                 }
-                // Resolve relative to the deck file's directory
+                if (smdImages) {
+                    const fileName = url.split("/").pop();
+                    const buf = smdImages.get(fileName);
+                    if (buf) {
+                        const ext = path.extname(fileName).toLowerCase();
+                        const mime = mimeForExt(ext);
+                        if (mime) {
+                            const b64 = buf.toString("base64");
+                            return `url(data:${mime};base64,${b64})`;
+                        }
+                    }
+                    return m;
+                }
                 const abs = path.resolve(deckDir, url);
                 if (fs.existsSync(abs)) {
                     const uri = toDataUri(abs);
@@ -280,10 +312,41 @@ if (fs.existsSync(prismCssPath)) {
 }
 const js = fs.readFileSync(inJs, "utf8");
 
-// Load and parse the deck
+// Load and parse the deck (.md or .smd)
 let deck;
-const deckMd = fs.readFileSync(inDeck, "utf8");
-deck = parseDeckMarkdown(deckMd);
+let smdImages = null;
+const ext = path.extname(inDeck).toLowerCase();
+
+if (ext === ".smd") {
+    // Extract markdown and images from .smd (ZIP) file
+    const smdBuf = fs.readFileSync(inDeck);
+    const zip = await JSZip.loadAsync(smdBuf);
+    const mdFile = zip.file("deck.md");
+    if (!mdFile) {
+        console.error("Error: Invalid .smd file: missing deck.md");
+        process.exit(1);
+    }
+    const deckMd = await mdFile.async("text");
+    deck = parseDeckMarkdown(deckMd);
+
+    // Extract images for inlining
+    smdImages = new Map();
+    const imagesFolder = zip.folder("images");
+    if (imagesFolder) {
+        const entries = [];
+        imagesFolder.forEach((entryPath, entry) => {
+            if (!entry.dir) entries.push(entry);
+        });
+        for (const entry of entries) {
+            const data = await entry.async("nodebuffer");
+            const name = entry.name.split("/").pop();
+            smdImages.set(name, data);
+        }
+    }
+} else {
+    const deckMd = fs.readFileSync(inDeck, "utf8");
+    deck = parseDeckMarkdown(deckMd);
+}
 
 // Optional vendor assets (PrismJS + KaTeX).
 // These get inlined into dist/deck.html, but we only inline what the current deck actually uses.

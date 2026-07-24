@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "node tools/build.mjs -- docs/example.md",
+    "build": "node tools/build.mjs -- docs/example.smd",
     "prepdf": "npx playwright install chromium",
     "pdf": "node tools/pdf.mjs",
     "preview": "npx http-server dist -p 8001 -c-1",
