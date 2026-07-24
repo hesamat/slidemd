@@ -364,7 +364,18 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     const singleImageOnRight =
       rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64;
 
-    if (singleImageOnRight) {
+    // Only upgrade to media-span if there's actual body content beyond the
+    // header. Otherwise @main would be empty — header-content handles this.
+    const hasBodyContent = bodyElements.some(
+      (el) =>
+        el !== header &&
+        el.type !== ELEMENT_TYPES.IMAGE &&
+        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+          el.type === ELEMENT_TYPES.TABLE ||
+          el.type === ELEMENT_TYPES.CHART ||
+          el.type === ELEMENT_TYPES.DIAGRAM),
+    );
+    if (singleImageOnRight && hasBodyContent) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
     }
   }
@@ -816,9 +827,18 @@ function inferLayout(
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
     // When the right column has only images (no text), media-span is a
-    // better fit — the image spans the full slide height.
+    // better fit — but only if there's actual body text beyond the header.
     const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-    if (!rightHasText) return LAYOUT.MEDIA_SPAN;
+    const hasBodyText = leftEls.some(
+      (el) =>
+        el !== headerEl &&
+        el.type !== ELEMENT_TYPES.IMAGE &&
+        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+          el.type === ELEMENT_TYPES.TABLE ||
+          el.type === ELEMENT_TYPES.CHART ||
+          el.type === ELEMENT_TYPES.DIAGRAM),
+    );
+    if (!rightHasText && hasBodyText) return LAYOUT.MEDIA_SPAN;
     return LAYOUT.TWO_COLUMN;
   }
 
