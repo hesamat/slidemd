@@ -2,32 +2,31 @@
  * OpenDeckModal
  *
  * Custom modal for opening deck files.
- * Supports .smd (ZIP archive with images) and .md (remote URLs only).
+ * Supports .textbundle directories (Chromium) and .md files.
  * Uses File System Access API on Chromium, falls back to <input> on Safari/Firefox.
  */
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
-import { SmdHandler } from "../../core/smd-handler.js";
 import { DraftManager } from "../../core/draft-manager.js";
 
 export class OpenDeckModal {
   static _el = null;
   static _fileListEl = null;
-  static _smdBtn = null;
+  static _textbundleBtn = null;
   static _mdBtn = null;
   static _previousFocus = null;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
     this._fileListEl = document.getElementById("openDeckFileList");
-    this._smdBtn = document.getElementById("openDeckSmdBtn");
+    this._textbundleBtn = document.getElementById("openDeckTextbundleBtn");
     this._mdBtn = document.getElementById("openDeckMdBtn");
 
     if (!this._el) return;
 
     document.getElementById("openDeckModalOverlay")?.addEventListener("click", () => this.hide());
     document.getElementById("closeOpenDeckModalBtn")?.addEventListener("click", () => this.hide());
-    this._smdBtn?.addEventListener("click", () => this._openSmdFile());
+    this._textbundleBtn?.addEventListener("click", () => this._openTextbundleDirectory());
     this._mdBtn?.addEventListener("click", () => this._openMdFile());
 
     document.addEventListener("keydown", (e) => {
@@ -43,7 +42,7 @@ export class OpenDeckModal {
     this._el.classList.remove("webdeck-hidden");
     this._fileListEl.innerHTML = "";
     this._renderRecentDecks();
-    this._smdBtn?.focus();
+    this._textbundleBtn?.focus();
   }
 
   static hide() {
@@ -53,70 +52,82 @@ export class OpenDeckModal {
     this._previousFocus = null;
   }
 
-  static async _openSmdFile() {
+  /**
+   * Open a .textbundle directory using the File System Access API (Chromium).
+   * Reads text.markdown and assets/ from the selected directory.
+   */
+  static async _openTextbundleDirectory() {
     try {
-      let file;
-      let fileHandle = null;
-
-      // Chromium: use File System Access API for direct re-saving later
-      if ("showOpenFilePicker" in window) {
-        [fileHandle] = await window.showOpenFilePicker({
-          types: [
-            {
-              description: "SlideMD Presentation",
-              accept: { "application/octet-stream": [".smd"] },
-            },
-          ],
-        });
-        file = await fileHandle.getFile();
-      } else {
-        // Safari/Firefox fallback
-        file = await this._pickFileViaInput(".smd");
-        if (!file) return;
+      if (!("showDirectoryPicker" in window)) {
+        Notification.info(
+          "Directory picker not supported in this browser. Use Open .md File instead.",
+        );
+        return;
       }
 
-      const { markdown, images } = await SmdHandler.extractFromSmd(file);
+      const dirHandle = await window.showDirectoryPicker({ mode: "read" });
 
+      // Read text.markdown
+      let mdHandle;
+      try {
+        mdHandle = await dirHandle.getFileHandle("text.markdown");
+      } catch {
+        throw new Error("Not a valid .textbundle: missing text.markdown");
+      }
+      const mdFile = await mdHandle.getFile();
+      const markdown = await mdFile.text();
+
+      // Read assets from assets/ subdirectory
       DeckLoader.smdImageCache.clear();
-      for (const [path, blob] of images) {
-        const url = URL.createObjectURL(blob);
-        DeckLoader.smdImageCache.set(path, url);
+      try {
+        const assetsHandle = await dirHandle.getDirectoryHandle("assets");
+        for await (const [name, handle] of assetsHandle) {
+          if (handle.kind === "file") {
+            const file = await handle.getFile();
+            const url = URL.createObjectURL(file);
+            DeckLoader.smdImageCache.set(`assets/${name}`, url);
+          }
+        }
+      } catch {
+        // No assets directory — that's fine
       }
-      DeckLoader.isSmdMode = true;
 
-      if (fileHandle) {
-        DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+      if (DeckLoader.smdImageCache.size > 0) {
+        DeckLoader.isSmdMode = true;
       }
+
+      // Register directory handle for saves
+      DeckLoader.fileHandleRegistry.set(dirHandle.name, dirHandle);
 
       localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "smd");
-      localStorage.setItem("webdeck_local_file_name", file.name);
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", dirHandle.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      DeckLoader.addRecentDeck(file.name);
-      await DraftManager.saveDraft(markdown, images);
-      // Persist image cache for page refresh recovery
-      await DraftManager.saveImageCache(images);
+      DeckLoader.addRecentDeck(dirHandle.name);
+      await DraftManager.saveDraft(markdown, new Map());
 
       this.hide();
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "smd", fileName: file.name },
+          detail: { text: markdown, fileType: "md", fileName: dirHandle.name },
         }),
       );
 
-      // Clear stale draft (crash recovery) — image cache persists separately
       await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
-        console.error("Failed to open .smd file:", e);
-        Notification.error("Failed to open .smd file");
+        console.error("Failed to open .textbundle directory:", e);
+        Notification.error("Failed to open .textbundle directory");
       }
     }
   }
 
+  /**
+   * Open a .md file using the File System Access API or file input fallback.
+   */
   static async _openMdFile() {
     try {
       let file;
@@ -176,7 +187,7 @@ export class OpenDeckModal {
 
   /**
    * Safari/Firefox fallback: creates a hidden <input type="file"> to pick files.
-   * @param {string} accept - e.g. ".smd" or ".md"
+   * @param {string} accept - e.g. ".md"
    * @returns {Promise<File | null>}
    */
   static _pickFileViaInput(accept) {
