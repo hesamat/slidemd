@@ -255,8 +255,10 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     ? slide.elements.find((el) => {
         if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
         const imgArea = (el.width || 0) * (el.height || 0);
-        if (imgArea < slideArea * CONFIG.backgroundImageThreshold) return false;
-        // Must have at least one content element overlapping it
+        // Image covers >= 80% of slide — always a background
+        if (imgArea >= slideArea * 0.8) return true;
+        // Image covers >= 60% of slide — background if it overlaps content
+        if (imgArea < slideArea * 0.6) return false;
         const contentEls = slide.elements.filter(
           (other) =>
             other !== el &&
@@ -430,23 +432,28 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       slideHeight,
       false,
     );
-    parts.push("");
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
-      parts.push("");
-      parts.push(formatTextElement(header.content));
-      parts.push("");
-    }
     const midX = slideWidth / 2;
     const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
     const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MEDIA);
-    parts.push("");
-    parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    // If the position split leaves one side empty, this isn't really two-column.
+    if (leftEls.length === 0 || rightEls.length === 0) {
+      layout = LAYOUT.HEADER_CONTENT;
+    } else {
+      parts.push("");
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
+      parts.push("");
+      parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.MEDIA);
+      parts.push("");
+      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
@@ -521,6 +528,39 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+  }
+
+  // If two-column was downgraded to header-content, render it now
+  if (
+    layout.type === LAYOUT.HEADER_CONTENT.type &&
+    parts.length > 0 &&
+    !parts.includes(MARKDOWN_TAGS.MAIN)
+  ) {
+    const { header, isHeaderValid, bodyElements } = extractHeader(
+      textElements,
+      allElements,
+      slideHeight,
+      false,
+    );
+    const singleImage =
+      bodyElements.length === 1 &&
+      bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
+      bodyElements[0].base64;
+    if (isHeaderValid) {
+      parts.push(MARKDOWN_TAGS.HEADER);
+      parts.push("");
+      parts.push(formatTextElement(header.content));
+      parts.push("");
+    }
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    if (singleImage) {
+      const el = bodyElements[0];
+      const hasExplicitDims = el.width && el.height;
+      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+    } else {
+      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    }
   }
 
   if (footerElements.length > 0) {
