@@ -11,11 +11,7 @@ const ROOT = join(__dirname, "..");
 
 async function main() {
   const outDir = join(ROOT, "docs", "example.textbundle");
-  const mdPath = join(outDir, "text.markdown");
   const assetsDir = join(outDir, "assets");
-
-  // Read existing markdown
-  const markdown = await readFile(mdPath, "utf8");
 
   // Copy fresh images from public/
   const images = ["icon.png", "edit-mode.png"];
@@ -26,7 +22,6 @@ async function main() {
   }
 
   console.log(`Rebuilt ${outDir}`);
-  console.log(`  text.markdown: ${markdown.length} chars`);
   console.log(`  assets/: ${images.length} images`);
 }
 

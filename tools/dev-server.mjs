@@ -19,7 +19,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -397,6 +397,13 @@ function createHandler(format, assetMap) {
     // ── Static assets: /assets/* ──
     if (pathname.startsWith("/assets/")) {
       const fileName = pathname.slice("/assets/".length);
+
+      // Prevent directory traversal
+      if (fileName.includes("..") || fileName.includes("/") || fileName.includes("\\")) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
 
       // Try explicit format first
       if (format) {

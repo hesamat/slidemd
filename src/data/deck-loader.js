@@ -338,17 +338,20 @@ Markdown-based presentations made simple.
 
       // Load assets from the textbundle
       this.smdImageCache.clear();
-      const assetNames = ["icon.png", "edit-mode.png"];
-      for (const name of assetNames) {
-        try {
-          const imgRes = await fetch(`docs/example.textbundle/assets/${name}`);
-          if (imgRes.ok) {
-            const blob = await imgRes.blob();
-            const url = URL.createObjectURL(blob);
-            this.smdImageCache.set(`assets/${name}`, url);
+      const assetsRes = await fetch("/api/assets");
+      if (assetsRes.ok) {
+        const { assets } = await assetsRes.json();
+        for (const asset of assets) {
+          try {
+            const imgRes = await fetch(`docs/example.textbundle/assets/${asset.name}`);
+            if (imgRes.ok) {
+              const blob = await imgRes.blob();
+              const url = URL.createObjectURL(blob);
+              this.smdImageCache.set(`assets/${asset.name}`, url);
+            }
+          } catch {
+            // Skip missing assets
           }
-        } catch {
-          // Skip missing assets
         }
       }
 
