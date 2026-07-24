@@ -2,23 +2,25 @@
 /**
  * SlideMD Dev Server
  *
- * Lightweight CLI dev server that:
- * - Accepts a .textbundle directory, loose .md + assets/, or .textpack ZIP
- * - Serves the frontend UI on localhost
- * - Serves assets as standard HTTP routes (/assets/*)
- * - Watches files on disk and triggers live-reload via SSE
- * - Handles deck save (POST /api/deck) and asset upload (POST /api/upload-asset)
+ * Lightweight CLI dev server for SlideMD presentations.
+ *
+ * Supported input formats:
+ *   slides.md          — markdown file with sidecar images/ folder
+ *   deck.textpack      — ZIP archive containing text.markdown + assets/
  *
  * Usage:
- *   node tools/dev-server.mjs [path] [--port 8000]
+ *   node tools/dev-server.mjs <path> [--port 8000]
  *
  * Examples:
- *   node tools/dev-server.mjs docs/example.textbundle
+ *   node tools/dev-server.mjs slides.md
  *   node tools/dev-server.mjs slides.md --port 3000
+ *   node tools/dev-server.mjs deck.textpack
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +31,7 @@ const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const portFlag = args.indexOf("--port");
 const PORT = portFlag !== -1 ? parseInt(args[portFlag + 1], 10) : 8000;
-const DECK_ARG = args.find((a) => !a.startsWith("--") && a !== String(PORT));
+const INPUT_ARG = args.find((a) => !a.startsWith("--") && a !== String(PORT));
 
 // ── MIME types ────────────────────────────────────────────────────────────────
 
@@ -45,91 +47,94 @@ const MIME = {
   ".gif": "image/gif",
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
+  ".avif": "image/avif",
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
 };
 
-const IMAGE_RE = /\.(jpe?g|png|gif|webp|svg|avif|tif?f)$/i;
+const IMAGE_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
 
 // ── Format detection ──────────────────────────────────────────────────────────
 
 /**
- * Detect the deck format and return normalized paths.
- * @param {string} deckPath
- * @returns {{ type: "textbundle"|"md", mdFile: string, assetsDir: string, writeDir: string }}
+ * @typedef {{ mdFile: string, imagesDir: string, label: string }} DeckFormat
  */
-function detectFormat(deckPath) {
-  const resolved = path.resolve(deckPath);
 
-  // .textbundle directory
-  if (
-    fs.existsSync(resolved) &&
-    fs.statSync(resolved).isDirectory() &&
-    resolved.endsWith(".textbundle")
-  ) {
-    const mdFile = path.join(resolved, "text.markdown");
-    if (!fs.existsSync(mdFile)) {
-      console.error(`Error: .textbundle missing text.markdown: ${resolved}`);
-      process.exit(1);
-    }
-    return {
-      type: "textbundle",
-      mdFile,
-      assetsDir: path.join(resolved, "assets"),
-      writeDir: resolved,
-    };
-  }
+/**
+ * Detect the input format and return normalized paths.
+ * @param {string} inputPath
+ * @returns {DeckFormat}
+ */
+function detectFormat(inputPath) {
+  const resolved = path.resolve(inputPath);
 
-  // Loose .md file (with optional sidecar assets/ folder)
-  if (fs.existsSync(resolved) && resolved.endsWith(".md")) {
-    const dir = path.dirname(resolved);
-    return {
-      type: "md",
-      mdFile: resolved,
-      assetsDir: path.join(dir, "assets"),
-      writeDir: dir,
-    };
-  }
-
-  // Default: treat as .md in current directory
   if (!fs.existsSync(resolved)) {
     console.error(`Error: File not found: ${resolved}`);
     process.exit(1);
   }
 
-  console.error(`Error: Unsupported input format: ${resolved}`);
-  console.error("  Expected: *.textbundle directory or *.md file");
+  // .textpack (ZIP archive)
+  if (resolved.endsWith(".textpack")) {
+    return { mdFile: resolved, imagesDir: "", label: "textpack" };
+  }
+
+  // .md file — auto-discover images/ in same directory
+  if (resolved.endsWith(".md")) {
+    const dir = path.dirname(resolved);
+    const imagesDir = path.join(dir, "images");
+    return { mdFile: resolved, imagesDir, label: "md" };
+  }
+
+  console.error(`Error: Unsupported file type: ${resolved}`);
+  console.error("  Expected: *.md file or *.textpack archive");
   process.exit(1);
 }
 
-// ── Asset discovery ──────────────────────────────────────────────────────────
+// ── Textpack extraction ──────────────────────────────────────────────────────
 
 /**
- * Discover all textbundle assets in docs/ directory.
- * @returns {Map<string, string>} Map of asset filename → full path
+ * Extract a .textpack ZIP to a temp directory.
+ * Returns the same shape as detectFormat for .md files.
+ * @param {string} textpackPath
+ * @returns {Promise<DeckFormat>}
  */
-function discoverAssets() {
-  const assetMap = new Map();
-  const docsDir = path.join(ROOT, "docs");
+async function extractTextpack(textpackPath) {
+  const { default: JSZip } = await import("jszip");
+  const buf = fs.readFileSync(textpackPath);
+  const zip = await JSZip.loadAsync(buf);
 
-  if (!fs.existsSync(docsDir)) return assetMap;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slidemd-"));
 
-  for (const entry of fs.readdirSync(docsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !entry.name.endsWith(".textbundle")) continue;
-    const assetsDir = path.join(docsDir, entry.name, "assets");
-    if (!fs.existsSync(assetsDir)) continue;
+  // Extract text.markdown
+  const mdEntry = zip.file("text.markdown") || zip.file("deck.md");
+  if (!mdEntry) {
+    console.error("Error: .textpack missing text.markdown or deck.md");
+    process.exit(1);
+  }
+  const mdContent = await mdEntry.async("text");
+  const mdFile = path.join(tmpDir, "slides.md");
+  fs.writeFileSync(mdFile, mdContent, "utf8");
 
-    for (const name of fs.readdirSync(assetsDir)) {
-      const fullPath = path.join(assetsDir, name);
-      if (fs.statSync(fullPath).isFile()) {
-        assetMap.set(name, fullPath);
-      }
+  // Extract assets/ to images/
+  const imagesDir = path.join(tmpDir, "images");
+  fs.mkdirSync(imagesDir, { recursive: true });
+
+  const assetsFolder = zip.folder("assets") || zip.folder("images");
+  if (assetsFolder) {
+    const entries = [];
+    assetsFolder.forEach((p, entry) => {
+      if (!entry.dir) entries.push(entry);
+    });
+    for (const entry of entries) {
+      const data = await entry.async("nodebuffer");
+      const name = path.basename(entry.name);
+      fs.writeFileSync(path.join(imagesDir, name), data);
     }
   }
 
-  return assetMap;
+  return { mdFile, imagesDir, label: `textpack → ${path.basename(textpackPath)}` };
 }
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
@@ -138,14 +143,15 @@ function discoverAssets() {
 const sseClients = new Set();
 
 function sendReloadEvent() {
-  for (const res of sseClients) {
-    res.write("data: reload\n\n");
+  for (const client of sseClients) {
+    client.write("data: reload\n\n");
   }
 }
 
 // ── File watching ─────────────────────────────────────────────────────────────
 
 let watchTimeout = null;
+
 function scheduleReload() {
   if (watchTimeout) clearTimeout(watchTimeout);
   watchTimeout = setTimeout(() => {
@@ -155,14 +161,9 @@ function scheduleReload() {
 }
 
 function startWatching(format) {
-  if (!format) {
-    console.log(`  No deck to watch (API-only mode)`);
-    return;
-  }
-
   const watchPaths = [format.mdFile];
-  if (fs.existsSync(format.assetsDir)) {
-    watchPaths.push(format.assetsDir);
+  if (format.imagesDir && fs.existsSync(format.imagesDir)) {
+    watchPaths.push(format.imagesDir);
   }
 
   for (const p of watchPaths) {
@@ -171,11 +172,30 @@ function startWatching(format) {
       scheduleReload();
     });
   }
-
-  console.log(`  Watching for changes...`);
 }
 
-// ── Multipart parser (for image uploads) ─────────────────────────────────────
+// ── Upload filename generation ────────────────────────────────────────────────
+
+/**
+ * Generate a human-readable unique filename for an uploaded image.
+ * Format: sanitized-name-XXXX.ext (e.g., architecture-a3f2.png)
+ * @param {string} originalName
+ * @returns {string}
+ */
+function generateUploadFilename(originalName) {
+  const ext = path.extname(originalName).toLowerCase() || ".png";
+  const base = path.basename(originalName, ext);
+  // Sanitize: lowercase, replace spaces/special chars with hyphens, trim
+  const sanitized = base
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30);
+  const hash = randomUUID().slice(0, 4);
+  return `${sanitized || "image"}-${hash}${ext}`;
+}
+
+// ── Multipart parser ─────────────────────────────────────────────────────────
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -237,7 +257,7 @@ function readJsonBody(req) {
     req.on("end", () => {
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-      } catch (e) {
+      } catch {
         reject(new Error("Invalid JSON"));
       }
     });
@@ -247,16 +267,17 @@ function readJsonBody(req) {
 
 // ── Request handler ───────────────────────────────────────────────────────────
 
-function createHandler(format, assetMap) {
-  /** @type {Map<string, http.ServerResponse>} */
-  const watchers = new Map();
+/**
+ * @param {DeckFormat} format
+ */
+function createHandler(format) {
   let watcherId = 0;
+  const watchers = new Map();
 
   return async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const pathname = url.pathname;
 
-    // CORS headers (for dev)
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -267,7 +288,7 @@ function createHandler(format, assetMap) {
       return;
     }
 
-    // ── SSE endpoint ──
+    // ── SSE ──
     if (pathname === "/api/events") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -289,15 +310,10 @@ function createHandler(format, assetMap) {
 
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
-      if (!format) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No deck loaded" }));
-        return;
-      }
       try {
         const markdown = fs.readFileSync(format.mdFile, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ markdown, type: format.type }));
+        res.end(JSON.stringify({ markdown, type: "md" }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
@@ -307,11 +323,6 @@ function createHandler(format, assetMap) {
 
     // ── POST /api/deck ──
     if (pathname === "/api/deck" && req.method === "POST") {
-      if (!format) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No deck loaded" }));
-        return;
-      }
       try {
         const { markdown } = await readJsonBody(req);
         fs.writeFileSync(format.mdFile, markdown, "utf8");
@@ -324,25 +335,20 @@ function createHandler(format, assetMap) {
       return;
     }
 
-    // ── GET /api/assets ──
-    if (pathname === "/api/assets" && req.method === "GET") {
-      if (!format) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ assets: [] }));
-        return;
-      }
+    // ── GET /api/images ──
+    if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!fs.existsSync(format.assetsDir)) {
+        if (!format.imagesDir || !fs.existsSync(format.imagesDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ assets: [] }));
+          res.end(JSON.stringify({ images: [] }));
           return;
         }
         const entries = fs
-          .readdirSync(format.assetsDir)
+          .readdirSync(format.imagesDir)
           .filter((name) => IMAGE_RE.test(path.extname(name)))
-          .map((name) => ({ name, path: `assets/${name}` }));
+          .map((name) => ({ name, path: `images/${name}` }));
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ assets: entries }));
+        res.end(JSON.stringify({ images: entries }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
@@ -350,13 +356,8 @@ function createHandler(format, assetMap) {
       return;
     }
 
-    // ── POST /api/upload-asset ──
-    if (pathname === "/api/upload-asset" && req.method === "POST") {
-      if (!format) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No deck loaded" }));
-        return;
-      }
+    // ── POST /api/upload-image ──
+    if (pathname === "/api/upload-image" && req.method === "POST") {
       try {
         const contentType = req.headers["content-type"] || "";
         const boundaryMatch = contentType.match(/boundary=(.+)/i);
@@ -372,19 +373,18 @@ function createHandler(format, assetMap) {
         const ext = path.extname(filename).toLowerCase() || ".bin";
         if (!IMAGE_RE.test(ext)) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Unsupported file type" }));
+          res.end(JSON.stringify({ error: "Unsupported image type" }));
           return;
         }
 
-        if (!fs.existsSync(format.assetsDir)) {
-          fs.mkdirSync(format.assetsDir, { recursive: true });
+        if (!fs.existsSync(format.imagesDir)) {
+          fs.mkdirSync(format.imagesDir, { recursive: true });
         }
 
-        const { randomUUID } = await import("node:crypto");
-        const safeName = `${Date.now()}-${randomUUID().slice(0, 8)}${ext}`;
-        fs.writeFileSync(path.join(format.assetsDir, safeName), data);
+        const safeName = generateUploadFilename(filename);
+        fs.writeFileSync(path.join(format.imagesDir, safeName), data);
 
-        const assetPath = `assets/${safeName}`;
+        const assetPath = `images/${safeName}`;
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ path: assetPath }));
       } catch (e) {
@@ -394,20 +394,18 @@ function createHandler(format, assetMap) {
       return;
     }
 
-    // ── Static assets: /assets/* ──
-    if (pathname.startsWith("/assets/")) {
-      const fileName = pathname.slice("/assets/".length);
+    // ── Static images: /images/* ──
+    if (pathname.startsWith("/images/")) {
+      const fileName = pathname.slice("/images/".length);
 
-      // Prevent directory traversal
       if (fileName.includes("..") || fileName.includes("/") || fileName.includes("\\")) {
         res.writeHead(403);
         res.end("Forbidden");
         return;
       }
 
-      // Try explicit format first
-      if (format) {
-        const filePath = path.join(format.assetsDir, fileName);
+      if (format.imagesDir) {
+        const filePath = path.join(format.imagesDir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
           const mime = MIME[ext] || "application/octet-stream";
@@ -415,16 +413,6 @@ function createHandler(format, assetMap) {
           fs.createReadStream(filePath).pipe(res);
           return;
         }
-      }
-
-      // Fallback: discovered assets from textbundles
-      const discoveredPath = assetMap.get(fileName);
-      if (discoveredPath && fs.existsSync(discoveredPath)) {
-        const ext = path.extname(discoveredPath).toLowerCase();
-        const mime = MIME[ext] || "application/octet-stream";
-        res.writeHead(200, { "Content-Type": mime });
-        fs.createReadStream(discoveredPath).pipe(res);
-        return;
       }
 
       res.writeHead(404);
@@ -435,14 +423,12 @@ function createHandler(format, assetMap) {
     // ── Static files: serve from project root ──
     let filePath = path.join(ROOT, pathname === "/" ? "index.html" : pathname);
 
-    // Prevent directory traversal
     if (!filePath.startsWith(ROOT)) {
       res.writeHead(403);
       res.end("Forbidden");
       return;
     }
 
-    // If path is a directory, try index.html
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
       filePath = path.join(filePath, "index.html");
     }
@@ -455,7 +441,7 @@ function createHandler(format, assetMap) {
       return;
     }
 
-    // SPA fallback: serve index.html for non-file routes
+    // SPA fallback
     const indexPath = path.join(ROOT, "index.html");
     if (fs.existsSync(indexPath)) {
       res.writeHead(200, { "Content-Type": "text/html" });
@@ -470,34 +456,51 @@ function createHandler(format, assetMap) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function main() {
-  const format = DECK_ARG ? detectFormat(DECK_ARG) : null;
+async function main() {
+  let format = null;
 
-  console.log(`SlideMD Dev Server`);
-  if (format) {
-    console.log(`  Deck:      ${format.mdFile}`);
-    console.log(`  Assets:    ${format.assetsDir}`);
-    console.log(`  Format:    ${format.type}`);
-  } else {
-    console.log(`  Mode:      API-only (no deck loaded)`);
+  if (INPUT_ARG) {
+    if (INPUT_ARG.endsWith(".textpack")) {
+      console.log("Extracting .textpack...");
+      format = await extractTextpack(INPUT_ARG);
+    } else {
+      format = detectFormat(INPUT_ARG);
+    }
+
+    // Ensure images directory exists
+    if (format.imagesDir && !fs.existsSync(format.imagesDir)) {
+      fs.mkdirSync(format.imagesDir, { recursive: true });
+    }
   }
 
-  if (format && !fs.existsSync(format.assetsDir)) {
-    fs.mkdirSync(format.assetsDir, { recursive: true });
-  }
-
-  const assetMap = discoverAssets();
-  const handler = createHandler(format, assetMap);
+  const handler = createHandler(format);
   const server = http.createServer(handler);
 
   server.listen(PORT, () => {
-    console.log(`  Server:    http://localhost:${PORT}`);
-    console.log(`  Deck API:  http://localhost:${PORT}/api/deck`);
-    console.log(`  Assets:    http://localhost:${PORT}/assets/`);
-    console.log(`  SSE:       http://localhost:${PORT}/api/events`);
     console.log("");
-    startWatching(format);
+    console.log(`  SlideMD Dev Server`);
+    console.log(`  ─────────────────────────────────`);
+    if (format) {
+      const relMd = path.relative(process.cwd(), format.mdFile);
+      const relImg = format.imagesDir
+        ? path.relative(process.cwd(), format.imagesDir)
+        : "(none)";
+      console.log(`  Deck:    ${relMd}`);
+      console.log(`  Images:  ${relImg}`);
+    } else {
+      console.log(`  Mode:    API-only (no deck loaded)`);
+    }
+    console.log(`  Server:  http://localhost:${PORT}`);
+    console.log(`  ─────────────────────────────────`);
+    console.log("");
+
+    if (format) {
+      startWatching(format);
+    }
   });
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

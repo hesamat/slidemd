@@ -17,7 +17,7 @@ const cli = spawn(process.execPath, cliArgs, {
   stdio: "inherit",
 });
 
-// Vite on port 8000 (proxies /api and /assets to CLI server)
+// Vite on port 8000 (proxies /api and /images to CLI server)
 const vite = spawn("npx", ["vite"], {
   cwd: path.join(__dirname, ".."),
   stdio: "inherit",
@@ -27,5 +27,13 @@ const vite = spawn("npx", ["vite"], {
 cli.on("close", (code) => process.exit(code));
 vite.on("close", (code) => process.exit(code));
 
-process.on("SIGINT", () => { cli.kill(); vite.kill(); process.exit(); });
-process.on("SIGTERM", () => { cli.kill(); vite.kill(); process.exit(); });
+process.on("SIGINT", () => {
+  cli.kill();
+  vite.kill();
+  process.exit();
+});
+process.on("SIGTERM", () => {
+  cli.kill();
+  vite.kill();
+  process.exit();
+});
