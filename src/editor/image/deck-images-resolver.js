@@ -1,40 +1,15 @@
 /**
  * DeckImagesResolver
  *
- * Resolves `images/foo.png` relative paths in markdown to blob URLs
- * for preview rendering. Images are loaded from in-memory cache
- * (populated from .smd extraction or uploads).
+ * Resolves `images/foo.png` relative paths in markdown to HTTP URLs
+ * for preview rendering. The CLI dev server serves images from the
+ * filesystem via `/images/*` routes.
  *
  * Remote URLs (http/https) and data URIs pass through unchanged.
  * Missing images show a named SVG placeholder.
  */
 
 export class DeckImagesResolver {
-  /** Blob URLs by relative path — kept so we can revoke later. */
-  static _urls = new Map();
-
-  /** Cached File objects by relative path ("images/foo.png"). */
-  static _cache = new Map();
-
-  /** URLs borrowed from smdImageCache — must NOT be revoked by clearCache(). */
-  static _borrowedUrls = new Set();
-
-  /**
-   * Set images from an .smd file for in-memory resolution.
-   * Borrowed URLs are tracked and not revoked by clearCache().
-   * @param {Map<string, string>} imageMap - Map of relative paths to blob URLs
-   */
-  static setSmdImages(imageMap) {
-    // Clear internal state without revoking borrowed URLs
-    this._cache.clear();
-    this._borrowedUrls.clear();
-    this._urls.clear();
-    for (const [path, url] of imageMap) {
-      this._urls.set(path, url);
-      this._borrowedUrls.add(url);
-    }
-  }
-
   /**
    * Generate a data URI placeholder for a missing image.
    * @param {string} relPath
@@ -51,29 +26,15 @@ export class DeckImagesResolver {
   }
 
   /**
-   * Clear cached files + revoke owned blob URLs.
-   * Borrowed URLs (from smdImageCache) are NOT revoked.
-   */
-  static clearCache() {
-    for (const [, url] of this._urls) {
-      if (!this._borrowedUrls.has(url)) {
-        URL.revokeObjectURL(url);
-      }
-    }
-    this._cache.clear();
-    this._urls.clear();
-    this._borrowedUrls.clear();
-  }
-
-  /**
-   * Resolve a single relative path to a URL the browser can render.
-   * Handles both `images/` (blob URLs from .smd) and `assets/` (HTTP from CLI server).
+   * Resolve a relative image path to a URL the browser can render.
+   * - Remote URLs and data URIs pass through unchanged.
+   * - `images/foo.png` → `/images/foo.png` (served by CLI dev server)
+   * - Anything else → placeholder SVG
    *
    * @param {string} relPath
-   * @param {{ force?: boolean }} [options]
    * @returns {Promise<string>}
    */
-  static async resolvePreviewSrc(relPath, { force = false } = {}) {
+  static async resolvePreviewSrc(relPath) {
     if (!relPath) return relPath;
 
     // Pass through remote URLs and data URIs unchanged
@@ -85,30 +46,18 @@ export class DeckImagesResolver {
       return relPath;
     }
 
-    // CLI server mode: resolve assets/ paths to /assets/ HTTP routes
-    if (relPath.startsWith("assets/")) {
+    // Resolve images/ paths to HTTP routes served by the CLI dev server
+    if (relPath.startsWith("images/")) {
       return `/${relPath}`;
     }
 
-    // Legacy .smd mode: resolve images/ paths to blob URLs
-    if (relPath.startsWith("images/")) {
-      if (force && this._urls.has(relPath)) {
-        if (!this._borrowedUrls.has(this._urls.get(relPath))) {
-          URL.revokeObjectURL(this._urls.get(relPath));
-        }
-        this._urls.delete(relPath);
-        this._cache.delete(relPath);
-      }
-      if (this._urls.has(relPath)) return this._urls.get(relPath);
-    }
-
-    // Not in cache — return missing image placeholder
+    // Not recognized — return missing image placeholder
     return this._missingImagePlaceholder(relPath);
   }
 
   /**
-   * Walk a slide element and rewrite every `<img src="images/...">` or
-   * `<img src="assets/...">` to a resolved URL.
+   * Walk a slide element and rewrite every `<img src="images/...">` to
+   * an HTTP URL served by the CLI dev server.
    *
    * @param {HTMLElement} rootEl
    */
@@ -119,7 +68,7 @@ export class DeckImagesResolver {
     for (const img of imgs) {
       const src = img.getAttribute("src");
       if (!src || src.startsWith("blob:") || src.startsWith("data:")) continue;
-      if (!src.startsWith("images/") && !src.startsWith("assets/")) continue;
+      if (!src.startsWith("images/")) continue;
       img.dataset.originalSrc = src;
       tasks.push(
         (async () => {
@@ -135,29 +84,28 @@ export class DeckImagesResolver {
 
   /**
    * Walk a slide element and rewrite any `background` style
-   * `url('images/...')` or `url('assets/...')` references to resolved URLs.
+   * `url('images/...')` references to HTTP URLs.
    *
    * @param {HTMLElement} rootEl
    */
   static async rewriteBackgroundUrls(rootEl) {
     if (!rootEl) return;
-    const IMAGE_RE = /url\(\s*(['"]?)(images|assets)\/([^'")]+)\1\s*\)/i;
+    const IMAGE_RE = /url\(\s*(['"]?)images\/([^'")]+)\1\s*\)/i;
     const candidates = [rootEl, ...rootEl.querySelectorAll("[style]")];
     const tasks = [];
 
     for (const el of candidates) {
       const bg = el.style.background;
-      if (!bg || !/(images|assets)\//.test(bg)) continue;
+      if (!bg || !/images\//.test(bg)) continue;
       tasks.push(
         (async () => {
           const matches = [...bg.matchAll(new RegExp(IMAGE_RE.source, "gi"))];
           let resolved = bg;
           for (const m of matches) {
-            const folder = m[2]; // "images" or "assets"
-            const relPath = `${folder}/${m[3]}`;
+            const relPath = `images/${m[2]}`;
             const resolvedUrl = await this.resolvePreviewSrc(relPath);
             if (resolvedUrl !== relPath) {
-              resolved = resolved.replace(m[0], m[0].replace(`${folder}/${m[3]}`, resolvedUrl));
+              resolved = resolved.replace(m[0], m[0].replace(`images/${m[2]}`, resolvedUrl));
             }
           }
           if (resolved !== bg) el.style.background = resolved;
@@ -165,5 +113,19 @@ export class DeckImagesResolver {
       );
     }
     await Promise.all(tasks);
+  }
+
+  /**
+   * Clear cached state. No-op since we no longer use blob URLs.
+   */
+  static clearCache() {
+    // No-op — images are served via HTTP, no blob URLs to revoke.
+  }
+
+  /**
+   * @deprecated No longer needed — images are resolved via HTTP.
+   */
+  static setSmdImages() {
+    // No-op — kept for API compatibility.
   }
 }
