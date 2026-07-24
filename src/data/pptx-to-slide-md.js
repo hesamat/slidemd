@@ -381,6 +381,18 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
   }
 
+  // Pre-check: if two-column split would leave one side empty, downgrade now
+  // so the layout spec matches the actual rendered content.
+  if (layout.type === LAYOUT.TWO_COLUMN.type) {
+    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
+    const midX = slideWidth / 2;
+    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    if (leftEls.length === 0 || rightEls.length === 0) {
+      layout = LAYOUT.HEADER_CONTENT;
+    }
+  }
+
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
