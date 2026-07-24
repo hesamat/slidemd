@@ -381,13 +381,28 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
   }
 
+  // Compute extractHeader once — reused by pre-check and all render branches.
+  const { header, isHeaderValid, bodyElements } = extractHeader(
+    textElements,
+    allElements,
+    slideHeight,
+    false,
+  );
+  const midX = slideWidth / 2;
+
   // Pre-check: if two-column split would leave one side empty, downgrade now
   // so the layout spec matches the actual rendered content.
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-    const midX = slideWidth / 2;
-    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
-    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    const leftEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
+    );
+    const rightEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
+    );
     if (leftEls.length === 0 || rightEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
     }
@@ -409,12 +424,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push("");
     parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
   } else if (layout.type === LAYOUT.HEADER_CONTENT.type) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
-    );
     const singleImage =
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
@@ -438,15 +447,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
+    const leftEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    const midX = slideWidth / 2;
-    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
-    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    const rightEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
+    );
     // If the position split leaves one side empty, this isn't really two-column.
     if (leftEls.length === 0 || rightEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
@@ -467,12 +477,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
-    );
     parts.push("");
     if (isHeaderValid) {
       parts.push(MARKDOWN_TAGS.HEADER);
@@ -480,9 +484,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    const midX = slideWidth / 2;
-    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
-    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
+    const leftEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
+    );
+    const rightEls = bodyElements.filter(
+      (el) =>
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
+    );
     const mediaImage = rightEls.find((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
@@ -496,12 +507,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         : rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE),
     );
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
-    );
     const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
       parts.push("");
