@@ -21,6 +21,15 @@ docker run -p 8080:80 hesamat/html-presentation
 
 Then open http://localhost:8080.
 
+### Self-Contained .smd Format
+
+SlideMD now supports a self-contained `.smd` format that bundles your markdown deck and all images into a single file. This is ideal for sharing presentations without worrying about image dependencies.
+
+- **Open .smd files** via the Open Deck modal (Menu → Open Deck)
+- **Save as .smd** via Menu → Save As → .smd format
+- **Import from .smd** files created by other SlideMD users
+- **PPTX Import** directly creates .smd files with embedded images
+
 ## Run Locally
 
 Because the runtime fetches and parses `docs/example.md` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
@@ -37,6 +46,7 @@ Opens automatically at http://localhost:8000/index.html.
 - `index.html` - main deck page
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
 - `docs/example.md` - default deck content (Markdown with `layout:` and `@area` markers)
+- `docs/example.smd` - self-contained presentation bundle (ZIP with deck + images)
 - `tools/` - build and export scripts
 - `dist/example.html` - generated single-file deck for sharing (build output)
 - `dist/example.pdf` - generated deterministic PDF (optional)
@@ -90,6 +100,8 @@ Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork
 - The layout picker shows area tags for each preset.
 - Mermaid helper panel inserts common diagram skeletons.
 - Warnings show on the slide when layout or area markers are mismatched.
+- **Image drag reorder**: Drag images across columns to reposition them in the markdown.
+- **Dashed area outlines**: Toggle visibility of layout grid outlines with the Columns button.
 
 ## Keyboard Shortcuts
 

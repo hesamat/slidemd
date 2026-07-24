@@ -152,6 +152,13 @@ Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based l
 | [x] Dark theme detection                | Auto-set theme: dark when slide background is dark                   |
 | [x] DOMParser-based HTML-to-markdown    | Replace regex pipeline with proper DOM tree walk                     |
 | [x] Two-column layout with images       | Detect images positioned in right column for two-column layout       |
+| [x] Layout detection improvements       | Better heading threshold detection using font size                   |
+| [x] Per-deck folder structure           | Organized imported deck files with editable filename                 |
+| [x] Code block detection                | Auto-convert on file select, language tag regex fixes                |
+| [x] Dominant image handling             | Auto-detect dominant images, filter tiny decorative images           |
+| [x] Chart data tables                   | Diagram rendering as markdown lists                                  |
+| [x] TIFF image support                  | Via utif2 library                                                    |
+| [x] Keep-backgrounds checkbox           | Preserve slide backgrounds in conversion modal                       |
 
 ### Post-Conversion
 
@@ -160,6 +167,55 @@ Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based l
 | [x] Edit mode integration     | Load converted deck into editor for manual cleanup |
 | [x] Image blob URL management | Rewrite relative paths to blob URLs for preview    |
 | [x] Image deletion fix        | Match DOM images to markdown entries by src        |
+| [x] Blocking loading modal    | During PPTX import save operation                  |
+
+---
+
+## Phase 7.5: Self-Contained Format & Image Improvements ✅
+
+Goal: Add self-contained .smd format and improve image handling with drag reorder and alignment.
+
+### Self-Contained .smd Format
+
+| Task                                   | Details                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| [x] Self-contained .smd format         | ZIP-based format bundling deck.md + images into single file      |
+| [x] SmdHandler class                   | Handle extraction and building of .smd files                     |
+| [x] JSZip with STORE compression       | Avoid UI thread freezing during zip operations                   |
+| [x] Open Deck modal                    | Custom modal with recent-decks list and dual open buttons        |
+| [x] File System Access API integration | Seamless file management on Chromium, fallback on Safari/Firefox |
+| [x] Build tooling                      | tools/build-example-smd.mjs and tools/inspect-smd.mjs            |
+| [x] Example .smd file                  | docs/example.smd (~1.2 MB bundled presentation)                  |
+
+### Image Drag Reorder & Alignment
+
+| Task                                    | Details                                                          |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| [x] ImageDragController                 | Cross-area drag with drop-gap indicators and reorder in markdown |
+| [x] ImageMarkdownUtils                  | Image markdown manipulation utilities                            |
+| [x] ImagePositionPresets                | Positioning presets for quick image placement                    |
+| [x] Interact.js powered draggable setup | Resize handles and drag functionality                            |
+| [x] Cross-column drag                   | Enable dragging images between columns                           |
+| [x] Image size presets                  | Cap presets to column width                                      |
+
+### Notification System Redesign
+
+| Task                              | Details                                                        |
+| --------------------------------- | -------------------------------------------------------------- |
+| [x] Bottom-center snackbar toasts | Replace native alerts with modern snackbar notifications       |
+| [x] Notification.critical()       | Blurred backdrop and cancel confirmation for critical messages |
+| [x] Fullscreen-aware              | Re-parent to fullscreenElement when active                     |
+| [x] Blocking notifications        | Overlay and shake feedback for blocking operations             |
+| [x] Toast queue system            | Max 4 visible toasts with queue management                     |
+
+### UI/UX Improvements
+
+| Task                                         | Details                                           |
+| -------------------------------------------- | ------------------------------------------------- |
+| [x] Toggle dashed area outlines              | Visibility toggle via Columns button in edit mode |
+| [x] Full-height media column                 | Better image display in media columns             |
+| [x] Simplified image editor panel            | Streamlined image editing interface               |
+| [x] Increased slide area bounding box border | Better visibility in edit mode                    |
 
 ---
 
@@ -224,21 +280,22 @@ Goal: Enable multi-device editing, cloud image storage, and authenticated access
 
 ## Summary
 
-| Phase                        | Status      |
-| ---------------------------- | ----------- |
-| Phase 1: Safety Net          | ✅ Complete |
-| Phase 2: Build Modernization | ✅ Complete |
-| Phase 3: Distribution        | ✅ Complete |
-| Phase 4: New Presentation    | ✅ Complete |
-| Phase 5: Quick Fixes         | ✅ Complete |
-| Phase 6: Testing & Polish    | ✅ Complete |
-| Phase 7: PPTX Conversion     | ✅ Complete |
-| Phase 8: Cloud Mode          | Not started |
+| Phase                            | Status      |
+| -------------------------------- | ----------- |
+| Phase 1: Safety Net              | ✅ Complete |
+| Phase 2: Build Modernization     | ✅ Complete |
+| Phase 3: Distribution            | ✅ Complete |
+| Phase 4: New Presentation        | ✅ Complete |
+| Phase 5: Quick Fixes             | ✅ Complete |
+| Phase 6: Testing & Polish        | ✅ Complete |
+| Phase 7: PPTX Conversion         | ✅ Complete |
+| Phase 7.5: Self-Contained Format | ✅ Complete |
+| Phase 8: Cloud Mode              | Not started |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the self-contained .smd format and image improvements. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.

@@ -247,6 +247,8 @@ layout: two-column
 - Double-click to reset to original size
 - Use the properties panel for precise dimensions
 - Images can be placed in any `@area` column
+- **Drag reorder**: Drag images across columns to reposition them in the markdown
+- **Position presets**: Use preset positions for quick image placement
 
 ### Background Images
 
@@ -261,7 +263,7 @@ background: url(../public/hero.png)
 ### Image Tips
 
 - Use `../public/` for project images
-- Supported formats: PNG, JPG, SVG, GIF
+- Supported formats: PNG, JPG, SVG, GIF, TIFF
 - Images auto-scale to fit the slide area
 - Combine with `theme: dark` for overlay effects
 
@@ -270,6 +272,107 @@ background: url(../public/hero.png)
 - **Local files** – Drag from file explorer
 - **URLs** – `![alt](https://example.com/img.png)`
 - **Relative paths** – `![alt](../public/image.png)`
+- **PPTX Import** – Images extracted from PowerPoint presentations
+
+---
+
+layout: two-column
+
+@header
+
+## Self-Contained .smd Format
+
+@main
+
+### What is .smd?
+
+A self-contained presentation format that bundles your markdown deck and all images into a single file. Perfect for sharing presentations without worrying about image dependencies.
+
+### Features
+
+- **Single file**: Deck + images in one portable file
+- **ZIP-based**: Uses JSZip with STORE compression
+- **Cross-platform**: Works on any operating system
+- **Backward compatible**: Still supports `.md` files
+
+### Usage
+
+- **Open .smd files** via Menu → Open Deck
+- **Save as .smd** via Menu → Save As → .smd format
+- **Import from .smd** files created by other users
+
+@media
+
+### Open Deck Modal
+
+The Open Deck modal provides two ways to open presentations:
+
+1. **Open .smd** – For self-contained bundles with images
+2. **Open .md** – For remote markdown files (requires URL)
+
+### Recent Decks
+
+The modal remembers your recently opened decks for quick access.
+
+### File System Access
+
+On Chromium browsers, uses the File System Access API for seamless file management. Falls back to `<input>` on Safari/Firefox.
+
+---
+
+layout: two-column
+
+@header
+
+## PPTX Import
+
+@main
+
+### Convert PowerPoint to SlideMD
+
+Import existing PowerPoint presentations and convert them to SlideMD format with automatic layout detection.
+
+### Features
+
+- **Layout detection**: Automatic two-column, title, and content layouts
+- **Image extraction**: Pulls images from PPTX and embeds them
+- **Code block detection**: Identifies monospace text as code
+- **Dark theme detection**: Auto-sets theme when background is dark
+- **Per-deck folder**: Organizes imported files in dedicated folders
+
+### How to Import
+
+1. Click Menu → Import PPTX
+2. Select your PowerPoint file
+3. Review conversion settings
+4. Click Convert
+5. Edit mode opens for manual cleanup
+
+@media
+
+### Conversion Options
+
+- **Keep backgrounds**: Preserve slide backgrounds
+- **Import images**: Extract and embed images
+- **Language detection**: Auto-detect code languages
+
+### Layout Detection
+
+SlideMD uses intelligent layout detection:
+
+- **Two-column**: Images positioned in right column
+- **Title slides**: Large centered text
+- **Content slides**: Headers with bullet points
+- **Code slides**: Monospace text blocks
+
+### Post-Conversion
+
+After import, you can:
+
+- Edit the converted markdown directly
+- Adjust layouts with the layout picker
+- Fine-tune image positions
+- Add speaker notes
 
 ---
 
