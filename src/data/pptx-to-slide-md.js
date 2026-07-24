@@ -120,7 +120,7 @@ const CONFIG = {
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,
   overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
-  backgroundImageThreshold: 0.8, // Minimum area ratio for background image detection
+  dominantImageThreshold: 0.6, // Minimum area ratio for dominant image to become background
   backgroundOverlapThreshold: 0.1, // Minimum overlap ratio for background/content
   spreadOverlapThreshold: 0.5, // Minimum overlap ratio for two-column detection
   partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
@@ -258,7 +258,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         // Image covers >= 80% of slide — always a background
         if (imgArea >= slideArea * 0.8) return true;
         // Image covers >= 60% of slide — background if it overlaps content
-        if (imgArea < slideArea * 0.6) return false;
+        if (imgArea < slideArea * CONFIG.dominantImageThreshold) return false;
         const contentEls = slide.elements.filter(
           (other) =>
             other !== el &&
