@@ -22,10 +22,15 @@ export class DeckLoader {
    * @returns {string}
    */
   static getDisplayTitle(deck) {
+    // Prefer the deck's own title (from first slide's # heading)
+    const metaTitle = safeString(deck?.meta?.title);
+    if (metaTitle) return metaTitle;
+
+    // Fall back to the file name if no title in the deck
     const localFileName = localStorage.getItem("webdeck_local_file_name");
     if (localFileName) return localFileName;
 
-    return safeString(deck?.meta?.title) || "Slide Deck";
+    return "Slide Deck";
   }
 
   // ── Recent decks ────────────────────────────────────────────────────────

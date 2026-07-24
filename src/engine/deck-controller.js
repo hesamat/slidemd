@@ -673,6 +673,9 @@ export class DeckController extends EventEmitter {
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
+    // Close the modal immediately — the deck will load in the background
+    ConversionModal.close();
+
     const { markdown, images, deckName, importImages } = result;
     const smdName = `${deckName}.smd`;
 
@@ -692,17 +695,9 @@ export class DeckController extends EventEmitter {
       }
     }
 
-    // Generate .smd ZIP blob and trigger download
+    // Generate .smd ZIP blob — keep it in memory for user-triggered save
     const { SmdHandler } = await import("../core/smd-handler.js");
     const zipBlob = await SmdHandler.buildSmd(markdown, imageMap);
-    const url = URL.createObjectURL(zipBlob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = smdName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 
     // Store images in memory for in-session rendering
     const { DeckLoader } = await import("../data/deck-loader.js");
@@ -734,10 +729,23 @@ export class DeckController extends EventEmitter {
       await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
     }
 
-    Notification.info("PPTX converted successfully");
-
     // Open edit mode so the user can review and edit the result
     this.toggleEditMode();
+
+    // Show success notification with a "Save as .smd" action button
+    const triggerSave = () => {
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = smdName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+    Notification.success("PPTX converted successfully", 8000, {
+      actions: [{ label: "Save as .smd", onClick: triggerSave }],
+    });
 
     // After edit mode renders, rewrite image sources to blob URLs.
     // The editor re-renders slides asynchronously, so we retry with
@@ -752,9 +760,6 @@ export class DeckController extends EventEmitter {
       setTimeout(rewrite, 600);
       setTimeout(rewrite, 1200);
     }
-
-    // Close the conversion modal now that loading is done
-    ConversionModal.close();
   }
 
   destroy() {

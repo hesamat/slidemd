@@ -15,7 +15,7 @@ const STORAGE_KEY = "webdeck_import_defaults";
  * @typedef {Object} ConversionResult
  * @property {string} markdown - The converted SlideMD markdown.
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
- * @property {string} deckName - User-editable deck name (used for folder and .md filename).
+ * @property {string} deckName - Deck name derived from filename (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
  */
 
@@ -66,8 +66,6 @@ export class ConversionModal {
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const spinnerEl = backdrop.querySelector(`.${P}spinner-container`);
       const errorEl = backdrop.querySelector(`.${P}error`);
-      const nameSection = backdrop.querySelector(`.${P}name-section`);
-      const deckNameInput = backdrop.querySelector(`[data-field="deck-name"]`);
       const dialog = backdrop.querySelector(`.${P}dialog`);
 
       // Prevent clicks inside the dialog from closing the modal
@@ -140,7 +138,6 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         hideError();
-        nameSection.hidden = true;
         // Remove any dynamically added rows from previous conversion
         backdrop
           .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
@@ -237,10 +234,6 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
-          // Show deck name input with sanitized name
-          deckNameInput.value = deckName;
-          nameSection.hidden = false;
-
           // Show Save as Deck button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
@@ -255,9 +248,6 @@ export class ConversionModal {
       };
       // Save as Deck button
       saveBtn.addEventListener("click", () => {
-        // Read the user-edited deck name
-        const editedName = deckNameInput.value.trim() || deckName;
-
         // If user opted out of images, strip <img> tags from markdown
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
         // If user opted out of backgrounds/themes, strip those directives
@@ -290,7 +280,7 @@ export class ConversionModal {
         resolve({
           markdown: finalMarkdown,
           images: importImages ? extractionResult.images : [],
-          deckName: editedName,
+          deckName,
           importImages,
         });
       });
@@ -357,12 +347,6 @@ export class ConversionModal {
         <div class="${P}spinner-container" hidden></div>
         <div class="${P}error" hidden></div>
 
-        <div class="${P}name-section" hidden>
-          <label class="${P}label" for="${P}deck-name">Deck name</label>
-          <input type="text" id="${P}deck-name" class="${P}input" data-field="deck-name" />
-          <p class="${P}hint">Used as the folder and file name.</p>
-        </div>
-
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
           <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Save as Deck</button>
@@ -419,19 +403,6 @@ export class ConversionModal {
         border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
         color: var(--text-high, #111); cursor: pointer;
       }
-      .${P}name-section {
-        background: var(--surface-hover, #f8f8fa);
-        border: 1px solid var(--border-light, #e8e8ec);
-        border-radius: 8px; padding: 12px; margin-top: 14px;
-      }
-      .${P}label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text-medium, #666); }
-      .${P}input {
-        width: 100%; padding: 6px 10px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
-        color: var(--text-high, #111); box-sizing: border-box;
-      }
-      .${P}input:focus { outline: none; border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
-      .${P}hint { font-size: 11px; color: var(--text-medium, #999); margin: 4px 0 0; }
       .${P}spinner-container {
         font-size: 12px; margin: 10px 0; min-height: 18px;
       }
