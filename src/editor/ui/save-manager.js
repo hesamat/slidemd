@@ -71,6 +71,22 @@ export class SaveManager {
 
     try {
       const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
+
+      // Try CLI dev server API first
+      if (await DeckLoader.isApiAvailable()) {
+        const res = await fetch("/api/deck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: fullMarkdown }),
+        });
+        if (res.ok) {
+          await DraftManager.clearDraft();
+          Notification.success("Deck saved to disk!");
+          return;
+        }
+      }
+
+      // Fallback: save via file picker / download
       const hasLocalImages = DeckLoader.smdImageCache.size > 0;
 
       if (hasLocalImages) {

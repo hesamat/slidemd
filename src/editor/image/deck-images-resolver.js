@@ -66,9 +66,8 @@ export class DeckImagesResolver {
   }
 
   /**
-   * Resolve a single relative path (`images/foo.png`) to a URL the browser
-   * can render in the preview. Checks in-memory cache first; returns a
-   * "Missing Image" placeholder if not found.
+   * Resolve a single relative path to a URL the browser can render.
+   * Handles both `images/` (blob URLs from .smd) and `assets/` (HTTP from CLI server).
    *
    * @param {string} relPath
    * @param {{ force?: boolean }} [options]
@@ -86,29 +85,30 @@ export class DeckImagesResolver {
       return relPath;
     }
 
-    // Only handle images/ paths
-    if (!relPath.startsWith("images/")) {
-      return relPath;
+    // CLI server mode: resolve assets/ paths to /assets/ HTTP routes
+    if (relPath.startsWith("assets/")) {
+      return `/${relPath}`;
     }
 
-    // Check in-memory cache
-    if (force && this._urls.has(relPath)) {
-      if (!this._borrowedUrls.has(this._urls.get(relPath))) {
-        URL.revokeObjectURL(this._urls.get(relPath));
+    // Legacy .smd mode: resolve images/ paths to blob URLs
+    if (relPath.startsWith("images/")) {
+      if (force && this._urls.has(relPath)) {
+        if (!this._borrowedUrls.has(this._urls.get(relPath))) {
+          URL.revokeObjectURL(this._urls.get(relPath));
+        }
+        this._urls.delete(relPath);
+        this._cache.delete(relPath);
       }
-      this._urls.delete(relPath);
-      this._cache.delete(relPath);
+      if (this._urls.has(relPath)) return this._urls.get(relPath);
     }
-
-    if (this._urls.has(relPath)) return this._urls.get(relPath);
 
     // Not in cache — return missing image placeholder
     return this._missingImagePlaceholder(relPath);
   }
 
   /**
-   * Walk a slide element and rewrite every `<img src="images/...">` to a
-   * resolved URL (blob URL from cache or placeholder).
+   * Walk a slide element and rewrite every `<img src="images/...">` or
+   * `<img src="assets/...">` to a resolved URL.
    *
    * @param {HTMLElement} rootEl
    */
@@ -119,7 +119,7 @@ export class DeckImagesResolver {
     for (const img of imgs) {
       const src = img.getAttribute("src");
       if (!src || src.startsWith("blob:") || src.startsWith("data:")) continue;
-      if (!src.startsWith("images/")) continue;
+      if (!src.startsWith("images/") && !src.startsWith("assets/")) continue;
       img.dataset.originalSrc = src;
       tasks.push(
         (async () => {
@@ -134,29 +134,30 @@ export class DeckImagesResolver {
   }
 
   /**
-   * Walk a slide element and rewrite any `background` style `url('images/...')`
-   * references to resolved URLs.
+   * Walk a slide element and rewrite any `background` style
+   * `url('images/...')` or `url('assets/...')` references to resolved URLs.
    *
    * @param {HTMLElement} rootEl
    */
   static async rewriteBackgroundUrls(rootEl) {
     if (!rootEl) return;
-    const IMAGE_RE = /url\(\s*(['"]?)images\/([^'")]+)\1\s*\)/i;
+    const IMAGE_RE = /url\(\s*(['"]?)(images|assets)\/([^'")]+)\1\s*\)/i;
     const candidates = [rootEl, ...rootEl.querySelectorAll("[style]")];
     const tasks = [];
 
     for (const el of candidates) {
       const bg = el.style.background;
-      if (!bg || !/images\//.test(bg)) continue;
+      if (!bg || !/(images|assets)\//.test(bg)) continue;
       tasks.push(
         (async () => {
           const matches = [...bg.matchAll(new RegExp(IMAGE_RE.source, "gi"))];
           let resolved = bg;
           for (const m of matches) {
-            const relPath = `images/${m[2]}`;
-            const blobUrl = await this.resolvePreviewSrc(relPath);
-            if (blobUrl !== relPath) {
-              resolved = resolved.replace(m[0], m[0].replace(`images/${m[2]}`, blobUrl));
+            const folder = m[2]; // "images" or "assets"
+            const relPath = `${folder}/${m[3]}`;
+            const resolvedUrl = await this.resolvePreviewSrc(relPath);
+            if (resolvedUrl !== relPath) {
+              resolved = resolved.replace(m[0], m[0].replace(`${folder}/${m[3]}`, resolvedUrl));
             }
           }
           if (resolved !== bg) el.style.background = resolved;

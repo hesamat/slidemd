@@ -26,7 +26,8 @@
     "self-contained"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "node tools/dev-server.mjs docs/example.textbundle",
+    "dev:vite": "vite",
     "build": "node tools/build.mjs -- docs/example.smd",
     "prepdf": "npx playwright install chromium",
     "pdf": "node tools/pdf.mjs",

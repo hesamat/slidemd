@@ -114,6 +114,44 @@ export class DeckLoader {
   static isSmdMode = false;
 
   /**
+   * Whether the CLI dev server is available (serves /api/deck).
+   * @static
+   * @type {boolean|null}
+   */
+  static _apiAvailable = null;
+
+  /**
+   * Check if the CLI dev server is running by probing /api/deck.
+   * @static
+   * @returns {Promise<boolean>}
+   */
+  static async isApiAvailable() {
+    if (this._apiAvailable !== null) return this._apiAvailable;
+    try {
+      const res = await fetch("/api/deck", { method: "GET" });
+      this._apiAvailable = res.ok;
+    } catch {
+      this._apiAvailable = false;
+    }
+    return this._apiAvailable;
+  }
+
+  /**
+   * Load deck from the CLI dev server API.
+   * @static
+   * @returns {Promise<{ markdown: string, type: string }|null>}
+   */
+  static async loadFromApi() {
+    try {
+      const res = await fetch("/api/deck");
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Whether the browser supports the File System Access API.
    * @static
    * @type {boolean}
@@ -163,6 +201,15 @@ export class DeckLoader {
    * @returns {Promise<import('../types.js').Deck>}
    */
   static async loadDeckData() {
+    // 0. Try CLI dev server API first
+    if (await this.isApiAvailable()) {
+      const apiData = await this.loadFromApi();
+      if (apiData?.markdown) {
+        await AssetLoader.ensureMarkdownItLoaded();
+        return new MarkdownParser().parseDeckMarkdown(apiData.markdown);
+      }
+    }
+
     // 1. Try LocalStorage (Shared State)
     try {
       const localFile = localStorage.getItem("webdeck_local_file");
@@ -268,14 +315,12 @@ Markdown-based presentations made simple.
 
 ### What you can do
 
-- **Open a .smd or .md file** to start presenting
+- **Open a file** via Menu → Open File to start presenting
 - **Press \`E\`** to toggle edit mode with live preview
 - **Press \`P\`** to open a viewer for your audience
 - **Press \`D\`** to switch between dark and light themes
 
-<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>
-
-*Loads \`docs/example.smd\` — covers layouts, themes, code, math, and more.*`,
+*Run \`node tools/dev-server.mjs <deck.md>\` for live-reload with file watching.*`,
     );
   }
 

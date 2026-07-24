@@ -258,10 +258,35 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     init()
       .then((ctrl) => {
         window.__WEBDECK_CONTROLLER__ = ctrl;
+
+        // Connect to CLI dev server SSE for live reload
+        connectLiveReload();
       })
       .catch((e) => {
         console.error("Deck init failed:", e);
         showBootError(e);
       });
   });
+
+  /**
+   * Connect to the CLI dev server's SSE endpoint for live reload.
+   * Silently does nothing if no CLI server is running.
+   */
+  function connectLiveReload() {
+    try {
+      const evtSource = new EventSource("/api/events");
+      evtSource.onmessage = (event) => {
+        if (event.data === "reload") {
+          console.log("[LiveReload] Change detected, reloading...");
+          window.location.reload();
+        }
+      };
+      evtSource.onerror = () => {
+        // No CLI server — silently close
+        evtSource.close();
+      };
+    } catch {
+      // EventSource not available or server not running
+    }
+  }
 })();
