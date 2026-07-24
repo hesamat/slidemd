@@ -15,8 +15,6 @@ const LAYOUT = {
   TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
-  LEFT_HEAVY: { type: "left-heavy", spec: "left-heavy" },
-  RIGHT_HEAVY: { type: "right-heavy", spec: "right-heavy" },
   MEDIA_SPAN: { type: "media-span", spec: "media-span" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },
 };
@@ -130,51 +128,6 @@ const CONFIG = {
   tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
   fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
 };
-
-/**
- * Split text content into two halves, respecting code block boundaries.
- * Never splits inside a ``` fenced code block.
- * @param {string} text
- * @returns {[string, string]} [left, right]
- */
-function splitTextContent(text) {
-  const lines = text.split("\n");
-  if (lines.length <= 1) return [text, ""];
-
-  let inCodeBlock = false;
-  let bestSplit = Math.ceil(lines.length / 2);
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith("```")) {
-      inCodeBlock = !inCodeBlock;
-    }
-    // Prefer splitting just before a code block starts, or just after it ends
-    if (!inCodeBlock && i > 0 && i < lines.length - 1) {
-      const nextIsCode = lines[i + 1]?.trim().startsWith("```");
-      if (nextIsCode) {
-        bestSplit = i + 1;
-      }
-    }
-  }
-
-  // If we're inside a code block at the default split, find the nearest
-  // safe boundary (before the code block starts or after it ends)
-  inCodeBlock = false;
-  for (let i = 0; i < bestSplit; i++) {
-    if (lines[i].trim().startsWith("```")) inCodeBlock = !inCodeBlock;
-  }
-  if (inCodeBlock) {
-    // Find the closing ``` after bestSplit
-    for (let i = bestSplit; i < lines.length; i++) {
-      if (lines[i].trim().startsWith("```")) {
-        bestSplit = i + 1;
-        break;
-      }
-    }
-  }
-
-  return [lines.slice(0, bestSplit).join("\n"), lines.slice(bestSplit).join("\n")];
-}
 
 /**
  * Convert English Metric Units (EMUs) to standard slide points.
@@ -418,8 +371,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   // --- OVERFLOW POST-PROCESSING ---
   // After media-span upgrade, check if the layout has too much body content.
-  // If so, upgrade to two-column so content splits across @main and @media.
-  // Require BOTH sufficient text length AND many lines to avoid false positives.
+  // Only trigger for genuinely large content — many short lines or very long text.
   if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
     const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
     const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
@@ -437,8 +389,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       }
       return count + textLines;
     }, 0);
-    const hasOverflow =
-      bodyLength > CONFIG.overflowBodyLength || (bodyLength > 200 && contentLines > 8);
+    const hasOverflow = bodyLength > 500 || (bodyLength > 150 && contentLines > 12);
     if (hasOverflow) {
       layout = LAYOUT.TWO_COLUMN;
     }
@@ -488,11 +439,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     } else {
       parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
-  } else if (
-    layout.type === LAYOUT.TWO_COLUMN.type ||
-    layout.type === LAYOUT.LEFT_HEAVY.type ||
-    layout.type === LAYOUT.RIGHT_HEAVY.type
-  ) {
+  } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const { header, isHeaderValid, bodyElements } = extractHeader(
       textElements,
       allElements,
@@ -507,45 +454,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       parts.push("");
     }
     const midX = slideWidth / 2;
-    let leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
-    let rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
-    // When one side is empty, redistribute content to fill both columns.
-    if (leftEls.length > 0 && rightEls.length === 0) {
-      // Check if a single text element has many lines — split the text itself
-      if (leftEls.length === 1 && leftEls[0].type === ELEMENT_TYPES.TEXT) {
-        const lines = (leftEls[0].content || "").split("\n").filter((l) => l.trim());
-        if (lines.length > 6) {
-          const [leftText, rightText] = splitTextContent(leftEls[0].content || "");
-          leftEls = [{ ...leftEls[0], content: leftText }];
-          rightEls = [{ ...leftEls[0], content: rightText }];
-        } else {
-          const mid = Math.ceil(leftEls.length / 2);
-          rightEls = leftEls.slice(mid);
-          leftEls = leftEls.slice(0, mid);
-        }
-      } else {
-        const mid = Math.ceil(leftEls.length / 2);
-        rightEls = leftEls.slice(mid);
-        leftEls = leftEls.slice(0, mid);
-      }
-    } else if (rightEls.length > 0 && leftEls.length === 0) {
-      if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.TEXT) {
-        const lines = (rightEls[0].content || "").split("\n").filter((l) => l.trim());
-        if (lines.length > 6) {
-          const [leftText, rightText] = splitTextContent(rightEls[0].content || "");
-          leftEls = [{ ...rightEls[0], content: leftText }];
-          rightEls = [{ ...rightEls[0], content: rightText }];
-        } else {
-          const mid = Math.ceil(rightEls.length / 2);
-          leftEls = rightEls.slice(0, mid);
-          rightEls = rightEls.slice(mid);
-        }
-      } else {
-        const mid = Math.ceil(rightEls.length / 2);
-        leftEls = rightEls.slice(0, mid);
-        rightEls = rightEls.slice(mid);
-      }
-    }
+    const leftEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 < midX);
+    const rightEls = bodyElements.filter((el) => (el.left || 0) + (el.width || 0) / 2 >= midX);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
@@ -846,18 +756,7 @@ function inferLayout(
       }),
     );
 
-    if (hasSpreadRow) {
-      // Spread row detected — check area balance for left-heavy/right-heavy
-      const leftArea = contentEls
-        .filter((el) => el.left + el.width / 2 < midX)
-        .reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
-      const rightArea = contentEls
-        .filter((el) => el.left + el.width / 2 >= midX)
-        .reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
-      if (leftArea > rightArea * 1.5) return LAYOUT.LEFT_HEAVY;
-      if (rightArea > leftArea * 1.5) return LAYOUT.RIGHT_HEAVY;
-      return LAYOUT.TWO_COLUMN;
-    }
+    if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
 
     const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
     const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
@@ -916,17 +815,10 @@ function inferLayout(
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
-    // Compare total area of each column to detect left-heavy/right-heavy
-    const leftArea = leftEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
-    const rightArea = rightEls.reduce((s, el) => s + (el.width || 0) * (el.height || 0), 0);
-    if (leftArea > rightArea * 1.5) return LAYOUT.LEFT_HEAVY;
-    if (rightArea > leftArea * 1.5) {
-      // When the right column has only images (no text), media-span is a
-      // better fit — the image spans the full slide height.
-      const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-      if (!rightHasText) return LAYOUT.MEDIA_SPAN;
-      return LAYOUT.RIGHT_HEAVY;
-    }
+    // When the right column has only images (no text), media-span is a
+    // better fit — the image spans the full slide height.
+    const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
+    if (!rightHasText) return LAYOUT.MEDIA_SPAN;
     return LAYOUT.TWO_COLUMN;
   }
 

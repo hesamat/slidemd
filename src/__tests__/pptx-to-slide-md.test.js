@@ -1018,84 +1018,6 @@ describe("convertToSlideMd", () => {
 
   // ── Layout detection improvement tests ──────────────────────────────
 
-  it("detects left-heavy layout when left column has significantly more area", () => {
-    const extraction = makeExtraction([
-      {
-        index: 0,
-        title: "Left Heavy",
-        notes: "",
-        elements: [
-          {
-            type: "text",
-            content: "Header",
-            left: 500000,
-            top: 200000,
-            width: 8000000,
-            height: 500000,
-          },
-          {
-            type: "text",
-            content: "Main content with substantial text that takes up the left column area",
-            left: 500000,
-            top: 1500000,
-            width: 5500000,
-            height: 3000000,
-          },
-          {
-            type: "text",
-            content: "Small right",
-            left: 6500000,
-            top: 2000000,
-            width: 2000000,
-            height: 800000,
-          },
-        ],
-        background: "",
-      },
-    ]);
-    const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: left-heavy");
-  });
-
-  it("detects right-heavy layout when right column has significantly more area", () => {
-    const extraction = makeExtraction([
-      {
-        index: 0,
-        title: "Right Heavy",
-        notes: "",
-        elements: [
-          {
-            type: "text",
-            content: "Header",
-            left: 500000,
-            top: 200000,
-            width: 8000000,
-            height: 500000,
-          },
-          {
-            type: "text",
-            content: "Small left",
-            left: 500000,
-            top: 2000000,
-            width: 2000000,
-            height: 800000,
-          },
-          {
-            type: "text",
-            content: "Main content with substantial text that takes up the right column area",
-            left: 3000000,
-            top: 1500000,
-            width: 5500000,
-            height: 3000000,
-          },
-        ],
-        background: "",
-      },
-    ]);
-    const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: right-heavy");
-  });
-
   it("uses two-column layout when a single long text element shares a slide with a dominant image", () => {
     const extraction = makeExtraction([
       {
@@ -1214,7 +1136,7 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: three-column");
   });
 
-  it("uses media-span when right column has only an image (not right-heavy)", () => {
+  it("uses media-span when right column has only an image", () => {
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1251,15 +1173,13 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    // Right column has only an image → media-span, not right-heavy
     expect(md).toContain("layout: media-span");
-    expect(md).not.toContain("layout: right-heavy");
     expect(md).toContain("@header");
     expect(md).toContain("@main");
     expect(md).toContain("@media");
   });
 
-  it("downgrades left-heavy to header-content when left column is empty", () => {
+  it("uses two-column when right column has text and image", () => {
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1287,8 +1207,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    // Only right-side content → self-healing downgrades to header-content
-    expect(md).toMatch(/layout: (header-content|two-column|right-heavy)/);
+    expect(md).toMatch(/layout: (header-content|two-column)/);
     expect(md).toContain("@main");
     expect(md).toContain("Right text");
   });
@@ -1332,7 +1251,7 @@ describe("convertToSlideMd", () => {
   });
 
   it("upgrades media-span to two-column when body overflows", () => {
-    const longBody = "Item ".repeat(80).trim(); // ~400 chars
+    const longBody = "Item with enough text to trigger overflow detection. ".repeat(20).trim(); // ~1100 chars
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1374,10 +1293,11 @@ describe("convertToSlideMd", () => {
     expect(md).toContain(longBody);
   });
 
-  it("detects h1 heading and splits overflowing content with image", () => {
-    // Simulates the user's slide: numbered list + h1 heading + image
-    // The h1 should be in @header, not @main, and overflow should trigger two-column
-    const items = Array.from({ length: 21 }, (_, i) => `${i + 1}. Topic ${i + 1}`).join("\n");
+  it("detects h1 heading in header and two-column for overflowing content", () => {
+    const items = Array.from(
+      { length: 21 },
+      (_, i) => `${i + 1}. Topic ${i + 1} with enough text to make it substantial`,
+    ).join("\n");
     const extraction = makeExtraction([
       {
         index: 0,
