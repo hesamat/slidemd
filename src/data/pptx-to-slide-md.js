@@ -104,7 +104,6 @@ const CONFIG = {
   maxTitleElements: 3,
   headerThinRatio: 0.4,
   maxHeaderHeightRatio: 0.35,
-  overflowBodyLength: 300, // Max body text length before upgrading to two-column
   centerToleranceRatio: 0.1,
   minSubstantialBodyLength: 80,
   maxHeaderLength: 150,
@@ -377,32 +376,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     );
     if (singleImageOnRight && hasBodyContent) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
-    }
-  }
-
-  // --- OVERFLOW POST-PROCESSING ---
-  // After media-span upgrade, check if the layout has too much body content.
-  // Only trigger for genuinely large content — many short lines or very long text.
-  if (layout.type === LAYOUT.HEADER_CONTENT.type || layout.type === LAYOUT.MEDIA_SPAN.type) {
-    const { bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-    const bodyLength = bodyElements.reduce((sum, el) => sum + (el.content || "").trim().length, 0);
-    const contentLines = bodyElements.reduce((count, el) => {
-      if (el.type !== ELEMENT_TYPES.TEXT) return count;
-      const lines = (el.content || "").split("\n");
-      let inCode = false;
-      let textLines = 0;
-      for (const line of lines) {
-        if (line.trim().startsWith("```")) {
-          inCode = !inCode;
-          continue;
-        }
-        if (!inCode && line.trim()) textLines++;
-      }
-      return count + textLines;
-    }, 0);
-    const hasOverflow = bodyLength > 500 || (bodyLength > 150 && contentLines > 12);
-    if (hasOverflow) {
-      layout = LAYOUT.TWO_COLUMN;
     }
   }
 

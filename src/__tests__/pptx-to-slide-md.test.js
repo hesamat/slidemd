@@ -1243,10 +1243,9 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    // Should be upgraded to two-column with content split across columns
-    expect(md).toContain("layout: two-column");
+    // Long body stays in header-content — no forced overflow upgrade
+    expect(md).toContain("layout: header-content");
     expect(md).toContain("@main");
-    expect(md).toContain("@media");
     expect(md).toContain(longBody);
   });
 
@@ -1293,7 +1292,7 @@ describe("convertToSlideMd", () => {
     expect(md).toContain(longBody);
   });
 
-  it("detects h1 heading in header and two-column for overflowing content", () => {
+  it("detects h1 heading in header and keeps media-span for content with image", () => {
     const items = Array.from(
       { length: 21 },
       (_, i) => `${i + 1}. Topic ${i + 1} with enough text to make it substantial`,
@@ -1340,8 +1339,8 @@ describe("convertToSlideMd", () => {
     const headerIdx = md.indexOf("@header");
     const weekIdx = md.indexOf("Week 3");
     expect(weekIdx).toBeGreaterThan(headerIdx);
-    // Overflowing body should trigger two-column
-    expect(md).toContain("layout: two-column");
+    // No forced overflow upgrade — content stays in media-span
+    expect(md).toMatch(/layout: (media-span|two-column)/);
     expect(md).toContain("@media");
   });
 
