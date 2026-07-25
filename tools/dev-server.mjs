@@ -335,6 +335,42 @@ function createHandler(format) {
       return;
     }
 
+    // ── POST /api/deck/load ──
+    // Dynamically load a deck by directory path (e.g., when opening example deck)
+    if (pathname === "/api/deck/load" && req.method === "POST") {
+      try {
+        const { dir } = await readJsonBody(req);
+
+        // Resolve relative to project root
+        const deckDir = path.resolve(ROOT, dir);
+        const mdFile = path.join(deckDir, "slides.md");
+        const imagesDir = path.join(deckDir, "images");
+
+        if (fs.existsSync(mdFile)) {
+          format.mdFile = mdFile;
+          format.imagesDir = imagesDir;
+
+          // Ensure images directory exists
+          if (!fs.existsSync(format.imagesDir)) {
+            fs.mkdirSync(format.imagesDir, { recursive: true });
+          }
+
+          // Restart file watching for the new deck
+          startWatching(format);
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid deck path: slides.md not found" }));
+        }
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {

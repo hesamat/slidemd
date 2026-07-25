@@ -206,6 +206,13 @@ Markdown-based presentations made simple.
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const markdown = await res.text();
 
+      // Tell the CLI server where the example deck lives so it can serve images
+      await fetch("/api/deck/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dir: "docs/example" }),
+      }).catch(() => {});
+
       localStorage.setItem("webdeck_local_file", markdown);
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", "example");
