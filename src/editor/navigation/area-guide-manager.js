@@ -135,6 +135,8 @@ export class AreaGuideManager {
       label.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const resolvedLayout = LayoutParser.resolvePreset(slideData?.layout);
+        const isCustomLayout = slideData?.layout && resolvedLayout === slideData.layout;
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
         const canMakeFullHeight = this._canMakeFullHeight
@@ -144,6 +146,7 @@ export class AreaGuideManager {
           canDelete,
           canSwap,
           canMakeFullHeight,
+          isCustomLayout,
         });
       });
     });
