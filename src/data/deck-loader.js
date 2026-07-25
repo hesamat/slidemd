@@ -60,11 +60,13 @@ export class DeckLoader {
   }
 
   /**
-   * Load a deck from the recent list (reopens from localStorage cache).
+   * Load a deck from the recent list.
+   * Tries localStorage cache first, then falls back to file handle registry.
    * @static
    * @param {string} fileName
+   * @returns {Promise<void>}
    */
-  static loadRecentDeck(fileName) {
+  static async loadRecentDeck(fileName) {
     const recent = this.getRecentDecks();
     const entry = recent.find((d) => d.name === fileName);
     if (!entry) {
@@ -75,15 +77,41 @@ export class DeckLoader {
     const text = localStorage.getItem("webdeck_local_file");
     const storedName = localStorage.getItem("webdeck_local_file_name");
     if (text && storedName === fileName) {
-      // Already loaded — just re-dispatch
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
           detail: { text, fileType: "md", fileName },
         }),
       );
-    } else {
-      Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
+      return;
     }
+
+    const handle = DeckLoader.fileHandleRegistry.get(fileName);
+    if (handle) {
+      try {
+        const permission = await handle.requestPermission({ mode: "read" });
+        if (permission === "granted") {
+          const file = await handle.getFile();
+          const rawText = await file.text();
+
+          localStorage.setItem("webdeck_local_file", rawText);
+          localStorage.setItem("webdeck_local_file_type", "md");
+          localStorage.setItem("webdeck_local_file_name", fileName);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
+          window.dispatchEvent(
+            new CustomEvent("webdeck-load-local", {
+              detail: { text: rawText, fileType: "md", fileName },
+            }),
+          );
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to reload from file handle:", e);
+        DeckLoader.fileHandleRegistry.delete(fileName);
+      }
+    }
+
+    Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
   }
 
   /**

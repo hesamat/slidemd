@@ -276,8 +276,8 @@ export class OpenDeckModal {
       btn.appendChild(nameSpan);
       btn.appendChild(timeSpan);
 
-      btn.addEventListener("click", () => {
-        DeckLoader.loadRecentDeck(entry.name);
+      btn.addEventListener("click", async () => {
+        await DeckLoader.loadRecentDeck(entry.name);
         this.hide();
       });
 
