@@ -82,9 +82,9 @@ export class TextpackExportManager {
 
         // Frontmatter
         const frontmatter = [];
-        if (slide.layout) frontmatter.push(`layout: ${slide.layout}`);
-        if (slide.theme) frontmatter.push(`theme: ${slide.theme}`);
-        if (slide.background) frontmatter.push(`background: ${slide.background}`);
+        if (slide.layout) frontmatter.push(`layout: ${slide.layout.trim()}`);
+        if (slide.theme) frontmatter.push(`theme: ${slide.theme.trim()}`);
+        if (slide.background) frontmatter.push(`background: ${slide.background.trim()}`);
         if (slide.hidden) frontmatter.push("hidden: true");
 
         if (frontmatter.length > 0) {

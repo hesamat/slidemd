@@ -35,20 +35,16 @@ export function htmlToMarkdown(html) {
 
   let md = html;
 
-  // 1. Convert <pre><code class="language-xxx">...</code></pre> to fenced code blocks
-  md = md.replace(
-    /<pre[^>]*>\s*<code[^>]*class=["'][^"']*(?:language|lang)-(\w+)["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi,
-    (_match, lang, code) => {
-      return `\n\n\`\`\`${lang}\n${decodeEntities(code)}\n\`\`\`\n\n`;
-    },
-  );
-  // Also handle <pre><code> without language
-  md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_match, code) => {
-    return `\n\n\`\`\`\n${decodeEntities(code)}\n\`\`\`\n\n`;
-  });
-  // Handle standalone <pre> blocks
-  md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_match, code) => {
-    return `\n\n\`\`\`\n${decodeEntities(code)}\n\`\`\`\n\n`;
+  // 1. Convert ALL <pre>...</pre> blocks to fenced code blocks.
+  //    This must run first and be the most permissive pattern.
+  //    It handles <pre><code class="lang-xxx">, <pre><code>, and plain <pre>.
+  md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_match, inner) => {
+    // Try to extract language from <code class="language-xxx"> or <code class="lang-xxx">
+    const langMatch = inner.match(/<code[^>]*class=["'][^"']*(?:language|lang)-(\w+)["']/i);
+    const lang = langMatch ? langMatch[1] : "";
+    // Extract code content by stripping all HTML tags
+    const code = decodeEntities(inner.replace(/<[^>]+>/g, ""));
+    return `\n\n\`\`\`${lang}\n${code}\n\`\`\`\n\n`;
   });
 
   // 2. Convert <div class="mermaid" data-mermaid-source="..."> back to ```mermaid code blocks
@@ -71,9 +67,7 @@ export function htmlToMarkdown(html) {
   });
 
   // 4. Convert blockquotes (must come before headings/paragraphs inside blockquotes)
-  // Handle nested HTML inside blockquotes by converting inner HTML first
   md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_match, content) => {
-    // Convert inner content to markdown first
     let inner = content;
     // Convert headings inside blockquotes
     inner = inner.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, level, text) => {
@@ -103,7 +97,7 @@ export function htmlToMarkdown(html) {
   md = md.replace(/<strong>([\s\S]*?)<\/strong>/gi, "**$1**");
   md = md.replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**");
 
-  // 8. Convert <code> to inline code
+  // 8. Convert standalone <code> to inline code (only if not already inside a code block)
   md = md.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
     return `\`${decodeEntities(code)}\``;
   });
@@ -135,7 +129,6 @@ export function htmlToMarkdown(html) {
   // 14. Convert <table> to markdown tables
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
     let result = "\n";
-    // Extract rows
     const rows = [];
     const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rowMatch;
@@ -149,10 +142,8 @@ export function htmlToMarkdown(html) {
       rows.push(cells);
     }
     if (rows.length > 0) {
-      // Header row
       result += `| ${rows[0].join(" | ")} |\n`;
       result += `| ${rows[0].map(() => "---").join(" | ")} |\n`;
-      // Body rows
       for (let i = 1; i < rows.length; i++) {
         result += `| ${rows[i].join(" | ")} |\n`;
       }
