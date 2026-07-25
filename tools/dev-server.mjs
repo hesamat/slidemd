@@ -310,6 +310,13 @@ function createHandler(format) {
 
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
+      if (!format) {
+        // Return 200 with empty body so the frontend falls through to the welcome deck
+        // without a 404 error in the browser console.
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({}));
+        return;
+      }
       try {
         const markdown = fs.readFileSync(format.mdFile, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -323,6 +330,11 @@ function createHandler(format) {
 
     // ── POST /api/deck ──
     if (pathname === "/api/deck" && req.method === "POST") {
+      if (!format) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const { markdown } = await readJsonBody(req);
         fs.writeFileSync(format.mdFile, markdown, "utf8");
@@ -347,8 +359,13 @@ function createHandler(format) {
         const imagesDir = path.join(deckDir, "images");
 
         if (fs.existsSync(mdFile)) {
-          format.mdFile = mdFile;
-          format.imagesDir = imagesDir;
+          // Initialize format if server started without a deck file
+          if (!format) {
+            format = { mdFile, imagesDir, label: "dynamic" };
+          } else {
+            format.mdFile = mdFile;
+            format.imagesDir = imagesDir;
+          }
 
           // Ensure images directory exists
           if (!fs.existsSync(format.imagesDir)) {

@@ -32,7 +32,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="assets/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(120, 120, 120, 0.4) 0px 6px 20px; border: none; object-fit: contain; cursor: move" />
+<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(120, 120, 120, 0.4) 0px 6px 20px; border: none; object-fit: contain; cursor: move" />
 
 ---
 
@@ -48,7 +48,7 @@ layout: two-column
 
 ### Getting Started
 
-1. **Open your deck** – Load a `.md` or `.smd` file via Menu → Open File
+1. **Open your deck** – Load a `.md` file or `.textbundle` directory via Menu → Open File
 2. **Press `P`** – Open viewer window for your audience
 3. **Move viewer** – Drag it to projector/external display
 4. **Press `F`** – Go fullscreen on viewer
@@ -179,7 +179,7 @@ Press `E` to toggle split-screen editing with live preview.
 
 @media
 
-![Edit mode screenshot](assets/edit-mode.png)
+![Edit mode screenshot](images/edit-mode.png)
 
 ### Visual Guides
 
@@ -260,9 +260,9 @@ background: url(https://example.com/hero.png)
 
 ### How Images Work
 
-- **In .smd files** – Drag & drop saves images into the bundle. Paths like `assets/photo.png` resolve automatically.
+- **In .textbundle directories** – Drag & drop saves images into the `assets/` folder. Paths like `assets/photo.png` resolve automatically.
 - **In .md files** – Use full URLs (`https://...`). Local relative paths only work if served by the dev server.
-- **PPTX import** – Images are extracted and bundled into the .smd automatically.
+- **PPTX import** – Images are extracted and bundled into a `.textbundle` directory automatically.
 
 ### Formats
 
@@ -276,25 +276,27 @@ layout: two-column
 
 @header
 
-## Self-Contained .smd Format
+## Supported File Formats
 
 @main
 
-### What is .smd?
+### Markdown (.md)
 
-A self-contained presentation format that bundles your markdown deck and all images into a single file. Perfect for sharing presentations without worrying about image dependencies.
+Plain markdown files with optional frontmatter for layout and theme. Use full URLs for images when working with `.md` files directly.
 
-### Features
+### Textbundle (.textbundle)
 
-- **Single file**: Deck + images in one portable file
-- **ZIP-based**: Uses JSZip with STORE compression
-- **Cross-platform**: Works on any operating system
+A directory containing `text.markdown` and an `assets/` folder for images. Supported on Chromium browsers via the File System Access API.
+
+### Textpack (.textpack)
+
+A ZIP archive containing `text.markdown` and `assets/`. Extracted to a temporary directory when opened via the CLI dev server.
 
 ### How It Works
 
-- Open .smd files via Menu → Open File
-- PPTX import creates .smd files with embedded images
-- The bundled example deck uses this format
+- Open files via Menu → Open File
+- PPTX import creates `.textbundle` directories with embedded images
+- The bundled example deck uses `.md` format
 
 @media
 

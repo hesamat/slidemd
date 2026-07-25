@@ -155,6 +155,8 @@ export class DeckLoader {
         const data = await res.json();
         if (data?.markdown) {
           await AssetLoader.ensureMarkdownItLoaded();
+          // Store the API URL so reload can re-fetch fresh content from disk
+          localStorage.setItem("webdeck_source_url", "/api/deck");
           return new MarkdownParser().parseDeckMarkdown(data.markdown);
         }
       }
@@ -217,7 +219,7 @@ Markdown-based presentations made simple.
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", "example");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
 
       this.addRecentDeck("example");
 

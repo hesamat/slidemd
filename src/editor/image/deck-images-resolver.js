@@ -114,18 +114,4 @@ export class DeckImagesResolver {
     }
     await Promise.all(tasks);
   }
-
-  /**
-   * Clear cached state. No-op since we no longer use blob URLs.
-   */
-  static clearCache() {
-    // No-op — images are served via HTTP, no blob URLs to revoke.
-  }
-
-  /**
-   * @deprecated No longer needed — images are resolved via HTTP.
-   */
-  static setSmdImages() {
-    // No-op — kept for API compatibility.
-  }
 }
