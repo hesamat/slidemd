@@ -2,19 +2,69 @@
 
 ## 0.6.0 (2026-07-24)
 
-### Self-Contained .smd Format
+### CLI Dev Server
 
-- New binary ZIP-based format that bundles `deck.md` + all images into a single `.smd` file
-- Uses JSZip with STORE compression to avoid UI thread freezing
-- `SmdHandler` class handles extraction and building
-- Build tooling: `tools/build-example-smd.mjs` and `tools/inspect-smd.mjs`
-- First bundled example deck: `docs/example.smd` (~1.2 MB)
+- New lightweight Node.js CLI dev server (`tools/dev-server.mjs`) with SSE live reload
+- Accepts `.md` files with auto-discovered `images/` sidecar folder
+- Accepts `.textpack` ZIP archives, extracts to temp directory
+- HTTP API: `GET /api/deck`, `POST /api/deck`, `POST /api/deck/load`, `GET /api/images`, `POST /api/upload-image`, `GET /api/events`
+- File watching on `.md` and `images/` with 100ms debounce
+- Human-readable upload filenames (`architecture-a3f2.png`)
+- Path traversal protection and CORS headers
 
-### Custom Open-Deck Modal
+### Primary Format: `.md + images/`
 
-- New `OpenDeckModal` with recent-decks list
-- Two open buttons: one for `.smd` (ZIP archive with images), one for `.md` (remote URLs)
-- Uses File System Access API on Chromium, falls back to `<input>` on Safari/Firefox
+- Plain Markdown files with sidecar `images/` folder as the primary deck format
+- Images referenced with relative paths (`images/foo.png`)
+- Images served by CLI dev server during development
+- Diffable in git, no binary bundles
+
+### `.textpack` Export
+
+- New export format: ZIP archive containing `text.markdown` + `assets/` folder
+- HTML-to-markdown conversion for slide content (mermaid, images, formatting)
+- Fetches referenced images and embeds in ZIP with STORE compression
+- Accessible from the export menu
+
+### Open Deck Modal
+
+- Replaced `.smd` with `.textpack` support
+- `.textpack` opening: extracts ZIP, reads markdown, extracts assets to object URLs
+- `.md` file support via File System Access API
+- Recent deck click handler is now async with File System Access API fallback
+
+### Image Handling
+
+- `DeckImagesResolver` now resolves images via HTTP (`/images/foo.png`), no blob URLs
+- Removed in-memory blob URL caching and lifecycle management
+- PPTX import uploads extracted images via `POST /api/upload-image`
+- PPTX import notification changed from "Save as .smd" to success message
+
+### Save Manager
+
+- Primary save via `POST /api/deck` to CLI dev server (writes directly to disk)
+- Fallback to `showSaveFilePicker` / blob download when no CLI server
+- Removed `.smd` ZIP generation on save
+
+### Deck Loader
+
+- API-first loading: tries `GET /api/deck`, then embedded JSON, then welcome deck
+- Removed IndexedDB draft recovery flow
+- `loadRecentDeck()` tries localStorage cache, then File System Access API file handle registry
+- `openExampleFile()` fetches `docs/example/slides.md` as plain text
+
+### Build Script
+
+- Removed `.smd` (ZIP) input support, reads plain `.md` files only
+- Auto-discovers `images/` directory and inlines as data URIs
+- Removed JSZip dependency from build
+
+### Cleanup: Removed `.smd` Format
+
+- Deleted `src/core/smd-handler.js` and tests
+- Deleted `docs/example.smd` (replaced by `docs/example/slides.md` + `images/`)
+- Deleted `tools/build-example-smd.mjs` and `tools/inspect-smd.mjs`
+- Removed all `.smd` references from codebase
 
 ### Image Drag Reorder and Alignment
 
@@ -56,7 +106,6 @@
 
 **PPTX Conversion Fixes:**
 
-- Fix blob.arrayBuffer error when saving `.smd` with images
 - Skip white backgrounds during PPTX conversion
 - Adjust group child positions during flattening
 - Require text on both sides for two-column layout
@@ -108,11 +157,11 @@
 - Refactor: code-review fixes, duplicate logic cleanup
 - New test files added (12 new test files)
 - Major test expansions for pptx-extractor.test.js and pptx-to-slide-md.test.js
-- New core modules: draft-manager.js, smd-handler.js
+- New core modules: draft-manager.js
 - New editor modules: slide-preview-updater.js, style-applier.js, source-jump-handler.js, directive-utils.js, area-context-menu.js
 - New image modules: image-drag-controller.js, image-markdown-utils.js, image-position-presets.js
-- New UI modules: open-deck-modal.js
-- New CSS: open-deck-modal.css, notification.css (expanded)
+- New modules: textpack-export-manager.js, dev-server.mjs, dev.mjs
+- New CSS: notification.css (expanded)
 - Updated AGENTS.md with new editor sub-module architecture documentation
 - Package dependencies updated
 

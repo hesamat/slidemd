@@ -171,21 +171,22 @@ Goal: Convert existing presentations (PPTX) to SlideMD format using rule-based l
 
 ---
 
-## Phase 7.5: Self-Contained Format & Image Improvements ✅
+## Phase 7.5: CLI Dev Server & Image Improvements ✅
 
-Goal: Add self-contained .smd format and improve image handling with drag reorder and alignment.
+Goal: CLI dev server with `.md + images/` primary format, `.textpack` sharing, and image drag reorder.
 
-### Self-Contained .smd Format
+### CLI Dev Server
 
-| Task                                   | Details                                                          |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| [x] Self-contained .smd format         | ZIP-based format bundling deck.md + images into single file      |
-| [x] SmdHandler class                   | Handle extraction and building of .smd files                     |
-| [x] JSZip with STORE compression       | Avoid UI thread freezing during zip operations                   |
-| [x] Open Deck modal                    | Custom modal with recent-decks list and dual open buttons        |
-| [x] File System Access API integration | Seamless file management on Chromium, fallback on Safari/Firefox |
-| [x] Build tooling                      | tools/build-example-smd.mjs and tools/inspect-smd.mjs            |
-| [x] Example .smd file                  | docs/example.smd (~1.2 MB bundled presentation)                  |
+| Task                                          | Details                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| [x] CLI dev server (`tools/dev-server.mjs`)   | Serve deck via HTTP with SSE live reload                         |
+| [x] `.md + images/` as primary format         | Markdown files with sidecar `images/` folder                     |
+| [x] `.textpack` support                       | ZIP archive bundling `deck.md` + images for sharing              |
+| [x] Open Deck modal                           | Recent-decks list, open `.md` or `.textpack` files               |
+| [x] File System Access API integration        | Seamless file management on Chromium, fallback on Safari/Firefox |
+| [x] Image upload via API                      | `POST /api/upload-image` with human-readable filenames           |
+| [x] Deck save via API                         | `POST /api/deck` writes directly to disk                         |
+| [x] Example deck as `.md + images/`           | `docs/example/slides.md` with `docs/example/images/`             |
 
 ### Image Drag Reorder & Alignment
 
@@ -274,7 +275,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 5: Quick Fixes             | ✅ Complete |
 | Phase 6: Testing & Polish        | ✅ Complete |
 | Phase 7: PPTX Conversion         | ✅ Complete |
-| Phase 7.5: Self-Contained Format | ✅ Complete |
+| Phase 7.5: CLI Dev Server        | ✅ Complete |
 | Phase 8: Cloud Mode              | Not started |
 
 ### Priority Order
@@ -283,4 +284,4 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the self-contained .smd format and image improvements. Phase 8 (Cloud Mode) is the long-term vision — the storage adapter pattern means local-first still works, cloud is an optional layer.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
