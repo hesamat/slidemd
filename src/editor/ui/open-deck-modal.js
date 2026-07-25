@@ -78,22 +78,15 @@ export class OpenDeckModal {
       const markdown = await mdFile.text();
 
       // Read assets from assets/ subdirectory
-      DeckLoader.smdImageCache.clear();
       try {
         const assetsHandle = await dirHandle.getDirectoryHandle("assets");
-        for await (const [name, handle] of assetsHandle) {
+        for await (const [, handle] of assetsHandle) {
           if (handle.kind === "file") {
-            const file = await handle.getFile();
-            const url = URL.createObjectURL(file);
-            DeckLoader.smdImageCache.set(`assets/${name}`, url);
+            await handle.getFile(); // validate assets are readable
           }
         }
       } catch {
         // No assets directory — that's fine
-      }
-
-      if (DeckLoader.smdImageCache.size > 0) {
-        DeckLoader.isSmdMode = true;
       }
 
       // Register directory handle for saves
@@ -103,7 +96,7 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", dirHandle.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_source_url", dirHandle.name);
 
       DeckLoader.addRecentDeck(dirHandle.name);
       await DraftManager.saveDraft(markdown, new Map());
@@ -151,9 +144,6 @@ export class OpenDeckModal {
 
       const rawText = await file.text();
 
-      DeckLoader.isSmdMode = false;
-      DeckLoader.smdImageCache.clear();
-
       if (fileHandle) {
         DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
       }
@@ -162,7 +152,7 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_source_url", file.name);
 
       DeckLoader.addRecentDeck(file.name);
       await DraftManager.saveDraft(rawText, new Map());
