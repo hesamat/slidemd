@@ -36,7 +36,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Build HTML slides
-        run: npm run build -- docs/example.textbundle
+        run: npm run build -- docs/example/slides.md
 
       - name: Generate PDF
         run: npm run pdf

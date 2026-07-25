@@ -1,6 +1,6 @@
 /**
- * Rebuild docs/example.textbundle/ from its text.markdown + public images.
- * Run: node tools/build-example-textbundle.mjs
+ * Rebuild docs/example/images/ from public/ images.
+ * Run: node tools/build-example.mjs
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
@@ -10,19 +10,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
 async function main() {
-  const outDir = join(ROOT, "docs", "example.textbundle");
-  const assetsDir = join(outDir, "assets");
+  const imagesDir = join(ROOT, "docs", "example", "images");
 
   // Copy fresh images from public/
   const images = ["icon.png", "edit-mode.png"];
   for (const name of images) {
     const data = await readFile(join(ROOT, "public", name));
-    await writeFile(join(assetsDir, name), data);
+    await writeFile(join(imagesDir, name), data);
     console.log(`  ${name}: ${data.length} bytes`);
   }
 
-  console.log(`Rebuilt ${outDir}`);
-  console.log(`  assets/: ${images.length} images`);
+  console.log(`\nRebuilt docs/example/images/`);
+  console.log(`  ${images.length} images`);
 }
 
 main().catch((err) => {
