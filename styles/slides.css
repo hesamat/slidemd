@@ -633,6 +633,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .slide__area .mermaid {
   width: 100%;
+  min-height: 0;
   max-height: 100%;
   max-width: 100%;
   display: flex;
@@ -648,6 +649,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   height: auto !important;
   max-width: 100% !important;
   max-height: 100% !important;
+  overflow: hidden !important;
 }
 
 .slide__area .mermaid .flowchartTitleText {
