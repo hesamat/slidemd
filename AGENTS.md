@@ -1,6 +1,6 @@
 # Agent Instructions
 
-User-facing documentation lives in [README.md](README.md) and [docs/example.smd](docs/example.smd). This file contains only AI-assistant guidance for working on the codebase.
+User-facing documentation lives in [README.md](README.md) and [docs/example/slides.md](docs/example/slides.md). This file contains only AI-assistant guidance for working on the codebase.
 
 ## Git Workflow
 
@@ -110,7 +110,7 @@ export class NewModule {
 ## Common Tasks
 
 - **Add a new layout preset**: Add to [src/data/layout-data.js](src/data/layout-data.js)
-- **Modify deck content**: Edit [docs/example.smd](docs/example.smd)
+- **Modify deck content**: Edit [docs/example/slides.md](docs/example/slides.md)
 - **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
 - **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
