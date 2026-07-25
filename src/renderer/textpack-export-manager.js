@@ -99,7 +99,7 @@ export class TextpackExportManager {
             if (content !== undefined && content !== "") {
               parts.push(`@${name}`);
               parts.push("");
-              parts.push(content);
+              parts.push(this._htmlToMarkdown(content));
               parts.push("");
             }
           }
@@ -108,6 +108,78 @@ export class TextpackExportManager {
         return parts.join("\n").trimEnd();
       })
       .join("\n\n---\n\n");
+  }
+
+  /**
+   * Convert rendered HTML back to markdown for .textpack export.
+   * Handles mermaid divs, images, and common block-level HTML.
+   * @param {string} html
+   * @returns {string}
+   */
+  static _htmlToMarkdown(html) {
+    if (!html) return "";
+
+    let md = html;
+
+    // 1. Convert <div class="mermaid" data-mermaid-source="..."> back to ```mermaid code blocks
+    md = md.replace(
+      /<div\s+class="mermaid"[^>]*data-mermaid-source="([^"]*)"[^>]*><\/div>/gi,
+      (_match, source) => {
+        const decoded = source
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"');
+        return `\n\n\`\`\`mermaid\n${decoded}\n\`\`\`\n\n`;
+      },
+    );
+
+    // Also handle mermaid divs with inner text content (from enhanceRenderedContent)
+    md = md.replace(/<div\s+class="mermaid"[^>]*>([\s\S]*?)<\/div>/gi, (_match, content) => {
+      const decoded = content
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .trim();
+      if (!decoded) return "";
+      return `\n\n\`\`\`mermaid\n${decoded}\n\`\`\`\n\n`;
+    });
+
+    // 2. Convert <img> tags to markdown images
+    md = md.replace(/<img\s+[^>]*src="([^"]*)"[^>]*>/gi, (_match, src) => {
+      // Decode HTML entities in src
+      const decodedSrc = src.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+      return `![](${decodedSrc})`;
+    });
+
+    // 3. Convert <em> and <i> to italic
+    md = md.replace(/<em>([\s\S]*?)<\/em>/gi, "*$1*");
+    md = md.replace(/<i>([\s\S]*?)<\/i>/gi, "*$1*");
+
+    // 4. Convert <strong> and <b> to bold
+    md = md.replace(/<strong>([\s\S]*?)<\/strong>/gi, "**$1**");
+    md = md.replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**");
+
+    // 5. Convert <code> to inline code (but not inside pre blocks)
+    md = md.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, content) => {
+      // Skip if this is inside a <pre> block (handled separately)
+      return `\`${content}\``;
+    });
+
+    // 6. Convert <a href="...">text</a> to [text](url)
+    md = md.replace(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_match, href, text) => {
+      const decodedHref = href.replace(/&amp;/g, "&");
+      return `[${text}](${decodedHref})`;
+    });
+
+    // 7. Convert <br> and <br/> to newlines
+    md = md.replace(/<br\s*\/?>/gi, "\n");
+
+    // 8. Convert <hr> to horizontal rule
+    md = md.replace(/<hr\s*\/?>/gi, "\n---\n");
+
+    return md;
   }
 
   /**
@@ -123,10 +195,15 @@ export class TextpackExportManager {
       if (!slide.areas) continue;
       for (const content of Object.values(slide.areas)) {
         if (!content) continue;
-        // Match img src="images/..." and background: url(images/...)
-        const imgRe = /(?:src|url)\(\s*['"]?(images\/[^'")\s]+)['"]?\s*\)/gi;
+        // Match img src="images/..." in HTML
+        const htmlImgRe = /src=["']?(images\/[^"'\s>]+)["']?/gi;
         let m;
-        while ((m = imgRe.exec(content))) {
+        while ((m = htmlImgRe.exec(content))) {
+          paths.add(m[1]);
+        }
+        // Match url(images/...) in CSS
+        const urlRe = /url\(\s*['"]?(images\/[^'")\s]+)['"]?\s*\)/gi;
+        while ((m = urlRe.exec(content))) {
           paths.add(m[1]);
         }
       }

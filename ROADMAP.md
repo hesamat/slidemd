@@ -221,60 +221,45 @@ Goal: Add self-contained .smd format and improve image handling with drag reorde
 
 ## Phase 8: Cloud Mode
 
-Goal: Enable multi-device editing, cloud image storage, and authenticated access.
+Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/Save UX.
 
-### Architecture
+### Pluggable Image Storage Driver (`POST /api/upload-image`)
 
-- **Storage adapter pattern**: editor uses relative paths (`./images/slide.png`) in both modes
-- **Local mode**: paths resolve to local filesystem (current behavior, no server needed)
-- **Cloud mode**: images uploaded to cloud storage, paths rewritten to URLs behind the scenes
-- **No Amazon services** — use Cloudflare R2 for storage
+| Task                                                         | Details                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [ ] GitHub Driver (`--storage=github`)                       | Upload images to GitHub repo via API, return raw URLs              |
+| [ ] Zero-Setup `gh` CLI check                                | Auto-detect authenticated `gh auth status`, use existing token     |
+| [ ] Device Auth Flow fallback                                | 2-click GitHub Device Authorization Flow when `gh` is unavailable  |
+| [ ] Cache OAuth token                                        | Store in `~/.config/my-app/config.json` after device auth          |
+| [ ] Local Driver (`--storage=local`)                         | Save to `./images/` with sanitized unique filenames                |
+| [ ] Auto Mode (`--storage=auto`, default)                    | GitHub if token/`gh` exists, fallback to local `./images/`         |
+| [ ] CLI invocation flags                                     | `--storage=github`, `--storage=local`, `--storage=auto`            |
 
-### Image Storage
+### User-Facing Open Deck Workflow
 
-| Task                                          | Details                                  |
-| --------------------------------------------- | ---------------------------------------- |
-| [ ] Set up Cloudflare R2 bucket               | Free tier: 10GB storage, 10M reads/mo    |
-| [ ] Create StorageAdapter interface           | Abstract local vs cloud image paths      |
-| [ ] Implement R2StorageAdapter                | Upload, delete, URL generation           |
-| [ ] Update image picker to use adapter        | Transparent to user, paths stay relative |
-| [ ] Handle image deletion (cascade from deck) | Clean up orphaned images                 |
+| Task                                                         | Details                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [ ] Terminal (primary)                                       | `node tools/dev-server.mjs path/to/slides.md` opens browser        |
+| [ ] `GET /api/browse` endpoint                               | Browse local `.md` or `.textpack` paths from browser UI            |
+| [ ] Open Deck modal                                          | Path input or directory browser for switching decks without restart|
+| [ ] Drag-and-drop `.textpack`                                | Unpack in-memory/temp storage on browser canvas                    |
 
-### Authentication & Access Control
+### User-Facing Save Deck Workflow
 
-| Task                                            | Details                               |
-| ----------------------------------------------- | ------------------------------------- |
-| [ ] Choose auth provider (Clerk, Auth.js, etc.) | Prefer self-hosted or edge-compatible |
-| [ ] Implement sign-up / sign-in flow            | Email + OAuth (Google, GitHub)        |
-| [ ] Add deck sharing with permission levels     | Owner / editor / viewer roles         |
-| [ ] Add access tokens for API requests          | For programmatic access               |
+| Task                                                         | Details                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [ ] Silent auto-save                                         | Debounced `POST /api/deck`, writes directly to disk                |
+| [ ] Manual save (`Cmd+S` / `Ctrl+S`)                         | Instant `POST /api/deck`, UI shows `Saved` indicator               |
+| [ ] Export as `.textpack` (header menu)                      | Bundle `slides.md` + images into downloadable ZIP                  |
+| [ ] Export as `.html` (header menu)                          | Run build in memory, download standalone single-file HTML          |
 
-### Cloud File Sync
+### Execution Steps
 
-| Task                                             | Details                                     |
-| ------------------------------------------------ | ------------------------------------------- |
-| [ ] Design deck storage schema                   | Deck metadata + markdown + image references |
-| [ ] Implement deck CRUD API                      | Create, read, update, delete decks          |
-| [ ] Add real-time sync (WebSocket or polling)    | Multi-device live updates                   |
-| [ ] Add offline support (service worker + cache) | Edit offline, sync when online              |
-
-### Deployment
-
-| Task                                        | Details                             |
-| ------------------------------------------- | ----------------------------------- |
-| [ ] Deploy web app to Vercel/Netlify        | Static frontend                     |
-| [ ] Deploy API (Workers or serverless)      | Cloudflare Workers for edge compute |
-| [ ] Set up custom domain + SSL              |                                     |
-| [ ] Add environment config (R2, auth, etc.) |                                     |
-
-### UX
-
-| Task                                          | Details                                  |
-| --------------------------------------------- | ---------------------------------------- |
-| [ ] Add mode switcher (Local / Cloud)         | On first open, prompt user to choose     |
-| [ ] Show cloud status indicator               | Syncing / synced / offline badge         |
-| [ ] Update export to resolve cloud image URLs | Download images inline for portable HTML |
-| [ ] Add deck sharing UI                       | Share link with permission selection     |
+| Step | Details                                                         |
+| ---- | --------------------------------------------------------------- |
+| 1    | Add `GET /api/browse` and update `POST /api/upload-image` with storage driver logic |
+| 2    | Implement GitHub Device OAuth flow helper in `tools/dev-server.mjs`                 |
+| 3    | Update UI header/modal buttons for "Open Deck", "Export .textpack", "Export .html"  |
 
 ---
 
