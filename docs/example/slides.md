@@ -32,7 +32,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(120, 120, 120, 0.4) 0px 6px 20px; border: none; object-fit: contain; cursor: move" />
+<img src="assets/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(120, 120, 120, 0.4) 0px 6px 20px; border: none; object-fit: contain; cursor: move" />
 
 ---
 
@@ -48,7 +48,7 @@ layout: two-column
 
 ### Getting Started
 
-1. **Open your deck** – Load a `.md` file or `.textbundle` directory via Menu → Open File
+1. **Open your deck** – Load a `.md` or `.textpack` file via Menu → Open File
 2. **Press `P`** – Open viewer window for your audience
 3. **Move viewer** – Drag it to projector/external display
 4. **Press `F`** – Go fullscreen on viewer
@@ -179,7 +179,7 @@ Press `E` to toggle split-screen editing with live preview.
 
 @media
 
-![Edit mode screenshot](images/edit-mode.png)
+![Edit mode screenshot](assets/edit-mode.png)
 
 ### Visual Guides
 
@@ -260,9 +260,9 @@ background: url(https://example.com/hero.png)
 
 ### How Images Work
 
-- **In .textbundle directories** – Drag & drop saves images into the `assets/` folder. Paths like `assets/photo.png` resolve automatically.
+- **In .textpack files** – Drag & drop saves images into the `assets/` folder. Paths like `images/photo.png` resolve automatically.
 - **In .md files** – Use full URLs (`https://...`). Local relative paths only work if served by the dev server.
-- **PPTX import** – Images are extracted and bundled into a `.textbundle` directory automatically.
+- **PPTX import** – Images are extracted and saved alongside the `.md` file in an `images/` folder.
 
 ### Formats
 
@@ -318,6 +318,14 @@ layout: two-column
 
 Import existing PowerPoint presentations and convert them to SlideMD format with automatic layout detection.
 
+### Features
+
+- **Layout detection**: Automatic two-column, title, and content layouts
+- **Image extraction**: Pulls images from PPTX and embeds them
+- **Code block detection**: Identifies monospace text as code
+- **Dark theme detection**: Auto-sets theme when background is dark
+- **Per-deck folder**: Organizes imported files in dedicated folders
+
 ### How to Import
 
 1. Click Menu → Import PPTX
@@ -326,21 +334,13 @@ Import existing PowerPoint presentations and convert them to SlideMD format with
 4. Click Convert
 5. Edit mode opens for manual cleanup
 
+@media
+
 ### Conversion Options
 
 - **Keep backgrounds**: Preserve slide backgrounds
 - **Import images**: Extract and embed images
-- **Coding Language**: Select the coding language being taught
-
-@media
-
-### Features
-
-- **Layout detection**: Automatic two-column, title, and content layouts
-- **Image extraction**: Pulls images from PPTX and embeds them
-- **Code block detection**: Identifies monospace text as code
-- **Dark theme detection**
-- **Per-deck folder**: Organizes imported files in dedicated folders
+- **Language detection**: Auto-detect code languages
 
 ### Post-Conversion
 
