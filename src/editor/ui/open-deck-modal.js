@@ -8,6 +8,7 @@
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
+import { htmlToMarkdown } from "../../renderer/textpack-sanitizer.js";
 
 export class OpenDeckModal {
   static _el = null;
@@ -86,7 +87,11 @@ export class OpenDeckModal {
       }
       const markdown = await mdEntry.async("text");
 
-      // Extract assets to a temp object URLs map
+      // Sanitize: convert rendered HTML back to markdown source
+      // (handles both old exports with raw HTML and new exports)
+      const cleanMarkdown = htmlToMarkdown(markdown);
+
+      // Extract assets to blob URLs, keyed by both folder prefixes
       const assetUrls = new Map();
       const assetsFolder = zip.folder("assets") || zip.folder("images");
       if (assetsFolder) {
@@ -97,7 +102,10 @@ export class OpenDeckModal {
               (async () => {
                 const data = await entry.async("blob");
                 const name = entryPath.split("/").pop();
-                assetUrls.set(`assets/${name}`, URL.createObjectURL(data));
+                const blobUrl = URL.createObjectURL(data);
+                // Store under both prefixes so markdown references resolve
+                assetUrls.set(`assets/${name}`, blobUrl);
+                assetUrls.set(`images/${name}`, blobUrl);
               })(),
             );
           }
@@ -105,24 +113,39 @@ export class OpenDeckModal {
         await Promise.all(tasks);
       }
 
-      localStorage.setItem("webdeck_local_file", markdown);
+      // Rewrite image paths in markdown to use blob URLs so they load without a dev server
+      let resolvedMarkdown = cleanMarkdown;
+      for (const [relPath, blobUrl] of assetUrls) {
+        // Handle <img src="images/...">
+        const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        resolvedMarkdown = resolvedMarkdown.replace(
+          new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
+          `$1${blobUrl}$2`,
+        );
+        // Handle markdown image syntax ![alt](images/...)
+        resolvedMarkdown = resolvedMarkdown.replace(
+          new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
+          `$1${blobUrl}$2`,
+        );
+      }
+
+      localStorage.setItem("webdeck_local_file", resolvedMarkdown);
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name.replace(/\.textpack$/, ""));
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
       DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
-      await DraftManager.saveDraft(markdown, assetUrls);
+      await DraftManager.saveDraft(resolvedMarkdown, assetUrls);
 
       this.hide();
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
           detail: {
-            text: markdown,
+            text: resolvedMarkdown,
             fileType: "md",
             fileName: file.name.replace(/\.textpack$/, ""),
-            assetUrls,
           },
         }),
       );
