@@ -13,6 +13,7 @@ import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
 import { HtmlExportManager } from "../renderer/html-export-manager.js";
+import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
@@ -382,6 +383,10 @@ export class DeckController extends EventEmitter {
       this.handleHtmlExport();
       this.closeMenu();
     });
+    listen(this.elements.menuExportTextpackBtn, "click", () => {
+      this.handleTextpackExport();
+      this.closeMenu();
+    });
     listen(this.elements.menuNewPresentationBtn, "click", () => {
       this.handleNewPresentation();
       this.closeMenu();
@@ -573,6 +578,10 @@ export class DeckController extends EventEmitter {
     await HtmlExportManager.handleHtmlExport(this.elements.slidesContainer, this.deck, {
       filename,
     });
+  }
+
+  async handleTextpackExport({ filename = null } = {}) {
+    await TextpackExportManager.handleTextpackExport(this.deck, { filename });
   }
 
   async handleNewPresentation() {

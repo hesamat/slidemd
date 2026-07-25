@@ -509,7 +509,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"] > code,
 .slide__area pre > code[class*="language-"] {
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: 24px;
   line-height: inherit;
   background: transparent !important;
   padding: 0;

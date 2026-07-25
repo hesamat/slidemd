@@ -2,7 +2,7 @@
  * OpenDeckModal
  *
  * Custom modal for opening deck files.
- * Supports .textbundle directories (Chromium) and .md files.
+ * Supports .textpack archives (ZIP with markdown + images) and .md files.
  * Uses File System Access API on Chromium, falls back to <input> on Safari/Firefox.
  */
 import { DeckLoader } from "../../data/deck-loader.js";
@@ -12,21 +12,21 @@ import { DraftManager } from "../../core/draft-manager.js";
 export class OpenDeckModal {
   static _el = null;
   static _fileListEl = null;
-  static _textbundleBtn = null;
+  static _textpackBtn = null;
   static _mdBtn = null;
   static _previousFocus = null;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
     this._fileListEl = document.getElementById("openDeckFileList");
-    this._textbundleBtn = document.getElementById("openDeckTextbundleBtn");
+    this._textpackBtn = document.getElementById("openDeckTextpackBtn");
     this._mdBtn = document.getElementById("openDeckMdBtn");
 
     if (!this._el) return;
 
     document.getElementById("openDeckModalOverlay")?.addEventListener("click", () => this.hide());
     document.getElementById("closeOpenDeckModalBtn")?.addEventListener("click", () => this.hide());
-    this._textbundleBtn?.addEventListener("click", () => this._openTextbundleDirectory());
+    this._textpackBtn?.addEventListener("click", () => this._openTextpackFile());
     this._mdBtn?.addEventListener("click", () => this._openMdFile());
 
     document.addEventListener("keydown", (e) => {
@@ -42,7 +42,7 @@ export class OpenDeckModal {
     this._el.classList.remove("webdeck-hidden");
     this._fileListEl.innerHTML = "";
     this._renderRecentDecks();
-    this._textbundleBtn?.focus();
+    this._textpackBtn?.focus();
   }
 
   static hide() {
@@ -53,67 +53,85 @@ export class OpenDeckModal {
   }
 
   /**
-   * Open a .textbundle directory using the File System Access API (Chromium).
-   * Reads text.markdown and assets/ from the selected directory.
+   * Open a .textpack file (ZIP archive containing text.markdown + assets/).
+   * Extracts to memory and loads the deck.
    */
-  static async _openTextbundleDirectory() {
+  static async _openTextpackFile() {
     try {
-      if (!("showDirectoryPicker" in window)) {
-        Notification.info(
-          "Directory picker not supported in this browser. Use Open .md File instead.",
-        );
-        return;
+      const { default: JSZip } = await import("jszip");
+
+      let file;
+      if ("showOpenFilePicker" in window) {
+        [file] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: "Textpack archive",
+              accept: { "application/zip": [".textpack"] },
+            },
+          ],
+        });
+        file = await file.getFile();
+      } else {
+        file = await this._pickFileViaInput(".textpack");
+        if (!file) return;
       }
 
-      const dirHandle = await window.showDirectoryPicker({ mode: "read" });
+      const buf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
 
-      // Read text.markdown
-      let mdHandle;
-      try {
-        mdHandle = await dirHandle.getFileHandle("text.markdown");
-      } catch {
-        throw new Error("Not a valid .textbundle: missing text.markdown");
+      // Extract text.markdown (or deck.md)
+      const mdEntry = zip.file("text.markdown") || zip.file("deck.md");
+      if (!mdEntry) {
+        throw new Error("Not a valid .textpack: missing text.markdown or deck.md");
       }
-      const mdFile = await mdHandle.getFile();
-      const markdown = await mdFile.text();
+      const markdown = await mdEntry.async("text");
 
-      // Read assets from assets/ subdirectory
-      try {
-        const assetsHandle = await dirHandle.getDirectoryHandle("assets");
-        for await (const [, handle] of assetsHandle) {
-          if (handle.kind === "file") {
-            await handle.getFile(); // validate assets are readable
+      // Extract assets to a temp object URLs map
+      const assetUrls = new Map();
+      const assetsFolder = zip.folder("assets") || zip.folder("images");
+      if (assetsFolder) {
+        const tasks = [];
+        assetsFolder.forEach((entryPath, entry) => {
+          if (!entry.dir) {
+            tasks.push(
+              (async () => {
+                const data = await entry.async("blob");
+                const name = entryPath.split("/").pop();
+                assetUrls.set(`assets/${name}`, URL.createObjectURL(data));
+              })(),
+            );
           }
-        }
-      } catch {
-        // No assets directory — that's fine
+        });
+        await Promise.all(tasks);
       }
-
-      // Register directory handle for saves
-      DeckLoader.fileHandleRegistry.set(dirHandle.name, dirHandle);
 
       localStorage.setItem("webdeck_local_file", markdown);
       localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", dirHandle.name);
+      localStorage.setItem("webdeck_local_file_name", file.name.replace(/\.textpack$/, ""));
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.setItem("webdeck_source_url", dirHandle.name);
+      localStorage.removeItem("webdeck_source_url");
 
-      DeckLoader.addRecentDeck(dirHandle.name);
-      await DraftManager.saveDraft(markdown, new Map());
+      DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
+      await DraftManager.saveDraft(markdown, assetUrls);
 
       this.hide();
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "md", fileName: dirHandle.name },
+          detail: {
+            text: markdown,
+            fileType: "md",
+            fileName: file.name.replace(/\.textpack$/, ""),
+            assetUrls,
+          },
         }),
       );
 
       await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
-        console.error("Failed to open .textbundle directory:", e);
-        Notification.error("Failed to open .textbundle directory");
+        console.error("Failed to open .textpack file:", e);
+        Notification.error("Failed to open .textpack file");
       }
     }
   }

@@ -284,10 +284,6 @@ layout: two-column
 
 Plain markdown files with optional frontmatter for layout and theme. Use full URLs for images when working with `.md` files directly.
 
-### Textbundle (.textbundle)
-
-A directory containing `text.markdown` and an `assets/` folder for images. Supported on Chromium browsers via the File System Access API.
-
 ### Textpack (.textpack)
 
 A ZIP archive containing `text.markdown` and `assets/`. Extracted to a temporary directory when opened via the CLI dev server.
@@ -295,8 +291,8 @@ A ZIP archive containing `text.markdown` and `assets/`. Extracted to a temporary
 ### How It Works
 
 - Open files via Menu → Open File
-- PPTX import creates `.textbundle` directories with embedded images
-- The bundled example deck uses `.md` format
+- PPTX import creates a `.md` file + `images/` folder with embedded images
+- Export as `.textpack` to share a self-contained archive with images
 
 @media
 
@@ -307,10 +303,6 @@ The Open Deck modal provides a quick way to open presentations.
 ### Recent Decks
 
 The modal remembers your recently opened decks for quick access.
-
-### File System Access
-
-On Chromium browsers, uses the File System Access API for seamless file management. Falls back to `<input>` on Safari/Firefox.
 
 ---
 
@@ -326,14 +318,6 @@ layout: two-column
 
 Import existing PowerPoint presentations and convert them to SlideMD format with automatic layout detection.
 
-### Features
-
-- **Layout detection**: Automatic two-column, title, and content layouts
-- **Image extraction**: Pulls images from PPTX and embeds them
-- **Code block detection**: Identifies monospace text as code
-- **Dark theme detection**: Auto-sets theme when background is dark
-- **Per-deck folder**: Organizes imported files in dedicated folders
-
 ### How to Import
 
 1. Click Menu → Import PPTX
@@ -342,13 +326,21 @@ Import existing PowerPoint presentations and convert them to SlideMD format with
 4. Click Convert
 5. Edit mode opens for manual cleanup
 
-@media
-
 ### Conversion Options
 
 - **Keep backgrounds**: Preserve slide backgrounds
 - **Import images**: Extract and embed images
-- **Language detection**: Auto-detect code languages
+- **Coding Language**: Select the coding language being taught
+
+@media
+
+### Features
+
+- **Layout detection**: Automatic two-column, title, and content layouts
+- **Image extraction**: Pulls images from PPTX and embeds them
+- **Code block detection**: Identifies monospace text as code
+- **Dark theme detection**
+- **Per-deck folder**: Organizes imported files in dedicated folders
 
 ### Post-Conversion
 
