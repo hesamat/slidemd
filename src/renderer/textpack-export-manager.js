@@ -6,6 +6,7 @@
 
 import { DeckLoader } from "../data/deck-loader.js";
 import { htmlToMarkdown } from "./textpack-sanitizer.js";
+import { LayoutParser } from "../data/layout-parser.js";
 
 export class TextpackExportManager {
   static _isExporting = false;
@@ -63,6 +64,37 @@ export class TextpackExportManager {
   }
 
   /**
+   * Try to resolve a custom grid layout to the closest standard preset.
+   * @param {string} layoutSpec - The layout specification (preset name or custom grid)
+   * @returns {string} The resolved layout name or original spec
+   */
+  static _resolveLayout(layoutSpec) {
+    if (!layoutSpec) return "";
+    const spec = layoutSpec.trim();
+    // If it's already a known preset name, return it
+    if (LayoutParser.resolvePreset(spec) !== spec) return spec;
+    // Parse the custom grid to extract area names and structure
+    const parsed = LayoutParser.parse(spec);
+    const areas = parsed.orderedAreas || [];
+    const cols = parsed.gridTemplateColumns || "1fr";
+    // Try to match to a preset based on structure
+    if (areas.length === 0) return spec;
+    const isTwoCol = cols.includes("1fr") && cols.split(/\s+/).length >= 2;
+    const isThreeCol = cols.split(/\s+/).length >= 3;
+    if (isThreeCol && areas.length >= 3) return "three-column";
+    if (isTwoCol && areas.length >= 4) {
+      const colParts = cols.split(/\s+/);
+      const first = parseFloat(colParts[0]) || 1;
+      const second = parseFloat(colParts[1]) || 1;
+      if (first > second * 1.5) return "left-heavy";
+      if (second > first * 1.5) return "right-heavy";
+      return "two-column";
+    }
+    if (!isTwoCol && areas.length >= 2) return "header-content";
+    return spec;
+  }
+
+  /**
    * Convert a deck object back to markdown with frontmatter.
    * @param {Object} deck
    * @returns {string}
@@ -82,7 +114,8 @@ export class TextpackExportManager {
 
         // Frontmatter
         const frontmatter = [];
-        if (slide.layout) frontmatter.push(`layout: ${slide.layout.trim()}`);
+        const resolvedLayout = this._resolveLayout(slide.layout || "");
+        if (resolvedLayout) frontmatter.push(`layout: ${resolvedLayout.trim()}`);
         if (slide.theme) frontmatter.push(`theme: ${slide.theme.trim()}`);
         if (slide.background) frontmatter.push(`background: ${slide.background.trim()}`);
         if (slide.hidden) frontmatter.push("hidden: true");
@@ -94,14 +127,30 @@ export class TextpackExportManager {
 
         // Areas
         if (slide.areas) {
+          // Export all areas, preserving their original order and custom names
           const areaOrder = ["title", "header", "main", "media", "secondary", "footer"];
+          const exported = new Set();
+          // First export standard areas
           for (const name of areaOrder) {
+            if (exported.has(name)) continue;
             const content = slide.areas[name];
             if (content !== undefined && content !== "") {
               parts.push(`@${name}`);
               parts.push("");
               parts.push(htmlToMarkdown(content));
               parts.push("");
+              exported.add(name);
+            }
+          }
+          // Then export any custom areas not in the standard list
+          for (const [name, content] of Object.entries(slide.areas)) {
+            if (exported.has(name)) continue;
+            if (content !== undefined && content !== "") {
+              parts.push(`@${name}`);
+              parts.push("");
+              parts.push(htmlToMarkdown(content));
+              parts.push("");
+              exported.add(name);
             }
           }
         }
