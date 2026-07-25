@@ -6,10 +6,6 @@
 
 import { DeckLoader } from "../data/deck-loader.js";
 import { htmlToMarkdown } from "./textpack-sanitizer.js";
-import { LayoutParser } from "../data/layout-parser.js";
-
-const STANDARD_AREAS = ["title", "header", "main", "media", "secondary", "footer"];
-const STANDARD_AREA_SET = new Set(STANDARD_AREAS);
 
 export class TextpackExportManager {
   static _isExporting = false;
@@ -67,59 +63,6 @@ export class TextpackExportManager {
   }
 
   /**
-   * Try to resolve a custom grid layout to the closest standard preset.
-   * Returns both the resolved layout name and an area name mapping.
-   * @param {string} layoutSpec - The layout specification (preset name or custom grid)
-   * @param {Object} slideAreas - The slide's areas object
-   * @returns {{ layout: string, areaMap: Object|null }} The resolved layout and optional area mapping
-   */
-  static _resolveLayout(layoutSpec, _slideAreas) {
-    if (!layoutSpec) return { layout: "", areaMap: null };
-    const spec = layoutSpec.trim();
-    // If it's already a known preset name, no remapping needed
-    if (LayoutParser.resolvePreset(spec) !== spec) return { layout: spec, areaMap: null };
-    // Parse the custom grid to extract area names and structure
-    const parsed = LayoutParser.parse(spec);
-    const customAreas = parsed.orderedAreas || [];
-    const cols = parsed.gridTemplateColumns || "1fr";
-    if (customAreas.length === 0) return { layout: spec, areaMap: null };
-    // Check if any custom area names are non-standard
-    const hasCustomAreas = customAreas.some((a) => !STANDARD_AREA_SET.has(a));
-    if (!hasCustomAreas) return { layout: spec, areaMap: null };
-    // Try to match to a preset based on structure
-    const isTwoCol = cols.split(/\s+/).length >= 2;
-    const isThreeCol = cols.split(/\s+/).length >= 3;
-    let resolvedLayout = spec;
-    if (isThreeCol && customAreas.length >= 3) {
-      resolvedLayout = "three-column";
-    } else if (isTwoCol && customAreas.length >= 4) {
-      const colParts = cols.split(/\s+/);
-      const first = parseFloat(colParts[0]) || 1;
-      const second = parseFloat(colParts[1]) || 1;
-      if (first > second * 1.5) resolvedLayout = "left-heavy";
-      else if (second > first * 1.5) resolvedLayout = "right-heavy";
-      else resolvedLayout = "two-column";
-    } else if (!isTwoCol && customAreas.length >= 2) {
-      resolvedLayout = "header-content";
-    }
-    if (resolvedLayout === spec) return { layout: spec, areaMap: null };
-    // Build area mapping: custom name → standard name (by grid position)
-    const resolvedParsed = LayoutParser.parse(resolvedLayout);
-    const standardAreas = resolvedParsed.orderedAreas || [];
-    if (standardAreas.length === 0) return { layout: resolvedLayout, areaMap: null };
-    // Map each custom area to the standard area at the same position
-    const areaMap = {};
-    for (let i = 0; i < customAreas.length; i++) {
-      const customName = customAreas[i];
-      const standardName = standardAreas[Math.min(i, standardAreas.length - 1)];
-      if (customName !== standardName) {
-        areaMap[customName] = standardName;
-      }
-    }
-    return { layout: resolvedLayout, areaMap: Object.keys(areaMap).length > 0 ? areaMap : null };
-  }
-
-  /**
    * Convert a deck object back to markdown with frontmatter.
    * @param {Object} deck
    * @returns {string}
@@ -139,11 +82,7 @@ export class TextpackExportManager {
 
         // Frontmatter
         const frontmatter = [];
-        const { layout: resolvedLayout, areaMap } = this._resolveLayout(
-          slide.layout || "",
-          slide.areas,
-        );
-        if (resolvedLayout) frontmatter.push(`layout: ${resolvedLayout.trim()}`);
+        if (slide.layout) frontmatter.push(`layout: ${slide.layout.trim()}`);
         if (slide.theme) frontmatter.push(`theme: ${slide.theme.trim()}`);
         if (slide.background) frontmatter.push(`background: ${slide.background.trim()}`);
         if (slide.hidden) frontmatter.push("hidden: true");
@@ -153,24 +92,14 @@ export class TextpackExportManager {
           parts.push("");
         }
 
-        // Areas — remap custom area names to standard names if layout was resolved
+        // Areas — export all areas with their original names
         if (slide.areas) {
-          // Merge areas: remap custom names to standard names, combining content
-          const mergedAreas = {};
-          for (const [name, content] of Object.entries(slide.areas)) {
-            if (!content) continue;
-            const targetName = areaMap?.[name] || name;
-            if (mergedAreas[targetName]) {
-              mergedAreas[targetName] += "\n\n" + content;
-            } else {
-              mergedAreas[targetName] = content;
-            }
-          }
           const areaOrder = ["title", "header", "main", "media", "secondary", "footer"];
           const exported = new Set();
+          // First export standard areas in canonical order
           for (const name of areaOrder) {
             if (exported.has(name)) continue;
-            const content = mergedAreas[name];
+            const content = slide.areas[name];
             if (content !== undefined && content !== "") {
               parts.push(`@${name}`);
               parts.push("");
@@ -179,8 +108,8 @@ export class TextpackExportManager {
               exported.add(name);
             }
           }
-          // Export any remaining custom areas
-          for (const [name, content] of Object.entries(mergedAreas)) {
+          // Then export any custom areas
+          for (const [name, content] of Object.entries(slide.areas)) {
             if (exported.has(name)) continue;
             if (content !== undefined && content !== "") {
               parts.push(`@${name}`);
