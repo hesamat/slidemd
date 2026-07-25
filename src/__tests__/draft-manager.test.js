@@ -34,19 +34,10 @@ describe("DraftManager", () => {
 
   describe("saveDraft / loadDraft", () => {
     it("saves and retrieves markdown", async () => {
-      const images = new Map();
-      await DraftManager.saveDraft("# My Deck\n\nSlide content", images);
+      await DraftManager.saveDraft("# My Deck\n\nSlide content");
       const draft = await DraftManager.loadDraft();
       expect(draft).not.toBeNull();
       expect(draft.markdown).toBe("# My Deck\n\nSlide content");
-    });
-
-    it("saves and retrieves images as Blobs", async () => {
-      const images = new Map([["images/photo.png", new Blob([new Uint8Array([0x89])])]]);
-      await DraftManager.saveDraft("# Deck", images);
-      const draft = await DraftManager.loadDraft();
-      expect(draft.images.size).toBe(1);
-      expect(draft.images.get("images/photo.png")).toBeInstanceOf(Blob);
     });
 
     it("returns null when no draft exists", async () => {
@@ -55,8 +46,8 @@ describe("DraftManager", () => {
     });
 
     it("overwrites previous draft on save", async () => {
-      await DraftManager.saveDraft("# First", new Map());
-      await DraftManager.saveDraft("# Second", new Map());
+      await DraftManager.saveDraft("# First");
+      await DraftManager.saveDraft("# Second");
       const draft = await DraftManager.loadDraft();
       expect(draft.markdown).toBe("# Second");
     });
@@ -64,7 +55,7 @@ describe("DraftManager", () => {
 
   describe("clearDraft", () => {
     it("removes saved draft", async () => {
-      await DraftManager.saveDraft("# Deck", new Map());
+      await DraftManager.saveDraft("# Deck");
       await DraftManager.clearDraft();
       const draft = await DraftManager.loadDraft();
       expect(draft).toBeNull();

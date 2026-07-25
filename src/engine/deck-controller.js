@@ -309,42 +309,15 @@ export class DeckController extends EventEmitter {
 
     // Immediately enhance the first slide (don't wait for idle)
     requestAnimationFrame(() => this.enhanceActiveSlideNow());
-
-    // Configure image resolver from stored directory handle
-    this.#loadDeckImagesResolver();
   }
 
-  async #loadDeckImagesResolver() {
-    try {
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      const { DeckLoader } = await import("../data/deck-loader.js");
-
-      DeckImagesResolver.clearCache();
-
-      // Populate resolver cache from in-memory smdImageCache
-      if (DeckLoader.isSmdMode && DeckLoader.smdImageCache.size > 0) {
-        DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
-      }
-
-      await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
-      await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
-    } catch (err) {
-      console.warn("Could not load deck images resolver:", err);
-    }
-  }
-
-  /**
-   * Rewrite image src attributes to blob URLs using the existing cache.
-   * Lighter than #loadDeckImagesResolver — skips directory handle loading
-   * and cache priming. Used after deck reload when the cache is still valid.
-   */
   async #rewriteImages() {
     try {
       const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
       await DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer);
       await DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer);
     } catch {
-      // Resolver not configured — no directory handle loaded yet
+      // ignore
     }
   }
 
@@ -430,21 +403,7 @@ export class DeckController extends EventEmitter {
   }
 
   async handleLocalFileLoad(event) {
-    // Repopulate resolver cache from smdImageCache BEFORE the deck changes,
-    // so #rewriteImages() (triggered by deckchange) can resolve images.
-    try {
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      const { DeckLoader } = await import("../data/deck-loader.js");
-      DeckImagesResolver.clearCache();
-      if (DeckLoader.isSmdMode && DeckLoader.smdImageCache.size > 0) {
-        DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
-      }
-    } catch {
-      // ignore
-    }
     await this.reloadManager.handleLocalFileLoad(event);
-    // Reconfigure image resolver for the newly loaded file
-    await this.#loadDeckImagesResolver();
   }
 
   handleKeyboard(e) {
@@ -676,46 +635,41 @@ export class DeckController extends EventEmitter {
     // Close the modal immediately — the deck will load in the background
     ConversionModal.close();
 
-    const { markdown, images, deckName, importImages } = result;
-    const smdName = `${deckName}.smd`;
+    const { markdown, images, importImages } = result;
 
-    // Build image map for .smd ZIP
-    const imageMap = new Map();
+    // Upload PPTX-extracted images via the CLI server API
     if (importImages && images?.length) {
       for (const img of images) {
         if (!img.base64 || !img.ref) continue;
         const rawName = img.ref.split("/").pop();
         if (!rawName) continue;
         const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+
+        // Convert base64 to File object
         const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
         const binary = atob(raw);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        imageMap.set(`images/${safeName}`, new Blob([bytes]));
-      }
-    }
+        const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
+        const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
+        const file = new File([blob], safeName, { type: blob.type });
 
-    // Generate .smd ZIP blob — keep it in memory for user-triggered save
-    const { SmdHandler } = await import("../core/smd-handler.js");
-    const zipBlob = await SmdHandler.buildSmd(markdown, imageMap);
-
-    // Store images in memory for in-session rendering
-    const { DeckLoader } = await import("../data/deck-loader.js");
-    const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-    if (importImages && images?.length) {
-      DeckLoader.isSmdMode = true;
-      DeckLoader.smdImageCache.clear();
-      for (const [path, blob] of imageMap) {
-        DeckLoader.smdImageCache.set(path, URL.createObjectURL(blob));
+        // Upload via API
+        try {
+          const formData = new FormData();
+          formData.append("image", file);
+          await fetch("/api/upload-image", { method: "POST", body: formData });
+        } catch {
+          console.warn("Failed to upload PPTX image:", safeName);
+        }
       }
-      DeckImagesResolver.setSmdImages(DeckLoader.smdImageCache);
     }
 
     // Store markdown info in localStorage so edit mode can find it
     try {
       localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "smd");
-      localStorage.setItem("webdeck_local_file_name", smdName);
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", "pptx-import");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
     } catch {
       window.__WEBDECK_MARKDOWN__ = markdown;
@@ -732,25 +686,11 @@ export class DeckController extends EventEmitter {
     // Open edit mode so the user can review and edit the result
     this.toggleEditMode();
 
-    // Show success notification with a "Save as .smd" action button
-    const triggerSave = () => {
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = smdName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-    Notification.success("PPTX converted successfully", 8000, {
-      actions: [{ label: "Save as .smd", onClick: triggerSave }],
-    });
+    Notification.success("PPTX converted successfully. Images uploaded to images/ folder.");
 
-    // After edit mode renders, rewrite image sources to blob URLs.
-    // The editor re-renders slides asynchronously, so we retry with
-    // increasing delays to catch whenever the DOM is ready.
+    // After edit mode renders, rewrite image sources to HTTP URLs.
     if (this.elements.slidesContainer) {
+      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
       const rewrite = () => {
         DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
         DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
