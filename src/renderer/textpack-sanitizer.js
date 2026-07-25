@@ -5,100 +5,169 @@
  * to ensure the markdown is always clean, renderable source.
  */
 
+/**
+ * Decode common HTML entities.
+ * @param {string} s
+ * @returns {string}
+ */
+function decodeEntities(s) {
+  if (!s) return "";
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
+/**
+ * Strip HTML tags but decode entities in the text content.
+ * @param {string} s
+ * @returns {string}
+ */
+function stripTags(s) {
+  return decodeEntities(s.replace(/<[^>]+>/g, "")).trim();
+}
+
 export function htmlToMarkdown(html) {
   if (!html) return "";
 
   let md = html;
 
-  // 1. Convert <div class="mermaid" data-mermaid-source="..."> back to ```mermaid code blocks
+  // 1. Convert <pre><code class="language-xxx">...</code></pre> to fenced code blocks
+  md = md.replace(
+    /<pre[^>]*>\s*<code[^>]*class=["'][^"']*(?:language|lang)-(\w+)["'][^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi,
+    (_match, lang, code) => {
+      return `\n\n\`\`\`${lang}\n${decodeEntities(code)}\n\`\`\`\n\n`;
+    },
+  );
+  // Also handle <pre><code> without language
+  md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_match, code) => {
+    return `\n\n\`\`\`\n${decodeEntities(code)}\n\`\`\`\n\n`;
+  });
+  // Handle standalone <pre> blocks
+  md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_match, code) => {
+    return `\n\n\`\`\`\n${decodeEntities(code)}\n\`\`\`\n\n`;
+  });
+
+  // 2. Convert <div class="mermaid" data-mermaid-source="..."> back to ```mermaid code blocks
   md = md.replace(
     /<div\s+class="mermaid"[^>]*data-mermaid-source="([^"]*)"[^>]*><\/div>/gi,
     (_match, source) => {
-      const decoded = source
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"');
-      return `\n\n\`\`\`mermaid\n${decoded}\n\`\`\`\n\n`;
+      return `\n\n\`\`\`mermaid\n${decodeEntities(source)}\n\`\`\`\n\n`;
     },
   );
-
   // Also handle mermaid divs with inner text content
   md = md.replace(/<div\s+class="mermaid"[^>]*>([\s\S]*?)<\/div>/gi, (_match, content) => {
-    const decoded = content
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .trim();
+    const decoded = stripTags(content);
     if (!decoded) return "";
     return `\n\n\`\`\`mermaid\n${decoded}\n\`\`\`\n\n`;
   });
 
-  // 2. Convert <img> tags to markdown images
+  // 3. Convert <img> tags to markdown images
   md = md.replace(/<img\s+[^>]*src=["']([^"']*)["'][^>]*>/gi, (_match, src) => {
-    const decodedSrc = src.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    return `![](${decodedSrc})`;
+    return `![](${decodeEntities(src)})`;
   });
 
-  // 3. Convert headings: <h1>...</h1> through <h6>...</h6>
+  // 4. Convert blockquotes (must come before headings/paragraphs inside blockquotes)
+  // Handle nested HTML inside blockquotes by converting inner HTML first
+  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_match, content) => {
+    // Convert inner content to markdown first
+    let inner = content;
+    // Convert headings inside blockquotes
+    inner = inner.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, level, text) => {
+      return `${"#".repeat(Number(level))} ${stripTags(text)}\n`;
+    });
+    // Convert lists inside blockquotes
+    inner = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, text) => `- ${stripTags(text)}\n`);
+    // Convert paragraphs inside blockquotes
+    inner = inner.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_m, text) => `${stripTags(text)}\n`);
+    // Strip remaining tags
+    inner = stripTags(inner);
+    // Add > prefix to each line
+    const lines = inner.split("\n").filter((l) => l.trim());
+    return lines.map((l) => `> ${l}`).join("\n") + "\n\n";
+  });
+
+  // 5. Convert headings: <h1>...</h1> through <h6>...</h6>
   md = md.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_match, level, content) => {
-    const text = content.replace(/<[^>]+>/g, "").trim();
-    return `${"#".repeat(Number(level))} ${text}\n`;
+    return `${"#".repeat(Number(level))} ${stripTags(content)}\n`;
   });
 
-  // 4. Convert <em>/<i> to italic
+  // 6. Convert <em>/<i> to italic
   md = md.replace(/<em>([\s\S]*?)<\/em>/gi, "*$1*");
   md = md.replace(/<i>([\s\S]*?)<\/i>/gi, "*$1*");
 
-  // 5. Convert <strong>/<b> to bold
+  // 7. Convert <strong>/<b> to bold
   md = md.replace(/<strong>([\s\S]*?)<\/strong>/gi, "**$1**");
   md = md.replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**");
 
-  // 6. Convert <code> to inline code (skip if inside <pre>)
-  md = md.replace(/<pre[^>]*>[\s\S]*?<\/pre>/gi, (preBlock) => {
-    // Preserve <pre> blocks — they'll be handled by markdown-it as code blocks
-    return preBlock;
+  // 8. Convert <code> to inline code
+  md = md.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
+    return `\`${decodeEntities(code)}\``;
   });
-  md = md.replace(/<code>([\s\S]*?)<\/code>/gi, "`$1`");
 
-  // 7. Convert <a href="...">text</a> to [text](url)
+  // 9. Convert <a href="...">text</a> to [text](url)
   md = md.replace(
     /<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
     (_match, href, text) => {
-      const decodedHref = href.replace(/&amp;/g, "&");
-      const innerText = text.replace(/<[^>]+>/g, "");
-      return `[${innerText}](${decodedHref})`;
+      return `[${stripTags(text)}](${decodeEntities(href)})`;
     },
   );
 
-  // 8. Convert <br> to newlines
+  // 10. Convert <br> to newlines
   md = md.replace(/<br\s*\/?>/gi, "\n");
 
-  // 9. Convert <hr> to horizontal rule
+  // 11. Convert <hr> to horizontal rule
   md = md.replace(/<hr\s*\/?>/gi, "\n---\n");
 
-  // 10. Convert <li> to list items
+  // 12. Convert <li> to list items
   md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_match, content) => {
-    const text = content.replace(/<[^>]+>/g, "").trim();
-    return `- ${text}\n`;
+    return `- ${stripTags(content)}\n`;
   });
 
-  // 11. Convert <p> tags to paragraphs
+  // 13. Convert <p> tags to paragraphs
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_match, content) => {
     return content.trim() + "\n\n";
   });
 
-  // 12. Convert <blockquote> to blockquotes
-  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_match, content) => {
-    const text = content.replace(/<[^>]+>/g, "").trim();
-    return `> ${text}\n\n`;
+  // 14. Convert <table> to markdown tables
+  md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
+    let result = "\n";
+    // Extract rows
+    const rows = [];
+    const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch;
+    while ((rowMatch = rowRe.exec(tableContent))) {
+      const cells = [];
+      const cellRe = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
+      let cellMatch;
+      while ((cellMatch = cellRe.exec(rowMatch[1]))) {
+        cells.push(stripTags(cellMatch[1]));
+      }
+      rows.push(cells);
+    }
+    if (rows.length > 0) {
+      // Header row
+      result += `| ${rows[0].join(" | ")} |\n`;
+      result += `| ${rows[0].map(() => "---").join(" | ")} |\n`;
+      // Body rows
+      for (let i = 1; i < rows.length; i++) {
+        result += `| ${rows[i].join(" | ")} |\n`;
+      }
+      result += "\n";
+    }
+    return result;
   });
 
-  // 13. Strip any remaining HTML tags
+  // 15. Strip any remaining HTML tags
   md = md.replace(/<[^>]+>/g, "");
 
-  // 14. Clean up excessive blank lines
+  // 16. Decode any remaining HTML entities
+  md = decodeEntities(md);
+
+  // 17. Clean up excessive blank lines
   md = md.replace(/\n{3,}/g, "\n\n");
 
   return md.trim();
