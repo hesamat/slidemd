@@ -16,6 +16,16 @@ const IMAGES_DIR = path.join(root, 'images');
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
 
+const MIME = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.avif': 'image/avif',
+};
+
 /**
  * Read the full request body as a Buffer.
  * @param {import('node:http').IncomingMessage} req
@@ -95,6 +105,30 @@ export function imageUploadPlugin() {
     return {
         name: 'vite-plugin-upload',
         configureServer(server) {
+
+            // ── GET /images/* — serve uploaded images as static files ──
+            // Must match after the mount prefix since connect does NOT strip req.url
+            const IMAGES_PREFIX = '/images/';
+            server.middlewares.use((req, res, next) => {
+                if (req.method !== 'GET' || !req.url.startsWith(IMAGES_PREFIX)) return next();
+                const fileName = req.url.slice(IMAGES_PREFIX.length);
+                if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+                    res.statusCode = 403;
+                    res.end('Forbidden');
+                    return;
+                }
+                const filePath = path.join(IMAGES_DIR, fileName);
+                if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+                    const ext = path.extname(filePath).toLowerCase();
+                    const mime = MIME[ext] || 'application/octet-stream';
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', mime);
+                    fs.createReadStream(filePath).pipe(res);
+                    return;
+                }
+                next();
+            });
+
             server.middlewares.use('/api/upload-image', async (req, res) => {
                 res.setHeader('Content-Type', 'application/json');
 
