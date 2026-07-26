@@ -97,8 +97,9 @@ export function htmlToMarkdown(html) {
   md = md.replace(/<strong>([\s\S]*?)<\/strong>/gi, "**$1**");
   md = md.replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**");
 
-  // 8. Convert standalone <code> to inline code (only if not already inside a code block)
-  md = md.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
+  // 8. Convert inline <code> (with or without class) to backtick code
+  //    Must run BEFORE step 15 strips all tags
+  md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_match, code) => {
     return `\`${decodeEntities(code)}\``;
   });
 

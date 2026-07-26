@@ -87,9 +87,10 @@ export class OpenDeckModal {
       }
       const markdown = await mdEntry.async("text");
 
-      // Sanitize: convert rendered HTML back to markdown source
-      // (handles both old exports with raw HTML and new exports)
-      const cleanMarkdown = htmlToMarkdown(markdown);
+      // Only sanitize if the content contains HTML tags (old .textpack files).
+      // New exports already have clean markdown from _deckToMarkdown.
+      const hasHtmlTags = /<(?:pre|div|h[1-6]|p|table|blockquote|code)[\s>]/i.test(markdown);
+      const cleanMarkdown = hasHtmlTags ? htmlToMarkdown(markdown) : markdown;
 
       // Extract assets to blob URLs, keyed by both folder prefixes
       const assetUrls = new Map();
