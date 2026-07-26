@@ -649,33 +649,57 @@ export class DeckController extends EventEmitter {
     // Close the modal immediately — the deck will load in the background
     ConversionModal.close();
 
-    const { markdown, images, importImages } = result;
+    let { markdown, images, importImages } = result;
 
     // Upload PPTX-extracted images via the CLI server API
+    // and build a mapping from original filenames to server-saved paths.
+    /** @type {Map<string, string>} */
+    const imagePathMap = new Map();
     if (importImages && images?.length) {
-      for (const img of images) {
-        if (!img.base64 || !img.ref) continue;
-        const rawName = img.ref.split("/").pop();
-        if (!rawName) continue;
-        const safeName = rawName.replace(/\.(emf|wmf)$/i, ".png");
+      await Promise.all(
+        images.map(async (img) => {
+          if (!img.base64 || !img.ref) return;
+          const rawName = img.ref.split("/").pop();
+          if (!rawName) return;
+          const safeName = rawName.replace(/\.(emf|wmf|tif|tiff|bmp)$/i, ".png");
 
-        // Convert base64 to File object
-        const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-        const binary = atob(raw);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
-        const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
-        const file = new File([blob], safeName, { type: blob.type });
+          // Convert base64 to File object
+          const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
+          const binary = atob(raw);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
+          const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
+          const file = new File([blob], safeName, { type: blob.type });
 
-        // Upload via API
-        try {
-          const formData = new FormData();
-          formData.append("image", file);
-          await fetch("/api/upload-image", { method: "POST", body: formData });
-        } catch {
-          console.warn("Failed to upload PPTX image:", safeName);
+          // Upload via API
+          try {
+            const formData = new FormData();
+            formData.append("image", file);
+            const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+            if (!res.ok) {
+              console.warn("Failed to upload PPTX image:", safeName, "status:", res.status);
+              return;
+            }
+            const data = await res.json();
+            if (data?.path) {
+              imagePathMap.set(rawName, data.path);
+            }
+          } catch {
+            console.warn("Failed to upload PPTX image:", safeName);
+          }
+        }),
+      );
+
+      // Rewrite markdown image references to use the server-saved paths.
+      if (imagePathMap.size > 0) {
+        let updated = markdown;
+        for (const [oldName, newPath] of imagePathMap) {
+          const oldRef = `images/${oldName}`;
+          const escaped = oldRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          updated = updated.replace(new RegExp(escaped, "g"), newPath);
         }
+        markdown = updated;
       }
     }
 
