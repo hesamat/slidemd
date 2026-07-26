@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build -- docs/example.smd
+RUN npm run build -- docs/example/slides.md
 
 FROM nginx:alpine
 COPY --from=build /app/dist/example.html /usr/share/nginx/html/index.html

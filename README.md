@@ -21,36 +21,64 @@ docker run -p 8080:80 hesamat/html-presentation
 
 Then open http://localhost:8080.
 
-### Self-Contained .smd Format
-
-SlideMD supports a self-contained `.smd` format that bundles your markdown deck and all images into a single file. This is ideal for sharing presentations without worrying about image dependencies.
-
-- **Open .smd files** via the Open Deck modal (Menu → Open File)
-- **PPTX Import** creates .smd files with embedded images
-
 ## Run Locally
 
-Because the runtime fetches and parses `docs/example.smd` in dev mode, serve the repo root over HTTP (not `file://`). In build output, the parsed deck is embedded so it works fully offline.
-
-```powershell
+```bash
 npm install
 npm run dev
 ```
 
 Opens automatically at http://localhost:8000/index.html.
 
+The dev server starts two processes:
+
+- **CLI server** (`tools/dev-server.mjs`) — serves the deck API, images, and file watching
+- **Vite** — serves the frontend with module transforms and proxies API calls to the CLI server
+
+To open a specific deck:
+
+```bash
+npm run dev -- path/to/slides.md
+```
+
+## Primary Format: `.md + images/`
+
+Presentations are plain Markdown files with a sidecar `images/` folder:
+
+```
+my-presentation/
+  slides.md          ← diffable in git
+  images/
+    diagram.png      ← tracked in git
+    photo.jpg
+```
+
+- Images are referenced with relative paths: `![alt](images/photo.png)`
+- The CLI dev server serves images from disk during development
+- For distribution, images can be served via GitHub raw URLs or embedded as data URIs (build output)
+
+### Sharing: `.textpack`
+
+For single-file sharing, export to `.textpack` (a ZIP archive containing the markdown and images):
+
+```bash
+node tools/dev-server.mjs slides.md  # open the deck
+# Then use the export menu to create a .textpack
+```
+
 ## Repository Layout
 
 - `index.html` - main deck page
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
-- `docs/example.smd` - self-contained presentation bundle (ZIP with deck + images)
+- `docs/example/slides.md` - example deck (diffable in git)
+- `docs/example/images/` - example images
 - `tools/` - build and export scripts
-- `dist/example.html` - generated single-file deck for sharing (build output)
-- `dist/example.pdf` - generated deterministic PDF (optional)
+- `tools/dev-server.mjs` - CLI dev server
+- `dist/slides.html` - generated single-file deck for sharing (build output)
 
-## Authoring docs/example.smd
+## Authoring docs/example/slides.md
 
-- Slides are separated by `---`; the default input file is `docs/example.smd`.
+- Slides are separated by `---`; the default input file is `docs/example/slides.md`.
 - Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
@@ -70,7 +98,7 @@ layout: header-content
 - Point B
 ```
 
-More layouts, backgrounds, and theming recipes live in [docs/example.smd](docs/example.smd).
+More layouts, backgrounds, and theming recipes live in [docs/example/slides.md](docs/example/slides.md).
 
 ## Layout Presets
 
@@ -183,7 +211,7 @@ Note: We use `Alt+` for new slide and duplicate (instead of `Ctrl+N` / `Ctrl+D`)
 
 - Syntax highlighting via Prism; the build inlines assets so it works offline.
 - Math via KaTeX auto-render. Inline: `$...$` or `\(...\)`; display: `$$...$$` or `\[...\]`.
-- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/example.smd](docs/example.smd) for syntax guide.
+- Diagrams via Mermaid. Use ` ```mermaid ` code blocks. See [docs/example/slides.md](docs/example/slides.md) for syntax guide.
 
 ### Math Formatting (KaTeX)
 
@@ -218,9 +246,9 @@ $$E = mc^2$$
 ## Build and Export
 
 - Development server: `npm run dev` (opens http://localhost:8000/index.html)
-- Single-file HTML: `npm run build` (outputs `dist/example.html` with assets inlined)
-- Preview built output: `npm run preview` (serves `dist/example.html`)
-- Deterministic PDF: `npm run pdf` (outputs `dist/example.pdf`)
+- Single-file HTML: `npm run build` (outputs `dist/slides.html` with assets inlined)
+- Preview built output: `npm run preview` (serves `dist/slides.html`)
+- Deterministic PDF: `npm run pdf` (outputs `dist/slides.pdf`)
 - If Chromium is missing after `npm update`, run `npx playwright install chromium` once; `npm run pdf` also runs that install step automatically.
 
 ## Multiple Decks / Lecture Backup
@@ -231,4 +259,4 @@ The `decks/` folder includes alternatives. To build a different source, pass it 
 
 - Images/videos: Use absolute URLs or relative paths served from the same local server.
 - Optional fields: Omit what you do not need; the renderer handles missing fields.
-- When printing to PDF: if `dist/example.pdf` is open in a viewer, the exporter writes a timestamped alternative file.
+- When printing to PDF: if `dist/slides.pdf` is open in a viewer, the exporter writes a timestamped alternative file.

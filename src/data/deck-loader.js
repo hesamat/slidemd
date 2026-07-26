@@ -1,6 +1,6 @@
 /**
  * DeckLoader
- * Loads deck data from embedded HTML, local files, localStorage, or broadcast channels.
+ * Loads deck data from the CLI dev server API, embedded HTML, or broadcast channels.
  * Provides normalization and parsing for deck structures.
  *
  * @class
@@ -60,11 +60,13 @@ export class DeckLoader {
   }
 
   /**
-   * Load a deck from the recent list (reopens from localStorage cache).
+   * Load a deck from the recent list.
+   * Tries localStorage cache first, then falls back to file handle registry.
    * @static
    * @param {string} fileName
+   * @returns {Promise<void>}
    */
-  static loadRecentDeck(fileName) {
+  static async loadRecentDeck(fileName) {
     const recent = this.getRecentDecks();
     const entry = recent.find((d) => d.name === fileName);
     if (!entry) {
@@ -75,15 +77,41 @@ export class DeckLoader {
     const text = localStorage.getItem("webdeck_local_file");
     const storedName = localStorage.getItem("webdeck_local_file_name");
     if (text && storedName === fileName) {
-      // Already loaded — just re-dispatch
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
           detail: { text, fileType: "md", fileName },
         }),
       );
-    } else {
-      Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
+      return;
     }
+
+    const handle = DeckLoader.fileHandleRegistry.get(fileName);
+    if (handle) {
+      try {
+        const permission = await handle.requestPermission({ mode: "read" });
+        if (permission === "granted") {
+          const file = await handle.getFile();
+          const rawText = await file.text();
+
+          localStorage.setItem("webdeck_local_file", rawText);
+          localStorage.setItem("webdeck_local_file_type", "md");
+          localStorage.setItem("webdeck_local_file_name", fileName);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+
+          window.dispatchEvent(
+            new CustomEvent("webdeck-load-local", {
+              detail: { text: rawText, fileType: "md", fileName },
+            }),
+          );
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to reload from file handle:", e);
+        DeckLoader.fileHandleRegistry.delete(fileName);
+      }
+    }
+
+    Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
   }
 
   /**
@@ -97,21 +125,6 @@ export class DeckLoader {
     }
     return window.__WEBDECK_FILE_HANDLE_REGISTRY__;
   }
-
-  /**
-   * In-memory cache for .smd images: relative path → blob URL.
-   * Populated when opening a .smd file, used by DeckImagesResolver.
-   * @static
-   * @type {Map<string, string>}
-   */
-  static smdImageCache = new Map();
-
-  /**
-   * Whether the currently loaded deck is in .smd format.
-   * @static
-   * @type {boolean}
-   */
-  static isSmdMode = false;
 
   /**
    * Whether the browser supports the File System Access API.
@@ -158,90 +171,28 @@ export class DeckLoader {
   }
 
   /**
-   * Load deck data from localStorage, embedded JSON, or fall back to the welcome deck.
+   * Load deck data from the CLI dev server API, embedded JSON, or show welcome deck.
    * @static
    * @returns {Promise<import('../types.js').Deck>}
    */
   static async loadDeckData() {
-    // 1. Try LocalStorage (Shared State)
+    // 1. Try CLI dev server API
     try {
-      const localFile = localStorage.getItem("webdeck_local_file");
-      const fileType = localStorage.getItem("webdeck_local_file_type");
-      const timestamp = localStorage.getItem("webdeck_local_file_timestamp");
-
-      if (localFile && fileType && timestamp) {
-        const age = Date.now() - parseInt(timestamp, 10);
-        const reloadFlag = localStorage.getItem("webdeck_reload_flag");
-
-        // Logic: Load if fresh (30s) or if reload requested
-        if (age < 30000 || reloadFlag === "1") {
-          if (reloadFlag === "1") localStorage.removeItem("webdeck_reload_flag");
-
-          if (fileType === "md" || fileType === "smd") {
-            // For .smd files, restore images from persistent IndexedDB cache
-            if (fileType === "smd") {
-              try {
-                const { DraftManager } = await import("../core/draft-manager.js");
-                const cachedImages = await DraftManager.loadImageCache();
-                if (cachedImages && cachedImages.size > 0) {
-                  this.smdImageCache.clear();
-                  for (const [path, blob] of cachedImages) {
-                    const url = URL.createObjectURL(blob);
-                    this.smdImageCache.set(path, url);
-                  }
-                  this.isSmdMode = true;
-                }
-              } catch {
-                // Image cache load failed — images won't render, but markdown still loads
-              }
-            }
-            await AssetLoader.ensureMarkdownItLoaded();
-            return new MarkdownParser().parseDeckMarkdown(localFile);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("loadDeckData: error loading from localStorage", err);
-      // Don't delete localStorage data on any error - let it fall through
-      // to try other sources (embedded, welcome deck)
-      // Only clear localStorage explicitly when user loads a new file
-    }
-
-    // 1b. Try IndexedDB draft (crash recovery)
-    try {
-      const { DraftManager } = await import("../core/draft-manager.js");
-      const draft = await DraftManager.loadDraft();
-      if (draft) {
-        const fileName = localStorage.getItem("webdeck_local_file_name") || "recovered-deck";
-        const confirmed = window.confirm(
-          "Unsaved draft found from a previous session. Restore it?",
-        );
-        if (confirmed) {
-          // Restore images into smdImageCache
-          this.smdImageCache.clear();
-          for (const [path, blob] of draft.images) {
-            const url = URL.createObjectURL(blob);
-            this.smdImageCache.set(path, url);
-          }
-          this.isSmdMode = draft.images.size > 0;
-
-          localStorage.setItem("webdeck_local_file", draft.markdown);
-          localStorage.setItem("webdeck_local_file_type", draft.images.size > 0 ? "smd" : "md");
-          localStorage.setItem("webdeck_local_file_name", fileName);
-          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-
-          await DraftManager.clearDraft();
+      const res = await fetch("/api/deck");
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.markdown) {
           await AssetLoader.ensureMarkdownItLoaded();
-          return new MarkdownParser().parseDeckMarkdown(draft.markdown);
-        } else {
-          await DraftManager.clearDraft();
+          // Store the API URL so reload can re-fetch fresh content from disk
+          localStorage.setItem("webdeck_source_url", "/api/deck");
+          return new MarkdownParser().parseDeckMarkdown(data.markdown);
         }
       }
-    } catch (err) {
-      console.warn("Draft recovery failed:", err);
+    } catch {
+      // No CLI server running — fall through
     }
 
-    // 2. Try Embedded JSON
+    // 2. Try Embedded JSON (build output)
     const embedded = document.getElementById("deckData");
     if (embedded?.textContent?.trim()) {
       try {
@@ -251,14 +202,9 @@ export class DeckLoader {
       }
     }
 
-    // 3. Default — return an empty deck (no file loaded)
-    //    Clear any stale localStorage from a previous session so the
-    //    title bar doesn't show a leftover file name.
-    localStorage.removeItem("webdeck_local_file");
-    localStorage.removeItem("webdeck_local_file_type");
-    localStorage.removeItem("webdeck_local_file_name");
-    localStorage.removeItem("webdeck_local_file_timestamp");
-    localStorage.removeItem("webdeck_source_url");
+    // 3. Default — show welcome deck
+    // Keep existing localStorage data intact (don't wipe).
+    // User may have a cached deck from a previous session.
 
     await AssetLoader.ensureMarkdownItLoaded();
     return new MarkdownParser().parseDeckMarkdown(
@@ -268,55 +214,43 @@ Markdown-based presentations made simple.
 
 ### What you can do
 
-- **Open a .smd or .md file** to start presenting
+- **Open a file** via Menu → Open File to start presenting
 - **Press \`E\`** to toggle edit mode with live preview
 - **Press \`P\`** to open a viewer for your audience
 - **Press \`D\`** to switch between dark and light themes
 
-<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>
-
-*Loads \`docs/example.smd\` — covers layouts, themes, code, math, and more.*`,
+<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>`,
     );
   }
 
   /**
-   * Loads the bundled example.smd from docs/ via HTTP fetch.
-   * No file picker needed — the file is served by the dev server / host.
+   * Load the bundled example deck via HTTP.
+   * Fetches the markdown from a known path and dispatches it.
    */
   static async openExampleFile() {
     try {
-      const { SmdHandler } = await import("../core/smd-handler.js");
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-
-      const res = await fetch("docs/example.smd");
+      const res = await fetch("docs/example/slides.md");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const { markdown, images } = await SmdHandler.extractFromSmd(blob);
+      const markdown = await res.text();
 
-      // Store images for rendering
-      this.smdImageCache.clear();
-      for (const [path, imgBlob] of images) {
-        const url = URL.createObjectURL(imgBlob);
-        this.smdImageCache.set(path, url);
-      }
-      this.isSmdMode = true;
-      DeckImagesResolver.setSmdImages(this.smdImageCache);
-
-      // Persist image cache for page refresh recovery
-      const { DraftManager } = await import("../core/draft-manager.js");
-      await DraftManager.saveImageCache(images);
+      // Tell the CLI server where the example deck lives so it can serve images
+      await fetch("/api/deck/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dir: "docs/example" }),
+      }).catch(() => {});
 
       localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "smd");
-      localStorage.setItem("webdeck_local_file_name", "example.smd");
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", "example");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
 
-      this.addRecentDeck("example.smd");
+      this.addRecentDeck("example");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "smd", fileName: "example.smd" },
+          detail: { text: markdown, fileType: "md", fileName: "example" },
         }),
       );
     } catch (e) {

@@ -2,32 +2,31 @@
  * OpenDeckModal
  *
  * Custom modal for opening deck files.
- * Supports .smd (ZIP archive with images) and .md (remote URLs only).
+ * Supports .textpack archives (ZIP with markdown + images) and .md files.
  * Uses File System Access API on Chromium, falls back to <input> on Safari/Firefox.
  */
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
-import { SmdHandler } from "../../core/smd-handler.js";
 import { DraftManager } from "../../core/draft-manager.js";
 
 export class OpenDeckModal {
   static _el = null;
   static _fileListEl = null;
-  static _smdBtn = null;
+  static _textpackBtn = null;
   static _mdBtn = null;
   static _previousFocus = null;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
     this._fileListEl = document.getElementById("openDeckFileList");
-    this._smdBtn = document.getElementById("openDeckSmdBtn");
+    this._textpackBtn = document.getElementById("openDeckTextpackBtn");
     this._mdBtn = document.getElementById("openDeckMdBtn");
 
     if (!this._el) return;
 
     document.getElementById("openDeckModalOverlay")?.addEventListener("click", () => this.hide());
     document.getElementById("closeOpenDeckModalBtn")?.addEventListener("click", () => this.hide());
-    this._smdBtn?.addEventListener("click", () => this._openSmdFile());
+    this._textpackBtn?.addEventListener("click", () => this._openTextpackFile());
     this._mdBtn?.addEventListener("click", () => this._openMdFile());
 
     document.addEventListener("keydown", (e) => {
@@ -43,7 +42,7 @@ export class OpenDeckModal {
     this._el.classList.remove("webdeck-hidden");
     this._fileListEl.innerHTML = "";
     this._renderRecentDecks();
-    this._smdBtn?.focus();
+    this._textpackBtn?.focus();
   }
 
   static hide() {
@@ -53,70 +52,111 @@ export class OpenDeckModal {
     this._previousFocus = null;
   }
 
-  static async _openSmdFile() {
+  /**
+   * Open a .textpack file (ZIP archive containing text.markdown + assets/).
+   * Extracts to memory and loads the deck.
+   */
+  static async _openTextpackFile() {
     try {
-      let file;
-      let fileHandle = null;
+      const { default: JSZip } = await import("jszip");
 
-      // Chromium: use File System Access API for direct re-saving later
+      let file;
       if ("showOpenFilePicker" in window) {
-        [fileHandle] = await window.showOpenFilePicker({
+        [file] = await window.showOpenFilePicker({
           types: [
             {
-              description: "SlideMD Presentation",
-              accept: { "application/octet-stream": [".smd"] },
+              description: "Textpack archive",
+              accept: { "application/zip": [".textpack"] },
             },
           ],
         });
-        file = await fileHandle.getFile();
+        file = await file.getFile();
       } else {
-        // Safari/Firefox fallback
-        file = await this._pickFileViaInput(".smd");
+        file = await this._pickFileViaInput(".textpack");
         if (!file) return;
       }
 
-      const { markdown, images } = await SmdHandler.extractFromSmd(file);
+      const buf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
 
-      DeckLoader.smdImageCache.clear();
-      for (const [path, blob] of images) {
-        const url = URL.createObjectURL(blob);
-        DeckLoader.smdImageCache.set(path, url);
+      // Extract text.markdown (or deck.md)
+      const mdEntry = zip.file("text.markdown") || zip.file("deck.md");
+      if (!mdEntry) {
+        throw new Error("Not a valid .textpack: missing text.markdown or deck.md");
       }
-      DeckLoader.isSmdMode = true;
+      const markdown = await mdEntry.async("text");
 
-      if (fileHandle) {
-        DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
+      // Extract assets to blob URLs, keyed by both folder prefixes
+      const assetUrls = new Map();
+      const assetsFolder = zip.folder("assets") || zip.folder("images");
+      if (assetsFolder) {
+        const tasks = [];
+        assetsFolder.forEach((entryPath, entry) => {
+          if (!entry.dir) {
+            tasks.push(
+              (async () => {
+                const data = await entry.async("blob");
+                const name = entryPath.split("/").pop();
+                const blobUrl = URL.createObjectURL(data);
+                // Store under both prefixes so markdown references resolve
+                assetUrls.set(`assets/${name}`, blobUrl);
+                assetUrls.set(`images/${name}`, blobUrl);
+              })(),
+            );
+          }
+        });
+        await Promise.all(tasks);
       }
 
-      localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "smd");
-      localStorage.setItem("webdeck_local_file_name", file.name);
+      // Rewrite image paths in markdown to use blob URLs so they load without a dev server
+      let resolvedMarkdown = markdown;
+      for (const [relPath, blobUrl] of assetUrls) {
+        // Handle <img src="images/...">
+        const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        resolvedMarkdown = resolvedMarkdown.replace(
+          new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
+          `$1${blobUrl}$2`,
+        );
+        // Handle markdown image syntax ![alt](images/...)
+        resolvedMarkdown = resolvedMarkdown.replace(
+          new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
+          `$1${blobUrl}$2`,
+        );
+      }
+
+      localStorage.setItem("webdeck_local_file", resolvedMarkdown);
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", file.name.replace(/\.textpack$/, ""));
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      DeckLoader.addRecentDeck(file.name);
-      await DraftManager.saveDraft(markdown, images);
-      // Persist image cache for page refresh recovery
-      await DraftManager.saveImageCache(images);
+      DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
+      await DraftManager.saveDraft(resolvedMarkdown, assetUrls);
 
       this.hide();
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
-          detail: { text: markdown, fileType: "smd", fileName: file.name },
+          detail: {
+            text: resolvedMarkdown,
+            fileType: "md",
+            fileName: file.name.replace(/\.textpack$/, ""),
+          },
         }),
       );
 
-      // Clear stale draft (crash recovery) — image cache persists separately
       await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
-        console.error("Failed to open .smd file:", e);
-        Notification.error("Failed to open .smd file");
+        console.error("Failed to open .textpack file:", e);
+        Notification.error("Failed to open .textpack file");
       }
     }
   }
 
+  /**
+   * Open a .md file using the File System Access API or file input fallback.
+   */
   static async _openMdFile() {
     try {
       let file;
@@ -140,9 +180,6 @@ export class OpenDeckModal {
 
       const rawText = await file.text();
 
-      DeckLoader.isSmdMode = false;
-      DeckLoader.smdImageCache.clear();
-
       if (fileHandle) {
         DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
       }
@@ -151,7 +188,7 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_source_url", file.name);
 
       DeckLoader.addRecentDeck(file.name);
       await DraftManager.saveDraft(rawText, new Map());
@@ -176,7 +213,7 @@ export class OpenDeckModal {
 
   /**
    * Safari/Firefox fallback: creates a hidden <input type="file"> to pick files.
-   * @param {string} accept - e.g. ".smd" or ".md"
+   * @param {string} accept - e.g. ".md"
    * @returns {Promise<File | null>}
    */
   static _pickFileViaInput(accept) {
@@ -257,8 +294,8 @@ export class OpenDeckModal {
       btn.appendChild(nameSpan);
       btn.appendChild(timeSpan);
 
-      btn.addEventListener("click", () => {
-        DeckLoader.loadRecentDeck(entry.name);
+      btn.addEventListener("click", async () => {
+        await DeckLoader.loadRecentDeck(entry.name);
         this.hide();
       });
 

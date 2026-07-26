@@ -1,13 +1,10 @@
 /**
  * SaveManager
  *
- * Handles saving the deck to a file (File System Access API or Blob download).
- * Extracted from EditController.
+ * Handles saving the deck to disk via the CLI dev server API,
+ * with fallback to File System Access API or Blob download.
  */
 import { Notification } from "../../renderer/notification.js";
-import { DeckLoader } from "../../data/deck-loader.js";
-import { SmdHandler } from "../../core/smd-handler.js";
-import { DraftManager } from "../../core/draft-manager.js";
 
 export class SaveManager {
   /**
@@ -49,13 +46,10 @@ export class SaveManager {
   }
 
   /**
-   * Update the save state.  The save action is now triggered from the
-   * main app menu (top-bar dropdown) rather than a button next to the
-   * markdown editor, so this method is currently a no-op kept for API
-   * compatibility.
+   * Update the save state. No-op — save is triggered from the main menu.
    */
   updateButton() {
-    // no-op (save button removed from editor body header; lives in main menu)
+    // no-op
   }
 
   async save() {
@@ -71,18 +65,26 @@ export class SaveManager {
 
     try {
       const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
-      const hasLocalImages = DeckLoader.smdImageCache.size > 0;
 
-      if (hasLocalImages) {
-        const zipBlob = await SmdHandler.buildSmd(fullMarkdown, DeckLoader.smdImageCache);
-        await this._saveBlob(zipBlob, "presentation.smd", "application/octet-stream");
-      } else {
-        const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
-        await this._saveBlob(mdBlob, "deck.md", "text/markdown");
+      // Try CLI dev server API
+      try {
+        const res = await fetch("/api/deck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: fullMarkdown }),
+        });
+        if (res.ok) {
+          Notification.success("Deck saved to disk!");
+          return;
+        }
+      } catch {
+        // No CLI server — fall through to file picker
       }
 
-      await DraftManager.clearDraft();
-      Notification.success("Deck saved successfully!");
+      // Fallback: save via file picker / download
+      const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
+      await this._saveBlob(mdBlob, "deck.md");
+      Notification.success("Deck saved!");
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);
@@ -91,14 +93,14 @@ export class SaveManager {
     }
   }
 
-  async _saveBlob(blob, fileName, mimeType) {
+  async _saveBlob(blob, fileName) {
     if (window.showSaveFilePicker) {
       const fileHandle = await window.showSaveFilePicker({
         suggestedName: fileName,
         types: [
           {
-            description: fileName.endsWith(".smd") ? "SlideMD Presentation" : "Markdown file",
-            accept: { [mimeType]: [`.${fileName.split(".").pop()}`] },
+            description: "Markdown file",
+            accept: { "text/markdown": [".md"] },
           },
         ],
       });

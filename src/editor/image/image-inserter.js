@@ -6,8 +6,6 @@
  * Uses AbortController for clean teardown of drag/drop/paste listeners.
  */
 
-import { DeckLoader } from "../../data/deck-loader.js";
-
 export class ImageInserter {
   /**
    * @param {object} opts
@@ -53,16 +51,7 @@ export class ImageInserter {
   async pickAndInsert() {
     if (!this.markdownEditor) return;
 
-    // In .md mode: prompt for image URL directly
-    if (!DeckLoader.isSmdMode) {
-      const url = prompt("Enter image URL (https://...):");
-      if (!url || !url.startsWith("http")) return;
-      const snippet = this.imageBg.insertImageUrl(url);
-      this._insertSnippet(snippet);
-      return;
-    }
-
-    // In .smd mode: use a native file picker to select an image
+    // Use a native file picker to select an image, upload via API
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -131,7 +120,6 @@ export class ImageInserter {
       "dragover",
       (e) => {
         if (!this._getIsEditMode()) return;
-        if (!DeckLoader.isSmdMode) return;
         const types = [...(e.dataTransfer?.types || [])];
         const items = [...(e.dataTransfer?.items || [])];
         const hasImagePath = types.includes("text/x-webdeck-image");
@@ -148,7 +136,6 @@ export class ImageInserter {
       "drop",
       async (e) => {
         if (!this._getIsEditMode()) return;
-        if (!DeckLoader.isSmdMode) return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -170,7 +157,6 @@ export class ImageInserter {
       "paste",
       async (e) => {
         if (!this._getIsEditMode()) return;
-        if (!DeckLoader.isSmdMode) return;
         const items = e.clipboardData?.items;
         if (!items) return;
         for (const item of items) {

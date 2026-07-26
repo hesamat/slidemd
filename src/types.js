@@ -96,6 +96,7 @@
  * @property {HTMLElement} menuSaveBtn
  * @property {HTMLElement} menuPrintBtn
  * @property {HTMLElement} menuExportHtmlBtn
+ * @property {HTMLElement} menuExportTextpackBtn
  * @property {HTMLElement} menuNewPresentationBtn
  * @property {HTMLElement} menuConvertPptxBtn
  * @property {HTMLElement} printBtn

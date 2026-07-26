@@ -36,10 +36,10 @@ jobs:
         run: npx playwright install chromium
 
       - name: Build HTML slides
-        run: npm run build -- docs/example.smd
+        run: npm run build -- docs/example/slides.md
 
       - name: Generate PDF
-        run: npm run pdf
+        run: npm run pdf -- slides.html
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

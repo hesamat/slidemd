@@ -138,24 +138,31 @@ export class StyleApplier {
   }
 
   async pickImage(onSelect) {
-    const { DeckLoader } = await import("../../data/deck-loader.js");
-
-    // In .md mode: prompt for image URL
-    if (!DeckLoader.isSmdMode) {
-      const url = prompt("Enter image URL (https://...):");
-      if (url && url.startsWith("http")) {
-        onSelect(url);
-      }
-      return;
-    }
-
-    // In .smd mode: use native file picker
+    // Use native file picker, upload via API
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+
+      // Upload via CLI server API
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.path) {
+            onSelect(result.path);
+            return;
+          }
+        }
+      } catch {
+        // Fall through to blob URL fallback
+      }
+
+      // Fallback: blob URL (for browser-only mode without CLI server)
       const blobUrl = URL.createObjectURL(file);
       onSelect(blobUrl);
     };

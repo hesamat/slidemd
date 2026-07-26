@@ -114,9 +114,8 @@ export class ReloadManager extends EventEmitter {
         const hasLocalData = localStorage.getItem("webdeck_local_file");
 
         if (!hasLocalData) {
-          // No localStorage data and no file handle - reload the page to get the default deck
-          console.log("[Reload] No file loaded, reloading page to get default deck");
-          window.location.reload();
+          // No localStorage data and no file handle - show welcome deck
+          Notification.info("No deck loaded. Use Menu → Open File to load a presentation.");
           return;
         }
 
@@ -125,8 +124,17 @@ export class ReloadManager extends EventEmitter {
           const sourceUrl = localStorage.getItem("webdeck_source_url");
           if (sourceUrl) {
             try {
-              console.log("[Reload] Re-fetching from source URL:", sourceUrl);
-              const freshText = await DeckLoader.fetchText(sourceUrl, { cache: "no-cache" });
+              const response = await fetch(sourceUrl, { cache: "no-cache" });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const contentType = response.headers.get("content-type") || "";
+              let freshText;
+              if (contentType.includes("application/json")) {
+                const data = await response.json();
+                freshText = data?.markdown;
+              } else {
+                freshText = await response.text();
+              }
+              if (!freshText) throw new Error("No markdown content in response");
               await AssetLoader.ensureMarkdownItLoaded();
               const newDeck = new MarkdownParser().parseDeckMarkdown(freshText);
               // Update localStorage with fresh content
