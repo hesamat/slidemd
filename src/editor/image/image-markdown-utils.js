@@ -202,11 +202,26 @@ export function readImageSettings(imgElement) {
   const style = imgElement.style;
   const transform = style.transform || "";
   const rotMatch = transform.match(ROTATION_RE);
+
+  // Parse width: use explicit pixel value, fall back to rendered dimensions
+  // for percentage (e.g. "100%") or non-numeric values.
+  let width = parseFloat(style.width);
+  if (!Number.isFinite(width) || (style.width && style.width.includes("%"))) {
+    width = imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX;
+  }
+
+  // Parse height: use explicit pixel value, fall back to rendered dimensions
+  // for percentage, "auto", or non-numeric values.
+  let height = parseFloat(style.height);
+  if (!Number.isFinite(height) || (style.height && style.height.includes("%"))) {
+    height = imgElement.offsetHeight || null;
+  }
+
   return {
     left: parseFloat(style.left) || 0,
     top: parseFloat(style.top) || 0,
-    width: parseFloat(style.width) || imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX,
-    height: parseFloat(style.height) || null,
+    width,
+    height,
     opacity: style.opacity !== "" ? parseFloat(style.opacity) : 1,
     borderRadius: parseFloat(style.borderRadius) || 0,
     boxShadow: style.boxShadow || "none",
