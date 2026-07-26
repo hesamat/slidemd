@@ -9,7 +9,9 @@ import { ImagePropertiesPanel } from "./image-properties-panel.js";
 import { ImageDragController } from "./image-drag-controller.js";
 import {
   parseAllImages,
+  parseImagesInArea,
   getImageOrdinalIndex,
+  getImageOrdinalIndexInArea,
   extractAltText,
   getAreaContentRange,
   findMarkdownPositionOfElement,
@@ -323,8 +325,10 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !img) return;
 
-    const entries = parseAllImages(md);
-    const draggedIdx = getImageOrdinalIndex(img);
+    const area = img.closest(".slide__area");
+    const areaName = area?.dataset.areaName || "main";
+    const entries = parseImagesInArea(md, areaName);
+    const draggedIdx = getImageOrdinalIndexInArea(img);
     if (draggedIdx < 0 || draggedIdx >= entries.length) return;
 
     const draggedEntry = entries[draggedIdx];
@@ -333,8 +337,8 @@ export class ImageInteractionHandler {
     let insertAt = -1;
     if (targetEl) {
       if (targetEl.tagName === "IMG") {
-        // Target is another image - find its entry
-        const targetIdx = getImageOrdinalIndex(targetEl);
+        // Target is another image - find its entry in the same area
+        const targetIdx = getImageOrdinalIndexInArea(targetEl);
         if (targetIdx >= 0 && targetIdx < entries.length) {
           // Adjust if target was after dragged
           const adjustedIdx = targetIdx > draggedIdx ? targetIdx - 1 : targetIdx;
@@ -352,19 +356,16 @@ export class ImageInteractionHandler {
       }
     }
 
-    // If target not found, insert at end of area
+    // If target not found, insert at end of area (use md coords for consistency)
     if (insertAt < 0) {
-      const area = img.closest(".slide__area");
-      const areaName = area?.dataset.areaName || "main";
-      const withoutImage = md.slice(0, draggedEntry.start) + md.slice(draggedEntry.end);
-      const range = getAreaContentRange(withoutImage, areaName);
+      const range = getAreaContentRange(md, areaName);
       insertAt = range.to;
     }
 
     // Remove the dragged entry from the markdown
     const withoutImage = md.slice(0, draggedEntry.start) + md.slice(draggedEntry.end);
 
-    // Adjust insertAt if it was after the dragged entry
+    // Adjust insertAt if it was after the dragged entry (insertAt is in md coords)
     if (insertAt > draggedEntry.start) {
       insertAt -= draggedEntry.fullTag.length;
     }
@@ -508,11 +509,12 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md) return;
 
-    const entries = parseAllImages(md);
-    const idx = getImageOrdinalIndex(img);
+    const area = img.closest(".slide__area");
+    const areaName = area?.dataset.areaName || "main";
+    const entries = parseImagesInArea(md, areaName);
+    const idx = getImageOrdinalIndexInArea(img);
     if (idx < 0 || idx >= entries.length) return;
 
-    const area = img.closest(".slide__area");
     const scale = getStageScale();
 
     // Use rendered bounding rect so the image keeps its visual size
@@ -552,8 +554,10 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md) return;
 
-    const entries = parseAllImages(md);
-    const idx = getImageOrdinalIndex(img);
+    const area = img.closest(".slide__area");
+    const areaName = area?.dataset.areaName || "main";
+    const entries = parseImagesInArea(md, areaName);
+    const idx = getImageOrdinalIndexInArea(img);
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
@@ -563,7 +567,6 @@ export class ImageInteractionHandler {
     // to a fixed-size HTML img they lose that centring and jump to the
     // area's top-left. We compute left/top offsets that keep the centre
     // at the same point so the picture appears stationary.
-    const area = img.closest(".slide__area");
     const scale = getStageScale();
     const areaW = area ? Math.max(1, area.getBoundingClientRect().width / scale) : AREA_DEFAULT_W;
     const areaH = area ? Math.max(1, area.getBoundingClientRect().height / scale) : AREA_DEFAULT_H;

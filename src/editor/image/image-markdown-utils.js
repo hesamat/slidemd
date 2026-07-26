@@ -69,6 +69,40 @@ export function parseAllImages(markdown) {
 }
 
 /**
+ * Find all image entries within a specific area of a slide markdown string.
+ * Filters parseAllImages results to only include images whose positions
+ * fall within the given area's content range.
+ *
+ * @param {string} markdown - Full slide markdown
+ * @param {string} areaName - Area name (e.g. "main", "media")
+ * @returns {Array} Filtered image entries with positions relative to the full markdown
+ */
+export function parseImagesInArea(markdown, areaName) {
+  const allImages = parseAllImages(markdown);
+  const range = getAreaContentRange(markdown, areaName);
+  // If the area range is empty (no @area markers), return all images
+  if (range.from === range.to && range.from === (markdown || "").length) {
+    return allImages;
+  }
+  return allImages.filter(
+    (entry) => entry.start >= range.from && entry.start < range.to,
+  );
+}
+
+/**
+ * Get the ordinal index of an `<img>` element among all images in its
+ * parent area (0-based). Uses the area's data-area-name to scope the count.
+ *
+ * @param {HTMLElement} imgElement
+ * @returns {number} Index, or -1 if not found in an area
+ */
+export function getImageOrdinalIndexInArea(imgElement) {
+  const area = imgElement.closest(".slide__area");
+  if (!area) return -1;
+  return Array.from(area.querySelectorAll("img")).indexOf(imgElement);
+}
+
+/**
  * Get the ordinal index of an `<img>` element among all images in its
  * parent slide (0-based).
  *
