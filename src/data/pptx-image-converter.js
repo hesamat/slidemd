@@ -26,8 +26,14 @@ export async function convertEmfImages(slides, images) {
   for (const img of images) {
     if (img.mimeType !== "image/emf" && img.mimeType !== "image/wmf") continue;
     try {
-      const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-      const binary = atob(raw);
+      const raw = img.base64
+        .replace(/^data:[^;]+;base64,/, "")
+        .replace(/\s+/g, "")
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+      const pad = raw.length % 4;
+      const padded = pad ? raw + "=".repeat(4 - pad) : raw;
+      const binary = atob(padded);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
@@ -81,8 +87,14 @@ export async function convertTiffImages(slides, images) {
   for (const img of images) {
     if (img.mimeType !== "image/tiff") continue;
     try {
-      const raw = img.base64.replace(/^data:[^;]+;base64,/, "");
-      const binary = atob(raw);
+      const raw = img.base64
+        .replace(/^data:[^;]+;base64,/, "")
+        .replace(/\s+/g, "")
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+      const pad = raw.length % 4;
+      const padded = pad ? raw + "=".repeat(4 - pad) : raw;
+      const binary = atob(padded);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
