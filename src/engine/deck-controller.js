@@ -736,7 +736,19 @@ export class DeckController extends EventEmitter {
     // Open edit mode so the user can review and edit the result
     this.toggleEditMode();
 
-    Notification.success("PPTX converted successfully. Images uploaded to images/ folder.");
+    Notification.success("PPTX converted successfully. Images uploaded to images/ folder.", 8000, {
+      actions: [
+        {
+          label: "Save as Deck",
+          onClick: () => {
+            const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+            if (editCtrl?.saveManager) {
+              editCtrl.saveManager.save();
+            }
+          },
+        },
+      ],
+    });
 
     // After edit mode renders, rewrite image sources to HTTP URLs.
     if (this.elements.slidesContainer) {
