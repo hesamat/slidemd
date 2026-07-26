@@ -8,7 +8,6 @@
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
-import { htmlToMarkdown } from "../../renderer/textpack-sanitizer.js";
 
 export class OpenDeckModal {
   static _el = null;
@@ -87,11 +86,6 @@ export class OpenDeckModal {
       }
       const markdown = await mdEntry.async("text");
 
-      // Only sanitize if the content contains HTML tags (old .textpack files).
-      // New exports already have clean markdown from _deckToMarkdown.
-      const hasHtmlTags = /<(?:pre|div|h[1-6]|p|table|blockquote|code)[\s>]/i.test(markdown);
-      const cleanMarkdown = hasHtmlTags ? htmlToMarkdown(markdown) : markdown;
-
       // Extract assets to blob URLs, keyed by both folder prefixes
       const assetUrls = new Map();
       const assetsFolder = zip.folder("assets") || zip.folder("images");
@@ -115,7 +109,7 @@ export class OpenDeckModal {
       }
 
       // Rewrite image paths in markdown to use blob URLs so they load without a dev server
-      let resolvedMarkdown = cleanMarkdown;
+      let resolvedMarkdown = markdown;
       for (const [relPath, blobUrl] of assetUrls) {
         // Handle <img src="images/...">
         const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

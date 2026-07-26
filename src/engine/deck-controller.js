@@ -581,7 +581,12 @@ export class DeckController extends EventEmitter {
   }
 
   async handleTextpackExport({ filename = null } = {}) {
-    await TextpackExportManager.handleTextpackExport(this.deck, { filename });
+    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+    const markdown =
+      editController?.markdownEditor?.getValue?.() ??
+      localStorage.getItem("webdeck_local_file") ??
+      "";
+    await TextpackExportManager.handleTextpackExport(markdown, this.deck, { filename });
   }
 
   async handleNewPresentation() {
