@@ -27,7 +27,7 @@ export async function convertEmfImages(slides, images) {
     if (img.mimeType !== "image/emf" && img.mimeType !== "image/wmf") continue;
     try {
       const raw = img.base64
-        .replace(/^data:[^;]+;base64,/, "")
+        .replace(/^data:[^;]*;base64,/, "")
         .replace(/\s+/g, "")
         .replace(/-/g, "+")
         .replace(/_/g, "/");
@@ -94,7 +94,7 @@ export async function convertTiffImages(slides, images) {
     if (img.mimeType !== "image/tiff") continue;
     try {
       const raw = img.base64
-        .replace(/^data:[^;]+;base64,/, "")
+        .replace(/^data:[^;]*;base64,/, "")
         .replace(/\s+/g, "")
         .replace(/-/g, "+")
         .replace(/_/g, "/");

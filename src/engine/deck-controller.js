@@ -665,7 +665,7 @@ export class DeckController extends EventEmitter {
 
           // Convert base64 to File object
           const raw = img.base64
-            .replace(/^data:[^;]+;base64,/, "")
+            .replace(/^data:[^;]*;base64,/, "")
             .replace(/\s+/g, "")
             .replace(/-/g, "+")
             .replace(/_/g, "/");
