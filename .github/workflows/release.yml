@@ -37,12 +37,12 @@ jobs:
         run: npm run build -- docs/example/slides.md
 
       - name: Generate PDF
-        run: npm run pdf
+        run: npm run pdf -- slides.html
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/example.html
-            dist/example.pdf
+            dist/slides.html
+            dist/slides.pdf
           generate_release_notes: true
