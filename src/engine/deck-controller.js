@@ -741,10 +741,15 @@ export class DeckController extends EventEmitter {
         {
           label: "Save as Deck",
           onClick: () => {
-            const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-            if (editCtrl?.saveManager) {
-              editCtrl.saveManager.save();
-            }
+            const blob = new Blob([markdown], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${result.deckName || "pptx-import"}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           },
         },
       ],

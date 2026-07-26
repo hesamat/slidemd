@@ -383,10 +383,10 @@ export class ImageInteractionHandler {
     const before = withoutImage.slice(0, insertAt);
     const after = withoutImage.slice(insertAt);
     const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    // Ensure blank line after image for markdown-it block rendering
-    const afterStartsNewline = after.startsWith("\n");
-    const trailingNewlines = afterStartsNewline ? "" : "\n";
-    const updated = before + needsNewline + newTag + "\n" + trailingNewlines + after;
+    // Ensure blank line after image for markdown-it block rendering.
+    // If `after` already starts with \n, we need an extra \n to form the blank line.
+    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
+    const updated = before + needsNewline + newTag + trailingNewlines + after;
 
     // Move the image in the DOM immediately for visual snap, then update markdown.
     // The markdown update uses suppressOnChange so it won't trigger a re-render
