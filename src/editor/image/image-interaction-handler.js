@@ -458,8 +458,10 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !this._selectedImg) return;
 
-    const entries = parseAllImages(md);
-    const idx = getImageOrdinalIndex(this._selectedImg);
+    const area = this._selectedImg.closest(".slide__area");
+    const areaName = area?.dataset?.areaName;
+    const entries = areaName ? parseImagesInArea(md, areaName) : parseAllImages(md);
+    const idx = areaName ? getImageOrdinalIndexInArea(this._selectedImg) : getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
@@ -480,8 +482,10 @@ export class ImageInteractionHandler {
     const md = this._getMarkdown?.();
     if (!md || !this._selectedImg) return;
 
-    const entries = parseAllImages(md);
-    const idx = getImageOrdinalIndex(this._selectedImg);
+    const area = this._selectedImg.closest(".slide__area");
+    const areaName = area?.dataset?.areaName;
+    const entries = areaName ? parseImagesInArea(md, areaName) : parseAllImages(md);
+    const idx = areaName ? getImageOrdinalIndexInArea(this._selectedImg) : getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const img = this._selectedImg;
