@@ -33,7 +33,13 @@ export async function convertEmfImages(slides, images) {
         .replace(/_/g, "/");
       const pad = raw.length % 4;
       const padded = pad ? raw + "=".repeat(4 - pad) : raw;
-      const binary = atob(padded);
+      let binary;
+      try {
+        binary = atob(padded);
+      } catch (err) {
+        console.warn(`Could not decode base64 for ${img.ref} (sample: ${padded.slice(0, 60)})`);
+        continue;
+      }
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
@@ -94,7 +100,13 @@ export async function convertTiffImages(slides, images) {
         .replace(/_/g, "/");
       const pad = raw.length % 4;
       const padded = pad ? raw + "=".repeat(4 - pad) : raw;
-      const binary = atob(padded);
+      let binary;
+      try {
+        binary = atob(padded);
+      } catch (err) {
+        console.warn(`Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`);
+        continue;
+      }
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
