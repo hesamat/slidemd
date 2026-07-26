@@ -6,5 +6,5 @@ COPY . .
 RUN npm run build -- docs/example/slides.md
 
 FROM nginx:alpine
-COPY --from=build /app/dist/example.html /usr/share/nginx/html/index.html
+COPY --from=build /app/dist/slides.html /usr/share/nginx/html/index.html
 EXPOSE 80

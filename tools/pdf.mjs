@@ -29,7 +29,7 @@ function resolveHtmlPath() {
     const htmlArg = args.find(arg => !arg.startsWith("--"));
 
     if (!htmlArg) {
-        return path.join(distDir, "example.html");
+        return path.join(distDir, "slides.html");
     }
 
     // Check if it's an absolute path
