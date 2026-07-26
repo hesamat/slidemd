@@ -54,9 +54,6 @@ export class TextpackExportManager {
       // 4. Trigger download
       const outputFilename = filename || TextpackExportManager._generateFilename(deck);
       TextpackExportManager._downloadBlob(buf, outputFilename);
-    } catch (e) {
-      console.warn("Textpack export failed:", e);
-      throw e;
     } finally {
       TextpackExportManager._isExporting = false;
     }

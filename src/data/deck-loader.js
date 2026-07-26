@@ -203,11 +203,8 @@ export class DeckLoader {
     }
 
     // 3. Default — show welcome deck
-    localStorage.removeItem("webdeck_local_file");
-    localStorage.removeItem("webdeck_local_file_type");
-    localStorage.removeItem("webdeck_local_file_name");
-    localStorage.removeItem("webdeck_local_file_timestamp");
-    localStorage.removeItem("webdeck_source_url");
+    // Keep existing localStorage data intact (don't wipe).
+    // User may have a cached deck from a previous session.
 
     await AssetLoader.ensureMarkdownItLoaded();
     return new MarkdownParser().parseDeckMarkdown(

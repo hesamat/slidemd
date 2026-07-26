@@ -124,17 +124,15 @@ export class ReloadManager extends EventEmitter {
           const sourceUrl = localStorage.getItem("webdeck_source_url");
           if (sourceUrl) {
             try {
-              const res = await fetch(sourceUrl, { cache: "no-cache" });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const text = await res.text();
-              // Handle JSON API responses (e.g., /api/deck returns { markdown })
+              const response = await fetch(sourceUrl, { cache: "no-cache" });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const contentType = response.headers.get("content-type") || "";
               let freshText;
-              try {
-                const data = JSON.parse(text);
+              if (contentType.includes("application/json")) {
+                const data = await response.json();
                 freshText = data?.markdown;
-              } catch {
-                // Not JSON — treat as raw markdown
-                freshText = text;
+              } else {
+                freshText = await response.text();
               }
               if (!freshText) throw new Error("No markdown content in response");
               await AssetLoader.ensureMarkdownItLoaded();

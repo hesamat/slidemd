@@ -18,7 +18,18 @@ function decodeEntities(s) {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
+    .replace(/&nbsp;/g, " ")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&hellip;/g, "…")
+    .replace(/&copy;/g, "©")
+    .replace(/&reg;/g, "®")
+    .replace(/&euro;/g, "€")
+    .replace(/&pound;/g, "£")
+    .replace(/&laquo;/g, "«")
+    .replace(/&raquo;/g, "»")
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => String.fromCodePoint(parseInt(h, 16)));
 }
 
 /**
@@ -117,9 +128,24 @@ export function htmlToMarkdown(html) {
   // 11. Convert <hr> to horizontal rule
   md = md.replace(/<hr\s*\/?>/gi, "\n---\n");
 
-  // 12. Convert <li> to list items
-  md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_match, content) => {
-    return `- ${stripTags(content)}\n`;
+  // 12. Convert ordered lists <ol> and unordered lists <ul>
+  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_match, inner) => {
+    let idx = 0;
+    return (
+      inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, content) => {
+        idx++;
+        const nested = /<(?:ul|ol)\b/i.test(content);
+        return `${nested ? "    " : ""}${idx}. ${stripTags(content)}\n`;
+      }) + "\n"
+    );
+  });
+  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_match, inner) => {
+    return (
+      inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_m, content) => {
+        const nested = /<(?:ul|ol)\b/i.test(content);
+        return `${nested ? "    " : ""}- ${stripTags(content)}\n`;
+      }) + "\n"
+    );
   });
 
   // 13. Convert <p> tags to paragraphs
@@ -138,15 +164,29 @@ export function htmlToMarkdown(html) {
       const cellRe = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
       let cellMatch;
       while ((cellMatch = cellRe.exec(rowMatch[1]))) {
-        cells.push(stripTags(cellMatch[1]));
+        const align = cellMatch[1].match(
+          /style\s*=\s*["'][^"']*text-align:\s*(left|center|right)/i,
+        );
+        cells.push({ text: stripTags(cellMatch[1]), align: align ? align[1] : null });
       }
       rows.push(cells);
     }
     if (rows.length > 0) {
-      result += `| ${rows[0].join(" | ")} |\n`;
-      result += `| ${rows[0].map(() => "---").join(" | ")} |\n`;
+      const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+      result += `| ${rows[0].map((c) => c.text).join(" | ")} |\n`;
+      result += `| ${rows[0]
+        .map((c) => {
+          const align = c.align || "";
+          const dash = "---";
+          if (align === "left") return `:${dash}`;
+          if (align === "center") return `:${dash}:`;
+          if (align === "right") return `${dash}:`;
+          return dash;
+        })
+        .join(" | ")} |\n`;
       for (let i = 1; i < rows.length; i++) {
-        result += `| ${rows[i].join(" | ")} |\n`;
+        while (rows[i].length < maxCols) rows[i].push({ text: "" });
+        result += `| ${rows[i].map((c) => c.text).join(" | ")} |\n`;
       }
       result += "\n";
     }

@@ -177,16 +177,16 @@ Goal: CLI dev server with `.md + images/` primary format, `.textpack` sharing, a
 
 ### CLI Dev Server
 
-| Task                                          | Details                                                          |
-| --------------------------------------------- | ---------------------------------------------------------------- |
-| [x] CLI dev server (`tools/dev-server.mjs`)   | Serve deck via HTTP with SSE live reload                         |
-| [x] `.md + images/` as primary format         | Markdown files with sidecar `images/` folder                     |
-| [x] `.textpack` support                       | ZIP archive bundling `deck.md` + images for sharing              |
-| [x] Open Deck modal                           | Recent-decks list, open `.md` or `.textpack` files               |
-| [x] File System Access API integration        | Seamless file management on Chromium, fallback on Safari/Firefox |
-| [x] Image upload via API                      | `POST /api/upload-image` with human-readable filenames           |
-| [x] Deck save via API                         | `POST /api/deck` writes directly to disk                         |
-| [x] Example deck as `.md + images/`           | `docs/example/slides.md` with `docs/example/images/`             |
+| Task                                        | Details                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| [x] CLI dev server (`tools/dev-server.mjs`) | Serve deck via HTTP with SSE live reload                         |
+| [x] `.md + images/` as primary format       | Markdown files with sidecar `images/` folder                     |
+| [x] `.textpack` support                     | ZIP archive bundling `deck.md` + images for sharing              |
+| [x] Open Deck modal                         | Recent-decks list, open `.md` or `.textpack` files               |
+| [x] File System Access API integration      | Seamless file management on Chromium, fallback on Safari/Firefox |
+| [x] Image upload via API                    | `POST /api/upload-image` with human-readable filenames           |
+| [x] Deck save via API                       | `POST /api/deck` writes directly to disk                         |
+| [x] Example deck as `.md + images/`         | `docs/example/slides.md` with `docs/example/images/`             |
 
 ### Image Drag Reorder & Alignment
 
@@ -226,38 +226,38 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ### Pluggable Image Storage Driver (`POST /api/upload-image`)
 
-| Task                                                         | Details                                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| [ ] GitHub Driver (`--storage=github`)                       | Upload images to GitHub repo via API, return raw URLs              |
-| [ ] Zero-Setup `gh` CLI check                                | Auto-detect authenticated `gh auth status`, use existing token     |
-| [ ] Device Auth Flow fallback                                | 2-click GitHub Device Authorization Flow when `gh` is unavailable  |
-| [ ] Cache OAuth token                                        | Store in `~/.config/my-app/config.json` after device auth          |
-| [ ] Local Driver (`--storage=local`)                         | Save to `./images/` with sanitized unique filenames                |
-| [ ] Auto Mode (`--storage=auto`, default)                    | GitHub if token/`gh` exists, fallback to local `./images/`         |
-| [ ] CLI invocation flags                                     | `--storage=github`, `--storage=local`, `--storage=auto`            |
+| Task                                      | Details                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| [ ] GitHub Driver (`--storage=github`)    | Upload images to GitHub repo via API, return raw URLs             |
+| [ ] Zero-Setup `gh` CLI check             | Auto-detect authenticated `gh auth status`, use existing token    |
+| [ ] Device Auth Flow fallback             | 2-click GitHub Device Authorization Flow when `gh` is unavailable |
+| [ ] Cache OAuth token                     | Store in `~/.config/my-app/config.json` after device auth         |
+| [ ] Local Driver (`--storage=local`)      | Save to `./images/` with sanitized unique filenames               |
+| [ ] Auto Mode (`--storage=auto`, default) | GitHub if token/`gh` exists, fallback to local `./images/`        |
+| [ ] CLI invocation flags                  | `--storage=github`, `--storage=local`, `--storage=auto`           |
 
 ### User-Facing Open Deck Workflow
 
-| Task                                                         | Details                                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| [ ] Terminal (primary)                                       | `node tools/dev-server.mjs path/to/slides.md` opens browser        |
-| [ ] `GET /api/browse` endpoint                               | Browse local `.md` or `.textpack` paths from browser UI            |
-| [ ] Open Deck modal                                          | Path input or directory browser for switching decks without restart|
-| [ ] Drag-and-drop `.textpack`                                | Unpack in-memory/temp storage on browser canvas                    |
+| Task                           | Details                                                             |
+| ------------------------------ | ------------------------------------------------------------------- |
+| [ ] Terminal (primary)         | `node tools/dev-server.mjs path/to/slides.md` opens browser         |
+| [ ] `GET /api/browse` endpoint | Browse local `.md` or `.textpack` paths from browser UI             |
+| [ ] Open Deck modal            | Path input or directory browser for switching decks without restart |
+| [ ] Drag-and-drop `.textpack`  | Unpack in-memory/temp storage on browser canvas                     |
 
 ### User-Facing Save Deck Workflow
 
-| Task                                                         | Details                                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| [ ] Silent auto-save                                         | Debounced `POST /api/deck`, writes directly to disk                |
-| [ ] Manual save (`Cmd+S` / `Ctrl+S`)                         | Instant `POST /api/deck`, UI shows `Saved` indicator               |
-| [ ] Export as `.textpack` (header menu)                      | Bundle `slides.md` + images into downloadable ZIP                  |
-| [ ] Export as `.html` (header menu)                          | Run build in memory, download standalone single-file HTML          |
+| Task                                    | Details                                                   |
+| --------------------------------------- | --------------------------------------------------------- |
+| [ ] Silent auto-save                    | Debounced `POST /api/deck`, writes directly to disk       |
+| [ ] Manual save (`Cmd+S` / `Ctrl+S`)    | Instant `POST /api/deck`, UI shows `Saved` indicator      |
+| [ ] Export as `.textpack` (header menu) | Bundle `slides.md` + images into downloadable ZIP         |
+| [ ] Export as `.html` (header menu)     | Run build in memory, download standalone single-file HTML |
 
 ### Execution Steps
 
-| Step | Details                                                         |
-| ---- | --------------------------------------------------------------- |
+| Step | Details                                                                             |
+| ---- | ----------------------------------------------------------------------------------- |
 | 1    | Add `GET /api/browse` and update `POST /api/upload-image` with storage driver logic |
 | 2    | Implement GitHub Device OAuth flow helper in `tools/dev-server.mjs`                 |
 | 3    | Update UI header/modal buttons for "Open Deck", "Export .textpack", "Export .html"  |
@@ -266,17 +266,17 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ## Summary
 
-| Phase                            | Status      |
-| -------------------------------- | ----------- |
-| Phase 1: Safety Net              | ✅ Complete |
-| Phase 2: Build Modernization     | ✅ Complete |
-| Phase 3: Distribution            | ✅ Complete |
-| Phase 4: New Presentation        | ✅ Complete |
-| Phase 5: Quick Fixes             | ✅ Complete |
-| Phase 6: Testing & Polish        | ✅ Complete |
-| Phase 7: PPTX Conversion         | ✅ Complete |
-| Phase 7.5: CLI Dev Server        | ✅ Complete |
-| Phase 8: Cloud Mode              | Not started |
+| Phase                        | Status      |
+| ---------------------------- | ----------- |
+| Phase 1: Safety Net          | ✅ Complete |
+| Phase 2: Build Modernization | ✅ Complete |
+| Phase 3: Distribution        | ✅ Complete |
+| Phase 4: New Presentation    | ✅ Complete |
+| Phase 5: Quick Fixes         | ✅ Complete |
+| Phase 6: Testing & Polish    | ✅ Complete |
+| Phase 7: PPTX Conversion     | ✅ Complete |
+| Phase 7.5: CLI Dev Server    | ✅ Complete |
+| Phase 8: Cloud Mode          | Not started |
 
 ### Priority Order
 

@@ -282,8 +282,13 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
         }
       };
       evtSource.onerror = () => {
-        // No CLI server — silently close
-        evtSource.close();
+        // EventSource auto-reconnects by default.
+        // If server is not running, errors keep firing — log once,
+        // then stop reporting to avoid console noise.
+        if (!evtSource._reconnectWarned) {
+          evtSource._reconnectWarned = true;
+          console.info("[LiveReload] Disconnected — will retry automatically");
+        }
       };
     } catch {
       // EventSource not available or server not running

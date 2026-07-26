@@ -29,9 +29,20 @@ const ROOT = path.resolve(__dirname, "..");
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const portFlag = args.indexOf("--port");
-const PORT = portFlag !== -1 ? parseInt(args[portFlag + 1], 10) : 8000;
-const INPUT_ARG = args.find((a) => !a.startsWith("--") && a !== String(PORT));
+let PORT = 8000;
+let INPUT_ARG = null;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--port" && i + 1 < args.length) {
+    PORT = parseInt(args[i + 1], 10);
+    if (isNaN(PORT)) {
+      console.error("Error: Invalid port number:", args[i + 1]);
+      process.exit(1);
+    }
+    i++;
+  } else if (!args[i].startsWith("--")) {
+    INPUT_ARG = args[i];
+  }
+}
 
 // ── MIME types ────────────────────────────────────────────────────────────────
 
@@ -101,8 +112,13 @@ function detectFormat(inputPath) {
  * @returns {Promise<DeckFormat>}
  */
 async function extractTextpack(textpackPath) {
-  const { default: JSZip } = await import("jszip");
   const buf = fs.readFileSync(textpackPath);
+  // Validate ZIP magic bytes
+  if (buf.length < 2 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
+    console.error("Error: Not a valid ZIP archive (missing PK header)");
+    process.exit(1);
+  }
+  const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(buf);
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slidemd-"));
@@ -271,8 +287,7 @@ function readJsonBody(req) {
  * @param {DeckFormat} format
  */
 function createHandler(format) {
-  let watcherId = 0;
-  const watchers = new Map();
+  let loadMutex = Promise.resolve();
 
   return async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -297,12 +312,9 @@ function createHandler(format) {
       });
       res.write("data: connected\n\n");
 
-      const id = watcherId++;
-      watchers.set(id, res);
       sseClients.add(res);
 
       req.on("close", () => {
-        watchers.delete(id);
         sseClients.delete(res);
       });
       return;
@@ -350,41 +362,42 @@ function createHandler(format) {
     // ── POST /api/deck/load ──
     // Dynamically load a deck by directory path (e.g., when opening example deck)
     if (pathname === "/api/deck/load" && req.method === "POST") {
-      try {
-        const { dir } = await readJsonBody(req);
+      loadMutex = loadMutex
+        .then(async () => {
+          try {
+            const { dir } = await readJsonBody(req);
+            const deckDir = path.resolve(ROOT, dir);
+            const mdFile = path.join(deckDir, "slides.md");
+            const imagesDir = path.join(deckDir, "images");
 
-        // Resolve relative to project root
-        const deckDir = path.resolve(ROOT, dir);
-        const mdFile = path.join(deckDir, "slides.md");
-        const imagesDir = path.join(deckDir, "images");
+            if (fs.existsSync(mdFile)) {
+              if (!format) {
+                format = { mdFile, imagesDir, label: "dynamic" };
+              } else {
+                format.mdFile = mdFile;
+                format.imagesDir = imagesDir;
+              }
 
-        if (fs.existsSync(mdFile)) {
-          // Initialize format if server started without a deck file
-          if (!format) {
-            format = { mdFile, imagesDir, label: "dynamic" };
-          } else {
-            format.mdFile = mdFile;
-            format.imagesDir = imagesDir;
+              if (!fs.existsSync(format.imagesDir)) {
+                fs.mkdirSync(format.imagesDir, { recursive: true });
+              }
+
+              startWatching(format);
+
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ ok: true }));
+            } else {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({ error: "Invalid deck path: slides.md not found" }),
+              );
+            }
+          } catch (e) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: e.message }));
           }
-
-          // Ensure images directory exists
-          if (!fs.existsSync(format.imagesDir)) {
-            fs.mkdirSync(format.imagesDir, { recursive: true });
-          }
-
-          // Restart file watching for the new deck
-          startWatching(format);
-
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ ok: true }));
-        } else {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid deck path: slides.md not found" }));
-        }
-      } catch (e) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: e.message }));
-      }
+        })
+        .catch(() => {});
       return;
     }
 
@@ -476,7 +489,8 @@ function createHandler(format) {
     // ── Static files: serve from project root ──
     let filePath = path.join(ROOT, pathname === "/" ? "index.html" : pathname);
 
-    if (!filePath.startsWith(ROOT)) {
+    const relative = path.relative(ROOT, filePath);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
       res.writeHead(403);
       res.end("Forbidden");
       return;
