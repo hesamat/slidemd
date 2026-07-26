@@ -646,126 +646,168 @@ export class DeckController extends EventEmitter {
     const result = await ConversionModal.show();
     if (!result || !result.markdown) return;
 
-    // Close the modal immediately — the deck will load in the background
+    // Close the conversion modal
     ConversionModal.close();
 
-    let { markdown, images, importImages } = result;
+    let { markdown, images, importImages, deckName } = result;
 
-    // Upload PPTX-extracted images via the CLI server API
-    // and build a mapping from original filenames to server-saved paths.
-    /** @type {Map<string, string>} */
-    const imagePathMap = new Map();
-    if (importImages && images?.length) {
-      await Promise.all(
-        images.map(async (img) => {
-          if (!img.base64 || !img.ref) return;
-          const rawName = img.ref.split("/").pop();
-          if (!rawName) return;
-          const safeName = rawName.replace(/\.(emf|wmf|tif|tiff|bmp)$/i, ".png");
-
-          // Convert base64 to File object
-          const raw = img.base64
-            .replace(/^data:[^;]*;base64,/, "")
-            .replace(/\s+/g, "")
-            .replace(/-/g, "+")
-            .replace(/_/g, "/");
-          const pad = raw.length % 4;
-          const padded = pad ? raw + "=".repeat(4 - pad) : raw;
-          let binary;
-          try {
-            binary = atob(padded);
-          } catch (err) {
-            console.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
-            return;
-          }
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
-          const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
-          const file = new File([blob], safeName, { type: blob.type });
-
-          // Upload via API
-          try {
-            const formData = new FormData();
-            formData.append("image", file);
-            const res = await fetch("/api/upload-image", { method: "POST", body: formData });
-            if (!res.ok) {
-              console.warn("Failed to upload PPTX image:", safeName, "status:", res.status);
-              return;
-            }
-            const data = await res.json();
-            if (data?.path) {
-              imagePathMap.set(rawName, data.path);
-            }
-          } catch {
-            console.warn("Failed to upload PPTX image:", safeName);
-          }
-        }),
-      );
-
-      // Rewrite markdown image references to use the server-saved paths.
-      if (imagePathMap.size > 0) {
-        let updated = markdown;
-        for (const [oldName, newPath] of imagePathMap) {
-          const oldRef = `images/${oldName}`;
-          const escaped = oldRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          updated = updated.replace(new RegExp(escaped, "g"), newPath);
-        }
-        markdown = updated;
-      }
-    }
-
-    // Store markdown info in localStorage so edit mode can find it
-    try {
-      localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_type", "md");
-      localStorage.setItem("webdeck_local_file_name", "pptx-import");
-      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-    } catch {
-      window.__WEBDECK_MARKDOWN__ = markdown;
-    }
-
-    // Parse and replace deck
-    await AssetLoader.ensureMarkdownItLoaded();
-    const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
-
-    if (this.reloadManager?.replaceDeck) {
-      await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
-    }
-
-    // Open edit mode so the user can review and edit the result
-    this.toggleEditMode();
-
-    Notification.success("PPTX converted successfully. Images uploaded to images/ folder.", 8000, {
-      actions: [
-        {
-          label: "Save as Deck",
-          onClick: () => {
-            const blob = new Blob([markdown], { type: "text/markdown" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${result.deckName || "pptx-import"}.md`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          },
-        },
-      ],
+    // Show a loading overlay while the deck is being saved and loaded
+    const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
+      title: "Importing PPTX",
+      type: "info",
+      cancelLabel: "Cancel",
+      onCancel: () => {},
     });
 
-    // After edit mode renders, rewrite image sources to HTTP URLs.
-    if (this.elements.slidesContainer) {
-      const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
-      const rewrite = () => {
-        DeckImagesResolver.rewriteImgSrcs(this.elements.slidesContainer).catch(() => {});
-        DeckImagesResolver.rewriteBackgroundUrls(this.elements.slidesContainer).catch(() => {});
-      };
-      rewrite();
-      setTimeout(rewrite, 200);
-      setTimeout(rewrite, 600);
-      setTimeout(rewrite, 1200);
+    try {
+      // Upload PPTX-extracted images via the CLI server API
+      // and build a mapping from original filenames to server-saved paths.
+      /** @type {Map<string, string>} */
+      const imagePathMap = new Map();
+      if (importImages && images?.length) {
+        let uploaded = 0;
+        const total = images.filter((img) => img.base64 && img.ref).length;
+        await Promise.all(
+          images.map(async (img) => {
+            if (!img.base64 || !img.ref) return;
+            const rawName = img.ref.split("/").pop();
+            if (!rawName) return;
+            const safeName = rawName.replace(/\.(emf|wmf|tif|tiff|bmp)$/i, ".png");
+
+            // Convert base64 to File object
+            const raw = img.base64
+              .replace(/^data:[^;]*;base64,/, "")
+              .replace(/\s+/g, "")
+              .replace(/-/g, "+")
+              .replace(/_/g, "/");
+            const pad = raw.length % 4;
+            const padded = pad ? raw + "=".repeat(4 - pad) : raw;
+            let binary;
+            try {
+              binary = atob(padded);
+            } catch (err) {
+              console.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
+              return;
+            }
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
+            const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
+            const file = new File([blob], safeName, { type: blob.type });
+
+            // Upload via API
+            try {
+              const formData = new FormData();
+              formData.append("image", file);
+              const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+              if (!res.ok) {
+                console.warn("Failed to upload PPTX image:", safeName, "status:", res.status);
+                return;
+              }
+              const data = await res.json();
+              if (data?.path) {
+                imagePathMap.set(rawName, data.path);
+              }
+            } catch {
+              console.warn("Failed to upload PPTX image:", safeName);
+            }
+            uploaded++;
+            if (total > 0) {
+              loading.updateMessage(`Uploading images… ${uploaded}/${total}`);
+              loading.updateProgress(Math.round((uploaded / total) * 60));
+            }
+          }),
+        );
+
+        // Rewrite markdown image references to use the server-saved paths.
+        if (imagePathMap.size > 0) {
+          let updated = markdown;
+          for (const [oldName, newPath] of imagePathMap) {
+            const oldRef = `images/${oldName}`;
+            const escaped = oldRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            updated = updated.replace(new RegExp(escaped, "g"), newPath);
+          }
+          markdown = updated;
+        }
+      }
+
+      loading.updateMessage("Loading slides…");
+      loading.updateProgress(70);
+
+      // Store markdown info in localStorage so edit mode can find it
+      try {
+        localStorage.setItem("webdeck_local_file", markdown);
+        localStorage.setItem("webdeck_local_file_type", "md");
+        localStorage.setItem("webdeck_local_file_name", "pptx-import");
+        localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+      } catch {
+        window.__WEBDECK_MARKDOWN__ = markdown;
+      }
+
+      // Parse and replace deck
+      await AssetLoader.ensureMarkdownItLoaded();
+      const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
+
+      loading.updateProgress(85);
+
+      if (this.reloadManager?.replaceDeck) {
+        await this.reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+      }
+
+      loading.updateProgress(95);
+
+      // Open edit mode so the user can review and edit the result
+      this.toggleEditMode();
+
+      // Flag the save manager to use file picker instead of overwriting
+      // the currently loaded deck file via the CLI API.
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      if (editCtrl?.saveManager) {
+        editCtrl.saveManager.needsSaveAs = true;
+      }
+
+      loading.updateProgress(100);
+      loading.dismiss();
+
+      Notification.success("PPTX imported successfully.", 0, {
+        actions: [
+          {
+            label: "Save as Deck",
+            onClick: async () => {
+              const mdBlob = new Blob([markdown], { type: "text/markdown" });
+              try {
+                if (window.showSaveFilePicker) {
+                  const handle = await window.showSaveFilePicker({
+                    suggestedName: `${deckName || "pptx-import"}.md`,
+                    types: [{ description: "Markdown file", accept: { "text/markdown": [".md"] } }],
+                  });
+                  const writable = await handle.createWritable();
+                  await writable.write(mdBlob);
+                  await writable.close();
+                  Notification.success("Deck saved!");
+                  return;
+                }
+              } catch (err) {
+                if (err?.name === "AbortError") return;
+              }
+              // Fallback: browser download
+              const url = URL.createObjectURL(mdBlob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${deckName || "pptx-import"}.md`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            },
+          },
+        ],
+      });
+
+    } catch (err) {
+      loading.dismiss();
+      console.error("PPTX import failed:", err);
+      Notification.error(`Import failed: ${err.message || err}`);
     }
   }
 

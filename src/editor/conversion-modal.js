@@ -2,7 +2,7 @@
  * ConversionModal
  *
  * Modal for importing PPTX files into the app.
- * Two-step flow: Import (extract + convert) → Save as Deck.
+ * Two-step flow: Import (extract + convert) → Import.
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
@@ -234,7 +234,7 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
-          // Show Save as Deck button
+          // Show Import button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
           cancelBtn.disabled = false;
@@ -246,7 +246,7 @@ export class ConversionModal {
           isConverting = false;
         }
       };
-      // Save as Deck button
+      // Import button
       saveBtn.addEventListener("click", () => {
         // If user opted out of images, strip <img> tags from markdown
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
@@ -349,7 +349,7 @@ export class ConversionModal {
 
         <div class="${P}actions">
           <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
-          <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Save as Deck</button>
+          <button type="button" data-action="save" class="${P}btn ${P}btn--accent" hidden>Import</button>
         </div>
       </div>
     `;

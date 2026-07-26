@@ -27,6 +27,7 @@ export class SaveManager {
     this._getOriginalMarkdown = getOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
+    this.needsSaveAs = false;
   }
 
   get deck() {
@@ -66,24 +67,28 @@ export class SaveManager {
     try {
       const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
 
-      // Try CLI dev server API
-      try {
-        const res = await fetch("/api/deck", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ markdown: fullMarkdown }),
-        });
-        if (res.ok) {
-          Notification.success("Deck saved to disk!");
-          return;
+      // Skip CLI API if the deck hasn't been saved to a file yet
+      // (e.g. after PPTX import) — would overwrite the wrong file.
+      if (!this.needsSaveAs) {
+        try {
+          const res = await fetch("/api/deck", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ markdown: fullMarkdown }),
+          });
+          if (res.ok) {
+            Notification.success("Deck saved to disk!");
+            return;
+          }
+        } catch {
+          // No CLI server — fall through to file picker
         }
-      } catch {
-        // No CLI server — fall through to file picker
       }
 
       // Fallback: save via file picker / download
       const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
       await this._saveBlob(mdBlob, "deck.md");
+      this.needsSaveAs = false;
       Notification.success("Deck saved!");
     } catch (error) {
       if (error.name !== "AbortError") {

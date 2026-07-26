@@ -246,7 +246,8 @@ export class ImageInteractionHandler {
     const before = updated.slice(0, insertAt);
     const after = updated.slice(insertAt);
     const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    return before + needsNewline + newTag + "\n" + after;
+    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
+    return before + needsNewline + newTag + trailingNewlines + after;
   }
 
   /**
@@ -292,7 +293,8 @@ export class ImageInteractionHandler {
     const before = updated.slice(0, insertAt);
     const after = updated.slice(insertAt);
     const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    return before + needsNewline + newTag + "\n" + after;
+    const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
+    return before + needsNewline + newTag + trailingNewlines + after;
   }
 
   // ── Cross-area drag helpers ────────────────────────────────────────────────
