@@ -87,6 +87,27 @@ try {
     console.log("Deck ready signal not found (continuing)");
 }
 
+// Wait for mermaid to finish loading before enhancing slides for PDF.
+// __WEBDECK_READY__ fires before mermaid's dynamic import resolves.
+try {
+    await page.waitForFunction(() => window.mermaid && typeof window.mermaid.render === "function", null, { timeout: 15_000 });
+    console.log("Mermaid loaded");
+} catch {
+    console.log("Mermaid not available (continuing without diagrams)");
+}
+
+// Wait for the runtime's enhanceRenderedContent to finish.
+// It sets data-webdeck-enhanced="1" on the slides container when done.
+try {
+    await page.waitForFunction(() => {
+        const container = document.querySelector('[data-webdeck-enhanced="1"]');
+        return !!container;
+    }, null, { timeout: 20_000 });
+    console.log("Runtime enhancement complete");
+} catch {
+    console.log("Runtime enhancement timed out (continuing)");
+}
+
 // CRITICAL: Enhance ALL slides for PDF output (not just the active one)
 // Prism syntax highlighting is only applied to active slides by default,
 // but PDF needs all slides to be highlighted.
@@ -117,9 +138,9 @@ await page.evaluate(async () => {
         // Remove emojis
         removeEmojisFromElement(slide);
 
-        // Prism syntax highlighting
+        // Prism syntax highlighting (skip mermaid blocks — no grammar for them)
         if (window.Prism) {
-            const codeBlocks = slide.querySelectorAll('pre code');
+            const codeBlocks = slide.querySelectorAll('pre code:not(.language-mermaid):not(.lang-mermaid)');
             codeBlocks.forEach((codeEl) => {
                 const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
                 if (match) {
@@ -145,19 +166,29 @@ await page.evaluate(async () => {
             }
         }
 
-        const mermaidDivs = slide.querySelectorAll('.mermaid[data-mermaid-source]');
+        // Render any mermaid divs that the runtime hasn't rendered yet
+        const mermaidDivs = slide.querySelectorAll('.mermaid');
         if (mermaidDivs.length > 0 && window.mermaid) {
             for (const div of mermaidDivs) {
+                // Skip if already rendered by the runtime
+                if (div.querySelector('svg') || div.dataset.mermaidProcessed === '1') continue;
+
+                // Ensure source is available
+                if (!div.dataset.mermaidSource && div.textContent) {
+                    div.dataset.mermaidSource = div.textContent.trim();
+                }
                 const source = div.dataset.mermaidSource;
                 if (!source) continue;
 
                 try {
                     const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     const out = await window.mermaid.render(id, source);
-                    div.innerHTML = out.svg;
-                    out.bindFunctions?.(div);
+                    const svg = typeof out === "string" ? out : out?.svg;
+                    if (svg) div.innerHTML = svg;
+                    if (out && typeof out !== "string") out.bindFunctions?.(div);
+                    div.dataset.mermaidProcessed = "1";
                 } catch (e) {
-                    div.innerHTML = `<div style="color:#d32f2f; padding:1rem;">Error: ${e.message || 'Mermaid rendering failed'}</div>`;
+                    console.warn("Mermaid render error:", e.message);
                 }
             }
         }
