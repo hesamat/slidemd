@@ -307,53 +307,6 @@ The modal remembers your recently opened decks for quick access.
 ---
 
 layout: two-column
-
-@header
-
-## PPTX Import
-
-@main
-
-### Convert PowerPoint to SlideMD
-
-Import existing PowerPoint presentations and convert them to SlideMD format with automatic layout detection.
-
-### Features
-
-- **Layout detection**: Automatic two-column, title, and content layouts
-- **Image extraction**: Pulls images from PPTX and embeds them
-- **Code block detection**: Identifies monospace text as code
-- **Dark theme detection**: Auto-sets theme when background is dark
-- **Per-deck folder**: Organizes imported files in dedicated folders
-
-### How to Import
-
-1. Click Menu → Import PPTX
-2. Select your PowerPoint file
-3. Review conversion settings
-4. Click Convert
-5. Edit mode opens for manual cleanup
-
-@media
-
-### Conversion Options
-
-- **Keep backgrounds**: Preserve slide backgrounds
-- **Import images**: Extract and embed images
-- **Language detection**: Auto-detect code languages
-
-### Post-Conversion
-
-After import, you can:
-
-- Edit the converted markdown directly
-- Adjust layouts with the layout picker
-- Fine-tune image positions
-- ...
-
----
-
-layout: two-column
 theme: dark
 background: #3e1d5f
 
