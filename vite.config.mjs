@@ -3,6 +3,9 @@ import { imageUploadPlugin } from './tools/vite-plugin-upload.mjs';
 
 export default defineConfig({
     plugins: [imageUploadPlugin()],
+    optimizeDeps: {
+        exclude: ['@codemirror/language-data'],
+    },
     server: {
         port: 8000,
         open: '/index.html',
