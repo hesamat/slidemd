@@ -256,7 +256,7 @@ export class ImageDragController {
 
       this._hideDropGap();
 
-      if (currentSlot !== null && currentSlot !== this._dragStartInsertBefore) {
+      if (currentSlot !== this._dragStartInsertBefore) {
         ctx.reorderImageInMarkdown(img, currentSlot);
       } else {
         ctx.syncToMarkdown();
