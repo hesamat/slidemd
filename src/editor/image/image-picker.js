@@ -68,12 +68,7 @@ export class ImagePicker {
                 </div>
 
                 <div class="image-picker-tab-panel active" data-panel="existing" role="tabpanel">
-                    <div class="image-picker-existing-layout">
-                        <div id="imagePickerGrid" class="image-picker-grid" aria-live="polite"></div>
-                        <div id="imagePickerExistingPreviewWrap" class="image-picker-existing-preview-wrap" style="display:none">
-                            <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" />
-                        </div>
-                    </div>
+                    <div id="imagePickerGrid" class="image-picker-grid" aria-live="polite"></div>
                 </div>
 
                 <div class="image-picker-tab-panel" data-panel="upload" role="tabpanel">
@@ -90,6 +85,10 @@ export class ImagePicker {
                         <input id="imagePickerUrlInput" type="text" class="image-picker-url-input" placeholder="https://example.com/image.png  or  images/local.png" />
                         <img id="imagePickerUrlPreview" class="image-picker-url-preview" alt="" style="display:none" />
                     </div>
+                </div>
+
+                <div id="imagePickerExistingPreviewWrap" class="image-picker-existing-preview-wrap" style="display:none">
+                    <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" />
                 </div>
 
                 <div class="image-picker-footer">
@@ -410,6 +409,12 @@ export class ImagePicker {
                     <div>Uploaded ${escapeText(file.name)}</div>
                     <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
                 `;
+      // Show preview of uploaded image
+      if (this.existingPreview && this.existingPreviewWrap) {
+        this.existingPreview.src = result.path;
+        this.existingPreview.alt = file.name;
+        this.existingPreviewWrap.style.display = "";
+      }
       this._syncInsertButton();
       return;
     } catch (err) {
