@@ -5,6 +5,8 @@
  * with fallback to File System Access API or Blob download.
  */
 import { Notification } from "../../renderer/notification.js";
+import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 
 export class SaveManager {
   /**
@@ -67,9 +69,34 @@ export class SaveManager {
     try {
       const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
 
+      // Warn if the markdown contains blob URLs — they can't persist to disk.
+      const hasBlobUrls = /blob:/.test(fullMarkdown);
+      if (hasBlobUrls) {
+        Notification.warning(
+          "This deck contains images loaded from a .textpack without a dev server. " +
+            "Images won't be saved. Re-open the .textpack with the CLI server running to fix this.",
+          8000,
+        );
+      }
+
       // Skip CLI API if the deck hasn't been saved to a file yet
       // (e.g. after PPTX import) — would overwrite the wrong file.
-      if (!this.needsSaveAs) {
+      if (this.needsSaveAs) {
+        // Save as .textpack (includes images from the server)
+        try {
+          await TextpackExportManager.handleTextpackExport(
+            fullMarkdown,
+            this.deck,
+            { filename: DeckLoader.getDisplayTitle(this.deck) },
+          );
+          Notification.success("Deck exported as .textpack!");
+          return;
+        } catch (err) {
+          if (err?.name === "AbortError") return;
+          // Textpack export failed — fall through to .md save
+          Notification.warning("Could not export as .textpack. Saving as .md only.");
+        }
+      } else {
         try {
           const res = await fetch("/api/deck", {
             method: "POST",

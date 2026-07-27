@@ -21,6 +21,7 @@ import { ImagePicker } from "../editor/image/image-picker.js";
 import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
+import { DraftManager } from "../core/draft-manager.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -744,6 +745,9 @@ export class DeckController extends EventEmitter {
         window.__WEBDECK_MARKDOWN__ = markdown;
       }
 
+      // Persist draft so a page refresh doesn't lose the imported deck
+      await DraftManager.saveDraft(markdown);
+
       // Parse and replace deck
       await AssetLoader.ensureMarkdownItLoaded();
       const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
@@ -772,14 +776,38 @@ export class DeckController extends EventEmitter {
       Notification.success("PPTX imported successfully.", 0, {
         actions: [
           {
-            label: "Save as Deck",
+            label: "Save as .textpack",
+            onClick: async () => {
+              try {
+                const mockDeck = { meta: { title: deckName || "pptx-import" } };
+                await TextpackExportManager.handleTextpackExport(
+                  markdown,
+                  mockDeck,
+                  { filename: deckName || "pptx-import" },
+                );
+                Notification.success("Deck exported as .textpack!");
+              } catch (err) {
+                if (err?.name !== "AbortError") {
+                  console.error("Textpack export failed:", err);
+                  Notification.error("Export failed: " + (err.message || err));
+                }
+              }
+            },
+          },
+          {
+            label: "Save as .md (markdown only)",
             onClick: async () => {
               const mdBlob = new Blob([markdown], { type: "text/markdown" });
               try {
                 if (window.showSaveFilePicker) {
                   const handle = await window.showSaveFilePicker({
                     suggestedName: `${deckName || "pptx-import"}.md`,
-                    types: [{ description: "Markdown file", accept: { "text/markdown": [".md"] } }],
+                    types: [
+                      {
+                        description: "Markdown file",
+                        accept: { "text/markdown": [".md"] },
+                      },
+                    ],
                   });
                   const writable = await handle.createWritable();
                   await writable.write(mdBlob);
@@ -790,7 +818,6 @@ export class DeckController extends EventEmitter {
               } catch (err) {
                 if (err?.name === "AbortError") return;
               }
-              // Fallback: browser download
               const url = URL.createObjectURL(mdBlob);
               const a = document.createElement("a");
               a.href = url;

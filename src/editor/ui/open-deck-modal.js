@@ -55,6 +55,11 @@ export class OpenDeckModal {
   /**
    * Open a .textpack file (ZIP archive containing text.markdown + assets/).
    * Extracts to memory and loads the deck.
+   *
+   * When the CLI dev server is running, images are uploaded to the server
+   * so the markdown keeps relative `images/…` paths — this makes Ctrl+S
+   * work correctly.  Blob URLs are used only as a fallback when no server
+   * is available.
    */
   static async _openTextpackFile() {
     try {
@@ -86,42 +91,94 @@ export class OpenDeckModal {
       }
       const markdown = await mdEntry.async("text");
 
-      // Extract assets to blob URLs, keyed by both folder prefixes
-      const assetUrls = new Map();
-      const assetsFolder = zip.folder("assets") || zip.folder("images");
-      if (assetsFolder) {
-        const tasks = [];
-        assetsFolder.forEach((entryPath, entry) => {
-          if (!entry.dir) {
-            tasks.push(
-              (async () => {
-                const data = await entry.async("blob");
-                const name = entryPath.split("/").pop();
-                const blobUrl = URL.createObjectURL(data);
-                // Store under both prefixes so markdown references resolve
-                assetUrls.set(`assets/${name}`, blobUrl);
-                assetUrls.set(`images/${name}`, blobUrl);
-              })(),
-            );
+      // Collect all image entries from the ZIP (assets/ or images/ folder)
+      const imageEntries = [];
+      for (const folderName of ["assets", "images"]) {
+        const folder = zip.folder(folderName);
+        if (!folder) continue;
+        folder.forEach((entryPath, entry) => {
+          if (!entry.dir && /\.(jpe?g|png|gif|webp|svg|avif)$/i.test(entryPath)) {
+            imageEntries.push({ folderName, name: entryPath.split("/").pop(), entry });
           }
         });
-        await Promise.all(tasks);
       }
 
-      // Rewrite image paths in markdown to use blob URLs so they load without a dev server
+      // Deduplicate by filename (both folders may contain the same image)
+      const seen = new Set();
+      const uniqueEntries = imageEntries.filter((e) => {
+        if (seen.has(e.name)) return false;
+        seen.add(e.name);
+        return true;
+      });
+
       let resolvedMarkdown = markdown;
-      for (const [relPath, blobUrl] of assetUrls) {
-        // Handle <img src="images/...">
-        const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        resolvedMarkdown = resolvedMarkdown.replace(
-          new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
-          `$1${blobUrl}$2`,
+
+      // Try the CLI server first — keeps relative paths so Ctrl+S works
+      let serverAvailable = false;
+      try {
+        const probe = await fetch("/api/images", { method: "HEAD" });
+        serverAvailable = probe.ok;
+      } catch {
+        /* no server */
+      }
+
+      if (serverAvailable && uniqueEntries.length > 0) {
+        // Upload each image to the server
+        const pathMap = new Map();
+        await Promise.all(
+          uniqueEntries.map(async ({ name, entry }) => {
+            try {
+              const data = await entry.async("blob");
+              const fileObj = new File([data], name, { type: data.type });
+              const formData = new FormData();
+              formData.append("image", fileObj);
+              const res = await fetch("/api/upload-image", {
+                method: "POST",
+                body: formData,
+              });
+              if (!res.ok) return;
+              const result = await res.json();
+              if (result?.path) {
+                // Map both folder prefixes to the server path
+                pathMap.set(`images/${name}`, result.path);
+                pathMap.set(`assets/${name}`, result.path);
+              }
+            } catch {
+              /* skip failed uploads */
+            }
+          }),
         );
-        // Handle markdown image syntax ![alt](images/...)
-        resolvedMarkdown = resolvedMarkdown.replace(
-          new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
-          `$1${blobUrl}$2`,
+
+        // Rewrite markdown to use the server-saved paths
+        for (const [oldPath, newPath] of pathMap) {
+          const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          resolvedMarkdown = resolvedMarkdown.replace(
+            new RegExp(escaped, "g"),
+            newPath,
+          );
+        }
+      } else if (uniqueEntries.length > 0) {
+        // No server — fall back to blob URLs for in-browser display
+        const assetUrls = new Map();
+        await Promise.all(
+          uniqueEntries.map(async ({ folderName, name, entry }) => {
+            const data = await entry.async("blob");
+            const blobUrl = URL.createObjectURL(data);
+            assetUrls.set(`${folderName}/${name}`, blobUrl);
+          }),
         );
+
+        for (const [relPath, blobUrl] of assetUrls) {
+          const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          resolvedMarkdown = resolvedMarkdown.replace(
+            new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
+            `$1${blobUrl}$2`,
+          );
+          resolvedMarkdown = resolvedMarkdown.replace(
+            new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
+            `$1${blobUrl}$2`,
+          );
+        }
       }
 
       localStorage.setItem("webdeck_local_file", resolvedMarkdown);
@@ -131,7 +188,7 @@ export class OpenDeckModal {
       localStorage.removeItem("webdeck_source_url");
 
       DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
-      await DraftManager.saveDraft(resolvedMarkdown, assetUrls);
+      await DraftManager.saveDraft(resolvedMarkdown);
 
       this.hide();
 
@@ -191,7 +248,7 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_source_url", file.name);
 
       DeckLoader.addRecentDeck(file.name);
-      await DraftManager.saveDraft(rawText, new Map());
+      await DraftManager.saveDraft(rawText);
 
       this.hide();
 
