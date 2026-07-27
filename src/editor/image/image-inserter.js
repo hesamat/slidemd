@@ -220,13 +220,22 @@ export class ImageInserter {
       top = Math.round(dropGridY - areaContentTop);
     }
 
+    const targetArea = areaEl || slideEl.querySelector(".slide__area[data-area-name='main']");
+    const areaWidth = targetArea
+      ? (targetArea.getBoundingClientRect().width -
+          (parseFloat(getComputedStyle(targetArea).paddingLeft) || 0) -
+          (parseFloat(getComputedStyle(targetArea).paddingRight) || 0)) /
+        scale
+      : 480;
+    const width = Math.round(areaWidth);
+
     const alt =
       imgPath
         .split("/")
         .pop()
         .replace(/\.[^.]+$/, "")
         .replace(/^\d+[-_]?/, "") || "image";
-    const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${left}px; top: ${top}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
+    const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${left}px; top: 0px; width: ${width}px; border: none; object-fit: contain; cursor: move;" />`;
 
     const markdown = this.markdownEditor?.getValue() ?? "";
     const range = this._getAreaNav().getAreaContentRange(markdown, areaName);
