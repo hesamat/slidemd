@@ -279,10 +279,10 @@ layout: two-column
 
 ### Opening Decks
 
-| Format               | Description                                                               |
-| -------------------- | ------------------------------------------------------------------------- |
-| **.md**              | Plain Markdown with optional frontmatter. Use full URLs for images.       |
-| **.textpack**        | ZIP archive with `text.markdown` + `assets/`. Self-contained with images. |
+| Format | Description |
+| --- | --- |
+| **.md** | Plain Markdown with frontmatter. Use full URLs for images. |
+| **.textpack** | ZIP with `text.markdown` + `assets/`. Self-contained. |
 
 ### Exporting
 
@@ -300,7 +300,7 @@ layout: two-column
 
 ### PPTX Import (Experimental)
 
-- Import PowerPoint files via Menu → Open File
+- Import PowerPoint files via View → Import PPTX
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout hints
 - Original `.pptx` is not modified
