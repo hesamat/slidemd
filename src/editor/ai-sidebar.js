@@ -134,9 +134,11 @@ export class AiSidebar {
 
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content || "";
-            if (content) {
-              contentText += content;
+            const delta = parsed.choices?.[0]?.delta;
+            // Some models use content, some use reasoning, some use both
+            const text = delta?.content || delta?.reasoning || delta?.reasoning_details?.[0]?.text || "";
+            if (text) {
+              contentText += text;
               outputEl.textContent = contentText;
               outputEl.scrollTop = outputEl.scrollHeight;
 
@@ -235,8 +237,8 @@ export class AiSidebar {
       .${P}title { font-size: 14px; font-weight: 600; }
       .${P}header-actions { display: flex; align-items: center; gap: 8px; }
       .${P}slide-count {
-        font-size: 11px; color: #666;
-        background: rgba(0,0,0,0.06); padding: 2px 8px;
+        font-size: 11px; color: #333;
+        background: rgba(0,0,0,0.08); padding: 2px 8px;
         border-radius: 10px; white-space: nowrap;
       }
       .${P}minimize-btn {
@@ -263,10 +265,11 @@ export class AiSidebar {
         padding: 6px 16px; border-bottom: 1px solid rgba(0,0,0,0.08);
       }
       .${P}output {
-        flex: 1; overflow-y: auto; padding: 12px 16px;
+        flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px;
         font-size: 11px; line-height: 1.5; white-space: pre-wrap;
         font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
-        background: rgba(0,0,0,0.02);
+        background: rgba(0,0,0,0.02); word-break: break-word;
+        color: #111;
       }
       .${P}actions {
         display: flex; gap: 8px; justify-content: flex-end;
