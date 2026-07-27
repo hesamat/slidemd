@@ -160,8 +160,9 @@ export class ConversionModal {
           try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (raw) savedDefaults = JSON.parse(raw);
-          } catch {
-            /* ignore parse error */
+          } catch (e) {
+            console.warn("Corrupted conversion defaults in localStorage, clearing:", e);
+            localStorage.removeItem(STORAGE_KEY);
           }
           importImages = savedDefaults.importImages !== false;
 
