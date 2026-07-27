@@ -59,8 +59,8 @@ export class ImageInserter {
       (snippet) => {
         const current = this.markdownEditor.getValue();
 
-        // Find a safe insert position: after the first @area marker, or before @footer, or at end
-        const firstAreaMatch = current.match(/^@[a-zA-Z_]\w*\b/m);
+        // Find a safe insert position: after @main, or before @footer, or at end
+        const mainMatch = current.match(/^@main\b/m);
         const footerIdx = current.search(/^@footer\b/m);
 
         let insertPos;
@@ -69,8 +69,8 @@ export class ImageInserter {
         if (savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length) {
           // Cursor is in a valid position — check it's past the frontmatter/layout area
           const pos = savedCursorPos;
-          const firstAreaIdx = firstAreaMatch ? current.indexOf(firstAreaMatch[0]) : -1;
-          const safePos = firstAreaIdx >= 0 ? firstAreaIdx : 0;
+          const mainIdx = mainMatch ? current.indexOf(mainMatch[0]) : -1;
+          const safePos = mainIdx >= 0 ? mainIdx : 0;
 
           if (pos >= safePos) {
             // Cursor is past the frontmatter — insert here
@@ -94,8 +94,8 @@ export class ImageInserter {
           if (footerIdx > 0) {
             insertPos = footerIdx;
             afterSnippet = `${snippet}\n\n`;
-          } else if (firstAreaMatch) {
-            insertPos = current.indexOf(firstAreaMatch[0]);
+          } else if (mainMatch) {
+            insertPos = current.indexOf(mainMatch[0]);
             afterSnippet = `${snippet}\n\n`;
           } else {
             insertPos = current.length;
