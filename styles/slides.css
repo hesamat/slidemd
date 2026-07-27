@@ -649,6 +649,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   justify-content: center;
 }
 
+/* When an image is being positioned (dragged/resized), disable the
+   flex centering so position:relative left/top work from the content
+   box origin rather than from the centered position. */
+.slide__area p:has(> .img-positioned) {
+  display: block;
+}
+
 /* Figure-like layout with captions */
 .slide__area:has(p > :is(img, video):only-child):has(p + p) {
   display: grid;

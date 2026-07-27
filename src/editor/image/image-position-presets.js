@@ -36,17 +36,14 @@ export function centerOnSlide(img, scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
   const cs = getComputedStyle(area);
   const padLeft = parseFloat(cs.paddingLeft) || 0;
-
-  const contentWidth = (areaRect.width - padLeft - (parseFloat(cs.paddingRight) || 0)) / scale;
-  const imgWidth = imgRect.width / scale;
-  const newLeft = (contentWidth - imgWidth) / 2;
+  const padRight = parseFloat(cs.paddingRight) || 0;
+  const contentWidth = area.clientWidth - padLeft - padRight;
+  const imgWidth = img.getBoundingClientRect().width / scale;
 
   applySettings({
-    left: Math.round(newLeft),
+    left: Math.round((contentWidth - imgWidth) / 2),
   });
 }
 
@@ -57,25 +54,7 @@ export function centerOnSlide(img, scale, applySettings) {
  * @param {(settings: object) => void} applySettings
  */
 export function alignLeft(img, _scale, applySettings) {
-  const area = img.closest(".slide__area");
-  if (!area) return;
-
-  const cs = getComputedStyle(area);
-  const padLeft = parseFloat(cs.paddingLeft) || 0;
-
-  // The image's normal-flow position inside the content box is at padLeft.
-  // With position:relative, left=0 places it at the normal-flow spot.
-  // margin:0 auto may shift it, but getBoundingClientRect reflects the
-  // final rendered position.  Compute how far the image currently sits
-  // from the content-box left edge and cancel that offset.
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
-  const currentOffsetFromContentLeft = (imgRect.left - (areaRect.left + padLeft)) / _scale;
-  const curLeft = parseFloat(img.style.left) || 0;
-
-  applySettings({
-    left: Math.round(curLeft - currentOffsetFromContentLeft),
-  });
+  applySettings({ left: 0 });
 }
 
 /**
@@ -88,23 +67,14 @@ export function alignRight(img, scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
   const cs = getComputedStyle(area);
   const padLeft = parseFloat(cs.paddingLeft) || 0;
   const padRight = parseFloat(cs.paddingRight) || 0;
+  const contentWidth = area.clientWidth - padLeft - padRight;
+  const imgWidth = img.getBoundingClientRect().width / scale;
 
-  const contentWidth = (areaRect.width - padLeft - padRight) / scale;
-  const imgWidth = imgRect.width / scale;
-
-  // Current left position relative to content box
-  const currentLeftX = (imgRect.left - (areaRect.left + padLeft)) / scale;
-  const curLeft = parseFloat(img.style.left) || 0;
-
-  // Target: contentWidth - imgWidth; delta from current
-  const targetLeft = contentWidth - imgWidth;
   applySettings({
-    left: Math.round(curLeft + (targetLeft - currentLeftX)),
+    left: Math.round(contentWidth - imgWidth),
   });
 }
 
