@@ -621,11 +621,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border: 1px solid var(--border-subtle);
 }
 
-/* Relatively positioned images (edit mode drag/resize) — only images
-   that were converted from markdown syntax get the layout overrides.
-   Existing HTML <img> tags (e.g. from PPTX import) keep their normal
-   flow position and are excluded via the .img-positioned gate. */
-.slide__area img.img-positioned {
+/* Relatively positioned images (edit mode drag/resize) — override
+   margin:0 auto centering and flex constraints for any image that has
+   position:relative set inline (from picker insert, PPTX import, or
+   drag/resize). Also covers the .img-positioned class path. */
+.slide__area img.img-positioned,
+.slide__area img[style*="position: relative"] {
   margin: 0;
   border-radius: 0;
   max-width: none !important;
@@ -652,7 +653,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* When an image is being positioned (dragged/resized), disable the
    flex centering so position:relative left/top work from the content
    box origin rather than from the centered position. */
-.slide__area p:has(> .img-positioned) {
+.slide__area p:has(> .img-positioned),
+.slide__area p:has(> img[style*="position: relative"]) {
   display: block;
 }
 
