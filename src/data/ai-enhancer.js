@@ -208,8 +208,8 @@ export function parseAiResponse(text) {
     } catch { /* not valid JSON */ }
   }
 
-  // Find JSON by locating {"slides": and extracting the complete JSON object
-  const slidesIdx = trimmed.indexOf('"slides"');
+  // Find JSON by locating "slides": (with colon — only in real JSON, not analysis)
+  const slidesIdx = trimmed.indexOf('"slides":');
   if (slidesIdx >= 0) {
     // Walk backwards to find the opening {
     let start = slidesIdx;
