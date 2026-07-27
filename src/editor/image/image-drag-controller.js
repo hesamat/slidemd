@@ -389,30 +389,14 @@ export class ImageDragController {
       newGap.style.background = "rgba(2, 132, 199, 0.06)";
       newGap.style.pointerEvents = "none";
       newGap.style.flexShrink = "0";
-      newGap.style.position = "absolute";
-      newGap.style.left = "0";
-      newGap.style.right = "0";
-      newGap.style.zIndex = "10";
-      areaEl.style.position = areaEl.style.position || "relative";
       areaEl.appendChild(newGap);
       this._dropIndicator = newGap;
     }
 
     if (insertBeforeEl) {
-      const targetRect = insertBeforeEl.getBoundingClientRect();
-      const areaRect = areaEl.getBoundingClientRect();
-      const top = (targetRect.top - areaRect.top) / getStageScale();
-      gap.style.top = `${Math.round(top)}px`;
+      areaEl.insertBefore(gap, insertBeforeEl);
     } else {
-      const areaRect = areaEl.getBoundingClientRect();
-      const lastChild = areaEl.lastElementChild;
-      if (lastChild && lastChild !== gap) {
-        const lastRect = lastChild.getBoundingClientRect();
-        const top = (lastRect.bottom - areaRect.top) / getStageScale() + DROP_GAP_MARGIN;
-        gap.style.top = `${Math.round(top)}px`;
-      } else {
-        gap.style.top = "0px";
-      }
+      areaEl.appendChild(gap);
     }
   }
 
