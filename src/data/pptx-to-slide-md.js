@@ -541,8 +541,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
           formatSingleElement,
         ),
       );
-      return parts.join("\n");
-    }
+  return wrapLongLists(parts.join("\n"));
+}
     const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
     parts.push("");
     if (isHeaderValid) {
@@ -627,7 +627,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
   }
 
-  return parts.join("\n");
+  return wrapLongLists(parts.join("\n"));
 }
 
 /**
@@ -786,8 +786,6 @@ function inferLayout(
   const isHeadingMarker = (el) => REGEX.HEADING_MARKER.test(el.content?.trim() || "");
 
   const isHeader = (el) => {
-    if (el.top >= bodyThreshold) return false;
-
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
       if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
@@ -796,7 +794,11 @@ function inferLayout(
       return false;
     }
 
+    // Heading markers (##, ###) are headers regardless of vertical position
     if (isHeadingMarker(el)) return true;
+
+    // Non-heading elements must be in the top portion of the slide
+    if (el.top >= bodyThreshold) return false;
 
     // Extract plain text from HTML for length/bullet checks — raw HTML is
     // often much longer than the visible text due to inline styles.
@@ -854,45 +856,6 @@ function inferLayout(
 
     if (hasHeader && hasBodyBelowHeader) return LAYOUT.HEADER_CONTENT;
     if (totalLength < CONFIG.maxTitleLength) return LAYOUT.TITLE_SLIDE;
-  }
-
-  // ── Flex-row shortcut: when image+text elements sit at similar vertical ──
-  // positions with horizontal gaps, keep everything in HEADER_CONTENT so
-  // renderElementsWithFlex can wrap them in a flex container.  This must run
-  // BEFORE the left/right partition so images are not split to @media.
-  // Only triggers with 2+ images and text side-by-side (the image-text-image
-  // pattern from issue #138), not single-image two-column layouts.
-  {
-    const vTol = slideHeight * CONFIG.flexRowVerticalTolerance;
-    const minGap = slideWidth * CONFIG.flexRowMinHorizontalGap;
-    const sorted = [...allEls].sort((a, b) => (a.top || 0) - (b.top || 0));
-    const groups = [];
-    let cur = [sorted[0]];
-    for (let i = 1; i < sorted.length; i++) {
-      const el = sorted[i];
-      const center = cur.reduce((s, e) => s + (e.top || 0), 0) / cur.length;
-      if (Math.abs((el.top || 0) - center) <= vTol) {
-        cur.push(el);
-      } else {
-        groups.push(cur);
-        cur = [el];
-      }
-    }
-    groups.push(cur);
-
-    for (const group of groups) {
-      if (group.length < 2) continue;
-      const imgCount = group.filter((el) => el.type === ELEMENT_TYPES.IMAGE).length;
-      const hasTxt = group.some((el) => el.type !== ELEMENT_TYPES.IMAGE);
-      if (imgCount < 2 || !hasTxt) continue;
-      const byLeft = [...group].sort((a, b) => (a.left || 0) - (b.left || 0));
-      for (let i = 1; i < byLeft.length; i++) {
-        const prevEnd = (byLeft[i - 1].left || 0) + (byLeft[i - 1].width || 0);
-        if ((byLeft[i].left || 0) - prevEnd >= minGap) {
-          return LAYOUT.HEADER_CONTENT;
-        }
-      }
-    }
   }
 
   // Partition elements into left vs right columns.
@@ -1244,6 +1207,46 @@ function formatTextElement(raw) {
   }
 
   return result.join("\n").replace(REGEX.TRIPLE_NEWLINE_OR_MORE, REGEX.DOUBLE_NEWLINE).trim();
+}
+
+/**
+ * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
+ * <div class="multi-column-list"> so CSS columns split them visually.
+ * Only applies to top-level lists (ignores indented / nested items).
+ */
+const MIN_LIST_ITEMS = 10;
+const RE_TOP_BULLET = /^\s*[-*•]\s+\S/;
+const RE_TOP_NUMBERED = /^\s*\d+[.)]\s+\S/;
+
+function wrapLongLists(markdown) {
+  const lines = markdown.split("\n");
+  const result = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    // Detect a run of top-level list items
+    if (RE_TOP_BULLET.test(lines[i]) || RE_TOP_NUMBERED.test(lines[i])) {
+      const runStart = i;
+      while (i < lines.length && (RE_TOP_BULLET.test(lines[i]) || RE_TOP_NUMBERED.test(lines[i]))) {
+        i++;
+      }
+      const runLength = i - runStart;
+      if (runLength >= MIN_LIST_ITEMS) {
+        result.push('<div class="multi-column-list">');
+        result.push("");
+        for (let j = runStart; j < i; j++) result.push(lines[j]);
+        result.push("");
+        result.push("</div>");
+      } else {
+        for (let j = runStart; j < i; j++) result.push(lines[j]);
+      }
+    } else {
+      result.push(lines[i]);
+      i++;
+    }
+  }
+
+  return result.join("\n");
 }
 
 function formatImage(

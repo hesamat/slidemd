@@ -204,6 +204,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
   outline: 2px solid rgba(220, 38, 38, 0.7);
   outline-offset: -3px;
+  box-shadow: inset 0 0 0 3px rgba(220, 38, 38, 0.85);
 }
 
 /* When an image is selected, hide the editor-area-label and grid-resize-handles
@@ -465,6 +466,17 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area--sidebar,
 .slide__area--secondary {
   max-width: 100%;
+}
+
+/* Multi-column lists (auto-applied to long lists during PPTX import) */
+.multi-column-list {
+  column-count: 2;
+  column-gap: 1.5em;
+}
+.multi-column-list ul,
+.multi-column-list ol {
+  margin: 0;
+  padding-left: 1.5em;
 }
 
 /* Allow media shadows to render beyond the content box */
