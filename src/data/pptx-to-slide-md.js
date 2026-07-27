@@ -126,6 +126,8 @@ const CONFIG = {
   partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
   tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
   fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
+  flexRowVerticalTolerance: 0.15, // Max top-position diff (ratio of slide height) for same row
+  flexRowMinHorizontalGap: 0.1, // Min gap (ratio of slide width) between elements in a row
 };
 
 /**
@@ -444,7 +446,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       const hasExplicitDims = el.width && el.height;
       parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
     } else {
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
@@ -470,7 +480,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       }
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
-      parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      );
       parts.push("");
       parts.push(MARKDOWN_TAGS.MEDIA);
       parts.push("");
@@ -497,7 +509,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     const mediaImage = rightEls.find((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
@@ -518,7 +532,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       }
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
       return parts.join("\n");
     }
     const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
@@ -531,7 +553,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(mainEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
@@ -544,7 +568,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
   }
 
   // If two-column was downgraded to header-content, render it now
@@ -576,7 +602,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       const hasExplicitDims = el.width && el.height;
       parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
     } else {
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
     }
   }
 
@@ -924,6 +958,136 @@ function findDominantImages(allEls, slideWidth, slideHeight) {
 
     return area >= slideArea * CONFIG.minDominantAreaRatio;
   });
+}
+
+/**
+ * Group body elements into horizontal flex rows based on vertical proximity.
+ * Elements with similar `top` positions that are horizontally separated
+ * are grouped into rows that should be rendered side-by-side.
+ *
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @returns {{ rows: Array<Array<import('./pptx-extractor.js').ExtractedElement[]>>, standalone: import('./pptx-extractor.js').ExtractedElement[] }}
+ *   rows[i][j] is the j-th flex item (possibly multiple stacked elements) in row i.
+ *   standalone are elements not part of any multi-item row.
+ */
+function groupIntoFlexRows(elements, slideWidth, slideHeight) {
+  if (elements.length < 2) return { rows: [], standalone: [...elements] };
+
+  const verticalTolerance = slideHeight * CONFIG.flexRowVerticalTolerance;
+  const minGap = slideWidth * CONFIG.flexRowMinHorizontalGap;
+
+  const sorted = [...elements].sort((a, b) => (a.top || 0) - (b.top || 0));
+
+  const groups = [];
+  let currentGroup = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const el = sorted[i];
+    const groupCenter =
+      currentGroup.reduce((sum, e) => sum + (e.top || 0), 0) / currentGroup.length;
+    if (Math.abs((el.top || 0) - groupCenter) <= verticalTolerance) {
+      currentGroup.push(el);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [el];
+    }
+  }
+  groups.push(currentGroup);
+
+  const rows = [];
+  const standalone = [];
+
+  for (const group of groups) {
+    if (group.length < 2) {
+      standalone.push(...group);
+      continue;
+    }
+
+    const hasImage = group.some((el) => el.type === ELEMENT_TYPES.IMAGE);
+    const hasNonImage = group.some((el) => el.type !== ELEMENT_TYPES.IMAGE);
+    if (!hasImage || !hasNonImage) {
+      standalone.push(...group);
+      continue;
+    }
+
+    const sortedByLeft = [...group].sort((a, b) => (a.left || 0) - (b.left || 0));
+
+    let hasHorizontalGap = false;
+    for (let i = 1; i < sortedByLeft.length; i++) {
+      const prevRight = (sortedByLeft[i - 1].left || 0) + (sortedByLeft[i - 1].width || 0);
+      const currLeft = sortedByLeft[i].left || 0;
+      if (currLeft - prevRight >= minGap) {
+        hasHorizontalGap = true;
+        break;
+      }
+    }
+
+    if (hasHorizontalGap) {
+      rows.push(sortedByLeft.map((el) => [el]));
+    } else {
+      standalone.push(...group);
+    }
+  }
+
+  return { rows, standalone };
+}
+
+/**
+ * Render a single flex row as an HTML div with flex layout.
+ * @param {Array<Array<import('./pptx-extractor.js').ExtractedElement>>} items - Each item is an array of stacked elements.
+ * @param {string} deckName
+ * @param {(el: import('./pptx-extractor.js').ExtractedElement) => string} formatSingleElement
+ * @returns {string}
+ */
+function renderFlexRow(items, deckName, formatSingleElement) {
+  const flexItems = items
+    .map((stack) => {
+      const content = stack.map((el) => formatSingleElement(el)).join("\n");
+      return `<div style="flex: 1; min-width: 0;">${content}</div>`;
+    })
+    .join("\n");
+  return `<div class="flex-row" style="display: flex; gap: 1em; align-items: start;">\n${flexItems}\n</div>`;
+}
+
+/**
+ * Render a list of elements, wrapping horizontally adjacent groups in flex rows.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @param {string} deckName
+ * @param {(el: import('./pptx-extractor.js').ExtractedElement) => string} formatSingleElement
+ * @returns {string}
+ */
+function renderElementsWithFlex(elements, slideWidth, slideHeight, deckName, formatSingleElement) {
+  const { rows } = groupIntoFlexRows(elements, slideWidth, slideHeight);
+
+  if (rows.length === 0) {
+    return elements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE);
+  }
+
+  const rendered = new Set();
+  const parts = [];
+
+  const sorted = [...elements].sort((a, b) => (a.top || 0) - (b.top || 0));
+
+  for (const el of sorted) {
+    if (rendered.has(el)) continue;
+
+    const matchingRow = rows.find((row) => row.some((item) => item.some((e) => e === el)));
+    if (matchingRow) {
+      for (const item of matchingRow) {
+        for (const e of item) rendered.add(e);
+      }
+      parts.push(renderFlexRow(matchingRow, deckName, formatSingleElement));
+    } else {
+      rendered.add(el);
+      parts.push(formatSingleElement(el));
+    }
+  }
+
+  return parts.join(REGEX.DOUBLE_NEWLINE);
 }
 
 function hexToLuminance(hex) {

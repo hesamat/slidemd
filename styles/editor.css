@@ -933,6 +933,13 @@
   outline-offset: 2px;
 }
 
+/* Flex-row images from PPTX import — not draggable */
+[data-edit-mode="true"] .slide__area .flex-row img {
+  cursor: default;
+  border-style: dashed;
+  opacity: 0.85;
+}
+
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
 
 [data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {
