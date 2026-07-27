@@ -58,29 +58,44 @@ export class ImageInserter {
     ImagePicker.show(
       (snippet) => {
         const current = this.markdownEditor.getValue();
-        const hasSavedPosition =
-          savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length;
+
+        // Find a safe insert position: after the first @area marker, or before @footer, or at end
+        const firstAreaMatch = current.match(/^@[a-zA-Z_]\w*\b/m);
+        const footerIdx = current.search(/^@footer\b/m);
 
         let insertPos;
         let afterSnippet;
 
-        if (hasSavedPosition) {
+        if (savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length) {
+          // Cursor is in a valid position — check it's past the frontmatter/layout area
           const pos = savedCursorPos;
-          const isAtStart = pos === 0;
-          const isAtEnd = pos >= current.length;
-          const prevChar = isAtStart ? "\n" : current[pos - 1];
-          const nextChar = isAtEnd ? "\n" : current[pos];
+          const firstAreaIdx = firstAreaMatch ? current.indexOf(firstAreaMatch[0]) : -1;
+          const safePos = firstAreaIdx >= 0 ? firstAreaIdx : 0;
 
-          const before = prevChar === "\n" ? "" : "\n\n";
-          const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
-          const leadTrim = isAtStart ? before.replace(/^\n+/, "") : before;
+          if (pos >= safePos) {
+            // Cursor is past the frontmatter — insert here
+            const isAtEnd = pos >= current.length;
+            const prevChar = pos === 0 ? "\n" : current[pos - 1];
+            const nextChar = isAtEnd ? "\n" : current[pos];
 
-          insertPos = pos;
-          afterSnippet = `${leadTrim}${snippet}${after}`;
+            const before = prevChar === "\n" ? "" : "\n\n";
+            const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
+            const leadTrim = pos === 0 ? before.replace(/^\n+/, "") : before;
+
+            insertPos = pos;
+            afterSnippet = `${leadTrim}${snippet}${after}`;
+          } else {
+            // Cursor is in frontmatter — insert after first @area
+            insertPos = safePos;
+            afterSnippet = `${snippet}\n\n`;
+          }
         } else {
-          const footerIdx = current.search(/^@footer\b/m);
+          // No valid cursor — insert before @footer or at end
           if (footerIdx > 0) {
             insertPos = footerIdx;
+            afterSnippet = `${snippet}\n\n`;
+          } else if (firstAreaMatch) {
+            insertPos = current.indexOf(firstAreaMatch[0]);
             afterSnippet = `${snippet}\n\n`;
           } else {
             insertPos = current.length;

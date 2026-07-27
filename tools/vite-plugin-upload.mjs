@@ -170,37 +170,6 @@ export function imageUploadPlugin() {
                     res.end(JSON.stringify({ error: message }));
                 }
             });
-
-            // ── GET /api/images — list existing images in images/ ──
-            server.middlewares.use('/api/images', (req, res) => {
-                res.setHeader('Content-Type', 'application/json');
-
-                if (req.method !== 'GET') {
-                    res.statusCode = 405;
-                    res.end(JSON.stringify({ error: 'Method not allowed' }));
-                    return;
-                }
-                try {
-                    if (!fs.existsSync(IMAGES_DIR)) {
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({ images: [] }));
-                        return;
-                    }
-
-                    const entries = fs.readdirSync(IMAGES_DIR)
-                        .filter((name) => ALLOWED_EXT_RE.test(path.extname(name)))
-                        .map((name) => ({
-                            name,
-                            path: `images/${name}`,
-                        }));
-
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({ images: entries }));
-                } catch (err) {
-                    res.statusCode = 500;
-                    res.end(JSON.stringify({ error: err.message || 'Failed to list images' }));
-                }
-            });
         },
     };
 }
