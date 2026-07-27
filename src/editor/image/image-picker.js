@@ -68,8 +68,12 @@ export class ImagePicker {
                 </div>
 
                 <div class="image-picker-tab-panel active" data-panel="existing" role="tabpanel">
-                    <div id="imagePickerGrid" class="image-picker-grid" aria-live="polite"></div>
-                    <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" style="display:none" />
+                    <div class="image-picker-existing-layout">
+                        <div id="imagePickerGrid" class="image-picker-grid" aria-live="polite"></div>
+                        <div id="imagePickerExistingPreviewWrap" class="image-picker-existing-preview-wrap" style="display:none">
+                            <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" />
+                        </div>
+                    </div>
                 </div>
 
                 <div class="image-picker-tab-panel" data-panel="upload" role="tabpanel">
@@ -138,6 +142,7 @@ export class ImagePicker {
     this.presetButtons = wrapper.querySelectorAll(".image-picker-preset-btn");
     this.alignButtons = wrapper.querySelectorAll(".image-picker-align-btn");
     this.existingPreview = wrapper.querySelector("#imagePickerExistingPreview");
+    this.existingPreviewWrap = wrapper.querySelector("#imagePickerExistingPreviewWrap");
   }
 
   /**
@@ -281,7 +286,7 @@ export class ImagePicker {
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
-    if (this.existingPreview) this.existingPreview.style.display = "none";
+    if (this.existingPreviewWrap) this.existingPreviewWrap.style.display = "none";
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
@@ -370,10 +375,10 @@ export class ImagePicker {
       .querySelectorAll(".image-picker-item")
       .forEach((i) => i.classList.toggle("selected", i === el));
     // Show preview of selected image
-    if (this.existingPreview) {
+    if (this.existingPreview && this.existingPreviewWrap) {
       this.existingPreview.src = path;
       this.existingPreview.alt = el.querySelector("img")?.alt || "";
-      this.existingPreview.style.display = "";
+      this.existingPreviewWrap.style.display = "";
     }
     this._syncInsertButton();
   }
