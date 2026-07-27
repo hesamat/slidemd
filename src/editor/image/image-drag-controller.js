@@ -3,25 +3,25 @@
  *
  * Drag-and-drop repositioning and resize handles for images in edit mode.
  * Handles interact.js draggable setup, overlay resize handle mousedown
- * events, cross-area drag target detection, and drop-gap indicators.
+ * events, cross-area drag target detection, and drop-target highlighting.
  *
  * All mutable drag/resize state lives here, not in ImageInteractionHandler.
  * The handler injects callbacks via a context object.
  */
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
+import { ImageInteractionHandler } from "./image-interaction-handler.js";
 import { getStageScale } from "./image-position-presets.js";
 import { readImageSettings } from "./image-markdown-utils.js";
 
 const MIN_RESIZE_DIM = 50;
+const CROSS_AREA_RESELECT_MS = 400;
+const CORNER_EDGE_LEN_THRESHOLD = 4;
 const DROP_GAP_HEIGHT = 40;
 const DROP_GAP_MARGIN = 4;
 const DROP_GAP_RADIUS = 8;
-const CROSS_AREA_RESELECT_MS = 400;
-const CORNER_EDGE_LEN_THRESHOLD = 4;
 
 export class ImageDragController {
-  /** @type {HTMLElement|null} */
   static _dropIndicator = null;
   static _dragSourceArea = null;
   static _dragTargetArea = null;
@@ -102,7 +102,7 @@ export class ImageDragController {
     const areaEl = img.closest(".slide__area");
     if (areaEl) {
       const allElements = [...areaEl.children].filter(
-        (el) => el !== img && !el.classList.contains("image-drop-indicator"),
+        (el) => el !== img,
       );
       const cursorY = e.clientY;
       let insertBefore = null;
@@ -123,6 +123,7 @@ export class ImageDragController {
     const img = ctx?.getSelectedImg();
     if (!img || !ctx) return;
 
+    const isFreeflow = ImageInteractionHandler.isFreeflow(img);
     this._updateDragTarget(e.clientX, e.clientY);
 
     const targetArea = this._dragTargetArea;
@@ -134,27 +135,11 @@ export class ImageDragController {
         `.slide__area[data-area-name="${targetArea}"]`,
       );
       if (targetAreaEl) {
-        const allElements = [...targetAreaEl.children].filter(
-          (el) => !el.classList.contains("image-drop-indicator"),
-        );
-
-        let insertBefore = null;
-        const cursorY = e.clientY;
-        for (const el of allElements) {
-          const rect = el.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          if (cursorY < midY) {
-            insertBefore = el;
-            break;
-          }
-        }
-
-        this._showDropGap(targetAreaEl, insertBefore);
-        this._dropInsertBeforeEl = insertBefore;
+        this._highlightDropTarget(targetAreaEl);
         this._dropTargetAreaEl = targetAreaEl;
       }
     } else if (!isCrossArea && this._dropTargetAreaEl) {
-      this._hideDropGap();
+      this._clearDropTargetHighlight();
       this._dropTargetAreaEl = null;
     }
 
@@ -170,7 +155,8 @@ export class ImageDragController {
 
     ctx.updateOverlay();
 
-    if (!isCrossArea) {
+    // Free-flowing images show a gap indicator for precise insertion
+    if (isFreeflow && !isCrossArea) {
       const areaEl = img.closest(".slide__area");
       if (areaEl) {
         const allElements = [...areaEl.children].filter(
@@ -205,6 +191,7 @@ export class ImageDragController {
     if (!img || !ctx) return;
 
     this._clearDropTargetHighlight();
+    this._hideDropGap();
 
     const fromArea = this._dragSourceArea;
     const toArea = this._dragTargetArea;
@@ -227,10 +214,12 @@ export class ImageDragController {
       } else {
         targetAreaEl.appendChild(img);
       }
-      img.style.left = "0px";
-      img.style.top = "0px";
+      // Only reset position for non-freeflow images
+      if (!ImageInteractionHandler.isFreeflow(img)) {
+        img.style.left = "0px";
+        img.style.top = "0px";
+      }
       requestAnimationFrame(() => ctx.updateOverlay());
-      this._hideDropGap();
 
       const newMd = ctx.buildMoveMarkdownAtPosition(img, fromArea, toArea, crossSlot);
       if (newMd) {
@@ -250,21 +239,22 @@ export class ImageDragController {
         }, CROSS_AREA_RESELECT_MS);
       }
     } else {
-      // Within-area: remove gap indicator first so slot computation
-      // uses the same DOM state as _dragStartInsertBefore
-      this._hideDropGap();
-
-      const currentSlot = currentAreaEl
-        ? ctx.findInsertBeforeSlot(currentAreaEl, img, e.clientY)
-        : null;
-
-      if (currentSlot !== this._dragStartInsertBefore) {
-        ctx.reorderImageInMarkdown(img, currentSlot);
-      } else {
+      // Within-area: free-flow just syncs position, normal images reorder
+      if (ImageInteractionHandler.isFreeflow(img)) {
         ctx.syncToMarkdown();
-        if (img?.isConnected) {
-          ctx.select(img);
+      } else {
+        const currentSlot = currentAreaEl
+          ? ctx.findInsertBeforeSlot(currentAreaEl, img, e.clientY)
+          : null;
+
+        if (currentSlot !== this._dragStartInsertBefore) {
+          ctx.reorderImageInMarkdown(img, currentSlot);
+        } else {
+          ctx.syncToMarkdown();
         }
+      }
+      if (img?.isConnected) {
+        ctx.select(img);
       }
     }
 
@@ -378,35 +368,51 @@ export class ImageDragController {
 
   // ── Drop gap management ─────────────────────────────────────────────────
 
-  static _showDropGap(areaEl, insertBeforeEl) {
-    const gap = this._dropIndicator;
-    if (gap) {
-      if (insertBeforeEl && insertBeforeEl.parentNode) {
-        insertBeforeEl.parentNode.insertBefore(gap, insertBeforeEl);
-      } else {
-        areaEl.appendChild(gap);
-      }
-      return;
+  static _highlightDropTarget(areaEl) {
+    if (this._dropTargetAreaEl && this._dropTargetAreaEl !== areaEl) {
+      this._dropTargetAreaEl.classList.remove("slide__area--drop-target");
     }
+    areaEl.classList.add("slide__area--drop-target");
+  }
 
-    const newGap = document.createElement("div");
-    newGap.className = "image-drop-indicator";
-    newGap.style.height = `${DROP_GAP_HEIGHT}px`;
-    newGap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
-    newGap.style.margin = `${DROP_GAP_MARGIN}px 0`;
-    newGap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
-    newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
-    newGap.style.background = "rgba(2, 132, 199, 0.06)";
-    newGap.style.pointerEvents = "none";
-    newGap.style.flexShrink = "0";
+  static _showDropGap(areaEl, insertBeforeEl) {
+    let gap = this._dropIndicator;
+    if (!gap) {
+      const newGap = document.createElement("div");
+      newGap.className = "image-drop-indicator";
+      newGap.style.height = `${DROP_GAP_HEIGHT}px`;
+      newGap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
+      newGap.style.margin = `${DROP_GAP_MARGIN}px 0`;
+      newGap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
+      newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
+      newGap.style.background = "rgba(2, 132, 199, 0.06)";
+      newGap.style.pointerEvents = "none";
+      newGap.style.flexShrink = "0";
+      newGap.style.position = "absolute";
+      newGap.style.left = "0";
+      newGap.style.right = "0";
+      newGap.style.zIndex = "10";
+      areaEl.style.position = areaEl.style.position || "relative";
+      areaEl.appendChild(newGap);
+      this._dropIndicator = newGap;
+    }
 
     if (insertBeforeEl) {
-      insertBeforeEl.parentNode.insertBefore(newGap, insertBeforeEl);
+      const targetRect = insertBeforeEl.getBoundingClientRect();
+      const areaRect = areaEl.getBoundingClientRect();
+      const top = (targetRect.top - areaRect.top) / getStageScale();
+      gap.style.top = `${Math.round(top)}px`;
     } else {
-      areaEl.appendChild(newGap);
+      const areaRect = areaEl.getBoundingClientRect();
+      const lastChild = areaEl.lastElementChild;
+      if (lastChild && lastChild !== gap) {
+        const lastRect = lastChild.getBoundingClientRect();
+        const top = (lastRect.bottom - areaRect.top) / getStageScale() + DROP_GAP_MARGIN;
+        gap.style.top = `${Math.round(top)}px`;
+      } else {
+        gap.style.top = "0px";
+      }
     }
-
-    this._dropIndicator = newGap;
   }
 
   static _hideDropGap() {

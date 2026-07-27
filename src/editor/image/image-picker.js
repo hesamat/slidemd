@@ -24,6 +24,7 @@ export class ImagePicker {
   static presetButtons = null;
   static alignButtons = null;
   static selectedAlign = "center";
+  static selectedFreeflow = false;
   static onSelectCallback = null;
 
   /** Currently selected image path (or URL). */
@@ -115,6 +116,9 @@ export class ImagePicker {
                                 <button type="button" class="image-picker-align-btn" data-align="full" aria-label="Full width" title="Full width">↔</button>
                             </div>
                         </div>
+                        <div class="image-picker-option-group">
+                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">⇊ Float</button>
+                        </div>
                     </div>
                     <button id="imagePickerInsertBtn" class="image-picker-insert-btn" type="button" disabled>Insert</button>
                 </div>
@@ -136,6 +140,7 @@ export class ImagePicker {
     this.insertBtn = wrapper.querySelector("#imagePickerInsertBtn");
     this.presetButtons = wrapper.querySelectorAll(".image-picker-preset-btn");
     this.alignButtons = wrapper.querySelectorAll(".image-picker-align-btn");
+    this.freeflowBtn = wrapper.querySelector("#imagePickerFreeflowBtn");
   }
 
   /**
@@ -252,6 +257,15 @@ export class ImagePicker {
       });
     });
 
+    // Free-flow toggle
+    if (this.freeflowBtn) {
+      this.freeflowBtn.addEventListener("click", () => {
+        this.selectedFreeflow = !this.selectedFreeflow;
+        this.freeflowBtn.classList.toggle("active", this.selectedFreeflow);
+        this.freeflowBtn.setAttribute("aria-pressed", String(this.selectedFreeflow));
+      });
+    }
+
     // Insert
     this.insertBtn.addEventListener("click", () => this._confirm());
   }
@@ -275,6 +289,7 @@ export class ImagePicker {
     this._pathOnly = !!pathOnly;
     this.selectedPath = "";
     this.selectedAlign = "center";
+    this.selectedFreeflow = false;
     // Default sizing: 800px wide, centered.  Users can override.
     this.widthInput.value = "320";
     this.heightInput.value = "";
@@ -282,6 +297,11 @@ export class ImagePicker {
     this.urlPreview.style.display = "none";
     // Reset align buttons
     this.alignButtons.forEach((b) => b.classList.toggle("active", b.dataset.align === "center"));
+    // Reset freeflow button
+    if (this.freeflowBtn) {
+      this.freeflowBtn.classList.remove("active");
+      this.freeflowBtn.setAttribute("aria-pressed", "false");
+    }
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
@@ -471,7 +491,7 @@ export class ImagePicker {
     }
 
     const styleParts = [
-      "position: relative",
+      this.selectedFreeflow ? "position: absolute" : "position: relative",
       `left: ${left}px`,
       "top: 0px",
       `width: ${w}px`,
@@ -484,7 +504,8 @@ export class ImagePicker {
       styleParts.push(`height: ${h}px`);
     }
 
-    return `<img src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
+    const classAttr = this.selectedFreeflow ? ' class="img-freeflow"' : "";
+    return `<img${classAttr} src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
   }
 
   /**
