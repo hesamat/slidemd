@@ -178,9 +178,6 @@ function scheduleReload() {
 
 function startWatching(format) {
   const watchPaths = [format.mdFile];
-  if (format.imagesDir && fs.existsSync(format.imagesDir)) {
-    watchPaths.push(format.imagesDir);
-  }
 
   for (const p of watchPaths) {
     if (!fs.existsSync(p)) continue;
