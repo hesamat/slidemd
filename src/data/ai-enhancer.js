@@ -29,7 +29,10 @@ export function extractMarkdown(text) {
     }
   }
   // If text starts with layout: or ---, it's already clean — return as-is
-  if (/^(layout:|---)/.test(trimmed)) return trimmed;
+  if (/^(layout:|---)/.test(trimmed)) {
+    console.log("[extractMarkdown] starts with layout/---, returning as-is");
+    return trimmed;
+  }
   // Strip analysis: find first --- that follows a layout: with an actual layout value
   const LAYOUT_VALUES =
     "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
@@ -38,13 +41,21 @@ export function extractMarkdown(text) {
   while ((m = layoutRe.exec(trimmed)) !== null) {
     const afterLayout = m.index + m[0].length;
     const sepIdx = trimmed.indexOf("\n---\n", afterLayout);
+    console.log("[extractMarkdown] layout match:", m[0], "at", m.index, "--- at", sepIdx);
     if (sepIdx > 0) {
-      return trimmed.slice(sepIdx).trim();
+      const result = trimmed.slice(sepIdx).trim();
+      console.log("[extractMarkdown] slicing from ---, result starts:", result.slice(0, 100));
+      return result;
     }
   }
   // Fallback: first standalone ---
   const firstSep = trimmed.search(/^---$/m);
-  if (firstSep > 0) return trimmed.slice(firstSep).trim();
+  console.log("[extractMarkdown] fallback, first --- at", firstSep);
+  if (firstSep > 0) {
+    const result = trimmed.slice(firstSep).trim();
+    console.log("[extractMarkdown] slicing from ---, result starts:", result.slice(0, 100));
+    return result;
+  }
   return trimmed;
 }
 
@@ -82,6 +93,13 @@ export function reinjectDirectives(aiResponse, original) {
     "$1\n$2",
   );
   const aiSlides = fixedResponse.split(/\n---\n/);
+
+  console.log("[reinjectDirectives]", {
+    origSlideCount: origDirectives.length,
+    aiSlideCount: aiSlides.length,
+    firstAiSlide: aiSlides[0]?.slice(0, 200),
+    origDirectives,
+  });
 
   // If slide count doesn't match, AI dropped/added slides — return as-is
   if (aiSlides.length !== origDirectives.length) {
