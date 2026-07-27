@@ -252,6 +252,30 @@
   color: #fff;
 }
 
+.image-picker-chip-btn {
+  padding: 5px 10px;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-medium);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.image-picker-chip-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-high);
+  border-color: var(--accent);
+}
+
+.image-picker-chip-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 .image-picker-custom-size {
   display: inline-flex;
   align-items: center;
