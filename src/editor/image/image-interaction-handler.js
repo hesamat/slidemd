@@ -292,7 +292,12 @@ export class ImageInteractionHandler {
 
     const before = updated.slice(0, insertAt);
     const after = updated.slice(insertAt);
-    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    const needsNewline =
+      before.length > 0 && !before.endsWith("\n")
+        ? "\n\n"
+        : before.endsWith("\n") && !before.endsWith("\n\n")
+          ? "\n"
+          : "";
     const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
     return before + needsNewline + newTag + trailingNewlines + after;
   }
@@ -384,7 +389,12 @@ export class ImageInteractionHandler {
     // Insert the new tag at the new position
     const before = withoutImage.slice(0, insertAt);
     const after = withoutImage.slice(insertAt);
-    const needsNewline = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    const needsNewline =
+      before.length > 0 && !before.endsWith("\n")
+        ? "\n\n"
+        : before.endsWith("\n") && !before.endsWith("\n\n")
+          ? "\n"
+          : "";
     // Ensure blank line after image for markdown-it block rendering.
     // If `after` already starts with \n, we need an extra \n to form the blank line.
     const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
