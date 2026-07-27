@@ -1215,7 +1215,7 @@ function formatTextElement(raw) {
  * Counts all items including nested sub-items towards the threshold.
  */
 const MIN_LIST_ITEMS = 10;
-const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+\S/;
+const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
 
 function wrapLongLists(markdown) {
   const lines = markdown.split("\n");
