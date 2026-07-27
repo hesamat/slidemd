@@ -49,6 +49,7 @@ export class AiSidebar {
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
     const closeBtn = panel.querySelector('[data-action="close"]');
     const minimizeBtn = panel.querySelector('[data-action="minimize"]');
+    const seeResultBtn = panel.querySelector('[data-action="see-result"]');
 
     let cancelled = false;
     let result = null;
@@ -58,9 +59,12 @@ export class AiSidebar {
       this.cancel();
     });
 
-    closeBtn.addEventListener("click", () => {
-      this.close();
-    });
+    const finish = () => {
+      this._finishResolve?.();
+    };
+
+    closeBtn.addEventListener("click", finish);
+    seeResultBtn.addEventListener("click", finish);
 
     minimizeBtn.addEventListener("click", () => {
       this._minimized = !this._minimized;
@@ -166,6 +170,8 @@ export class AiSidebar {
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       closeBtn.hidden = false;
+      seeResultBtn.hidden = false;
+      panel.classList.add(`${P}panel--done`);
     } catch (err) {
       if (err.name === "AbortError") {
         this.close();
@@ -179,7 +185,7 @@ export class AiSidebar {
     }
 
     await new Promise((resolve) => {
-      closeBtn.addEventListener("click", resolve, { once: true });
+      this._finishResolve = resolve;
     });
 
     this._currentPanel = null;
@@ -196,6 +202,7 @@ export class AiSidebar {
         <span class="${P}title">${title}</span>
         <div class="${P}header-right">
           <span class="${P}slide-count">0 slides</span>
+          <button type="button" data-action="see-result" class="${P}btn ${P}btn--see-result" hidden>See result</button>
           <button type="button" data-action="minimize" class="${P}icon-btn" title="Minimize">\u2212</button>
         </div>
       </div>
@@ -254,6 +261,31 @@ export class AiSidebar {
       .${P}panel--minimized .${P}notice,
       .${P}panel--minimized .${P}output,
       .${P}panel--minimized .${P}actions { display: none; }
+
+      /* Done glow effect */
+      .${P}panel--done { animation: ${P}doneGlow 2s ease-in-out 3; }
+      @keyframes ${P}doneGlow {
+        0%,100% { box-shadow: -2px 0 24px rgba(0,0,0,0.12); }
+        50% { box-shadow: -2px 0 32px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
+      }
+      .${P}panel--minimized.${P}panel--done {
+        animation: ${P}minimizedGlow 2s ease-in-out 3;
+        border: 1.5px solid var(--ai-accent);
+      }
+      @keyframes ${P}minimizedGlow {
+        0%,100% { box-shadow: 0 4px 16px rgba(0,0,0,0.18); border-color: var(--ai-accent); }
+        50% { box-shadow: 0 4px 24px rgba(99,102,241,0.5), 0 0 40px rgba(99,102,241,0.2); }
+      }
+
+      .${P}btn--see-result {
+        font-size: 11px; font-weight: 600;
+        padding: 4px 10px; border-radius: 6px;
+        background: var(--ai-accent); color: #fff;
+        border: none; cursor: pointer;
+        transition: background 0.15s;
+        white-space: nowrap;
+      }
+      .${P}btn--see-result:hover { background: var(--ai-accent-hover); }
 
       .${P}header {
         display: flex; align-items: center; justify-content: space-between;
