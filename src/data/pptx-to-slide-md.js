@@ -339,6 +339,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
 
   const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
 
+  // Prune slides with no content elements
+  if (allElements.length === 0 && footerElements.length === 0) {
+    return slide.notes ? parts.join("\n") : "";
+  }
+
   let layout = inferLayout(
     textElements,
     slideWidth,

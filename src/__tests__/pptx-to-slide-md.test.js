@@ -666,13 +666,12 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("- - Understand");
   });
 
-  it("handles empty slides", () => {
+  it("prunes empty slides", () => {
     const extraction = makeExtraction([
       { index: 0, title: "", notes: "", elements: [], background: "" },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@main");
+    expect(md).toBe("");
   });
 
   it("preserves background", () => {
