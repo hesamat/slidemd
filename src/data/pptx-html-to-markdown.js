@@ -110,6 +110,10 @@ export function htmlToMarkdown(html) {
           codeLines.push(content);
           i++;
         } else if (t === "") {
+          // Allow single blank lines within code, but double-empty separates blocks
+          let lookahead = i + 1;
+          while (lookahead < lines.length && lines[lookahead].trim() === "") lookahead++;
+          if (lookahead - i >= 2) break;
           i++;
         } else {
           break;
