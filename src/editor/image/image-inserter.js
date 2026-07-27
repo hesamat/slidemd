@@ -55,61 +55,57 @@ export class ImageInserter {
 
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
 
-    ImagePicker.show(
-      (snippet) => {
-        const current = this.markdownEditor.getValue();
+    ImagePicker.show((snippet) => {
+      const current = this.markdownEditor.getValue();
 
-        // Find a safe insert position: after @main line, or before @footer, or at end
-        const mainMatch = current.match(/^@main\b/m);
-        const footerIdx = current.search(/^@footer\b/m);
+      // Find a safe insert position: after @main line, or before @footer, or at end
+      const mainMatch = current.match(/^@main\b/m);
+      const footerIdx = current.search(/^@footer\b/m);
 
-        let insertPos;
-        let afterSnippet;
+      let insertPos;
+      let afterSnippet;
 
-        if (savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length) {
-          // Cursor is in a valid position — check it's past the frontmatter/layout area
-          const pos = savedCursorPos;
-          const mainIdx = mainMatch ? current.indexOf(mainMatch[0]) : -1;
-          // Position after the @main line (skip past the marker and its newline)
-          const safePos = mainIdx >= 0
-            ? current.indexOf("\n", mainIdx) + 1
-            : 0;
+      if (savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length) {
+        // Cursor is in a valid position — check it's past the frontmatter/layout area
+        const pos = savedCursorPos;
+        const mainIdx = mainMatch ? current.indexOf(mainMatch[0]) : -1;
+        // Position after the @main line (skip past the marker and its newline)
+        const safePos = mainIdx >= 0 ? current.indexOf("\n", mainIdx) + 1 : 0;
 
-          if (pos >= safePos) {
-            // Cursor is past the frontmatter — insert here
-            const isAtEnd = pos >= current.length;
-            const prevChar = pos === 0 ? "\n" : current[pos - 1];
-            const nextChar = isAtEnd ? "\n" : current[pos];
+        if (pos >= safePos) {
+          // Cursor is past the frontmatter — insert here
+          const isAtEnd = pos >= current.length;
+          const prevChar = pos === 0 ? "\n" : current[pos - 1];
+          const nextChar = isAtEnd ? "\n" : current[pos];
 
-            const before = prevChar === "\n" ? "" : "\n\n";
-            const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
-            const leadTrim = pos === 0 ? before.replace(/^\n+/, "") : before;
+          const before = prevChar === "\n" ? "" : "\n\n";
+          const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
+          const leadTrim = pos === 0 ? before.replace(/^\n+/, "") : before;
 
-            insertPos = pos;
-            afterSnippet = `${leadTrim}${snippet}${after}`;
-          } else {
-            // Cursor is in frontmatter — insert after first @area
-            insertPos = safePos;
-            afterSnippet = `${snippet}\n\n`;
-          }
+          insertPos = pos;
+          afterSnippet = `${leadTrim}${snippet}${after}`;
         } else {
-          // No valid cursor — insert before @footer or at end
-          if (footerIdx > 0) {
-            insertPos = footerIdx;
-            afterSnippet = `${snippet}\n\n`;
-          } else if (mainMatch) {
-            insertPos = current.indexOf("\n", current.indexOf(mainMatch[0])) + 1;
-            afterSnippet = `${snippet}\n`;
-          } else {
-            insertPos = current.length;
-            afterSnippet = `\n\n${snippet}\n`;
-          }
+          // Cursor is in frontmatter — insert after first @area
+          insertPos = safePos;
+          afterSnippet = `${snippet}\n\n`;
         }
+      } else {
+        // No valid cursor — insert before @footer or at end
+        if (footerIdx > 0) {
+          insertPos = footerIdx;
+          afterSnippet = `${snippet}\n\n`;
+        } else if (mainMatch) {
+          insertPos = current.indexOf("\n", current.indexOf(mainMatch[0])) + 1;
+          afterSnippet = `${snippet}\n`;
+        } else {
+          insertPos = current.length;
+          afterSnippet = `\n\n${snippet}\n`;
+        }
+      }
 
-        this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
-        this.markdownEditor.focus();
-      },
-    );
+      this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+      this.markdownEditor.focus();
+    });
   }
 
   /**

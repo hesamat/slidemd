@@ -280,10 +280,7 @@ export class ImagePicker {
    *   hides size/alignment/insert controls and calls `onSelect(path)`
    *   with the chosen path string instead of a full `<img>` snippet.
    */
-  static async show(
-    onSelect,
-    { pathOnly = false } = {},
-  ) {
+  static async show(onSelect, { pathOnly = false } = {}) {
     this.init();
     this.onSelectCallback = onSelect;
     this._pathOnly = !!pathOnly;
@@ -349,12 +346,14 @@ export class ImagePicker {
     const sorted = [...this._availableImages].sort((a, b) => b.name.localeCompare(a.name));
 
     this.grid.innerHTML = sorted
-      .map((img) => `
+      .map(
+        (img) => `
                 <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
                     <img src="${escapeAttr(img.path)}" alt="${escapeAttr(img.name)}" loading="lazy" />
                     <div class="image-picker-item-name">${escapeText(img.name)}</div>
                 </div>
-            `)
+            `,
+      )
       .join("");
 
     this.grid.querySelectorAll(".image-picker-item").forEach((el) => {
@@ -474,9 +473,7 @@ export class ImagePicker {
     // Measure the active slide's @main area to get the real content width
     let left = 0;
     if (this.selectedAlign === "center" || this.selectedAlign === "right") {
-      const mainArea = document.querySelector(
-        ".slide.active .slide__area[data-area-name='main']",
-      );
+      const mainArea = document.querySelector(".slide.active .slide__area[data-area-name='main']");
       if (mainArea) {
         const cs = getComputedStyle(mainArea);
         const padL = parseFloat(cs.paddingLeft) || 0;

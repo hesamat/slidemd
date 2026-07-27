@@ -101,9 +101,7 @@ export class ImageDragController {
 
     const areaEl = img.closest(".slide__area");
     if (areaEl) {
-      const allElements = [...areaEl.children].filter(
-        (el) => el !== img,
-      );
+      const allElements = [...areaEl.children].filter((el) => el !== img);
       const cursorY = e.clientY;
       let insertBefore = null;
       for (const el of allElements) {
