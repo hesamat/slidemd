@@ -65,7 +65,7 @@ export class AiSidebar {
     minimizeBtn.addEventListener("click", () => {
       this._minimized = !this._minimized;
       panel.classList.toggle(`${P}panel--minimized`, this._minimized);
-      minimizeBtn.textContent = this._minimized ? "+" : "−";
+      minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
     });
 
     try {
@@ -73,7 +73,7 @@ export class AiSidebar {
       const model = SettingsModal.getModel();
 
       if (!apiKey) {
-        statusEl.textContent = "No API key — open Settings to configure";
+        statusEl.textContent = "No API key \u2014 open Settings to configure";
         statusEl.className = `${P}status ${P}status--error`;
         noticeEl.hidden = true;
         closeBtn.hidden = false;
@@ -81,11 +81,11 @@ export class AiSidebar {
         return null;
       }
 
-      statusEl.textContent = "Preparing…";
+      statusEl.textContent = "Preparing\u2026";
       const { buildMessages, estimateTokens } = await import("../data/ai-enhancer.js");
       const { system, user } = buildMessages(markdown, mode);
       const inputTokens = estimateTokens(system + user);
-      statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)…`;
+      statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
 
       this._abortController = new AbortController();
       const res = await fetch(OPENROUTER_URL, {
@@ -112,7 +112,7 @@ export class AiSidebar {
       }
 
       noticeEl.hidden = false;
-      statusEl.textContent = "AI is working…";
+      statusEl.textContent = "AI is working\u2026";
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let contentText = "";
@@ -135,7 +135,6 @@ export class AiSidebar {
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
-            // Some models use content, some use reasoning, some use both
             const text = delta?.content || delta?.reasoning || delta?.reasoning_details?.[0]?.text || "";
             if (text) {
               contentText += text;
@@ -146,7 +145,7 @@ export class AiSidebar {
               if (slideCount > lastSlideCount) {
                 lastSlideCount = slideCount;
                 slideCountEl.textContent = `${slideCount} slides`;
-                statusEl.textContent = `Generating… (${slideCount} slides)`;
+                statusEl.textContent = `Generating\u2026 (${slideCount} slides)`;
               }
             }
           } catch {
@@ -179,7 +178,6 @@ export class AiSidebar {
       closeBtn.hidden = false;
     }
 
-    // Wait for user to close
     await new Promise((resolve) => {
       closeBtn.addEventListener("click", resolve, { once: true });
     });
@@ -192,21 +190,21 @@ export class AiSidebar {
   static #createPanel(mode) {
     const panel = document.createElement("div");
     panel.className = P + "panel";
-    const title = mode === "fix" ? "AI: Fixing Issues" : "AI: Generating Inspired Deck";
+    const title = mode === "fix" ? "AI: Fix Issues" : "AI: Inspired Deck";
     panel.innerHTML = `
       <div class="${P}header">
         <span class="${P}title">${title}</span>
-        <div class="${P}header-actions">
-          <span class="${P}slide-count"></span>
-          <button type="button" data-action="minimize" class="${P}minimize-btn" title="Minimize">−</button>
+        <div class="${P}header-right">
+          <span class="${P}slide-count">0 slides</span>
+          <button type="button" data-action="minimize" class="${P}icon-btn" title="Minimize">\u2212</button>
         </div>
       </div>
-      <div class="${P}status">Starting…</div>
-      <div class="${P}notice">Result not yet applied — click "See result" when done.</div>
+      <div class="${P}status">Starting\u2026</div>
+      <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}output"></div>
       <div class="${P}actions">
-        <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
-        <button type="button" data-action="close" class="${P}btn ${P}btn--accent" hidden>See result</button>
+        <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
+        <button type="button" data-action="close" class="${P}btn ${P}btn--primary" hidden>See result</button>
       </div>
     `;
     this.#injectStyles(panel);
@@ -216,72 +214,142 @@ export class AiSidebar {
   static #injectStyles(container) {
     const style = document.createElement("style");
     style.textContent = `
+      /* ── AI Sidebar ─────────────────────────────────────────────── */
       .${P}panel {
-        position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 90vw;
-        z-index: 10000; display: flex; flex-direction: column;
-        background: var(--surface-bg, #fff); color: #1a1a2e;
-        box-shadow: -4px 0 24px rgba(0,0,0,0.15);
-        animation: ${P}slideIn 0.25s ease-out;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --ai-bg: #ffffff;
+        --ai-surface: #f8f9fa;
+        --ai-border: rgba(0,0,0,0.08);
+        --ai-text: #1a1a2e;
+        --ai-text-secondary: #555;
+        --ai-accent: #6366f1;
+        --ai-accent-hover: #4f46e5;
+        --ai-notice-bg: #fef3c7;
+        --ai-notice-text: #92400e;
+
+        position: fixed; top: 0; right: 0; bottom: 0;
+        width: 440px; max-width: 92vw;
+        z-index: 10000;
+        display: flex; flex-direction: column;
+        background: var(--ai-bg);
+        color: var(--ai-text);
+        box-shadow: -2px 0 24px rgba(0,0,0,0.12);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        border-left: 1px solid var(--ai-border);
       }
-      .${P}panel--minimized { bottom: auto; height: 48px; overflow: hidden; }
+
+      /* Minimized state: bottom-right chip */
+      .${P}panel--minimized {
+        top: auto; bottom: 16px; right: 16px;
+        width: auto; height: auto;
+        border-radius: 12px;
+        border-left: none;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      }
+      .${P}panel--minimized .${P}header {
+        padding: 8px 14px;
+        border-bottom: none;
+        border-radius: 12px;
+      }
       .${P}panel--minimized .${P}status,
       .${P}panel--minimized .${P}notice,
       .${P}panel--minimized .${P}output,
       .${P}panel--minimized .${P}actions { display: none; }
-      @keyframes ${P}slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
       .${P}header {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.08); flex-shrink: 0;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--ai-border);
+        flex-shrink: 0;
+        background: var(--ai-surface);
       }
-      .${P}title { font-size: 14px; font-weight: 600; }
-      .${P}header-actions { display: flex; align-items: center; gap: 8px; }
+      .${P}title {
+        font-size: 14px; font-weight: 600;
+        color: var(--ai-text);
+      }
+      .${P}header-right { display: flex; align-items: center; gap: 8px; }
       .${P}slide-count {
-        font-size: 11px; color: #333;
-        background: rgba(0,0,0,0.08); padding: 2px 8px;
+        font-size: 11px; font-weight: 500;
+        color: var(--ai-text-secondary);
+        background: var(--ai-border); padding: 2px 10px;
         border-radius: 10px; white-space: nowrap;
       }
-      .${P}minimize-btn {
-        width: 24px; height: 24px; border: none; background: rgba(0,0,0,0.06);
-        border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1;
-        color: #666; display: flex; align-items: center; justify-content: center;
+      .${P}icon-btn {
+        width: 28px; height: 28px; border: none;
+        background: transparent; border-radius: 6px;
+        cursor: pointer; font-size: 18px; line-height: 1;
+        color: var(--ai-text-secondary);
+        display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s;
       }
-      .${P}minimize-btn:hover { background: rgba(0,0,0,0.1); }
+      .${P}icon-btn:hover { background: var(--ai-border); }
+
       .${P}status {
-        font-size: 12px; color: #666; padding: 8px 16px;
+        font-size: 12px; color: var(--ai-text-secondary);
+        padding: 10px 18px;
         display: flex; align-items: center; gap: 8px;
-        border-bottom: 1px solid rgba(0,0,0,0.08);
+        border-bottom: 1px solid var(--ai-border);
+        background: var(--ai-surface);
       }
       .${P}status::before {
-        content: ""; display: inline-block; width: 6px; height: 6px;
-        border-radius: 50%; background: #6366f1;
-        animation: ${P}pulse 1.5s ease-in-out infinite;
+        content: ""; display: inline-block;
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--ai-accent);
+        animation: ${P}pulse 1.4s ease-in-out infinite;
       }
-      .${P}status--done::before { background: #10b981; animation: none; }
+      .${P}status--done { color: #16a34a; }
+      .${P}status--done::before { background: #16a34a; animation: none; }
+      .${P}status--error { color: #dc2626; }
       .${P}status--error::before { background: #dc2626; animation: none; }
-      @keyframes ${P}pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+      @keyframes ${P}pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
       .${P}notice {
-        font-size: 11px; color: #b45309; background: #fef3c7;
-        padding: 6px 16px; border-bottom: 1px solid rgba(0,0,0,0.08);
+        font-size: 11px; color: var(--ai-notice-text);
+        background: var(--ai-notice-bg);
+        padding: 8px 18px;
+        border-bottom: 1px solid var(--ai-border);
       }
+
       .${P}output {
-        flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px;
-        font-size: 11px; line-height: 1.5; white-space: pre-wrap;
-        font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
-        background: rgba(0,0,0,0.02); word-break: break-word;
-        color: #111;
+        flex: 1; min-height: 0; overflow-y: auto;
+        padding: 14px 18px;
+        font-size: 12px; line-height: 1.6;
+        white-space: pre-wrap; word-break: break-word;
+        font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+        background: var(--ai-bg);
+        color: var(--ai-text);
       }
+
       .${P}actions {
         display: flex; gap: 8px; justify-content: flex-end;
-        padding: 10px 16px; border-top: 1px solid rgba(0,0,0,0.08); flex-shrink: 0;
+        padding: 12px 18px;
+        border-top: 1px solid var(--ai-border);
+        flex-shrink: 0;
+        background: var(--ai-surface);
       }
       .${P}btn {
-        padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
-        cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
+        padding: 7px 16px; border-radius: 8px;
+        font-size: 13px; font-weight: 500;
+        cursor: pointer; border: 1px solid var(--ai-border);
+        transition: all 0.15s;
+        background: var(--ai-bg); color: var(--ai-text);
       }
-      .${P}btn--secondary { background: #f0f0f0; color: #111; }
-      .${P}btn--accent { background: #6366f1; color: #fff; }
-      .${P}btn--accent:hover { background: #4f46e5; }
+      .${P}btn:hover { background: var(--ai-surface); }
+      .${P}btn--primary {
+        background: var(--ai-accent); color: #fff; border-color: var(--ai-accent);
+      }
+      .${P}btn--primary:hover { background: var(--ai-accent-hover); }
+
+      /* ── Dark mode ──────────────────────────────────────────────── */
+      [data-theme="dark"] .${P}panel,
+      .${P}panel[data-theme="dark"] {
+        --ai-bg: #1e1e2e;
+        --ai-surface: #252536;
+        --ai-border: rgba(255,255,255,0.08);
+        --ai-text: #e2e2f0;
+        --ai-text-secondary: #a0a0b8;
+        --ai-notice-bg: #422006;
+        --ai-notice-text: #fbbf24;
+      }
     `;
     container.appendChild(style);
   }

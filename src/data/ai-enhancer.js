@@ -108,16 +108,21 @@ IMPORTANT: Output ONLY the SlideMD markdown. Do NOT include any analysis, reason
  * @returns {string}
  */
 function buildFixPrompt(markdown) {
-  return `Fix the following SlideMD markdown. Preserve ALL existing layout, background, and theme directives exactly as-is.
+  return `Fix the following SlideMD markdown.
 
-Issues to fix:
-1. Recover code block newlines lost during extraction
-2. Fix formatting: consistent spacing, lists, tables
-3. Ensure every slide has a \`layout:\` directive
-4. Convert \`[Diagram: ...]\` markers to Mermaid flowcharts
-5. In two-column layouts, the right column MUST be \`@media\` (NOT \`@secondary\`)
+CRITICAL: Convert ALL [Diagram: ...] markers into Mermaid code blocks:
+When you see [Diagram: Item1, Item2, Item3], replace with:
+\`\`\`mermaid
+flowchart LR
+    A["Item1"] --> B["Item2"] --> C["Item3"]
+\`\`\`
 
-Do NOT change layouts, backgrounds, or themes. Do NOT remove any directives.
+Also:
+- Recover code block newlines lost during extraction
+- Fix formatting: consistent spacing, lists, tables
+- Ensure every slide has a layout: directive
+- In two-column layouts, right column MUST be @media (NOT @secondary)
+- Preserve ALL background: and theme: directives exactly as-is
 
 Output ONLY the fixed markdown.
 
@@ -132,20 +137,25 @@ ${markdown}`;
  * @returns {string}
  */
 function buildGeneratePrompt(markdown) {
-  return `Create a new inspired SlideMD presentation from this content. CRITICAL: Preserve all \`background:\` and \`theme:\` directives exactly as they appear in the input.
+  return `Create a new inspired SlideMD presentation from this content.
 
-Guidelines:
-1. Reorganize for better flow and pacing
-2. Add/remove slides as needed
-3. Convert ALL \`[Diagram: ...]\` to Mermaid code blocks
-4. Improve structure, formatting, layout
-5. Use varied layouts
-6. Add speaker notes to key slides
-7. Keep all substantive content
-8. In two-column layouts, right column is \`@media\` (NOT \`@secondary\`)
-9. NEVER remove \`background:\` or \`theme:\` directives
+CRITICAL: You MUST convert ALL [Diagram: ...] markers into Mermaid code blocks. Here is how:
 
-Output ONLY the SlideMD markdown.
+When you see: [Diagram: Item1, Item2, Item3]
+
+Replace it with:
+\`\`\`mermaid
+flowchart LR
+    A["Item1"] --> B["Item2"] --> C["Item3"]
+\`\`\`
+
+For hierarchical content use flowchart TD. For processes use flowchart LR.
+
+CRITICAL RULES:
+- Preserve ALL background: and theme: directives exactly
+- In two-column layouts, right column is @media (NOT @secondary)
+- NEVER remove layout:, background:, or theme: directives
+- Output ONLY the SlideMD markdown
 
 ---
 
