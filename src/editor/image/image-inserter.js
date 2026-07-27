@@ -59,7 +59,7 @@ export class ImageInserter {
       (snippet) => {
         const current = this.markdownEditor.getValue();
 
-        // Find a safe insert position: after @main, or before @footer, or at end
+        // Find a safe insert position: after @main line, or before @footer, or at end
         const mainMatch = current.match(/^@main\b/m);
         const footerIdx = current.search(/^@footer\b/m);
 
@@ -70,7 +70,10 @@ export class ImageInserter {
           // Cursor is in a valid position — check it's past the frontmatter/layout area
           const pos = savedCursorPos;
           const mainIdx = mainMatch ? current.indexOf(mainMatch[0]) : -1;
-          const safePos = mainIdx >= 0 ? mainIdx : 0;
+          // Position after the @main line (skip past the marker and its newline)
+          const safePos = mainIdx >= 0
+            ? current.indexOf("\n", mainIdx) + 1
+            : 0;
 
           if (pos >= safePos) {
             // Cursor is past the frontmatter — insert here
@@ -95,8 +98,8 @@ export class ImageInserter {
             insertPos = footerIdx;
             afterSnippet = `${snippet}\n\n`;
           } else if (mainMatch) {
-            insertPos = current.indexOf(mainMatch[0]);
-            afterSnippet = `${snippet}\n\n`;
+            insertPos = current.indexOf("\n", current.indexOf(mainMatch[0])) + 1;
+            afterSnippet = `${snippet}\n`;
           } else {
             insertPos = current.length;
             afterSnippet = `\n\n${snippet}\n`;
