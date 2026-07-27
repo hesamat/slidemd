@@ -823,6 +823,7 @@ export class DeckController extends EventEmitter {
           if (newDeckData && this.reloadManager?.replaceDeck) {
             await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
           }
+          markdown = cleanMd; // Update for save/notification to use AI version
           Notification.success("AI enhancement applied!");
         }
       }

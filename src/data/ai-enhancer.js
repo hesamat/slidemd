@@ -19,10 +19,8 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 export function extractMarkdown(text) {
   const trimmed = text.trim();
-  // Try to strip ```markdown ... ``` or ```slide ... ``` wrapping
   const fenceMatch = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
   if (fenceMatch) return fenceMatch[1].trim();
-  // If content starts with ``` but regex didn't match, try manual strip
   if (trimmed.startsWith("```")) {
     const firstNewline = trimmed.indexOf("\n");
     const lastFence = trimmed.lastIndexOf("```");
@@ -30,7 +28,6 @@ export function extractMarkdown(text) {
       return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
   }
-  // Strip any analysis text before the first slide separator or first layout directive
   const firstSlideIdx = trimmed.search(/^---$|^layout:\s*/m);
   if (firstSlideIdx > 0) {
     return trimmed.slice(firstSlideIdx).trim();
@@ -39,32 +36,110 @@ export function extractMarkdown(text) {
 }
 
 /**
- * Strip frontmatter (layout, theme, background) from markdown before sending to AI.
- * The AI should infer these from context, not copy them verbatim.
+ * Extract per-slide directives (layout, background, theme) from markdown.
  * @param {string} markdown
- * @returns {string}
+ * @returns {Array<{layout: string, background: string, theme: string}>}
  */
-function stripFrontmatter(markdown) {
-  return markdown
-    .replace(/^layout:\s*.*$/gm, "")
-    .replace(/^theme:\s*.*$/gm, "")
-    .replace(/^background:\s*.*$/gm, "")
-    .replace(/^hidden:\s*.*$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+function extractDirectives(markdown) {
+  const slides = markdown.split(/\n---\n/);
+  return slides.map((slide) => {
+    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
+    const bgMatch = slide.match(/^background:\s*(.+)$/m);
+    const themeMatch = slide.match(/^theme:\s*(.+)$/m);
+    return {
+      layout: layoutMatch?.[1]?.trim() || "",
+      background: bgMatch?.[1]?.trim() || "",
+      theme: themeMatch?.[1]?.trim() || "",
+    };
+  });
+}
+
+/**
+ * Re-inject original backgrounds and layouts into AI response.
+ * Also fixes incorrect layouts (e.g., header-content when @media exists).
+ * @param {string} aiResponse - Cleaned AI markdown (no backgrounds/layouts).
+ * @param {string} original - Original markdown with backgrounds/layouts.
+ * @returns {string} Fixed markdown.
+ */
+export function reinjectDirectives(aiResponse, original) {
+  const origDirectives = extractDirectives(original);
+  const aiSlides = aiResponse.split(/\n---\n/);
+
+  const result = aiSlides.map((slide, i) => {
+    const orig = origDirectives[i] || {};
+    const lines = slide.split("\n");
+    const newLines = [];
+
+    for (const line of lines) {
+      // Skip existing layout/background/theme lines
+      if (/^layout:\s/.test(line)) continue;
+      if (/^background:\s/.test(line)) continue;
+      if (/^theme:\s/.test(line)) continue;
+
+      // Insert layout before first @area or first content
+      if (orig.layout && !newLines.some((l) => /^layout:\s/.test(l))) {
+        if (/^@\w+/.test(line) || (line.trim() && !/^@\w+/.test(line) && newLines.length > 0 && /^@\w+/.test(newLines[newLines.length - 1]))) {
+          newLines.push(`layout: ${orig.layout}`);
+        }
+      }
+
+      newLines.push(line);
+    }
+
+    // If layout wasn't inserted yet, add it at the top
+    if (orig.layout && !newLines.some((l) => /^layout:\s/.test(l))) {
+      newLines.unshift(`layout: ${orig.layout}`);
+    }
+
+    // Add background after layout
+    if (orig.background) {
+      const layoutIdx = newLines.findIndex((l) => /^layout:\s/.test(l));
+      if (layoutIdx >= 0) {
+        newLines.splice(layoutIdx + 1, 0, `background: ${orig.background}`);
+      } else {
+        newLines.unshift(`background: ${orig.background}`);
+      }
+    }
+
+    // Add theme after background (or after layout)
+    if (orig.theme) {
+      const afterBg = orig.background
+        ? newLines.findIndex((l) => /^background:\s/.test(l))
+        : newLines.findIndex((l) => /^layout:\s/.test(l));
+      if (afterBg >= 0) {
+        newLines.splice(afterBg + 1, 0, `theme: ${orig.theme}`);
+      }
+    }
+
+    // Fix wrong layouts: if slide has @media, layout should be two-column or media-span
+    const hasMedia = newLines.some((l) => /^@media\b/.test(l));
+    const currentLayout = newLines.find((l) => /^layout:\s/.test(l));
+    if (hasMedia && currentLayout) {
+      const layoutVal = currentLayout.replace(/^layout:\s*/, "");
+      if (layoutVal === "header-content" || layoutVal === "content-sidebar") {
+        const slideIdx = newLines.indexOf(currentLayout);
+        newLines[slideIdx] = "layout: two-column";
+      }
+    }
+
+    return newLines.join("\n");
+  });
+
+  return result.join("\n\n---\n\n");
 }
 
 /**
  * Build messages for the AI call.
- * @param {string} markdown
- * @param {"fix"|"generate"} mode
- * @returns {{ system: string, user: string }}
+ * @param {string} markdown - The original markdown (with backgrounds/layouts).
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @returns {{ system: string, user: string, original: string }}
  */
 export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown);
   return {
     system: SYSTEM_PROMPT,
     user: mode === "fix" ? buildFixPrompt(cleaned) : buildGeneratePrompt(cleaned),
+    original: markdown,
   };
 }
 
