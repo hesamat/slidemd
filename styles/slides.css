@@ -435,6 +435,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area li {
   color: var(--slide-body);
   max-width: var(--line-max);
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .slide__area li::marker {
