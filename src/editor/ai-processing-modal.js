@@ -95,14 +95,14 @@ export class AiProcessingModal {
         return null;
       }
 
-      statusEl.textContent = "Sending to AI…";
+      statusEl.textContent = "Preparing…";
 
-      // Build messages
-      const { buildSystemPrompt, buildFixPrompt, buildGeneratePrompt } = await import(
-        "../data/ai-enhancer.js"
-      );
-      const systemPrompt = buildSystemPrompt();
-      const userPrompt = mode === "fix" ? buildFixPrompt(markdown) : buildGeneratePrompt(markdown);
+      // Build messages (strips images and frontmatter to save tokens)
+      const { buildMessages, estimateTokens } = await import("../data/ai-enhancer.js");
+      const { system, user } = buildMessages(markdown, mode);
+      const inputTokens = estimateTokens(system + user);
+
+      statusEl.textContent = `Sending to AI (~${inputTokens.toLocaleString()} tokens)…`;
 
       // Stream the response
       this._abortController = new AbortController();
@@ -115,8 +115,8 @@ export class AiProcessingModal {
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+            { role: "system", content: system },
+            { role: "user", content: user },
           ],
           max_tokens: 16000,
           stream: true,
@@ -132,7 +132,9 @@ export class AiProcessingModal {
       statusEl.textContent = "AI is working…";
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = "";
+      let contentText = ""; // only content tokens (for slide detection + final result)
+      let displayHtml = ""; // combined display (reasoning dimmed + content normal)
+      let inReasoning = true; // reasoning phase comes first
       let buffer = "";
       let lastRenderedSlideCount = 0;
 
@@ -151,20 +153,39 @@ export class AiProcessingModal {
 
           try {
             const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              fullText += delta;
-              outputEl.textContent = fullText;
+            const delta = parsed.choices?.[0]?.delta;
+            const content = delta?.content || "";
+            const reasoning = delta?.reasoning || delta?.reasoning_details?.[0]?.text || "";
+
+            if (content) {
+              // Content phase — actual markdown output
+              if (inReasoning) {
+                inReasoning = false;
+                displayHtml += `</span>`; // close reasoning span
+              }
+              contentText += content;
+              displayHtml += this.#escHtml(content);
+            } else if (reasoning) {
+              // Reasoning phase — model's internal thinking
+              if (inReasoning) {
+                displayHtml += this.#escHtml(reasoning);
+              }
+            }
+
+            if (content || reasoning) {
+              outputEl.innerHTML = displayHtml + `<span class="${P}cursor"></span>`;
               outputEl.scrollTop = outputEl.scrollHeight;
 
               // Detect slide boundaries and render incrementally
-              if (onSlideRender) {
-                const slideCount = (fullText.split(/^---$/m) || []).length;
+              if (onSlideRender && contentText) {
+                const slideCount = (contentText.split(/^---$/m) || []).length;
                 if (slideCount > lastRenderedSlideCount) {
                   lastRenderedSlideCount = slideCount;
-                  statusEl.textContent = `AI is working… (${slideCount} slides)`;
+                  statusEl.textContent = inReasoning
+                    ? `AI is thinking… (${slideCount} slides so far)`
+                    : `AI is working… (${slideCount} slides)`;
                   try {
-                    onSlideRender(fullText, slideCount);
+                    onSlideRender(contentText, slideCount);
                   } catch {
                     // ignore render errors during streaming
                   }
@@ -182,7 +203,7 @@ export class AiProcessingModal {
         return null;
       }
 
-      result = fullText;
+      result = contentText;
       statusEl.textContent = "Done!";
       statusEl.className = `${P}status ${P}status--done`;
       cancelBtn.hidden = true;
@@ -275,6 +296,13 @@ export class AiProcessingModal {
       .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover { background: var(--accent-hover, #4f46e5); }
+      .${P}reasoning { color: var(--text-muted, rgba(0,0,0,0.35)); font-style: italic; }
+      .${P}cursor::after {
+        content: ""; display: inline-block; width: 2px; height: 1em;
+        background: var(--accent, #6366f1); margin-left: 2px;
+        animation: ${P}blink 1s step-end infinite; vertical-align: text-bottom;
+      }
+      @keyframes ${P}blink { 50% { opacity: 0; } }
     `;
     container.appendChild(style);
   }
