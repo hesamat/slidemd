@@ -126,6 +126,8 @@ const CONFIG = {
   partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
   tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
   fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
+  flexRowVerticalTolerance: 0.15, // Max top-position diff (ratio of slide height) for same row
+  flexRowMinHorizontalGap: 0.1, // Min gap (ratio of slide width) between elements in a row
 };
 
 /**
@@ -230,6 +232,14 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
 function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = true) {
   const parts = [];
 
+  // Drop images early when not importing so they don't affect layout inference
+  if (!importImages) {
+    slide = {
+      ...slide,
+      elements: slide.elements.filter((el) => el.type !== ELEMENT_TYPES.IMAGE),
+    };
+  }
+
   // Speaker notes
   if (slide.notes) {
     const sanitized = slide.notes
@@ -299,7 +309,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   if (bgCandidate && bgCandidate.base64) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.75),rgba(0,0,0,0.75)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
@@ -328,6 +338,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   );
 
   const hasMedia = allElements.some((el) => el.type !== ELEMENT_TYPES.TEXT);
+
+  // Prune slides with no content elements
+  if (allElements.length === 0 && footerElements.length === 0) {
+    return slide.notes ? parts.join("\n") : "";
+  }
 
   let layout = inferLayout(
     textElements,
@@ -444,7 +459,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       const hasExplicitDims = el.width && el.height;
       parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
     } else {
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
@@ -470,7 +493,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       }
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
-      parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      );
       parts.push("");
       parts.push(MARKDOWN_TAGS.MEDIA);
       parts.push("");
@@ -494,18 +519,19 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    const mediaImage = rightEls.find((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(leftEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
-    parts.push(
-      mediaImage
-        ? formatImage(mediaImage, deckName, { fitColumn: true })
-        : rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE),
-    );
+    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64) {
+      parts.push(formatImage(rightEls[0], deckName, { fitColumn: true }));
+    } else {
+      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    }
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
@@ -518,8 +544,16 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       }
       parts.push(MARKDOWN_TAGS.MAIN);
       parts.push("");
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-      return parts.join("\n");
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
+      return wrapLongLists(parts.join("\n"));
     }
     const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
     parts.push("");
@@ -531,7 +565,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(mainEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(mainEls, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
@@ -544,7 +580,9 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
-    parts.push(allElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    parts.push(
+      renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
   }
 
   // If two-column was downgraded to header-content, render it now
@@ -576,7 +614,15 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
       const hasExplicitDims = el.width && el.height;
       parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
     } else {
-      parts.push(bodyElements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(
+        renderElementsWithFlex(
+          bodyElements,
+          slideWidth,
+          slideHeight,
+          deckName,
+          formatSingleElement,
+        ),
+      );
     }
   }
 
@@ -593,7 +639,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     }
   }
 
-  return parts.join("\n");
+  return wrapLongLists(parts.join("\n"));
 }
 
 /**
@@ -732,7 +778,7 @@ function inferLayout(
 
   if (contentEls.length === 0) {
     // Image-only slide: determine layout from dominant images
-    if (dominantImages.length >= 3) return LAYOUT.THREE_COLUMN;
+    if (dominantImages.length >= 3) return LAYOUT.MEDIA_SPAN;
     if (dominantImages.length === 2) {
       // Check if images are truly side-by-side (horizontal overlap < 30%)
       const [img1, img2] = dominantImages;
@@ -880,7 +926,7 @@ function inferLayout(
       Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
     );
     if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
-      return LAYOUT.THREE_COLUMN;
+      return LAYOUT.MEDIA_SPAN;
     }
     return LAYOUT.TWO_COLUMN;
   }
@@ -924,6 +970,136 @@ function findDominantImages(allEls, slideWidth, slideHeight) {
 
     return area >= slideArea * CONFIG.minDominantAreaRatio;
   });
+}
+
+/**
+ * Group body elements into horizontal flex rows based on vertical proximity.
+ * Elements with similar `top` positions that are horizontally separated
+ * are grouped into rows that should be rendered side-by-side.
+ *
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @returns {{ rows: Array<Array<import('./pptx-extractor.js').ExtractedElement[]>>, standalone: import('./pptx-extractor.js').ExtractedElement[] }}
+ *   rows[i][j] is the j-th flex item (possibly multiple stacked elements) in row i.
+ *   standalone are elements not part of any multi-item row.
+ */
+function groupIntoFlexRows(elements, slideWidth, slideHeight) {
+  if (elements.length < 2) return { rows: [], standalone: [...elements] };
+
+  const verticalTolerance = slideHeight * CONFIG.flexRowVerticalTolerance;
+  const minGap = slideWidth * CONFIG.flexRowMinHorizontalGap;
+
+  const sorted = [...elements].sort((a, b) => (a.top || 0) - (b.top || 0));
+
+  const groups = [];
+  let currentGroup = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const el = sorted[i];
+    const groupCenter =
+      currentGroup.reduce((sum, e) => sum + (e.top || 0), 0) / currentGroup.length;
+    if (Math.abs((el.top || 0) - groupCenter) <= verticalTolerance) {
+      currentGroup.push(el);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [el];
+    }
+  }
+  groups.push(currentGroup);
+
+  const rows = [];
+  const standalone = [];
+
+  for (const group of groups) {
+    if (group.length < 2) {
+      standalone.push(...group);
+      continue;
+    }
+
+    const hasImage = group.some((el) => el.type === ELEMENT_TYPES.IMAGE);
+    const hasNonImage = group.some((el) => el.type !== ELEMENT_TYPES.IMAGE);
+    if (!hasImage || !hasNonImage) {
+      standalone.push(...group);
+      continue;
+    }
+
+    const sortedByLeft = [...group].sort((a, b) => (a.left || 0) - (b.left || 0));
+
+    let hasHorizontalGap = false;
+    for (let i = 1; i < sortedByLeft.length; i++) {
+      const prevRight = (sortedByLeft[i - 1].left || 0) + (sortedByLeft[i - 1].width || 0);
+      const currLeft = sortedByLeft[i].left || 0;
+      if (currLeft - prevRight >= minGap) {
+        hasHorizontalGap = true;
+        break;
+      }
+    }
+
+    if (hasHorizontalGap) {
+      rows.push(sortedByLeft.map((el) => [el]));
+    } else {
+      standalone.push(...group);
+    }
+  }
+
+  return { rows, standalone };
+}
+
+/**
+ * Render a single flex row as an HTML div with flex layout.
+ * @param {Array<Array<import('./pptx-extractor.js').ExtractedElement>>} items - Each item is an array of stacked elements.
+ * @param {string} deckName
+ * @param {(el: import('./pptx-extractor.js').ExtractedElement) => string} formatSingleElement
+ * @returns {string}
+ */
+function renderFlexRow(items, deckName, formatSingleElement) {
+  const flexItems = items
+    .map((stack) => {
+      const content = stack.map((el) => formatSingleElement(el)).join("\n");
+      return `<div style="flex: 1; min-width: 0;">${content}</div>`;
+    })
+    .join("\n");
+  return `<div class="flex-row" style="display: flex; gap: 1em; align-items: start;">\n${flexItems}\n</div>`;
+}
+
+/**
+ * Render a list of elements, wrapping horizontally adjacent groups in flex rows.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @param {string} deckName
+ * @param {(el: import('./pptx-extractor.js').ExtractedElement) => string} formatSingleElement
+ * @returns {string}
+ */
+function renderElementsWithFlex(elements, slideWidth, slideHeight, deckName, formatSingleElement) {
+  const { rows } = groupIntoFlexRows(elements, slideWidth, slideHeight);
+
+  if (rows.length === 0) {
+    return elements.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE);
+  }
+
+  const rendered = new Set();
+  const parts = [];
+
+  const sorted = [...elements].sort((a, b) => (a.top || 0) - (b.top || 0));
+
+  for (const el of sorted) {
+    if (rendered.has(el)) continue;
+
+    const matchingRow = rows.find((row) => row.some((item) => item.some((e) => e === el)));
+    if (matchingRow) {
+      for (const item of matchingRow) {
+        for (const e of item) rendered.add(e);
+      }
+      parts.push(renderFlexRow(matchingRow, deckName, formatSingleElement));
+    } else {
+      rendered.add(el);
+      parts.push(formatSingleElement(el));
+    }
+  }
+
+  return parts.join(REGEX.DOUBLE_NEWLINE);
 }
 
 function hexToLuminance(hex) {
@@ -1043,6 +1219,74 @@ function formatTextElement(raw) {
   return result.join("\n").replace(REGEX.TRIPLE_NEWLINE_OR_MORE, REGEX.DOUBLE_NEWLINE).trim();
 }
 
+/**
+ * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
+ * <div class="multi-column-list"> so CSS columns split them visually.
+ * Counts all items including nested sub-items towards the threshold.
+ * Merges list runs separated by ≤MAX_GAP non-list lines.
+ */
+const MIN_LIST_ITEMS = 10;
+const COL3_THRESHOLD = 27;
+const MAX_GAP = 3;
+const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
+
+function wrapLongLists(markdown) {
+  const lines = markdown.split("\n");
+  const result = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    if (RE_ANY_LIST_ITEM.test(lines[i])) {
+      // Collect a "group": list run + small gap + more list items, etc.
+      const groupStart = i;
+      let itemCount = 0;
+      let gapLines = [];
+
+      while (i < lines.length) {
+        if (RE_ANY_LIST_ITEM.test(lines[i])) {
+          // Flush any buffered gap — if it contains list-like items, merge
+          if (gapLines.length > 0) {
+            itemCount += gapLines.filter((l) => RE_ANY_LIST_ITEM.test(l)).length;
+            gapLines = [];
+          }
+          itemCount++;
+          i++;
+        } else if (lines[i].trim() === "" || gapLines.length < MAX_GAP) {
+          gapLines.push(lines[i]);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      // Check if there are list items right after the gap we stopped at
+      // (the gap exceeded MAX_GAP, but the next run might still be close)
+      if (gapLines.length > MAX_GAP) {
+        // Rewind: put back the non-list lines that exceeded the gap
+        const overshoot = gapLines.length - MAX_GAP;
+        i -= overshoot;
+        gapLines.length = MAX_GAP;
+      }
+
+      if (itemCount >= MIN_LIST_ITEMS) {
+        const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
+        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
+        result.push("");
+        for (let j = groupStart; j < i; j++) result.push(lines[j]);
+        result.push("");
+        result.push("</div>");
+      } else {
+        for (let j = groupStart; j < i; j++) result.push(lines[j]);
+      }
+    } else {
+      result.push(lines[i]);
+      i++;
+    }
+  }
+
+  return result.join("\n");
+}
+
 function formatImage(
   img,
   _deckName = DEFAULTS.DECK_NAME,
@@ -1065,15 +1309,6 @@ function formatImage(
     }
   }
   return `<img src="${src}" alt="${altText}"${style}>`;
-}
-
-function isFirstRowHeader(rows) {
-  if (rows.length < 2) return false;
-  const firstRowBg = rows[0][0]?.fillColor;
-  // If no background info available, fall back to old behavior (treat as header)
-  if (!firstRowBg) return true;
-  // Check if any cell in the second row has a different background
-  return rows[1].some((cell) => cell.fillColor !== firstRowBg);
 }
 
 function formatTable(table, slideWidth, slideHeight) {
@@ -1110,20 +1345,13 @@ function formatTable(table, slideWidth, slideHeight) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const hasHeader = isFirstRowHeader(table.rows);
   const separator = table.rows[0].map(() => "---").join(" | ");
   const rows = table.rows.map(formatRow);
   const parts = [];
-  if (hasHeader) {
-    parts.push(`| ${rows[0]} |`);
-    parts.push(`| ${separator} |`);
-    for (let i = 1; i < rows.length; i++) {
-      parts.push(`| ${rows[i]} |`);
-    }
-  } else {
-    for (let i = 0; i < rows.length; i++) {
-      parts.push(`| ${rows[i]} |`);
-    }
+  parts.push(`| ${rows[0]} |`);
+  parts.push(`| ${separator} |`);
+  for (let i = 1; i < rows.length; i++) {
+    parts.push(`| ${rows[i]} |`);
   }
   return parts.join("\n");
 }

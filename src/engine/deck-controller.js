@@ -686,7 +686,7 @@ export class DeckController extends EventEmitter {
             let binary;
             try {
               binary = atob(padded);
-            } catch (err) {
+            } catch {
               console.warn(
                 "Failed to decode base64 for image:",
                 img.ref,
@@ -778,6 +778,7 @@ export class DeckController extends EventEmitter {
       loading.updateProgress(100);
       loading.dismiss();
 
+      Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
         actions: [
           {

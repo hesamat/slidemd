@@ -216,6 +216,12 @@ export class Notification {
     }, 300);
   }
 
+  static dismissAll() {
+    for (const [toastId] of this.activeToasts) {
+      this.dismiss(toastId);
+    }
+  }
+
   static flushQueue() {
     while (this.activeToasts.size < this.maxVisibleToasts && this.queuedToasts.length > 0) {
       const nextToast = this.queuedToasts.shift();

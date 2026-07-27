@@ -36,7 +36,7 @@ export async function convertEmfImages(slides, images) {
       let binary;
       try {
         binary = atob(padded);
-      } catch (err) {
+      } catch {
         console.warn(`Could not decode base64 for ${img.ref} (sample: ${padded.slice(0, 60)})`);
         continue;
       }
@@ -103,7 +103,7 @@ export async function convertTiffImages(slides, images) {
       let binary;
       try {
         binary = atob(padded);
-      } catch (err) {
+      } catch {
         console.warn(
           `Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`,
         );

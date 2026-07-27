@@ -160,6 +160,7 @@ export class EditController {
       canSwapArea: (name) => this._canSwapArea(name),
       onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
+      getWarnings: () => this.warnings,
     });
 
     this.warnings = new SlideWarningManager({
@@ -499,6 +500,7 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: true });
         this.unsavedMarkdown.set(this.currentSlideIndex, updated);
         this.updateUnsavedChangesFlag();
+        this.previewUpdater.update();
       },
     );
 

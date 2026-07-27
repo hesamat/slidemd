@@ -80,6 +80,7 @@ export class ImageDragController {
     const img = e.target.closest("img");
     const ctx = this._ctx;
     if (!img || !ctx) return;
+    if (img.closest(".flex-row")) return;
 
     if (ctx.getSelectedImg() && !ctx.getSelectedImg().isConnected) {
       this._selectedImg = null;

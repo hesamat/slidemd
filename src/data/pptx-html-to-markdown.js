@@ -105,11 +105,16 @@ export function htmlToMarkdown(html) {
         const t = lines[i].trim();
         if (/^`.+`$/.test(t)) {
           // Preserve indentation by extracting content between backticks
-          // without trimming the original line
-          const content = lines[i].replace(/^\s*`/, "").replace(/`\s*$/, "");
+          // without trimming the original line.  Strip all leading/trailing
+          // backticks to handle both single and double backtick lines.
+          const content = lines[i].replace(/^\s*`+/, "").replace(/`+\s*$/, "");
           codeLines.push(content);
           i++;
         } else if (t === "") {
+          // Allow single blank lines within code, but double-empty separates blocks
+          let lookahead = i + 1;
+          while (lookahead < lines.length && lines[lookahead].trim() === "") lookahead++;
+          if (lookahead - i >= 2) break;
           i++;
         } else {
           break;
@@ -118,8 +123,13 @@ export function htmlToMarkdown(html) {
       if (codeLines.length >= 2) {
         grouped.push("```\n" + codeLines.join("\n") + "\n```");
       } else if (codeLines.length === 1) {
-        // Keep single backtick lines as inline code (preserve backticks)
-        grouped.push(trimmedLine);
+        // Long single backtick lines are likely code blocks that lost their
+        // newlines during PPTX extraction — convert to fenced code blocks.
+        if (codeLines[0].length > 80) {
+          grouped.push("```\n" + codeLines[0] + "\n```");
+        } else {
+          grouped.push(trimmedLine);
+        }
       }
     } else {
       grouped.push(line);

@@ -333,20 +333,17 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     const mainIndex = md.indexOf("@main");
     const mediaIndex = md.indexOf("@media");
-    const secondaryIndex = md.indexOf("@secondary");
     const textIndex = md.indexOf("Summary text stays in the main column");
     const firstImageIndex = md.indexOf("dominant-1.png");
     const secondImageIndex = md.indexOf("dominant-2.png");
 
-    expect(md).toContain("layout: three-column");
+    expect(md).toContain("layout: media-span");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
-    expect(secondaryIndex).toBeGreaterThan(mediaIndex);
     expect(textIndex).toBeGreaterThan(mainIndex);
     expect(textIndex).toBeLessThan(mediaIndex);
     expect(firstImageIndex).toBeGreaterThan(mediaIndex);
-    expect(firstImageIndex).toBeLessThan(secondaryIndex);
-    expect(secondImageIndex).toBeGreaterThan(secondaryIndex);
+    expect(secondImageIndex).toBeGreaterThan(mediaIndex);
   });
 
   it("keeps image-only slides in single-column layout", () => {
@@ -669,13 +666,12 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("- - Understand");
   });
 
-  it("handles empty slides", () => {
+  it("prunes empty slides", () => {
     const extraction = makeExtraction([
       { index: 0, title: "", notes: "", elements: [], background: "" },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: header-content");
-    expect(md).toContain("@main");
+    expect(md).toBe("");
   });
 
   it("preserves background", () => {
@@ -1384,5 +1380,217 @@ describe("convertToSlideMd", () => {
     // Code block must not be split — ``` must appear in pairs
     const codeBlockMatches = md.match(/```/g) || [];
     expect(codeBlockMatches.length % 2).toBe(0);
+  });
+});
+
+describe("flex-row rendering", () => {
+  it("wraps 3 horizontally adjacent elements in a flex container", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Flex Test",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "img1.png",
+            base64: "abc",
+            left: 500000,
+            top: 1500000,
+            width: 1200000,
+            height: 1200000,
+          },
+          {
+            type: "text",
+            content: "Some text",
+            left: 3500000,
+            top: 1500000,
+            width: 2500000,
+            height: 1200000,
+          },
+          {
+            type: "image",
+            ref: "img2.png",
+            base64: "def",
+            left: 6500000,
+            top: 1500000,
+            width: 1200000,
+            height: 1200000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain('class="flex-row"');
+    expect(md).toContain("display: flex");
+    expect(md).toContain("img1.png");
+    expect(md).toContain("Some text");
+    expect(md).toContain("img2.png");
+  });
+
+  it("wraps 2 images + 1 overlapping text in a flex row", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Flex Overlap",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Title",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "img1.png",
+            base64: "abc",
+            left: 100000,
+            top: 1500000,
+            width: 600000,
+            height: 600000,
+          },
+          {
+            type: "text",
+            content: "Label",
+            left: 1700000,
+            top: 1550000,
+            width: 600000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "img2.png",
+            base64: "def",
+            left: 3300000,
+            top: 1500000,
+            width: 600000,
+            height: 600000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain('class="flex-row"');
+    expect(md).toContain("img1.png");
+    expect(md).toContain("Label");
+    expect(md).toContain("img2.png");
+  });
+
+  it("does not create flex row for vertically stacked elements", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Stacked",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Top element",
+            left: 500000,
+            top: 500000,
+            width: 8000000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: "Bottom element",
+            left: 500000,
+            top: 2500000,
+            width: 8000000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain('class="flex-row"');
+    expect(md).toContain("Top element");
+    expect(md).toContain("Bottom element");
+  });
+
+  it("does not create flex row for a single body element", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Single",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Only body element",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain('class="flex-row"');
+    expect(md).toContain("Only body element");
+  });
+
+  it("does not create flex row for text-only horizontal elements", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Text Only",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Java",
+            left: 500000,
+            top: 1500000,
+            width: 3000000,
+            height: 2000000,
+          },
+          {
+            type: "text",
+            content: "```\nwhile True:\n    pass\n```",
+            left: 4200000,
+            top: 1500000,
+            width: 3500000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).not.toContain('class="flex-row"');
+    expect(md).toContain("Java");
   });
 });

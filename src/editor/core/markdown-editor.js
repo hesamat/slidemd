@@ -270,7 +270,22 @@ export class MarkdownEditor {
 
     const completionSources = createCompletionSources();
 
+    // Suppress the known Lezer crash where hasChild() tries to access
+    // tree.children on a Tree node that was never fully initialized.
+    // This is harmless (only affects syntax highlighting decorations)
+    // but would otherwise log a noisy exception and break the highlighter.
+    const suppressLezerHighlightCrash = EditorView.exceptionSink.of((ex) => {
+      if (
+        ex instanceof TypeError &&
+        ex.message.includes("Cannot read properties of undefined") &&
+        /hasChild|nextChild|highlightRange/.test(ex.stack || "")
+      )
+        return;
+      throw ex;
+    });
+
     const extensions = [
+      suppressLezerHighlightCrash,
       EditorView.lineWrapping,
       lineNumbers(),
       highlightActiveLineGutter(),

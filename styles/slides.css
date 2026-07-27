@@ -67,7 +67,7 @@
   display: none;
   background: var(--slide-bg);
   color: var(--slide-ink);
-  font-size: 28px;
+  font-size: 30px;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -204,6 +204,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 body[data-edit-mode="true"] .slide__area.editor-area-overflow {
   outline: 2px solid rgba(220, 38, 38, 0.7);
   outline-offset: -3px;
+  box-shadow: inset 0 0 0 3px rgba(220, 38, 38, 0.85);
 }
 
 /* When an image is selected, hide the editor-area-label and grid-resize-handles
@@ -434,6 +435,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area li {
   color: var(--slide-body);
   max-width: var(--line-max);
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .slide__area li::marker {
@@ -467,10 +470,32 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   max-width: 100%;
 }
 
+/* Multi-column lists (auto-applied to long lists during PPTX import) */
+.multi-column-list {
+  column-fill: balance;
+  column-gap: 1.5em;
+}
+.multi-column-list ul,
+.multi-column-list ol {
+  margin: 0;
+  padding-left: 1.5em;
+}
+
 /* Allow media shadows to render beyond the content box */
 .slide__area--media {
   overflow: visible;
   padding: 8px;
+}
+
+/* Allow content overflow in main area (same as media) */
+.slide__area--main {
+  overflow: visible;
+}
+
+/* Constrain images to fit within the media area */
+.slide__area--media img {
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .slide__area--header h1,
@@ -637,6 +662,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   min-height: 0;
 }
 
+/* Flex-row container for horizontally adjacent PPTX elements */
+.slide__area .flex-row {
+  display: flex;
+  gap: 1em;
+  align-items: start;
+}
+
 /* --- MERMAID DIAGRAMS --- */
 
 .slide__area .mermaid {
@@ -749,7 +781,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   color: var(--slide-body);
   vertical-align: top;
   white-space: normal;
-  word-break: break-word;
+  overflow-wrap: break-word;
   transition: background-color 150ms ease;
 }
 

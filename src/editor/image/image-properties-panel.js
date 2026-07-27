@@ -1,4 +1,11 @@
 import { getStageScale } from "./image-position-presets.js";
+import { updateBackgroundDirective, updateThemeDirective } from "../core/directive-utils.js";
+import {
+  parseImagesInArea,
+  parseAllImages,
+  getImageOrdinalIndexInArea,
+  getImageOrdinalIndex,
+} from "./image-markdown-utils.js";
 
 /**
  * ImagePropertiesPanel
@@ -138,6 +145,11 @@ export class ImagePropertiesPanel {
                         </button>
                         <button type="button" class="image-properties-panel__btn image-properties-panel__btn--danger" data-action="delete">
                             <span>Delete</span>
+                        </button>
+                    </div>
+                    <div class="image-properties-panel__row">
+                        <button type="button" class="image-properties-panel__btn" data-action="set-background">
+                            <span>Set as Background</span>
                         </button>
                     </div>
                     <div class="image-properties-panel__row">
@@ -335,6 +347,9 @@ export class ImagePropertiesPanel {
       case "replace":
         this._openReplacePicker();
         break;
+      case "set-background":
+        this._setAsBackground();
+        break;
     }
   }
 
@@ -397,6 +412,41 @@ export class ImagePropertiesPanel {
         { pathOnly: true },
       );
     });
+  }
+
+  static _setAsBackground() {
+    const md = this._getMarkdown?.();
+    const img = this._currentImg;
+    if (!md || !img) return;
+
+    const src = img.getAttribute("src");
+    if (!src) return;
+
+    const area = img.closest(".slide__area");
+    const areaName = area?.dataset?.areaName;
+    const entries = areaName ? parseImagesInArea(md, areaName) : parseAllImages(md);
+    const idx = areaName ? getImageOrdinalIndexInArea(img) : getImageOrdinalIndex(img);
+    if (idx < 0 || idx >= entries.length) return;
+
+    const entry = entries[idx];
+
+    const slideStart = (() => {
+      const before = md.lastIndexOf("\n---\n", entry.start);
+      return before === -1 ? 0 : before + 5;
+    })();
+    const slideEnd = (() => {
+      const after = md.indexOf("\n---\n", entry.end);
+      return after === -1 ? md.length : after;
+    })();
+
+    const slideMd = md.slice(slideStart, slideEnd);
+    const bgValue = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${src}) center / cover no-repeat`;
+    let updatedSlide = updateBackgroundDirective(slideMd, bgValue);
+    updatedSlide = updateThemeDirective(updatedSlide, "dark");
+    const updatedMd = md.slice(0, slideStart) + updatedSlide + md.slice(slideEnd);
+
+    this.hide();
+    this._setMarkdown?.(updatedMd);
   }
 
   static _collectSettings() {

@@ -199,26 +199,18 @@ export class ImageInserter {
     if (!grid) return;
 
     const scale = this._getStageScale() || 1;
-    const gridRect = grid.getBoundingClientRect();
-
-    const dropGridX = (clientX - gridRect.left) / scale;
-    const dropGridY = (clientY - gridRect.top) / scale;
 
     const areaEl = eventTarget.closest?.(".slide__area");
     const areaName = areaEl?.dataset.areaName || "main";
 
-    let left = Math.round(dropGridX);
-    let top = Math.round(dropGridY);
-    if (areaEl) {
-      const areaRect = areaEl.getBoundingClientRect();
-      const areaStyle = getComputedStyle(areaEl);
-      const padLeft = parseFloat(areaStyle.paddingLeft) || 0;
-      const padTop = parseFloat(areaStyle.paddingTop) || 0;
-      const areaContentLeft = (areaRect.left + padLeft - gridRect.left) / scale;
-      const areaContentTop = (areaRect.top + padTop - gridRect.top) / scale;
-      left = Math.round(dropGridX - areaContentLeft);
-      top = Math.round(dropGridY - areaContentTop);
-    }
+    const targetArea = areaEl || slideEl.querySelector(".slide__area[data-area-name='main']");
+    const areaWidth = targetArea
+      ? (targetArea.getBoundingClientRect().width -
+          (parseFloat(getComputedStyle(targetArea).paddingLeft) || 0) -
+          (parseFloat(getComputedStyle(targetArea).paddingRight) || 0)) /
+        scale
+      : 480;
+    const width = Math.round(areaWidth);
 
     const alt =
       imgPath
@@ -226,7 +218,7 @@ export class ImageInserter {
         .pop()
         .replace(/\.[^.]+$/, "")
         .replace(/^\d+[-_]?/, "") || "image";
-    const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: ${left}px; top: ${top}px; width: 480px; border: none; object-fit: contain; cursor: move;" />`;
+    const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: 0px; top: 0px; width: ${width}px; border: none; object-fit: contain; cursor: move;" />`;
 
     const markdown = this.markdownEditor?.getValue() ?? "";
     const range = this._getAreaNav().getAreaContentRange(markdown, areaName);
