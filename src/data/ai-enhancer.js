@@ -28,20 +28,21 @@ export function extractMarkdown(text) {
       return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
   }
+  // If text starts with layout: or ---, it's already clean — return as-is
+  if (/^(layout:|---)/.test(trimmed)) return trimmed;
   // Strip analysis: find first --- that follows a layout: with an actual layout value
   const LAYOUT_VALUES =
     "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
   const layoutRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "gm");
   let m;
   while ((m = layoutRe.exec(trimmed)) !== null) {
-    // Check if there's a --- after this layout line
     const afterLayout = m.index + m[0].length;
     const sepIdx = trimmed.indexOf("\n---\n", afterLayout);
     if (sepIdx > 0) {
       return trimmed.slice(sepIdx).trim();
     }
   }
-  // No layout+--- found, try first standalone ---
+  // Fallback: first standalone ---
   const firstSep = trimmed.search(/^---$/m);
   if (firstSep > 0) return trimmed.slice(firstSep).trim();
   return trimmed;
@@ -75,7 +76,17 @@ function extractDirectives(markdown) {
  */
 export function reinjectDirectives(aiResponse, original) {
   const origDirectives = extractDirectives(original);
-  const aiSlides = aiResponse.split(/\n---\n/);
+  // Fix AI merging layout: with @area on same line (e.g., "layout: header-content@header")
+  const fixedResponse = aiResponse.replace(
+    /^(layout:\s*\S+)\s*(@\w+)/gm,
+    "$1\n$2",
+  );
+  const aiSlides = fixedResponse.split(/\n---\n/);
+
+  // If slide count doesn't match, AI dropped/added slides — return as-is
+  if (aiSlides.length !== origDirectives.length) {
+    return fixedResponse;
+  }
 
   const result = aiSlides.map((slide, i) => {
     const orig = origDirectives[i] || {};
