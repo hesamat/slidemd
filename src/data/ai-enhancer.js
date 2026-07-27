@@ -28,16 +28,26 @@ export function extractMarkdown(text) {
       return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
   }
-  // Strip analysis: find first layout: with an actual layout value, or first ---
+  // Strip analysis: find first --- that follows a layout: directive, or first standalone ---
   const LAYOUT_VALUES = "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
-  const layoutRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "m");
-  const layoutMatch = trimmed.match(layoutRe);
-  const firstSlideIdx = layoutMatch
-    ? trimmed.indexOf(layoutMatch[0])
-    : trimmed.search(/^---$/m);
-  if (firstSlideIdx > 0) {
-    return trimmed.slice(firstSlideIdx).trim();
+  // Match --- that is preceded by layout: line (the actual slide content)
+  const slideRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "m");
+  const layoutMatch = trimmed.match(slideRe);
+  if (layoutMatch) {
+    // Find the --- separator that comes AFTER this layout line
+    const afterLayout = trimmed.indexOf(layoutMatch[0]) + layoutMatch[0].length;
+    const afterSep = trimmed.indexOf("\n---\n", afterLayout);
+    if (afterSep > 0) {
+      // Slice from the --- that follows the first layout
+      return trimmed.slice(afterSep).trim();
+    }
+    // No --- found — layout is in analysis text, look for first standalone ---
+    const firstSep = trimmed.search(/^---$/m);
+    if (firstSep > 0) return trimmed.slice(firstSep).trim();
   }
+  // Fallback: find first standalone ---
+  const firstSep = trimmed.search(/^---$/m);
+  if (firstSep > 0) return trimmed.slice(firstSep).trim();
   return trimmed;
 }
 
