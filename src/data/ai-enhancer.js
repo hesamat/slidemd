@@ -90,7 +90,7 @@ export function extractMarkdown(text) {
  * Includes SlideMD syntax reference from docs/prompt-template.md.
  * @returns {string}
  */
-function buildSystemPrompt() {
+export function buildSystemPrompt() {
   return `You are an expert at converting presentation content into SlideMD markdown format.
 
 ## SlideMD Syntax
@@ -138,7 +138,7 @@ function buildSystemPrompt() {
  * @param {string} markdown
  * @returns {string}
  */
-function buildFixPrompt(markdown) {
+export function buildFixPrompt(markdown) {
   return `Fix the following SlideMD markdown. Issues to address:
 
 1. Recover code block newlines that may have been lost during extraction
@@ -163,7 +163,7 @@ ${markdown}`;
  * @param {string} markdown
  * @returns {string}
  */
-function buildGeneratePrompt(markdown) {
+export function buildGeneratePrompt(markdown) {
   return `Create a new inspired SlideMD presentation based on the following imported content.
 
 Guidelines:

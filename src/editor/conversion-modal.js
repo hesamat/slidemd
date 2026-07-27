@@ -3,6 +3,7 @@
  *
  * Modal for importing PPTX files into the app.
  * Two-step flow: Import (extract + convert) → Import.
+ * Returns result with aiRequested flag for post-import AI processing.
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
@@ -17,6 +18,7 @@ const STORAGE_KEY = "webdeck_import_defaults";
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} deckName - Deck name derived from filename (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
+ * @property {string|null} aiMode - null, "fix", or "generate" if user requested AI post-processing.
  */
 
 export class ConversionModal {
@@ -247,58 +249,58 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
           insertAfter = aiDivider;
 
-          const hasApiKey = !!(await import("../editor/settings-modal.js")).SettingsModal.getApiKey();
+          const { SettingsModal } = await import("../editor/settings-modal.js");
+          const hasApiKey = !!SettingsModal.getApiKey();
 
-          // AI: Fix issues
+          // AI: Fix issues checkbox
           const fixRow = document.createElement("label");
           fixRow.className = `${P}checkbox-row`;
-          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Fix issues</span>${hasApiKey ? "" : ' <span class="${P}checkbox-hint" style="font-size:11px;color:var(--text-medium,#666);cursor:pointer" data-action="open-settings">⚙ set key</span>'}`;
+          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Fix issues on import</span>`;
           const fixInput = fixRow.querySelector(`.${P}checkbox`);
-          const fixSettingsLink = fixRow.querySelector("[data-action='open-settings']");
           fixInput.addEventListener("change", () => {
             if (fixInput.checked) {
               aiMode = "fix";
-              if (genInput) genInput.checked = false;
             } else if (aiMode === "fix") {
               aiMode = null;
             }
           });
-          if (fixSettingsLink) {
-            fixSettingsLink.addEventListener("click", async () => {
-              const { SettingsModal } = await import("../editor/settings-modal.js");
+          // If no API key, clicking the checkbox opens settings
+          if (!hasApiKey) {
+            fixInput.addEventListener("click", async (e) => {
+              e.preventDefault();
               await SettingsModal.show();
-              fixInput.disabled = false;
-              fixSettingsLink.remove();
+              if (SettingsModal.getApiKey()) {
+                fixInput.disabled = false;
+                fixInput.checked = true;
+                aiMode = "fix";
+              }
             });
           }
           insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
           insertAfter = fixRow;
 
-          // AI: Generate inspired deck
-          let genInput = null;
-          const genRow = document.createElement("label");
-          genRow.className = `${P}checkbox-row`;
-          genRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Generate inspired deck</span>${hasApiKey ? "" : ' <span class="${P}checkbox-hint" style="font-size:11px;color:var(--text-medium,#666);cursor:pointer" data-action="open-settings">⚙ set key</span>'}`;
-          genInput = genRow.querySelector(`.${P}checkbox`);
-          const genSettingsLink = genRow.querySelector("[data-action='open-settings']");
-          genInput.addEventListener("change", () => {
-            if (genInput.checked) {
-              aiMode = "generate";
-              fixInput.checked = false;
-            } else if (aiMode === "generate") {
-              aiMode = null;
-            }
-          });
-          if (genSettingsLink) {
-            genSettingsLink.addEventListener("click", async () => {
-              const { SettingsModal } = await import("../editor/settings-modal.js");
+          // Show Import button and AI Enhance button
+          const actionsEl = backdrop.querySelector(`.${P}actions`);
+          const aiBtn = document.createElement("button");
+          aiBtn.type = "button";
+          aiBtn.className = `${P}btn ${P}btn--ai`;
+          aiBtn.textContent = "AI Enhance";
+          aiBtn.title = hasApiKey ? "Import and enhance with AI" : "Configure API key in Settings first";
+          aiBtn.disabled = !hasApiKey;
+          aiBtn.addEventListener("click", async () => {
+            if (!hasApiKey) {
               await SettingsModal.show();
-              genInput.disabled = false;
-              genSettingsLink.remove();
-            });
-          }
-          insertAfter.parentNode.insertBefore(genRow, insertAfter.nextSibling);
-          insertAfter = genRow;
+              if (SettingsModal.getApiKey()) {
+                aiBtn.disabled = false;
+                aiBtn.click();
+              }
+              return;
+            }
+            aiMode = "generate";
+            saveBtn.click();
+          });
+          actionsEl.insertBefore(aiBtn, saveBtn);
+          saveBtn.textContent = "Import";
 
           // Show Import button
           saveBtn.hidden = false;
@@ -341,27 +343,6 @@ export class ConversionModal {
           }
           finalMarkdown = mdLines.join("\n");
         }
-        // AI enhancement
-        if (aiMode) {
-          showSpinner(`AI ${aiMode === "fix" ? "fixing issues" : "generating inspired deck"}…`);
-          try {
-            const { enhanceWithAI } = await import("../data/ai-enhancer.js");
-            finalMarkdown = await enhanceWithAI(finalMarkdown, aiMode);
-          } catch (err) {
-            hideSpinner();
-            showError(`AI enhancement failed: ${err.message}. Importing without AI.`);
-            restoreScroll();
-            backdrop.remove();
-            resolve({
-              markdown: finalMarkdown,
-              images: importImages ? extractionResult.images : [],
-              deckName,
-              importImages,
-            });
-            return;
-          }
-          hideSpinner();
-        }
         restoreScroll();
         backdrop.remove();
         resolve({
@@ -369,6 +350,7 @@ export class ConversionModal {
           images: importImages ? extractionResult.images : [],
           deckName,
           importImages,
+          aiMode,
         });
       });
       // Cancel
@@ -502,6 +484,12 @@ export class ConversionModal {
       .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
       .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
       .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
+      .${P}btn--ai {
+        background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;
+        border: none; font-weight: 600;
+      }
+      .${P}btn--ai:hover:not(:disabled) { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+      .${P}btn--ai:disabled { opacity: 0.4; cursor: not-allowed; }
       .${P}spinner {
         display: inline-block; width: 12px; height: 12px;
         border: 2px solid var(--border-medium, #ccc);

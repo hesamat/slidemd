@@ -655,7 +655,7 @@ export class DeckController extends EventEmitter {
     // Close the conversion modal
     ConversionModal.close();
 
-    let { markdown, images, importImages, deckName } = result;
+    let { markdown, images, importImages, deckName, aiMode } = result;
 
     // Show a loading overlay while the deck is being saved and loaded
     const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
@@ -782,6 +782,29 @@ export class DeckController extends EventEmitter {
 
       loading.updateProgress(100);
       loading.dismiss();
+
+      // AI post-processing (runs after deck is loaded for instant feedback)
+      if (aiMode) {
+        const { AiProcessingModal } = await import("../editor/ai-processing-modal.js");
+        const enhanced = await AiProcessingModal.show(markdown, aiMode);
+        if (enhanced) {
+          // Apply the AI-enhanced markdown
+          const { extractMarkdown } = await import("../data/ai-enhancer.js");
+          const cleanMd = extractMarkdown(enhanced);
+          try {
+            localStorage.setItem("webdeck_local_file", cleanMd);
+            localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+          } catch {
+            window.__WEBDECK_MARKDOWN__ = cleanMd;
+          }
+          await DraftManager.saveDraft(cleanMd);
+          const newDeckData = new MarkdownParser().parseDeckMarkdown(cleanMd);
+          if (this.reloadManager?.replaceDeck) {
+            await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
+          }
+          Notification.success("AI enhancement applied!");
+        }
+      }
 
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
