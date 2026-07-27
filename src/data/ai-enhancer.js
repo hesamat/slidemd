@@ -145,23 +145,39 @@ ${markdown}`;
 function buildGeneratePrompt(markdown) {
   return `Create a new inspired SlideMD presentation from this content.
 
-CRITICAL: You MUST convert ALL [Diagram: ...] markers into Mermaid code blocks. Here is how:
+CRITICAL: Convert ALL [Diagram: ...] markers into creative Mermaid code blocks.
 
-When you see: [Diagram: Item1, Item2, Item3]
+Here are examples of how to convert diagrams:
 
-Replace it with:
+Input: [Diagram: Goal, Task1, Task2, Task3, Done]
+Output:
 \`\`\`mermaid
-flowchart LR
-    A["Item1"] --> B["Item2"] --> C["Item3"]
+flowchart TD
+    A["🎯 Goal"] --> B["Task 1"]
+    A --> C["Task 2"]
+    B --> D["Task 3"]
+    C --> D
+    D --> E["✅ Done"]
 \`\`\`
 
-For hierarchical content use flowchart TD. For processes use flowchart LR.
+Input: [Diagram: Client, Team, Supervisor, Customer]
+Output:
+\`\`\`mermaid
+graph TD
+    C["Client"] -->|provides requirements| T["Team"]
+    T -->|reports progress| S["Supervisor"]
+    S -->|approves| C
+    C <-->|feedback| T
+    T -->|delivers to| Cu["Customer"]
+\`\`\`
+
+Tips: Use different shapes (rectangles, diamonds, circles), varied arrow labels, and logical grouping. NOT just linear chains.
 
 CRITICAL RULES:
 - Preserve ALL background: and theme: directives exactly
 - In two-column layouts, right column is @media (NOT @secondary)
 - NEVER remove layout:, background:, or theme: directives
-- Output ONLY the SlideMD markdown
+- Output ONLY the SlideMD markdown. No analysis, no preamble.
 
 ---
 
