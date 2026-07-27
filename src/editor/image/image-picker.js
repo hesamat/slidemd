@@ -620,9 +620,26 @@ export class ImagePicker {
 
     if (!Number.isFinite(w) || w <= 0) w = 800;
 
+    // Slide design space is 1920px wide; subtract typical area padding (10px each side)
+    const AREA_CONTENT_W = 1900;
+    let left = 0;
+    switch (this.selectedAlign) {
+      case "center":
+        left = Math.round((AREA_CONTENT_W - w) / 2);
+        break;
+      case "right":
+        left = AREA_CONTENT_W - w;
+        break;
+      case "full":
+        left = 0;
+        break;
+      default:
+        left = 0;
+    }
+
     const styleParts = [
       "position: relative",
-      "left: 0px",
+      `left: ${left}px`,
       "top: 0px",
       `width: ${w}px`,
       "border: none",
