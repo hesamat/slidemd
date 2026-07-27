@@ -223,7 +223,7 @@ export class ImageInserter {
     const markdown = this.markdownEditor?.getValue() ?? "";
     const range = this._getAreaNav().getAreaContentRange(markdown, areaName);
     const insertText = `${snippet}\n`;
-    this.markdownEditor?.replaceRange(range.from, range.from, insertText);
+    this.markdownEditor?.replaceRange(range.to, range.to, insertText);
   }
 
   destroy() {
