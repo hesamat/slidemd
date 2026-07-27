@@ -28,19 +28,16 @@ export function extractMarkdown(text) {
       return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
   }
-  // If text starts with layout: or ---, it's already clean — return as-is
-  if (/^(layout:|---)/.test(trimmed)) return trimmed;
-  // Strip analysis: find where real slides begin (layout: followed by content/separator)
+  // If text starts with a valid layout value or ---, it's already clean
   const LAYOUT_VALUES =
     "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
-  const slideStartRe = new RegExp(
-    `layout:\\s*(?:${LAYOUT_VALUES})[\\s\\S]*?(?:\\n---\\n|$)`,
-    "m",
-  );
-  const slideStartMatch = trimmed.match(slideStartRe);
-  if (slideStartMatch) {
-    return trimmed.slice(trimmed.indexOf(slideStartMatch[0])).trim();
+  if (new RegExp(`^(layout:\\s*(?:${LAYOUT_VALUES})\\s*$|---)`, "m").test(trimmed)) {
+    return trimmed;
   }
+  // Strip analysis: find first layout: with a valid value and slice from it
+  const slideStartRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "m");
+  const match = trimmed.match(slideStartRe);
+  if (match) return trimmed.slice(trimmed.indexOf(match[0])).trim();
   // Fallback: first standalone ---
   const firstSep = trimmed.search(/^---$/m);
   if (firstSep > 0) return trimmed.slice(firstSep).trim();
