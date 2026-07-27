@@ -1217,6 +1217,8 @@ const MAX_GAP = 3;
 const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
 const RE_NUMBERED = /^\s*\d+[.)]\s/;
 const RE_BULLET = /^\s*[-*•]\s/;
+const RE_AREA_MARKER = /^\s*@\w+/;
+const RE_LAYOUT_DIRECTIVE = /^\s*(layout|background|theme|hidden|notes):/i;
 
 function wrapLongLists(markdown) {
   const lines = markdown.split("\n");
@@ -1237,7 +1239,12 @@ function wrapLongLists(markdown) {
           }
           itemCount++;
           i++;
-        } else if (lines[i].trim() === "" || gapLines.length < MAX_GAP) {
+        } else if (
+          lines[i].trim() === "" ||
+          (gapLines.length < MAX_GAP &&
+            !RE_AREA_MARKER.test(lines[i]) &&
+            !RE_LAYOUT_DIRECTIVE.test(lines[i]))
+        ) {
           gapLines.push(lines[i]);
           i++;
         } else {
