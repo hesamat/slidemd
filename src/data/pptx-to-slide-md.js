@@ -181,49 +181,7 @@ export function convertToSlideMd(
     return convertSlide(normalizedSlide, slideWidth, slideHeight, deckName, importImages);
   });
 
-  return postProcessCodeBlocks(slides.join("\n\n---\n\n"));
-}
-
-/**
- * Post-process the generated markdown to fix code block issues from PPTX import:
- * - Strip inline code backticks inside fenced blocks (``assert`` → assert)
- * - Convert long single backtick lines (>80 chars) into fenced code blocks
- * @param {string} md
- * @returns {string}
- */
-function postProcessCodeBlocks(md) {
-  // 1. Clean up fenced code blocks: remove inline backtick wrappers
-  md = md.replace(/(```[\s\S]*?```)/g, (fence) => {
-    return fence.replace(/``([^`]+)``/g, "$1");
-  });
-
-  // 2. Convert long single backtick lines into fenced code blocks
-  const lines = md.split("\n");
-  const result = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    const isLongBacktickLine = /^`.+`$/.test(trimmed) && trimmed.length > 80;
-    if (isLongBacktickLine) {
-      // Collect consecutive backtick lines
-      const codeLines = [];
-      while (i < lines.length && /^`.+`$/.test(lines[i].trim()) && lines[i].trim().length > 80) {
-        const content = lines[i].trim().replace(/^`+/, "").replace(/`+$/, "");
-        codeLines.push(content);
-        i++;
-      }
-      if (codeLines.length >= 1) {
-        result.push("```");
-        result.push(...codeLines);
-        result.push("```");
-      }
-    } else {
-      result.push(line);
-      i++;
-    }
-  }
-  return result.join("\n");
+  return slides.join("\n\n---\n\n");
 }
 
 /**
