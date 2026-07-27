@@ -380,6 +380,14 @@ function createHandler(format) {
 
               if (!fs.existsSync(format.imagesDir)) {
                 fs.mkdirSync(format.imagesDir, { recursive: true });
+              } else {
+                // Flush previously uploaded images so the picker starts clean
+                const IMAGE_RE_FLUSH = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
+                for (const name of fs.readdirSync(format.imagesDir)) {
+                  if (IMAGE_RE_FLUSH.test(path.extname(name))) {
+                    fs.unlinkSync(path.join(format.imagesDir, name));
+                  }
+                }
               }
 
               startWatching(format);

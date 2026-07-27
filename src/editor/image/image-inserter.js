@@ -109,7 +109,6 @@ export class ImageInserter {
         this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
         this.markdownEditor.focus();
       },
-      { deckDirHandle: null },
     );
   }
 
