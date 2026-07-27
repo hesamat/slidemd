@@ -1212,11 +1212,10 @@ function formatTextElement(raw) {
 /**
  * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
  * <div class="multi-column-list"> so CSS columns split them visually.
- * Only applies to top-level lists (ignores indented / nested items).
+ * Counts all items including nested sub-items towards the threshold.
  */
 const MIN_LIST_ITEMS = 10;
-const RE_TOP_BULLET = /^\s*[-*•]\s+\S/;
-const RE_TOP_NUMBERED = /^\s*\d+[.)]\s+\S/;
+const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+\S/;
 
 function wrapLongLists(markdown) {
   const lines = markdown.split("\n");
@@ -1224,10 +1223,10 @@ function wrapLongLists(markdown) {
   let i = 0;
 
   while (i < lines.length) {
-    // Detect a run of top-level list items
-    if (RE_TOP_BULLET.test(lines[i]) || RE_TOP_NUMBERED.test(lines[i])) {
+    // Detect a run of list items (any indent level)
+    if (RE_ANY_LIST_ITEM.test(lines[i])) {
       const runStart = i;
-      while (i < lines.length && (RE_TOP_BULLET.test(lines[i]) || RE_TOP_NUMBERED.test(lines[i]))) {
+      while (i < lines.length && RE_ANY_LIST_ITEM.test(lines[i])) {
         i++;
       }
       const runLength = i - runStart;
