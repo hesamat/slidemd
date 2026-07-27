@@ -778,6 +778,7 @@ export class DeckController extends EventEmitter {
       loading.updateProgress(100);
       loading.dismiss();
 
+      Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
         actions: [
           {
