@@ -28,7 +28,13 @@ export function extractMarkdown(text) {
       return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
   }
-  const firstSlideIdx = trimmed.search(/^---$|^layout:\s*/m);
+  // Strip analysis: find first layout: with an actual layout value, or first ---
+  const LAYOUT_VALUES = "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
+  const layoutRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "m");
+  const layoutMatch = trimmed.match(layoutRe);
+  const firstSlideIdx = layoutMatch
+    ? trimmed.indexOf(layoutMatch[0])
+    : trimmed.search(/^---$/m);
   if (firstSlideIdx > 0) {
     return trimmed.slice(firstSlideIdx).trim();
   }
