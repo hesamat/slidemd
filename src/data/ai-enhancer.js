@@ -129,6 +129,21 @@ export function reinjectDirectives(aiResponse, original) {
 }
 
 /**
+ * Strip frontmatter (layout, theme, background) from markdown.
+ * @param {string} markdown
+ * @returns {string}
+ */
+function stripFrontmatter(markdown) {
+  return markdown
+    .replace(/^layout:\s*.*$/gm, "")
+    .replace(/^theme:\s*.*$/gm, "")
+    .replace(/^background:\s*.*$/gm, "")
+    .replace(/^hidden:\s*.*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Build messages for the AI call.
  * @param {string} markdown - The original markdown (with backgrounds/layouts).
  * @param {"fix"|"generate"} mode - Enhancement mode.
