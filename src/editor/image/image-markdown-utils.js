@@ -69,6 +69,38 @@ export function parseAllImages(markdown) {
 }
 
 /**
+ * Find all image entries within a specific area of a slide markdown string.
+ * Filters parseAllImages results to only include images whose positions
+ * fall within the given area's content range.
+ *
+ * @param {string} markdown - Full slide markdown
+ * @param {string} areaName - Area name (e.g. "main", "media")
+ * @returns {Array} Filtered image entries with positions relative to the full markdown
+ */
+export function parseImagesInArea(markdown, areaName) {
+  const allImages = parseAllImages(markdown);
+  const range = getAreaContentRange(markdown, areaName);
+  // If the area range is empty (no @area markers), return all images
+  if (range.from === range.to && range.from === (markdown || "").length) {
+    return allImages;
+  }
+  return allImages.filter((entry) => entry.start >= range.from && entry.start < range.to);
+}
+
+/**
+ * Get the ordinal index of an `<img>` element among all images in its
+ * parent area (0-based). Uses the area's data-area-name to scope the count.
+ *
+ * @param {HTMLElement} imgElement
+ * @returns {number} Index, or -1 if not found in an area
+ */
+export function getImageOrdinalIndexInArea(imgElement) {
+  const area = imgElement.closest(".slide__area");
+  if (!area) return -1;
+  return Array.from(area.querySelectorAll("img")).indexOf(imgElement);
+}
+
+/**
  * Get the ordinal index of an `<img>` element among all images in its
  * parent slide (0-based).
  *
@@ -202,11 +234,26 @@ export function readImageSettings(imgElement) {
   const style = imgElement.style;
   const transform = style.transform || "";
   const rotMatch = transform.match(ROTATION_RE);
+
+  // Parse width: use explicit pixel value, fall back to rendered dimensions
+  // for percentage (e.g. "100%") or non-numeric values.
+  let width = parseFloat(style.width);
+  if (!Number.isFinite(width) || (style.width && style.width.includes("%"))) {
+    width = imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX;
+  }
+
+  // Parse height: use explicit pixel value, fall back to rendered dimensions
+  // for percentage, "auto", or non-numeric values.
+  let height = parseFloat(style.height);
+  if (!Number.isFinite(height) || (style.height && style.height.includes("%"))) {
+    height = imgElement.offsetHeight || null;
+  }
+
   return {
     left: parseFloat(style.left) || 0,
     top: parseFloat(style.top) || 0,
-    width: parseFloat(style.width) || imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX,
-    height: parseFloat(style.height) || null,
+    width,
+    height,
     opacity: style.opacity !== "" ? parseFloat(style.opacity) : 1,
     borderRadius: parseFloat(style.borderRadius) || 0,
     boxShadow: style.boxShadow || "none",

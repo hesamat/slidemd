@@ -1,4 +1,4 @@
-# SlideMD - Markdown Presentations
+# SlideMD — Markdown Presentations
 
 A lightweight, browser-based slide deck with a presenter view.
 
@@ -11,7 +11,10 @@ This project prioritizes:
 
 ## Download
 
-Download the latest release from [GitHub Releases](https://github.com/hesamat/html-presentation/releases/latest). Get `example.html` — a single self-contained file that works offline in any browser.
+Download the latest release from [GitHub Releases](https://github.com/hesamat/html-presentation/releases/latest). Each release includes:
+
+- `slides.html` — a single self-contained file that works offline in any browser
+- `slides.pdf` — a pre-generated PDF of the example deck
 
 Alternatively, run with Docker:
 
@@ -20,6 +23,10 @@ docker run -p 8080:80 hesamat/html-presentation
 ```
 
 Then open http://localhost:8080.
+
+### Browser Support
+
+SlideMD works in all modern browsers. The CLI dev server and File System Access API features (open/save files from disk) require Chromium-based browsers (Chrome, Edge, Brave). Other browsers (Firefox, Safari) can view decks and use keyboard shortcuts but cannot open or save files directly from the filesystem.
 
 ## Run Locally
 
@@ -74,7 +81,8 @@ node tools/dev-server.mjs slides.md  # open the deck
 - `docs/example/images/` - example images
 - `tools/` - build and export scripts
 - `tools/dev-server.mjs` - CLI dev server
-- `dist/slides.html` - generated single-file deck for sharing (build output)
+- `dist/slides.html` - generated single-file deck (build output)
+- `dist/slides.pdf` - generated PDF (build output)
 
 ## Authoring docs/example/slides.md
 
@@ -174,12 +182,12 @@ Edit mode (toggled with `E`) is the slide-editing workspace. All edit-mode short
 **Slide operations** — done from the slide-thumbnails sidebar:
 
 - **Right-click** any slide thumbnail for a context menu with:
-  - **New slide** (Alt+N) — adds a new slide immediately after the right-clicked slide
+  - **New slide** (Alt+N) — opens the layout picker to add a new slide after the right-clicked slide
   - **Duplicate slide** (Alt+D)
-  - **Delete slide** (Alt+⌫)
+  - **Delete slide** (Alt+Backspace)
 - **"+ Add Slide"** button pinned below the thumbnail list — appends a new slide to the end of the deck.
 
-The context menu is keyboard-driven too: the same Alt+N / Alt+D / Alt+⌫ shortcuts work anywhere in edit mode, not just from the menu.
+The context menu is keyboard-driven too: the same Alt+N / Alt+D / Alt+Backspace shortcuts work anywhere in edit mode, not just from the menu.
 
 There are two distinct themes and two distinct shortcuts:
 
@@ -260,3 +268,33 @@ The `decks/` folder includes alternatives. To build a different source, pass it 
 - Images/videos: Use absolute URLs or relative paths served from the same local server.
 - Optional fields: Omit what you do not need; the renderer handles missing fields.
 - When printing to PDF: if `dist/slides.pdf` is open in a viewer, the exporter writes a timestamped alternative file.
+
+## Testing
+
+```bash
+npm test
+```
+
+Runs the full Vitest suite (unit tests for parser, layout, PPTX conversion, image handling, and more).
+
+## `.textpack` Format
+
+A `.textpack` is a ZIP archive for single-file sharing. Structure:
+
+```
+my-deck.textpack
+  text.markdown      ← the slide markdown
+  assets/            ← images referenced in the markdown
+    diagram.png
+    photo.jpg
+```
+
+- The markdown file is always named `text.markdown`
+- Images go in the `assets/` folder
+- Image references in the markdown use relative paths: `![alt](images/photo.png)`
+- The CLI dev server can serve `.textpack` files directly
+- Open via Menu → Open File in the app
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.

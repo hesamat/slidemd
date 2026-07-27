@@ -278,10 +278,12 @@ describe("ImageInteractionHandler", () => {
       const md = '<img src="images/example.jpeg" width="384" height="720" alt="image6">';
 
       const attrs = { width: "384", height: "720", alt: "image6" };
+      const allImgs = [];
       const area = {
         getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+        dataset: { areaName: "main" },
+        querySelectorAll: (sel) => (sel === "img" ? allImgs : []),
       };
-      const allImgs = [null];
       const slide = { querySelectorAll: () => allImgs };
       const style = {};
       const img = {
@@ -300,7 +302,7 @@ describe("ImageInteractionHandler", () => {
         getBoundingClientRect: () => ({ left: 760, top: 180, width: 400, height: 720 }),
         style,
       };
-      allImgs[0] = img;
+      allImgs.push(img);
 
       let saved = null;
       ImageInteractionHandler._getMarkdown = () => md;
@@ -324,6 +326,11 @@ describe("ImageInteractionHandler", () => {
         '<img src="images/test.png" alt="test" style="width: 100px" />\n\n<img src="images/other.png" alt="other" />';
       let saved = null;
       const allImgs = [{}, {}];
+      const areaImgs = [];
+      const area = {
+        querySelectorAll: (sel) => (sel === "img" ? areaImgs : []),
+        dataset: { areaName: "main" },
+      };
       const slide = { querySelectorAll: () => allImgs };
 
       const style = {
@@ -338,7 +345,11 @@ describe("ImageInteractionHandler", () => {
         zIndex: "5",
       };
       const img = {
-        closest: (sel) => (sel === ".slide" ? slide : null),
+        closest: (sel) => {
+          if (sel === ".slide__area") return area;
+          if (sel === ".slide") return slide;
+          return null;
+        },
         classList: {
           add() {},
           remove() {},
@@ -356,6 +367,7 @@ describe("ImageInteractionHandler", () => {
         isConnected: true,
       };
       allImgs[0] = img;
+      areaImgs.push(img);
 
       ImageInteractionHandler._getMarkdown = () => md;
       ImageInteractionHandler._setMarkdown = (updated) => {

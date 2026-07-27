@@ -260,9 +260,9 @@ background: url(https://example.com/hero.png)
 
 ### How Images Work
 
-- **In .textpack files** – Drag & drop saves images into the `assets/` folder. Paths like `images/photo.png` resolve automatically.
-- **In .md files** – Use full URLs (`https://...`). Local relative paths only work if served by the dev server.
-- **PPTX import** – Images are extracted and saved alongside the `.md` file in an `images/` folder.
+- **In .textpack files** – Images are stored in the `assets/` folder inside the archive. When opened with the CLI dev server, images are uploaded to the server and served from `images/`.
+- **In .md files** – Use full URLs (`https://...`). Relative paths like `images/photo.png` work when served by the dev server.
+- **PPTX import** – Images are extracted and uploaded to the server, then saved alongside the `.md` file in an `images/` folder.
 
 ### Formats
 

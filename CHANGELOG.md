@@ -289,7 +289,7 @@
 
 - Live Markdown editor with CodeMirror 6
 - Presenter view with break timer
-- 10 layout presets (focus, two-column, left-heavy, right-heavy, etc.)
+- 7 layout presets (title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column)
 - Custom CSS grid layouts
 - Dark/light theme support (app and per-slide)
 - Syntax highlighting via PrismJS

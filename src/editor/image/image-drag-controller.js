@@ -249,14 +249,15 @@ export class ImageDragController {
         }, CROSS_AREA_RESELECT_MS);
       }
     } else {
-      // Within-area: compute slot fresh from cursor Y
+      // Within-area: remove gap indicator first so slot computation
+      // uses the same DOM state as _dragStartInsertBefore
+      this._hideDropGap();
+
       const currentSlot = currentAreaEl
         ? ctx.findInsertBeforeSlot(currentAreaEl, img, e.clientY)
         : null;
 
-      this._hideDropGap();
-
-      if (currentSlot !== null && currentSlot !== this._dragStartInsertBefore) {
+      if (currentSlot !== this._dragStartInsertBefore) {
         ctx.reorderImageInMarkdown(img, currentSlot);
       } else {
         ctx.syncToMarkdown();

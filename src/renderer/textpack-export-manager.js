@@ -5,6 +5,7 @@
  */
 
 import { DeckLoader } from "../data/deck-loader.js";
+import { Notification } from "./notification.js";
 
 export class TextpackExportManager {
   static _isExporting = false;
@@ -22,6 +23,15 @@ export class TextpackExportManager {
     TextpackExportManager._isExporting = true;
 
     try {
+      // Warn if the markdown contains blob URLs — images can't be fetched from them
+      if (/blob:/.test(markdownSource)) {
+        Notification.warning(
+          "This deck contains images loaded without a dev server. " +
+            "Some images may not be included in the export.",
+          6000,
+        );
+      }
+
       const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
 
