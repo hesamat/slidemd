@@ -306,4 +306,12 @@ export class AiProcessingModal {
     `;
     container.appendChild(style);
   }
+
+  static #escHtml(s) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 }
