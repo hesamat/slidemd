@@ -424,6 +424,11 @@ function createHandler(format) {
 
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
+      if (!format) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const contentType = req.headers["content-type"] || "";
         const boundaryMatch = contentType.match(/boundary=(.+)/i);

@@ -52,28 +52,29 @@ export function centerOnSlide(img, scale, applySettings) {
 
 /**
  * Align the image to the left edge of its area content box.
- * Uses getBoundingClientRect to compute the exact offset needed,
- * accounting for margin:0 auto centering and any existing left offset.
  * @param {HTMLElement} img
  * @param {number} scale - Stage scale factor
  * @param {(settings: object) => void} applySettings
  */
-export function alignLeft(img, scale, applySettings) {
+export function alignLeft(img, _scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
   const cs = getComputedStyle(area);
   const padLeft = parseFloat(cs.paddingLeft) || 0;
 
-  // Current left position of the image relative to the content box, in design px
-  const currentLeftX = (imgRect.left - (areaRect.left + padLeft)) / scale;
+  // The image's normal-flow position inside the content box is at padLeft.
+  // With position:relative, left=0 places it at the normal-flow spot.
+  // margin:0 auto may shift it, but getBoundingClientRect reflects the
+  // final rendered position.  Compute how far the image currently sits
+  // from the content-box left edge and cancel that offset.
+  const areaRect = area.getBoundingClientRect();
+  const imgRect = img.getBoundingClientRect();
+  const currentOffsetFromContentLeft = (imgRect.left - (areaRect.left + padLeft)) / _scale;
   const curLeft = parseFloat(img.style.left) || 0;
 
-  // Move to content box left edge: subtract the current offset
   applySettings({
-    left: Math.round(curLeft - currentLeftX),
+    left: Math.round(curLeft - currentOffsetFromContentLeft),
   });
 }
 
