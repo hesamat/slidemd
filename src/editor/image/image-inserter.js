@@ -7,6 +7,7 @@
  */
 
 import { ImagePicker } from "./image-picker.js";
+import { getStageScale } from "./image-position-presets.js";
 
 export class ImageInserter {
   /**
@@ -107,6 +108,31 @@ export class ImageInserter {
         }
 
         this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+
+        // Apply alignment after the preview re-renders the new image
+        const align = ImagePicker.selectedAlign;
+        if (align && align !== "left" && align !== "full") {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
+              const imgs = slideEl?.querySelectorAll(".slide__area img");
+              if (!imgs) return;
+              // Find the just-inserted image by matching the src
+              const srcPath = afterSnippet.match(/src="([^"]+)"/)?.[1];
+              const img = Array.from(imgs).find((el) => {
+                const elSrc = el.dataset.originalSrc || el.getAttribute("src") || "";
+                return elSrc.includes(srcPath?.split("/").pop() || "__none__");
+              });
+              if (!img) return;
+              import("./image-interaction-handler.js").then(({ ImageInteractionHandler }) => {
+                ImageInteractionHandler.select(img);
+                if (align === "center") ImageInteractionHandler.centerOnSlide();
+                else if (align === "right") ImageInteractionHandler.alignRight();
+              });
+            });
+          });
+        }
+
         this.markdownEditor.focus();
       },
       { deckDirHandle: null },
