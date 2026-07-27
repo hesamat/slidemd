@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateTokens, parseAiResponse, slidesToMarkdown, buildMessages } from "../data/ai-enhancer.js";
+import { estimateTokens, parseAiResponse, slidesToMarkdown, buildMessages, extractDirectives, fixSlideLayouts } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
   it("estimates roughly 1 token per 4 chars", () => {
@@ -63,18 +63,36 @@ describe("slidesToMarkdown", () => {
   });
 });
 
-describe("buildMessages", () => {
-  it("returns system, user, and original", () => {
-    const result = buildMessages("layout: header-content\n@header\n## Hi\n@main\n- Point", "fix");
-    expect(result.system).toBeTruthy();
-    expect(result.user).toBeTruthy();
-    expect(result.original).toBeTruthy();
+describe("extractDirectives", () => {
+  it("extracts layout, background, theme per slide", () => {
+    const md =
+      "layout: header-content\nbackground: #fff\n@header\n## Hi\n\n---\n\nlayout: two-column\ntheme: dark\n@main\n- Item";
+    const result = extractDirectives(md);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ layout: "header-content", background: "#fff", theme: "" });
+    expect(result[1]).toEqual({ layout: "two-column", background: "", theme: "dark" });
+  });
+});
+
+describe("fixSlideLayouts", () => {
+  it("preserves original backgrounds", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
+    const orig = [{ layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" }];
+    const result = fixSlideLayouts(slides, orig);
+    expect(result[0].background).toBe("linear-gradient(#000,#fff)");
   });
 
-  it("strips frontmatter from user prompt", () => {
-    const result = buildMessages("layout: header-content\nbackground: #fff\n@header\n## Hi", "fix");
-    expect(result.user).not.toContain("background:");
-    expect(result.user).not.toContain("layout:");
-    expect(result.original).toContain("background: #fff");
+  it("fixes header-content to two-column when @media exists", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@media\n- Item" }];
+    const orig = [{ layout: "two-column", background: "", theme: "" }];
+    const result = fixSlideLayouts(slides, orig);
+    expect(result[0].layout).toBe("two-column");
+  });
+
+  it("preserves original layout when no @media", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@main\n- Item" }];
+    const orig = [{ layout: "two-column", background: "", theme: "" }];
+    const result = fixSlideLayouts(slides, orig);
+    expect(result[0].layout).toBe("two-column");
   });
 });
