@@ -155,8 +155,8 @@ export class ImageDragController {
 
     ctx.updateOverlay();
 
-    // Free-flowing images show a gap indicator for precise insertion
-    if (isFreeflow && !isCrossArea) {
+    // Show a gap indicator for precise insertion during within-area drag
+    if (!isCrossArea) {
       const areaEl = img.closest(".slide__area");
       if (areaEl) {
         const allElements = [...areaEl.children].filter(
