@@ -192,6 +192,7 @@ ${markdown}`;
  */
 export function parseAiResponse(text) {
   const trimmed = text.trim();
+
   // Try direct JSON parse
   try {
     const parsed = JSON.parse(trimmed);
@@ -207,13 +208,30 @@ export function parseAiResponse(text) {
     } catch { /* not valid JSON */ }
   }
 
-  // Try finding JSON object in the text
-  const jsonMatch = trimmed.match(/\{[\s\S]*"slides"[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
-    } catch { /* not valid JSON */ }
+  // Find JSON by locating {"slides": and extracting the complete JSON object
+  const slidesIdx = trimmed.indexOf('"slides"');
+  if (slidesIdx >= 0) {
+    // Walk backwards to find the opening {
+    let start = slidesIdx;
+    while (start > 0 && trimmed[start] !== "{") start--;
+    if (trimmed[start] === "{") {
+      // Walk forwards to find the matching closing }
+      let depth = 0;
+      let end = start;
+      for (; end < trimmed.length; end++) {
+        if (trimmed[end] === "{") depth++;
+        else if (trimmed[end] === "}") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(trimmed.slice(start, end + 1));
+          if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+        } catch { /* not valid JSON */ }
+      }
+    }
   }
 
   return null;
