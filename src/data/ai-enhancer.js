@@ -13,19 +13,6 @@ import { SettingsModal } from "../editor/settings-modal.js";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
- * Strip image tags from markdown before sending to AI.
- * Images are file references (not base64) — AI cannot use them and they waste tokens.
- * @param {string} markdown
- * @returns {string}
- */
-export function stripImagesForAI(markdown) {
-  return markdown
-    .replace(/<img\s+[^>]*>/gi, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-/**
  * Extract markdown from AI response, stripping any wrapping code fences.
  * @param {string} text
  * @returns {string}
@@ -59,7 +46,7 @@ function stripFrontmatter(markdown) {
  * @returns {{ system: string, user: string }}
  */
 export function buildMessages(markdown, mode) {
-  const cleaned = stripFrontmatter(stripImagesForAI(markdown));
+  const cleaned = stripFrontmatter(markdown);
   return {
     system: SYSTEM_PROMPT,
     user: mode === "fix" ? buildFixPrompt(cleaned) : buildGeneratePrompt(cleaned),
