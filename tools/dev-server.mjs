@@ -380,14 +380,6 @@ function createHandler(format) {
 
               if (!fs.existsSync(format.imagesDir)) {
                 fs.mkdirSync(format.imagesDir, { recursive: true });
-              } else {
-                // Flush previously uploaded images so the picker starts clean
-                const IMAGE_RE_FLUSH = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
-                for (const name of fs.readdirSync(format.imagesDir)) {
-                  if (IMAGE_RE_FLUSH.test(path.extname(name))) {
-                    fs.unlinkSync(path.join(format.imagesDir, name));
-                  }
-                }
               }
 
               startWatching(format);
@@ -412,7 +404,7 @@ function createHandler(format) {
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!format.imagesDir || !fs.existsSync(format.imagesDir)) {
+        if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ images: [] }));
           return;
@@ -483,7 +475,7 @@ function createHandler(format) {
         return;
       }
 
-      if (format.imagesDir) {
+      if (format && format.imagesDir) {
         const filePath = path.join(format.imagesDir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
