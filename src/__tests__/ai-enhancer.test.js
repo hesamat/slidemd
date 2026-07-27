@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { estimateTokens, parseAiResponse, slidesToMarkdown, buildMessages, extractDirectives, fixSlideLayouts } from "../data/ai-enhancer.js";
+import {
+  estimateTokens,
+  parseAiResponse,
+  slidesToMarkdown,
+  buildMessages,
+  extractDirectives,
+  fixSlideLayouts,
+} from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
   it("estimates roughly 1 token per 4 chars", () => {
@@ -77,7 +84,9 @@ describe("extractDirectives", () => {
 describe("fixSlideLayouts", () => {
   it("preserves original backgrounds", () => {
     const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
-    const orig = [{ layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" }];
+    const orig = [
+      { layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" },
+    ];
     const result = fixSlideLayouts(slides, orig);
     expect(result[0].background).toBe("linear-gradient(#000,#fff)");
   });

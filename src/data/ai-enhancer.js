@@ -197,7 +197,9 @@ export function parseAiResponse(text) {
   try {
     const parsed = JSON.parse(trimmed);
     if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
-  } catch { /* not valid JSON */ }
+  } catch {
+    /* not valid JSON */
+  }
 
   // Try extracting JSON from code fence
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
@@ -205,7 +207,9 @@ export function parseAiResponse(text) {
     try {
       const parsed = JSON.parse(fenceMatch[1]);
       if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
-    } catch { /* not valid JSON */ }
+    } catch {
+      /* not valid JSON */
+    }
   }
 
   // Find JSON by locating "slides": (with colon — only in real JSON, not analysis)
@@ -229,7 +233,9 @@ export function parseAiResponse(text) {
         try {
           const parsed = JSON.parse(trimmed.slice(start, end + 1));
           if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
-        } catch { /* not valid JSON */ }
+        } catch {
+          /* not valid JSON */
+        }
       }
     }
   }

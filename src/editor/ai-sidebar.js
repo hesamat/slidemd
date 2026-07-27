@@ -86,8 +86,14 @@ export class AiSidebar {
       }
 
       statusEl.textContent = "Preparing\u2026";
-      const { buildMessages, estimateTokens, parseAiResponse, slidesToMarkdown, extractDirectives, fixSlideLayouts } =
-        await import("../data/ai-enhancer.js");
+      const {
+        buildMessages,
+        estimateTokens,
+        parseAiResponse,
+        slidesToMarkdown,
+        extractDirectives,
+        fixSlideLayouts,
+      } = await import("../data/ai-enhancer.js");
       const { system, user, original } = buildMessages(markdown, mode);
       const inputTokens = estimateTokens(system + user);
       statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
