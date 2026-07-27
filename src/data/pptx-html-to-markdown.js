@@ -287,13 +287,8 @@ function processBlockNodes(nodes, out) {
         // these paragraphs should be treated as code, not headings.
         const allMono = isAllMonospace(node);
         if (allMono) {
-          // In monospace paragraphs, \u00a0 (soft returns from pptxtojson)
-          // represent line breaks. Convert them to newlines.
-          merged = merged.replace(/\u00a0/g, "\n");
           out.push(merged + "\n\n");
         } else {
-          // In regular paragraphs, \u00a0 is a non-breaking space
-          merged = merged.replace(/\u00a0/g, " ");
           // Detect headings by font size — use band-specific heading level
           // but only if the text is short enough to be a heading. This must
           // run on the *un-escaped* text, because # literals below are
@@ -435,9 +430,7 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
 function processInlineNodes(nodes, out) {
   for (const node of nodes) {
     if (node.nodeType === 3) {
-      // Preserve \u00a0 (soft returns from pptxtojson) as-is; convert to
-      // newlines or spaces later based on whether the paragraph is monospace.
-      out.push(node.textContent);
+      out.push(node.textContent.replace(/\u00a0/g, " "));
       continue;
     }
     if (node.nodeType !== 1) continue;
