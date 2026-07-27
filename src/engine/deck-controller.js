@@ -786,30 +786,28 @@ export class DeckController extends EventEmitter {
       // AI post-processing (runs after deck is loaded for instant feedback)
       if (aiMode) {
         const { AiSidebar } = await import("../editor/ai-sidebar.js");
-        const { extractMarkdown } = await import("../data/ai-enhancer.js");
 
         const enhanced = await AiSidebar.show(markdown, aiMode);
 
         if (enhanced) {
-          const cleanMd = extractMarkdown(enhanced);
           try {
-            localStorage.setItem("webdeck_local_file", cleanMd);
+            localStorage.setItem("webdeck_local_file", enhanced);
             localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
           } catch {
-            window.__WEBDECK_MARKDOWN__ = cleanMd;
+            window.__WEBDECK_MARKDOWN__ = enhanced;
           }
-          await DraftManager.saveDraft(cleanMd);
+          await DraftManager.saveDraft(enhanced);
 
           let newDeckData;
           try {
-            newDeckData = new MarkdownParser().parseDeckMarkdown(cleanMd);
+            newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
           } catch (err) {
             console.warn("parseDeckMarkdown failed:", err);
           }
 
           // Fallback: if parser returned only 1 slide but content has ---, split manually
-          if (newDeckData && newDeckData.slides.length <= 1 && cleanMd.includes("\n---\n")) {
-            const parts = cleanMd.split(/\n---\n/);
+          if (newDeckData && newDeckData.slides.length <= 1 && enhanced.includes("\n---\n")) {
+            const parts = enhanced.split(/\n---\n/);
             if (parts.length > 1) {
               const md = new MarkdownParser();
               newDeckData.slides = parts.map((part, i) => {

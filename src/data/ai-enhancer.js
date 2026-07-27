@@ -2,10 +2,7 @@
  * AI Enhancer
  *
  * Post-processes PPTX-imported markdown using AI via OpenRouter.
- * Two modes: "fix" (cleanup) and "generate" (inspired deck with Mermaid diagrams).
- *
- * NOTE: The primary entry point is AiProcessingModal which handles streaming.
- * This module provides prompt builders and a non-streaming fallback.
+ * Uses JSON-structured output for reliable parsing.
  */
 
 import { SettingsModal } from "../editor/settings-modal.js";
@@ -13,39 +10,58 @@ import { SettingsModal } from "../editor/settings-modal.js";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
- * Extract markdown from AI response, stripping any wrapping code fences.
- * @param {string} text
+ * Convert JSON slides back to SlideMD markdown.
+ * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
  * @returns {string}
  */
-export function extractMarkdown(text) {
-  const trimmed = text.trim();
-  const fenceMatch = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
-  if (fenceMatch) return fenceMatch[1].trim();
-  if (trimmed.startsWith("```")) {
-    const firstNewline = trimmed.indexOf("\n");
-    const lastFence = trimmed.lastIndexOf("```");
-    if (lastFence > firstNewline) {
-      return trimmed.slice(firstNewline + 1, lastFence).trim();
-    }
-  }
-  // If text starts with a valid layout value or ---, it's already clean
-  const LAYOUT_VALUES =
-    "title-slide|header-content|two-column|media-span|left-heavy|right-heavy|three-column|grid";
-  if (new RegExp(`^(layout:\\s*(?:${LAYOUT_VALUES})\\s*$|---)`, "m").test(trimmed)) {
-    return trimmed;
-  }
-  // Strip analysis: find first layout: with a valid value and slice from it
-  const slideStartRe = new RegExp(`^layout:\\s*(?:${LAYOUT_VALUES})\\s*$`, "m");
-  const match = trimmed.match(slideStartRe);
-  if (match) return trimmed.slice(trimmed.indexOf(match[0])).trim();
-  // Fallback: first standalone ---
-  const firstSep = trimmed.search(/^---$/m);
-  if (firstSep > 0) return trimmed.slice(firstSep).trim();
-  return trimmed;
+export function slidesToMarkdown(slides) {
+  return slides
+    .map((slide) => {
+      const parts = [];
+      if (slide.layout) parts.push(`layout: ${slide.layout}`);
+      if (slide.background) parts.push(`background: ${slide.background}`);
+      if (slide.theme) parts.push(`theme: ${slide.theme}`);
+      parts.push("");
+      parts.push(slide.content);
+      return parts.join("\n");
+    })
+    .join("\n\n---\n\n");
 }
 
 /**
- * Extract per-slide directives (layout, background, theme) from markdown.
+ * Fix layouts in parsed slides (e.g., header-content → two-column when @media exists).
+ * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
+ * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @returns {typeof slides}
+ */
+function fixSlideLayouts(slides, origDirectives) {
+  return slides.map((slide, i) => {
+    const orig = origDirectives[i] || {};
+    const hasMedia = /^@media\b/m.test(slide.content);
+
+    // Preserve original background/theme
+    const result = {
+      ...slide,
+      background: orig.background || slide.background || "",
+      theme: orig.theme || slide.theme || "",
+    };
+
+    // If original had a layout, prefer it
+    if (orig.layout) {
+      result.layout = orig.layout;
+    }
+
+    // Fix wrong layouts: if slide has @media but layout is header-content
+    if (hasMedia && (result.layout === "header-content" || result.layout === "content-sidebar")) {
+      result.layout = "two-column";
+    }
+
+    return result;
+  });
+}
+
+/**
+ * Extract per-slide directives (layout, background, theme) from original markdown.
  * @param {string} markdown
  * @returns {Array<{layout: string, background: string, theme: string}>}
  */
@@ -61,96 +77,6 @@ function extractDirectives(markdown) {
       theme: themeMatch?.[1]?.trim() || "",
     };
   });
-}
-
-/**
- * Re-inject original backgrounds and layouts into AI response.
- * Also fixes incorrect layouts (e.g., header-content when @media exists).
- * @param {string} aiResponse - Cleaned AI markdown (no backgrounds/layouts).
- * @param {string} original - Original markdown with backgrounds/layouts.
- * @returns {string} Fixed markdown.
- */
-export function reinjectDirectives(aiResponse, original) {
-  const origDirectives = extractDirectives(original);
-  // Fix AI merging layout: with @area on same line (e.g., "layout: header-content@header")
-  const fixedResponse = aiResponse.replace(
-    /^(layout:\s*\S+)\s*(@\w+)/gm,
-    "$1\n$2",
-  );
-  const aiSlides = fixedResponse.split(/\n---\n/);
-
-  // If slide count doesn't match, AI dropped/added slides — return as-is
-  if (aiSlides.length !== origDirectives.length) {
-    return fixedResponse;
-  }
-
-  const result = aiSlides.map((slide, i) => {
-    const orig = origDirectives[i] || {};
-    const lines = slide.split("\n");
-    const newLines = [];
-
-    for (const line of lines) {
-      // Skip existing layout/background/theme lines
-      if (/^layout:\s/.test(line)) continue;
-      if (/^background:\s/.test(line)) continue;
-      if (/^theme:\s/.test(line)) continue;
-
-      // Insert layout before first @area or first content
-      if (orig.layout && !newLines.some((l) => /^layout:\s/.test(l))) {
-        if (
-          /^@\w+/.test(line) ||
-          (line.trim() &&
-            !/^@\w+/.test(line) &&
-            newLines.length > 0 &&
-            /^@\w+/.test(newLines[newLines.length - 1]))
-        ) {
-          newLines.push(`layout: ${orig.layout}`);
-        }
-      }
-
-      newLines.push(line);
-    }
-
-    // If layout wasn't inserted yet, add it at the top
-    if (orig.layout && !newLines.some((l) => /^layout:\s/.test(l))) {
-      newLines.unshift(`layout: ${orig.layout}`);
-    }
-
-    // Add background after layout
-    if (orig.background) {
-      const layoutIdx = newLines.findIndex((l) => /^layout:\s/.test(l));
-      if (layoutIdx >= 0) {
-        newLines.splice(layoutIdx + 1, 0, `background: ${orig.background}`);
-      } else {
-        newLines.unshift(`background: ${orig.background}`);
-      }
-    }
-
-    // Add theme after background (or after layout)
-    if (orig.theme) {
-      const afterBg = orig.background
-        ? newLines.findIndex((l) => /^background:\s/.test(l))
-        : newLines.findIndex((l) => /^layout:\s/.test(l));
-      if (afterBg >= 0) {
-        newLines.splice(afterBg + 1, 0, `theme: ${orig.theme}`);
-      }
-    }
-
-    // Fix wrong layouts: if slide has @media, layout should be two-column or media-span
-    const hasMedia = newLines.some((l) => /^@media\b/.test(l));
-    const currentLayout = newLines.find((l) => /^layout:\s/.test(l));
-    if (hasMedia && currentLayout) {
-      const layoutVal = currentLayout.replace(/^layout:\s*/, "");
-      if (layoutVal === "header-content" || layoutVal === "content-sidebar") {
-        const slideIdx = newLines.indexOf(currentLayout);
-        newLines[slideIdx] = "layout: two-column";
-      }
-    }
-
-    return newLines.join("\n");
-  });
-
-  return result.join("\n\n---\n\n");
 }
 
 /**
@@ -192,103 +118,103 @@ export function estimateTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-/**
- * System prompt — SlideMD syntax reference. Sent once, shared across all calls.
- */
-const SYSTEM_PROMPT = `You are a SlideMD markdown editor. You receive markdown and output improved markdown.
+const SYSTEM_PROMPT = `You are a SlideMD markdown editor. You receive markdown and output improved markdown as JSON.
 
-RULE 1: Start your response DIRECTLY with either "layout:" or "---". NEVER start with analysis text.
-RULE 2: Output ONLY the markdown content. No thinking, no "I need to fix", no "Let me", no explanations.
-RULE 3: NEVER output any text between slides. After ---, the next line must be layout: or content area.
+## Output Format
 
-## SlideMD Syntax
+You MUST respond with valid JSON only. No other text. No explanations. No markdown fences.
 
-- Slides separated by \`---\`
-- Speaker notes: \`<!-- notes: ... -->\` (first line, before layout)
-- Layout: \`layout: preset-name\` (MUST be first line of each slide)
-- Content areas: \`@title\`, \`@header\`, \`@main\`, \`@media\`, \`@sidebar\`, \`@footer\`
-- Layouts: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column
+{
+  "slides": [
+    {
+      "layout": "header-content",
+      "content": "@header\\n## Title\\n\\n@main\\n- Point 1\\n- Point 2"
+    }
+  ]
+}
+
+Rules:
+- "layout" must be one of: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column
+- "background" is optional (keep the original if provided)
+- "theme" is optional (keep the original if provided)
+- "content" is the slide body (everything after layout/background/theme directives)
+- Use \\n for newlines in the content string
+- Each slide in the array corresponds to one slide separated by ---
 
 ## Converting [Diagram: ...] to Mermaid
-When you see [Diagram: Item1, Item2, Item3], replace with:
+
+In the "content" field, replace [Diagram: Item1, Item2, Item3] with a mermaid code block:
+
 \`\`\`mermaid
 flowchart LR
     A["Item1"] --> B["Item2"] --> C["Item3"]
 \`\`\`
-Use different shapes and arrow labels. NOT just linear chains.`;
 
-/**
- * Build the "fix issues" prompt.
- * @param {string} markdown - Cleaned markdown (images stripped, no frontmatter).
- * @returns {string}
- */
+Use varied shapes and arrow labels. NOT just linear chains.
+
+## SlideMD Areas
+
+Content areas: @title, @header, @main, @media, @sidebar, @footer
+In two-column layout, right column MUST be @media (NOT @secondary).
+@secondary is ONLY for three-column layout.`;
+
 function buildFixPrompt(markdown) {
-  return `Fix the following SlideMD markdown.
+  return `Fix this SlideMD markdown and return as JSON.
 
-CRITICAL: Convert ALL [Diagram: ...] markers into Mermaid code blocks:
-When you see [Diagram: Item1, Item2, Item3], replace with:
-\`\`\`mermaid
-flowchart LR
-    A["Item1"] --> B["Item2"] --> C["Item3"]
-\`\`\`
-
-Also:
+Issues to fix:
 - Recover code block newlines lost during extraction
-- Fix formatting: consistent spacing, lists, tables
-- Ensure every slide has a layout: directive
-- In two-column layouts, right column MUST be @media (NOT @secondary)
-- Preserve ALL background: and theme: directives exactly as-is
+- Fix broken links (split URLs)
+- Fix code with extra backticks or spaces
+- Convert [Diagram: ...] markers to Mermaid code blocks
 
-Output ONLY the fixed markdown.
+Input markdown:
+${markdown}`;
+}
 
----
+function buildGeneratePrompt(markdown) {
+  return `Create an inspired SlideMD presentation from this content and return as JSON.
 
+Guidelines:
+- Reorganize for better flow and pacing
+- Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
+- Improve formatting, structure, and layout
+- Add speaker notes to key slides
+- Keep all substantive content
+
+Input markdown:
 ${markdown}`;
 }
 
 /**
- * Build the "generate inspired deck" prompt.
- * @param {string} markdown - Cleaned markdown (images stripped, no frontmatter).
- * @returns {string}
+ * Parse the AI's JSON response, handling common issues.
+ * @param {string} text - Raw AI response.
+ * @returns {{ slides: Array }|null}
  */
-function buildGeneratePrompt(markdown) {
-  return `Create a new inspired SlideMD presentation from this content.
+export function parseAiResponse(text) {
+  const trimmed = text.trim();
+  // Try direct JSON parse
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+  } catch { /* not valid JSON */ }
 
-CRITICAL: Convert ALL [Diagram: ...] markers into creative Mermaid code blocks.
+  // Try extracting JSON from code fence
+  const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (fenceMatch) {
+    try {
+      const parsed = JSON.parse(fenceMatch[1]);
+      if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+    } catch { /* not valid JSON */ }
+  }
 
-Here are examples of how to convert diagrams:
+  // Try finding JSON object in the text
+  const jsonMatch = trimmed.match(/\{[\s\S]*"slides"[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+    } catch { /* not valid JSON */ }
+  }
 
-Input: [Diagram: Goal, Task1, Task2, Task3, Done]
-Output:
-\`\`\`mermaid
-flowchart TD
-    A["🎯 Goal"] --> B["Task 1"]
-    A --> C["Task 2"]
-    B --> D["Task 3"]
-    C --> D
-    D --> E["✅ Done"]
-\`\`\`
-
-Input: [Diagram: Client, Team, Supervisor, Customer]
-Output:
-\`\`\`mermaid
-graph TD
-    C["Client"] -->|provides requirements| T["Team"]
-    T -->|reports progress| S["Supervisor"]
-    S -->|approves| C
-    C <-->|feedback| T
-    T -->|delivers to| Cu["Customer"]
-\`\`\`
-
-Tips: Use different shapes (rectangles, diamonds, circles), varied arrow labels, and logical grouping. NOT just linear chains.
-
-CRITICAL RULES:
-- Preserve ALL background: and theme: directives exactly
-- In two-column layouts, right column is @media (NOT @secondary)
-- NEVER remove layout:, background:, or theme: directives
-- Output ONLY the SlideMD markdown. No analysis, no preamble.
-
----
-
-${markdown}`;
+  return null;
 }

@@ -86,7 +86,7 @@ export class AiSidebar {
       }
 
       statusEl.textContent = "Preparing\u2026";
-      const { buildMessages, estimateTokens, extractMarkdown, reinjectDirectives } =
+      const { buildMessages, estimateTokens, parseAiResponse, slidesToMarkdown, extractDirectives, fixSlideLayouts } =
         await import("../data/ai-enhancer.js");
       const { system, user, original } = buildMessages(markdown, mode);
       const inputTokens = estimateTokens(system + user);
@@ -165,8 +165,24 @@ export class AiSidebar {
         return null;
       }
 
-      const cleanMd = extractMarkdown(contentText);
-      result = reinjectDirectives(cleanMd, original);
+      const parsed = parseAiResponse(contentText);
+      if (!parsed) {
+        statusEl.textContent = "Error: AI did not return valid JSON";
+        statusEl.className = `${P}status ${P}status--error`;
+        cancelBtn.hidden = true;
+        closeBtn.hidden = false;
+        noticeEl.hidden = true;
+        await new Promise((resolve) => {
+          closeBtn.addEventListener("click", resolve, { once: true });
+        });
+        this._currentPanel = null;
+        panel.remove();
+        return null;
+      }
+
+      const origDirectives = extractDirectives(original);
+      const fixedSlides = fixSlideLayouts(parsed.slides, origDirectives);
+      result = slidesToMarkdown(fixedSlides);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       slideCountEl.textContent = `${lastSlideCount} slides`;

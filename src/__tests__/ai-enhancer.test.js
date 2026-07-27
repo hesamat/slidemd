@@ -1,40 +1,80 @@
 import { describe, it, expect } from "vitest";
-import { extractMarkdown, estimateTokens } from "../data/ai-enhancer.js";
-
-describe("extractMarkdown", () => {
-  it("returns plain text unchanged", () => {
-    expect(extractMarkdown("hello world")).toBe("hello world");
-  });
-
-  it("strips ```markdown wrapper", () => {
-    const input = "```markdown\n# Slide\n\nContent\n```";
-    expect(extractMarkdown(input)).toBe("# Slide\n\nContent");
-  });
-
-  it("strips ``` wrapper without language", () => {
-    const input = "```\n# Slide\nContent\n```";
-    expect(extractMarkdown(input)).toBe("# Slide\nContent");
-  });
-
-  it("strips ```slide wrapper", () => {
-    const input = "```slide\n# Slide\nContent\n```";
-    expect(extractMarkdown(input)).toBe("# Slide\nContent");
-  });
-
-  it("preserves internal code fences", () => {
-    const input = "```markdown\n# Slide\n\n```python\ncode\n```\n```";
-    expect(extractMarkdown(input)).toContain("```python");
-  });
-});
+import { estimateTokens, parseAiResponse, slidesToMarkdown, buildMessages } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
   it("estimates roughly 1 token per 4 chars", () => {
     expect(estimateTokens("1234")).toBe(1);
     expect(estimateTokens("12345678")).toBe(2);
   });
-
   it("rounds up", () => {
     expect(estimateTokens("123")).toBe(1);
     expect(estimateTokens("12345")).toBe(2);
+  });
+});
+
+describe("parseAiResponse", () => {
+  it("parses valid JSON with slides", () => {
+    const input = '{"slides":[{"layout":"header-content","content":"@header\\n## Title"}]}';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides).toHaveLength(1);
+    expect(result.slides[0].layout).toBe("header-content");
+  });
+
+  it("parses JSON wrapped in code fence", () => {
+    const input = '```json\n{"slides":[{"layout":"title-slide","content":"# Title"}]}\n```';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("title-slide");
+  });
+
+  it("returns null for invalid input", () => {
+    expect(parseAiResponse("no json here")).toBeNull();
+  });
+
+  it("returns null for empty input", () => {
+    expect(parseAiResponse("")).toBeNull();
+  });
+});
+
+describe("slidesToMarkdown", () => {
+  it("converts slides to markdown with layout", () => {
+    const slides = [
+      { layout: "header-content", content: "@header\n## Title" },
+      { layout: "two-column", content: "@main\n- Item 1" },
+    ];
+    const md = slidesToMarkdown(slides);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("layout: two-column");
+    expect(md).toContain("@header");
+    expect(md).toContain("---");
+  });
+
+  it("includes background when provided", () => {
+    const slides = [{ layout: "title-slide", background: "#fff", content: "# Hi" }];
+    const md = slidesToMarkdown(slides);
+    expect(md).toContain("background: #fff");
+  });
+
+  it("skips empty background", () => {
+    const slides = [{ layout: "title-slide", content: "# Hi" }];
+    const md = slidesToMarkdown(slides);
+    expect(md).not.toContain("background:");
+  });
+});
+
+describe("buildMessages", () => {
+  it("returns system, user, and original", () => {
+    const result = buildMessages("layout: header-content\n@header\n## Hi\n@main\n- Point", "fix");
+    expect(result.system).toBeTruthy();
+    expect(result.user).toBeTruthy();
+    expect(result.original).toBeTruthy();
+  });
+
+  it("strips frontmatter from user prompt", () => {
+    const result = buildMessages("layout: header-content\nbackground: #fff\n@header\n## Hi", "fix");
+    expect(result.user).not.toContain("background:");
+    expect(result.user).not.toContain("layout:");
+    expect(result.original).toContain("background: #fff");
   });
 });
