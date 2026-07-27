@@ -506,7 +506,6 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    const mediaImage = rightEls.find((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(
@@ -515,11 +514,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
-    parts.push(
-      mediaImage
-        ? formatImage(mediaImage, deckName, { fitColumn: true })
-        : rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE),
-    );
+    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64) {
+      parts.push(formatImage(rightEls[0], deckName, { fitColumn: true }));
+    } else {
+      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+    }
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
     if (!mediaImage || !secondaryImage) {
@@ -541,8 +540,8 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
           formatSingleElement,
         ),
       );
-  return wrapLongLists(parts.join("\n"));
-}
+      return wrapLongLists(parts.join("\n"));
+    }
     const mainEls = bodyElements.filter((el) => el !== mediaImage && el !== secondaryImage);
     parts.push("");
     if (isHeaderValid) {
@@ -766,7 +765,7 @@ function inferLayout(
 
   if (contentEls.length === 0) {
     // Image-only slide: determine layout from dominant images
-    if (dominantImages.length >= 3) return LAYOUT.THREE_COLUMN;
+    if (dominantImages.length >= 3) return LAYOUT.MEDIA_SPAN;
     if (dominantImages.length === 2) {
       // Check if images are truly side-by-side (horizontal overlap < 30%)
       const [img1, img2] = dominantImages;
@@ -786,6 +785,8 @@ function inferLayout(
   const isHeadingMarker = (el) => REGEX.HEADING_MARKER.test(el.content?.trim() || "");
 
   const isHeader = (el) => {
+    if (el.top >= bodyThreshold) return false;
+
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
       if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
@@ -794,11 +795,7 @@ function inferLayout(
       return false;
     }
 
-    // Heading markers (##, ###) are headers regardless of vertical position
     if (isHeadingMarker(el)) return true;
-
-    // Non-heading elements must be in the top portion of the slide
-    if (el.top >= bodyThreshold) return false;
 
     // Extract plain text from HTML for length/bullet checks — raw HTML is
     // often much longer than the visible text due to inline styles.
@@ -916,7 +913,7 @@ function inferLayout(
       Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
     );
     if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
-      return LAYOUT.THREE_COLUMN;
+      return LAYOUT.MEDIA_SPAN;
     }
     return LAYOUT.TWO_COLUMN;
   }
@@ -1272,15 +1269,6 @@ function formatImage(
   return `<img src="${src}" alt="${altText}"${style}>`;
 }
 
-function isFirstRowHeader(rows) {
-  if (rows.length < 2) return false;
-  const firstRowBg = rows[0][0]?.fillColor;
-  // If no background info available, fall back to old behavior (treat as header)
-  if (!firstRowBg) return true;
-  // Check if any cell in the second row has a different background
-  return rows[1].some((cell) => cell.fillColor !== firstRowBg);
-}
-
 function formatTable(table, slideWidth, slideHeight) {
   if (!table.rows?.length) return "";
 
@@ -1315,20 +1303,13 @@ function formatTable(table, slideWidth, slideHeight) {
       .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
       .trim();
   const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const hasHeader = isFirstRowHeader(table.rows);
   const separator = table.rows[0].map(() => "---").join(" | ");
   const rows = table.rows.map(formatRow);
   const parts = [];
-  if (hasHeader) {
-    parts.push(`| ${rows[0]} |`);
-    parts.push(`| ${separator} |`);
-    for (let i = 1; i < rows.length; i++) {
-      parts.push(`| ${rows[i]} |`);
-    }
-  } else {
-    for (let i = 0; i < rows.length; i++) {
-      parts.push(`| ${rows[i]} |`);
-    }
+  parts.push(`| ${rows[0]} |`);
+  parts.push(`| ${separator} |`);
+  for (let i = 1; i < rows.length; i++) {
+    parts.push(`| ${rows[i]} |`);
   }
   return parts.join("\n");
 }

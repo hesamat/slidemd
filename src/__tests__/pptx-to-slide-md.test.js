@@ -333,20 +333,17 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     const mainIndex = md.indexOf("@main");
     const mediaIndex = md.indexOf("@media");
-    const secondaryIndex = md.indexOf("@secondary");
     const textIndex = md.indexOf("Summary text stays in the main column");
     const firstImageIndex = md.indexOf("dominant-1.png");
     const secondImageIndex = md.indexOf("dominant-2.png");
 
-    expect(md).toContain("layout: three-column");
+    expect(md).toContain("layout: media-span");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
-    expect(secondaryIndex).toBeGreaterThan(mediaIndex);
     expect(textIndex).toBeGreaterThan(mainIndex);
     expect(textIndex).toBeLessThan(mediaIndex);
     expect(firstImageIndex).toBeGreaterThan(mediaIndex);
-    expect(firstImageIndex).toBeLessThan(secondaryIndex);
-    expect(secondImageIndex).toBeGreaterThan(secondaryIndex);
+    expect(secondImageIndex).toBeGreaterThan(mediaIndex);
   });
 
   it("keeps image-only slides in single-column layout", () => {
