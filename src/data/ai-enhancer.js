@@ -68,10 +68,12 @@ export function estimateTokens(text) {
  */
 const SYSTEM_PROMPT = `You are an expert at converting presentation content into SlideMD markdown format.
 
+IMPORTANT: Output ONLY the SlideMD markdown. Do NOT include any analysis, reasoning, explanations, or commentary. Just the markdown.
+
 ## SlideMD Syntax
 
 **Basic Structure:**
-- Slides separated by \`---\` (three dashes on their own line, one blank line before and after)
+- Slides separated by \`---\`
 - Speaker notes: \`<!-- notes: ... -->\` (first line, before layout)
 - Layout: \`layout: preset-name\` or \`layout: "grid" / columns\`
 - Content areas: \`@title\`, \`@header\`, \`@main\`, \`@media\`, \`@secondary\`, \`@sidebar\`, \`@footer\`
@@ -86,8 +88,7 @@ const SYSTEM_PROMPT = `You are an expert at converting presentation content into
 
 **Diagrams:**
 - Convert diagram text (marked \`[Diagram: ...]\`) to Mermaid code blocks
-- Use \`flowchart TD\` for hierarchy, \`flowchart LR\` for processes
-- Each text item becomes a node, connect logically`;
+- Use \`flowchart TD\` for hierarchy, \`flowchart LR\` for processes`;
 
 /**
  * Build the "fix issues" prompt.

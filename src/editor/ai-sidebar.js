@@ -33,10 +33,9 @@ export class AiSidebar {
    * Show the AI sidebar and stream the response.
    * @param {string} markdown - The markdown to enhance.
    * @param {"fix"|"generate"} mode - Enhancement mode.
-   * @param {(partialMarkdown: string, slideCount: number) => void} [onSlideRender] - Called on slide boundaries.
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
-  static async show(markdown, mode, onSlideRender) {
+  static async show(markdown, mode) {
     const panel = this.#createPanel(mode);
     document.body.appendChild(panel);
     this._currentPanel = panel;
@@ -105,10 +104,8 @@ export class AiSidebar {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let contentText = "";
-      let displayHtml = "";
-      let inReasoning = true;
       let buffer = "";
-      let lastRenderedSlideCount = 0;
+      let lastSlideCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -125,39 +122,18 @@ export class AiSidebar {
 
           try {
             const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta;
-            const content = delta?.content || "";
-            const reasoning = delta?.reasoning || delta?.reasoning_details?.[0]?.text || "";
-
+            const content = parsed.choices?.[0]?.delta?.content || "";
             if (content) {
-              if (inReasoning) {
-                inReasoning = false;
-                displayHtml += `</span>`;
-              }
               contentText += content;
-              displayHtml += this.#escHtml(content);
-            } else if (reasoning && inReasoning) {
-              displayHtml += this.#escHtml(reasoning);
-            }
-
-            if (content || reasoning) {
-              outputEl.innerHTML = displayHtml + `<span class="${P}cursor"></span>`;
+              outputEl.textContent = contentText;
               outputEl.scrollTop = outputEl.scrollHeight;
 
-              if (onSlideRender && contentText) {
-                const slideCount = (contentText.split(/^---$/m) || []).length;
-                if (slideCount > lastRenderedSlideCount) {
-                  lastRenderedSlideCount = slideCount;
-                  slideCountEl.textContent = `${slideCount} slides`;
-                  statusEl.textContent = inReasoning
-                    ? `Thinking… (${slideCount} slides)`
-                    : `Generating… (${slideCount} slides)`;
-                  try {
-                    onSlideRender(contentText, slideCount);
-                  } catch {
-                    // ignore
-                  }
-                }
+              // Update slide count
+              const slideCount = (contentText.split(/^---$/m) || []).length;
+              if (slideCount > lastSlideCount) {
+                lastSlideCount = slideCount;
+                slideCountEl.textContent = `${slideCount} slides`;
+                statusEl.textContent = `Generating… (${slideCount} slides)`;
               }
             }
           } catch {
@@ -174,7 +150,7 @@ export class AiSidebar {
       result = contentText;
       statusEl.textContent = "Done!";
       statusEl.className = `${P}status ${P}status--done`;
-      slideCountEl.textContent = `${lastRenderedSlideCount} slides`;
+      slideCountEl.textContent = `${lastSlideCount} slides`;
       cancelBtn.hidden = true;
       closeBtn.hidden = false;
     } catch (err) {
@@ -259,13 +235,6 @@ export class AiSidebar {
         font-family: var(--font-mono, monospace);
         background: var(--code-surface, rgba(0,0,0,0.03));
       }
-      .${P}reasoning { color: var(--text-muted, rgba(0,0,0,0.35)); font-style: italic; }
-      .${P}cursor::after {
-        content: ""; display: inline-block; width: 2px; height: 1em;
-        background: var(--accent, #6366f1); margin-left: 2px;
-        animation: ${P}blink 1s step-end infinite; vertical-align: text-bottom;
-      }
-      @keyframes ${P}blink { 50% { opacity: 0; } }
       .${P}actions {
         display: flex; gap: 8px; justify-content: flex-end;
         padding: 12px 20px; border-top: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
@@ -279,13 +248,5 @@ export class AiSidebar {
       .${P}btn--accent:hover { background: var(--accent-hover, #4f46e5); }
     `;
     container.appendChild(style);
-  }
-
-  static #escHtml(s) {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 }
