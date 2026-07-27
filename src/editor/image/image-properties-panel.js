@@ -1,5 +1,5 @@
 import { getStageScale } from "./image-position-presets.js";
-import { updateBackgroundDirective } from "../core/directive-utils.js";
+import { updateBackgroundDirective, updateThemeDirective } from "../core/directive-utils.js";
 import {
   parseImagesInArea,
   parseAllImages,
@@ -440,8 +440,9 @@ export class ImagePropertiesPanel {
     })();
 
     const slideMd = md.slice(slideStart, slideEnd);
-    const bgValue = `url(${src}) center / cover no-repeat`;
-    const updatedSlide = updateBackgroundDirective(slideMd, bgValue);
+    const bgValue = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${src}) center / cover no-repeat`;
+    let updatedSlide = updateBackgroundDirective(slideMd, bgValue);
+    updatedSlide = updateThemeDirective(updatedSlide, "dark");
     const updatedMd = md.slice(0, slideStart) + updatedSlide + md.slice(slideEnd);
 
     this.hide();

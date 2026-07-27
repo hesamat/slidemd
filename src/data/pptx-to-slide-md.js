@@ -301,7 +301,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
   if (bgCandidate && bgCandidate.base64) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.75),rgba(0,0,0,0.75)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
