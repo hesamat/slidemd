@@ -86,7 +86,7 @@ export class AiSidebar {
       }
 
       statusEl.textContent = "Preparing\u2026";
-      const { buildMessages, estimateTokens, reinjectDirectives } =
+      const { buildMessages, estimateTokens, extractMarkdown, reinjectDirectives } =
         await import("../data/ai-enhancer.js");
       const { system, user, original } = buildMessages(markdown, mode);
       const inputTokens = estimateTokens(system + user);
@@ -165,7 +165,8 @@ export class AiSidebar {
         return null;
       }
 
-      result = reinjectDirectives(contentText, original);
+      const cleanMd = extractMarkdown(contentText);
+      result = reinjectDirectives(cleanMd, original);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       slideCountEl.textContent = `${lastSlideCount} slides`;
