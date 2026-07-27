@@ -1210,8 +1210,11 @@ function formatTextElement(raw) {
  * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
  * <div class="multi-column-list"> so CSS columns split them visually.
  * Counts all items including nested sub-items towards the threshold.
+ * Merges list runs separated by ≤MAX_GAP non-list lines.
  */
 const MIN_LIST_ITEMS = 10;
+const COL3_THRESHOLD = 27;
+const MAX_GAP = 3;
 const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
 
 function wrapLongLists(markdown) {
@@ -1220,21 +1223,47 @@ function wrapLongLists(markdown) {
   let i = 0;
 
   while (i < lines.length) {
-    // Detect a run of list items (any indent level)
     if (RE_ANY_LIST_ITEM.test(lines[i])) {
-      const runStart = i;
-      while (i < lines.length && RE_ANY_LIST_ITEM.test(lines[i])) {
-        i++;
+      // Collect a "group": list run + small gap + more list items, etc.
+      const groupStart = i;
+      let itemCount = 0;
+      let gapLines = [];
+
+      while (i < lines.length) {
+        if (RE_ANY_LIST_ITEM.test(lines[i])) {
+          // Flush any buffered gap — if it contains list-like items, merge
+          if (gapLines.length > 0) {
+            itemCount += gapLines.filter((l) => RE_ANY_LIST_ITEM.test(l)).length;
+            gapLines = [];
+          }
+          itemCount++;
+          i++;
+        } else if (lines[i].trim() === "" || gapLines.length < MAX_GAP) {
+          gapLines.push(lines[i]);
+          i++;
+        } else {
+          break;
+        }
       }
-      const runLength = i - runStart;
-      if (runLength >= MIN_LIST_ITEMS) {
-        result.push('<div class="multi-column-list">');
+
+      // Check if there are list items right after the gap we stopped at
+      // (the gap exceeded MAX_GAP, but the next run might still be close)
+      if (gapLines.length > MAX_GAP) {
+        // Rewind: put back the non-list lines that exceeded the gap
+        const overshoot = gapLines.length - MAX_GAP;
+        i -= overshoot;
+        gapLines.length = MAX_GAP;
+      }
+
+      if (itemCount >= MIN_LIST_ITEMS) {
+        const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
+        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
         result.push("");
-        for (let j = runStart; j < i; j++) result.push(lines[j]);
+        for (let j = groupStart; j < i; j++) result.push(lines[j]);
         result.push("");
         result.push("</div>");
       } else {
-        for (let j = runStart; j < i; j++) result.push(lines[j]);
+        for (let j = groupStart; j < i; j++) result.push(lines[j]);
       }
     } else {
       result.push(lines[i]);
