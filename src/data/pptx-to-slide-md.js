@@ -1385,17 +1385,6 @@ function formatDiagram(diagram) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
 
-  const lines = [];
-  for (const item of items) {
-    const subItems = item.split("\n").filter((s) => s.trim());
-    if (subItems.length === 1) {
-      lines.push(`- ${subItems[0]}`);
-    } else {
-      lines.push(`- ${subItems[0]}`);
-      for (let i = 1; i < subItems.length; i++) {
-        lines.push(`  - ${subItems[i]}`);
-      }
-    }
-  }
-  return lines.join("\n");
+  // Emit a marker that AI post-processing can replace with Mermaid
+  return `[Diagram: ${items.join(", ")}]`;
 }

@@ -396,6 +396,11 @@ export class DeckController extends EventEmitter {
       this.handleConvertPptx();
       this.closeMenu();
     });
+    listen(this.elements.menuSettingsBtn, "click", async () => {
+      const { SettingsModal } = await import("../editor/settings-modal.js");
+      SettingsModal.show();
+      this.closeMenu();
+    });
 
     listen(this.elements.breakDurationSelect, "change", (e) => {
       this.breakManager.setDuration(parseInt(e.target.value, 10) || 10);

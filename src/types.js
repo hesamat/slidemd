@@ -99,6 +99,7 @@
  * @property {HTMLElement} menuExportTextpackBtn
  * @property {HTMLElement} menuNewPresentationBtn
  * @property {HTMLElement} menuConvertPptxBtn
+ * @property {HTMLElement} menuSettingsBtn
  * @property {HTMLElement} printBtn
  * @property {HTMLElement} reloadDeckBtn
  * @property {HTMLElement} themeToggleBtn

@@ -57,6 +57,7 @@ export class ConversionModal {
       let deckName = "presentation";
       let importImages = true;
       let keepBackgrounds = true;
+      let aiMode = null; // null, "fix", or "generate"
       let codeLanguage = "";
       let isConverting = false;
 
@@ -238,6 +239,67 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
 
+          // AI mode checkboxes
+          const aiDivider = document.createElement("div");
+          aiDivider.className = `${P}checkbox-row`;
+          aiDivider.style.cssText = "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";
+          aiDivider.innerHTML = `<span class="${P}checkbox-label" style="font-weight: 500; color: var(--text-medium, #666);">AI Enhancement (optional)</span>`;
+          insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
+          insertAfter = aiDivider;
+
+          const hasApiKey = !!(await import("../editor/settings-modal.js")).SettingsModal.getApiKey();
+
+          // AI: Fix issues
+          const fixRow = document.createElement("label");
+          fixRow.className = `${P}checkbox-row`;
+          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Fix issues</span>${hasApiKey ? "" : ' <span class="${P}checkbox-hint" style="font-size:11px;color:var(--text-medium,#666);cursor:pointer" data-action="open-settings">⚙ set key</span>'}`;
+          const fixInput = fixRow.querySelector(`.${P}checkbox`);
+          const fixSettingsLink = fixRow.querySelector("[data-action='open-settings']");
+          fixInput.addEventListener("change", () => {
+            if (fixInput.checked) {
+              aiMode = "fix";
+              if (genInput) genInput.checked = false;
+            } else if (aiMode === "fix") {
+              aiMode = null;
+            }
+          });
+          if (fixSettingsLink) {
+            fixSettingsLink.addEventListener("click", async () => {
+              const { SettingsModal } = await import("../editor/settings-modal.js");
+              await SettingsModal.show();
+              fixInput.disabled = false;
+              fixSettingsLink.remove();
+            });
+          }
+          insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
+          insertAfter = fixRow;
+
+          // AI: Generate inspired deck
+          let genInput = null;
+          const genRow = document.createElement("label");
+          genRow.className = `${P}checkbox-row`;
+          genRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Generate inspired deck</span>${hasApiKey ? "" : ' <span class="${P}checkbox-hint" style="font-size:11px;color:var(--text-medium,#666);cursor:pointer" data-action="open-settings">⚙ set key</span>'}`;
+          genInput = genRow.querySelector(`.${P}checkbox`);
+          const genSettingsLink = genRow.querySelector("[data-action='open-settings']");
+          genInput.addEventListener("change", () => {
+            if (genInput.checked) {
+              aiMode = "generate";
+              fixInput.checked = false;
+            } else if (aiMode === "generate") {
+              aiMode = null;
+            }
+          });
+          if (genSettingsLink) {
+            genSettingsLink.addEventListener("click", async () => {
+              const { SettingsModal } = await import("../editor/settings-modal.js");
+              await SettingsModal.show();
+              genInput.disabled = false;
+              genSettingsLink.remove();
+            });
+          }
+          insertAfter.parentNode.insertBefore(genRow, insertAfter.nextSibling);
+          insertAfter = genRow;
+
           // Show Import button
           saveBtn.hidden = false;
           saveBtn.disabled = false;
@@ -251,7 +313,7 @@ export class ConversionModal {
         }
       };
       // Import button
-      saveBtn.addEventListener("click", () => {
+      saveBtn.addEventListener("click", async () => {
         // If user opted out of images, strip <img> tags from markdown
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
         // If user opted out of backgrounds/themes, strip those directives
@@ -278,6 +340,27 @@ export class ConversionModal {
             }
           }
           finalMarkdown = mdLines.join("\n");
+        }
+        // AI enhancement
+        if (aiMode) {
+          showSpinner(`AI ${aiMode === "fix" ? "fixing issues" : "generating inspired deck"}…`);
+          try {
+            const { enhanceWithAI } = await import("../data/ai-enhancer.js");
+            finalMarkdown = await enhanceWithAI(finalMarkdown, aiMode);
+          } catch (err) {
+            hideSpinner();
+            showError(`AI enhancement failed: ${err.message}. Importing without AI.`);
+            restoreScroll();
+            backdrop.remove();
+            resolve({
+              markdown: finalMarkdown,
+              images: importImages ? extractionResult.images : [],
+              deckName,
+              importImages,
+            });
+            return;
+          }
+          hideSpinner();
         }
         restoreScroll();
         backdrop.remove();

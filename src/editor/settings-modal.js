@@ -1,0 +1,265 @@
+/**
+ * SettingsModal
+ *
+ * Modal for configuring AI settings (API key, model selection).
+ * Settings are stored in localStorage.
+ */
+
+const STORAGE_KEY_API = "webdeck_openrouter_api_key";
+const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
+const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
+const P = "settings-modal__";
+
+export class SettingsModal {
+  static _currentBackdrop = null;
+
+  /**
+   * Get stored API key.
+   * @returns {string}
+   */
+  static getApiKey() {
+    try {
+      return localStorage.getItem(STORAGE_KEY_API) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Get stored model.
+   * @returns {string}
+   */
+  static getModel() {
+    try {
+      return localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL;
+    } catch {
+      return DEFAULT_MODEL;
+    }
+  }
+
+  /**
+   * Check if API key is configured.
+   * @returns {boolean}
+   */
+  static isConfigured() {
+    return !!this.getApiKey();
+  }
+
+  /**
+   * Close the currently open settings modal (if any).
+   */
+  static close() {
+    if (this._currentBackdrop) {
+      document.body.style.overflow = "";
+      this._currentBackdrop.remove();
+      this._currentBackdrop = null;
+    }
+  }
+
+  /**
+   * Show the settings modal. Returns the saved settings or null if cancelled.
+   * @static
+   * @returns {Promise<{ apiKey: string, model: string }|null>}
+   */
+  static async show() {
+    return new Promise((resolve) => {
+      const backdrop = this.#createDom();
+      document.body.appendChild(backdrop);
+      this._currentBackdrop = backdrop;
+
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      const restoreScroll = () => {
+        document.body.style.overflow = prevOverflow;
+      };
+
+      const apiKeyInput = backdrop.querySelector('[data-field="api-key"]');
+      const modelSelect = backdrop.querySelector('[data-field="model"]');
+      const saveBtn = backdrop.querySelector('[data-action="save"]');
+      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+      const dialog = backdrop.querySelector(`.${P}dialog`);
+      const errorEl = backdrop.querySelector(`.${P}error`);
+
+      dialog.addEventListener("click", (e) => e.stopPropagation());
+
+      // Load saved values
+      apiKeyInput.value = this.getApiKey();
+      modelSelect.value = this.getModel();
+
+      // Fetch available models from OpenRouter
+      this.#populateModels(modelSelect);
+
+      const showError = (msg) => {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+      };
+
+      saveBtn.addEventListener("click", () => {
+        const apiKey = apiKeyInput.value.trim();
+        const model = modelSelect.value;
+
+        if (!apiKey) {
+          showError("API key is required");
+          return;
+        }
+
+        try {
+          localStorage.setItem(STORAGE_KEY_API, apiKey);
+          localStorage.setItem(STORAGE_KEY_MODEL, model);
+        } catch {
+          // ignore
+        }
+
+        restoreScroll();
+        backdrop.remove();
+        this._currentBackdrop = null;
+        resolve({ apiKey, model });
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        restoreScroll();
+        backdrop.remove();
+        this._currentBackdrop = null;
+        resolve(null);
+      });
+
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) {
+          restoreScroll();
+          backdrop.remove();
+          this._currentBackdrop = null;
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  /**
+   * Fetch models from OpenRouter and populate the select.
+   * @static
+   * @param {HTMLSelectElement} select
+   */
+  static async #populateModels(select) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models");
+      if (!res.ok) return;
+      const data = await res.json();
+      const models = data.data || [];
+      const current = select.value || DEFAULT_MODEL;
+      let found = false;
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.name || m.id;
+        if (m.id === current) {
+          opt.selected = true;
+          found = true;
+        }
+        select.appendChild(opt);
+      }
+      // If current model not in list, add it as a custom option
+      if (!found && current) {
+        const opt = document.createElement("option");
+        opt.value = current;
+        opt.textContent = current;
+        opt.selected = true;
+        select.prepend(opt);
+      }
+    } catch {
+      // If fetch fails, just keep the default option
+    }
+  }
+
+  /**
+   * Create the modal DOM.
+   * @static
+   * @returns {HTMLElement}
+   */
+  static #createDom() {
+    const backdrop = document.createElement("div");
+    backdrop.className = `${P}backdrop`;
+    backdrop.innerHTML = `
+      <div class="${P}dialog">
+        <h2 class="${P}title">AI Settings</h2>
+
+        <label class="${P}label" for="${P}api-key">API Key</label>
+        <input
+          id="${P}api-key"
+          class="${P}input"
+          type="password"
+          data-field="api-key"
+          placeholder="sk-or-..."
+          autocomplete="off"
+        />
+        <span class="${P}hint">Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></span>
+
+        <label class="${P}label" for="${P}model">Model</label>
+        <select id="${P}model" class="${P}select" data-field="model">
+          <option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>
+        </select>
+
+        <div class="${P}error" hidden></div>
+
+        <div class="${P}actions">
+          <button type="button" data-action="cancel" class="${P}btn ${P}btn--secondary">Cancel</button>
+          <button type="button" data-action="save" class="${P}btn ${P}btn--accent">Save</button>
+        </div>
+      </div>
+    `;
+    this.#injectStyles(backdrop);
+    return backdrop;
+  }
+
+  /**
+   * Inject modal styles.
+   * @static
+   * @param {HTMLElement} container
+   */
+  static #injectStyles(container) {
+    const style = document.createElement("style");
+    style.textContent = `
+      .${P}backdrop {
+        position: fixed; inset: 0; z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+      }
+      .${P}dialog {
+        background: var(--surface-bg, #fff); color: var(--text-high, #111);
+        border-radius: 12px; padding: 24px; width: 420px; max-width: 90vw;
+        max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      }
+      .${P}title { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
+      .${P}label {
+        display: block; font-size: 13px; font-weight: 500;
+        margin: 12px 0 4px; color: var(--text-high, #111);
+      }
+      .${P}input {
+        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); box-sizing: border-box;
+      }
+      .${P}input:focus { outline: 2px solid var(--accent, #6366f1); outline-offset: -1px; }
+      .${P}select {
+        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
+        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
+        color: var(--text-high, #111); cursor: pointer; box-sizing: border-box;
+      }
+      .${P}hint {
+        display: block; font-size: 12px; color: var(--text-medium, #666);
+        margin: 4px 0 0;
+      }
+      .${P}hint a { color: var(--accent, #6366f1); }
+      .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
+      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
+      .${P}btn {
+        padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+        cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
+      }
+      .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
+      .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
+      .${P}btn--accent:hover { background: var(--accent-hover, #4f46e5); }
+    `;
+    container.appendChild(style);
+  }
+}

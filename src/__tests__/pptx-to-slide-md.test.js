@@ -1593,4 +1593,78 @@ describe("flex-row rendering", () => {
     expect(md).not.toContain('class="flex-row"');
     expect(md).toContain("Java");
   });
+
+  it("renders multi-item diagram as [Diagram: ...] marker", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "Step 1, Step 2, Step 3",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram: Step 1, Step 2, Step 3]");
+    expect(md).not.toContain("- Step 1");
+  });
+
+  it("renders single-item diagram as plain text", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "Only Item",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("Only Item");
+    expect(md).not.toContain("[Diagram:");
+  });
+
+  it("renders empty diagram as placeholder", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "",
+        notes: "",
+        elements: [
+          {
+            type: "diagram",
+            content: "[Diagram]",
+            order: 5,
+            left: 1000000,
+            top: 2000000,
+            width: 3000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("[Diagram]");
+  });
 });
