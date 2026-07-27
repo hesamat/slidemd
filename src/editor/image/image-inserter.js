@@ -1,10 +1,12 @@
 /**
  * ImageInserter
  *
- * Handles inserting images into slide markdown via native file picker,
+ * Handles inserting images into slide markdown via the image picker,
  * drag-drop, and clipboard paste.
  * Uses AbortController for clean teardown of drag/drop/paste listeners.
  */
+
+import { ImagePicker } from "./image-picker.js";
 
 export class ImageInserter {
   /**
@@ -51,22 +53,46 @@ export class ImageInserter {
   async pickAndInsert() {
     if (!this.markdownEditor) return;
 
-    // Use a native file picker to select an image, upload via API
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
+    const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
 
-      const relativePath = await this.imageBg.uploadImage(file);
-      if (!relativePath) return;
+    ImagePicker.show(
+      (snippet) => {
+        const current = this.markdownEditor.getValue();
+        const hasSavedPosition =
+          savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length;
 
-      const alt = file.name.replace(/\.[^.]+$/, "");
-      const snippet = `![${alt}](${relativePath})`;
-      this._insertSnippet(snippet);
-    };
-    input.click();
+        let insertPos;
+        let afterSnippet;
+
+        if (hasSavedPosition) {
+          const pos = savedCursorPos;
+          const isAtStart = pos === 0;
+          const isAtEnd = pos >= current.length;
+          const prevChar = isAtStart ? "\n" : current[pos - 1];
+          const nextChar = isAtEnd ? "\n" : current[pos];
+
+          const before = prevChar === "\n" ? "" : "\n\n";
+          const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
+          const leadTrim = isAtStart ? before.replace(/^\n+/, "") : before;
+
+          insertPos = pos;
+          afterSnippet = `${leadTrim}${snippet}${after}`;
+        } else {
+          const footerIdx = current.search(/^@footer\b/m);
+          if (footerIdx > 0) {
+            insertPos = footerIdx;
+            afterSnippet = `${snippet}\n\n`;
+          } else {
+            insertPos = current.length;
+            afterSnippet = `\n\n${snippet}\n`;
+          }
+        }
+
+        this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+        this.markdownEditor.focus();
+      },
+      { deckDirHandle: null },
+    );
   }
 
   /**
