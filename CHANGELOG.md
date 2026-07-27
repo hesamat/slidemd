@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+## 0.6.1 (2026-07-26)
+
+### Bug Fixes
+
+- Fix example deck images, mermaid in PDF, and consistent naming (#136)
+- Fix example deck loading, image handling, and PPTX import UX (#137)
+
 ## 0.6.0 (2026-07-24)
 
 ### CLI Dev Server
@@ -59,7 +68,7 @@
 - Auto-discovers `images/` directory and inlines as data URIs
 - Removed JSZip dependency from build
 
-### Cleanup: Removed `.smd` Format
+### BREAKING: Removed `.smd` Format
 
 - Deleted `src/core/smd-handler.js` and tests
 - Deleted `docs/example.smd` (replaced by `docs/example/slides.md` + `images/`)

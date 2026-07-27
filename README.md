@@ -16,14 +16,6 @@ Download the latest release from [GitHub Releases](https://github.com/hesamat/ht
 - `slides.html` — a single self-contained file that works offline in any browser
 - `slides.pdf` — a pre-generated PDF of the example deck
 
-Alternatively, run with Docker:
-
-```bash
-docker run -p 8080:80 hesamat/html-presentation
-```
-
-Then open http://localhost:8080.
-
 ### Browser Support
 
 SlideMD works in all modern browsers. The CLI dev server and File System Access API features (open/save files from disk) require Chromium-based browsers (Chrome, Edge, Brave). Other browsers (Firefox, Safari) can view decks and use keyboard shortcuts but cannot open or save files directly from the filesystem.
