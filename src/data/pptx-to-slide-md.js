@@ -1207,15 +1207,16 @@ function formatTextElement(raw) {
 }
 
 /**
- * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
- * <div class="multi-column-list"> so CSS columns split them visually.
- * Counts all items including nested sub-items towards the threshold.
- * Merges list runs separated by ≤MAX_GAP non-list lines.
+ * Wrap long list runs in a <div class="multi-column-list"> with manually
+ * split equal-count columns.  Merges list runs separated by ≤MAX_GAP
+ * non-list lines and counts all items (including sub-items).
  */
 const MIN_LIST_ITEMS = 10;
 const COL3_THRESHOLD = 27;
 const MAX_GAP = 3;
 const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
+const RE_NUMBERED = /^\s*\d+[.)]\s/;
+const RE_BULLET = /^\s*[-*•]\s/;
 
 function wrapLongLists(markdown) {
   const lines = markdown.split("\n");
@@ -1224,14 +1225,12 @@ function wrapLongLists(markdown) {
 
   while (i < lines.length) {
     if (RE_ANY_LIST_ITEM.test(lines[i])) {
-      // Collect a "group": list run + small gap + more list items, etc.
       const groupStart = i;
       let itemCount = 0;
       let gapLines = [];
 
       while (i < lines.length) {
         if (RE_ANY_LIST_ITEM.test(lines[i])) {
-          // Flush any buffered gap — if it contains list-like items, merge
           if (gapLines.length > 0) {
             itemCount += gapLines.filter((l) => RE_ANY_LIST_ITEM.test(l)).length;
             gapLines = [];
@@ -1246,10 +1245,7 @@ function wrapLongLists(markdown) {
         }
       }
 
-      // Check if there are list items right after the gap we stopped at
-      // (the gap exceeded MAX_GAP, but the next run might still be close)
       if (gapLines.length > MAX_GAP) {
-        // Rewind: put back the non-list lines that exceeded the gap
         const overshoot = gapLines.length - MAX_GAP;
         i -= overshoot;
         gapLines.length = MAX_GAP;
@@ -1257,10 +1253,16 @@ function wrapLongLists(markdown) {
 
       if (itemCount >= MIN_LIST_ITEMS) {
         const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
-        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
-        result.push("");
-        for (let j = groupStart; j < i; j++) result.push(lines[j]);
-        result.push("");
+        const groupLines = lines.slice(groupStart, i);
+        const listTag = groupLines.find((l) => RE_ANY_LIST_ITEM.test(l))?.match(RE_NUMBERED)
+          ? "ol" : "ul";
+        const columns = splitListIntoColumns(groupLines, cols);
+        result.push(`<div class="multi-column-list">`);
+        for (const col of columns) {
+          result.push(`<${listTag}>`);
+          for (const line of col) result.push(line);
+          result.push(`</${listTag}>`);
+        }
         result.push("</div>");
       } else {
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
@@ -1272,6 +1274,41 @@ function wrapLongLists(markdown) {
   }
 
   return result.join("\n");
+}
+
+/**
+ * Split a block of markdown list lines into `cols` groups with as-equal
+ * item counts as possible.  Non-list lines (blanks, sub-text) stay with
+ * the preceding list item.
+ */
+function splitListIntoColumns(lines, cols) {
+  if (cols <= 1 || lines.length <= 1) return [lines];
+
+  const itemIndices = [];
+  let currentIdx = -1;
+  for (const line of lines) {
+    if (RE_ANY_LIST_ITEM.test(line)) currentIdx++;
+    itemIndices.push(currentIdx);
+  }
+
+  const totalItems = currentIdx + 1;
+  const itemsPerCol = Math.ceil(totalItems / cols);
+  const groups = [];
+  let colStart = 0;
+
+  for (let c = 0; c < cols; c++) {
+    const targetItem = itemsPerCol * (c + 1);
+    let end = lines.length;
+    if (c < cols - 1) {
+      for (let idx = colStart; idx < lines.length; idx++) {
+        if (itemIndices[idx] === targetItem) { end = idx; break; }
+      }
+    }
+    groups.push(lines.slice(colStart, end));
+    colStart = end;
+  }
+
+  return groups.filter((g) => g.length > 0);
 }
 
 function formatImage(
