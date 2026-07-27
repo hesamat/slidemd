@@ -519,6 +519,11 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
+    // Wide elements that span the midpoint fail both 1.5x thresholds.
+    // Default them to the left (main) column so they aren't silently dropped.
+    const captured = new Set([...leftEls, ...rightEls]);
+    const unclassified = bodyElements.filter((el) => !captured.has(el));
+    leftEls.push(...unclassified);
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(

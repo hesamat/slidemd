@@ -222,9 +222,13 @@ export class AiProcessingModal {
     // Wait for user to close
     await new Promise((resolve) => {
       closeBtn.addEventListener("click", resolve, { once: true });
-      backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) resolve();
-      }, { once: true });
+      backdrop.addEventListener(
+        "click",
+        (e) => {
+          if (e.target === backdrop) resolve();
+        },
+        { once: true },
+      );
     });
 
     document.body.style.overflow = prevOverflow;

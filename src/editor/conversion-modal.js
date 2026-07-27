@@ -245,7 +245,8 @@ export class ConversionModal {
           // AI mode section
           const aiDivider = document.createElement("div");
           aiDivider.className = `${P}checkbox-row`;
-          aiDivider.style.cssText = "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";
+          aiDivider.style.cssText =
+            "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";
           aiDivider.innerHTML = `<span class="${P}checkbox-label" style="font-weight: 500; color: var(--text-medium, #666);">AI Enhancement (optional)</span>`;
           insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
           insertAfter = aiDivider;
@@ -286,7 +287,9 @@ export class ConversionModal {
           aiBtn.type = "button";
           aiBtn.className = `${P}btn ${P}btn--ai`;
           aiBtn.textContent = "AI Inspiration";
-          aiBtn.title = hasApiKey ? "Import and get AI-inspired redesign" : "Configure API key in Settings first";
+          aiBtn.title = hasApiKey
+            ? "Import and get AI-inspired redesign"
+            : "Configure API key in Settings first";
           aiBtn.disabled = !hasApiKey;
           aiBtn.addEventListener("click", async () => {
             if (!hasApiKey) {

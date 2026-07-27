@@ -84,14 +84,14 @@ layout: three-column
 
 Slides render at **1920×1080px**. Content overflows if too much is added. These are approximate maximums for a single content area:
 
-| Content Type | Max Items/Lines | Notes |
-|---|---|---|
-| Bullet list items | ~13 | Single column, `header-content` layout |
-| Bullet list (two-column) | ~6 per column | `two-column` layout |
-| Body text paragraphs | ~15 lines | At 30px font size |
-| Code lines | ~18 lines | At 24px mono font |
-| h2 headings | ~8 | 42px each |
-| Table rows | ~8 | Including header row |
+| Content Type             | Max Items/Lines | Notes                                  |
+| ------------------------ | --------------- | -------------------------------------- |
+| Bullet list items        | ~13             | Single column, `header-content` layout |
+| Bullet list (two-column) | ~6 per column   | `two-column` layout                    |
+| Body text paragraphs     | ~15 lines       | At 30px font size                      |
+| Code lines               | ~18 lines       | At 24px mono font                      |
+| h2 headings              | ~8              | 42px each                              |
+| Table rows               | ~8              | Including header row                   |
 
 **Layout-specific guidance:**
 
@@ -102,6 +102,7 @@ Slides render at **1920×1080px**. Content overflows if too much is added. These
 - `left-heavy`/`right-heavy`: Larger column holds ~10 items, smaller ~5
 
 **If content exceeds these limits:**
+
 - Split across multiple slides
 - Use two-column layout to distribute content
 - Remove redundant items

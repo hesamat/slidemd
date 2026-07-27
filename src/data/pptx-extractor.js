@@ -284,9 +284,11 @@ export class PptxExtractor {
       totalImageArea += w * h;
     }
 
-    // Images must cover > 50% of the group's bounding box to be considered
-    // a decorative background cluster.
-    return totalImageArea / groupArea > 0.5;
+    // Images must cover > 85% of the group's bounding box to be considered
+    // a decorative background cluster.  A lower threshold (e.g. 50%) risks
+    // dropping content groups such as multiple code-block screenshots that
+    // have visible spacing between them.
+    return totalImageArea / groupArea > 0.85;
   }
 
   /**
