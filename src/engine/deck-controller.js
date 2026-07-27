@@ -686,7 +686,7 @@ export class DeckController extends EventEmitter {
             let binary;
             try {
               binary = atob(padded);
-            } catch (err) {
+            } catch {
               console.warn(
                 "Failed to decode base64 for image:",
                 img.ref,

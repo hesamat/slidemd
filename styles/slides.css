@@ -472,12 +472,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* Multi-column lists (auto-applied to long lists during PPTX import) */
 .multi-column-list {
-  display: flex;
-  gap: 1.5em;
+  column-fill: balance;
+  column-gap: 1.5em;
 }
-.multi-column-list > ul,
-.multi-column-list > ol {
-  flex: 1;
+.multi-column-list ul,
+.multi-column-list ol {
   margin: 0;
   padding-left: 1.5em;
 }

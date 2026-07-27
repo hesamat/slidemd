@@ -279,10 +279,10 @@ layout: two-column
 
 ### Opening Decks
 
-| Format | Description |
-| --- | --- |
-| **.md** | Plain Markdown with frontmatter. Use full URLs for images. |
-| **.textpack** | ZIP with `text.markdown` + `assets/`. Self-contained. |
+| Format        | Description                                                |
+| ------------- | ---------------------------------------------------------- |
+| **.md**       | Plain Markdown with frontmatter. Use full URLs for images. |
+| **.textpack** | ZIP with `text.markdown` + `assets/`. Self-contained.      |
 
 ### Exporting
 
