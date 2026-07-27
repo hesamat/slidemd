@@ -791,7 +791,6 @@ export class DeckController extends EventEmitter {
         const enhanced = await AiSidebar.show(markdown, aiMode);
 
         if (enhanced) {
-          // Final render with complete markdown
           const cleanMd = extractMarkdown(enhanced);
           try {
             localStorage.setItem("webdeck_local_file", cleanMd);
@@ -800,8 +799,28 @@ export class DeckController extends EventEmitter {
             window.__WEBDECK_MARKDOWN__ = cleanMd;
           }
           await DraftManager.saveDraft(cleanMd);
-          const newDeckData = new MarkdownParser().parseDeckMarkdown(cleanMd);
-          if (this.reloadManager?.replaceDeck) {
+
+          let newDeckData;
+          try {
+            newDeckData = new MarkdownParser().parseDeckMarkdown(cleanMd);
+          } catch (err) {
+            console.warn("parseDeckMarkdown failed:", err);
+          }
+
+          // Fallback: if parser returned only 1 slide but content has ---, split manually
+          if (newDeckData && newDeckData.slides.length <= 1 && cleanMd.includes("\n---\n")) {
+            const parts = cleanMd.split(/\n---\n/);
+            if (parts.length > 1) {
+              const md = new MarkdownParser();
+              newDeckData.slides = parts.map((part, i) => {
+                const parsed = md.parseDeckMarkdown(part.trim());
+                return parsed.slides[0];
+              });
+              newDeckData.meta = newDeckData.meta || {};
+            }
+          }
+
+          if (newDeckData && this.reloadManager?.replaceDeck) {
             await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
           }
           Notification.success("AI enhancement applied!");

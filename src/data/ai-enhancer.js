@@ -19,9 +19,17 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 export function extractMarkdown(text) {
   const trimmed = text.trim();
-  // Strip ```markdown ... ```, ```slide ... ```, or ``` ... ``` wrapping
-  const match = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
-  return match ? match[1].trim() : trimmed;
+  // Try to strip ```markdown ... ```, ```slide ... ```, or ``` ... ``` wrapping
+  const fenceMatch = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
+  if (fenceMatch) return fenceMatch[1].trim();
+  // If no fence match, check if content starts/ends with ``` and strip manually
+  if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+    const lines = trimmed.split("\n");
+    if (lines.length >= 3) {
+      return lines.slice(1, -1).join("\n").trim();
+    }
+  }
+  return trimmed;
 }
 
 /**
