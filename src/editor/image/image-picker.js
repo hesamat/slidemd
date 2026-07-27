@@ -87,10 +87,6 @@ export class ImagePicker {
                     </div>
                 </div>
 
-                <div id="imagePickerExistingPreviewWrap" class="image-picker-existing-preview-wrap" style="display:none">
-                    <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" />
-                </div>
-
                 <div class="image-picker-footer">
                     <div class="image-picker-options">
                         <div class="image-picker-option-group">
@@ -140,8 +136,6 @@ export class ImagePicker {
     this.insertBtn = wrapper.querySelector("#imagePickerInsertBtn");
     this.presetButtons = wrapper.querySelectorAll(".image-picker-preset-btn");
     this.alignButtons = wrapper.querySelectorAll(".image-picker-align-btn");
-    this.existingPreview = wrapper.querySelector("#imagePickerExistingPreview");
-    this.existingPreviewWrap = wrapper.querySelector("#imagePickerExistingPreviewWrap");
   }
 
   /**
@@ -285,7 +279,6 @@ export class ImagePicker {
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
-    if (this.existingPreviewWrap) this.existingPreviewWrap.style.display = "none";
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
@@ -373,12 +366,6 @@ export class ImagePicker {
     this.grid
       .querySelectorAll(".image-picker-item")
       .forEach((i) => i.classList.toggle("selected", i === el));
-    // Show preview of selected image
-    if (this.existingPreview && this.existingPreviewWrap) {
-      this.existingPreview.src = path;
-      this.existingPreview.alt = el.querySelector("img")?.alt || "";
-      this.existingPreviewWrap.style.display = "";
-    }
     this._syncInsertButton();
   }
 
@@ -405,16 +392,9 @@ export class ImagePicker {
       this._availableImages.push({ name: file.name, path: result.path });
       await this._refreshGrid();
       this.uploadZone.innerHTML = `
-                    <div class="image-picker-upload-icon">✓</div>
-                    <div>Uploaded ${escapeText(file.name)}</div>
-                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
+                    <img src="${escapeAttr(result.path)}" alt="${escapeAttr(file.name)}" class="image-picker-upload-preview" />
+                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Uploaded — click Insert or pick another file.</div>
                 `;
-      // Show preview of uploaded image
-      if (this.existingPreview && this.existingPreviewWrap) {
-        this.existingPreview.src = result.path;
-        this.existingPreview.alt = file.name;
-        this.existingPreviewWrap.style.display = "";
-      }
       this._syncInsertButton();
       return;
     } catch (err) {
