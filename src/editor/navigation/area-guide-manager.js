@@ -23,6 +23,7 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string) => boolean} opts.canMakeFullHeight
+   * @param {() => object} opts.getWarnings
    */
   constructor({
     getIsEditMode,
@@ -37,6 +38,7 @@ export class AreaGuideManager {
     canSwapArea,
     onMakeFullHeight,
     canMakeFullHeight,
+    getWarnings,
   }) {
     this._getIsEditMode = getIsEditMode;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
@@ -50,6 +52,7 @@ export class AreaGuideManager {
     this._canSwapArea = canSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._canMakeFullHeight = canMakeFullHeight;
+    this._getWarnings = getWarnings;
 
     this._contextMenu = new AreaContextMenu({
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
@@ -159,6 +162,7 @@ export class AreaGuideManager {
   updateAreaOverflow(slideEl) {
     if (!this.isEditMode || !slideEl) return;
     const areas = slideEl.querySelectorAll(".slide__area");
+    const overflowing = [];
     areas.forEach((area) => {
       const name = area.dataset.areaName;
 
@@ -177,6 +181,7 @@ export class AreaGuideManager {
       const isOverflowing = verticalOverflow || horizontalOverflow;
 
       area.classList.toggle("editor-area-overflow", isOverflowing);
+      if (isOverflowing) overflowing.push(`@${name}`);
       if (label) {
         label.dataset.overflow = isOverflowing ? "1" : "0";
         label.setAttribute(
@@ -185,6 +190,12 @@ export class AreaGuideManager {
         );
       }
     });
+
+    const warnings = this._getWarnings?.();
+    if (!warnings) return;
+    if (overflowing.length > 0) {
+      warnings.showSlideWarning(`Content overflows: ${overflowing.join(", ")}`);
+    }
   }
 
   refresh() {
