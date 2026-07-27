@@ -284,8 +284,8 @@ export class ConversionModal {
           const aiBtn = document.createElement("button");
           aiBtn.type = "button";
           aiBtn.className = `${P}btn ${P}btn--ai`;
-          aiBtn.textContent = "AI Enhance";
-          aiBtn.title = hasApiKey ? "Import and enhance with AI" : "Configure API key in Settings first";
+          aiBtn.textContent = "AI Inspiration";
+          aiBtn.title = hasApiKey ? "Import and get AI-inspired redesign" : "Configure API key in Settings first";
           aiBtn.disabled = !hasApiKey;
           aiBtn.addEventListener("click", async () => {
             if (!hasApiKey) {
