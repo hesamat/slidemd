@@ -130,7 +130,8 @@ export class ImageDragController {
     const sourceArea = this._dragSourceArea;
     const isCrossArea = targetArea && sourceArea && targetArea !== sourceArea;
 
-    if (isCrossArea) {
+    // Cross-area highlight only for non-freeflow images
+    if (isCrossArea && !isFreeflow) {
       const targetAreaEl = this._container?.querySelector(
         `.slide__area[data-area-name="${targetArea}"]`,
       );
@@ -155,8 +156,8 @@ export class ImageDragController {
 
     ctx.updateOverlay();
 
-    // Show a gap indicator for precise insertion during within-area drag
-    if (!isCrossArea) {
+    // Gap indicator for non-freeflow images within the same area
+    if (!isFreeflow && !isCrossArea) {
       const areaEl = img.closest(".slide__area");
       if (areaEl) {
         const allElements = [...areaEl.children].filter(
