@@ -140,33 +140,33 @@ export class SettingsModal {
    * @param {HTMLSelectElement} select
    */
   static async #populateModels(select) {
+    const saved = this.getModel();
+    // Always ensure the saved model is in the list
+    const ensureOption = (id, label) => {
+      if (!id) return;
+      const existing = select.querySelector(`option[value="${id}"]`);
+      if (!existing) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = label || id;
+        select.appendChild(opt);
+      }
+    };
+    ensureOption(saved);
+
     try {
       const res = await fetch("https://openrouter.ai/api/v1/models");
       if (!res.ok) return;
       const data = await res.json();
       const models = data.data || [];
-      const current = select.value || DEFAULT_MODEL;
-      let found = false;
       for (const m of models) {
-        const opt = document.createElement("option");
-        opt.value = m.id;
-        opt.textContent = m.name || m.id;
-        if (m.id === current) {
-          opt.selected = true;
-          found = true;
-        }
-        select.appendChild(opt);
+        ensureOption(m.id, m.name || m.id);
       }
-      // If current model not in list, add it as a custom option
-      if (!found && current) {
-        const opt = document.createElement("option");
-        opt.value = current;
-        opt.textContent = current;
-        opt.selected = true;
-        select.prepend(opt);
-      }
+      // Re-apply saved value after all options are added
+      select.value = saved;
     } catch {
-      // If fetch fails, just keep the default option
+      // If fetch fails, ensure saved model is still selectable
+      select.value = saved;
     }
   }
 
