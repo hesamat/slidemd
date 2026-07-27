@@ -499,6 +499,7 @@ export class EditController {
         this.markdownEditor?.setValue(updated, { suppressOnChange: true });
         this.unsavedMarkdown.set(this.currentSlideIndex, updated);
         this.updateUnsavedChangesFlag();
+        this.previewUpdater.update();
       },
     );
 
