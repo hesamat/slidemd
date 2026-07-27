@@ -84,9 +84,7 @@ export function parseImagesInArea(markdown, areaName) {
   if (range.from === range.to && range.from === (markdown || "").length) {
     return allImages;
   }
-  return allImages.filter(
-    (entry) => entry.start >= range.from && entry.start < range.to,
-  );
+  return allImages.filter((entry) => entry.start >= range.from && entry.start < range.to);
 }
 
 /**

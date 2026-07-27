@@ -84,11 +84,9 @@ export class SaveManager {
       if (this.needsSaveAs) {
         // Save as .textpack (includes images from the server)
         try {
-          await TextpackExportManager.handleTextpackExport(
-            fullMarkdown,
-            this.deck,
-            { filename: DeckLoader.getDisplayTitle(this.deck) },
-          );
+          await TextpackExportManager.handleTextpackExport(fullMarkdown, this.deck, {
+            filename: DeckLoader.getDisplayTitle(this.deck),
+          });
           Notification.success("Deck exported as .textpack!");
           return;
         } catch (err) {

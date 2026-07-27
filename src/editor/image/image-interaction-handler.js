@@ -463,7 +463,9 @@ export class ImageInteractionHandler {
     const area = this._selectedImg.closest(".slide__area");
     const areaName = area?.dataset?.areaName;
     const entries = areaName ? parseImagesInArea(md, areaName) : parseAllImages(md);
-    const idx = areaName ? getImageOrdinalIndexInArea(this._selectedImg) : getImageOrdinalIndex(this._selectedImg);
+    const idx = areaName
+      ? getImageOrdinalIndexInArea(this._selectedImg)
+      : getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const entry = entries[idx];
@@ -487,7 +489,9 @@ export class ImageInteractionHandler {
     const area = this._selectedImg.closest(".slide__area");
     const areaName = area?.dataset?.areaName;
     const entries = areaName ? parseImagesInArea(md, areaName) : parseAllImages(md);
-    const idx = areaName ? getImageOrdinalIndexInArea(this._selectedImg) : getImageOrdinalIndex(this._selectedImg);
+    const idx = areaName
+      ? getImageOrdinalIndexInArea(this._selectedImg)
+      : getImageOrdinalIndex(this._selectedImg);
     if (idx < 0 || idx >= entries.length) return;
 
     const img = this._selectedImg;

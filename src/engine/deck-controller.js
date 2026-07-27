@@ -687,7 +687,12 @@ export class DeckController extends EventEmitter {
             try {
               binary = atob(padded);
             } catch (err) {
-              console.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
+              console.warn(
+                "Failed to decode base64 for image:",
+                img.ref,
+                "sample:",
+                padded.slice(0, 80),
+              );
               return;
             }
             const bytes = new Uint8Array(binary.length);
@@ -780,11 +785,9 @@ export class DeckController extends EventEmitter {
             onClick: async () => {
               try {
                 const mockDeck = { meta: { title: deckName || "pptx-import" } };
-                await TextpackExportManager.handleTextpackExport(
-                  markdown,
-                  mockDeck,
-                  { filename: deckName || "pptx-import" },
-                );
+                await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
+                  filename: deckName || "pptx-import",
+                });
                 Notification.success("Deck exported as .textpack!");
               } catch (err) {
                 if (err?.name !== "AbortError") {
@@ -830,7 +833,6 @@ export class DeckController extends EventEmitter {
           },
         ],
       });
-
     } catch (err) {
       loading.dismiss();
       console.error("PPTX import failed:", err);

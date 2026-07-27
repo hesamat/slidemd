@@ -104,7 +104,9 @@ export async function convertTiffImages(slides, images) {
       try {
         binary = atob(padded);
       } catch (err) {
-        console.warn(`Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`);
+        console.warn(
+          `Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`,
+        );
         continue;
       }
       const bytes = new Uint8Array(binary.length);

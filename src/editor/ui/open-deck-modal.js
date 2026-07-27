@@ -152,10 +152,7 @@ export class OpenDeckModal {
         // Rewrite markdown to use the server-saved paths
         for (const [oldPath, newPath] of pathMap) {
           const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          resolvedMarkdown = resolvedMarkdown.replace(
-            new RegExp(escaped, "g"),
-            newPath,
-          );
+          resolvedMarkdown = resolvedMarkdown.replace(new RegExp(escaped, "g"), newPath);
         }
       } else if (uniqueEntries.length > 0) {
         // No server — fall back to blob URLs for in-browser display
