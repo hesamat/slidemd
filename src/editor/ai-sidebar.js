@@ -107,6 +107,7 @@ export class AiSidebar {
           ],
           max_tokens: 16000,
           stream: true,
+          response_format: { type: "json_object" },
         }),
         signal: this._abortController.signal,
       });

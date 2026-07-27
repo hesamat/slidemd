@@ -34,7 +34,7 @@ export function slidesToMarkdown(slides) {
  * @param {{ layout: string, background: string, theme: string }[]} origDirectives
  * @returns {typeof slides}
  */
-function fixSlideLayouts(slides, origDirectives) {
+export function fixSlideLayouts(slides, origDirectives) {
   return slides.map((slide, i) => {
     const orig = origDirectives[i] || {};
     const hasMedia = /^@media\b/m.test(slide.content);
@@ -65,7 +65,7 @@ function fixSlideLayouts(slides, origDirectives) {
  * @param {string} markdown
  * @returns {Array<{layout: string, background: string, theme: string}>}
  */
-function extractDirectives(markdown) {
+export function extractDirectives(markdown) {
   const slides = markdown.split(/\n---\n/);
   return slides.map((slide) => {
     const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
