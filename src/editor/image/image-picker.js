@@ -620,9 +620,28 @@ export class ImagePicker {
 
     if (!Number.isFinite(w) || w <= 0) w = 800;
 
+    // Measure the active slide's @main area to get the real content width
+    let left = 0;
+    if (this.selectedAlign === "center" || this.selectedAlign === "right") {
+      const mainArea = document.querySelector(
+        ".slide.active .slide__area[data-area-name='main']",
+      );
+      if (mainArea) {
+        const cs = getComputedStyle(mainArea);
+        const padL = parseFloat(cs.paddingLeft) || 0;
+        const padR = parseFloat(cs.paddingRight) || 0;
+        const contentW = mainArea.clientWidth - padL - padR;
+        if (this.selectedAlign === "center") {
+          left = Math.max(0, Math.round((contentW - w) / 2));
+        } else {
+          left = Math.max(0, contentW - w);
+        }
+      }
+    }
+
     const styleParts = [
       "position: relative",
-      "left: 0px",
+      `left: ${left}px`,
       "top: 0px",
       `width: ${w}px`,
       "border: none",
