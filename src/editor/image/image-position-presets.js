@@ -44,6 +44,7 @@ export function centerOnSlide(img, _scale, applySettings) {
   // Use the declared width from inline style, not getBoundingClientRect()
   // which reflects the CSS-rendered width (e.g. width:100% from p > img:only-child).
   const imgWidth = parseFloat(img.style.width) || 0;
+  if (!imgWidth) return;
 
   applySettings({
     left: Math.round((contentWidth - imgWidth) / 2),
@@ -75,6 +76,7 @@ export function alignRight(img, _scale, applySettings) {
   const padRight = parseFloat(cs.paddingRight) || 0;
   const contentWidth = area.clientWidth - padLeft - padRight;
   const imgWidth = parseFloat(img.style.width) || 0;
+  if (!imgWidth) return;
 
   applySettings({
     left: Math.round(contentWidth - imgWidth),

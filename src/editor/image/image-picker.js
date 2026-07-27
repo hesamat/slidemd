@@ -274,11 +274,14 @@ export class ImagePicker {
     this.onSelectCallback = onSelect;
     this._pathOnly = !!pathOnly;
     this.selectedPath = "";
+    this.selectedAlign = "center";
     // Default sizing: 800px wide, centered.  Users can override.
     this.widthInput.value = "320";
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
+    // Reset align buttons
+    this.alignButtons.forEach((b) => b.classList.toggle("active", b.dataset.align === "center"));
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
@@ -389,7 +392,6 @@ export class ImagePicker {
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       const result = await res.json();
       this.selectedPath = result.path;
-      this._availableImages.push({ name: file.name, path: result.path });
       await this._refreshGrid();
       this.uploadZone.innerHTML = `
                     <img src="${escapeAttr(result.path)}" alt="${escapeAttr(file.name)}" class="image-picker-upload-preview" />
