@@ -237,9 +237,7 @@ layout: two-column
 
 @main
 
-### Inserting Images
-
-**Drag and drop** an image onto a slide in Edit Mode, or use the image picker from the toolbar.
+To **insert an image**, drag and drop it onto a slide in Edit Mode, or use the image picker from the toolbar.
 
 ### Resizing & Positioning
 
@@ -260,9 +258,8 @@ background: url(https://example.com/hero.png)
 
 ### How Images Work
 
-- **In .textpack files** – Images are stored in the `assets/` folder inside the archive. When opened with the CLI dev server, images are uploaded to the server and served from `images/`.
+- **In .textpack files** – Images are stored in the `assets/` folder inside the archive. When opened with the CLI dev server, images are uploaded to the server.
 - **In .md files** – Use full URLs (`https://...`). Relative paths like `images/photo.png` work when served by the dev server.
-- **PPTX import** – Images are extracted and uploaded to the server, then saved alongside the `.md` file in an `images/` folder.
 
 ### Formats
 
@@ -280,29 +277,33 @@ layout: two-column
 
 @main
 
-### Markdown (.md)
+### Opening Decks
 
-Plain markdown files with optional frontmatter for layout and theme. Use full URLs for images when working with `.md` files directly.
+| Format               | Description                                                               |
+| -------------------- | ------------------------------------------------------------------------- |
+| **.md**              | Plain Markdown with optional frontmatter. Use full URLs for images.       |
+| **.textpack**        | ZIP archive with `text.markdown` + `assets/`. Self-contained with images. |
 
-### Textpack (.textpack)
+### Exporting
 
-A ZIP archive containing `text.markdown` and `assets/`. Can be opened directly via Menu → Open File or served by the CLI dev server.
-
-### How It Works
-
-- Open `.md` or `.textpack` files via Menu → Open File
-- PPTX import creates a `.md` file + `images/` folder with embedded images
-- Export as `.textpack` to share a self-contained archive with images
+- **HTML** – Standalone file with all assets inlined. Share or host anywhere.
+- **PDF** – One-click export via Menu → Export, or use the CLI build + PDF tools.
+- **.textpack** – Package your deck with images into a single shareable archive.
 
 @media
 
-### Open Deck Modal
+### Open Deck Workflow
 
-The Open Deck modal provides a quick way to open presentations.
+1. **Menu → Open File** – Load `.md` or `.textpack`
+2. **Recent Decks** – Quickly reopen recent presentations from the modal
+3. **CLI dev server** – `npm run dev:cli` serves your deck with live reload
 
-### Recent Decks
+### PPTX Import (Experimental)
 
-The modal remembers your recently opened decks for quick access.
+- Import PowerPoint files via Menu → Open File
+- Extracts images into an `images/` folder
+- Converts slide content to Markdown with layout hints
+- Original `.pptx` is not modified
 
 ---
 
