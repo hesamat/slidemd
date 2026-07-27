@@ -176,7 +176,7 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
                     </div>
                     <div class="image-properties-panel__row">
-                        <button type="button" class="image-properties-panel__chip" data-action="toggle-freeflow" title="Float: image detaches from normal flow, other elements ignore it">ﲜ Float</button>
+                        <button type="button" class="image-properties-panel__chip" data-action="toggle-freeflow" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
                     </div>
                 </div>
 

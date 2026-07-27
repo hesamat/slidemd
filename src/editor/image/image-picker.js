@@ -117,7 +117,7 @@ export class ImagePicker {
                             </div>
                         </div>
                         <div class="image-picker-option-group">
-                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">⇊ Float</button>
+                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
                         </div>
                     </div>
                     <button id="imagePickerInsertBtn" class="image-picker-insert-btn" type="button" disabled>Insert</button>
