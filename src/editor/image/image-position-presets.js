@@ -32,66 +32,54 @@ export function getStageScale() {
  * @param {number} scale - Stage scale factor (design px → rendered px ratio)
  * @param {(settings: object) => void} applySettings
  */
-export function centerOnSlide(img, scale, applySettings) {
+export function centerOnSlide(img, _scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
+  const cs = getComputedStyle(area);
+  const padLeft = parseFloat(cs.paddingLeft) || 0;
+  const padRight = parseFloat(cs.paddingRight) || 0;
+  const contentWidth = area.clientWidth - padLeft - padRight;
 
-  const currentCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
-  const areaCenterX = areaRect.width / scale / 2;
-  const deltaX = areaCenterX - currentCenterX;
-
-  const curLeft = parseFloat(img.style.left) || 0;
+  // Use the declared width from inline style, not getBoundingClientRect()
+  // which reflects the CSS-rendered width (e.g. width:100% from p > img:only-child).
+  const imgWidth = parseFloat(img.style.width) || 0;
+  if (!imgWidth) return;
 
   applySettings({
-    left: Math.round(curLeft + deltaX),
+    left: Math.round((contentWidth - imgWidth) / 2),
   });
 }
 
 /**
- * Align the image to the left edge of its area.
+ * Align the image to the left edge of its area content box.
  * @param {HTMLElement} img
  * @param {number} scale - Stage scale factor
  * @param {(settings: object) => void} applySettings
  */
-export function alignLeft(img, scale, applySettings) {
-  const area = img.closest(".slide__area");
-  if (!area) return;
-
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
-
-  const currentLeftX = (imgRect.left - areaRect.left) / scale;
-  const curLeft = parseFloat(img.style.left) || 0;
-
-  applySettings({
-    left: Math.round(curLeft - currentLeftX),
-  });
+export function alignLeft(img, _scale, applySettings) {
+  applySettings({ left: 0 });
 }
 
 /**
- * Align the image to the right edge of its area.
+ * Align the image to the right edge of its area content box.
  * @param {HTMLElement} img
  * @param {number} scale - Stage scale factor
  * @param {(settings: object) => void} applySettings
  */
-export function alignRight(img, scale, applySettings) {
+export function alignRight(img, _scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
-  const areaRect = area.getBoundingClientRect();
-  const imgRect = img.getBoundingClientRect();
-
-  const currentRightX = (imgRect.right - areaRect.left) / scale;
-  const areaWidth = areaRect.width / scale;
-  const deltaX = areaWidth - currentRightX;
-
-  const curLeft = parseFloat(img.style.left) || 0;
+  const cs = getComputedStyle(area);
+  const padLeft = parseFloat(cs.paddingLeft) || 0;
+  const padRight = parseFloat(cs.paddingRight) || 0;
+  const contentWidth = area.clientWidth - padLeft - padRight;
+  const imgWidth = parseFloat(img.style.width) || 0;
+  if (!imgWidth) return;
 
   applySettings({
-    left: Math.round(curLeft + deltaX),
+    left: Math.round(contentWidth - imgWidth),
   });
 }
 

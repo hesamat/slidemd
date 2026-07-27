@@ -24,8 +24,7 @@ export class ImagePicker {
   static presetButtons = null;
   static alignButtons = null;
   static selectedAlign = "center";
-  static folderLabel = null;
-  static changeFolderBtn = null;
+  static selectedFreeflow = false;
   static onSelectCallback = null;
 
   /** Currently selected image path (or URL). */
@@ -33,12 +32,6 @@ export class ImagePicker {
 
   /** Image cache so we can swap preview without re-fetching. */
   static _availableImages = [];
-
-  /** Directory handle of the deck file's parent (FS Access API). */
-  static _deckDirHandle = null;
-
-  /** Map of `path` → `objectURL` for thumbnails sourced from FS Access API. */
-  static _thumbUrls = new Map();
 
   /**
    * Initialize the image picker modal — call once on app start.
@@ -73,8 +66,6 @@ export class ImagePicker {
                     <button class="image-picker-tab active" type="button" data-tab="existing" role="tab">Existing</button>
                     <button class="image-picker-tab" type="button" data-tab="upload" role="tab">Upload</button>
                     <button class="image-picker-tab" type="button" data-tab="url" role="tab">URL or Path</button>
-                    <div class="image-picker-folder-label" id="imagePickerFolderLabel"></div>
-                    <button id="imagePickerChangeFolderBtn" class="image-picker-change-folder-btn" type="button" title="Pick a different folder" hidden>Change folder</button>
                 </div>
 
                 <div class="image-picker-tab-panel active" data-panel="existing" role="tabpanel">
@@ -125,6 +116,9 @@ export class ImagePicker {
                                 <button type="button" class="image-picker-align-btn" data-align="full" aria-label="Full width" title="Full width">↔</button>
                             </div>
                         </div>
+                        <div class="image-picker-option-group">
+                            <button type="button" class="image-picker-chip-btn" id="imagePickerFreeflowBtn" data-action="freeflow" aria-pressed="false" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
+                        </div>
                     </div>
                     <button id="imagePickerInsertBtn" class="image-picker-insert-btn" type="button" disabled>Insert</button>
                 </div>
@@ -146,8 +140,7 @@ export class ImagePicker {
     this.insertBtn = wrapper.querySelector("#imagePickerInsertBtn");
     this.presetButtons = wrapper.querySelectorAll(".image-picker-preset-btn");
     this.alignButtons = wrapper.querySelectorAll(".image-picker-align-btn");
-    this.folderLabel = wrapper.querySelector("#imagePickerFolderLabel");
-    this.changeFolderBtn = wrapper.querySelector("#imagePickerChangeFolderBtn");
+    this.freeflowBtn = wrapper.querySelector("#imagePickerFreeflowBtn");
   }
 
   /**
@@ -162,6 +155,10 @@ export class ImagePicker {
 
     this.modal.querySelector("#imagePickerOverlay").addEventListener("click", close);
     this.modal.querySelector("#closeImagePickerBtn").addEventListener("click", close);
+
+    // Prevent browser default navigation when dropping files anywhere on the modal
+    this.modal.addEventListener("dragover", (e) => e.preventDefault());
+    this.modal.addEventListener("drop", (e) => e.preventDefault());
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !this.modal.classList.contains("webdeck-hidden")) {
@@ -217,6 +214,8 @@ export class ImagePicker {
       });
     });
     this.uploadZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const file = e.dataTransfer?.files?.[0];
       if (file) this._handleUploadFile(file);
     });
@@ -258,56 +257,18 @@ export class ImagePicker {
       });
     });
 
+    // Free-flow toggle
+    if (this.freeflowBtn) {
+      this.freeflowBtn.addEventListener("click", () => {
+        this.selectedFreeflow = !this.selectedFreeflow;
+        this.freeflowBtn.classList.toggle("active", this.selectedFreeflow);
+        this.freeflowBtn.setAttribute("aria-pressed", String(this.selectedFreeflow));
+      });
+    }
+
     // Insert
     this.insertBtn.addEventListener("click", () => this._confirm());
-
-    // Change folder
-    this.changeFolderBtn.addEventListener("click", async () => {
-      if (!this.onChangeFolderCallback) return;
-      const result = await this.onChangeFolderCallback();
-      if (result && result.handle) {
-        this._deckDirHandle = result.handle;
-        this._deckDirMode = result.mode || "parent";
-        this._renderFolderLabel();
-        await this._refreshGrid();
-      }
-    });
   }
-
-  /**
-   * Update the folder indicator so the user knows where images are
-   * coming from / going to.  Hides the label when no handle is available
-   * (server fallback).
-   */
-  static _renderFolderLabel() {
-    if (!this.folderLabel) return;
-    if (this._deckDirHandle) {
-      const name = this._deckDirHandle.name || "deck folder";
-      // In "images" mode the user picked the images folder directly.
-      // In "parent" mode the user picked the deck folder.
-      const displayPath = this._deckDirMode === "images" ? `📁 ${name}/` : `📁 ${name}/images/`;
-      this.folderLabel.textContent = displayPath;
-      this.folderLabel.title = `Reading images from ${displayPath}`;
-      this.folderLabel.hidden = false;
-      if (this.changeFolderBtn) this.changeFolderBtn.hidden = false;
-    } else {
-      this.folderLabel.textContent = `📁 project images/`;
-      this.folderLabel.title = `Reading from the project's images/ folder`;
-      this.folderLabel.hidden = false;
-      if (this.changeFolderBtn) this.changeFolderBtn.hidden = true;
-    }
-  }
-
-  /** Callback invoked when the user wants to pick a different folder. */
-  static onChangeFolderCallback = null;
-
-  /**
-   * Where the persisted handle points:
-   *   "parent" — handle is the deck's parent folder; images live in
-   *              `<handle>/images/`.
-   *   "images" — handle IS the images folder itself.
-   */
-  static _deckDirMode = "parent";
 
   /**
    * Show the picker and load existing images.  The callback receives the
@@ -315,37 +276,33 @@ export class ImagePicker {
    *
    * @param {(snippet: string) => void} onSelect
    * @param {object} [options]
-   * @param {FileSystemDirectoryHandle} [options.deckDirHandle] - The
-   *   directory handle (interpretation depends on `deckDirMode`).
-   * @param {'parent'|'images'} [options.deckDirMode='parent'] - What the
-   *   handle points to.
-   * @param {() => Promise<{handle: FileSystemDirectoryHandle, mode: 'parent'|'images'}|null>} [options.onChangeFolder]
-   *   Called when the user clicks "Change folder" in the modal.
    * @param {boolean} [options.pathOnly=false] - When true, the picker
    *   hides size/alignment/insert controls and calls `onSelect(path)`
    *   with the chosen path string instead of a full `<img>` snippet.
    */
-  static async show(
-    onSelect,
-    { deckDirHandle = null, deckDirMode = "parent", onChangeFolder = null, pathOnly = false } = {},
-  ) {
+  static async show(onSelect, { pathOnly = false } = {}) {
     this.init();
     this.onSelectCallback = onSelect;
-    this.onChangeFolderCallback = onChangeFolder;
-    this._deckDirHandle = deckDirHandle;
-    this._deckDirMode = deckDirMode;
     this._pathOnly = !!pathOnly;
     this.selectedPath = "";
+    this.selectedAlign = "center";
+    this.selectedFreeflow = false;
     // Default sizing: 800px wide, centered.  Users can override.
     this.widthInput.value = "320";
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
+    // Reset align buttons
+    this.alignButtons.forEach((b) => b.classList.toggle("active", b.dataset.align === "center"));
+    // Reset freeflow button
+    if (this.freeflowBtn) {
+      this.freeflowBtn.classList.remove("active");
+      this.freeflowBtn.setAttribute("aria-pressed", "false");
+    }
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
     this._syncPresetActive();
-    this._renderFolderLabel();
     this.modal.classList.remove("webdeck-hidden");
     // Default to "Existing" tab
     this.tabButtons.forEach((b) => b.classList.toggle("active", b.dataset.tab === "existing"));
@@ -355,53 +312,10 @@ export class ImagePicker {
 
   static hide() {
     if (this.modal) this.modal.classList.add("webdeck-hidden");
-    // Revoke any object URLs we created
-    for (const url of this._thumbUrls.values()) URL.revokeObjectURL(url);
-    this._thumbUrls.clear();
   }
 
   /**
-   * Read the list of image files via the FS Access API.  Returns
-   * `[{ name, path, file }]` where `file` is a `File` object.
-   *
-   * Behaviour depends on `this._deckDirMode`:
-   *  - "parent" — read from `<handle>/images/`, create it if missing.
-   *  - "images" — read directly from `handle` itself.
-   *
-   * @private
-   */
-  static async _listImagesFromFs() {
-    const dirHandle = this._deckDirHandle;
-    if (!dirHandle) return null;
-
-    try {
-      const targetDir =
-        this._deckDirMode === "images"
-          ? dirHandle
-          : await dirHandle.getDirectoryHandle("images", { create: false });
-
-      const out = [];
-      for await (const [name, handle] of targetDir.entries()) {
-        if (handle.kind !== "file") continue;
-        if (!/\.(jpe?g|png|gif|webp|svg|avif)$/i.test(name)) continue;
-        const file = await handle.getFile();
-        // Always emit paths relative to the deck file's parent — i.e.
-        // "images/<file>".  This works whether the handle is the
-        // parent folder or the images folder itself.
-        out.push({ name, path: `images/${name}`, file });
-      }
-      return out;
-    } catch (err) {
-      if (err.name === "NotFoundError") return [];
-      throw err;
-    }
-  }
-
-  /**
-   * Fetch the list of existing images and render the grid.  Prefers the
-   * FS Access API (deck directory) and falls back to the server endpoint
-   * when no handle is available.
-   *
+   * Fetch the list of existing images from the server and render the grid.
    * @private
    */
   static async _refreshGrid() {
@@ -409,24 +323,10 @@ export class ImagePicker {
     this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">⏳</div>Loading…</div>`;
 
     try {
-      // Revoke stale object URLs
-      for (const url of this._thumbUrls.values()) URL.revokeObjectURL(url);
-      this._thumbUrls.clear();
-
-      let images = null;
-
-      // Prefer the deck directory handle (reads from the actual deck folder)
-      if (this._deckDirHandle) {
-        images = await this._listImagesFromFs();
-      }
-
-      // Fallback to the server endpoint (project root images/)
-      if (images === null) {
-        const res = await fetch("/api/images");
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
-        const data = await res.json();
-        images = (data.images || []).map(({ name, path }) => ({ name, path }));
-      }
+      const res = await fetch("/api/images");
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      const images = (data.images || []).map(({ name, path }) => ({ name, path }));
 
       this._availableImages = images;
       this._renderGrid();
@@ -438,34 +338,22 @@ export class ImagePicker {
 
   static _renderGrid() {
     if (!this._availableImages.length) {
-      const hint = this._deckDirHandle
-        ? "Upload to add files next to your deck."
-        : "Upload or add files to <code>images/</code>.";
-      this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">📁</div>No images yet.<br/><small>${hint}</small></div>`;
+      this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">📁</div>No images yet.<br/><small>Upload or add files to <code>images/</code>.</small></div>`;
       return;
     }
 
     // Sort newest first when filename starts with a timestamp
     const sorted = [...this._availableImages].sort((a, b) => b.name.localeCompare(a.name));
 
-    // For FS-API images we have a `File` object; build object URLs for thumbnails.
     this.grid.innerHTML = sorted
-      .map((img) => {
-        let thumbSrc;
-        if (img.file) {
-          const url = URL.createObjectURL(img.file);
-          this._thumbUrls.set(img.path, url);
-          thumbSrc = url;
-        } else {
-          thumbSrc = img.path;
-        }
-        return `
+      .map(
+        (img) => `
                 <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
-                    <img src="${escapeAttr(thumbSrc)}" alt="${escapeAttr(img.name)}" loading="lazy" />
+                    <img src="${escapeAttr(img.path)}" alt="${escapeAttr(img.name)}" loading="lazy" />
                     <div class="image-picker-item-name">${escapeText(img.name)}</div>
                 </div>
-            `;
-      })
+            `,
+      )
       .join("");
 
     this.grid.querySelectorAll(".image-picker-item").forEach((el) => {
@@ -504,12 +392,7 @@ export class ImagePicker {
   }
 
   /**
-   * Upload a file and select the resulting path.  The file is always written
-   * directly into the deck's `images/` folder via the File System Access
-   * API (so it stays next to the deck file and never ends up in the
-   * project's `images/` folder).  We also tell the dev server where the
-   * deck folder lives, so the preview can serve `images/<file>` from there.
-   *
+   * Upload a file via the dev server endpoint and select the resulting path.
    * @private
    */
   static async _handleUploadFile(file) {
@@ -521,46 +404,20 @@ export class ImagePicker {
 
     this.uploadZone.innerHTML = `<div class="image-picker-upload-icon">⏳</div><div>Uploading…</div>`;
 
-    const ext = (file.name.match(/\.[^.]+$/)?.[0] || ".png").toLowerCase();
-    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
-    const targetPath = `images/${safeName}`;
-
     try {
-      if (this._deckDirHandle) {
-        // Write via FS Access API so the image stays next to the deck file
-        const targetDir =
-          this._deckDirMode === "images"
-            ? this._deckDirHandle
-            : await this._deckDirHandle.getDirectoryHandle("images", { create: true });
-
-        const fh = await targetDir.getFileHandle(safeName, { create: true });
-        const writable = await fh.createWritable();
-        await writable.write(file);
-        await writable.close();
-      } else {
-        // No FS Access API — fall back to the dev server endpoint
-        const formData = new FormData();
-        formData.append("image", file);
-        const res = await fetch("/api/upload-image", { method: "POST", body: formData });
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-        const result = await res.json();
-        this.selectedPath = result.path;
-        this._availableImages.push({ name: file.name, path: result.path });
-        await this._refreshGrid();
-        this.uploadZone.innerHTML = `
-                    <div class="image-picker-upload-icon">✓</div>
-                    <div>Uploaded ${escapeText(file.name)}</div>
-                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
-                `;
-        this._syncInsertButton();
-        return;
-      }
-
-      this.selectedPath = targetPath;
-      this._availableImages.push({ name: safeName, path: targetPath });
-
-      // Refresh the existing tab so the new image is visible immediately
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const result = await res.json();
+      this.selectedPath = result.path;
       await this._refreshGrid();
+      this.uploadZone.innerHTML = `
+                    <img src="${escapeAttr(result.path)}" alt="${escapeAttr(file.name)}" class="image-picker-upload-preview" />
+                    <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Uploaded — click Insert or pick another file.</div>
+                `;
+      this._syncInsertButton();
+      return;
     } catch (err) {
       this.uploadZone.innerHTML = `
                 <div class="image-picker-upload-icon">✗</div>
@@ -569,13 +426,6 @@ export class ImagePicker {
             `;
       return;
     }
-
-    this.uploadZone.innerHTML = `
-            <div class="image-picker-upload-icon">✓</div>
-            <div>Uploaded ${escapeText(file.name)}</div>
-            <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
-        `;
-    this._syncInsertButton();
   }
 
   static _syncInsertButton() {
@@ -620,9 +470,26 @@ export class ImagePicker {
 
     if (!Number.isFinite(w) || w <= 0) w = 800;
 
+    // Measure the active slide's @main area to get the real content width
+    let left = 0;
+    if (this.selectedAlign === "center" || this.selectedAlign === "right") {
+      const mainArea = document.querySelector(".slide.active .slide__area[data-area-name='main']");
+      if (mainArea) {
+        const cs = getComputedStyle(mainArea);
+        const padL = parseFloat(cs.paddingLeft) || 0;
+        const padR = parseFloat(cs.paddingRight) || 0;
+        const contentW = mainArea.clientWidth - padL - padR;
+        if (this.selectedAlign === "center") {
+          left = Math.max(0, Math.round((contentW - w) / 2));
+        } else {
+          left = Math.max(0, contentW - w);
+        }
+      }
+    }
+
     const styleParts = [
-      "position: relative",
-      "left: 0px",
+      this.selectedFreeflow ? "position: absolute" : "position: relative",
+      `left: ${left}px`,
       "top: 0px",
       `width: ${w}px`,
       "border: none",
@@ -634,7 +501,8 @@ export class ImagePicker {
       styleParts.push(`height: ${h}px`);
     }
 
-    return `<img src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
+    const classAttr = this.selectedFreeflow ? ' class="img-freeflow"' : "";
+    return `<img${classAttr} src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
   }
 
   /**

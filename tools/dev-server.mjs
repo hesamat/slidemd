@@ -178,9 +178,6 @@ function scheduleReload() {
 
 function startWatching(format) {
   const watchPaths = [format.mdFile];
-  if (format.imagesDir && fs.existsSync(format.imagesDir)) {
-    watchPaths.push(format.imagesDir);
-  }
 
   for (const p of watchPaths) {
     if (!fs.existsSync(p)) continue;
@@ -404,7 +401,7 @@ function createHandler(format) {
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!format.imagesDir || !fs.existsSync(format.imagesDir)) {
+        if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ images: [] }));
           return;
@@ -424,6 +421,11 @@ function createHandler(format) {
 
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
+      if (!format) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No deck loaded" }));
+        return;
+      }
       try {
         const contentType = req.headers["content-type"] || "";
         const boundaryMatch = contentType.match(/boundary=(.+)/i);
@@ -470,7 +472,7 @@ function createHandler(format) {
         return;
       }
 
-      if (format.imagesDir) {
+      if (format && format.imagesDir) {
         const filePath = path.join(format.imagesDir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
@@ -480,10 +482,7 @@ function createHandler(format) {
           return;
         }
       }
-
-      res.writeHead(404);
-      res.end("Not found");
-      return;
+      // Fall through to static file handler below
     }
 
     // ── Static files: serve from project root ──

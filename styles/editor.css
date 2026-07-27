@@ -721,6 +721,12 @@
   border-color: var(--accent-border);
 }
 
+.image-properties-panel__chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 /* Segmented group (shadow presets) */
 .image-properties-panel__seg {
   display: inline-flex;
