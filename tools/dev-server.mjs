@@ -485,10 +485,7 @@ function createHandler(format) {
           return;
         }
       }
-
-      res.writeHead(404);
-      res.end("Not found");
-      return;
+      // Fall through to static file handler below
     }
 
     // ── Static files: serve from project root ──
