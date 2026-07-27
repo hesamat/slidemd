@@ -9,6 +9,9 @@ export default defineConfig({
     server: {
         port: 8000,
         open: '/index.html',
+        watch: {
+            ignored: /[/\\]images[/\\]/,
+        },
         proxy: {
             '/api': {
                 target: 'http://localhost:8001',

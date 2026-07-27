@@ -163,6 +163,10 @@ export class ImagePicker {
     this.modal.querySelector("#imagePickerOverlay").addEventListener("click", close);
     this.modal.querySelector("#closeImagePickerBtn").addEventListener("click", close);
 
+    // Prevent browser default navigation when dropping files anywhere on the modal
+    this.modal.addEventListener("dragover", (e) => e.preventDefault());
+    this.modal.addEventListener("drop", (e) => e.preventDefault());
+
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !this.modal.classList.contains("webdeck-hidden")) {
         close();
@@ -217,6 +221,8 @@ export class ImagePicker {
       });
     });
     this.uploadZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const file = e.dataTransfer?.files?.[0];
       if (file) this._handleUploadFile(file);
     });
