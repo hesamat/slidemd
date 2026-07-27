@@ -38,11 +38,13 @@ export class AiProcessingModal {
 
   /**
    * Show the AI processing modal and stream the response.
+   * Renders slides incrementally as they arrive.
    * @param {string} markdown - The markdown to enhance.
    * @param {"fix"|"generate"} mode - Enhancement mode.
+   * @param {(partialMarkdown: string, slideCount: number) => void} [onSlideRender] - Called each time a new slide boundary is detected.
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
-  static async show(markdown, mode) {
+  static async show(markdown, mode, onSlideRender) {
     const backdrop = this.#createDom(mode);
     document.body.appendChild(backdrop);
     this._currentBackdrop = backdrop;
@@ -132,6 +134,7 @@ export class AiProcessingModal {
       const decoder = new TextDecoder();
       let fullText = "";
       let buffer = "";
+      let lastRenderedSlideCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -153,6 +156,20 @@ export class AiProcessingModal {
               fullText += delta;
               outputEl.textContent = fullText;
               outputEl.scrollTop = outputEl.scrollHeight;
+
+              // Detect slide boundaries and render incrementally
+              if (onSlideRender) {
+                const slideCount = (fullText.split(/^---$/m) || []).length;
+                if (slideCount > lastRenderedSlideCount) {
+                  lastRenderedSlideCount = slideCount;
+                  statusEl.textContent = `AI is working… (${slideCount} slides)`;
+                  try {
+                    onSlideRender(fullText, slideCount);
+                  } catch {
+                    // ignore render errors during streaming
+                  }
+                }
+              }
             }
           } catch {
             // skip malformed JSON lines

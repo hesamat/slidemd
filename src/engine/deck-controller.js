@@ -786,10 +786,30 @@ export class DeckController extends EventEmitter {
       // AI post-processing (runs after deck is loaded for instant feedback)
       if (aiMode) {
         const { AiProcessingModal } = await import("../editor/ai-processing-modal.js");
-        const enhanced = await AiProcessingModal.show(markdown, aiMode);
+        const { extractMarkdown } = await import("../data/ai-enhancer.js");
+
+        // Render callback: re-parse and update deck as slides arrive
+        let renderTimeout = null;
+        const onSlideRender = (partialText) => {
+          clearTimeout(renderTimeout);
+          renderTimeout = setTimeout(() => {
+            try {
+              const partial = extractMarkdown(partialText);
+              const partialData = new MarkdownParser().parseDeckMarkdown(partial);
+              if (this.reloadManager?.replaceDeck) {
+                this.reloadManager.replaceDeck(partialData, { startAtFirstSlide: false });
+              }
+            } catch {
+              // ignore partial parse errors
+            }
+          }, 100);
+        };
+
+        const enhanced = await AiProcessingModal.show(markdown, aiMode, onSlideRender);
+        clearTimeout(renderTimeout);
+
         if (enhanced) {
-          // Apply the AI-enhanced markdown
-          const { extractMarkdown } = await import("../data/ai-enhancer.js");
+          // Final render with complete markdown
           const cleanMd = extractMarkdown(enhanced);
           try {
             localStorage.setItem("webdeck_local_file", cleanMd);
