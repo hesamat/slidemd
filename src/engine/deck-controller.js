@@ -785,27 +785,34 @@ export class DeckController extends EventEmitter {
 
       // AI post-processing (runs after deck is loaded for instant feedback)
       if (aiMode) {
-        const { AiProcessingModal } = await import("../editor/ai-processing-modal.js");
+        const { AiSidebar } = await import("../editor/ai-sidebar.js");
         const { extractMarkdown } = await import("../data/ai-enhancer.js");
 
         // Render callback: re-parse and update deck as slides arrive
         let renderTimeout = null;
+        let lastRenderedMd = "";
         const onSlideRender = (partialText) => {
           clearTimeout(renderTimeout);
           renderTimeout = setTimeout(() => {
             try {
               const partial = extractMarkdown(partialText);
+              // Only re-render if we have new complete slides (at least 2)
+              const slideCount = (partial.split(/^---$/m) || []).length;
+              if (slideCount < 2) return;
+              // Avoid re-rendering same content
+              if (partial === lastRenderedMd) return;
+              lastRenderedMd = partial;
               const partialData = new MarkdownParser().parseDeckMarkdown(partial);
-              if (this.reloadManager?.replaceDeck) {
+              if (partialData.slides.length > 1 && this.reloadManager?.replaceDeck) {
                 this.reloadManager.replaceDeck(partialData, { startAtFirstSlide: false });
               }
             } catch {
               // ignore partial parse errors
             }
-          }, 100);
+          }, 200);
         };
 
-        const enhanced = await AiProcessingModal.show(markdown, aiMode, onSlideRender);
+        const enhanced = await AiSidebar.show(markdown, aiMode, onSlideRender);
         clearTimeout(renderTimeout);
 
         if (enhanced) {

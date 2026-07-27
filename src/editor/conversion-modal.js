@@ -240,8 +240,9 @@ export class ConversionModal {
             saveDefaults({ keepBackgrounds });
           });
           insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
+          insertAfter = bgCheckboxRow;
 
-          // AI mode checkboxes
+          // AI mode section
           const aiDivider = document.createElement("div");
           aiDivider.className = `${P}checkbox-row`;
           aiDivider.style.cssText = "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";

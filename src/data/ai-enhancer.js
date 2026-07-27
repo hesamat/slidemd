@@ -19,7 +19,8 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 export function extractMarkdown(text) {
   const trimmed = text.trim();
-  const match = trimmed.match(/^```(?:markdown)?\s*\n([\s\S]*?)\n```$/);
+  // Strip ```markdown ... ```, ```slide ... ```, or ``` ... ``` wrapping
+  const match = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
   return match ? match[1].trim() : trimmed;
 }
 
@@ -70,7 +71,7 @@ const SYSTEM_PROMPT = `You are an expert at converting presentation content into
 ## SlideMD Syntax
 
 **Basic Structure:**
-- Slides separated by \`---\`
+- Slides separated by \`---\` (three dashes on their own line, one blank line before and after)
 - Speaker notes: \`<!-- notes: ... -->\` (first line, before layout)
 - Layout: \`layout: preset-name\` or \`layout: "grid" / columns\`
 - Content areas: \`@title\`, \`@header\`, \`@main\`, \`@media\`, \`@secondary\`, \`@sidebar\`, \`@footer\`

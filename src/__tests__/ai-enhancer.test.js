@@ -16,6 +16,11 @@ describe("extractMarkdown", () => {
     expect(extractMarkdown(input)).toBe("# Slide\nContent");
   });
 
+  it("strips ```slide wrapper", () => {
+    const input = "```slide\n# Slide\nContent\n```";
+    expect(extractMarkdown(input)).toBe("# Slide\nContent");
+  });
+
   it("preserves internal code fences", () => {
     const input = "```markdown\n# Slide\n\n```python\ncode\n```\n```";
     expect(extractMarkdown(input)).toContain("```python");
