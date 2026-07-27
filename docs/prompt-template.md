@@ -80,6 +80,35 @@ layout: three-column
 
 ---
 
+## Content Capacity (IMPORTANT)
+
+Slides render at **1920×1080px**. Content overflows if too much is added. These are approximate maximums for a single content area:
+
+| Content Type | Max Items/Lines | Notes |
+|---|---|---|
+| Bullet list items | ~13 | Single column, `header-content` layout |
+| Bullet list (two-column) | ~6 per column | `two-column` layout |
+| Body text paragraphs | ~15 lines | At 30px font size |
+| Code lines | ~18 lines | At 24px mono font |
+| h2 headings | ~8 | 42px each |
+| Table rows | ~8 | Including header row |
+
+**Layout-specific guidance:**
+
+- `header-content`: ~13 bullet items in `@main`, or ~18 code lines
+- `two-column`: ~6 items per column in `@main`/`@media`
+- `media-span`: ~10 items in `@main`, media spans full height
+- `title-slide`: Title + subtitle + author only
+- `left-heavy`/`right-heavy`: Larger column holds ~10 items, smaller ~5
+
+**If content exceeds these limits:**
+- Split across multiple slides
+- Use two-column layout to distribute content
+- Remove redundant items
+- Use shorter phrasing
+
+---
+
 ## Content Formatting Guidelines
 
 **IMPORTANT: No emojis** - they cause PDF rendering issues. Use text labels or styled HTML spans instead.
@@ -95,7 +124,7 @@ layout: three-column
 **For Code Examples:**
 
 - Include brief comments explaining key lines
-- Keep examples under 20 lines
+- Keep examples under 18 lines
 - Show "bad" vs "good" patterns using two equal columns when appropriate
 
 **For Concepts:**
@@ -103,7 +132,7 @@ layout: three-column
 - Start with `##` heading for concept name
 - Use **bold** for key terms on first introduction
 - Use `code font` for syntax elements
-- Bullet lists for characteristics
+- Bullet lists for characteristics (max ~13 items per column)
 - Blockquotes for warnings or tips
 
 **For Diagrams:**
@@ -347,7 +376,8 @@ After generating the slide deck, create a **student hand-in template** for stude
 7. Include code examples in appropriate language
 8. Include submission instructions slide before end
 9. End with summary slide reviewing all learning objectives
-10. **Create a student hand-in template** as a separate markdown document after the slide deck
+10. Respect content capacity limits (~13 bullet items per column, ~18 code lines)
+11. **Create a student hand-in template** as a separate markdown document after the slide deck
 
 **Output format:**
 
