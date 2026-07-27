@@ -154,7 +154,16 @@ export class ConversionModal {
           deckName = (selectedFile.name || "presentation")
             .replace(/\.pptx$/i, "")
             .replace(/[^a-zA-Z0-9_-]/g, "_");
-          markdown = convertToSlideMd(extractionResult, deckName);
+
+          // Load saved defaults before conversion so importImages is correct
+          let savedDefaults = {};
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) savedDefaults = JSON.parse(raw);
+          } catch {}
+          importImages = savedDefaults.importImages !== false;
+
+          markdown = convertToSlideMd(extractionResult, deckName, { importImages });
 
           const elapsed = Date.now() - started;
           if (elapsed < 300) {
@@ -164,14 +173,6 @@ export class ConversionModal {
           hideSpinner();
 
           const hasCodeBlocks = /^```\n/gm.test(markdown);
-
-          // Load saved defaults from localStorage
-          let savedDefaults = {};
-          try {
-            savedDefaults = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-          } catch {
-            /* ignore */
-          }
 
           // Insert elements in order: language selector, then checkboxes
           let insertAfter = spinnerEl;
