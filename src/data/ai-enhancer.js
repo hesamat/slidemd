@@ -19,15 +19,21 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 export function extractMarkdown(text) {
   const trimmed = text.trim();
-  // Try to strip ```markdown ... ```, ```slide ... ```, or ``` ... ``` wrapping
+  // Try to strip ```markdown ... ``` or ```slide ... ``` wrapping
   const fenceMatch = trimmed.match(/^```(?:markdown|slide)?\s*\n([\s\S]*?)\n```$/);
   if (fenceMatch) return fenceMatch[1].trim();
-  // If no fence match, check if content starts/ends with ``` and strip manually
-  if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
-    const lines = trimmed.split("\n");
-    if (lines.length >= 3) {
-      return lines.slice(1, -1).join("\n").trim();
+  // If content starts with ``` but regex didn't match, try manual strip
+  if (trimmed.startsWith("```")) {
+    const firstNewline = trimmed.indexOf("\n");
+    const lastFence = trimmed.lastIndexOf("```");
+    if (lastFence > firstNewline) {
+      return trimmed.slice(firstNewline + 1, lastFence).trim();
     }
+  }
+  // Strip any analysis text before the first slide separator or first layout directive
+  const firstSlideIdx = trimmed.search(/^---$|^layout:\s*/m);
+  if (firstSlideIdx > 0) {
+    return trimmed.slice(firstSlideIdx).trim();
   }
   return trimmed;
 }
@@ -74,33 +80,33 @@ export function estimateTokens(text) {
 /**
  * System prompt — SlideMD syntax reference. Sent once, shared across all calls.
  */
-const SYSTEM_PROMPT = `You are an expert at converting presentation content into SlideMD markdown format.
+const SYSTEM_PROMPT = `You are a SlideMD markdown editor. You receive markdown and output improved markdown.
 
-IMPORTANT: Output ONLY the SlideMD markdown. Do NOT include any analysis, reasoning, explanations, or commentary. Just the markdown.
+RULE 1: NEVER output any text before the markdown. No analysis, no thinking, no explanations, no "Here is..." preamble. Start DIRECTLY with the first line of markdown.
+RULE 2: Output ONLY the markdown content. Nothing else.
 
 ## SlideMD Syntax
 
-**Basic Structure:**
 - Slides separated by \`---\`
 - Speaker notes: \`<!-- notes: ... -->\` (first line, before layout)
-- Layout: \`layout: preset-name\` or \`layout: "grid" / columns\`
+- Layout: \`layout: preset-name\` (MUST be first line of each slide)
 - Content areas: \`@title\`, \`@header\`, \`@main\`, \`@media\`, \`@sidebar\`, \`@footer\`
+- Layouts: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column
 
-**Layouts:** title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column
-
-**CRITICAL RULES:**
-- ALWAYS preserve existing \`layout:\` directives — do NOT change them
-- ALWAYS preserve \`background:\` and \`theme:\` directives — do NOT remove them
-- In \`two-column\` layout, the right column is ALWAYS \`@media\` (NOT \`@secondary\`)
+## CRITICAL RULES
+- NEVER change existing \`layout:\` directives
+- NEVER remove \`background:\` or \`theme:\` directives
+- In \`two-column\` layout, right column is \`@media\` (NOT \`@secondary\`)
 - \`@secondary\` is ONLY used in \`three-column\` layout
-- ALWAYS specify \`layout:\` before \`@area\` markers
-- Keep slides self-contained
 - No emojis
-- Use \`##\` for headings, \`**bold**\` for key terms
 
-**Diagrams:**
-- Convert diagram text (marked \`[Diagram: ...]\`) to Mermaid code blocks
-- Use \`flowchart TD\` for hierarchy, \`flowchart LR\` for processes`;
+## Converting [Diagram: ...] to Mermaid
+When you see [Diagram: Item1, Item2, Item3], replace it with:
+\`\`\`mermaid
+flowchart LR
+    A["Item1"] --> B["Item2"] --> C["Item3"]
+\`\`\`
+Use flowchart TD for hierarchy, flowchart LR for processes.`;
 
 /**
  * Build the "fix issues" prompt.
