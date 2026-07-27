@@ -326,14 +326,12 @@ export class ImagePicker {
     const sorted = [...this._availableImages].sort((a, b) => b.name.localeCompare(a.name));
 
     this.grid.innerHTML = sorted
-      .map((img) => {
-        return `
+      .map((img) => `
                 <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
                     <img src="${escapeAttr(img.path)}" alt="${escapeAttr(img.name)}" loading="lazy" />
                     <div class="image-picker-item-name">${escapeText(img.name)}</div>
                 </div>
-            `;
-      })
+            `)
       .join("");
 
     this.grid.querySelectorAll(".image-picker-item").forEach((el) => {
@@ -408,13 +406,6 @@ export class ImagePicker {
             `;
       return;
     }
-
-    this.uploadZone.innerHTML = `
-            <div class="image-picker-upload-icon">✓</div>
-            <div>Uploaded ${escapeText(file.name)}</div>
-            <div style="opacity: 0.7; margin-top: 4px; font-size: 11px;">Click Insert to add, or pick another file.</div>
-        `;
-    this._syncInsertButton();
   }
 
   static _syncInsertButton() {
