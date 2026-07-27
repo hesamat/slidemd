@@ -32,7 +32,7 @@ export function getStageScale() {
  * @param {number} scale - Stage scale factor (design px → rendered px ratio)
  * @param {(settings: object) => void} applySettings
  */
-export function centerOnSlide(img, scale, applySettings) {
+export function centerOnSlide(img, _scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
@@ -40,7 +40,10 @@ export function centerOnSlide(img, scale, applySettings) {
   const padLeft = parseFloat(cs.paddingLeft) || 0;
   const padRight = parseFloat(cs.paddingRight) || 0;
   const contentWidth = area.clientWidth - padLeft - padRight;
-  const imgWidth = img.getBoundingClientRect().width / scale;
+
+  // Use the declared width from inline style, not getBoundingClientRect()
+  // which reflects the CSS-rendered width (e.g. width:100% from p > img:only-child).
+  const imgWidth = parseFloat(img.style.width) || 0;
 
   applySettings({
     left: Math.round((contentWidth - imgWidth) / 2),
@@ -63,7 +66,7 @@ export function alignLeft(img, _scale, applySettings) {
  * @param {number} scale - Stage scale factor
  * @param {(settings: object) => void} applySettings
  */
-export function alignRight(img, scale, applySettings) {
+export function alignRight(img, _scale, applySettings) {
   const area = img.closest(".slide__area");
   if (!area) return;
 
@@ -71,7 +74,7 @@ export function alignRight(img, scale, applySettings) {
   const padLeft = parseFloat(cs.paddingLeft) || 0;
   const padRight = parseFloat(cs.paddingRight) || 0;
   const contentWidth = area.clientWidth - padLeft - padRight;
-  const imgWidth = img.getBoundingClientRect().width / scale;
+  const imgWidth = parseFloat(img.style.width) || 0;
 
   applySettings({
     left: Math.round(contentWidth - imgWidth),
