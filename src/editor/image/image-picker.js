@@ -69,6 +69,7 @@ export class ImagePicker {
 
                 <div class="image-picker-tab-panel active" data-panel="existing" role="tabpanel">
                     <div id="imagePickerGrid" class="image-picker-grid" aria-live="polite"></div>
+                    <img id="imagePickerExistingPreview" class="image-picker-existing-preview" alt="" style="display:none" />
                 </div>
 
                 <div class="image-picker-tab-panel" data-panel="upload" role="tabpanel">
@@ -136,6 +137,7 @@ export class ImagePicker {
     this.insertBtn = wrapper.querySelector("#imagePickerInsertBtn");
     this.presetButtons = wrapper.querySelectorAll(".image-picker-preset-btn");
     this.alignButtons = wrapper.querySelectorAll(".image-picker-align-btn");
+    this.existingPreview = wrapper.querySelector("#imagePickerExistingPreview");
   }
 
   /**
@@ -279,6 +281,7 @@ export class ImagePicker {
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
+    if (this.existingPreview) this.existingPreview.style.display = "none";
     // Toggle UI mode
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
@@ -366,6 +369,12 @@ export class ImagePicker {
     this.grid
       .querySelectorAll(".image-picker-item")
       .forEach((i) => i.classList.toggle("selected", i === el));
+    // Show preview of selected image
+    if (this.existingPreview) {
+      this.existingPreview.src = path;
+      this.existingPreview.alt = el.querySelector("img")?.alt || "";
+      this.existingPreview.style.display = "";
+    }
     this._syncInsertButton();
   }
 
