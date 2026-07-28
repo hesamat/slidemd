@@ -5,7 +5,9 @@
  * Uses JSON-structured output for reliable parsing.
  */
 
-import PROMPTS from "./ai-prompts.json" with { type: "json" };
+import systemPrompt from "./prompts/system-prompt.md?raw";
+import fixPrompt from "./prompts/fix-prompt.md?raw";
+import generatePrompt from "./prompts/generate-prompt.md?raw";
 
 /**
  * Convert JSON slides back to SlideMD markdown.
@@ -125,11 +127,11 @@ function stripFrontmatter(markdown) {
 export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown);
   return {
-    system: PROMPTS.system,
+    system: systemPrompt,
     user:
       mode === "fix"
-        ? PROMPTS.fix.replace("{{markdown}}", cleaned)
-        : PROMPTS.generate.replace("{{markdown}}", cleaned),
+        ? fixPrompt.replace("{{markdown}}", cleaned)
+        : generatePrompt.replace("{{markdown}}", cleaned),
     original: markdown,
   };
 }
