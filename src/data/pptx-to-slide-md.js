@@ -1390,6 +1390,7 @@ function formatDiagram(diagram) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
 
-  // Emit a marker that AI post-processing can replace with Mermaid
+  // Emit a marker that AI post-processing can replace with Mermaid.
+  // If no AI mode is selected, the marker is converted back to bullets at import time.
   return `[Diagram: ${items.join(", ")}]`;
 }

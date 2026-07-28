@@ -42,6 +42,14 @@ describe("parseAiResponse", () => {
   it("returns null for empty input", () => {
     expect(parseAiResponse("")).toBeNull();
   });
+
+  it("handles braces inside JSON string values", () => {
+    const input =
+      '{"slides":[{"layout":"header-content","content":"@main\\nUse {braces} in code"}]}';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].content).toContain("{braces}");
+  });
 });
 
 describe("slidesToMarkdown", () => {
@@ -82,24 +90,54 @@ describe("extractDirectives", () => {
 });
 
 describe("fixSlideLayouts", () => {
-  it("preserves original backgrounds", () => {
+  it("preserves original backgrounds (fix mode)", () => {
     const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
     const orig = [
       { layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" },
     ];
-    const result = fixSlideLayouts(slides, orig);
+    const result = fixSlideLayouts(slides, orig, "fix");
+    expect(result[0].background).toBe("linear-gradient(#000,#fff)");
+  });
+
+  it("preserves original backgrounds (generate mode)", () => {
+    const slides = [{ layout: "title-slide", content: "# Hi" }];
+    const orig = [
+      { layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" },
+    ];
+    const result = fixSlideLayouts(slides, orig, "generate");
     expect(result[0].background).toBe("linear-gradient(#000,#fff)");
   });
 
   it("fixes header-content to two-column when @media exists", () => {
     const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@media\n- Item" }];
     const orig = [{ layout: "two-column", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig);
+    const result = fixSlideLayouts(slides, orig, "fix");
     expect(result[0].layout).toBe("two-column");
   });
 
-  it("preserves original layout when no @media", () => {
+  it("preserves original layout when no @media (fix mode)", () => {
     const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@main\n- Item" }];
+    const orig = [{ layout: "two-column", background: "", theme: "" }];
+    const result = fixSlideLayouts(slides, orig, "fix");
+    expect(result[0].layout).toBe("two-column");
+  });
+
+  it("keeps AI-chosen layout in generate mode", () => {
+    const slides = [{ layout: "two-column", content: "@main\n- Item 1" }];
+    const orig = [{ layout: "header-content", background: "", theme: "" }];
+    const result = fixSlideLayouts(slides, orig, "generate");
+    expect(result[0].layout).toBe("two-column");
+  });
+
+  it("still fixes @media mismatch in generate mode", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@media\n- Item" }];
+    const orig = [{ layout: "header-content", background: "", theme: "" }];
+    const result = fixSlideLayouts(slides, orig, "generate");
+    expect(result[0].layout).toBe("two-column");
+  });
+
+  it("defaults to fix mode when mode not specified", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
     const orig = [{ layout: "two-column", background: "", theme: "" }];
     const result = fixSlideLayouts(slides, orig);
     expect(result[0].layout).toBe("two-column");

@@ -81,6 +81,7 @@ export class AiSidebar {
         statusEl.className = `${P}status ${P}status--error`;
         noticeEl.hidden = true;
         closeBtn.hidden = false;
+        closeBtn.textContent = "Close";
         cancelBtn.hidden = true;
         return null;
       }
@@ -99,22 +100,27 @@ export class AiSidebar {
       statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
 
       this._abortController = new AbortController();
+      const body = {
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: 16000,
+        stream: true,
+        response_format: { type: "json_object" },
+      };
+      // Enable extended thinking for generate mode
+      if (mode === "generate") {
+        body.reasoning = { effort: "high" };
+      }
       const res = await fetch(OPENROUTER_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-          max_tokens: 16000,
-          stream: true,
-          response_format: { type: "json_object" },
-        }),
+        body: JSON.stringify(body),
         signal: this._abortController.signal,
       });
 
@@ -154,11 +160,11 @@ export class AiSidebar {
               outputEl.textContent = contentText;
               outputEl.scrollTop = outputEl.scrollHeight;
 
-              const slideCount = (contentText.split(/^---$/m) || []).length;
+              const slideCount = contentText.split(/^---$/m).length;
               if (slideCount > lastSlideCount) {
                 lastSlideCount = slideCount;
-                slideCountEl.textContent = `${slideCount} slides`;
-                statusEl.textContent = `Generating\u2026 (${slideCount} slides)`;
+                slideCountEl.textContent = `${slideCount} slide${slideCount !== 1 ? "s" : ""}`;
+                statusEl.textContent = `Generating\u2026 (${slideCount} slide${slideCount !== 1 ? "s" : ""})`;
               }
             }
           } catch {
@@ -178,6 +184,7 @@ export class AiSidebar {
         statusEl.className = `${P}status ${P}status--error`;
         cancelBtn.hidden = true;
         closeBtn.hidden = false;
+        closeBtn.textContent = "Close";
         noticeEl.hidden = true;
         await new Promise((resolve) => {
           closeBtn.addEventListener("click", resolve, { once: true });
@@ -188,14 +195,15 @@ export class AiSidebar {
       }
 
       const origDirectives = extractDirectives(original);
-      const fixedSlides = fixSlideLayouts(parsed.slides, origDirectives);
+      const fixedSlides = fixSlideLayouts(parsed.slides, origDirectives, mode);
       result = slidesToMarkdown(fixedSlides);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
-      slideCountEl.textContent = `${lastSlideCount} slides`;
+      slideCountEl.textContent = `${parsed.slides.length} slide${parsed.slides.length !== 1 ? "s" : ""}`;
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       closeBtn.hidden = false;
+      closeBtn.textContent = "See result";
       seeResultBtn.hidden = false;
       panel.classList.add(`${P}panel--done`);
     } catch (err) {
@@ -208,6 +216,7 @@ export class AiSidebar {
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       closeBtn.hidden = false;
+      closeBtn.textContent = "Close";
     }
 
     await new Promise((resolve) => {
@@ -237,7 +246,7 @@ export class AiSidebar {
       <div class="${P}output"></div>
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
-        <button type="button" data-action="close" class="${P}btn ${P}btn--primary" hidden>See result</button>
+        <button type="button" data-action="close" class="${P}btn ${P}btn--primary" hidden>Close</button>
       </div>
     `;
     this.#injectStyles(panel);
@@ -259,15 +268,17 @@ export class AiSidebar {
         --ai-notice-bg: #fef3c7;
         --ai-notice-text: #92400e;
 
-        position: fixed; top: 0; right: 0; bottom: 0;
-        width: 440px; max-width: 92vw;
+        position: fixed; top: 10%; right: 16px;
+        height: 80%; width: 440px; max-width: 92vw;
         z-index: 10000;
         display: flex; flex-direction: column;
         background: var(--ai-bg);
         color: var(--ai-text);
-        box-shadow: -2px 0 24px rgba(0,0,0,0.12);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        border-left: 1px solid var(--ai-border);
+        border: 1px solid var(--ai-border);
+        border-radius: 12px;
+        overflow: hidden;
       }
 
       /* Minimized state: bottom-right chip */
@@ -275,7 +286,6 @@ export class AiSidebar {
         top: auto; bottom: 16px; right: 16px;
         width: auto; height: auto;
         border-radius: 12px;
-        border-left: none;
         box-shadow: 0 4px 16px rgba(0,0,0,0.18);
       }
       .${P}panel--minimized .${P}header {
@@ -291,8 +301,8 @@ export class AiSidebar {
       /* Done glow effect */
       .${P}panel--done { animation: ${P}doneGlow 2s ease-in-out 3; }
       @keyframes ${P}doneGlow {
-        0%,100% { box-shadow: -2px 0 24px rgba(0,0,0,0.12); }
-        50% { box-shadow: -2px 0 32px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
+        0%,100% { box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+        50% { box-shadow: 0 8px 40px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
       }
       .${P}panel--minimized.${P}panel--done {
         animation: ${P}minimizedGlow 2s ease-in-out 3;
@@ -319,6 +329,7 @@ export class AiSidebar {
         border-bottom: 1px solid var(--ai-border);
         flex-shrink: 0;
         background: var(--ai-surface);
+        border-radius: 12px 12px 0 0;
       }
       .${P}title {
         font-size: 14px; font-weight: 600;
@@ -383,6 +394,7 @@ export class AiSidebar {
         border-top: 1px solid var(--ai-border);
         flex-shrink: 0;
         background: var(--ai-surface);
+        border-radius: 0 0 12px 12px;
       }
       .${P}btn {
         padding: 7px 16px; border-radius: 8px;

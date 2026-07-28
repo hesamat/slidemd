@@ -2,11 +2,13 @@
  * SettingsModal
  *
  * Modal for configuring AI settings (API key, model selection).
- * Settings are stored in localStorage.
+ * Settings are stored in sessionStorage by default (cleared when tab closes).
+ * An optional "Remember key" checkbox promotes the key to localStorage.
  */
 
 const STORAGE_KEY_API = "webdeck_openrouter_api_key";
 const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
+const REMEMBER_KEY = "webdeck_openrouter_remember";
 const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
 const P = "settings-modal__";
 
@@ -14,24 +16,28 @@ export class SettingsModal {
   static _currentBackdrop = null;
 
   /**
-   * Get stored API key.
+   * Get stored API key. Checks sessionStorage first, then localStorage.
    * @returns {string}
    */
   static getApiKey() {
     try {
-      return localStorage.getItem(STORAGE_KEY_API) || "";
+      return sessionStorage.getItem(STORAGE_KEY_API) || localStorage.getItem(STORAGE_KEY_API) || "";
     } catch {
       return "";
     }
   }
 
   /**
-   * Get stored model.
+   * Get stored model. Checks sessionStorage first, then localStorage.
    * @returns {string}
    */
   static getModel() {
     try {
-      return localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL;
+      return (
+        sessionStorage.getItem(STORAGE_KEY_MODEL) ||
+        localStorage.getItem(STORAGE_KEY_MODEL) ||
+        DEFAULT_MODEL
+      );
     } catch {
       return DEFAULT_MODEL;
     }
@@ -43,6 +49,19 @@ export class SettingsModal {
    */
   static isConfigured() {
     return !!this.getApiKey();
+  }
+
+  /**
+   * Clear stored API key from both storages.
+   */
+  static clearKey() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_API);
+      localStorage.removeItem(STORAGE_KEY_API);
+      localStorage.removeItem(REMEMBER_KEY);
+    } catch {
+      // ignore
+    }
   }
 
   /**
@@ -75,6 +94,7 @@ export class SettingsModal {
 
       const apiKeyInput = backdrop.querySelector('[data-field="api-key"]');
       const modelSelect = backdrop.querySelector('[data-field="model"]');
+      const rememberCheckbox = backdrop.querySelector('[data-field="remember"]');
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const dialog = backdrop.querySelector(`.${P}dialog`);
@@ -85,6 +105,15 @@ export class SettingsModal {
       // Load saved values
       apiKeyInput.value = this.getApiKey();
       modelSelect.value = this.getModel();
+
+      // Restore "remember" state
+      let remembered = false;
+      try {
+        remembered = localStorage.getItem(REMEMBER_KEY) === "true";
+      } catch {
+        // ignore
+      }
+      rememberCheckbox.checked = remembered;
 
       // Fetch available models from OpenRouter
       this.#populateModels(modelSelect);
@@ -97,6 +126,7 @@ export class SettingsModal {
       saveBtn.addEventListener("click", () => {
         const apiKey = apiKeyInput.value.trim();
         const model = modelSelect.value;
+        const remember = rememberCheckbox.checked;
 
         if (!apiKey) {
           showError("API key is required");
@@ -104,8 +134,19 @@ export class SettingsModal {
         }
 
         try {
-          localStorage.setItem(STORAGE_KEY_API, apiKey);
-          localStorage.setItem(STORAGE_KEY_MODEL, model);
+          // Always save to sessionStorage (current tab)
+          sessionStorage.setItem(STORAGE_KEY_API, apiKey);
+          sessionStorage.setItem(STORAGE_KEY_MODEL, model);
+
+          if (remember) {
+            localStorage.setItem(STORAGE_KEY_API, apiKey);
+            localStorage.setItem(STORAGE_KEY_MODEL, model);
+            localStorage.setItem(REMEMBER_KEY, "true");
+          } else {
+            localStorage.removeItem(STORAGE_KEY_API);
+            localStorage.removeItem(STORAGE_KEY_MODEL);
+            localStorage.removeItem(REMEMBER_KEY);
+          }
         } catch {
           // ignore
         }
@@ -198,6 +239,12 @@ export class SettingsModal {
           <option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>
         </select>
 
+        <label class="${P}remember-row">
+          <input type="checkbox" data-field="remember" />
+          <span>Remember key across sessions</span>
+        </label>
+        <span class="${P}warning">Key is stored in this browser only. Uncheck to clear on tab close.</span>
+
         <div class="${P}error" hidden></div>
 
         <div class="${P}actions">
@@ -250,6 +297,15 @@ export class SettingsModal {
         margin: 4px 0 0;
       }
       .${P}hint a { color: var(--accent, #6366f1); }
+      .${P}remember-row {
+        display: flex; align-items: center; gap: 6px;
+        margin: 14px 0 0; font-size: 13px; cursor: pointer;
+      }
+      .${P}remember-row input { margin: 0; }
+      .${P}warning {
+        display: block; font-size: 11px; color: var(--text-medium, #888);
+        margin: 4px 0 0;
+      }
       .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
       .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
       .${P}btn {

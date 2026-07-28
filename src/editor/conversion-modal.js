@@ -112,6 +112,20 @@ export class ConversionModal {
         if (isConverting) return;
         selectedFile = file;
         hideError();
+
+        // Show selected filename in the drop zone
+        dropZone.innerHTML = `
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span class="${P}filename">${this.#escHtml(file.name)}</span>
+          <span class="${P}drop-hint">Click to change file</span>
+        `;
+
         await startConversion();
       };
 
@@ -141,9 +155,9 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         hideError();
-        // Remove any dynamically added rows from previous conversion
+        // Remove any dynamically added rows/buttons from previous conversion
         backdrop
-          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row, .${P}btn--ai`)
           .forEach((el) => el.remove());
         showSpinner("Converting...");
 
@@ -252,12 +266,21 @@ export class ConversionModal {
           insertAfter = aiDivider;
 
           const { SettingsModal } = await import("../editor/settings-modal.js");
-          const hasApiKey = !!SettingsModal.getApiKey();
+
+          // Helper to refresh AI button/checkbox state based on current API key
+          const refreshAiState = () => {
+            const hasKey = !!SettingsModal.getApiKey();
+            fixInput.disabled = !hasKey;
+            aiBtn.disabled = !hasKey;
+            aiBtn.title = hasKey
+              ? "Import and get AI-inspired redesign"
+              : "Configure API key in Settings first";
+          };
 
           // AI: Fix issues checkbox
           const fixRow = document.createElement("label");
           fixRow.className = `${P}checkbox-row`;
-          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${!hasApiKey ? "disabled" : ""} /><span class="${P}checkbox-label">AI: Fix issues on import</span>`;
+          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">AI: Fix issues on import</span>`;
           const fixInput = fixRow.querySelector(`.${P}checkbox`);
           fixInput.addEventListener("change", () => {
             if (fixInput.checked) {
@@ -266,18 +289,18 @@ export class ConversionModal {
               aiMode = null;
             }
           });
-          // If no API key, clicking the checkbox opens settings
-          if (!hasApiKey) {
-            fixInput.addEventListener("click", async (e) => {
+          // Clicking the checkbox when no API key opens settings
+          fixInput.addEventListener("click", async (e) => {
+            if (!SettingsModal.getApiKey()) {
               e.preventDefault();
               await SettingsModal.show();
+              refreshAiState();
               if (SettingsModal.getApiKey()) {
-                fixInput.disabled = false;
                 fixInput.checked = true;
                 aiMode = "fix";
               }
-            });
-          }
+            }
+          });
           insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
           insertAfter = fixRow;
 
@@ -287,15 +310,11 @@ export class ConversionModal {
           aiBtn.type = "button";
           aiBtn.className = `${P}btn ${P}btn--ai`;
           aiBtn.textContent = "AI Inspiration";
-          aiBtn.title = hasApiKey
-            ? "Import and get AI-inspired redesign"
-            : "Configure API key in Settings first";
-          aiBtn.disabled = !hasApiKey;
           aiBtn.addEventListener("click", async () => {
-            if (!hasApiKey) {
+            if (!SettingsModal.getApiKey()) {
               await SettingsModal.show();
+              refreshAiState();
               if (SettingsModal.getApiKey()) {
-                aiBtn.disabled = false;
                 aiBtn.click();
               }
               return;
@@ -305,6 +324,9 @@ export class ConversionModal {
           });
           actionsEl.insertBefore(aiBtn, saveBtn);
           saveBtn.textContent = "Import";
+
+          // Apply initial state
+          refreshAiState();
 
           // Show Import button
           saveBtn.hidden = false;
@@ -328,6 +350,15 @@ export class ConversionModal {
             .replace(/^\s*background:.*$/gm, "")
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
+        }
+        // If no AI mode, convert [Diagram: ...] markers to bullet lists
+        if (!aiMode) {
+          finalMarkdown = finalMarkdown.replace(/\[Diagram:\s*(.+?)\]/g, (_match, items) =>
+            items
+              .split(", ")
+              .map((item) => `- ${item.trim()}`)
+              .join("\n"),
+          );
         }
         // Add language tag to opening fences of fenced code blocks only.
         // Use a state machine to distinguish opening fences from closing fences.
@@ -458,6 +489,13 @@ export class ConversionModal {
       }
       .${P}drop-zone:hover, .${P}drop-zone--active {
         border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
+      }
+      .${P}filename {
+        font-size: 14px; font-weight: 600; color: var(--text-high, #111);
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .${P}drop-hint {
+        font-size: 11px; color: var(--text-medium, #888);
       }
       .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
       .${P}code-hint { font-size: 12px; color: var(--text-medium, #666); margin: 2px 0 0; }

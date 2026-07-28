@@ -7,6 +7,7 @@
 import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
+import { MarkdownParser } from "../../data/markdown-parser.js";
 
 export class SaveManager {
   /**
@@ -60,7 +61,7 @@ export class SaveManager {
     const localMd = localStorage.getItem("webdeck_local_file");
     if (localMd) {
       try {
-        const parser = new (await import("../../data/markdown-parser.js")).MarkdownParser();
+        const parser = new MarkdownParser();
         this.originalMarkdown = parser.splitSlides(localMd);
       } catch {
         // keep existing cache

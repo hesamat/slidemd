@@ -5,10 +5,6 @@
  * Uses JSON-structured output for reliable parsing.
  */
 
-import { SettingsModal } from "../editor/settings-modal.js";
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-
 /**
  * Convert JSON slides back to SlideMD markdown.
  * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
@@ -30,24 +26,28 @@ export function slidesToMarkdown(slides) {
 
 /**
  * Fix layouts in parsed slides (e.g., header-content → two-column when @media exists).
+ * In "fix" mode, original layouts are preserved. In "generate" mode, AI-chosen layouts
+ * are kept (only backgrounds/themes are preserved from the original).
  * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
  * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @param {"fix"|"generate"} mode
  * @returns {typeof slides}
  */
-export function fixSlideLayouts(slides, origDirectives) {
+export function fixSlideLayouts(slides, origDirectives, mode = "fix") {
   return slides.map((slide, i) => {
     const orig = origDirectives[i] || {};
     const hasMedia = /^@media\b/m.test(slide.content);
 
-    // Preserve original background/theme
+    // Always preserve original background/theme when available
     const result = {
       ...slide,
       background: orig.background || slide.background || "",
       theme: orig.theme || slide.theme || "",
     };
 
-    // If original had a layout, prefer it
-    if (orig.layout) {
+    // In "fix" mode, prefer the original layout (AI may have mis-chosen)
+    // In "generate" mode, keep the AI's layout choice (the whole point is reorganization)
+    if (mode === "fix" && orig.layout) {
       result.layout = orig.layout;
     }
 
@@ -140,6 +140,7 @@ Rules:
 - "content" is the slide body (everything after layout/background/theme directives)
 - Use \\n for newlines in the content string
 - Each slide in the array corresponds to one slide separated by ---
+- Every slide MUST have non-empty "content" with actual slide body text
 
 ## Converting [Diagram: ...] to Mermaid
 
@@ -159,13 +160,22 @@ In two-column layout, right column MUST be @media (NOT @secondary).
 @secondary is ONLY for three-column layout.`;
 
 function buildFixPrompt(markdown) {
-  return `Fix this SlideMD markdown and return as JSON.
+  return `Fix this SlideMD markdown and return as JSON. Be thorough — fix ALL issues, not just the most obvious ones.
 
-Issues to fix:
-- Recover code block newlines lost during extraction
-- Fix broken links (split URLs)
-- Fix code with extra backticks or spaces
+Issues to fix (check every slide):
+- Recover code block newlines lost during extraction (code blocks may appear as single lines)
+- Fix broken links (URLs split across lines)
+- Fix code with extra backticks, missing language tags, or wrong indentation
+- Fix broken list formatting (missing dashes, wrong indentation, items merged onto one line)
+- Fix missing or wrong area markers (@header, @main, @media, @sidebar, @footer)
+- Ensure every slide has a correct layout: directive
+- Fix slides that have content but no area markers — add appropriate @main or @header/@main
+- Fix two-column slides where the right column uses @secondary instead of @media
+- Fix heading hierarchy (no skipping levels, e.g. ## followed by ####)
+- Fix tables with misaligned columns or missing header rows
+- Remove duplicate blank lines and trailing whitespace
 - Convert [Diagram: ...] markers to Mermaid code blocks
+- If a slide has mixed content that should be split across areas (e.g. a heading + body in @main), split into @header and @main
 
 Input markdown:
 ${markdown}`;
@@ -180,6 +190,7 @@ Guidelines:
 - Improve formatting, structure, and layout
 - Add speaker notes to key slides
 - Keep all substantive content
+- Every slide MUST have meaningful content in the appropriate area markers (@header, @main, etc.)
 
 Input markdown:
 ${markdown}`;
@@ -215,16 +226,50 @@ export function parseAiResponse(text) {
   // Find JSON by locating "slides": (with colon — only in real JSON, not analysis)
   const slidesIdx = trimmed.indexOf('"slides":');
   if (slidesIdx >= 0) {
-    // Walk backwards to find the opening {
+    // Walk backwards to find the opening { (skip braces inside JSON strings)
     let start = slidesIdx;
-    while (start > 0 && trimmed[start] !== "{") start--;
-    if (trimmed[start] === "{") {
+    let inString = false;
+    let escaped = false;
+    while (start > 0) {
+      start--;
+      const ch = trimmed[start];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString && ch === "{") break;
+    }
+    if (trimmed[start] === "{" && !inString) {
       // Walk forwards to find the matching closing }
       let depth = 0;
       let end = start;
+      inString = false;
+      escaped = false;
       for (; end < trimmed.length; end++) {
-        if (trimmed[end] === "{") depth++;
-        else if (trimmed[end] === "}") {
+        const ch = trimmed[end];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (inString) continue;
+        if (ch === "{") depth++;
+        else if (ch === "}") {
           depth--;
           if (depth === 0) break;
         }
