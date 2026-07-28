@@ -143,9 +143,19 @@ Rules:
 - Every slide MUST have non-empty "content" with actual slide body text
 
 ## Formatting Rules (STRICT)
-- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE them
-- Example: "@header\\n## Title\\n\\n@main\\n- Point 1" (note the \\n\\n between ## Title and @main)
-- NEVER put @header, @main, or @media on the line immediately after content
+- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE and AFTER them
+- Example: "@header\\n## Title\\n\\n@main\\n\\n- Point 1\\n- Point 2" (note \\n\\n before @main)
+- Code blocks MUST have a blank line before and after the triple backticks
+- Lists MUST have a blank line before and after them
+- Tables MUST have a blank line before and after them
+- Headers inside @main MUST have a blank line before them
+- Speaker notes (<!-- notes: ... -->) go at the very end, with a blank line before them
+
+Wrong: "@header\\n## Title\\n@main\\n- Point 1" (missing blank lines)
+Right: "@header\\n## Title\\n\\n@main\\n\\n- Point 1"
+
+Wrong: "@main\\n- Item 1\\n- Item 2\\n@media" (missing blank line before @media)
+Right: "@main\\n\\n- Item 1\\n- Item 2\\n\\n@media"
 
 ## Header Hierarchy (IMPORTANT)
 - title-slide: # for main title, ## for subtitle
@@ -226,11 +236,13 @@ Guidelines:
 - Every slide MUST have meaningful content in the appropriate area markers
 
 ## Formatting Rules (STRICT)
-- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE them
-- Example: "@header\\n## Title\\n\\n@main\\n- Point 1" (note the \\n\\n between ## Title and @main)
-- NEVER put @header, @main, or @media on the line immediately after content
-- Speaker notes go at the END of the slide content, after all area markers:
-  @header\\n## Title\\n\\n@main\\n- Content\\n\\n<!-- notes: Speaker note here -->
+- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE and AFTER them
+- Example: "@header\\n## Title\\n\\n@main\\n\\n- Point 1\\n- Point 2" (note \\n\\n before @main)
+- Code blocks MUST have a blank line before and after the triple backticks
+- Lists MUST have a blank line before and after them
+- Tables MUST have a blank line before and after them
+- Headers inside @main MUST have a blank line before them
+- Speaker notes (<!-- notes: ... -->) go at the very end, with a blank line before them
 - Do NOT use @notes — it is not a valid area marker. Use <!-- notes: ... --> instead
 
 ## Header Rules
