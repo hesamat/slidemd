@@ -176,7 +176,7 @@ In two-column layout, right column MUST be @media (NOT @secondary).
 @secondary is ONLY for three-column layout.
 
 Do NOT use @notes — it is not a valid area marker and will be silently dropped.
-Do NOT include speaker notes — there is no notes mechanism in SlideMD.`;
+To add speaker notes, use HTML comments: <!-- notes: Your note text here -->`;
 
 function buildFixPrompt(markdown) {
   return `Fix this SlideMD markdown and return as JSON.
@@ -221,6 +221,7 @@ Guidelines:
 - Reorganize for better flow and pacing
 - Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
 - Improve formatting, structure, and layout
+- Add speaker notes to key slides using: <!-- notes: Your note text here -->
 - Keep all substantive content
 - Every slide MUST have meaningful content in the appropriate area markers
 
@@ -228,6 +229,9 @@ Guidelines:
 - Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE them
 - Example: "@header\\n## Title\\n\\n@main\\n- Point 1" (note the \\n\\n between ## Title and @main)
 - NEVER put @header, @main, or @media on the line immediately after content
+- Speaker notes go at the END of the slide content, after all area markers:
+  @header\\n## Title\\n\\n@main\\n- Content\\n\\n<!-- notes: Speaker note here -->
+- Do NOT use @notes — it is not a valid area marker. Use <!-- notes: ... --> instead
 
 ## Header Rules
 - Title slide: # for main title, ## for subtitle/author
