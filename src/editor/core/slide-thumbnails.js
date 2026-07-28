@@ -9,6 +9,8 @@
  * EditController or the global window handle.
  */
 
+import { MarkdownParser } from "../../data/markdown-parser.js";
+
 // Touch long-press: how long (in ms) the user must hold a thumbnail
 // before the context menu opens, and how long the optional haptic
 // pulse lasts.  Both are well above the OS double-tap threshold
@@ -218,13 +220,8 @@ export class SlideThumbnails {
   }
 
   _stripMarkdown(text) {
-    let s = text;
-    s = s.replace(/`([^`]+)`/g, "$1");
-    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-    s = s.replace(/\*\*\*(.+?)\*\*\*/g, "$1");
-    s = s.replace(/\*\*(.+?)\*\*/g, "$1");
-    s = s.replace(/\*(.+?)\*/g, "$1");
-    return s;
+    if (!text || typeof text !== "string") return "";
+    return MarkdownParser.stripFormatting(text);
   }
 
   /**

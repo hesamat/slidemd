@@ -708,10 +708,11 @@ export class MarkdownParser {
         if (headerHeading) {
           slideTitle = MarkdownParser.stripFormatting(headerHeading[1]);
         } else {
-          // Fallback: first non-empty line of @header
+          // Fallback: first non-empty line of @header, truncated
           const firstHeaderLine = headerText.split("\n").find((l) => l.trim() !== "");
           if (firstHeaderLine) {
             slideTitle = MarkdownParser.stripFormatting(firstHeaderLine);
+            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
           }
         }
       }
@@ -722,10 +723,11 @@ export class MarkdownParser {
         if (mainHeading) {
           slideTitle = MarkdownParser.stripFormatting(mainHeading[1]);
         } else {
-          // Fallback: first non-empty line of @main
+          // Fallback: first non-empty line of @main, truncated
           const firstMainLine = mainText.split("\n").find((l) => l.trim() !== "");
           if (firstMainLine) {
             slideTitle = MarkdownParser.stripFormatting(firstMainLine);
+            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
           }
         }
       }
