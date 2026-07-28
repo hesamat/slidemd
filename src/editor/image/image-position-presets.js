@@ -106,13 +106,12 @@ export function fitToWidth(img, scale, applySettings) {
     (img.naturalWidth || imgRect.width || 1) / (img.naturalHeight || imgRect.height || 1);
   const width = Math.min(areaWidthDesign, areaHeightDesign * ratio);
   const height = width / ratio;
-  const top = (areaHeightDesign - height) / 2;
 
   applySettings({
     width: Math.round(width),
     height: Math.round(height),
     left: 0,
-    top: Math.round(top),
+    top: 0,
   });
 }
 

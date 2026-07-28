@@ -490,6 +490,16 @@ export class ImageInteractionHandler {
     const after = md.slice(entry.end);
     const updated = before.replace(/\n\s*$/, "\n") + after.replace(/^\s*\n/, "\n");
     this.deselect();
+    // Reset positions of remaining non-freeflow images in the same area
+    // so old top/left values don't create flow gaps after deletion.
+    if (area) {
+      area.querySelectorAll("img").forEach((sibling) => {
+        if (!ImageInteractionHandler.isFreeflow(sibling)) {
+          sibling.style.left = "0px";
+          sibling.style.top = "0px";
+        }
+      });
+    }
     if (this._onDelete) {
       this._onDelete(updated);
     } else {

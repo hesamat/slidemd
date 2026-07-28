@@ -142,12 +142,11 @@ describe("fitToWidth", () => {
     fitToWidth(img, 1, applySettings);
     // ratio = 1600/800 = 2; areaWidthDesign = 1920; areaHeightDesign = 1080
     // width = min(1920, 1080 * 2) = 1920; height = 1920/2 = 960
-    // top = (1080 - 960)/2 = 60
     expect(applySettings).toHaveBeenCalledWith({
       width: 1920,
       height: 960,
       left: 0,
-      top: 60,
+      top: 0,
     });
   });
 
@@ -187,12 +186,12 @@ describe("fitToWidth", () => {
     const applySettings = vi.fn();
     fitToWidth(img, 1, applySettings);
     // Content box: 1900 x 1060 after 20px padding
-    // width = min(1900, 1060*2) = 1900; height = 950; top = (1060-950)/2 = 55
+    // width = min(1900, 1060*2) = 1900; height = 950
     expect(applySettings).toHaveBeenCalledWith({
       width: 1900,
       height: 950,
       left: 0,
-      top: 55,
+      top: 0,
     });
   });
 });

@@ -235,18 +235,22 @@ export function readImageSettings(imgElement) {
   const transform = style.transform || "";
   const rotMatch = transform.match(ROTATION_RE);
 
-  // Parse width: use explicit pixel value, fall back to rendered dimensions
+  // Parse width: use explicit pixel value, fall back to HTML attribute
+  // (PPTX imports set width/height attributes), then rendered dimensions
   // for percentage (e.g. "100%") or non-numeric values.
   let width = parseFloat(style.width);
   if (!Number.isFinite(width) || (style.width && style.width.includes("%"))) {
-    width = imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX;
+    const attrWidth = imgElement.getAttribute("width");
+    width = attrWidth ? parseFloat(attrWidth) : imgElement.offsetWidth || IMG_WIDTH_DEFAULT_PX;
   }
 
-  // Parse height: use explicit pixel value, fall back to rendered dimensions
+  // Parse height: use explicit pixel value, fall back to HTML attribute
+  // (PPTX imports set width/height attributes), then rendered dimensions
   // for percentage, "auto", or non-numeric values.
   let height = parseFloat(style.height);
   if (!Number.isFinite(height) || (style.height && style.height.includes("%"))) {
-    height = imgElement.offsetHeight || null;
+    const attrHeight = imgElement.getAttribute("height");
+    height = attrHeight ? parseFloat(attrHeight) : imgElement.offsetHeight || null;
   }
 
   return {
