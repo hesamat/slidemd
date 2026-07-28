@@ -9,7 +9,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Add transition slides between major sections to improve narrative flow
 - Create summary or key takeaway slides at the end of sections
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
-- Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
+- Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead — not every diagram marker needs a Mermaid visualization
 - Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content for simple text slides
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
@@ -97,6 +97,9 @@ Details
 
 ## Mermaid Diagrams
 
+- Use Mermaid ONLY for true flowcharts, hierarchies, or processes with clear node relationships
+- For simple lists, flat groupings, or items without clear flow/dependency, use bullet points instead
+- Keep diagrams simple: max 5 levels deep, max 8 nodes. Deep diagrams are hard to read on slides
 - Use flowchart LR (horizontal) for single-column layouts (header-content, media-span)
 - Use flowchart TD (vertical) for multi-column layouts (two-column, three-column)
 - Use varied shapes and arrow labels. NOT just linear chains.

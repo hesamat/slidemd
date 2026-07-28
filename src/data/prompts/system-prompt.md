@@ -53,13 +53,16 @@ Right: "@header\n## Title\n\n@main\n\n- Point 1"
 
 ## Converting [Diagram: ...] to Mermaid
 
-In the "content" field, replace [Diagram: Item1, Item2, Item3] with a mermaid code block.
+Replace [Diagram: Item1, Item2, Item3] with a mermaid code block ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships.
+
+For simple lists, flat groupings, or items without clear flow/dependency, convert to bullet points instead — not every diagram marker needs a Mermaid visualization.
 
 Mermaid orientation depends on the slide layout:
 
 - Single-column layouts (header-content, media-span): use flowchart LR (horizontal)
 - Multi-column layouts (two-column, three-column): use flowchart TD (vertical)
 - Use varied shapes and arrow labels. NOT just linear chains.
+- Keep diagrams simple: max 5 levels deep, max 8 nodes. Deep diagrams are hard to read on slides.
 
 ## SlideMD Areas
 
@@ -93,6 +96,7 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 
 ## Mermaid Diagram Placement
 
+- Use Mermaid ONLY for true flowcharts, hierarchies, or processes — not for simple lists
 - A Mermaid diagram should NEVER be the last element in a long header-content slide
 - If a slide has a Mermaid diagram + more than 6 bullet points: use two-column layout
-- Keep Mermaid diagrams simple (max 6-8 nodes)
+- Keep Mermaid diagrams simple: max 5 levels deep, max 8 nodes
