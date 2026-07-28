@@ -142,6 +142,16 @@ Rules:
 - Each slide in the array corresponds to one slide separated by ---
 - Every slide MUST have non-empty "content" with actual slide body text
 
+## Header Hierarchy (IMPORTANT)
+- title-slide: # for main title, ## for subtitle
+- ALL other slides: ## for slide titles in @header. Never use ### or #### for slide titles
+- Remove **bold** wrapping from headers (write "## AGENDA", not "### **AGENDA**")
+
+## Slide Structure
+- Every slide MUST have both @header and @main (or @media for media-span)
+- Two-column: @header, @main (left), @media (right). If right is empty, use header-content
+- Media-span: MUST have @media with content
+
 ## Converting [Diagram: ...] to Mermaid
 
 In the "content" field, replace [Diagram: Item1, Item2, Item3] with a mermaid code block:
@@ -160,22 +170,29 @@ In two-column layout, right column MUST be @media (NOT @secondary).
 @secondary is ONLY for three-column layout.`;
 
 function buildFixPrompt(markdown) {
-  return `Fix this SlideMD markdown and return as JSON. Be thorough — fix ALL issues, not just the most obvious ones.
+  return `Fix this SlideMD markdown and return as JSON. Be thorough — fix ALL issues.
 
-Issues to fix (check every slide):
+## Header Rules (STRICT)
+- Title slide (layout: title-slide): use # for the main title, ## for subtitle/author
+- ALL other slides: use ## for slide titles. Never use ### or #### for slide titles
+- Remove **bold** wrapping from headers (e.g. "### **AGENDA**" must become "## AGENDA")
+- Inside @main content, you may use ### for sub-sections if truly needed, but prefer ##
+
+## Slide Structure Rules (STRICT)
+- Every slide MUST have both @header and @main (or @media for media-span layout)
+- Two-column layout: MUST have @header, @main (left column), and @media (right column). If the right column is empty, use header-content layout instead
+- Media-span layout: MUST have @media with content. Add @header if there's a title
+- A slide with ONLY @media and no header/main is broken — fix it by either adding @header/@main or changing the layout
+- If a slide has content but no area markers, add @main (or @header + @main if there's a heading)
+
+## Other Fixes
 - Recover code block newlines lost during extraction (code blocks may appear as single lines)
 - Fix broken links (URLs split across lines)
 - Fix code with extra backticks, missing language tags, or wrong indentation
 - Fix broken list formatting (missing dashes, wrong indentation, items merged onto one line)
-- Fix missing or wrong area markers (@header, @main, @media, @sidebar, @footer)
-- Ensure every slide has a correct layout: directive
-- Fix slides that have content but no area markers — add appropriate @main or @header/@main
-- Fix two-column slides where the right column uses @secondary instead of @media
-- Fix heading hierarchy (no skipping levels, e.g. ## followed by ####)
 - Fix tables with misaligned columns or missing header rows
 - Remove duplicate blank lines and trailing whitespace
 - Convert [Diagram: ...] markers to Mermaid code blocks
-- If a slide has mixed content that should be split across areas (e.g. a heading + body in @main), split into @header and @main
 
 Input markdown:
 ${markdown}`;
