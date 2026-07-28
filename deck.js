@@ -273,6 +273,8 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
    * Silently does nothing if no CLI server is running.
    */
   function connectLiveReload() {
+    // Skip live reload in exported HTML files
+    if (window.__WEBDECK_EXPORTED__) return;
     try {
       const evtSource = new EventSource("/api/events");
       evtSource.onmessage = (event) => {

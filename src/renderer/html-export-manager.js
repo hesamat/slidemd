@@ -641,6 +641,11 @@ ${initScript}
         if (response.ok) {
           let css = await response.text();
           css = HtmlExportManager.filterViteArtifactsFromCss(css);
+          // Convert relative font URLs to CDN absolute URLs
+          css = css.replace(
+            /url\((["']?)fonts\//g,
+            `url($1https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/`,
+          );
           return `/* ${name} CSS */\n${css}`;
         }
       } catch (_e) {
