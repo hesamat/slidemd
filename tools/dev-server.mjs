@@ -447,7 +447,7 @@ function createHandler(format) {
         // Auto-initialize a temp images directory so PPTX imports
         // (which upload images before POST /api/deck/load sets format)
         // can succeed.  POST /api/deck/load overwrites this later.
-        const tmpImgDir = path.join(process.cwd(), ".webdeck-uploads", "images");
+        const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
         fs.mkdirSync(tmpImgDir, { recursive: true });
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
