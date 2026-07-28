@@ -108,3 +108,46 @@ Main content
     expect(s).toHaveProperty("areas");
   });
 });
+
+describe("parseDeckMarkdown: slide title derivation", () => {
+  it("uses explicit # heading as slide title", () => {
+    const deck = parser.parseDeckMarkdown("# My Title\n\nContent here");
+    expect(deck.slides[0].title).toBe("My Title");
+  });
+
+  it("uses @header heading as slide title", () => {
+    const md = "@header\n\n## Header Title\n\n@main\n\nMain content";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Header Title");
+  });
+
+  it("uses @header first line as slide title when no heading", () => {
+    const md = "@header\n\n***var* vs *let***\n\n@main\n\nSome content";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("var vs let");
+  });
+
+  it("uses @main heading as slide title when no @header", () => {
+    const md = "@main\n\n## Main Title\n\nContent here";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Main Title");
+  });
+
+  it("uses @main first line as slide title when no heading", () => {
+    const md = "@main\n\nSome plain text content\n\nMore content";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Some plain text content");
+  });
+
+  it("falls back to Slide N when no @header or @main content", () => {
+    const md = "layout: title-slide";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Slide 1");
+  });
+
+  it("strips markdown formatting from @header first line title", () => {
+    const md = "@header\n\n**Bold Title** with [link](https://example.com)\n\n@main\n\nContent";
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Bold Title with link");
+  });
+});
