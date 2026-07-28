@@ -1,19 +1,22 @@
 /**
  * SettingsModal
  *
- * Modal for configuring AI settings (API key, model selection).
+ * Modal for configuring AI settings (API key, model selection, reasoning).
  * Settings are stored in sessionStorage by default (cleared when tab closes).
  * An optional "Remember key" checkbox promotes the key to localStorage.
  */
 
 const STORAGE_KEY_API = "webdeck_openrouter_api_key";
 const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
+const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
 const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
 const P = "settings-modal__";
 
 export class SettingsModal {
   static _currentBackdrop = null;
+  /** @type {Map<string, {supported_efforts: string[]|null, mandatory: boolean}>} */
+  static _modelReasoningMap = new Map();
 
   /**
    * Get stored API key. Checks sessionStorage first, then localStorage.
@@ -41,6 +44,32 @@ export class SettingsModal {
     } catch {
       return DEFAULT_MODEL;
     }
+  }
+
+  /**
+   * Get stored reasoning preference. Checks sessionStorage first, then localStorage.
+   * @returns {boolean}
+   */
+  static getReasoning() {
+    try {
+      const val =
+        sessionStorage.getItem(STORAGE_KEY_REASONING) ||
+        localStorage.getItem(STORAGE_KEY_REASONING);
+      return val === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if a model supports reasoning (has supported_efforts defined).
+   * @param {string} modelId
+   * @returns {boolean}
+   */
+  static modelSupportsReasoning(modelId) {
+    const info = this._modelReasoningMap.get(modelId);
+    if (!info) return false;
+    return Array.isArray(info.supported_efforts) && info.supported_efforts.length > 0;
   }
 
   /**
@@ -78,7 +107,7 @@ export class SettingsModal {
   /**
    * Show the settings modal. Returns the saved settings or null if cancelled.
    * @static
-   * @returns {Promise<{ apiKey: string, model: string }|null>}
+   * @returns {Promise<{ apiKey: string, model: string, reasoning: boolean }|null>}
    */
   static async show() {
     return new Promise((resolve) => {
@@ -95,6 +124,9 @@ export class SettingsModal {
       const apiKeyInput = backdrop.querySelector('[data-field="api-key"]');
       const modelSelect = backdrop.querySelector('[data-field="model"]');
       const rememberCheckbox = backdrop.querySelector('[data-field="remember"]');
+      const reasoningRow = backdrop.querySelector(`.${P}reasoning-row`);
+      const reasoningCheckbox = backdrop.querySelector('[data-field="reasoning"]');
+      const reasoningHint = backdrop.querySelector(`.${P}reasoning-hint`);
       const saveBtn = backdrop.querySelector('[data-action="save"]');
       const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const dialog = backdrop.querySelector(`.${P}dialog`);
@@ -115,8 +147,32 @@ export class SettingsModal {
       }
       rememberCheckbox.checked = remembered;
 
+      // Show/hide reasoning based on model support
+      const updateReasoningVisibility = () => {
+        const model = modelSelect.value;
+        const supports = this.modelSupportsReasoning(model);
+        reasoningRow.hidden = !supports;
+        if (!supports) {
+          reasoningCheckbox.checked = false;
+        }
+        reasoningHint.hidden = supports;
+      };
+
+      // Initially hide reasoning until models load
+      reasoningRow.hidden = true;
+      reasoningHint.hidden = false;
+
+      modelSelect.addEventListener("change", updateReasoningVisibility);
+
       // Fetch available models from OpenRouter
-      this.#populateModels(modelSelect);
+      this.#populateModels(modelSelect, () => {
+        // After models load, restore saved reasoning state and update visibility
+        const savedReasoning = this.getReasoning();
+        const model = modelSelect.value;
+        const supports = this.modelSupportsReasoning(model);
+        reasoningCheckbox.checked = savedReasoning && supports;
+        updateReasoningVisibility();
+      });
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -127,6 +183,7 @@ export class SettingsModal {
         const apiKey = apiKeyInput.value.trim();
         const model = modelSelect.value;
         const remember = rememberCheckbox.checked;
+        const reasoning = reasoningCheckbox.checked && this.modelSupportsReasoning(model);
 
         if (!apiKey) {
           showError("API key is required");
@@ -137,14 +194,17 @@ export class SettingsModal {
           // Always save to sessionStorage (current tab)
           sessionStorage.setItem(STORAGE_KEY_API, apiKey);
           sessionStorage.setItem(STORAGE_KEY_MODEL, model);
+          sessionStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
 
           if (remember) {
             localStorage.setItem(STORAGE_KEY_API, apiKey);
             localStorage.setItem(STORAGE_KEY_MODEL, model);
+            localStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
             localStorage.setItem(REMEMBER_KEY, "true");
           } else {
             localStorage.removeItem(STORAGE_KEY_API);
             localStorage.removeItem(STORAGE_KEY_MODEL);
+            localStorage.removeItem(STORAGE_KEY_REASONING);
             localStorage.removeItem(REMEMBER_KEY);
           }
         } catch {
@@ -154,7 +214,7 @@ export class SettingsModal {
         restoreScroll();
         backdrop.remove();
         this._currentBackdrop = null;
-        resolve({ apiKey, model });
+        resolve({ apiKey, model, reasoning });
       });
 
       cancelBtn.addEventListener("click", () => {
@@ -177,10 +237,12 @@ export class SettingsModal {
 
   /**
    * Fetch models from OpenRouter and populate the select.
+   * Caches reasoning support info per model.
    * @static
    * @param {HTMLSelectElement} select
+   * @param {() => void} [onLoaded] - Callback after models are loaded
    */
-  static async #populateModels(select) {
+  static async #populateModels(select, onLoaded) {
     const saved = this.getModel();
     // Always ensure the saved model is in the list
     const ensureOption = (id, label) => {
@@ -200,15 +262,31 @@ export class SettingsModal {
       if (!res.ok) return;
       const data = await res.json();
       const models = data.data || [];
+
+      // Build reasoning map and populate options
       for (const m of models) {
         ensureOption(m.id, m.name || m.id);
+        if (m.reasoning) {
+          this._modelReasoningMap.set(m.id, {
+            supported_efforts: m.reasoning.supported_efforts || null,
+            mandatory: m.reasoning.mandatory || false,
+          });
+        }
       }
+
+      // Also cache the saved model if it wasn't in the API response
+      if (!this._modelReasoningMap.has(saved)) {
+        this._modelReasoningMap.set(saved, { supported_efforts: null, mandatory: false });
+      }
+
       // Re-apply saved value after all options are added
       select.value = saved;
     } catch {
       // If fetch fails, ensure saved model is still selectable
       select.value = saved;
     }
+
+    onLoaded?.();
   }
 
   /**
@@ -238,6 +316,12 @@ export class SettingsModal {
         <select id="${P}model" class="${P}select" data-field="model">
           <option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>
         </select>
+
+        <label class="${P}reasoning-row" hidden>
+          <input type="checkbox" data-field="reasoning" />
+          <span>Enable extended thinking (reasoning)</span>
+        </label>
+        <span class="${P}reasoning-hint">Current model does not support reasoning</span>
 
         <label class="${P}remember-row">
           <input type="checkbox" data-field="remember" />
@@ -297,6 +381,15 @@ export class SettingsModal {
         margin: 4px 0 0;
       }
       .${P}hint a { color: var(--accent, #6366f1); }
+      .${P}reasoning-row {
+        display: flex; align-items: center; gap: 6px;
+        margin: 14px 0 0; font-size: 13px; cursor: pointer;
+      }
+      .${P}reasoning-row input { margin: 0; }
+      .${P}reasoning-hint {
+        display: block; font-size: 11px; color: var(--text-medium, #888);
+        margin: 4px 0 0;
+      }
       .${P}remember-row {
         display: flex; align-items: center; gap: 6px;
         margin: 14px 0 0; font-size: 13px; cursor: pointer;

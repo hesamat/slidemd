@@ -100,19 +100,19 @@ export class AiSidebar {
       statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
 
       this._abortController = new AbortController();
-      const isGenerate = mode === "generate";
+      const reasoning = SettingsModal.getReasoning();
       const body = {
         model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        max_tokens: isGenerate ? 32000 : 16000,
+        max_tokens: reasoning ? 32000 : 16000,
         stream: true,
         response_format: { type: "json_object" },
       };
-      // Enable extended thinking for generate mode
-      if (isGenerate) {
+      // Enable extended thinking if the user enabled it in settings
+      if (reasoning) {
         body.reasoning = { effort: "high" };
       }
       const res = await fetch(OPENROUTER_URL, {
