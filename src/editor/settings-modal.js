@@ -216,12 +216,13 @@ export class SettingsModal {
       modelDropdown.addEventListener("click", (e) => e.stopPropagation());
       modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
 
-      // Close dropdown on outside click
+      // Close dropdown on click anywhere (dialog or backdrop)
       const handleOutsideClick = (e) => {
         if (!modelInput.contains(e.target) && !modelDropdown.contains(e.target)) {
           closeDropdown();
         }
       };
+      dialog.addEventListener("click", handleOutsideClick);
       backdrop.addEventListener("click", handleOutsideClick);
 
       // --- Reasoning state ---

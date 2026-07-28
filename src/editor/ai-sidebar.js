@@ -133,6 +133,13 @@ export class AiSidebar {
 
       noticeEl.hidden = false;
       statusEl.textContent = "AI is working\u2026";
+
+      // Disable scrolling during streaming — prevents scrollbar jumping
+      // and stops wheel events from bubbling up to the slide navigator
+      outputEl.style.overflowY = "hidden";
+      const preventWheel = (e) => e.preventDefault();
+      panel.addEventListener("wheel", preventWheel, { passive: false });
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let contentText = "";
@@ -190,6 +197,10 @@ export class AiSidebar {
           }
         }
       }
+
+      // Re-enable scrolling now that streaming is done
+      outputEl.style.overflowY = "";
+      panel.removeEventListener("wheel", preventWheel);
 
       if (cancelled) {
         this.close();
@@ -286,8 +297,8 @@ export class AiSidebar {
         --ai-notice-bg: #fef3c7;
         --ai-notice-text: #92400e;
 
-        position: fixed; top: 10%; right: 16px;
-        height: 80%; width: 440px; max-width: 92vw;
+        position: fixed; bottom: 60px; right: 16px;
+        height: 70vh; max-height: calc(100vh - 100px); width: 440px; max-width: 92vw;
         z-index: 10000;
         display: flex; flex-direction: column;
         background: var(--ai-bg);
