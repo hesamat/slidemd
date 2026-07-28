@@ -167,7 +167,10 @@ Use varied shapes and arrow labels. NOT just linear chains.
 
 Content areas: @title, @header, @main, @media, @sidebar, @footer
 In two-column layout, right column MUST be @media (NOT @secondary).
-@secondary is ONLY for three-column layout.`;
+@secondary is ONLY for three-column layout.
+
+Do NOT use @notes — it is not a valid area marker and will be silently dropped.
+Do NOT include speaker notes — there is no notes mechanism in SlideMD.`;
 
 function buildFixPrompt(markdown) {
   return `Fix this SlideMD markdown and return as JSON.
@@ -212,9 +215,10 @@ Guidelines:
 - Reorganize for better flow and pacing
 - Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
 - Improve formatting, structure, and layout
-- Add speaker notes to key slides
 - Keep all substantive content
 - Every slide MUST have meaningful content in the appropriate area markers
+- Do NOT use @notes — it is not a valid area marker and will be silently dropped
+- Do NOT include speaker notes — there is no notes mechanism in SlideMD
 
 ## Layout Rules (STRICT)
 - title-slide: MUST have @title area with # main title, ## subtitle/author. Example:
