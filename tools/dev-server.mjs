@@ -319,7 +319,7 @@ function createHandler(format) {
 
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
-      if (!format) {
+      if (!format || !format.mdFile) {
         // Return 200 with empty body so the frontend falls through to the welcome deck
         // without a 404 error in the browser console.
         res.writeHead(200, { "Content-Type": "application/json" });
