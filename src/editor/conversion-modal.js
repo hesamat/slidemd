@@ -267,17 +267,6 @@ export class ConversionModal {
 
           const { SettingsModal } = await import("../editor/settings-modal.js");
 
-          // Helper to refresh AI button/checkbox state based on current API key
-          const refreshAiState = () => {
-            const hasKey = !!SettingsModal.getApiKey();
-            fixInput.disabled = !hasKey;
-            aiBtn.disabled = !hasKey;
-            aiBtn.title = hasKey
-              ? "Import and get AI-inspired redesign"
-              : "Configure API key in Settings first";
-            aiHint.hidden = hasKey;
-          };
-
           // AI: Fix issues checkbox
           const fixRow = document.createElement("label");
           fixRow.className = `${P}checkbox-row`;
@@ -290,6 +279,40 @@ export class ConversionModal {
               aiMode = null;
             }
           });
+          insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
+          insertAfter = fixRow;
+
+          // AI hint when no API key
+          const aiHint = document.createElement("span");
+          aiHint.className = `${P}ai-hint`;
+          aiHint.hidden = true;
+          aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
+          insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
+          insertAfter = aiHint;
+
+          // Show Import button and AI Enhance button
+          const actionsEl = backdrop.querySelector(`.${P}actions`);
+          const aiBtn = document.createElement("button");
+          aiBtn.type = "button";
+          aiBtn.className = `${P}btn ${P}btn--ai`;
+          aiBtn.textContent = "AI Inspiration";
+
+          // Helper to refresh AI button/checkbox state based on current API key
+          // Must be defined AFTER aiBtn and aiHint are created
+          const refreshAiState = () => {
+            const hasKey = !!SettingsModal.getApiKey();
+            fixInput.disabled = !hasKey;
+            if (aiBtn) {
+              aiBtn.disabled = !hasKey;
+              aiBtn.title = hasKey
+                ? "Import and get AI-inspired redesign"
+                : "Configure API key in Settings first";
+            }
+            if (aiHint) {
+              aiHint.hidden = hasKey;
+            }
+          };
+
           // Clicking the checkbox when no API key opens settings
           fixInput.addEventListener("click", async (e) => {
             if (!SettingsModal.getApiKey()) {
@@ -302,14 +325,7 @@ export class ConversionModal {
               }
             }
           });
-          insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
-          insertAfter = fixRow;
 
-          // AI hint when no API key
-          const aiHint = document.createElement("span");
-          aiHint.className = `${P}ai-hint`;
-          aiHint.hidden = true;
-          aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
           aiHint.addEventListener("click", async (e) => {
             if (e.target.dataset.action === "open-settings") {
               e.preventDefault();
@@ -317,15 +333,7 @@ export class ConversionModal {
               refreshAiState();
             }
           });
-          insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
-          insertAfter = aiHint;
 
-          // Show Import button and AI Enhance button
-          const actionsEl = backdrop.querySelector(`.${P}actions`);
-          const aiBtn = document.createElement("button");
-          aiBtn.type = "button";
-          aiBtn.className = `${P}btn ${P}btn--ai`;
-          aiBtn.textContent = "AI Inspiration";
           aiBtn.addEventListener("click", async () => {
             if (!SettingsModal.getApiKey()) {
               await SettingsModal.show();

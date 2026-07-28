@@ -1295,13 +1295,19 @@ function wrapLongLists(markdown) {
 function formatImage(
   img,
   _deckName = DEFAULTS.DECK_NAME,
-  { omitDimensions = false, fitColumn = false } = {},
+  { omitDimensions = false, fitColumn = false, caption } = {},
 ) {
   const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
   const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
 
   const src = img.blob || `${DEFAULTS.IMAGE_SUBDIR}${filename}`;
-  const altText = filename.replace(REGEX.FILE_EXTENSION, "").replace(REGEX.HYPHEN_UNDERSCORE, " ");
+  // Generate readable alt text from filename (e.g. "image1" -> "Slide image 1")
+  const baseAlt = filename
+    .replace(REGEX.FILE_EXTENSION, "")
+    .replace(REGEX.HYPHEN_UNDERSCORE, " ")
+    .replace(/(\d+)/g, " $1")
+    .trim();
+  const altText = caption || `Slide image ${baseAlt}`;
 
   const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
 
