@@ -56,6 +56,7 @@ export class ImageDragController {
     this._container = container;
 
     interact(".slide__area img", { context: container }).draggable({
+      style: false,
       listeners: {
         start: (e) => this._onDragStart(e),
         move: (e) => this._onDragMove(e),
