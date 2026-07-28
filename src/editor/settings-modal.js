@@ -172,7 +172,8 @@ export class SettingsModal {
           if (m.id === selectedModel) item.classList.add(`${P}model-item--selected`);
           item.dataset.value = m.id;
           item.innerHTML = `<span class="${P}model-name">${this.#escHtml(m.name)}</span><span class="${P}model-id">${this.#escHtml(m.id)}</span>`;
-          item.addEventListener("click", () => {
+          item.addEventListener("click", (e) => {
+            e.stopPropagation();
             selectedModel = m.id;
             modelValue.textContent = m.id;
             modelInput.value = "";
@@ -199,6 +200,9 @@ export class SettingsModal {
         modelDropdown.hidden = false;
         filterModels(modelInput.value);
       });
+
+      // Prevent clicks inside dropdown from propagating to backdrop
+      modelDropdown.addEventListener("click", (e) => e.stopPropagation());
 
       // Close dropdown on outside click
       const handleOutsideClick = (e) => {
@@ -461,14 +465,13 @@ export class SettingsModal {
       }
       .${P}model-dropdown {
         position: absolute; top: 100%; left: 0; right: 0;
-        max-height: 240px; overflow-y: auto;
         border: 1px solid var(--border-medium, #ccc);
         border-top: none; border-radius: 0 0 6px 6px;
         background: var(--surface-bg, #fff);
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         z-index: 10;
       }
-      .${P}model-list { max-height: 240px; overflow-y: auto; }
+      .${P}model-list { }
       .${P}model-item {
         padding: 8px 10px; cursor: pointer;
         display: flex; flex-direction: column; gap: 1px;
