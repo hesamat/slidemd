@@ -214,12 +214,27 @@ Guidelines:
 - Improve formatting, structure, and layout
 - Add speaker notes to key slides
 - Keep all substantive content
-- Every slide MUST have meaningful content in the appropriate area markers (@header, @main, etc.)
+- Every slide MUST have meaningful content in the appropriate area markers
+
+## Layout Rules (STRICT)
+- title-slide: MUST have @title area with # main title, ## subtitle/author. Example:
+  layout: title-slide
+  @title
+  # My Title
+  ## Subtitle
+- header-content: MUST have @header (## title) and @main (body content)
+- two-column: MUST have @header, @main (left), @media (right)
+- media-span: MUST have @media with content
+
+## Header Rules
+- Title slide: # for main title, ## for subtitle/author
+- All other slides: ## for slide titles in @header
+- Inside @main: ## for major sections, ### for sub-sections only if needed
 
 ## Images (IMPORTANT)
 - Do NOT assume what an image shows based on its filename or position
-- If you are unsure what an image is about, DELETE the <img> tag — do not keep images you cannot describe
-- Only keep images if you are confident about what they depict and they add value to the slide
+- If you are unsure what an image is about, DELETE the <img> tag
+- Only keep images if you are confident about what they depict and they add value
 
 Input markdown:
 ${markdown}`;
