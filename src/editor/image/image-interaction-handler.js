@@ -735,6 +735,13 @@ export class ImageInteractionHandler {
   static fitToWidth() {
     if (!this._selectedImg) return;
     fitToWidth(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
+    // Switch to absolute positioning so top/left centering is relative to the
+    // area (which has position: relative) instead of the paragraph flow,
+    // preventing the offset from creating empty vertical space.
+    if (this._selectedImg.style) {
+      this._selectedImg.style.position = "absolute";
+    }
+    this._selectedImg.classList?.add("img-freeflow");
   }
 
   static rotateBy(delta) {
