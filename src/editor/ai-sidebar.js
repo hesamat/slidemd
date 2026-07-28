@@ -44,7 +44,6 @@ export class AiSidebar {
 
     const outputEl = panel.querySelector(`.${P}output`);
     const statusEl = panel.querySelector(`.${P}status`);
-    const slideCountEl = panel.querySelector(`.${P}slide-count`);
     const noticeEl = panel.querySelector(`.${P}notice`);
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
     const closeBtn = panel.querySelector('[data-action="close"]');
@@ -145,7 +144,6 @@ export class AiSidebar {
       let contentText = "";
       let reasoningText = "";
       let buffer = "";
-      let lastSlideCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -184,13 +182,6 @@ export class AiSidebar {
               const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
               outputEl.textContent = display;
               outputEl.scrollTop = outputEl.scrollHeight;
-
-              const slideCount = contentText.split(/^---$/m).length;
-              if (slideCount > lastSlideCount) {
-                lastSlideCount = slideCount;
-                slideCountEl.textContent = `${slideCount} slide${slideCount !== 1 ? "s" : ""}`;
-                statusEl.textContent = `Generating\u2026 (${slideCount} slide${slideCount !== 1 ? "s" : ""})`;
-              }
             }
           } catch {
             // skip malformed JSON
@@ -228,7 +219,6 @@ export class AiSidebar {
       result = slidesToMarkdown(fixedSlides);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
-      slideCountEl.textContent = `${parsed.slides.length} slide${parsed.slides.length !== 1 ? "s" : ""}`;
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       closeBtn.hidden = false;
@@ -265,7 +255,6 @@ export class AiSidebar {
       <div class="${P}header">
         <span class="${P}title">${title}</span>
         <div class="${P}header-right">
-          <span class="${P}slide-count">0 slides</span>
           <button type="button" data-action="see-result" class="${P}btn ${P}btn--see-result" hidden>See result</button>
           <button type="button" data-action="minimize" class="${P}icon-btn" title="Minimize">\u2212</button>
         </div>
@@ -312,7 +301,7 @@ export class AiSidebar {
 
       /* Minimized state: bottom-right chip */
       .${P}panel--minimized {
-        top: auto; bottom: 16px; right: 16px;
+        top: auto; bottom: 50px; right: 16px;
         width: auto; height: auto;
         border-radius: 12px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.18);
@@ -365,12 +354,6 @@ export class AiSidebar {
         color: var(--ai-text);
       }
       .${P}header-right { display: flex; align-items: center; gap: 8px; }
-      .${P}slide-count {
-        font-size: 11px; font-weight: 500;
-        color: var(--ai-text-secondary);
-        background: var(--ai-border); padding: 2px 10px;
-        border-radius: 10px; white-space: nowrap;
-      }
       .${P}icon-btn {
         width: 28px; height: 28px; border: none;
         background: transparent; border-radius: 6px;
