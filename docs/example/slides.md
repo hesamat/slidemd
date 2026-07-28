@@ -168,23 +168,28 @@ Press `E` to toggle split-screen editing with live preview.
 
 ### Writing Tools
 
-- Live preview — see changes as you type
+- Live preview — see changes instantly as you type
 - Autocomplete — `layout:`, `theme:`, `@media` directives
 - Slash commands — type `/` for quick insertions
 - Mermaid helper — insert diagram scaffolds
 - Search — `Ctrl+F` to find within slides
 
+### Slide Management
+
+- Slide thumbnails — jump to any slide while editing
+- Quick actions — add, delete, duplicate, reorder slides
+- Layout Picker — choose presets with filled templates
+- Context menu — right-click thumbnails for slide operations
+
 @media
 
 ![Edit mode screenshot](images/edit-mode.png)
 
-### Slide Management
+### Visual Guides
 
-- Slide thumbnails — jump to any slide
-- Context menu — right-click for add, duplicate, delete
-- Layout Picker — choose presets with filled templates
-- Overflow warnings — alerts when content is too long
-- Area outlines — visual guides for layout grid
+- Area outlines show the layout grid
+- Overflow warnings when content is too long
+- Slide warnings for layout/area mismatches
 
 ---
 
@@ -341,16 +346,6 @@ After importing a PPTX file, optionally enhance the result with AI.
 3. Select a model (DeepSeek V4 Flash recommended)
 4. Import a PPTX file
 5. Choose **Fix Issues** or click **AI Inspiration**
-
-### What Changes?
-
-| Aspect   | Fix Issues | AI Inspiration      |
-| -------- | ---------- | ------------------- |
-| Layouts  | Preserved  | Redesigned          |
-| Content  | Cleaned up | Restructured        |
-| Diagrams | Converted  | Converted + varied  |
-| Notes    | None added | Added automatically |
-| Slides   | Same count | May add/remove      |
 
 ---
 
