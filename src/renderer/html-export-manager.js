@@ -17,7 +17,6 @@ export class HtmlExportManager {
     "src/core/utils.js",
     "src/core/element-gatherer.js",
     "src/core/asset-loader.js",
-    "src/core/mermaid-config.js",
     // Data loading and parsing
     "src/data/layout-data.js",
     "src/data/markdown-parser.js",
