@@ -1,44 +1,76 @@
-# AI Prompt Templates for PPTX Import
+# AI Post-Processing for PPTX Import
 
-These prompts are used by `src/data/ai-enhancer.js` to post-process PPTX-imported markdown.
+When importing a PPTX file, SlideMD can optionally post-process the result using AI via OpenRouter. This is configured in the Import PowerPoint dialog.
 
-The full SlideMD syntax reference is in [prompt-template.md](prompt-template.md).
+## Setup
 
-## System Prompt (shared)
+1. Open **Settings** from the main menu
+2. Enter your OpenRouter API key (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
+3. Select a model (default: `deepseek/deepseek-v4-flash`)
+4. Optionally enable **Extended Thinking** for better results (only available for models that support it)
 
-The system prompt includes the SlideMD syntax reference from `prompt-template.md` (sections: Basic Structure, Layout Patterns, Content Areas, Slide Options, Built-in Features, Content Formatting Guidelines). See `buildSystemPrompt()` in `ai-enhancer.js` for the full text.
+## Modes
 
-## Mode: Fix Issues
+### Fix Issues
 
-Post-processes rule-based markdown to fix common extraction issues:
+A conservative mode that cleans up common PPTX extraction problems:
 
-1. Recover code block newlines lost during extraction
-2. Fix horizontal adjacency (image+text → two-column layout)
-3. Remove decorative/template/logo images
-4. Fix formatting: spacing, lists, tables
-5. Ensure every slide has a `layout:` directive
-6. Convert `[Diagram: ...]` markers into Mermaid code blocks
+- Recovers code block newlines lost during extraction
+- Fixes broken links and code formatting
+- Normalizes header levels (# for title slides, ## for all others)
+- Removes bold wrapping from headers
+- Fixes two-column slides with empty right columns
+- Converts `[Diagram: ...]` markers to Mermaid code blocks
 
-## Mode: Generate Inspired Deck
+**What it does NOT do:** Does not restructure slides, invent content, or change layouts that already work.
 
-Creates a new presentation from the imported content:
+### AI Inspiration
 
-1. Reorganize slides for better flow and pacing
-2. Add or remove slides as needed
-3. Convert ALL `[Diagram: ...]` markers into Mermaid code blocks
-4. Improve content structure, formatting, and layout
-5. Suggest better visual hierarchy
-6. Use varied layouts
-7. Add speaker notes to key slides
-8. Keep all substantive content from the original
+A full redesign mode that reorganizes and improves the presentation:
 
-## Diagram Conversion
+- Reorganizes slides for better flow and pacing
+- Converts all diagram markers to Mermaid code blocks
+- Improves formatting, structure, and layout
+- Adds speaker notes to key slides
+- Keeps all substantive content from the original
+- Deletes images the AI is unsure about
 
-Diagram text markers (`[Diagram: Item 1, Item 2, Item 3]`) are converted to Mermaid:
+## Formatting Rules (AI Output)
 
-- `flowchart TD` — hierarchical/top-down structures
-- `flowchart LR` — sequential/process flows
-- `graph TD` / `graph LR` — relationship diagrams
-- Each text item becomes a labeled node
-- Connect nodes logically based on content
-- Add `classDef` styling when appropriate
+The AI follows these strict formatting rules:
+
+### Area Markers
+
+- `@header`, `@main`, `@media`, `@footer` MUST have a blank line BEFORE and AFTER them
+- Example: `@header\n## Title\n\n@main\n\n- Point 1`
+
+### Header Hierarchy
+
+- Title slide: `#` for main title, `##` for subtitle
+- All other slides: `##` for slide titles in `@header`
+- Inside `@main`: never use `##`, use `###` only if truly needed
+
+### Speaker Notes
+
+- Use HTML comments: `<!-- notes: Your note text here -->`
+- Notes go at the very end of the slide content, after all area markers
+- Do NOT use `@notes` — it is not a valid area marker
+
+### Mermaid Diagrams
+
+- Single-column layouts (header-content, media-span): use `flowchart LR` (horizontal)
+- Multi-column layouts (two-column, three-column): use `flowchart TD` (vertical)
+- Use varied shapes and arrow labels
+
+### Code Blocks
+
+- Must have a blank line before and after the triple backticks
+- Include language tags when possible
+
+## Prompts
+
+The full prompts used by the AI are defined in `src/data/ai-enhancer.js`:
+
+- **System prompt**: SlideMD syntax reference, formatting rules, area markers
+- **Fix prompt**: Conservative formatting fixes
+- **Generate prompt**: Full redesign with layout rules, image handling, notes syntax

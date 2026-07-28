@@ -65,6 +65,17 @@ node tools/dev-server.mjs slides.md  # open the deck
 # Then use the export menu to create a .textpack
 ```
 
+### PPTX Import with AI Post-Processing
+
+Import PowerPoint files via **Menu → Import PPTX**. The import extracts text, images, and layouts from `.pptx` files and converts them to SlideMD format.
+
+After import, you can optionally post-process with AI:
+
+- **Fix Issues** — AI cleans up formatting, headers, code blocks, and common extraction problems
+- **AI Inspiration** — AI reorganizes and redesigns the entire presentation with better flow, layouts, and Mermaid diagrams
+
+To use AI features, configure an API key in **Settings** (OpenRouter). See [docs/ai-prompt-template.md](docs/ai-prompt-template.md) for details on how the AI processes your slides.
+
 ## Repository Layout
 
 - `index.html` - main deck page

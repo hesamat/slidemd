@@ -170,14 +170,24 @@ Right: "@main\\n\\n- Item 1\\n- Item 2\\n\\n@media"
 
 ## Converting [Diagram: ...] to Mermaid
 
-In the "content" field, replace [Diagram: Item1, Item2, Item3] with a mermaid code block:
+In the "content" field, replace [Diagram: Item1, Item2, Item3] with a mermaid code block.
 
+Mermaid orientation depends on the slide layout:
+- Single-column layouts (header-content, media-span): use flowchart LR (horizontal) — wide content area suits left-to-right flow
+- Multi-column layouts (two-column, three-column): use flowchart TD (vertical) — narrow columns suit top-to-bottom flow
+- Use varied shapes and arrow labels. NOT just linear chains.
+
+Example for header-content layout:
 \`\`\`mermaid
 flowchart LR
     A["Item1"] --> B["Item2"] --> C["Item3"]
 \`\`\`
 
-Use varied shapes and arrow labels. NOT just linear chains.
+Example for two-column layout:
+\`\`\`mermaid
+flowchart TD
+    A["Item1"] --> B["Item2"] --> C["Item3"]
+\`\`\`
 
 ## SlideMD Areas
 
@@ -255,6 +265,11 @@ Guidelines:
 - Do NOT assume what an image shows based on its filename or position
 - If you are unsure what an image is about, DELETE the <img> tag
 - Only keep images if you are confident about what they depict and they add value
+
+## Mermaid Diagrams
+- Use flowchart LR (horizontal) for single-column layouts (header-content, media-span)
+- Use flowchart TD (vertical) for multi-column layouts (two-column, three-column)
+- Use varied shapes and arrow labels. NOT just linear chains.
 
 Input markdown:
 ${markdown}`;

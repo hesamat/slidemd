@@ -261,16 +261,17 @@ export class ConversionModal {
           aiDivider.className = `${P}checkbox-row`;
           aiDivider.style.cssText =
             "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";
-          aiDivider.innerHTML = `<span class="${P}checkbox-label" style="font-weight: 500; color: var(--text-medium, #666);">AI Enhancement (optional)</span>`;
+          aiDivider.innerHTML = `<span class="${P}checkbox-label" style="font-weight: 500; color: var(--text-medium, #666);">AI Post-Processing (optional)</span>`;
           insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
           insertAfter = aiDivider;
 
           const { SettingsModal } = await import("../editor/settings-modal.js");
 
-          // AI: Fix issues checkbox
+          // AI: Fix issues checkbox with description
           const fixRow = document.createElement("label");
           fixRow.className = `${P}checkbox-row`;
-          fixRow.innerHTML = `<input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">AI: Fix issues on import</span>`;
+          fixRow.style.cssText = "flex-direction: column; align-items: flex-start; gap: 2px;";
+          fixRow.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">Fix Issues</span></div><span style="font-size:11px;color:var(--text-medium,#888);margin-left:24px">AI cleans up formatting, headers, and code blocks from the import</span>`;
           const fixInput = fixRow.querySelector(`.${P}checkbox`);
           fixInput.addEventListener("change", () => {
             if (fixInput.checked) {
@@ -290,7 +291,7 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
           insertAfter = aiHint;
 
-          // Show Import button and AI Enhance button
+          // Show Import button and AI Inspiration button
           const actionsEl = backdrop.querySelector(`.${P}actions`);
           const aiBtn = document.createElement("button");
           aiBtn.type = "button";
@@ -305,7 +306,7 @@ export class ConversionModal {
             if (aiBtn) {
               aiBtn.disabled = !hasKey;
               aiBtn.title = hasKey
-                ? "Import and get AI-inspired redesign"
+                ? "AI reorganizes and redesigns the entire presentation"
                 : "Configure API key in Settings first";
             }
             if (aiHint) {

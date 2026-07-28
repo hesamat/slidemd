@@ -300,10 +300,39 @@ layout: two-column
 
 ### PPTX Import (Experimental)
 
-- Import PowerPoint files via View → Import PPTX
+- Import PowerPoint files via Menu → Import PPTX
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout hints
 - Original `.pptx` is not modified
+- Optionally post-process with AI to fix formatting or redesign the deck
+
+---
+
+layout: header-content
+
+@header
+
+## AI Post-Processing
+
+@main
+
+After importing a PPTX file, you can optionally enhance the result with AI:
+
+### Fix Issues
+
+- Cleans up formatting, headers, and code blocks
+- Fixes broken links and list formatting
+- Normalizes header levels
+- Conservative — does not restructure working slides
+
+### AI Inspiration
+
+- Reorganizes slides for better flow and pacing
+- Converts diagrams to Mermaid code blocks
+- Adds speaker notes
+- Redesigns layout and structure
+
+Configure your API key in **Settings** to enable AI features.
 
 ---
 
