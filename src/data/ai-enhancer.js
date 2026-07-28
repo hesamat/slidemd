@@ -216,7 +216,13 @@ In two-column layout, right column MUST be @media (NOT @secondary).
 @secondary is ONLY for three-column layout.
 
 Do NOT use @notes — it is not a valid area marker and will be silently dropped.
-To add speaker notes, use HTML comments: <!-- notes: Your note text here -->`;
+To add speaker notes, use HTML comments: <!-- notes: Your note text here -->
+
+## HTML Tags in Content
+
+When HTML tag names appear in instructional content (e.g., "<button>", "<input>", "<script>"),
+ALWAYS wrap them in backticks so they render as literal text: \`<button>\`, \`<input>\`.
+Never write bare HTML tags in slide content — they will be rendered as actual DOM elements.`;
 
 function buildFixPrompt(markdown) {
   return `Fix this SlideMD markdown and return as JSON.

@@ -1,5 +1,5 @@
 import MarkdownIt from "markdown-it";
-import { safeString, slugifyTitle } from "../src/core/utils.js";
+import { safeString, slugifyTitle, escapeBareHtmlTags } from "../src/core/utils.js";
 
 function splitSlides(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
@@ -549,7 +549,7 @@ export function parseDeckMarkdown(markdownText) {
             /** @type {Record<string, string>} */
             const areasHtml = {};
             for (const [area, src] of Object.entries(areasMd)) {
-                areasHtml[area] = md.render(src);
+                areasHtml[area] = md.render(escapeBareHtmlTags(src));
             }
 
             // Derive title: prefer explicit '# Title', then @header heading, then @main heading, then default

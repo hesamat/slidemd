@@ -70,6 +70,66 @@ export function escapeHtml(text) {
   return safeString(text).replace(/[&<>"']/g, (match) => HTML_ESCAPES[match]);
 }
 
+/**
+ * Interactive / embedded / scripting tags — always escaped when appearing as
+ * bare text.  Even with attributes they are unsafe in slide context.
+ */
+const BLOCKED_HTML_TAGS = new Set([
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "form",
+  "fieldset",
+  "label",
+  "datalist",
+  "output",
+  "option",
+  "optgroup",
+  "script",
+  "style",
+  "iframe",
+  "embed",
+  "object",
+  "param",
+  "noscript",
+  "audio",
+  "video",
+  "source",
+  "track",
+]);
+
+/**
+ * Structural / styling tags that are safe WITH attributes (people genuinely
+ * use `<div class="…">` or `<span style="…">` for styling) but should be
+ * escaped when bare — a lone `<div>` or `<span>` is teaching-text, not HTML.
+ */
+const BARE_ONLY_BLOCKED = new Set(["div", "span"]);
+
+const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
+
+export function escapeBareHtmlTags(markdown) {
+  if (typeof markdown !== "string") return markdown;
+  const escapeTag = (match, closingSlash, tagName, attrs) => {
+    const lower = tagName.toLowerCase();
+    if (BLOCKED_HTML_TAGS.has(lower)) {
+      const open = closingSlash ? "&lt;/" : "&lt;";
+      const close = "&gt;";
+      const escapedAttrs = attrs ? attrs.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
+      return open + tagName + escapedAttrs + close;
+    }
+    if (BARE_ONLY_BLOCKED.has(lower) && !attrs) {
+      const open = closingSlash ? "&lt;/" : "&lt;";
+      return open + tagName + "&gt;";
+    }
+    return match;
+  };
+  return markdown
+    .split(/(`[^`\n]+`)/)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(HTML_TAG_RE, escapeTag)))
+    .join("");
+}
+
 export function slugifyTitle(title) {
   const s = safeString(title)
     .trim()
