@@ -237,12 +237,24 @@ ${markdown}`;
 function buildGeneratePrompt(markdown) {
   return `Create an inspired SlideMD presentation from this content and return as JSON.
 
-Guidelines:
-- Reorganize for better flow and pacing
+Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize — redesign, enhance, and elevate.
+
+## Creative Guidelines
+- Reorganize for better flow, pacing, and storytelling
+- Break up dense slides into focused, digestible slides (one idea per slide)
+- Add transition slides between major sections to improve narrative flow
+- Create summary or key takeaway slides at the end of sections
+- Enhance bullet points with better phrasing, stronger verbs, and clearer structure
 - Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
-- Improve formatting, structure, and layout
+- Use a mix of layouts (two-column, header-content, media-span) for visual variety
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
-- Keep all substantive content
+- Improve the title slide to be more visually impactful
+
+## Content Strategy
+- Keep all substantive content but reorganize it for maximum clarity
+- Split overloaded slides — if a slide has more than ~10 bullet points or ~15 lines of code, split it
+- Combine related micro-content into cohesive slides
+- Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
 
 ## Formatting Rules (STRICT)
