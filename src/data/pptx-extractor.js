@@ -23,7 +23,7 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
 
 /**
  * @typedef {Object} ExtractedElement
- * @property {'text'|'image'|'table'|'shape'|'chart'|'diagram'} type
+ * @property {'text'|'image'|'table'|'shape'|'chart'|'diagram'|'connector'} type
  * @property {string} [content] - Text content (for text/shape elements).
  * @property {string} [base64] - Base64-encoded image data.
  * @property {string} [mimeType] - Image MIME type inferred from ref extension.
@@ -38,6 +38,10 @@ import { buildChartDataRows } from "./pptx-chart-data.js";
  * @property {number} width - Width in EMU.
  * @property {number} height - Height in EMU.
  * @property {'footer'|'date'|'slideNumber'|null} [placeholderType] - Detected placeholder type from PPTX name.
+ * @property {string} [shapType] - Preset shape type (e.g., 'rect', 'ellipse', 'triangle').
+ * @property {string} [fill] - Fill color or gradient description.
+ * @property {boolean} [strokeOnly] - Whether shape is stroke-only (arrows, lines).
+ * @property {boolean} [hasConnector] - Whether this element is a connector/arrow.
  */
 
 /**
@@ -309,9 +313,33 @@ export class PptxExtractor {
       if (!this.#hasTextContent(el) && !this.#hasSignificantImages(el)) {
         return null;
       }
-      // Flatten group elements, adjusting positions to be slide-relative.
-      // Skip all images in groups that are purely decorative (no text,
-      // images cover >50% of group area — e.g. agenda background art).
+
+      // Check if this group is a manually created diagram (shapes + connectors)
+      const processedChildren = [];
+      for (const child of el.elements) {
+        const r = this.#processElement(child, slideIndex, imagesAccum, olStartValues, opts);
+        if (r) {
+          if (Array.isArray(r)) {
+            for (const item of r) {
+              item.left += el.left;
+              item.top += el.top;
+              processedChildren.push(item);
+            }
+          } else {
+            r.left += el.left;
+            r.top += el.top;
+            processedChildren.push(r);
+          }
+        }
+      }
+
+      // If the group forms a manual diagram, convert it to a diagram element
+      if (this.#isManualDiagram(processedChildren)) {
+        return this.#shapesToDiagram(processedChildren, el.order || 0);
+      }
+
+      // Otherwise, flatten group elements as before
+      // Skip all images in groups that are purely decorative
       const isDecorative = this.#isGroupDecorativeImages(el);
       const results = [];
       for (const child of el.elements) {
@@ -351,10 +379,39 @@ export class PptxExtractor {
         html = this.injectOlStartAttributes(html, olStartValues, opts.startIdxRef);
       }
       const content = htmlToMarkdown(html);
-      if (!content.trim()) return null;
+
+      // Preserve shape metadata for diagram detection
+      const isConnector = !!el.headEnd || !!el.tailEnd;
+      const shapType = el.shapType || null;
+      const fill = el.fill?.type === "color" ? el.fill.value : null;
+      const strokeOnly = !!el.strokeOnly;
+
+      // Empty shapes with no text content: preserve if they have visual properties
+      if (!content.trim()) {
+        if (!shapType && !isConnector && !strokeOnly) return null;
+        return {
+          type: isConnector ? "connector" : "shape",
+          content: "",
+          shapType,
+          fill,
+          strokeOnly,
+          hasConnector: isConnector,
+          placeholderType,
+          order: el.order,
+          left: el.left,
+          top: el.top,
+          width: el.width,
+          height: el.height,
+        };
+      }
+
       const result = {
         type: "text",
         content,
+        shapType,
+        fill,
+        strokeOnly,
+        hasConnector: isConnector,
         placeholderType,
         order: el.order,
         left: el.left,
@@ -635,5 +692,81 @@ export class PptxExtractor {
    */
   static #stripHtml(html) {
     return stripHtml(html);
+  }
+
+  /**
+   * Detect if a group of elements forms a manual diagram (shapes + connectors).
+   * @static
+   * @param {ExtractedElement[]} elements - Elements in the group.
+   * @returns {boolean} True if the group looks like a diagram.
+   */
+  static #isManualDiagram(elements) {
+    if (elements.length < 2) return false;
+
+    // Count connectors (arrows, lines)
+    const connectors = elements.filter((el) => el.type === "connector" || el.hasConnector);
+
+    // Count shapes with visual properties (fills, borders)
+    const filledShapes = elements.filter(
+      (el) =>
+        (el.type === "shape" || el.type === "text") && (el.fill || el.strokeOnly || el.shapType),
+    );
+
+    // Rule 1: Any connectors present → likely a diagram
+    if (connectors.length > 0) return true;
+
+    // Rule 2: 3+ filled shapes in close proximity → likely a diagram
+    if (filledShapes.length >= 3) {
+      // Check if shapes are in reasonable proximity (within 3x the average dimension)
+      const avgDim =
+        filledShapes.reduce((sum, el) => sum + (el.width || 0) + (el.height || 0), 0) /
+        (filledShapes.length * 2);
+      const maxDist = avgDim * 3;
+
+      const minX = Math.min(...filledShapes.map((el) => el.left || 0));
+      const maxX = Math.max(...filledShapes.map((el) => (el.left || 0) + (el.width || 0)));
+      const minY = Math.min(...filledShapes.map((el) => el.top || 0));
+      const maxY = Math.max(...filledShapes.map((el) => (el.top || 0) + (el.height || 0)));
+
+      if (maxX - minX < maxDist && maxY - minY < maxDist) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Convert detected shape diagram elements to a diagram-type element.
+   * @static
+   * @param {ExtractedElement[]} elements - Shape elements forming a diagram.
+   * @param {number} order - Element order for positioning.
+   * @returns {ExtractedElement} A diagram element with text content.
+   */
+  static #shapesToDiagram(elements, order) {
+    // Extract text from all shapes in the diagram
+    const texts = elements
+      .filter((el) => el.content && el.content.trim())
+      .map((el) => el.content.trim());
+
+    // If no text, create a descriptive label from shape types
+    const content = texts.length > 0 ? texts.join(", ") : `[Diagram: ${elements.length} shapes]`;
+
+    // Calculate bounding box
+    const minX = Math.min(...elements.map((el) => el.left || 0));
+    const minY = Math.min(...elements.map((el) => el.top || 0));
+    const maxX = Math.max(...elements.map((el) => (el.left || 0) + (el.width || 0)));
+    const maxY = Math.max(...elements.map((el) => (el.top || 0) + (el.height || 0)));
+
+    return {
+      type: "diagram",
+      content,
+      placeholderType: null,
+      order,
+      left: minX,
+      top: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
   }
 }
