@@ -217,11 +217,9 @@ Guidelines:
 - Every slide MUST have meaningful content in the appropriate area markers (@header, @main, etc.)
 
 ## Images (IMPORTANT)
-- Keep ALL image references (<img> tags) exactly as they are — do not modify src, alt, width, or height
 - Do NOT assume what an image shows based on its filename or position
-- Do NOT add descriptions or captions about what images depict
-- If you are unsure what an image is about, keep the image tag but do not add any text describing it
-- NEVER delete image references — they are always important
+- If you are unsure what an image is about, DELETE the <img> tag — do not keep images you cannot describe
+- Only keep images if you are confident about what they depict and they add value to the slide
 
 Input markdown:
 ${markdown}`;
