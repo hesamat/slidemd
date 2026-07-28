@@ -109,32 +109,60 @@ const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
 
 export function escapeBareHtmlTags(markdown) {
   if (typeof markdown !== "string") return markdown;
-  const escapeTag = (match, closingSlash, tagName, attrs) => {
-    const lower = tagName.toLowerCase();
 
-    // Always escape unsafe interactive / embedded tags
-    if (BLOCKED_HTML_TAGS.has(lower)) {
-      const open = closingSlash ? "&lt;/" : "&lt;";
-      const close = "&gt;";
-      const escapedAttrs = attrs ? attrs.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
-      return open + tagName + escapedAttrs + close;
-    }
-
-    // Known-safe bare tags (br, hr) — always pass through
-    if (ALWAYS_OK_BARE.has(lower)) return match;
-
-    // Any other tag without attributes looks like teaching-text — escape it.
-    // Attributed tags (class, style, id, etc.) pass through as intentional HTML.
-    if (!attrs) {
-      const open = closingSlash ? "&lt;/" : "&lt;";
-      return open + tagName + "&gt;";
-    }
-
-    return match;
-  };
   return markdown
     .split(/(`[^`\n]+`)/)
-    .map((part, i) => (i % 2 === 1 ? part : part.replace(HTML_TAG_RE, escapeTag)))
+    .map((part, i) => {
+      if (i % 2 === 1) return part;
+
+      // First pass: always escape blocked interactive / embedded tags
+      let text = part.replace(HTML_TAG_RE, (match, closingSlash, tagName, attrs) => {
+        if (!BLOCKED_HTML_TAGS.has(tagName.toLowerCase())) return match;
+        const open = closingSlash ? "&lt;/" : "&lt;";
+        const close = "&gt;";
+        const escapedAttrs = attrs ? attrs.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
+        return open + tagName + escapedAttrs + close;
+      });
+
+      // Second pass: collect bare non-blocked non-safe tags
+      const tags = [];
+      let m;
+      HTML_TAG_RE.lastIndex = 0;
+      while ((m = HTML_TAG_RE.exec(text)) !== null) {
+        const [, closingSlash, tagName, attrs] = m;
+        const lower = tagName.toLowerCase();
+        if (ALWAYS_OK_BARE.has(lower)) continue;
+        if (attrs) continue;
+        tags.push({ index: m.index, match: m[0], closingSlash, tagName, lower });
+      }
+
+      // Pair bare <p> with bare </p> → intentional HTML.  Leftovers = teaching text.
+      const paired = new Set();
+      const openStack = [];
+      for (const tag of tags) {
+        if (tag.closingSlash) {
+          for (let j = openStack.length - 1; j >= 0; j--) {
+            if (openStack[j].lower === tag.lower) {
+              paired.add(openStack[j].index);
+              paired.add(tag.index);
+              openStack.splice(j, 1);
+              break;
+            }
+          }
+        } else {
+          openStack.push(tag);
+        }
+      }
+
+      // Escape unmatched tags, right-to-left so indices stay valid
+      for (let t = tags.length - 1; t >= 0; t--) {
+        const tag = tags[t];
+        if (paired.has(tag.index)) continue;
+        const escaped = (tag.closingSlash ? "&lt;/" : "&lt;") + tag.tagName + "&gt;";
+        text = text.slice(0, tag.index) + escaped + text.slice(tag.index + tag.match.length);
+      }
+      return text;
+    })
     .join("");
 }
 

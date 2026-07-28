@@ -118,14 +118,39 @@ describe("escapeBareHtmlTags", () => {
 
   it("escapes any bare tag without attributes (teaching text)", () => {
     expect(escapeBareHtmlTags("Use <div> containers")).toBe("Use &lt;div&gt; containers");
-    expect(escapeBareHtmlTags("Use <span> elements")).toBe("Use &lt;span&gt; elements");
     expect(escapeBareHtmlTags("Learn <section> and <article>")).toBe(
       "Learn &lt;section&gt; and &lt;article&gt;",
     );
     expect(escapeBareHtmlTags("Try <nav>, <header>, <footer>")).toBe(
       "Try &lt;nav&gt;, &lt;header&gt;, &lt;footer&gt;",
     );
-    expect(escapeBareHtmlTags("Then </section> closes it")).toBe("Then &lt;/section&gt; closes it");
+    expect(escapeBareHtmlTags("Then </section> closes it")).toBe(
+      "Then &lt;/section&gt; closes it",
+    );
+  });
+
+  it("preserves bare tags that have matching open/close pairs", () => {
+    expect(escapeBareHtmlTags("<p>Hello</p>")).toBe("<p>Hello</p>");
+    expect(escapeBareHtmlTags("<span>text</span>")).toBe("<span>text</span>");
+    expect(escapeBareHtmlTags("<div>content</div>")).toBe("<div>content</div>");
+  });
+
+  it("preserves nested pair-matched tags", () => {
+    expect(escapeBareHtmlTags("<p><span>nested</span></p>")).toBe(
+      "<p><span>nested</span></p>",
+    );
+  });
+
+  it("escapes unmatched pairs", () => {
+    expect(escapeBareHtmlTags("<p>Hello")).toBe("&lt;p&gt;Hello");
+    expect(escapeBareHtmlTags("Hello</p>")).toBe("Hello&lt;/p&gt;");
+    expect(escapeBareHtmlTags("<p>Hello</div>")).toBe("&lt;p&gt;Hello&lt;/div&gt;");
+  });
+
+  it("handles multiple same-name pairs independently", () => {
+    expect(escapeBareHtmlTags("<p>First</p> <p>Second</p>")).toBe(
+      "<p>First</p> <p>Second</p>",
+    );
   });
 
   it("preserves attributed tags (intentional styling HTML)", () => {
