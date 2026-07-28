@@ -17,6 +17,7 @@ export class HtmlExportManager {
     "src/core/utils.js",
     "src/core/element-gatherer.js",
     "src/core/asset-loader.js",
+    "src/core/mermaid-config.js",
     // Data loading and parsing
     "src/data/layout-data.js",
     "src/data/markdown-parser.js",
@@ -41,6 +42,7 @@ export class HtmlExportManager {
     // UI components
     "src/ui/ui-actions.js",
     "src/editor/ui/open-deck-modal.js",
+    "src/editor/core/edit-controller.js",
     // Entry point
     "deck.js",
   ];
@@ -105,7 +107,9 @@ export class HtmlExportManager {
     }
 
     // 3. Escape Data
-    const deckJson = JSON.stringify(deck);
+    // Inline images in deck JSON as data URIs
+    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck);
+    const deckJson = JSON.stringify(inlinedDeck);
     const escapedDeckJson = HtmlExportManager.escapeJsonForHtml(deckJson);
 
     // 4. Extract Slide HTML (The Snapshot)
@@ -732,6 +736,72 @@ ${initScript}
       result = result.replace(matches[i][0], results[i]);
     }
     return result;
+  }
+
+  /**
+   * Inlines images in deck JSON as data URIs.
+   */
+  static async inlineImagesInDeck(deck) {
+    if (!deck?.slides) return deck;
+
+    const imageRefs = new Set();
+    for (const slide of deck.slides) {
+      if (slide.areas) {
+        for (const area of Object.values(slide.areas)) {
+          if (typeof area === "string") {
+            const matches = area.matchAll(/src=(["'])(images\/[^"']+)\1/g);
+            for (const m of matches) imageRefs.add(m[2]);
+          }
+        }
+      }
+      // Also check background for url(images/...)
+      if (slide.background) {
+        const bgMatches = slide.background.matchAll(/url\((["']?)(images\/[^"')]+)\1?\)/g);
+        for (const m of bgMatches) imageRefs.add(m[2]);
+      }
+    }
+
+    if (imageRefs.size === 0) return deck;
+
+    // Fetch all images and convert to data URIs
+    const dataUriMap = {};
+    for (const ref of imageRefs) {
+      try {
+        const response = await fetch(`/${ref}`);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        dataUriMap[ref] = dataUrl;
+      } catch {
+        // skip failed images
+      }
+    }
+
+    if (Object.keys(dataUriMap).length === 0) return deck;
+
+    // Replace image refs in deck JSON
+    const inlinedDeck = JSON.parse(JSON.stringify(deck));
+    for (const slide of inlinedDeck.slides) {
+      if (slide.areas) {
+        for (const key of Object.keys(slide.areas)) {
+          if (typeof slide.areas[key] === "string") {
+            for (const [ref, dataUrl] of Object.entries(dataUriMap)) {
+              slide.areas[key] = slide.areas[key].replaceAll(ref, dataUrl);
+            }
+          }
+        }
+      }
+      if (slide.background) {
+        for (const [ref, dataUrl] of Object.entries(dataUriMap)) {
+          slide.background = slide.background.replaceAll(ref, dataUrl);
+        }
+      }
+    }
+    return inlinedDeck;
   }
 
   static getDeckHtmlText(deck) {
