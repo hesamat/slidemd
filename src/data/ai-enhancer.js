@@ -222,7 +222,26 @@ To add speaker notes, use HTML comments: <!-- notes: Your note text here -->
 
 When HTML tag names appear in instructional content (e.g., "<button>", "<input>", "<script>"),
 ALWAYS wrap them in backticks so they render as literal text: \`<button>\`, \`<input>\`.
-Never write bare HTML tags in slide content — they will be rendered as actual DOM elements.`;
+Never write bare HTML tags in slide content — they will be rendered as actual DOM elements.
+
+## Layout Decision Rules (IMPORTANT)
+
+Choose the right layout for each slide. The wrong layout causes overflow or tiny content.
+
+- **header-content**: Use ONLY when the slide has ≤5 bullet points AND ≤12 code lines AND no Mermaid diagram. This is the fallback for simple slides.
+- **two-column**: Use when the slide has a Mermaid diagram + text, OR 6-10 bullet points, OR code blocks alongside explanatory text. Left column = @main (text/bullets), right column = @media (code/diagram/image).
+- **media-span**: ONLY use when the slide has an actual \`<img>\` tag or visual media. NEVER use media-span for code blocks, text, or diagrams — those belong in @main or in @media of a two-column layout.
+- **title-slide**: Only for the first slide (title + subtitle + author).
+- **left-heavy** / **right-heavy**: Use when one column needs significantly more room than the other.
+
+When in doubt between header-content and two-column: choose two-column. Overly dense single-column slides overflow and look bad. Underpopulated two-column slides look better than overflowing single-column ones.
+
+## Mermaid Diagram Placement
+
+- A Mermaid diagram should NEVER be the last element in a long header-content slide — it will be tiny.
+- If a slide has a Mermaid diagram + more than 3 bullet points: use two-column layout. Put bullet points in @main, diagram in @media.
+- If a slide is JUST a diagram with a title: header-content is fine (diagram in @main, short title in @header).
+- Keep Mermaid diagrams simple — at most 6-8 nodes with short labels. Use ["short label"] for node shapes.`;
 
 function buildFixPrompt(markdown) {
   return `Fix this SlideMD markdown and return as JSON.
@@ -272,13 +291,16 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Create summary or key takeaway slides at the end of sections
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
 - Convert ALL [Diagram: ...] to Mermaid code blocks with varied shapes
-- Use a mix of layouts (two-column, header-content, media-span) for visual variety
+- Prefer two-column for slides with diagrams, code examples, or dense content. Use header-content only for simple slides with ≤5 bullet points
+- Use media-span ONLY for slides with actual images (e.g. \`<img>\` tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
 - Improve the title slide to be more visually impactful
 
 ## Content Strategy
 - Keep all substantive content but reorganize it for maximum clarity
 - Split overloaded slides — if a slide has more than ~10 bullet points or ~15 lines of code, split it
+- If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
+- NEVER use media-span unless the slide contains an \`<img>\` tag. Code blocks and diagrams go in two-column or header-content
 - Combine related micro-content into cohesive slides
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
