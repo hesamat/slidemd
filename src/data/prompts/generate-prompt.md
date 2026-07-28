@@ -59,8 +59,10 @@ Details
 
 ## Content Strategy
 
-- Keep all substantive content but reorganize it for maximum clarity
+- Keep all substantive content but reorganize for it for maximum clarity
 - Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
+- **Do NOT create sparse slides** — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
+- If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
 - NEVER use media-span unless the slide contains an img tag. Code blocks and diagrams go in two-column or header-content
 - Combine related micro-content into cohesive slides
