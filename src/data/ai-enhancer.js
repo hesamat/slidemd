@@ -39,9 +39,10 @@ export function slidesToMarkdown(slides) {
  */
 export function fixSlideLayouts(slides, origDirectives, mode = "fix") {
   return slides
-    .filter((slide) => slide.content && slide.content.trim())
-    .map((slide, i) => {
-      const orig = origDirectives[i] || {};
+    .map((slide, i) => ({ slide, origIdx: i }))
+    .filter(({ slide }) => slide.content && slide.content.trim())
+    .map(({ slide, origIdx }) => {
+      const orig = origDirectives[origIdx] || {};
       const hasMedia = /^@media\b/m.test(slide.content);
 
       // Always preserve original background/theme when available

@@ -152,7 +152,7 @@ export class SettingsModal {
       // --- Model search dropdown ---
       const filterModels = (query) => {
         const q = query.toLowerCase();
-        modelList.innerHTML = "";
+        const fragment = document.createDocumentFragment();
         const filtered = this._allModels.filter(
           (m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
         );
@@ -170,21 +170,24 @@ export class SettingsModal {
           if (m.id === selectedModel) item.classList.add(`${P}model-item--selected`);
           item.dataset.value = m.id;
           item.innerHTML = `<span class="${P}model-name">${this.#escHtml(m.name)}</span><span class="${P}model-id">${this.#escHtml(m.id)}</span>`;
-          item.addEventListener("click", (e) => {
+          item.addEventListener("mousedown", (e) => {
+            e.preventDefault(); // Prevents blur from firing
             e.stopPropagation();
             selectedModel = m.id;
             closeDropdown();
             filterModels("");
             updateReasoningState();
           });
-          modelList.appendChild(item);
+          fragment.appendChild(item);
         }
-        if (modelList.children.length === 0) {
+        if (filtered.length === 0) {
           const empty = document.createElement("div");
           empty.className = `${P}model-item ${P}model-item--empty`;
           empty.textContent = "No models found";
-          modelList.appendChild(empty);
+          fragment.appendChild(empty);
         }
+        modelList.innerHTML = "";
+        modelList.appendChild(fragment);
       };
 
       modelInput.addEventListener("focus", () => {

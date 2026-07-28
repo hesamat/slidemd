@@ -180,9 +180,9 @@ export class AiSidebar {
             if (!delta) continue;
 
             // Collect reasoning tokens separately (for display only)
-            const reasoning = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
-            if (reasoning) {
-              reasoningText += reasoning;
+            const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
+            if (reasoningDelta) {
+              reasoningText += reasoningDelta;
               // Show reasoning in sidebar while thinking (before content arrives)
               if (!contentText) {
                 outputEl.textContent = reasoningText;

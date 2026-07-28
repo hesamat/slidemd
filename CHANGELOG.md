@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 (2026-07-28)
+## 0.7.0 (2026-07-28)
 
 ### AI-Powered PPTX Post-Processing
 

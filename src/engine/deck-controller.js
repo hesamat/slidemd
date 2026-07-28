@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter, isEmbedded } from "../core/utils.js";
+import { getDeckId, EventEmitter, isEmbedded, escapeHtml } from "../core/utils.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -524,7 +524,7 @@ export class DeckController extends EventEmitter {
     }
 
     // Fallback to plain text with line breaks
-    return `<div class="notes-content"><pre>${notes}</pre></div>`;
+    return `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`;
   }
 
   render() {

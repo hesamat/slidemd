@@ -271,3 +271,14 @@
   --ai-success: #4ade80;
   --ai-error: #f87171;
 }
+
+/* ── Reduced motion ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ai-sidebar__panel--done,
+  .ai-sidebar__panel--minimized.ai-sidebar__panel--done {
+    animation: none;
+  }
+  .ai-sidebar__status::before {
+    animation: none;
+  }
+}

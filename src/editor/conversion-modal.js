@@ -258,10 +258,8 @@ export class ConversionModal {
 
           // AI mode section
           const aiDivider = document.createElement("div");
-          aiDivider.className = `${P}checkbox-row`;
-          aiDivider.style.cssText =
-            "border-top: 1px solid var(--border-medium, #ccc); margin-top: 8px; padding-top: 8px;";
-          aiDivider.innerHTML = `<span class="${P}checkbox-label" style="font-weight: 500; color: var(--text-medium, #666);">AI Post-Processing (optional)</span>`;
+          aiDivider.className = `${P}checkbox-row ${P}ai-divider`;
+          aiDivider.innerHTML = `<span class="${P}checkbox-label ${P}ai-label">AI Post-Processing (optional)</span>`;
           insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
           insertAfter = aiDivider;
 
@@ -269,9 +267,8 @@ export class ConversionModal {
 
           // AI: Fix issues checkbox with description
           const fixRow = document.createElement("label");
-          fixRow.className = `${P}checkbox-row`;
-          fixRow.style.cssText = "flex-direction: column; align-items: flex-start; gap: 2px;";
-          fixRow.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">Fix Issues</span></div><span style="font-size:11px;color:var(--text-medium,#888);margin-left:24px">AI cleans up formatting, headers, and code blocks from the import</span>`;
+          fixRow.className = `${P}checkbox-row ${P}checkbox-row--column`;
+          fixRow.innerHTML = `<div class="${P}checkbox-content"><input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">Fix Issues</span></div><span class="${P}checkbox-desc">AI cleans up formatting, headers, and code blocks from the import</span>`;
           const fixInput = fixRow.querySelector(`.${P}checkbox`);
           fixInput.addEventListener("change", () => {
             if (fixInput.checked) {
@@ -403,10 +400,6 @@ export class ConversionModal {
             }
           }
           finalMarkdown = mdLines.join("\n");
-        }
-        // Safety-net: strip any [Diagram: ...] markers that survived (non-AI path)
-        if (!aiMode) {
-          finalMarkdown = diagramToBullets(finalMarkdown);
         }
         restoreScroll();
         backdrop.remove();
