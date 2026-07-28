@@ -110,9 +110,12 @@ export class HtmlExportManager {
 
     // 4. Extract Slide HTML (The Snapshot)
     const title = DeckLoader.getDisplayTitle(deck);
-    const slidesHtml = includeSlideSnapshot
+    let slidesHtml = includeSlideSnapshot
       ? HtmlExportManager.extractSlidesHtml(slidesContainer)
       : "";
+
+    // 4b. Inline images as data URIs
+    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml);
 
     const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -154,6 +157,27 @@ export class HtmlExportManager {
                     ignoredClasses: ["no-math", "katex-ignore", "mermaid"],
                     throwOnError: false
                 });
+            }
+            // Render Mermaid diagrams
+            if (window.mermaid) {
+                const mermaidBlocks = document.querySelectorAll('.mermaid:not([data-mermaid-processed])');
+                if (mermaidBlocks.length > 0) {
+                    mermaidBlocks.forEach((el, i) => {
+                        const source = el.textContent || el.dataset.mermaidSource;
+                        if (source) {
+                            el.dataset.mermaidSource = source;
+                            el.dataset.mermaidProcessed = '1';
+                            try {
+                                const id = 'mermaid-export-' + i;
+                                mermaid.render(id, source).then(out => {
+                                    if (out && out.svg) el.innerHTML = out.svg;
+                                }).catch(e => {
+                                    console.warn('Mermaid render error:', e);
+                                });
+                            } catch(e) { console.warn('Mermaid error:', e); }
+                        }
+                    });
+                }
             }
         });
         `;
@@ -673,6 +697,41 @@ ${initScript}
     return Array.from(slides)
       .map((slide) => slide.outerHTML)
       .join("\n");
+  }
+
+  /**
+   * Fetches images from the server and converts them to data URIs in HTML.
+   */
+  static async inlineImagesInHtml(html) {
+    if (!html) return html;
+    // Match src="images/..." and src='images/...'
+    const imgRe = /src=(["'])(images\/[^"']+)\1/g;
+    const matches = [...html.matchAll(imgRe)];
+    if (matches.length === 0) return html;
+
+    const imagePromises = matches.map(async (match) => {
+      const [fullMatch, quote, imagePath] = match;
+      try {
+        const response = await fetch(`/${imagePath}`);
+        if (!response.ok) return fullMatch;
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        return `src=${quote}${dataUrl}${quote}`;
+      } catch {
+        return fullMatch;
+      }
+    });
+
+    const results = await Promise.all(imagePromises);
+    let result = html;
+    for (let i = 0; i < matches.length; i++) {
+      result = result.replace(matches[i][0], results[i]);
+    }
+    return result;
   }
 
   static getDeckHtmlText(deck) {
