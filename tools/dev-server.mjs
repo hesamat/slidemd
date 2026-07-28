@@ -422,9 +422,12 @@ function createHandler(format) {
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
       if (!format) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No deck loaded" }));
-        return;
+        // Auto-initialize a temp images directory so PPTX imports
+        // (which upload images before POST /api/deck/load sets format)
+        // can succeed.  POST /api/deck/load overwrites this later.
+        const tmpImgDir = path.join(process.cwd(), ".webdeck-uploads", "images");
+        fs.mkdirSync(tmpImgDir, { recursive: true });
+        format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
       try {
         const contentType = req.headers["content-type"] || "";
@@ -456,6 +459,7 @@ function createHandler(format) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ path: assetPath }));
       } catch (e) {
+        console.error("[upload-image] Error:", e.message);
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }

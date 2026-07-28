@@ -707,7 +707,15 @@ export class DeckController extends EventEmitter {
               formData.append("image", file);
               const res = await fetch("/api/upload-image", { method: "POST", body: formData });
               if (!res.ok) {
-                console.warn("Failed to upload PPTX image:", safeName, "status:", res.status);
+                const errBody = await res.json().catch(() => ({ error: res.statusText }));
+                console.warn(
+                  "Failed to upload PPTX image:",
+                  safeName,
+                  "status:",
+                  res.status,
+                  "error:",
+                  errBody.error,
+                );
                 return;
               }
               const data = await res.json();
