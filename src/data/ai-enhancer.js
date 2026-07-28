@@ -170,29 +170,36 @@ In two-column layout, right column MUST be @media (NOT @secondary).
 @secondary is ONLY for three-column layout.`;
 
 function buildFixPrompt(markdown) {
-  return `Fix this SlideMD markdown and return as JSON. Be thorough — fix ALL issues.
+  return `Fix this SlideMD markdown and return as JSON.
 
-## Header Rules (STRICT)
-- Title slide (layout: title-slide): use # for the main title, ## for subtitle/author
-- ALL other slides: use ## for slide titles. Never use ### or #### for slide titles
-- Remove **bold** wrapping from headers (e.g. "### **AGENDA**" must become "## AGENDA")
-- Inside @main content, you may use ### for sub-sections if truly needed, but prefer ##
+## Core Principle: Be Conservative
+Fix formatting and structural problems. Do NOT restructure slides that already work.
+Do NOT invent content (headers, text, lists) that doesn't exist in the original.
+Do NOT change a layout unless it is genuinely broken.
 
-## Slide Structure Rules (STRICT)
-- Every slide MUST have both @header and @main (or @media for media-span layout)
-- Two-column layout: MUST have @header, @main (left column), and @media (right column). If the right column is empty, use header-content layout instead
-- Media-span layout: MUST have @media with content. Add @header if there's a title
-- A slide with ONLY @media and no header/main is broken — fix it by either adding @header/@main or changing the layout
-- If a slide has content but no area markers, add @main (or @header + @main if there's a heading)
-
-## Other Fixes
-- Recover code block newlines lost during extraction (code blocks may appear as single lines)
+## What to Fix
+- Header levels: # for title-slide only, ## for all other slide titles
+- Remove **bold** wrapping from headers (e.g. "### **AGENDA**" → "## AGENDA")
+- Recover code block newlines lost during extraction
 - Fix broken links (URLs split across lines)
 - Fix code with extra backticks, missing language tags, or wrong indentation
-- Fix broken list formatting (missing dashes, wrong indentation, items merged onto one line)
+- Fix broken list formatting (missing dashes, wrong indentation)
 - Fix tables with misaligned columns or missing header rows
 - Remove duplicate blank lines and trailing whitespace
 - Convert [Diagram: ...] markers to Mermaid code blocks
+
+## What NOT to Do
+- Do NOT change a slide's layout unless it is truly broken (e.g. two-column with empty right column)
+- Do NOT add @header to a slide that only has @main — that's valid
+- Do NOT add content that doesn't exist in the original (no fake headers, no invented lists)
+- Do NOT split or merge slides
+- Do NOT change image references or paths
+
+## Slide Structure
+- A slide with @main only is valid — leave it alone
+- A slide with @header and @main is valid — leave it alone
+- Two-column with empty @media → change to header-content (remove the empty @media)
+- Media-span without @media → that's broken, add @media or change layout
 
 Input markdown:
 ${markdown}`;
