@@ -155,6 +155,7 @@ graph TD
 ---
 
 background: linear-gradient(135deg, #c7d2fe 0%, #f5d0fe 100%)
+
 layout: two-column
 
 @header
@@ -165,27 +166,25 @@ layout: two-column
 
 Press `E` to toggle split-screen editing with live preview.
 
-### Editor Features
+### Writing Tools
 
-- **Live preview** – See changes instantly as you type
-- **Slide thumbnails** – Jump to any slide while editing
-- **Quick actions** – Add, delete, duplicate, reorder slides
-- **Layout Picker** – Choose presets with filled templates
-- **Autocomplete** – `layout:`, `theme:`, `@area` directives
-- **Slash commands** – Type `/` for quick insertions
-- **Mermaid helpers** – Insert diagram scaffolds
-- **Search** – `Ctrl+F` to find within slides
-- **Context menu** – Right-click thumbnails for slide operations
+- Live preview — see changes as you type
+- Autocomplete — `layout:`, `theme:`, `@media` directives
+- Slash commands — type `/` for quick insertions
+- Mermaid helper — insert diagram scaffolds
+- Search — `Ctrl+F` to find within slides
 
 @media
 
 ![Edit mode screenshot](images/edit-mode.png)
 
-### Visual Guides
+### Slide Management
 
-- Area outlines show the layout grid
-- Overflow warnings when content is too long
-- Slide warnings for layout/area mismatches
+- Slide thumbnails — jump to any slide
+- Context menu — right-click for add, duplicate, delete
+- Layout Picker — choose presets with filled templates
+- Overflow warnings — alerts when content is too long
+- Area outlines — visual guides for layout grid
 
 ---
 
@@ -308,7 +307,7 @@ layout: two-column
 
 ---
 
-layout: header-content
+layout: two-column
 
 @header
 
@@ -316,23 +315,42 @@ layout: header-content
 
 @main
 
-After importing a PPTX file, you can optionally enhance the result with AI:
+After importing a PPTX file, optionally enhance the result with AI.
 
 ### Fix Issues
 
 - Cleans up formatting, headers, and code blocks
 - Fixes broken links and list formatting
-- Normalizes header levels
-- Conservative — does not restructure working slides
+- Normalizes header levels across slides
+- Conservative — preserves working slides as-is
 
 ### AI Inspiration
 
-- Reorganizes slides for better flow and pacing
+- Redesigns layout and visual structure
+- Reorganizes for better flow and pacing
 - Converts diagrams to Mermaid code blocks
-- Adds speaker notes
-- Redesigns layout and structure
+- Adds speaker notes to key slides
+- Splits dense slides into focused ones
 
-Configure your API key in **Settings** to enable AI features.
+@media
+
+### Getting Started
+
+1. Open **Settings** from the main menu
+2. Enter your OpenRouter API key
+3. Select a model (DeepSeek V4 Flash recommended)
+4. Import a PPTX file
+5. Choose **Fix Issues** or click **AI Inspiration**
+
+### What Changes?
+
+| Aspect   | Fix Issues | AI Inspiration      |
+| -------- | ---------- | ------------------- |
+| Layouts  | Preserved  | Redesigned          |
+| Content  | Cleaned up | Restructured        |
+| Diagrams | Converted  | Converted + varied  |
+| Notes    | None added | Added automatically |
+| Slides   | Same count | May add/remove      |
 
 ---
 
