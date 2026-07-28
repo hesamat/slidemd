@@ -174,9 +174,7 @@ export class SettingsModal {
           item.addEventListener("click", (e) => {
             e.stopPropagation();
             selectedModel = m.id;
-            modelInput.value = m.id;
-            modelDropdown.hidden = true;
-            modelInput.blur();
+            closeDropdown();
             filterModels("");
             updateReasoningState();
           });
@@ -193,11 +191,13 @@ export class SettingsModal {
       modelInput.addEventListener("focus", () => {
         modelInput.value = "";
         modelDropdown.hidden = false;
+        dialog.style.overflowY = "hidden";
         filterModels("");
       });
 
       modelInput.addEventListener("input", () => {
         modelDropdown.hidden = false;
+        dialog.style.overflowY = "hidden";
         filterModels(modelInput.value);
       });
 
@@ -206,14 +206,20 @@ export class SettingsModal {
         modelInput.value = selectedModel;
       });
 
-      // Prevent clicks inside dropdown from propagating to backdrop
+      const closeDropdown = () => {
+        modelDropdown.hidden = true;
+        dialog.style.overflowY = "";
+        modelInput.value = selectedModel;
+      };
+
+      // Prevent clicks and wheel inside dropdown from propagating to dialog/backdrop
       modelDropdown.addEventListener("click", (e) => e.stopPropagation());
+      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
 
       // Close dropdown on outside click
       const handleOutsideClick = (e) => {
         if (!modelInput.contains(e.target) && !modelDropdown.contains(e.target)) {
-          modelDropdown.hidden = true;
-          modelInput.value = selectedModel;
+          closeDropdown();
         }
       };
       backdrop.addEventListener("click", handleOutsideClick);
@@ -466,6 +472,7 @@ export class SettingsModal {
       .${P}model-input { cursor: text; }
       .${P}model-dropdown {
         position: absolute; top: 100%; left: 0; right: 0;
+        max-height: 320px; overflow-y: auto;
         border: 1px solid var(--border-medium, #ccc);
         border-top: none; border-radius: 0 0 6px 6px;
         background: var(--surface-bg, #fff);
