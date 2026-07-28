@@ -331,6 +331,7 @@ function createHandler(format) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ markdown, type: "md" }));
       } catch (e) {
+        console.error("[deck:get] Error reading", format?.mdFile, ":", e.message);
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }
