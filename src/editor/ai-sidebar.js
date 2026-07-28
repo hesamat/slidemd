@@ -100,18 +100,19 @@ export class AiSidebar {
       statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
 
       this._abortController = new AbortController();
+      const isGenerate = mode === "generate";
       const body = {
         model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        max_tokens: 16000,
+        max_tokens: isGenerate ? 32000 : 16000,
         stream: true,
         response_format: { type: "json_object" },
       };
       // Enable extended thinking for generate mode
-      if (mode === "generate") {
+      if (isGenerate) {
         body.reasoning = { effort: "high" };
       }
       const res = await fetch(OPENROUTER_URL, {
@@ -160,15 +161,19 @@ export class AiSidebar {
             const reasoning = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
             if (reasoning) {
               reasoningText += reasoning;
+              // Show reasoning in sidebar while thinking (before content arrives)
+              if (!contentText) {
+                outputEl.textContent = reasoningText;
+                outputEl.scrollTop = outputEl.scrollHeight;
+                statusEl.textContent = "Thinking\u2026";
+              }
             }
 
             // Collect content tokens (actual JSON output)
             if (delta.content) {
               contentText += delta.content;
-              // Show reasoning header + content in the output panel
-              const display = reasoningText
-                ? `<span style="color:var(--ai-text-secondary);font-style:italic">${reasoningText}\n\n</span>${contentText}`
-                : contentText;
+              // Show reasoning + content in the output panel
+              const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
               outputEl.textContent = display;
               outputEl.scrollTop = outputEl.scrollHeight;
 
