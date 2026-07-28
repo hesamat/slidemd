@@ -9,16 +9,13 @@ export default defineConfig({
     server: {
         port: 8000,
         open: '/index.html',
+        watch: {
+            ignored: /[/\\]images[/\\]/,
+        },
         proxy: {
             '/api': {
                 target: 'http://localhost:8001',
                 changeOrigin: true,
-                bypass(req) {
-                    // Let the Vite plugin handle uploads, image listing, and static image serving
-                    if (req.url === '/api/upload-image' || req.url === '/api/images') {
-                        return false;
-                    }
-                },
             },
             '/images': {
                 target: 'http://localhost:8001',

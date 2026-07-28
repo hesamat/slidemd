@@ -79,6 +79,33 @@ export class MarkdownParser {
    * @param {string} markdownText
    * @returns {string} The heading text, or empty string if none found.
    */
+  /**
+   * Strip common inline markdown formatting from plain text.
+   * Removes bold, italic, underline, strikethrough, inline code, and link syntax,
+   * keeping only the readable text content.
+   * @param {string} text
+   * @returns {string} Text with markdown formatting removed.
+   */
+  static stripFormatting(text) {
+    let s = safeString(text);
+    // Remove inline code backticks
+    s = s.replace(/`([^`]+)`/g, "$1");
+    // Remove links: [text](url) → text
+    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    // Remove bold+italic: ***text*** or ___text___ → text
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, "$1");
+    s = s.replace(/___(.+?)___/g, "$1");
+    // Remove bold: **text** or __text__ → text
+    s = s.replace(/\*\*(.+?)\*\*/g, "$1");
+    s = s.replace(/__(.+?)__/g, "$1");
+    // Remove italic: *text* or _text_ → text
+    s = s.replace(/\*(.+?)\*/g, "$1");
+    s = s.replace(/_(.+?)_/g, "$1");
+    // Remove strikethrough: ~~text~~ → text
+    s = s.replace(/~~(.+?)~~/g, "$1");
+    return s.trim();
+  }
+
   extractTitle(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -90,7 +117,7 @@ export class MarkdownParser {
       if (!title && !fence.isInFence) {
         const m = line.match(/^\s*#{1,6}\s+(.+?)\s*$/);
         if (m) {
-          title = safeString(m[1]).trim();
+          title = MarkdownParser.stripFormatting(m[1]);
         }
       }
     }
@@ -673,18 +700,40 @@ export class MarkdownParser {
         areas[name] = html;
       }
 
-      // Derive title: prefer explicit '# Title', then @header heading, then @main heading, then default
+      // Derive title: prefer explicit '# Title', then @header heading/content, then @main heading/content, then default
       let slideTitle = explicitTitle;
       if (!slideTitle) {
         const headerText = areasMd.header || "";
         const headerHeading = headerText.match(/^#{1,6}\s+(.+)$/m);
         if (headerHeading) {
-          slideTitle = headerHeading[1].trim();
+          slideTitle = MarkdownParser.stripFormatting(headerHeading[1]);
         } else {
-          const mainText = areasMd.main || "";
-          const mainHeading = mainText.match(/^#{1,6}\s+(.+)$/m);
-          slideTitle = mainHeading ? mainHeading[1].trim() : `Slide ${idx + 1}`;
+          // Fallback: first non-empty line of @header, truncated
+          const firstHeaderLine = headerText.split("\n").find((l) => l.trim() !== "");
+          if (firstHeaderLine) {
+            slideTitle = MarkdownParser.stripFormatting(firstHeaderLine);
+            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
+          }
         }
+      }
+
+      if (!slideTitle) {
+        const mainText = areasMd.main || "";
+        const mainHeading = mainText.match(/^#{1,6}\s+(.+)$/m);
+        if (mainHeading) {
+          slideTitle = MarkdownParser.stripFormatting(mainHeading[1]);
+        } else {
+          // Fallback: first non-empty line of @main, truncated
+          const firstMainLine = mainText.split("\n").find((l) => l.trim() !== "");
+          if (firstMainLine) {
+            slideTitle = MarkdownParser.stripFormatting(firstMainLine);
+            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
+          }
+        }
+      }
+
+      if (!slideTitle) {
+        slideTitle = `Slide ${idx + 1}`;
       }
 
       let id = slugifyTitle(slideTitle);

@@ -44,6 +44,24 @@ describe("MarkdownParser.extractTitle", () => {
     expect(parser.extractTitle("### Level 3")).toBe("Level 3");
   });
 
+  it("strips bold markers from title", () => {
+    expect(parser.extractTitle("# **Bold Title**")).toBe("Bold Title");
+  });
+
+  it("strips italic markers from title", () => {
+    expect(parser.extractTitle("# *Italic Title*")).toBe("Italic Title");
+  });
+
+  it("strips link syntax from title", () => {
+    expect(parser.extractTitle("# Array [functions](https://example.com/Array)")).toBe(
+      "Array functions",
+    );
+  });
+
+  it("strips inline code from title", () => {
+    expect(parser.extractTitle("# `code` Title")).toBe("code Title");
+  });
+
   it("returns empty string when no heading found", () => {
     expect(parser.extractTitle("Just plain text")).toBe("");
     expect(parser.extractTitle("")).toBe("");
@@ -57,6 +75,45 @@ describe("MarkdownParser.extractTitle", () => {
   it("handles null/undefined input", () => {
     expect(parser.extractTitle(null)).toBe("");
     expect(parser.extractTitle(undefined)).toBe("");
+  });
+});
+
+describe("MarkdownParser.stripFormatting", () => {
+  it("strips bold markers", () => {
+    expect(MarkdownParser.stripFormatting("**bold**")).toBe("bold");
+  });
+
+  it("strips italic markers", () => {
+    expect(MarkdownParser.stripFormatting("*italic*")).toBe("italic");
+  });
+
+  it("strips bold+italic markers", () => {
+    expect(MarkdownParser.stripFormatting("***bold italic***")).toBe("bold italic");
+  });
+
+  it("strips link syntax keeping text", () => {
+    expect(MarkdownParser.stripFormatting("[text](https://example.com)")).toBe("text");
+  });
+
+  it("strips inline code backticks", () => {
+    expect(MarkdownParser.stripFormatting("`code`")).toBe("code");
+  });
+
+  it("strips mixed formatting", () => {
+    expect(MarkdownParser.stripFormatting("Hello **bold** and *italic*")).toBe(
+      "Hello bold and italic",
+    );
+  });
+
+  it("strips link with bold", () => {
+    expect(MarkdownParser.stripFormatting("Array [functions](https://example.com)")).toBe(
+      "Array functions",
+    );
+  });
+
+  it("handles null/undefined input", () => {
+    expect(MarkdownParser.stripFormatting(null)).toBe("");
+    expect(MarkdownParser.stripFormatting(undefined)).toBe("");
   });
 });
 

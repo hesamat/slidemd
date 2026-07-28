@@ -195,6 +195,8 @@ export class AreaGuideManager {
     if (!warnings) return;
     if (overflowing.length > 0) {
       warnings.showSlideWarning(`Content overflows: ${overflowing.join(", ")}`);
+    } else {
+      warnings.clearSlideWarning();
     }
   }
 

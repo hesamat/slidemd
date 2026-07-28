@@ -66,7 +66,6 @@ export class EditController {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
       this.imageBg.deckDirectoryHandle = null;
-      this.imageBg._deckDirMode = null;
     };
     this._onSlidesContainerClick = (e) => {
       if (!this.isEditMode) return;

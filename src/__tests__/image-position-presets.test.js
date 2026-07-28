@@ -15,6 +15,8 @@ function toRect(l, t, w, h) {
 
 const areaEl = {
   getBoundingClientRect: () => toRect(0, 0, 1920, 1080),
+  clientWidth: 1920,
+  clientHeight: 1080,
 };
 
 function mockImg(styleOverrides, rect, natW, natH) {
@@ -64,13 +66,22 @@ describe("getStageScale", () => {
 });
 
 describe("centerOnSlide", () => {
+  beforeEach(() => {
+    globalThis.getComputedStyle = () => ({
+      paddingLeft: "0px",
+      paddingRight: "0px",
+      paddingTop: "0px",
+      paddingBottom: "0px",
+    });
+  });
+
   it("centers image horizontally", () => {
-    const img = mockImg({ left: "100px" }, { left: 200, top: 100, width: 200, height: 150 });
+    const img = mockImg({ width: "200px" }, { left: 200, top: 100, width: 200, height: 150 });
     const applySettings = vi.fn();
     centerOnSlide(img, 1, applySettings);
-    // area center = 1920/2 = 960; img center = (200 + 200/2) = 300; delta = 660
-    // curLeft = 100; new left = 100 + 660 = 760
-    expect(applySettings).toHaveBeenCalledWith({ left: 760 });
+    // contentWidth = 1920; imgWidth = parseFloat("200px") = 200
+    // new left = (1920 - 200) / 2 = 860
+    expect(applySettings).toHaveBeenCalledWith({ left: 860 });
   });
 
   it("does nothing when no area found", () => {
@@ -86,19 +97,27 @@ describe("alignLeft", () => {
     const img = mockImg({ left: "100px" }, { left: 200, top: 100, width: 200, height: 150 });
     const applySettings = vi.fn();
     alignLeft(img, 1, applySettings);
-    // currentLeftX = (200 - 0) / 1 = 200; curLeft = 100; new left = 100 - 200 = -100
-    expect(applySettings).toHaveBeenCalledWith({ left: -100 });
+    expect(applySettings).toHaveBeenCalledWith({ left: 0 });
   });
 });
 
 describe("alignRight", () => {
+  beforeEach(() => {
+    globalThis.getComputedStyle = () => ({
+      paddingLeft: "0px",
+      paddingRight: "0px",
+      paddingTop: "0px",
+      paddingBottom: "0px",
+    });
+  });
+
   it("aligns image to right edge", () => {
-    const img = mockImg({ left: "100px" }, { left: 200, top: 100, width: 200, height: 150 });
+    const img = mockImg({ width: "200px" }, { left: 200, top: 100, width: 200, height: 150 });
     const applySettings = vi.fn();
     alignRight(img, 1, applySettings);
-    // currentRightX = (200 + 200 - 0) / 1 = 400; areaWidth = 1920; deltaX = 1520
-    // curLeft = 100; new left = 100 + 1520 = 1620
-    expect(applySettings).toHaveBeenCalledWith({ left: 1620 });
+    // contentWidth = 1920; imgWidth = parseFloat("200px") = 200
+    // new left = 1920 - 200 = 1720
+    expect(applySettings).toHaveBeenCalledWith({ left: 1720 });
   });
 });
 
@@ -123,12 +142,11 @@ describe("fitToWidth", () => {
     fitToWidth(img, 1, applySettings);
     // ratio = 1600/800 = 2; areaWidthDesign = 1920; areaHeightDesign = 1080
     // width = min(1920, 1080 * 2) = 1920; height = 1920/2 = 960
-    // top = (1080 - 960)/2 = 60
     expect(applySettings).toHaveBeenCalledWith({
       width: 1920,
       height: 960,
       left: 0,
-      top: 60,
+      top: 0,
     });
   });
 
@@ -168,12 +186,12 @@ describe("fitToWidth", () => {
     const applySettings = vi.fn();
     fitToWidth(img, 1, applySettings);
     // Content box: 1900 x 1060 after 20px padding
-    // width = min(1900, 1060*2) = 1900; height = 950; top = (1060-950)/2 = 55
+    // width = min(1900, 1060*2) = 1900; height = 950
     expect(applySettings).toHaveBeenCalledWith({
       width: 1900,
       height: 950,
       left: 0,
-      top: 55,
+      top: 0,
     });
   });
 });

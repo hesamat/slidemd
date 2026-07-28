@@ -178,9 +178,6 @@ function scheduleReload() {
 
 function startWatching(format) {
   const watchPaths = [format.mdFile];
-  if (format.imagesDir && fs.existsSync(format.imagesDir)) {
-    watchPaths.push(format.imagesDir);
-  }
 
   for (const p of watchPaths) {
     if (!fs.existsSync(p)) continue;
@@ -322,7 +319,7 @@ function createHandler(format) {
 
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
-      if (!format) {
+      if (!format || !format.mdFile) {
         // Return 200 with empty body so the frontend falls through to the welcome deck
         // without a 404 error in the browser console.
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -334,6 +331,7 @@ function createHandler(format) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ markdown, type: "md" }));
       } catch (e) {
+        console.error("[deck:get] Error reading", format?.mdFile, ":", e.message);
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }
@@ -371,15 +369,36 @@ function createHandler(format) {
             const imagesDir = path.join(deckDir, "images");
 
             if (fs.existsSync(mdFile)) {
+              // If the upload handler auto-initialized a temp format (label === "temp"),
+              // move any uploaded images into the real deck's images directory first.
+              const prevImagesDir = format?.label === "temp" ? format.imagesDir : null;
+
               if (!format) {
                 format = { mdFile, imagesDir, label: "dynamic" };
               } else {
                 format.mdFile = mdFile;
                 format.imagesDir = imagesDir;
+                format.label = "dynamic";
               }
 
               if (!fs.existsSync(format.imagesDir)) {
                 fs.mkdirSync(format.imagesDir, { recursive: true });
+              }
+
+              // Migrate images from temp dir to the real deck images dir
+              if (prevImagesDir && fs.existsSync(prevImagesDir)) {
+                for (const file of fs.readdirSync(prevImagesDir)) {
+                  const src = path.join(prevImagesDir, file);
+                  const dest = path.join(format.imagesDir, file);
+                  if (!fs.existsSync(dest)) {
+                    fs.copyFileSync(src, dest);
+                  }
+                }
+                fs.rmSync(prevImagesDir, { recursive: true, force: true });
+                const tmpRoot = path.dirname(prevImagesDir);
+                if (fs.existsSync(tmpRoot) && fs.readdirSync(tmpRoot).length === 0) {
+                  fs.rmSync(tmpRoot, { recursive: true, force: true });
+                }
               }
 
               startWatching(format);
@@ -404,7 +423,7 @@ function createHandler(format) {
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!format.imagesDir || !fs.existsSync(format.imagesDir)) {
+        if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ images: [] }));
           return;
@@ -424,6 +443,14 @@ function createHandler(format) {
 
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
+      if (!format) {
+        // Auto-initialize a temp images directory so PPTX imports
+        // (which upload images before POST /api/deck/load sets format)
+        // can succeed.  POST /api/deck/load overwrites this later.
+        const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
+        fs.mkdirSync(tmpImgDir, { recursive: true });
+        format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
+      }
       try {
         const contentType = req.headers["content-type"] || "";
         const boundaryMatch = contentType.match(/boundary=(.+)/i);
@@ -454,6 +481,7 @@ function createHandler(format) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ path: assetPath }));
       } catch (e) {
+        console.error("[upload-image] Error:", e.message);
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }
@@ -470,7 +498,7 @@ function createHandler(format) {
         return;
       }
 
-      if (format.imagesDir) {
+      if (format && format.imagesDir) {
         const filePath = path.join(format.imagesDir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
@@ -480,10 +508,7 @@ function createHandler(format) {
           return;
         }
       }
-
-      res.writeHead(404);
-      res.end("Not found");
-      return;
+      // Fall through to static file handler below
     }
 
     // ── Static files: serve from project root ──

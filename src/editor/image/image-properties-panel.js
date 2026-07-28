@@ -66,6 +66,7 @@ export class ImagePropertiesPanel {
     this._computeAreaWidth(img);
     this._syncUI(settings);
     this._updatePresetLabels();
+    this._syncFreeflowBtn();
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
 
@@ -173,6 +174,9 @@ export class ImagePropertiesPanel {
                         <button type="button" class="image-properties-panel__chip" data-action="align-left" title="Align left">⬅ Left</button>
                         <button type="button" class="image-properties-panel__chip" data-action="center" title="Center horizontally">↔ Center</button>
                         <button type="button" class="image-properties-panel__chip" data-action="align-right" title="Align right">Right ➡</button>
+                    </div>
+                    <div class="image-properties-panel__row">
+                        <button type="button" class="image-properties-panel__chip" data-action="toggle-freeflow" title="Float: image detaches from normal flow, other elements ignore it">✈ Float</button>
                     </div>
                 </div>
 
@@ -330,6 +334,10 @@ export class ImagePropertiesPanel {
         break;
       case "align-right":
         ImageInteractionHandler.alignRight();
+        break;
+      case "toggle-freeflow":
+        ImageInteractionHandler.toggleFreeflow();
+        this._syncFreeflowBtn();
         break;
       case "rot-left":
         ImageInteractionHandler.rotateBy(-90);
@@ -515,5 +523,15 @@ export class ImagePropertiesPanel {
     if (!value || value === "none") return "none";
     const preset = SHADOW_PRESETS.find((p) => p.value === value);
     return preset ? preset.key : "";
+  }
+
+  static _syncFreeflowBtn() {
+    if (!this.el) return;
+    const isFreeflow = this._currentImg?.classList.contains("img-freeflow") ?? false;
+    const btn = this.el.querySelector('[data-action="toggle-freeflow"]');
+    if (btn) {
+      btn.classList.toggle("active", isFreeflow);
+      btn.setAttribute("aria-pressed", String(isFreeflow));
+    }
   }
 }

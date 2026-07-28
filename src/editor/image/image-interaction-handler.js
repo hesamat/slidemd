@@ -378,13 +378,20 @@ export class ImageInteractionHandler {
     }
     insertAt = Math.max(0, insertAt);
 
-    // Build a new image tag with left/top reset to 0 (snap to new position)
-    // but preserving all other style properties (rotation, opacity, etc.)
+    // Build a new image tag — free-flow images preserve their position,
+    // normal images snap to 0,0.
     const src = img.dataset.originalSrc || draggedEntry.src || "";
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
     const alt = img.getAttribute("alt") || extractAltText(draggedEntry) || "";
-    const newTag = buildRepositionedImgTag(img, src, alt, w, h);
+    const isFreeflow = img.classList.contains("img-freeflow");
+    const newTag = isFreeflow
+      ? (() => {
+          const style = buildInlineStyleString(img);
+          const classAttr = ' class="img-freeflow"';
+          return `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
+        })()
+      : buildRepositionedImgTag(img, src, alt, w, h);
 
     // Insert the new tag at the new position
     const before = withoutImage.slice(0, insertAt);
@@ -483,6 +490,16 @@ export class ImageInteractionHandler {
     const after = md.slice(entry.end);
     const updated = before.replace(/\n\s*$/, "\n") + after.replace(/^\s*\n/, "\n");
     this.deselect();
+    // Reset positions of remaining non-freeflow images in the same area
+    // so old top/left values don't create flow gaps after deletion.
+    if (area) {
+      area.querySelectorAll("img").forEach((sibling) => {
+        if (!ImageInteractionHandler.isFreeflow(sibling)) {
+          sibling.style.left = "0px";
+          sibling.style.top = "0px";
+        }
+      });
+    }
     if (this._onDelete) {
       this._onDelete(updated);
     } else {
@@ -516,7 +533,8 @@ export class ImageInteractionHandler {
     const src = img.dataset.originalSrc || entry.src || img.getAttribute("src") || "";
 
     const style = buildInlineStyleString(img);
-    const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
+    const classAttr = img.classList.contains("img-freeflow") ? ' class="img-freeflow"' : "";
+    const newTag = `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
     this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
   }
 
@@ -703,6 +721,25 @@ export class ImageInteractionHandler {
   static alignRight() {
     if (!this._selectedImg) return;
     alignRight(this._selectedImg, getStageScale(), (s) => this.applySettings(s));
+  }
+
+  static toggleFreeflow() {
+    if (!this._selectedImg) return;
+    this._selectedImg.classList.toggle("img-freeflow");
+    const isFreeflow = this._selectedImg.classList.contains("img-freeflow");
+    // Switch inline position to match: absolute for free-flow, relative otherwise
+    this._selectedImg.style.position = isFreeflow ? "absolute" : "relative";
+    // When disabling free-flow, reset position so other elements reconvene
+    if (!isFreeflow) {
+      this._selectedImg.style.left = "0px";
+      this._selectedImg.style.top = "0px";
+    }
+    this._syncToMarkdown();
+    this._updateOverlay();
+  }
+
+  static isFreeflow(img) {
+    return img?.classList.contains("img-freeflow") ?? false;
   }
 
   static fitToWidth() {
