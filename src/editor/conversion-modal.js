@@ -275,9 +275,7 @@ export class ConversionModal {
             aiBtn.title = hasKey
               ? "Import and get AI-inspired redesign"
               : "Configure API key in Settings first";
-            if (aiHint) {
-              aiHint.hidden = hasKey;
-            }
+            aiHint.hidden = hasKey;
           };
 
           // AI: Fix issues checkbox
@@ -310,6 +308,7 @@ export class ConversionModal {
           // AI hint when no API key
           const aiHint = document.createElement("span");
           aiHint.className = `${P}ai-hint`;
+          aiHint.hidden = true;
           aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
           aiHint.addEventListener("click", async (e) => {
             if (e.target.dataset.action === "open-settings") {
