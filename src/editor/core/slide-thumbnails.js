@@ -218,7 +218,13 @@ export class SlideThumbnails {
   }
 
   _stripMarkdown(text) {
-    return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+    let s = text;
+    s = s.replace(/`([^`]+)`/g, "$1");
+    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, "$1");
+    s = s.replace(/\*\*(.+?)\*\*/g, "$1");
+    s = s.replace(/\*(.+?)\*/g, "$1");
+    return s;
   }
 
   /**
