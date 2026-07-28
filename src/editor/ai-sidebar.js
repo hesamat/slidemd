@@ -134,6 +134,7 @@ export class AiSidebar {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let contentText = "";
+      let reasoningText = "";
       let buffer = "";
       let lastSlideCount = 0;
 
@@ -153,11 +154,22 @@ export class AiSidebar {
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
-            const text =
-              delta?.content || delta?.reasoning || delta?.reasoning_details?.[0]?.text || "";
-            if (text) {
-              contentText += text;
-              outputEl.textContent = contentText;
+            if (!delta) continue;
+
+            // Collect reasoning tokens separately (for display only)
+            const reasoning = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
+            if (reasoning) {
+              reasoningText += reasoning;
+            }
+
+            // Collect content tokens (actual JSON output)
+            if (delta.content) {
+              contentText += delta.content;
+              // Show reasoning header + content in the output panel
+              const display = reasoningText
+                ? `<span style="color:var(--ai-text-secondary);font-style:italic">${reasoningText}\n\n</span>${contentText}`
+                : contentText;
+              outputEl.textContent = display;
               outputEl.scrollTop = outputEl.scrollHeight;
 
               const slideCount = contentText.split(/^---$/m).length;
