@@ -142,9 +142,15 @@ Rules:
 - Each slide in the array corresponds to one slide separated by ---
 - Every slide MUST have non-empty "content" with actual slide body text
 
+## Formatting Rules (STRICT)
+- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE them
+- Example: "@header\\n## Title\\n\\n@main\\n- Point 1" (note the \\n\\n between ## Title and @main)
+- NEVER put @header, @main, or @media on the line immediately after content
+
 ## Header Hierarchy (IMPORTANT)
 - title-slide: # for main title, ## for subtitle
 - ALL other slides: ## for slide titles in @header. Never use ### or #### for slide titles
+- Inside @main: NEVER use ## for sub-sections. Use ### only if truly needed for major breaks
 - Remove **bold** wrapping from headers (write "## AGENDA", not "### **AGENDA**")
 
 ## Slide Structure
@@ -217,23 +223,17 @@ Guidelines:
 - Improve formatting, structure, and layout
 - Keep all substantive content
 - Every slide MUST have meaningful content in the appropriate area markers
-- Do NOT use @notes — it is not a valid area marker and will be silently dropped
-- Do NOT include speaker notes — there is no notes mechanism in SlideMD
 
-## Layout Rules (STRICT)
-- title-slide: MUST have @title area with # main title, ## subtitle/author. Example:
-  layout: title-slide
-  @title
-  # My Title
-  ## Subtitle
-- header-content: MUST have @header (## title) and @main (body content)
-- two-column: MUST have @header, @main (left), @media (right)
-- media-span: MUST have @media with content
+## Formatting Rules (STRICT)
+- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE them
+- Example: "@header\\n## Title\\n\\n@main\\n- Point 1" (note the \\n\\n between ## Title and @main)
+- NEVER put @header, @main, or @media on the line immediately after content
 
 ## Header Rules
 - Title slide: # for main title, ## for subtitle/author
 - All other slides: ## for slide titles in @header
-- Inside @main: ## for major sections, ### for sub-sections only if needed
+- Inside @main: NEVER use ## for sub-sections. Use ### only if truly needed
+- Remove **bold** wrapping from headers
 
 ## Images (IMPORTANT)
 - Do NOT assume what an image shows based on its filename or position
