@@ -124,9 +124,7 @@ describe("escapeBareHtmlTags", () => {
     expect(escapeBareHtmlTags("Try <nav>, <header>, <footer>")).toBe(
       "Try &lt;nav&gt;, &lt;header&gt;, &lt;footer&gt;",
     );
-    expect(escapeBareHtmlTags("Then </section> closes it")).toBe(
-      "Then &lt;/section&gt; closes it",
-    );
+    expect(escapeBareHtmlTags("Then </section> closes it")).toBe("Then &lt;/section&gt; closes it");
   });
 
   it("preserves bare tags that have matching open/close pairs", () => {
@@ -136,9 +134,7 @@ describe("escapeBareHtmlTags", () => {
   });
 
   it("preserves nested pair-matched tags", () => {
-    expect(escapeBareHtmlTags("<p><span>nested</span></p>")).toBe(
-      "<p><span>nested</span></p>",
-    );
+    expect(escapeBareHtmlTags("<p><span>nested</span></p>")).toBe("<p><span>nested</span></p>");
   });
 
   it("escapes unmatched pairs", () => {
@@ -148,9 +144,7 @@ describe("escapeBareHtmlTags", () => {
   });
 
   it("handles multiple same-name pairs independently", () => {
-    expect(escapeBareHtmlTags("<p>First</p> <p>Second</p>")).toBe(
-      "<p>First</p> <p>Second</p>",
-    );
+    expect(escapeBareHtmlTags("<p>First</p> <p>Second</p>")).toBe("<p>First</p> <p>Second</p>");
   });
 
   it("preserves attributed tags (intentional styling HTML)", () => {
