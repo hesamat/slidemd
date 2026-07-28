@@ -125,9 +125,7 @@ describe("escapeBareHtmlTags", () => {
     expect(escapeBareHtmlTags("Try <nav>, <header>, <footer>")).toBe(
       "Try &lt;nav&gt;, &lt;header&gt;, &lt;footer&gt;",
     );
-    expect(escapeBareHtmlTags("Then </section> closes it")).toBe(
-      "Then &lt;/section&gt; closes it",
-    );
+    expect(escapeBareHtmlTags("Then </section> closes it")).toBe("Then &lt;/section&gt; closes it");
   });
 
   it("preserves attributed tags (intentional styling HTML)", () => {
