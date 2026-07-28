@@ -368,15 +368,36 @@ function createHandler(format) {
             const imagesDir = path.join(deckDir, "images");
 
             if (fs.existsSync(mdFile)) {
+              // If the upload handler auto-initialized a temp format (label === "temp"),
+              // move any uploaded images into the real deck's images directory first.
+              const prevImagesDir = format?.label === "temp" ? format.imagesDir : null;
+
               if (!format) {
                 format = { mdFile, imagesDir, label: "dynamic" };
               } else {
                 format.mdFile = mdFile;
                 format.imagesDir = imagesDir;
+                format.label = "dynamic";
               }
 
               if (!fs.existsSync(format.imagesDir)) {
                 fs.mkdirSync(format.imagesDir, { recursive: true });
+              }
+
+              // Migrate images from temp dir to the real deck images dir
+              if (prevImagesDir && fs.existsSync(prevImagesDir)) {
+                for (const file of fs.readdirSync(prevImagesDir)) {
+                  const src = path.join(prevImagesDir, file);
+                  const dest = path.join(format.imagesDir, file);
+                  if (!fs.existsSync(dest)) {
+                    fs.copyFileSync(src, dest);
+                  }
+                }
+                fs.rmSync(prevImagesDir, { recursive: true, force: true });
+                const tmpRoot = path.dirname(prevImagesDir);
+                if (fs.existsSync(tmpRoot) && fs.readdirSync(tmpRoot).length === 0) {
+                  fs.rmSync(tmpRoot, { recursive: true, force: true });
+                }
               }
 
               startWatching(format);
