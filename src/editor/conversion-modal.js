@@ -300,17 +300,7 @@ export class ConversionModal {
           // Helper to refresh AI button/checkbox state based on current API key
           // Must be defined AFTER aiBtn and aiHint are created
           const refreshAiState = () => {
-            const key = SettingsModal.getApiKey();
-            const hasKey = !!key;
-            console.log("[AI] refreshAiState:", {
-              key: key ? key.slice(0, 8) + "..." : "(empty)",
-              hasKey,
-            });
-            console.log(
-              "[AI] sessionStorage:",
-              sessionStorage.getItem("webdeck_openrouter_api_key"),
-            );
-            console.log("[AI] localStorage:", localStorage.getItem("webdeck_openrouter_api_key"));
+            const hasKey = !!SettingsModal.getApiKey();
             fixInput.disabled = !hasKey;
             if (aiBtn) {
               aiBtn.disabled = !hasKey;
@@ -320,7 +310,6 @@ export class ConversionModal {
             }
             if (aiHint) {
               aiHint.hidden = hasKey;
-              console.log("[AI] aiHint.hidden =", aiHint.hidden);
             }
           };
 
@@ -361,7 +350,6 @@ export class ConversionModal {
           saveBtn.textContent = "Import";
 
           // Apply initial state
-          console.log("[AI] conversion modal: calling refreshAiState");
           refreshAiState();
 
           // Show Import button
@@ -569,7 +557,7 @@ export class ConversionModal {
       .${P}btn--ai:hover:not(:disabled) { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
       .${P}btn--ai:disabled { opacity: 0.4; cursor: not-allowed; }
       .${P}ai-hint {
-        display: block; font-size: 11px; color: var(--text-medium, #888);
+        font-size: 11px; color: var(--text-medium, #888);
         margin: 6px 0 0; line-height: 1.4;
       }
       .${P}ai-hint a { text-decoration: underline; }
