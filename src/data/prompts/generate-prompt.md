@@ -14,6 +14,48 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
 - Improve the title slide to be more visually impactful (ONLY the first slide — title-slide has @title and @footer only, NO @header or @main)
+- Feel free to invent custom layouts using CSS grid if none of the built-in layouts fit. When doing so, use @main for the primary content area for best compatibility with the renderer
+
+## Custom Layouts
+
+When none of the built-in layouts (header-content, two-column, three-column, media-span) fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter.
+
+Rules for custom layouts:
+
+- Always use @main for the primary/largest content area
+- Use @media, @secondary, @sidebar for additional areas
+- The gridTemplate value is a CSS grid-template-areas string
+- Column sizes follow the areas string with / notation
+
+Example — a 2x2 grid with a wide header:
+
+```
+layout: custom-2x2
+gridTemplate: "header header" "main media" "secondary sidebar" / 1fr 1fr
+
+@header
+## Comparison
+
+@main
+### Left
+
+Content here
+
+@media
+### Right
+
+Content here
+
+@secondary
+### Bottom Left
+
+Details
+
+@sidebar
+### Bottom Right
+
+Details
+```
 
 ## Content Strategy
 
