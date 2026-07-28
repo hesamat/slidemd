@@ -283,6 +283,7 @@ export class SettingsModal {
           sessionStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
           sessionStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
           sessionStorage.setItem(STORAGE_KEY_EFFORT, effort);
+          console.log("[Settings] Saved API key:", apiKey.slice(0, 8) + "...");
 
           if (remember) {
             localStorage.setItem(STORAGE_KEY_API, apiKey);

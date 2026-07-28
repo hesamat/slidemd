@@ -300,7 +300,17 @@ export class ConversionModal {
           // Helper to refresh AI button/checkbox state based on current API key
           // Must be defined AFTER aiBtn and aiHint are created
           const refreshAiState = () => {
-            const hasKey = !!SettingsModal.getApiKey();
+            const key = SettingsModal.getApiKey();
+            const hasKey = !!key;
+            console.log("[AI] refreshAiState:", {
+              key: key ? key.slice(0, 8) + "..." : "(empty)",
+              hasKey,
+            });
+            console.log(
+              "[AI] sessionStorage:",
+              sessionStorage.getItem("webdeck_openrouter_api_key"),
+            );
+            console.log("[AI] localStorage:", localStorage.getItem("webdeck_openrouter_api_key"));
             fixInput.disabled = !hasKey;
             if (aiBtn) {
               aiBtn.disabled = !hasKey;
@@ -310,6 +320,7 @@ export class ConversionModal {
             }
             if (aiHint) {
               aiHint.hidden = hasKey;
+              console.log("[AI] aiHint.hidden =", aiHint.hidden);
             }
           };
 
@@ -350,6 +361,7 @@ export class ConversionModal {
           saveBtn.textContent = "Import";
 
           // Apply initial state
+          console.log("[AI] conversion modal: calling refreshAiState");
           refreshAiState();
 
           // Show Import button
