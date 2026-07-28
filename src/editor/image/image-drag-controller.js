@@ -218,6 +218,19 @@ export class ImageDragController {
         img.style.left = "0px";
         img.style.top = "0px";
       }
+      // Reset positions of remaining non-freeflow images in the source area
+      // so old top/left values from previous fit-to-column or manual positioning
+      // don't create flow gaps after the area's content changed.
+      const sourceAreaEl =
+        currentAreaEl || document.querySelector(`.slide__area[data-area-name="${fromArea}"]`);
+      if (sourceAreaEl) {
+        sourceAreaEl.querySelectorAll("img").forEach((sibling) => {
+          if (sibling !== img && !ImageInteractionHandler.isFreeflow(sibling)) {
+            sibling.style.left = "0px";
+            sibling.style.top = "0px";
+          }
+        });
+      }
       requestAnimationFrame(() => ctx.updateOverlay());
 
       const newMd = ctx.buildMoveMarkdownAtPosition(img, fromArea, toArea, crossSlot);
