@@ -101,6 +101,7 @@ export class AiSidebar {
 
       this._abortController = new AbortController();
       const reasoning = SettingsModal.getReasoning();
+      const effort = SettingsModal.getEffort();
       const body = {
         model,
         messages: [
@@ -113,7 +114,7 @@ export class AiSidebar {
       };
       // Enable extended thinking if the user enabled it in settings
       if (reasoning) {
-        body.reasoning = { effort: "high" };
+        body.reasoning = { effort };
       }
       const res = await fetch(OPENROUTER_URL, {
         method: "POST",
