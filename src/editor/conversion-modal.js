@@ -339,10 +339,7 @@ export class ConversionModal {
             if (!SettingsModal.getApiKey()) {
               await SettingsModal.show();
               refreshAiState();
-              if (SettingsModal.getApiKey()) {
-                aiBtn.click();
-              }
-              return;
+              if (!SettingsModal.getApiKey()) return;
             }
             aiMode = "generate";
             saveBtn.click();
@@ -376,14 +373,18 @@ export class ConversionModal {
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
         }
-        // If no AI mode, convert [Diagram: ...] markers to bullet lists
-        if (!aiMode) {
-          finalMarkdown = finalMarkdown.replace(/\[Diagram:\s*(.+?)\]/g, (_match, items) =>
+        // If no AI mode, convert [Diagram: ...] markers to bullet lists.
+        // A second safety-net pass catches any markers that survived earlier processing.
+        const diagramToBullets = (md) =>
+          md.replace(/\[Diagram:\s*([^\]]+)\]/g, (_match, items) =>
             items
-              .split(", ")
+              .split(",")
               .map((item) => `- ${item.trim()}`)
+              .filter((line) => line.length > 2)
               .join("\n"),
           );
+        if (!aiMode) {
+          finalMarkdown = diagramToBullets(finalMarkdown);
         }
         // Add language tag to opening fences of fenced code blocks only.
         // Use a state machine to distinguish opening fences from closing fences.
@@ -402,6 +403,10 @@ export class ConversionModal {
             }
           }
           finalMarkdown = mdLines.join("\n");
+        }
+        // Safety-net: strip any [Diagram: ...] markers that survived (non-AI path)
+        if (!aiMode) {
+          finalMarkdown = diagramToBullets(finalMarkdown);
         }
         restoreScroll();
         backdrop.remove();
@@ -482,96 +487,6 @@ export class ConversionModal {
         </div>
       </div>
     `;
-    this.#injectStyles(backdrop);
     return backdrop;
-  }
-
-  /**
-   * Inject modal styles.
-   * @static
-   * @param {HTMLElement} container
-   */
-  static #injectStyles(container) {
-    const style = document.createElement("style");
-    style.textContent = `
-      .${P}backdrop {
-        position: fixed; inset: 0; z-index: 10000;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-      }
-      .${P}dialog {
-        background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw;
-        max-height: 85vh; overflow-y: auto;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      }
-      .${P}title { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
-      .${P}drop-zone {
-        border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
-        padding: 20px; text-align: center; cursor: pointer;
-        display: flex; flex-direction: column; align-items: center; gap: 6px;
-        transition: border-color 0.2s, background 0.2s;
-      }
-      .${P}drop-zone:hover, .${P}drop-zone--active {
-        border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
-      }
-      .${P}filename {
-        font-size: 14px; font-weight: 600; color: var(--text-high, #111);
-        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .${P}drop-hint {
-        font-size: 11px; color: var(--text-medium, #888);
-      }
-      .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
-      .${P}code-hint { font-size: 12px; color: var(--text-medium, #666); margin: 2px 0 0; }
-      .${P}checkbox-row {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 14px; cursor: pointer; margin: 8px 0 0;
-      }
-      .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
-      .${P}select-row {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 14px; margin: 10px 0 0;
-      }
-      .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
-      .${P}select {
-        padding: 5px 8px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
-        color: var(--text-high, #111); cursor: pointer;
-      }
-      .${P}spinner-container {
-        font-size: 12px; margin: 10px 0; min-height: 18px;
-      }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
-      .${P}btn {
-        padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
-        cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
-      }
-      .${P}btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
-      .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
-      .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
-      .${P}btn--ai {
-        background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;
-        border: none; font-weight: 600;
-      }
-      .${P}btn--ai:hover:not(:disabled) { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
-      .${P}btn--ai:disabled { opacity: 0.4; cursor: not-allowed; }
-      .${P}ai-hint {
-        font-size: 11px; color: var(--text-medium, #888);
-        margin: 6px 0 0; line-height: 1.4;
-      }
-      .${P}ai-hint a { text-decoration: underline; }
-      .${P}spinner {
-        display: inline-block; width: 12px; height: 12px;
-        border: 2px solid var(--border-medium, #ccc);
-        border-top-color: var(--accent, #6366f1);
-        border-radius: 50%;
-        animation: ${P}spin 0.6s linear infinite;
-        vertical-align: middle; margin-right: 6px;
-      }
-      @keyframes ${P}spin { to { transform: rotate(360deg); } }
-    `;
-    container.appendChild(style);
   }
 }

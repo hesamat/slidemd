@@ -802,6 +802,7 @@ export class DeckController extends EventEmitter {
             localStorage.setItem("webdeck_local_file", enhanced);
             localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
           } catch {
+            console.warn("localStorage is full or unavailable. AI result saved to memory only.");
             window.__WEBDECK_MARKDOWN__ = enhanced;
           }
           await DraftManager.saveDraft(enhanced);
@@ -818,7 +819,7 @@ export class DeckController extends EventEmitter {
             const parts = enhanced.split(/\n---\n/);
             if (parts.length > 1) {
               const md = new MarkdownParser();
-              newDeckData.slides = parts.map((part, i) => {
+              newDeckData.slides = parts.map((part, _i) => {
                 const parsed = md.parseDeckMarkdown(part.trim());
                 return parsed.slides[0];
               });
@@ -827,10 +828,15 @@ export class DeckController extends EventEmitter {
           }
 
           if (newDeckData && this.reloadManager?.replaceDeck) {
-            await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
+            try {
+              await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
+              markdown = enhanced;
+              Notification.success("AI enhancement applied!");
+            } catch (err) {
+              console.error("Failed to replace deck with AI result:", err);
+              Notification.error("AI enhancement could not be applied.");
+            }
           }
-          markdown = enhanced; // Update for save/notification to use AI version
-          Notification.success("AI enhancement applied!");
         }
       }
 

@@ -134,7 +134,6 @@ export class SettingsModal {
 
       // State
       let selectedModel = this.getModel();
-      let modelsLoaded = false;
 
       // Load saved values
       apiKeyInput.value = this.getApiKey();
@@ -254,7 +253,6 @@ export class SettingsModal {
 
       // --- Populate models ---
       this.#populateModels(() => {
-        modelsLoaded = true;
         filterModels("");
         const savedReasoning = this.getReasoning();
         const supports = this.modelSupportsReasoning(selectedModel);
@@ -335,7 +333,10 @@ export class SettingsModal {
     this._allModels = [{ id: saved, name: saved }];
 
     try {
-      const res = await fetch("https://openrouter.ai/api/v1/models");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch("https://openrouter.ai/api/v1/models", { signal: controller.signal });
+      clearTimeout(timeout);
       if (!res.ok) return;
       const data = await res.json();
       const models = data.data || [];
@@ -422,7 +423,6 @@ export class SettingsModal {
         </div>
       </div>
     `;
-    this.#injectStyles(backdrop);
     return backdrop;
   }
 
@@ -432,99 +432,5 @@ export class SettingsModal {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
-  }
-
-  static #injectStyles(container) {
-    const style = document.createElement("style");
-    style.textContent = `
-      .${P}backdrop {
-        position: fixed; inset: 0; z-index: 10000;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-      }
-      .${P}dialog {
-        background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 24px; width: 440px; max-width: 90vw;
-        max-height: 85vh; overflow-y: auto;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      }
-      .${P}title { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
-      .${P}label {
-        display: block; font-size: 13px; font-weight: 500;
-        margin: 12px 0 4px; color: var(--text-high, #111);
-      }
-      .${P}input {
-        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
-        color: var(--text-high, #111); box-sizing: border-box;
-      }
-      .${P}input:focus { outline: 2px solid var(--accent, #6366f1); outline-offset: -1px; }
-      .${P}hint {
-        display: block; font-size: 12px; color: var(--text-medium, #666);
-        margin: 4px 0 0;
-      }
-      .${P}hint a { color: var(--accent, #6366f1); }
-      .${P}select {
-        width: 100%; padding: 7px 10px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
-        color: var(--text-high, #111); cursor: pointer; box-sizing: border-box;
-      }
-      .${P}model-wrapper { position: relative; }
-      .${P}model-input { cursor: text; }
-      .${P}model-dropdown {
-        position: absolute; top: 100%; left: 0; right: 0;
-        max-height: 320px; overflow-y: auto;
-        border: 1px solid var(--border-medium, #ccc);
-        border-top: none; border-radius: 0 0 6px 6px;
-        background: var(--surface-bg, #fff);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10;
-      }
-      .${P}model-list { }
-      .${P}model-item {
-        padding: 8px 10px; cursor: pointer;
-        display: flex; flex-direction: column; gap: 1px;
-        border-bottom: 1px solid var(--border-light, rgba(0,0,0,0.05));
-        transition: background 0.1s;
-      }
-      .${P}model-item:hover { background: var(--surface-hover, #f0f0f0); }
-      .${P}model-item--selected { background: var(--accent-bg, rgba(99,102,241,0.08)); }
-      .${P}model-item--empty {
-        padding: 12px 10px; color: var(--text-medium, #888);
-        font-style: italic; cursor: default; justify-content: center;
-      }
-      .${P}model-name { font-size: 13px; color: var(--text-high, #111); }
-      .${P}model-id { font-size: 11px; color: var(--text-medium, #888); }
-      .${P}reasoning-row {
-        display: flex; align-items: center; gap: 6px;
-        margin: 14px 0 0; font-size: 13px; cursor: pointer;
-      }
-      .${P}reasoning-row input { margin: 0; }
-      .${P}reasoning-row input:disabled + span { color: var(--text-medium, #888); cursor: not-allowed; }
-      .${P}reasoning-hint {
-        display: block; font-size: 11px; color: var(--text-medium, #888);
-        margin: 4px 0 0;
-      }
-      .${P}effort-row { margin: 10px 0 0; }
-      .${P}remember-row {
-        display: flex; align-items: center; gap: 6px;
-        margin: 14px 0 0; font-size: 13px; cursor: pointer;
-      }
-      .${P}remember-row input { margin: 0; }
-      .${P}warning {
-        display: block; font-size: 11px; color: var(--text-medium, #888);
-        margin: 4px 0 0;
-      }
-      .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
-      .${P}btn {
-        padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
-        cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
-      }
-      .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
-      .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
-      .${P}btn--accent:hover { background: var(--accent-hover, #4f46e5); }
-    `;
-    container.appendChild(style);
   }
 }

@@ -14,6 +14,8 @@ export class AiSidebar {
   static _currentPanel = null;
   static _abortController = null;
   static _minimized = false;
+  /** @type {Symbol|null} Tracks the current show() call to prevent cross-call resolver leaks. */
+  static _showId = null;
 
   static cancel() {
     if (this._abortController) {
@@ -24,6 +26,11 @@ export class AiSidebar {
 
   static close() {
     this.cancel();
+    this._showId = null;
+    if (this._finishResolve) {
+      this._finishResolve();
+      this._finishResolve = null;
+    }
     if (this._currentPanel) {
       this._currentPanel.remove();
       this._currentPanel = null;
@@ -38,6 +45,12 @@ export class AiSidebar {
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
   static async show(markdown, mode) {
+    // Clean up any existing panel before starting a new one
+    this.cancel();
+    this.close();
+    const myShowId = Symbol();
+    this._showId = myShowId;
+
     const panel = this.#createPanel(mode);
     document.body.appendChild(panel);
     this._currentPanel = panel;
@@ -59,7 +72,10 @@ export class AiSidebar {
     });
 
     const finish = () => {
-      this._finishResolve?.();
+      // Only resolve if this is still the active show() call
+      if (this._showId === myShowId) {
+        this._finishResolve?.();
+      }
     };
 
     closeBtn.addEventListener("click", finish);
@@ -126,8 +142,8 @@ export class AiSidebar {
       });
 
       if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`API error ${res.status}: ${body.slice(0, 200)}`);
+        const errorText = await res.text().catch(() => "");
+        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
       }
 
       noticeEl.hidden = false;
@@ -209,7 +225,10 @@ export class AiSidebar {
         await new Promise((resolve) => {
           closeBtn.addEventListener("click", resolve, { once: true });
         });
-        this._currentPanel = null;
+        if (this._showId === myShowId) {
+          this._currentPanel = null;
+          this._showId = null;
+        }
         panel.remove();
         return null;
       }
@@ -242,7 +261,9 @@ export class AiSidebar {
       this._finishResolve = resolve;
     });
 
-    this._currentPanel = null;
+    if (this._showId === myShowId) {
+      this._currentPanel = null;
+    }
     panel.remove();
     return result;
   }
@@ -267,172 +288,6 @@ export class AiSidebar {
         <button type="button" data-action="close" class="${P}btn ${P}btn--primary" hidden>Close</button>
       </div>
     `;
-    this.#injectStyles(panel);
     return panel;
-  }
-
-  static #injectStyles(container) {
-    const style = document.createElement("style");
-    style.textContent = `
-      /* ── AI Sidebar ─────────────────────────────────────────────── */
-      .${P}panel {
-        --ai-bg: #ffffff;
-        --ai-surface: #f8f9fa;
-        --ai-border: rgba(0,0,0,0.08);
-        --ai-text: #1a1a2e;
-        --ai-text-secondary: #555;
-        --ai-accent: #6366f1;
-        --ai-accent-hover: #4f46e5;
-        --ai-notice-bg: #fef3c7;
-        --ai-notice-text: #92400e;
-
-        position: fixed; bottom: 60px; right: 16px;
-        height: 70vh; max-height: calc(100vh - 100px); width: 440px; max-width: 92vw;
-        z-index: 10000;
-        display: flex; flex-direction: column;
-        background: var(--ai-bg);
-        color: var(--ai-text);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        border: 1px solid var(--ai-border);
-        border-radius: 12px;
-        overflow: hidden;
-      }
-
-      /* Minimized state: bottom-right chip */
-      .${P}panel--minimized {
-        top: auto; bottom: 50px; right: 16px;
-        width: auto; height: auto;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-      }
-      .${P}panel--minimized .${P}header {
-        padding: 8px 14px;
-        border-bottom: none;
-        border-radius: 12px;
-      }
-      .${P}panel--minimized .${P}status,
-      .${P}panel--minimized .${P}notice,
-      .${P}panel--minimized .${P}output,
-      .${P}panel--minimized .${P}actions { display: none; }
-
-      /* Done glow effect */
-      .${P}panel--done { animation: ${P}doneGlow 2s ease-in-out 3; }
-      @keyframes ${P}doneGlow {
-        0%,100% { box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
-        50% { box-shadow: 0 8px 40px rgba(99,102,241,0.4), 0 0 48px rgba(99,102,241,0.15); }
-      }
-      .${P}panel--minimized.${P}panel--done {
-        animation: ${P}minimizedGlow 2s ease-in-out 3;
-        border: 1.5px solid var(--ai-accent);
-      }
-      @keyframes ${P}minimizedGlow {
-        0%,100% { box-shadow: 0 4px 16px rgba(0,0,0,0.18); border-color: var(--ai-accent); }
-        50% { box-shadow: 0 4px 24px rgba(99,102,241,0.5), 0 0 40px rgba(99,102,241,0.2); }
-      }
-
-      .${P}btn--see-result {
-        font-size: 11px; font-weight: 600;
-        padding: 4px 10px; border-radius: 6px;
-        background: var(--ai-accent); color: #fff;
-        border: none; cursor: pointer;
-        transition: background 0.15s;
-        white-space: nowrap;
-      }
-      .${P}btn--see-result:hover { background: var(--ai-accent-hover); }
-
-      .${P}header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 14px 18px;
-        border-bottom: 1px solid var(--ai-border);
-        flex-shrink: 0;
-        background: var(--ai-surface);
-        border-radius: 12px 12px 0 0;
-      }
-      .${P}title {
-        font-size: 14px; font-weight: 600;
-        color: var(--ai-text);
-      }
-      .${P}header-right { display: flex; align-items: center; gap: 8px; }
-      .${P}icon-btn {
-        width: 28px; height: 28px; border: none;
-        background: transparent; border-radius: 6px;
-        cursor: pointer; font-size: 18px; line-height: 1;
-        color: var(--ai-text-secondary);
-        display: flex; align-items: center; justify-content: center;
-        transition: background 0.15s;
-      }
-      .${P}icon-btn:hover { background: var(--ai-border); }
-
-      .${P}status {
-        font-size: 12px; color: var(--ai-text-secondary);
-        padding: 10px 18px;
-        display: flex; align-items: center; gap: 8px;
-        border-bottom: 1px solid var(--ai-border);
-        background: var(--ai-surface);
-      }
-      .${P}status::before {
-        content: ""; display: inline-block;
-        width: 7px; height: 7px; border-radius: 50%;
-        background: var(--ai-accent);
-        animation: ${P}pulse 1.4s ease-in-out infinite;
-      }
-      .${P}status--done { color: #16a34a; }
-      .${P}status--done::before { background: #16a34a; animation: none; }
-      .${P}status--error { color: #dc2626; }
-      .${P}status--error::before { background: #dc2626; animation: none; }
-      @keyframes ${P}pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
-
-      .${P}notice {
-        font-size: 11px; color: var(--ai-notice-text);
-        background: var(--ai-notice-bg);
-        padding: 8px 18px;
-        border-bottom: 1px solid var(--ai-border);
-      }
-
-      .${P}output {
-        flex: 1; min-height: 0; overflow-y: auto;
-        padding: 14px 18px;
-        font-size: 12px; line-height: 1.6;
-        white-space: pre-wrap; word-break: break-word;
-        font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-        background: var(--ai-bg);
-        color: var(--ai-text);
-      }
-
-      .${P}actions {
-        display: flex; gap: 8px; justify-content: flex-end;
-        padding: 12px 18px;
-        border-top: 1px solid var(--ai-border);
-        flex-shrink: 0;
-        background: var(--ai-surface);
-        border-radius: 0 0 12px 12px;
-      }
-      .${P}btn {
-        padding: 7px 16px; border-radius: 8px;
-        font-size: 13px; font-weight: 500;
-        cursor: pointer; border: 1px solid var(--ai-border);
-        transition: all 0.15s;
-        background: var(--ai-bg); color: var(--ai-text);
-      }
-      .${P}btn:hover { background: var(--ai-surface); }
-      .${P}btn--primary {
-        background: var(--ai-accent); color: #fff; border-color: var(--ai-accent);
-      }
-      .${P}btn--primary:hover { background: var(--ai-accent-hover); }
-
-      /* ── Dark mode ──────────────────────────────────────────────── */
-      [data-theme="dark"] .${P}panel,
-      .${P}panel[data-theme="dark"] {
-        --ai-bg: #1e1e2e;
-        --ai-surface: #252536;
-        --ai-border: rgba(255,255,255,0.08);
-        --ai-text: #e2e2f0;
-        --ai-text-secondary: #a0a0b8;
-        --ai-notice-bg: #422006;
-        --ai-notice-text: #fbbf24;
-      }
-    `;
-    container.appendChild(style);
   }
 }

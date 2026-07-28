@@ -34,30 +34,32 @@ export function slidesToMarkdown(slides) {
  * @returns {typeof slides}
  */
 export function fixSlideLayouts(slides, origDirectives, mode = "fix") {
-  return slides.map((slide, i) => {
-    const orig = origDirectives[i] || {};
-    const hasMedia = /^@media\b/m.test(slide.content);
+  return slides
+    .filter((slide) => slide.content && slide.content.trim())
+    .map((slide, i) => {
+      const orig = origDirectives[i] || {};
+      const hasMedia = /^@media\b/m.test(slide.content);
 
-    // Always preserve original background/theme when available
-    const result = {
-      ...slide,
-      background: orig.background || slide.background || "",
-      theme: orig.theme || slide.theme || "",
-    };
+      // Always preserve original background/theme when available
+      const result = {
+        ...slide,
+        background: orig.background || slide.background || "",
+        theme: orig.theme || slide.theme || "",
+      };
 
-    // In "fix" mode, prefer the original layout (AI may have mis-chosen)
-    // In "generate" mode, keep the AI's layout choice (the whole point is reorganization)
-    if (mode === "fix" && orig.layout) {
-      result.layout = orig.layout;
-    }
+      // In "fix" mode, prefer the original layout (AI may have mis-chosen)
+      // In "generate" mode, keep the AI's layout choice (the whole point is reorganization)
+      if (mode === "fix" && orig.layout) {
+        result.layout = orig.layout;
+      }
 
-    // Fix wrong layouts: if slide has @media but layout is header-content
-    if (hasMedia && (result.layout === "header-content" || result.layout === "content-sidebar")) {
-      result.layout = "two-column";
-    }
+      // Fix wrong layouts: if slide has @media but layout is header-content
+      if (hasMedia && (result.layout === "header-content" || result.layout === "content-sidebar")) {
+        result.layout = "two-column";
+      }
 
-    return result;
-  });
+      return result;
+    });
 }
 
 /**
@@ -80,16 +82,34 @@ export function extractDirectives(markdown) {
 }
 
 /**
- * Strip frontmatter (layout, theme, background) from markdown.
+ * Strip frontmatter directives (layout, theme, background, hidden) from markdown.
+ * Only replaces directives outside fenced code blocks to avoid stripping
+ * legitimate content that happens to match directive patterns.
  * @param {string} markdown
  * @returns {string}
  */
 function stripFrontmatter(markdown) {
-  return markdown
-    .replace(/^layout:\s*.*$/gm, "")
-    .replace(/^theme:\s*.*$/gm, "")
-    .replace(/^background:\s*.*$/gm, "")
-    .replace(/^hidden:\s*.*$/gm, "")
+  const lines = markdown.split("\n");
+  const result = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^```/.test(line.trim())) {
+      inFence = !inFence;
+      result.push(line);
+      continue;
+    }
+    if (inFence) {
+      result.push(line);
+      continue;
+    }
+    if (/^(layout|theme|background|hidden):\s*.*$/.test(line)) {
+      result.push("");
+      continue;
+    }
+    result.push(line);
+  }
+  return result
+    .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

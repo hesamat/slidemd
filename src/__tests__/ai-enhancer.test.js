@@ -142,4 +142,113 @@ describe("fixSlideLayouts", () => {
     const result = fixSlideLayouts(slides, orig);
     expect(result[0].layout).toBe("two-column");
   });
+
+  it("filters out slides with empty content", () => {
+    const slides = [
+      { layout: "title-slide", content: "# Title" },
+      { layout: "header-content", content: "   " },
+      { layout: "two-column", content: "" },
+      { layout: "header-content", content: "@main\n- Item" },
+    ];
+    const orig = [
+      { layout: "title-slide", background: "", theme: "" },
+      { layout: "header-content", background: "", theme: "" },
+      { layout: "two-column", background: "", theme: "" },
+      { layout: "header-content", background: "", theme: "" },
+    ];
+    const result = fixSlideLayouts(slides, orig);
+    expect(result).toHaveLength(2);
+    expect(result[0].content).toBe("# Title");
+    expect(result[1].content).toBe("@main\n- Item");
+  });
+
+  it("filters out slides with null/undefined content", () => {
+    const slides = [
+      { layout: "title-slide", content: "# Hi" },
+      { layout: "header-content", content: null },
+    ];
+    const orig = [
+      { layout: "title-slide", background: "", theme: "" },
+      { layout: "header-content", background: "", theme: "" },
+    ];
+    const result = fixSlideLayouts(slides, orig);
+    expect(result).toHaveLength(1);
+  });
+});
+
+describe("buildMessages", () => {
+  it("strips frontmatter from markdown", () => {
+    const md =
+      "layout: header-content\nbackground: #fff\ntheme: dark\n@header\n## Title\n\n@main\n- Item";
+    const { user, original } = buildMessages(md, "fix");
+    expect(user).toContain("@header");
+    expect(user).toContain("- Item");
+    expect(user).not.toContain("layout:");
+    expect(user).not.toContain("background:");
+    expect(user).not.toContain("theme:");
+    expect(original).toBe(md);
+  });
+
+  it("preserves directives inside code blocks", () => {
+    const md =
+      "layout: header-content\n@main\n```\nlayout: two-column\nbackground: #fff\n```\n- Item";
+    const { user } = buildMessages(md, "fix");
+    expect(user).toContain("layout: two-column");
+    expect(user).toContain("background: #fff");
+    expect(user).not.toMatch(/^layout: header-content/m);
+  });
+
+  it("includes hidden in stripped frontmatter", () => {
+    const md = "layout: title-slide\nhidden: true\n# Title";
+    const { user } = buildMessages(md, "fix");
+    expect(user).not.toContain("hidden:");
+    expect(user).toContain("# Title");
+  });
+
+  it("returns system prompt for fix mode", () => {
+    const { system } = buildMessages("# Test", "fix");
+    expect(system).toContain("You are a SlideMD markdown editor");
+  });
+
+  it("returns system prompt for generate mode", () => {
+    const { system } = buildMessages("# Test", "generate");
+    expect(system).toContain("You are a SlideMD markdown editor");
+  });
+});
+
+describe("parseAiResponse (edge cases)", () => {
+  it("handles JSON with escaped characters in content", () => {
+    const input =
+      '{"slides":[{"layout":"header-content","content":"@header\\n## \\"Quoted\\" Title"}]}';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].content).toContain('"Quoted" Title');
+  });
+
+  it("handles JSON with escaped backslashes", () => {
+    // JSON "\\\\n" → parsed as "\n" (literal backslash + n)
+    const input =
+      '{"slides":[{"layout":"header-content","content":"@main\\nUse \\\\n for newlines"}]}';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].content).toContain("\\n");
+  });
+
+  it("extracts JSON when analysis text precedes it", () => {
+    const input =
+      'Here is the analysis of your slides...\n\nThe JSON output is below:\n\n{"slides":[{"layout":"title-slide","content":"# Title"}]}\n\nHope this helps!';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].layout).toBe("title-slide");
+  });
+
+  it("handles code fence with language tag", () => {
+    const input = '```json\n{"slides":[{"layout":"header-content","content":"@main"}]}\n```';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+  });
+
+  it("returns null for object without slides key", () => {
+    expect(parseAiResponse('{"notSlides":[{"a":1}]}')).toBeNull();
+  });
 });
