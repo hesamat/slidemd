@@ -168,18 +168,18 @@ Press `E` to toggle split-screen editing with live preview.
 
 ### Writing Tools
 
-- Live preview — see changes instantly as you type
-- Autocomplete — `layout:`, `theme:`, `@media` directives
-- Slash commands — type `/` for quick insertions
-- Mermaid helper — insert diagram scaffolds
-- Search — `Ctrl+F` to find within slides
+- **Live preview:** See changes instantly as you type
+- **Autocomplete:** `layout:`, `theme:`, `@media` directives
+- **Slash commands:** Type `/` for quick insertions
+- **Mermaid helper:** Insert diagram scaffolds
+- **Search:** `Ctrl+F` to find within slides
 
 ### Slide Management
 
-- Slide thumbnails — jump to any slide while editing
-- Quick actions — add, delete, duplicate, reorder slides
-- Layout Picker — choose presets with filled templates
-- Context menu — right-click thumbnails for slide operations
+- **Slide thumbnails:** Jump to any slide while editing
+- **Quick actions:** Add, delete, duplicate, reorder slides
+- **Layout Picker:** Choose presets with filled templates
+- **Context menu:** Right-click thumbnails for slide operations
 
 @media
 
@@ -343,7 +343,7 @@ After importing a PPTX file, optionally enhance the result with AI.
 
 1. Open **Settings** from the main menu
 2. Enter your OpenRouter API key
-3. Select a model (DeepSeek V4 Flash recommended)
+3. Select a model (DeepSeek V4 Flash is the default)
 4. Import a PPTX file
 5. Choose **Fix Issues** or click **AI Inspiration**
 
