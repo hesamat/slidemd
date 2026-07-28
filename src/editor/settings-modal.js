@@ -120,7 +120,6 @@ export class SettingsModal {
       const modelInput = backdrop.querySelector(`.${P}model-input`);
       const modelDropdown = backdrop.querySelector(`.${P}model-dropdown`);
       const modelList = backdrop.querySelector(`.${P}model-list`);
-      const modelValue = backdrop.querySelector(`.${P}model-value`);
       const rememberCheckbox = backdrop.querySelector('[data-field="remember"]');
       const reasoningCheckbox = backdrop.querySelector('[data-field="reasoning"]');
       const reasoningHint = backdrop.querySelector(`.${P}reasoning-hint`);
@@ -139,7 +138,7 @@ export class SettingsModal {
 
       // Load saved values
       apiKeyInput.value = this.getApiKey();
-      modelValue.textContent = selectedModel;
+      modelInput.value = selectedModel;
       effortSelect.value = this.getEffort();
 
       // Restore "remember" state
@@ -175,9 +174,9 @@ export class SettingsModal {
           item.addEventListener("click", (e) => {
             e.stopPropagation();
             selectedModel = m.id;
-            modelValue.textContent = m.id;
-            modelInput.value = "";
+            modelInput.value = m.id;
             modelDropdown.hidden = true;
+            modelInput.blur();
             filterModels("");
             updateReasoningState();
           });
@@ -192,13 +191,19 @@ export class SettingsModal {
       };
 
       modelInput.addEventListener("focus", () => {
+        modelInput.value = "";
         modelDropdown.hidden = false;
-        filterModels(modelInput.value);
+        filterModels("");
       });
 
       modelInput.addEventListener("input", () => {
         modelDropdown.hidden = false;
         filterModels(modelInput.value);
+      });
+
+      modelInput.addEventListener("blur", () => {
+        // Restore selected model name when not searching
+        modelInput.value = selectedModel;
       });
 
       // Prevent clicks inside dropdown from propagating to backdrop
@@ -208,7 +213,7 @@ export class SettingsModal {
       const handleOutsideClick = (e) => {
         if (!modelInput.contains(e.target) && !modelDropdown.contains(e.target)) {
           modelDropdown.hidden = true;
-          modelInput.value = "";
+          modelInput.value = selectedModel;
         }
       };
       backdrop.addEventListener("click", handleOutsideClick);
@@ -380,7 +385,6 @@ export class SettingsModal {
             placeholder="Type to search models..."
             autocomplete="off"
           />
-          <div class="${P}model-value"></div>
           <div class="${P}model-dropdown" hidden>
             <div class="${P}model-list"></div>
           </div>
@@ -460,9 +464,6 @@ export class SettingsModal {
       }
       .${P}model-wrapper { position: relative; }
       .${P}model-input { cursor: text; }
-      .${P}model-value {
-        display: none;
-      }
       .${P}model-dropdown {
         position: absolute; top: 100%; left: 0; right: 0;
         border: 1px solid var(--border-medium, #ccc);
