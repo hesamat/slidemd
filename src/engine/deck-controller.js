@@ -360,7 +360,7 @@ export class DeckController extends EventEmitter {
     listen(this.elements.menuBtn, "click", () => this.toggleMenu());
     listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
     listen(this.elements.menuReloadDeckBtn, "click", () => {
-      this.handleReloadDeck();
+      this.reloadManager.handleReloadDeck();
       this.closeMenu();
     });
     listen(this.elements.menuToggleEditModeBtn, "click", () => {
