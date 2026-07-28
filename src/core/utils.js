@@ -71,8 +71,8 @@ export function escapeHtml(text) {
 }
 
 /**
- * Interactive / embedded / scripting tags — always escaped when appearing as
- * bare text.  Even with attributes they are unsafe in slide context.
+ * Interactive / embedded / scripting tags — always escaped even with attributes.
+ * These are never legitimate in slide content outside of fenced code blocks.
  */
 const BLOCKED_HTML_TAGS = new Set([
   "button",
@@ -100,11 +100,10 @@ const BLOCKED_HTML_TAGS = new Set([
 ]);
 
 /**
- * Structural / styling tags that are safe WITH attributes (people genuinely
- * use `<div class="…">` or `<span style="…">` for styling) but should be
- * escaped when bare — a lone `<div>` or `<span>` is teaching-text, not HTML.
+ * Bare tags that are always safe (no content model, never need attributes,
+ * never ambiguous with teaching-text).  Pass through even without attributes.
  */
-const BARE_ONLY_BLOCKED = new Set(["div", "span"]);
+const ALWAYS_OK_BARE = new Set(["br", "hr"]);
 
 const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
 
@@ -112,16 +111,25 @@ export function escapeBareHtmlTags(markdown) {
   if (typeof markdown !== "string") return markdown;
   const escapeTag = (match, closingSlash, tagName, attrs) => {
     const lower = tagName.toLowerCase();
+
+    // Always escape unsafe interactive / embedded tags
     if (BLOCKED_HTML_TAGS.has(lower)) {
       const open = closingSlash ? "&lt;/" : "&lt;";
       const close = "&gt;";
       const escapedAttrs = attrs ? attrs.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
       return open + tagName + escapedAttrs + close;
     }
-    if (BARE_ONLY_BLOCKED.has(lower) && !attrs) {
+
+    // Known-safe bare tags (br, hr) — always pass through
+    if (ALWAYS_OK_BARE.has(lower)) return match;
+
+    // Any other tag without attributes looks like teaching-text — escape it.
+    // Attributed tags (class, style, id, etc.) pass through as intentional HTML.
+    if (!attrs) {
       const open = closingSlash ? "&lt;/" : "&lt;";
       return open + tagName + "&gt;";
     }
+
     return match;
   };
   return markdown

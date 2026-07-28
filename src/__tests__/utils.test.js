@@ -116,15 +116,29 @@ describe("escapeBareHtmlTags", () => {
     expect(escapeBareHtmlTags(input)).toBe(input);
   });
 
-  it("escapes bare <div> and <span> (teaching text)", () => {
-    expect(escapeBareHtmlTags("Use a <div> container")).toBe("Use a &lt;div&gt; container");
-    expect(escapeBareHtmlTags("Add a <span> here")).toBe("Add a &lt;span&gt; here");
-    expect(escapeBareHtmlTags("Then close with </div>")).toBe("Then close with &lt;/div&gt;");
+  it("escapes any bare tag without attributes (teaching text)", () => {
+    expect(escapeBareHtmlTags("Use <div> containers")).toBe("Use &lt;div&gt; containers");
+    expect(escapeBareHtmlTags("Use <span> elements")).toBe("Use &lt;span&gt; elements");
+    expect(escapeBareHtmlTags("Learn <section> and <article>")).toBe(
+      "Learn &lt;section&gt; and &lt;article&gt;",
+    );
+    expect(escapeBareHtmlTags("Try <nav>, <header>, <footer>")).toBe(
+      "Try &lt;nav&gt;, &lt;header&gt;, &lt;footer&gt;",
+    );
+    expect(escapeBareHtmlTags("Then </section> closes it")).toBe(
+      "Then &lt;/section&gt; closes it",
+    );
   });
 
-  it("preserves attributed <div> and <span> (styling HTML)", () => {
+  it("preserves attributed tags (intentional styling HTML)", () => {
     expect(escapeBareHtmlTags('<div class="flex-row">')).toBe('<div class="flex-row">');
     expect(escapeBareHtmlTags('<span style="color:red">')).toBe('<span style="color:red">');
+    expect(escapeBareHtmlTags('<img src="a.png">')).toBe('<img src="a.png">');
+  });
+
+  it("preserves always-safe bare tags (br, hr)", () => {
+    expect(escapeBareHtmlTags("Line 1<br>Line 2")).toBe("Line 1<br>Line 2");
+    expect(escapeBareHtmlTags("<hr>")).toBe("<hr>");
   });
 
   it("escapes closing tags", () => {
