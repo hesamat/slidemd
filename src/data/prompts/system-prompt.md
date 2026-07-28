@@ -68,6 +68,7 @@ Content areas: @title, @header, @main, @media, @sidebar, @footer
 - @title is ONLY used in title-slide layout (first slide only)
 - @header + @main is the standard pattern for all other slides
 - In two-column layout, right column MUST be @media (NOT @secondary)
+- In three-column layout, columns are @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid area markers
 - @secondary is ONLY for three-column layout
 
 Do NOT use @notes - it is not a valid area marker and will be silently dropped.

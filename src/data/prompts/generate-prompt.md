@@ -25,6 +25,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
 - **title-slide is ONLY for the opening/intro slide** — it has @title and @footer, no @main. Any slide with bullet points, lists, or body content must use header-content or two-column instead
+- **three-column area markers**: @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid
 
 ## Formatting Rules (STRICT)
 
