@@ -42,7 +42,6 @@ export class HtmlExportManager {
     // UI components
     "src/ui/ui-actions.js",
     "src/editor/ui/open-deck-modal.js",
-    "src/editor/core/edit-controller.js",
     // Entry point
     "deck.js",
   ];
