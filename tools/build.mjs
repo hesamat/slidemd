@@ -509,6 +509,7 @@ async function buildBundleJs() {
             ".gif": "dataurl",
             ".svg": "dataurl",
             ".css": "css",
+            ".md": "text",
         },
         // External packages that shouldn't be bundled
         external: [],
