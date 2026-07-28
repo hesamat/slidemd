@@ -226,63 +226,63 @@ Goal: Add AI-powered post-processing for PPTX imports via OpenRouter.
 
 ### Core
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] OpenRouter API integration          | Connect to OpenRouter for AI-enhanced slide processing               |
-| [x] Settings modal                      | API key, model selection, reasoning options                          |
-| [x] Fix Issues mode                     | Conservative AI cleanup of formatting, headers, code blocks          |
-| [x] AI Inspiration mode                 | Full redesign with better flow, layouts, and Mermaid diagrams        |
-| [x] Streaming sidebar                   | Non-blocking panel with real-time AI output                          |
-| [x] Reasoning support                   | Optional extended thinking for better results                        |
-| [x] Model selection                     | Searchable dropdown with reasoning capability detection              |
+| Task                           | Details                                                       |
+| ------------------------------ | ------------------------------------------------------------- |
+| [x] OpenRouter API integration | Connect to OpenRouter for AI-enhanced slide processing        |
+| [x] Settings modal             | API key, model selection, reasoning options                   |
+| [x] Fix Issues mode            | Conservative AI cleanup of formatting, headers, code blocks   |
+| [x] AI Inspiration mode        | Full redesign with better flow, layouts, and Mermaid diagrams |
+| [x] Streaming sidebar          | Non-blocking panel with real-time AI output                   |
+| [x] Reasoning support          | Optional extended thinking for better results                 |
+| [x] Model selection            | Searchable dropdown with reasoning capability detection       |
 
 ### PPTX Import Integration
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] AI post-processing after import     | Optional enhancement after PPTX import                              |
-| [x] Diagram conversion                  | [Diagram: ...] markers to Mermaid code blocks                        |
-| [x] Image alt text                      | Improved alt text generation for imported images                     |
-| [x] Background preservation             | Backgrounds and themes preserved through AI processing               |
+| Task                                | Details                                                |
+| ----------------------------------- | ------------------------------------------------------ |
+| [x] AI post-processing after import | Optional enhancement after PPTX import                 |
+| [x] Diagram conversion              | [Diagram: ...] markers to Mermaid code blocks          |
+| [x] Image alt text                  | Improved alt text generation for imported images       |
+| [x] Background preservation         | Backgrounds and themes preserved through AI processing |
 
 ### HTML Export Fixes
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] Image inlining                      | Images as data URIs in exported HTML                                 |
-| [x] Mermaid rendering                   | Mermaid diagrams render correctly in exported HTML                   |
-| [x] KaTeX fonts                         | Fixed font loading from CDN                                          |
-| [x] API skip                            | Skip API fetches and live reload in exported HTML                    |
-| [x] Module bundling                     | Fixed missing modules in HTML export bundle                          |
+| Task                  | Details                                            |
+| --------------------- | -------------------------------------------------- |
+| [x] Image inlining    | Images as data URIs in exported HTML               |
+| [x] Mermaid rendering | Mermaid diagrams render correctly in exported HTML |
+| [x] KaTeX fonts       | Fixed font loading from CDN                        |
+| [x] API skip          | Skip API fetches and live reload in exported HTML  |
+| [x] Module bundling   | Fixed missing modules in HTML export bundle        |
 
 ### Testing
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] HTML export tests                   | 21 tests for HTML export manager                                     |
-| [x] Total test coverage                 | 500+ unit tests across 22 test files                                 |
+| Task                    | Details                              |
+| ----------------------- | ------------------------------------ |
+| [x] HTML export tests   | 21 tests for HTML export manager     |
+| [x] Total test coverage | 500+ unit tests across 22 test files |
 
 ### PPTX Import & Image Fixes (from main branch)
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] Flex-row rendering                  | Support for flex-row layouts in PPTX import (#140)                   |
-| [x] Set-as-background                   | Support for setting images as slide backgrounds (#140)               |
-| [x] Image Picker restoration            | Restored with Existing/Upload/URL tabs and float feature (#142)      |
-| [x] Title sanitization                  | Sanitize markdown from deck/slide titles (#144)                      |
-| [x] PPTX upload fix                     | Fixed 400 error when no deck loaded (#145)                           |
-| [x] Area overflow fix                   | Fixed overflow warning not hiding on fix and fit-to-column spacing (#146) |
+| Task                         | Details                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| [x] Flex-row rendering       | Support for flex-row layouts in PPTX import (#140)                        |
+| [x] Set-as-background        | Support for setting images as slide backgrounds (#140)                    |
+| [x] Image Picker restoration | Restored with Existing/Upload/URL tabs and float feature (#142)           |
+| [x] Title sanitization       | Sanitize markdown from deck/slide titles (#144)                           |
+| [x] PPTX upload fix          | Fixed 400 error when no deck loaded (#145)                                |
+| [x] Area overflow fix        | Fixed overflow warning not hiding on fix and fit-to-column spacing (#146) |
 
 ### Bug Fixes
 
-| Task                                    | Details                                                              |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [x] AI sidebar reasoning tokens         | Fixed corruption of JSON parse                                       |
-| [x] AI sidebar scrolling                | Fixed scrollbar jumping and wheel events                             |
-| [x] Settings modal                      | Fixed API key hint and model dropdown issues                         |
-| [x] Conversion modal                    | Fixed duplicate AI button on re-import                               |
-| [x] PPTX export                         | Fixed two-column layout detection                                    |
-| [x] HTML export                         | Fixed missing modules and font loading                               |
+| Task                            | Details                                      |
+| ------------------------------- | -------------------------------------------- |
+| [x] AI sidebar reasoning tokens | Fixed corruption of JSON parse               |
+| [x] AI sidebar scrolling        | Fixed scrollbar jumping and wheel events     |
+| [x] Settings modal              | Fixed API key hint and model dropdown issues |
+| [x] Conversion modal            | Fixed duplicate AI button on re-import       |
+| [x] PPTX export                 | Fixed two-column layout detection            |
+| [x] HTML export                 | Fixed missing modules and font loading       |
 
 ---
 
