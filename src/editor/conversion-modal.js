@@ -275,6 +275,9 @@ export class ConversionModal {
             aiBtn.title = hasKey
               ? "Import and get AI-inspired redesign"
               : "Configure API key in Settings first";
+            if (aiHint) {
+              aiHint.hidden = hasKey;
+            }
           };
 
           // AI: Fix issues checkbox
@@ -303,6 +306,20 @@ export class ConversionModal {
           });
           insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
           insertAfter = fixRow;
+
+          // AI hint when no API key
+          const aiHint = document.createElement("span");
+          aiHint.className = `${P}ai-hint`;
+          aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
+          aiHint.addEventListener("click", async (e) => {
+            if (e.target.dataset.action === "open-settings") {
+              e.preventDefault();
+              await SettingsModal.show();
+              refreshAiState();
+            }
+          });
+          insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
+          insertAfter = aiHint;
 
           // Show Import button and AI Enhance button
           const actionsEl = backdrop.querySelector(`.${P}actions`);
@@ -532,6 +549,11 @@ export class ConversionModal {
       }
       .${P}btn--ai:hover:not(:disabled) { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
       .${P}btn--ai:disabled { opacity: 0.4; cursor: not-allowed; }
+      .${P}ai-hint {
+        display: block; font-size: 11px; color: var(--text-medium, #888);
+        margin: 6px 0 0; line-height: 1.4;
+      }
+      .${P}ai-hint a { text-decoration: underline; }
       .${P}spinner {
         display: inline-block; width: 12px; height: 12px;
         border: 2px solid var(--border-medium, #ccc);

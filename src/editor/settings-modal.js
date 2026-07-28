@@ -11,7 +11,7 @@ const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
 const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
 const STORAGE_KEY_EFFORT = "webdeck_openrouter_effort";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
-const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
+const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const DEFAULT_EFFORT = "high";
 const P = "settings-modal__";
 
