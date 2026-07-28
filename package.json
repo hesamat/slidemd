@@ -1,9 +1,9 @@
 {
   "name": "slidemd",
-  "version": "0.6.1",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, and PPTX import",
+  "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, PPTX import, and AI-powered post-processing",
   "author": "Hesam Alizadeh",
   "license": "MIT",
   "repository": {
@@ -23,6 +23,7 @@
     "math",
     "mermaid",
     "pptx-import",
+    "ai",
     "self-contained"
   ],
   "scripts": {
