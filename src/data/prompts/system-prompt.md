@@ -48,6 +48,8 @@ Right: "@header\n## Title\n\n@main\n\n- Point 1"
 - Every slide MUST have both @header and @main (or @media for media-span)
 - Two-column: @header, @main (left), @media (right). If right is empty, use header-content
 - Media-span: MUST have @media with content
+- **title-slide is ONLY for opening/intro slides**. It has only @title and @footer — NO @header, NO @main. If a slide has bullet points, lists, or any substantial content, use header-content or two-column instead
+- NEVER mix @title with @main on the same slide — they belong to different layouts
 
 ## Converting [Diagram: ...] to Mermaid
 
@@ -62,8 +64,11 @@ Mermaid orientation depends on the slide layout:
 ## SlideMD Areas
 
 Content areas: @title, @header, @main, @media, @sidebar, @footer
-In two-column layout, right column MUST be @media (NOT @secondary).
-@secondary is ONLY for three-column layout.
+
+- @title is ONLY used in title-slide layout (first slide only)
+- @header + @main is the standard pattern for all other slides
+- In two-column layout, right column MUST be @media (NOT @secondary)
+- @secondary is ONLY for three-column layout
 
 Do NOT use @notes - it is not a valid area marker and will be silently dropped.
 To add speaker notes, use HTML comments: <!-- notes: Your note text here -->
@@ -76,12 +81,14 @@ When HTML tag names appear in instructional content (e.g., "button", "input", "s
 
 Choose the right layout for each slide. Content capacity for a 1920x1080px slide:
 
-| Layout         | Max bullets | Max code lines | Use case                           |
-| -------------- | ----------- | -------------- | ---------------------------------- |
-| header-content | ~13         | ~18            | Simple slides, text-only           |
-| two-column     | ~6 per col  | ~15 per col    | Diagram + text, code + explanation |
-| media-span     | ~10         | ~15            | Slides with actual img tags        |
-| title-slide    | N/A         | N/A            | First slide only                   |
+| Layout         | Max bullets | Max code lines | Use case                                                    |
+| -------------- | ----------- | -------------- | ----------------------------------------------------------- |
+| title-slide    | 0           | 0              | Opening slide ONLY — title + subtitle only, no body content |
+| header-content | ~13         | ~18            | Simple slides, text-only                                    |
+| two-column     | ~6 per col  | ~15 per col    | Diagram + text, code + explanation                          |
+| media-span     | ~10         | ~15            | Slides with actual img tags                                 |
+
+**title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use header-content instead.
 
 ## Mermaid Diagram Placement
 

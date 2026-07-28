@@ -42,7 +42,7 @@ describe("HtmlExportManager", () => {
 
   describe("inlineImagesInHtml", () => {
     it("returns html unchanged when no images", async () => {
-      const html = '<div>No images</div>';
+      const html = "<div>No images</div>";
       const result = await HtmlExportManager.inlineImagesInHtml(html);
       expect(result).toBe(html);
     });
@@ -58,16 +58,22 @@ describe("HtmlExportManager", () => {
     });
 
     it("replaces image src with data URI when fetch succeeds", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(["fake-image-data"], { type: "image/png" })),
-      }));
-      vi.stubGlobal("FileReader", class {
-        readAsDataURL() {
-          this.result = "data:image/png;base64,ZmFrZS1pbWFnZS1kYXRh";
-          if (this.onloadend) this.onloadend();
-        }
-      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["fake-image-data"], { type: "image/png" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/png;base64,ZmFrZS1pbWFnZS1kYXRh";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
 
       const html = '<img src="images/test.png" alt="test">';
       const result = await HtmlExportManager.inlineImagesInHtml(html);
@@ -111,21 +117,25 @@ describe("HtmlExportManager", () => {
     });
 
     it("inlines images in slide areas", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/png" })),
-      }));
-      vi.stubGlobal("FileReader", class {
-        readAsDataURL() {
-          this.result = "data:image/png;base64,ZmFrZQ==";
-          if (this.onloadend) this.onloadend();
-        }
-      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/png" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/png;base64,ZmFrZQ==";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
 
       const deck = {
-        slides: [
-          { areas: { main: '<img src="images/logo.png" alt="Logo">' } },
-        ],
+        slides: [{ areas: { main: '<img src="images/logo.png" alt="Logo">' } }],
       };
 
       const result = await HtmlExportManager.inlineImagesInDeck(deck);
@@ -135,16 +145,22 @@ describe("HtmlExportManager", () => {
     });
 
     it("inlines background images", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/jpeg" })),
-      }));
-      vi.stubGlobal("FileReader", class {
-        readAsDataURL() {
-          this.result = "data:image/jpeg;base64,ZmFrZQ==";
-          if (this.onloadend) this.onloadend();
-        }
-      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/jpeg" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/jpeg;base64,ZmFrZQ==";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
 
       const deck = {
         slides: [{ background: "url(images/bg.jpg)" }],
@@ -156,27 +172,38 @@ describe("HtmlExportManager", () => {
     });
 
     it("handles multiple images in same deck", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/png" })),
-      }));
-      vi.stubGlobal("FileReader", class {
-        readAsDataURL() {
-          this.result = "data:image/png;base64,ZmFrZQ==";
-          if (this.onloadend) this.onloadend();
-        }
-      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["fake-data"], { type: "image/png" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/png;base64,ZmFrZQ==";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
 
       const deck = {
         slides: [
-          { areas: { main: '<img src="images/a.png" alt="A">', media: '<img src="images/b.png" alt="B">' } },
+          {
+            areas: {
+              main: '<img src="images/a.png" alt="A">',
+              media: '<img src="images/b.png" alt="B">',
+            },
+          },
           { areas: { main: '<img src="images/a.png" alt="A again">' } },
         ],
       };
 
-      const result = await HtmlExportManager.inlineImagesInDeck(deck);
+      const _result = await HtmlExportManager.inlineImagesInDeck(deck);
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(fetch).toHaveBeenCalledTimes(2);
     });
 
     it("skips failed image fetches gracefully", async () => {
@@ -211,7 +238,7 @@ describe("HtmlExportManager", () => {
         createElement: () => mockDiv,
       });
 
-      const result = HtmlExportManager.escapeHtml('<script>alert("xss")</script>');
+      const _result = HtmlExportManager.escapeHtml('<script>alert("xss")</script>');
       // The implementation sets textContent and reads innerHTML
       expect(mockDiv.textContent).toBe('<script>alert("xss")</script>');
     });

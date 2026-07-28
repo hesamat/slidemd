@@ -13,7 +13,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content for simple text slides
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
-- Improve the title slide to be more visually impactful
+- Improve the title slide to be more visually impactful (ONLY the first slide — title-slide has @title and @footer only, NO @header or @main)
 
 ## Content Strategy
 
@@ -24,6 +24,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Combine related micro-content into cohesive slides
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
+- **title-slide is ONLY for the opening/intro slide** — it has @title and @footer, no @main. Any slide with bullet points, lists, or body content must use header-content or two-column instead
 
 ## Formatting Rules (STRICT)
 

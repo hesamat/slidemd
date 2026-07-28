@@ -176,22 +176,24 @@ export class DeckLoader {
    * @returns {Promise<import('../types.js').Deck>}
    */
   static async loadDeckData() {
-    // 1. Try CLI dev server API
-    try {
-      const res = await fetch("/api/deck");
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.markdown) {
-          await AssetLoader.ensureMarkdownItLoaded();
-          // Store the API URL so reload can re-fetch fresh content from disk
-          localStorage.setItem("webdeck_source_url", "/api/deck");
-          // Persist the markdown so the editor reads fresh content on init
-          localStorage.setItem("webdeck_local_file", data.markdown);
-          return new MarkdownParser().parseDeckMarkdown(data.markdown);
+    // 1. Try CLI dev server API (skip in exported HTML files)
+    if (!window.__WEBDECK_EXPORTED__) {
+      try {
+        const res = await fetch("/api/deck");
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.markdown) {
+            await AssetLoader.ensureMarkdownItLoaded();
+            // Store the API URL so reload can re-fetch fresh content from disk
+            localStorage.setItem("webdeck_source_url", "/api/deck");
+            // Persist the markdown so the editor reads fresh content on init
+            localStorage.setItem("webdeck_local_file", data.markdown);
+            return new MarkdownParser().parseDeckMarkdown(data.markdown);
+          }
         }
+      } catch {
+        // No CLI server running — fall through
       }
-    } catch {
-      // No CLI server running — fall through
     }
 
     // 2. Try Embedded JSON (build output)
