@@ -29,6 +29,12 @@ layout: header-content
 
 # Content: @header, @main (optional: @footer)
 
+# Content-first (centered, minimal header/footer)
+
+layout: focus
+
+# Content: @header, @main, @footer
+
 # Header + two equal columns
 
 layout: two-column

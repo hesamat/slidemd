@@ -74,7 +74,7 @@ After import, you can optionally post-process with AI:
 - **Fix Issues** — AI cleans up formatting, headers, code blocks, and common extraction problems
 - **AI Inspiration** — AI reorganizes and redesigns the entire presentation with better flow, layouts, and Mermaid diagrams
 
-To use AI features, configure an API key in **Settings** (OpenRouter). See [docs/ai-prompt-template.md](docs/ai-prompt-template.md) for details on how the AI processes your slides.
+To use AI features, configure an API key in **Settings** (OpenRouter). The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — three separate prompt files for system rules, fix mode, and generate mode.
 
 ## Repository Layout
 
@@ -83,7 +83,7 @@ To use AI features, configure an API key in **Settings** (OpenRouter). See [docs
 - `docs/example/slides.md` - example deck (diffable in git)
 - `docs/example/images/` - example images
 - `docs/prompt-template.md` - SlideMD syntax and layout guide
-- `docs/ai-prompt-template.md` - AI post-processing setup and behavior
+- `src/data/prompts/` - AI prompt files (system, fix, generate)
 - `tools/` - build and export scripts
 - `tools/dev-server.mjs` - CLI dev server
 - `dist/slides.html` - generated single-file deck (build output)
@@ -119,6 +119,7 @@ Use preset names instead of full CSS grid strings:
 
 - `title-slide` - Full-screen centered content
 - `header-content` - Header, content, footer stacked
+- `focus` - Content-first layout with minimal header/footer (centered content)
 - `two-column` - Two equal columns with optional header and footer
 - `media-span` - Two columns with media spanning full height (1.2:0.8)
 - `left-heavy` - Two columns with left side larger (2:1)
