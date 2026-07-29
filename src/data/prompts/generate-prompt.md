@@ -22,6 +22,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 ## Creative Guidelines
 
 - Reorganize for better flow, pacing, and storytelling
+- Always use `theme: light` for all slides to ensure consistent light-mode appearance
 - Break up dense slides into focused, digestible slides (one idea per slide)
 - Add transition slides between major sections to improve narrative flow
 - Create summary or key takeaway slides at the end of sections
