@@ -791,15 +791,6 @@ export class DeckController extends EventEmitter {
       loading.updateProgress(100);
       loading.dismiss();
 
-      // AI post-processing (runs after deck is loaded for instant feedback)
-      if (aiMode) {
-        const { AiSidebar } = await import("../editor/ai-sidebar.js");
-        const enhanced = await AiSidebar.show(markdown, aiMode);
-        if (enhanced) {
-          await applyAiResult(enhanced);
-        }
-      }
-
       // Shared helper to apply AI result to the deck
       const applyAiResult = async (enhanced) => {
         try {
@@ -842,6 +833,15 @@ export class DeckController extends EventEmitter {
           }
         }
       };
+
+      // AI post-processing (runs after deck is loaded for instant feedback)
+      if (aiMode) {
+        const { AiSidebar } = await import("../editor/ai-sidebar.js");
+        const enhanced = await AiSidebar.show(markdown, aiMode);
+        if (enhanced) {
+          await applyAiResult(enhanced);
+        }
+      }
 
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
