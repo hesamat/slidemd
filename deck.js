@@ -109,13 +109,7 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     const controller = new DeckController(deck, elements);
     await controller.init();
 
-    // 5b. Wire up Welcome Slide "Open Example" button (if present)
-    const openExampleBtn = document.getElementById("openExampleBtn");
-    if (openExampleBtn) {
-      openExampleBtn.addEventListener("click", () => DeckLoader.openExampleFile());
-    }
-
-    // 5c. Wire up footer shortcut buttons
+    // 5b. Wire up footer shortcut buttons
     document.querySelectorAll(".footer-shortcut").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.shortcut;

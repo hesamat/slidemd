@@ -2,11 +2,15 @@ layout: title-slide
 
 @title
 
-# SlideMD
+# Welcome to SlideMD
 
 ### Markdown-Based Presentations
 
 Create beautiful slides with plain Markdown. No installation, no accounts, no build steps.
+
+@footer
+
+Press **E** to edit \u2022 **P** to present \u2022 **D** for dark mode
 
 ---
 
@@ -547,14 +551,14 @@ layout: focus
 
 @main
 
-1. **Press `E`** – Validate slide flow and fit
-2. **Press `P`** – Open viewer on your presentation display
-3. **Press `F`** – Go fullscreen and deliver
+**Press `E`** – Validate slide flow and fit
+**Press `P`** – Open viewer on your presentation display
+**Press `F`** – Go fullscreen and deliver
 
 ### Learn More
 
-- **README.md** – Installation and setup
-- **GitHub** – Contribute, report issues, or star the project
+**README.md** – Installation and setup
+**GitHub** – Contribute, report issues, or star the project
 
 @footer
 
