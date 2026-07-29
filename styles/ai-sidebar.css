@@ -229,11 +229,13 @@
 @keyframes ai-sidebar__headerFlash {
   0%,
   100% {
-    border-bottom-color: var(--ai-border);
+    box-shadow: inset 0 -2px 0 0 var(--ai-border);
   }
 
   50% {
-    border-bottom-color: var(--ai-accent);
+    box-shadow:
+      inset 0 -2px 0 0 var(--ai-accent),
+      inset 0 -6px 12px -4px rgba(99, 102, 241, 0.25);
   }
 }
 
