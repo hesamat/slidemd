@@ -18,11 +18,13 @@ Before committing, run these checks locally:
 ```bash
 npm run lint          # ESLint (errors only)
 npm run format:check  # Prettier formatting
-npm run build         # Build script
 npm test              # Vitest unit tests
+npm run build         # Build script
 ```
 
 All four must pass. If `npm run format:check` fails, run `npx prettier --write .` to fix.
+
+**Important**: Before running quality gates, verify the feature actually works by testing it in the browser or inspecting the code logic. Do NOT run the full lint/format/test/build cycle prematurely — it wastes time when the code still has issues.
 
 ## Code Organization
 
