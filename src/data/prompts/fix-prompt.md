@@ -1,21 +1,33 @@
 Fix this SlideMD markdown and return as JSON.
 
-## Core Principle: Be Conservative
+## Core Principles
 
-Fix formatting and structural problems. Do NOT restructure slides that already work.
-Use only content present in the input markdown.
-Do NOT change a layout unless it is genuinely broken.
+Fix formatting, structural, and content problems. Be conservative with layouts (don't change them unless genuinely broken), but be proactive with content quality — fix code blocks, lists, headers, and formatting that clearly lost structure during extraction.
+
+Use only content present in the input markdown. Do NOT invent new content.
 
 ## What to Fix
 
+### Headers & Text
+
 - Header levels: # for title-slide only, ## for all other slide titles
 - Remove bold wrapping from headers (e.g. "### AGENDA" -> "## AGENDA")
-- Recover code block newlines lost during extraction
 - Fix broken links (URLs split across lines)
-- Fix code with extra backticks, missing language tags, or wrong indentation
 - Fix broken list formatting (missing dashes, wrong indentation)
 - Fix tables with misaligned columns or missing header rows
 - Remove duplicate blank lines and trailing whitespace
+
+### Code Blocks (IMPORTANT)
+
+- **Split merged code blocks**: Multiple functions, classes, or code snippets are often concatenated without proper separation. Add blank lines between function definitions, class methods, and logical code sections
+- **Fix missing newlines**: Code lines that are jammed together (e.g. `func1()func2()`) should be split onto separate lines
+- **Recover lost newlines**: During PPTX extraction, code block newlines are often lost — restore them by detecting code structure (function definitions, indentation patterns, keyword boundaries)
+- **Fix language tags**: Add or correct missing code language identifiers
+- **Fix indentation**: Restore proper indentation where it was lost during extraction
+- **Remove extra backticks** or stray fence markers
+
+### Diagrams
+
 - Convert [Diagram: ...] markers to Mermaid ONLY when the content represents a true flowchart or process. For simple lists, use bullet points instead
 
 ## What to Preserve
@@ -38,6 +50,8 @@ Before outputting, verify:
 
 - Every slide has non-empty content in at least one area marker
 - Headers follow the correct hierarchy for the layout
+- Code blocks have proper spacing — functions/classes separated by blank lines, no jammed-together lines
+- Language tags are present on code blocks where the language is clear
 - All [Diagram:] markers are addressed — converted to Mermaid for true flowcharts only, left as bullet points otherwise. Do NOT invent diagrams where none existed
 - The JSON is valid and parseable
 

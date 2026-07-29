@@ -6,6 +6,8 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 
 - Keep all substantive content but reorganize it for maximum clarity
 - Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
+- **Split merged code blocks**: Multiple functions, classes, or code snippets that were jammed together during extraction must be separated. Add blank lines between function definitions, class methods, and logical code sections. A block like `def a():\n  pass\ndef b():\n  pass` should become `def a():\n  pass\n\ndef b():\n  pass`
+- **Restore code structure**: Fix indentation, add missing newlines, and ensure each logical code unit stands on its own
 - Combine sparse slides into richer ones — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
 - If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
@@ -84,6 +86,7 @@ Before outputting, verify:
 
 - Every slide has non-empty content in at least one area marker
 - Headers follow the correct hierarchy for the layout
+- Code blocks have proper spacing — functions/classes separated by blank lines, no jammed-together lines
 - All [Diagram:] markers are addressed — converted to Mermaid for true flowcharts, or replaced with bullet points for simple lists
 - Slides use a variety of appropriate layouts, not the same one repeated
 - The JSON is valid and parseable
