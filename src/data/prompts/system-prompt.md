@@ -47,7 +47,7 @@ Right: "@header\n## Title\n\n@main\n\n- Point 1"
 
 ## Slide Structure
 
-- Every slide should have @header and @main. Exception: focus layout uses only @main, and title-slide uses @title and @footer
+- Every slide should have @header and @main. Exception: title-slide uses @title and @footer only
 - Two-column: @header, @main (left), @media (right). Only convert to header-content if the slide has no @media marker
 - Media-span: MUST have @media with content
 - **title-slide is ONLY for opening/intro slides**. It has only @title and @footer — NO @header, NO @main. If a slide has bullet points, lists, or any substantial content, use focus, header-content, or two-column instead
