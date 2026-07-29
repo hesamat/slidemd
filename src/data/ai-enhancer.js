@@ -29,42 +29,21 @@ export function slidesToMarkdown(slides) {
 }
 
 /**
- * Fix layouts in parsed slides (e.g., header-content → two-column when @media exists).
- * In "fix" mode, original layouts are preserved. In "generate" mode, AI-chosen layouts
- * are kept (only backgrounds/themes are preserved from the original).
+ * Restore original backgrounds and themes onto AI-produced slides.
+ * Trusts the AI for layout choices.
  * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
  * @param {{ layout: string, background: string, theme: string }[]} origDirectives
- * @param {"fix"|"generate"} mode
  * @returns {typeof slides}
  */
-export function fixSlideLayouts(slides, origDirectives, mode = "fix") {
-  return slides
-    .map((slide, i) => ({ slide, origIdx: i }))
-    .filter(({ slide }) => slide.content && slide.content.trim())
-    .map(({ slide, origIdx }) => {
-      const orig = origDirectives[origIdx] || {};
-      const hasMedia = /^@media\b/m.test(slide.content);
-
-      // Always preserve original background/theme when available
-      const result = {
-        ...slide,
-        background: orig.background || slide.background || "",
-        theme: orig.theme || slide.theme || "",
-      };
-
-      // In "fix" mode, prefer the original layout (AI may have mis-chosen)
-      // In "generate" mode, keep the AI's layout choice (the whole point is reorganization)
-      if (mode === "fix" && orig.layout) {
-        result.layout = orig.layout;
-      }
-
-      // Fix wrong layouts: if slide has @media but layout is header-content
-      if (hasMedia && (result.layout === "header-content" || result.layout === "content-sidebar")) {
-        result.layout = "two-column";
-      }
-
-      return result;
-    });
+export function restoreDirectives(slides, origDirectives) {
+  return slides.map((slide, i) => {
+    const orig = origDirectives[i] || {};
+    return {
+      ...slide,
+      background: orig.background || slide.background || "",
+      theme: orig.theme || slide.theme || "",
+    };
+  });
 }
 
 /**
@@ -87,13 +66,18 @@ export function extractDirectives(markdown) {
 }
 
 /**
- * Strip frontmatter directives (layout, theme, background, hidden) from markdown.
- * Only replaces directives outside fenced code blocks to avoid stripping
- * legitimate content that happens to match directive patterns.
+ * Strip frontmatter directives from markdown.
+ * Only replaces directives outside fenced code blocks.
+ *
+ * Fix mode: strips layout, theme, background, hidden, code-font-size
+ * Generate mode: strips layout, hidden, code-font-size — keeps background and theme
+ *   so the AI can see the originals and make informed decisions.
+ *
  * @param {string} markdown
+ * @param {"fix"|"generate"} mode
  * @returns {string}
  */
-function stripFrontmatter(markdown) {
+function stripFrontmatter(markdown, mode) {
   const lines = markdown.split("\n");
   const result = [];
   let inFence = false;
@@ -107,9 +91,18 @@ function stripFrontmatter(markdown) {
       result.push(line);
       continue;
     }
-    if (/^(layout|theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
-      result.push("");
-      continue;
+    if (mode === "generate") {
+      // Generate mode: keep background and theme so AI sees the originals
+      if (/^(layout|hidden|code-font-size):\s*.*$/.test(line)) {
+        result.push("");
+        continue;
+      }
+    } else {
+      // Fix mode: strip all directives — originals are restored post-AI
+      if (/^(layout|theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
+        result.push("");
+        continue;
+      }
     }
     result.push(line);
   }
@@ -123,17 +116,16 @@ function stripFrontmatter(markdown) {
  * Build messages for the AI call.
  * @param {string} markdown - The original markdown (with backgrounds/layouts).
  * @param {"fix"|"generate"} mode - Enhancement mode.
- * @returns {{ system: string, user: string, original: string }}
+ * @returns {{ system: string, user: string }}
  */
 export function buildMessages(markdown, mode) {
-  const cleaned = stripFrontmatter(markdown);
+  const cleaned = stripFrontmatter(markdown, mode);
   return {
     system: systemPrompt,
     user:
       mode === "fix"
         ? fixPrompt.replace("{{markdown}}", cleaned)
         : generatePrompt.replace("{{markdown}}", cleaned),
-    original: markdown,
   };
 }
 
@@ -153,7 +145,7 @@ export function estimateTokens(text) {
  * @returns {number}
  */
 export function estimateMaxTokens(markdown, mode) {
-  const cleaned = stripFrontmatter(markdown);
+  const cleaned = stripFrontmatter(markdown, mode);
   const inputTokens = estimateTokens(cleaned);
   const multiplier = mode === "generate" ? 1.8 : 1.2;
   const estimated = Math.ceil(inputTokens * multiplier);

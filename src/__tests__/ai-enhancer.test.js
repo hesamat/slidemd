@@ -5,7 +5,7 @@ import {
   slidesToMarkdown,
   buildMessages,
   extractDirectives,
-  fixSlideLayouts,
+  restoreDirectives,
   estimateMaxTokens,
 } from "../data/ai-enhancer.js";
 
@@ -90,104 +90,83 @@ describe("extractDirectives", () => {
   });
 });
 
-describe("fixSlideLayouts", () => {
-  it("preserves original backgrounds (fix mode)", () => {
+describe("restoreDirectives", () => {
+  it("restores original backgrounds", () => {
     const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
     const orig = [
       { layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" },
     ];
-    const result = fixSlideLayouts(slides, orig, "fix");
+    const result = restoreDirectives(slides, orig);
     expect(result[0].background).toBe("linear-gradient(#000,#fff)");
   });
 
-  it("preserves original backgrounds (generate mode)", () => {
-    const slides = [{ layout: "title-slide", content: "# Hi" }];
-    const orig = [
-      { layout: "header-content", background: "linear-gradient(#000,#fff)", theme: "" },
-    ];
-    const result = fixSlideLayouts(slides, orig, "generate");
-    expect(result[0].background).toBe("linear-gradient(#000,#fff)");
+  it("restores original themes", () => {
+    const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
+    const orig = [{ layout: "", background: "", theme: "dark" }];
+    const result = restoreDirectives(slides, orig);
+    expect(result[0].theme).toBe("dark");
   });
 
-  it("fixes header-content to two-column when @media exists", () => {
-    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@media\n- Item" }];
-    const orig = [{ layout: "two-column", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig, "fix");
-    expect(result[0].layout).toBe("two-column");
-  });
-
-  it("preserves original layout when no @media (fix mode)", () => {
-    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@main\n- Item" }];
-    const orig = [{ layout: "two-column", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig, "fix");
-    expect(result[0].layout).toBe("two-column");
-  });
-
-  it("keeps AI-chosen layout in generate mode", () => {
+  it("trusts AI layout choices", () => {
     const slides = [{ layout: "two-column", content: "@main\n- Item 1" }];
     const orig = [{ layout: "header-content", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig, "generate");
+    const result = restoreDirectives(slides, orig);
     expect(result[0].layout).toBe("two-column");
   });
 
-  it("still fixes @media mismatch in generate mode", () => {
-    const slides = [{ layout: "header-content", content: "@header\n## Title\n\n@media\n- Item" }];
-    const orig = [{ layout: "header-content", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig, "generate");
-    expect(result[0].layout).toBe("two-column");
+  it("prefers original bg/theme over AI", () => {
+    const slides = [{ layout: "focus", background: "red", theme: "light", content: "@main\n- Hi" }];
+    const orig = [{ layout: "", background: "blue", theme: "dark" }];
+    const result = restoreDirectives(slides, orig);
+    expect(result[0].background).toBe("blue");
+    expect(result[0].theme).toBe("dark");
   });
 
-  it("defaults to fix mode when mode not specified", () => {
-    const slides = [{ layout: "header-content", content: "@header\n## Hi" }];
-    const orig = [{ layout: "two-column", background: "", theme: "" }];
-    const result = fixSlideLayouts(slides, orig);
-    expect(result[0].layout).toBe("two-column");
+  it("falls back to AI values when no original", () => {
+    const slides = [{ layout: "focus", background: "red", theme: "light", content: "@main\n- Hi" }];
+    const result = restoreDirectives(slides, []);
+    expect(result[0].background).toBe("red");
+    expect(result[0].theme).toBe("light");
   });
 
-  it("filters out slides with empty content", () => {
+  it("handles slides with empty content", () => {
     const slides = [
       { layout: "title-slide", content: "# Title" },
       { layout: "header-content", content: "   " },
-      { layout: "two-column", content: "" },
-      { layout: "header-content", content: "@main\n- Item" },
     ];
     const orig = [
-      { layout: "title-slide", background: "", theme: "" },
-      { layout: "header-content", background: "", theme: "" },
-      { layout: "two-column", background: "", theme: "" },
-      { layout: "header-content", background: "", theme: "" },
+      { layout: "", background: "#fff", theme: "" },
+      { layout: "", background: "#000", theme: "dark" },
     ];
-    const result = fixSlideLayouts(slides, orig);
+    const result = restoreDirectives(slides, orig);
     expect(result).toHaveLength(2);
-    expect(result[0].content).toBe("# Title");
-    expect(result[1].content).toBe("@main\n- Item");
-  });
-
-  it("filters out slides with null/undefined content", () => {
-    const slides = [
-      { layout: "title-slide", content: "# Hi" },
-      { layout: "header-content", content: null },
-    ];
-    const orig = [
-      { layout: "title-slide", background: "", theme: "" },
-      { layout: "header-content", background: "", theme: "" },
-    ];
-    const result = fixSlideLayouts(slides, orig);
-    expect(result).toHaveLength(1);
+    expect(result[0].background).toBe("#fff");
+    expect(result[1].theme).toBe("dark");
   });
 });
 
 describe("buildMessages", () => {
-  it("strips frontmatter from markdown", () => {
+  it("strips frontmatter from markdown in fix mode", () => {
     const md =
       "layout: header-content\nbackground: #fff\ntheme: dark\n@header\n## Title\n\n@main\n- Item";
-    const { user, original } = buildMessages(md, "fix");
+    const { user } = buildMessages(md, "fix");
     expect(user).toContain("@header");
     expect(user).toContain("- Item");
     expect(user).not.toContain("layout:");
     expect(user).not.toContain("background:");
     expect(user).not.toContain("theme:");
-    expect(original).toBe(md);
+  });
+
+  it("keeps background and theme in generate mode", () => {
+    const md =
+      "layout: header-content\nbackground: #fff\ntheme: dark\n@header\n## Title\n\n@main\n- Item";
+    const { user } = buildMessages(md, "generate");
+    expect(user).toContain("@header");
+    expect(user).toContain("- Item");
+    expect(user).toContain("background: #fff");
+    expect(user).toContain("theme: dark");
+    // Layout should be stripped from the input markdown (only kept in prompt examples)
+    expect(user).not.toContain("layout: header-content");
   });
 
   it("preserves directives inside code blocks", () => {

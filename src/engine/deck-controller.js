@@ -791,7 +791,7 @@ export class DeckController extends EventEmitter {
       }
 
       // Shared helper to apply AI result to the deck
-      const applyAiResult = async (enhanced) => {
+      const applyAiResult = async (enhanced, origDirectives) => {
         try {
           localStorage.setItem("webdeck_local_file", enhanced);
           localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
@@ -806,6 +806,8 @@ export class DeckController extends EventEmitter {
           newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
         } catch (err) {
           console.warn("parseDeckMarkdown failed:", err);
+          Notification.error("Failed to parse AI result. The output may be malformed.");
+          return;
         }
 
         // Fallback: if parser returned only 1 slide but content has ---, split manually
@@ -819,6 +821,13 @@ export class DeckController extends EventEmitter {
             });
             newDeckData.meta = newDeckData.meta || {};
           }
+        }
+
+        // Restore original backgrounds and themes (trust AI for layouts)
+        if (newDeckData && origDirectives) {
+          const { restoreDirectives, slidesToMarkdown } = await import("../data/ai-enhancer.js");
+          newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
+          enhanced = slidesToMarkdown(newDeckData.slides);
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
@@ -911,9 +920,11 @@ export class DeckController extends EventEmitter {
       if (aiMode) {
         try {
           const { AiSidebar } = await import("../editor/ai-sidebar.js");
+          const { extractDirectives } = await import("../data/ai-enhancer.js");
+          const origDirectives = extractDirectives(markdown);
           const enhanced = await AiSidebar.show(markdown, aiMode);
           if (enhanced) {
-            await applyAiResult(enhanced);
+            await applyAiResult(enhanced, origDirectives);
           }
         } catch (err) {
           console.error("AI post-processing failed:", err);
