@@ -2,7 +2,8 @@
  * AiSidebar
  *
  * Non-blocking sidebar panel for AI processing.
- * Streams the full AI response with truncation detection and retry support.
+ * For small decks (≤8 slides): single API call.
+ * For larger decks: 2-worker parallel batch processing with per-batch retry.
  */
 
 import { SettingsModal } from "./settings-modal.js";
@@ -10,17 +11,19 @@ import { SettingsModal } from "./settings-modal.js";
 const P = "ai-sidebar__";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+const log = (...args) => console.log("[AI-Batch]", ...args);
+
 export class AiSidebar {
   static _currentPanel = null;
-  static _abortController = null;
+  static _abortControllers = [];
   static _minimized = false;
   static _showId = null;
 
   static cancel() {
-    if (this._abortController) {
-      this._abortController.abort();
-      this._abortController = null;
+    for (const ctrl of this._abortControllers) {
+      ctrl.abort();
     }
+    this._abortControllers = [];
   }
 
   static close() {
@@ -61,9 +64,10 @@ export class AiSidebar {
     const retryBtn = panel.querySelector('[data-action="retry"]');
     const minimizeBtn = panel.querySelector('[data-action="minimize"]');
     const seeResultBtn = panel.querySelector('[data-action="see-result"]');
+    const progressInline = panel.querySelector(`.${P}progress-inline`);
+    const progressCount = panel.querySelector(`.${P}progress-count`);
 
     let cancelled = false;
-    let result = null;
 
     cancelBtn.addEventListener("click", () => {
       cancelled = true;
@@ -79,16 +83,17 @@ export class AiSidebar {
     closeBtn.addEventListener("click", finish);
     seeResultBtn.addEventListener("click", finish);
 
-    // Retry re-runs the full flow
     retryBtn.addEventListener("click", () => {
       retryBtn.hidden = true;
       cancelBtn.hidden = false;
       closeBtn.hidden = true;
-      noticeEl.hidden = false;
+      noticeEl.hidden = true;
       outputEl.textContent = "";
+      outputEl.hidden = false;
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
-      // Re-run by resolving finish and re-calling — simpler to just re-invoke
+      progressInline.hidden = true;
+      panel.classList.remove(`${P}header--active`);
       this._retryResolve?.();
     });
 
@@ -98,196 +103,267 @@ export class AiSidebar {
       minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
     });
 
+    // Log when tab goes hidden (browser throttles event loop)
+    const onVisibilityChange = () => {
+      if (document.hidden) log("Tab hidden \u2014 browser may throttle streaming");
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange, { once: true });
+
+    const showError = (msg) => {
+      statusEl.textContent = msg;
+      statusEl.className = `${P}status ${P}status--error`;
+      noticeEl.hidden = true;
+      cancelBtn.hidden = true;
+      retryBtn.hidden = false;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Close";
+      progressInline.hidden = true;
+      panel.classList.remove(`${P}header--active`);
+      outputEl.hidden = false;
+    };
+
+    const showDone = () => {
+      statusEl.textContent = 'Done! Click "See result" to apply.';
+      statusEl.className = `${P}status ${P}status--done`;
+      noticeEl.hidden = false;
+      cancelBtn.hidden = true;
+      retryBtn.hidden = true;
+      closeBtn.hidden = true;
+      seeResultBtn.hidden = false;
+      progressInline.hidden = true;
+      outputEl.hidden = false;
+      panel.classList.remove(`${P}header--active`);
+      panel.classList.add(`${P}panel--done`);
+    };
+
+    const appendLog = (text, type = "info") => {
+      outputEl.hidden = false;
+      const line = document.createElement("div");
+      line.className = `${P}log-line ${P}log-line--${type}`;
+      line.textContent = text;
+      outputEl.appendChild(line);
+      outputEl.scrollTop = outputEl.scrollHeight;
+    };
+
+    const updateProgress = (completedSlides, totalSlides, nextBatch) => {
+      if (progressCount) progressCount.textContent = `${completedSlides}/${totalSlides}`;
+      if (nextBatch) {
+        statusEl.textContent = `Processing slides ${nextBatch.start + 1}\u2013${nextBatch.end} of ${totalSlides}\u2026`;
+      }
+    };
+
+    const { buildDeckSummary, splitSlides, slidesToMarkdown, BATCH_SIZE } =
+      await import("../data/ai-enhancer.js");
+
     const run = async () => {
       try {
         const apiKey = SettingsModal.getApiKey();
         const model = SettingsModal.getModel();
 
         if (!apiKey) {
-          statusEl.textContent = "No API key \u2014 open Settings to configure";
-          statusEl.className = `${P}status ${P}status--error`;
-          noticeEl.hidden = true;
-          cancelBtn.hidden = true;
-          retryBtn.hidden = false;
-          closeBtn.hidden = false;
-          closeBtn.textContent = "Close";
+          showError("No API key \u2014 open Settings to configure");
           return null;
         }
 
-        statusEl.textContent = "Preparing\u2026";
-        const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
-          await import("../data/ai-enhancer.js");
-
-        const { system, user } = buildMessages(markdown, mode);
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
         const useReasoning = SettingsModal.getReasoning();
-        const inputTokens = estimateMaxTokens(markdown, mode, {
-          modelMaxOutput,
-          useReasoning,
-        });
-        statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
-
-        this._abortController = new AbortController();
         const effort = SettingsModal.getEffort();
-        const body = {
-          model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-          max_tokens: inputTokens,
-          stream: true,
-          response_format: { type: "json_object" },
-        };
-        if (useReasoning) {
-          body.reasoning = { effort };
+
+        // Split into slides to decide single vs batch path
+        const allSlides = splitSlides(markdown, mode);
+        log(`Markdown split into ${allSlides.length} slides`);
+
+        // ── Single-call path (≤BATCH_SIZE slides) ──
+        if (allSlides.length <= BATCH_SIZE) {
+          log("Using single-call path (≤8 slides)");
+          return await this.#runSingleCall(markdown, mode, {
+            apiKey,
+            model,
+            modelMaxOutput,
+            useReasoning,
+            effort,
+            panel,
+            statusEl,
+            outputEl,
+            noticeEl,
+            isCancelled: () => cancelled,
+          });
         }
 
-        const res = await fetch(OPENROUTER_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-          signal: this._abortController.signal,
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text().catch(() => "");
-          throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
+        // ── Batch path (>BATCH_SIZE slides) ──
+        const batches = [];
+        for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
+          batches.push({ start: i, end: Math.min(i + BATCH_SIZE, allSlides.length) });
         }
+        log(`Split ${allSlides.length} slides into ${batches.length} batches of ${BATCH_SIZE}`);
 
-        noticeEl.hidden = false;
-        statusEl.textContent = "AI is working\u2026";
+        const deckSummary = mode === "generate" ? buildDeckSummary(markdown) : null;
+        if (deckSummary) log("Deck summary:", deckSummary.split("\n")[0]);
 
-        // Disable scrolling during streaming
-        outputEl.style.overflowY = "hidden";
-        const preventWheel = (e) => e.preventDefault();
-        panel.addEventListener("wheel", preventWheel, { passive: false });
+        // Show progress UI
+        outputEl.textContent = "";
+        outputEl.hidden = false;
+        noticeEl.hidden = true;
+        progressInline.hidden = false;
+        progressCount.textContent = `0/${allSlides.length}`;
+        statusEl.textContent = `Processing slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
+        statusEl.className = `${P}status`;
+        panel.classList.add(`${P}header--active`);
+        appendLog(
+          `Split ${allSlides.length} slides into ${batches.length} batches of ${batches.length > 1 ? BATCH_SIZE : allSlides.length}`,
+        );
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let contentText = "";
-        let reasoningText = "";
-        let buffer = "";
-        let streamDone = false;
-        let finishReason = null;
+        // 2-worker parallel batch loop
+        const results = new Array(batches.length);
+        let completedSlides = 0;
+        let retryCount = 0;
+        let splitCount = 0;
+        const retryAttempts = new Map(); // batch key -> attempt count
+        const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const worker = async (workerName) => {
+          while (queue.length > 0) {
+            if (cancelled) break;
+            const batch = queue.shift();
+            log(
+              `Worker ${workerName}: picked batch ${batch.index} (slides ${batch.start}\u2013${batch.end - 1})`,
+            );
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+            const batchResult = await this.#streamBatch({
+              markdown,
+              mode,
+              batch,
+              totalSlides: allSlides.length,
+              deckSummary,
+              apiKey,
+              model,
+              modelMaxOutput,
+              useReasoning,
+              effort,
+              signal: this._abortControllers[0]?.signal,
+            });
 
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") {
-              streamDone = true;
+            if (batchResult === null) {
+              // Cancelled
               break;
             }
 
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta;
-              finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
-              if (!delta) continue;
+            if (batchResult.error) {
+              const attempts = (retryAttempts.get(batch.batchKey) || 0) + 1;
+              retryAttempts.set(batch.batchKey, attempts);
 
-              const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
-              if (reasoningDelta) {
-                reasoningText += reasoningDelta;
-                if (!contentText) {
-                  outputEl.textContent = reasoningText;
-                  outputEl.scrollTop = outputEl.scrollHeight;
-                  statusEl.textContent = "Thinking\u2026";
-                }
+              if (batchResult.error.type === "truncation") {
+                log(
+                  `Batch ${batch.index}: truncated, splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)}`,
+                );
+                appendLog(
+                  `\u26A0 Batch ${batch.index + 1}: response truncated \u2014 splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)} slides`,
+                  "warn",
+                );
+                splitCount++;
+                const mid = batch.start + Math.ceil((batch.end - batch.start) / 2);
+                queue.unshift(
+                  {
+                    start: batch.start,
+                    end: mid,
+                    index: batch.index,
+                    batchKey: `${batch.start}-${mid}`,
+                  },
+                  {
+                    start: mid,
+                    end: batch.end,
+                    index: batch.index,
+                    batchKey: `${mid}-${batch.end}`,
+                  },
+                );
+              } else if (attempts < 2) {
+                log(
+                  `Batch ${batch.index}: ${batchResult.error.type}, retrying (attempt ${attempts + 1}/2)`,
+                );
+                appendLog(
+                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type} \u2014 retrying...`,
+                  "warn",
+                );
+                retryCount++;
+                queue.unshift(batch);
+              } else {
+                log(
+                  `Batch ${batch.index}: FAILED after ${attempts} attempts (${batchResult.error.type})`,
+                );
+                appendLog(
+                  `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
+                  "error",
+                );
+                completedSlides += batch.end - batch.start;
+                const nextBatch = queue.length > 0 ? queue[0] : null;
+                updateProgress(completedSlides, allSlides.length, nextBatch);
               }
-
-              if (delta.content) {
-                contentText += delta.content;
-                const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
-                outputEl.textContent = display;
-                outputEl.scrollTop = outputEl.scrollHeight;
-              }
-            } catch {
-              // skip malformed JSON
+            } else {
+              results[batch.index] = batchResult.slides;
+              completedSlides += batch.end - batch.start;
+              const nextBatch = queue.length > 0 ? queue[0] : null;
+              updateProgress(completedSlides, allSlides.length, nextBatch);
+              log(
+                `Batch ${batch.index}: done in ${batchResult.duration.toFixed(1)}s \u2014 ${batchResult.slides.length} slides parsed`,
+              );
+              appendLog(
+                `\u2713 Batch ${batch.index + 1}: slides ${batch.start + 1}\u2013${batch.end} done (${batchResult.duration.toFixed(1)}s)`,
+              );
             }
           }
-          if (streamDone) break;
-        }
+          log(`Worker ${workerName}: queue empty, exiting`);
+        };
 
-        // Re-enable scrolling
-        outputEl.style.overflowY = "";
-        panel.removeEventListener("wheel", preventWheel);
+        // Create2 AbortControllers
+        const ctrl1 = new AbortController();
+        const ctrl2 = new AbortController();
+        this._abortControllers = [ctrl1, ctrl2];
 
+        await Promise.all([worker("A"), worker("B")]);
+
+        // All done
         if (cancelled) {
           this.close();
           return null;
         }
 
-        // Detect truncation
-        if (finishReason === "length") {
-          const limitDisplay = modelMaxOutput
-            ? `${modelMaxOutput.toLocaleString()} tokens`
-            : "unknown";
-          statusEl.textContent =
-            `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
-            `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
-            `or switch to a model with a higher output token limit.`;
-          statusEl.className = `${P}status ${P}status--error`;
-          noticeEl.hidden = true;
-          cancelBtn.hidden = true;
-          retryBtn.hidden = false;
-          closeBtn.hidden = false;
-          closeBtn.textContent = "Close";
+        // Check for partial results
+        const failedBatches = results.filter((r) => r === undefined).length;
+        if (failedBatches > 0) {
+          log(`FAILED: ${failedBatches}/${batches.length} batches failed`);
+          showError(
+            `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
+              `Try again or reduce deck size.`,
+          );
           return null;
         }
 
-        const parsed = parseAiResponse(contentText);
-        if (!parsed) {
-          statusEl.textContent = "Error: AI did not return valid JSON";
-          statusEl.className = `${P}status ${P}status--error`;
-          noticeEl.hidden = true;
-          cancelBtn.hidden = true;
-          retryBtn.hidden = false;
-          closeBtn.hidden = false;
-          closeBtn.textContent = "Close";
-          return null;
-        }
-
-        result = slidesToMarkdown(parsed.slides);
-        statusEl.textContent = 'Done! Click "See result" to apply.';
-        statusEl.className = `${P}status ${P}status--done`;
-        noticeEl.hidden = true;
-        cancelBtn.hidden = true;
-        retryBtn.hidden = true;
-        closeBtn.hidden = true;
-        seeResultBtn.hidden = false;
-        panel.classList.add(`${P}panel--done`);
-        return result;
+        // Combine results in order
+        const allResultSlides = results.flat();
+        log(
+          `All done: ${batches.length}/${batches.length} batches complete, ${retryCount} retries, ${splitCount} splits`,
+        );
+        const summaryParts = [`${allSlides.length} slides processed`];
+        if (retryCount > 0)
+          summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
+        if (splitCount > 0) summaryParts.push(`${splitCount} split${splitCount === 1 ? "" : "s"}`);
+        appendLog(`\u2714 ${summaryParts.join(", ")}`);
+        const combined = slidesToMarkdown(allResultSlides);
+        return combined;
       } catch (err) {
         if (err.name === "AbortError") {
           this.close();
           return null;
         }
-        statusEl.textContent = `Error: ${err.message}`;
-        statusEl.className = `${P}status ${P}status--error`;
-        noticeEl.hidden = true;
-        cancelBtn.hidden = true;
-        retryBtn.hidden = false;
-        closeBtn.hidden = false;
-        closeBtn.textContent = "Close";
+        showError(`Error: ${err.message}`);
         return null;
       }
     };
 
-    // Run the API call
+    // Run
     let runResult = await run();
 
-    // If retry was clicked, re-run
+    // Retry loop
     while (!runResult && retryBtn.hidden === false && !cancelled) {
       await new Promise((resolve) => {
         this._retryResolve = resolve;
@@ -297,16 +373,296 @@ export class AiSidebar {
     }
 
     if (runResult) {
+      showDone();
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
     }
 
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     if (this._showId === myShowId) {
       this._currentPanel = null;
     }
     panel.remove();
     return runResult;
+  }
+
+  /**
+   * Single API call path (small decks).
+   */
+  static async #runSingleCall(markdown, mode, opts) {
+    const {
+      apiKey,
+      model,
+      modelMaxOutput,
+      useReasoning,
+      effort,
+      panel,
+      statusEl,
+      outputEl,
+      noticeEl,
+      isCancelled,
+    } = opts;
+
+    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
+      await import("../data/ai-enhancer.js");
+
+    const { system, user } = buildMessages(markdown, mode);
+    const inputTokens = estimateMaxTokens(markdown, mode, {
+      modelMaxOutput,
+      useReasoning,
+    });
+    statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
+
+    const ctrl = new AbortController();
+    this._abortControllers = [ctrl];
+
+    const body = {
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      max_tokens: inputTokens,
+      stream: true,
+      response_format: { type: "json_object" },
+    };
+    if (useReasoning) {
+      body.reasoning = { effort };
+    }
+
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
+    }
+
+    noticeEl.hidden = false;
+    statusEl.textContent = "AI is working\u2026";
+
+    outputEl.style.overflowY = "hidden";
+    const preventWheel = (e) => e.preventDefault();
+    panel.addEventListener("wheel", preventWheel, { passive: false });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let contentText = "";
+    let reasoningText = "";
+    let buffer = "";
+    let streamDone = false;
+    let finishReason = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") {
+          streamDone = true;
+          break;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta;
+          finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
+          if (!delta) continue;
+
+          const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
+          if (reasoningDelta) {
+            reasoningText += reasoningDelta;
+            if (!contentText) {
+              outputEl.textContent = reasoningText;
+              outputEl.scrollTop = outputEl.scrollHeight;
+              statusEl.textContent = "Thinking\u2026";
+            }
+          }
+
+          if (delta.content) {
+            contentText += delta.content;
+            const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
+            outputEl.textContent = display;
+            outputEl.scrollTop = outputEl.scrollHeight;
+          }
+        } catch {
+          // skip malformed JSON
+        }
+      }
+      if (streamDone) break;
+    }
+
+    outputEl.style.overflowY = "";
+    panel.removeEventListener("wheel", preventWheel);
+
+    if (isCancelled()) {
+      this.close();
+      return null;
+    }
+
+    if (finishReason === "length") {
+      const limitDisplay = modelMaxOutput ? `${modelMaxOutput.toLocaleString()} tokens` : "unknown";
+      throw new Error(
+        `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
+          `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
+          `or switch to a model with a higher output token limit.`,
+      );
+    }
+
+    const parsed = parseAiResponse(contentText);
+    if (!parsed) {
+      throw new Error("AI did not return valid JSON");
+    }
+
+    return slidesToMarkdown(parsed.slides);
+  }
+
+  /**
+   * Stream a single batch and return parsed slides.
+   * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
+   */
+  static async #streamBatch(opts) {
+    const {
+      markdown,
+      mode,
+      batch,
+      totalSlides,
+      deckSummary,
+      apiKey,
+      model,
+      modelMaxOutput,
+      useReasoning,
+      effort,
+      signal,
+    } = opts;
+
+    const { buildBatchMessages, estimateMaxTokens, parseAiResponse } =
+      await import("../data/ai-enhancer.js");
+
+    const batchMarkdown = (() => {
+      const cleaned = markdown
+        .split(/\n---\n/)
+        .slice(batch.start, batch.end)
+        .join("\n\n---\n\n");
+      return cleaned;
+    })();
+
+    const { system, user } = buildBatchMessages(
+      markdown,
+      mode,
+      batch.start,
+      batch.end,
+      totalSlides,
+      deckSummary,
+    );
+
+    const inputTokens = estimateMaxTokens(batchMarkdown, mode, {
+      modelMaxOutput,
+      useReasoning,
+    });
+    log(
+      `Batch ${batch.index}: streaming started (~${inputTokens.toLocaleString()} tokens output budget)`,
+    );
+
+    const body = {
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      max_tokens: inputTokens,
+      stream: true,
+      response_format: { type: "json_object" },
+    };
+    if (useReasoning) {
+      body.reasoning = { effort };
+    }
+
+    const startTime = performance.now();
+
+    try {
+      const res = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "");
+        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let contentText = "";
+      let buffer = "";
+      let streamDone = false;
+      let finishReason = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") {
+            streamDone = true;
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta;
+            finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
+            if (delta?.content) {
+              contentText += delta.content;
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
+        if (streamDone) break;
+      }
+
+      const duration = (performance.now() - startTime) / 1000;
+
+      if (finishReason === "length") {
+        return { error: { type: "truncation" } };
+      }
+
+      const parsed = parseAiResponse(contentText);
+      if (!parsed) {
+        return { error: { type: "parse-error" } };
+      }
+
+      return { slides: parsed.slides, duration };
+    } catch (err) {
+      if (err.name === "AbortError") return null;
+      return { error: { type: "network-error", message: err.message } };
+    }
   }
 
   static #createPanel(mode) {
@@ -317,6 +673,9 @@ export class AiSidebar {
       <div class="${P}header">
         <span class="${P}title">${title}</span>
         <div class="${P}header-right">
+          <span class="${P}progress-inline" hidden>
+            <span class="${P}progress-count">0/0</span>
+          </span>
           <button type="button" data-action="minimize" class="${P}icon-btn" title="Minimize">\u2212</button>
         </div>
       </div>

@@ -149,7 +149,7 @@ function stripFrontmatter(markdown, mode) {
 }
 
 /**
- * Build messages for the AI call.
+ * Build messages for the AI call (single-call path, used for ≤8 slides).
  * @param {string} markdown - The original markdown (with backgrounds/layouts).
  * @param {"fix"|"generate"} mode - Enhancement mode.
  * @returns {{ system: string, user: string }}
@@ -164,6 +164,107 @@ export function buildMessages(markdown, mode) {
         : generatePrompt.replace("{{markdown}}", cleaned),
   };
 }
+
+/**
+ * Generate a lightweight deck summary for batch context.
+ * @param {string} markdown - The original markdown.
+ * @returns {string}
+ */
+export function buildDeckSummary(markdown) {
+  const slides = markdown.split(/\n---\n/);
+  const titles = slides.map((slide, i) => {
+    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
+    const layout = layoutMatch?.[1]?.trim() || "header-content";
+    const lines = slide.split("\n").filter((l) => l.trim());
+    const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
+    const title = titleLine.replace(/^#+\s*/, "").trim();
+    return `${i + 1}. [${layout}] ${title}`;
+  });
+
+  const hasCode = slides.some((s) => /```/.test(s));
+  const hasDiagrams = slides.some((s) => /\[Diagram:/.test(s));
+  const hasImages = slides.some((s) => /<img/.test(s));
+  const uniqueLayouts = [
+    ...new Set(
+      slides.map((s) => {
+        const m = s.match(/^layout:\s*(.+)$/m);
+        return m?.[1]?.trim() || "header-content";
+      }),
+    ),
+  ];
+
+  const parts = [`Deck: ${slides.length} slides. Layouts: ${uniqueLayouts.join(", ")}.`];
+  const features = [];
+  if (hasCode) features.push("code blocks");
+  if (hasDiagrams) features.push("diagrams");
+  if (hasImages) features.push("images");
+  if (features.length) parts.push(`Features: ${features.join(", ")}.`);
+  parts.push("Outline:", titles.join("\n"));
+  return parts.join("\n");
+}
+
+const BATCH_SIZE = 8;
+
+/**
+ * Build messages for a batched AI call (returns a subset of slides).
+ * @param {string} markdown - The original markdown.
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @param {number} startIdx - 0-based index of the first slide to return.
+ * @param {number} endIdx - 0-based index of the last slide (exclusive).
+ * @param {number} totalSlides - Total number of slides in the deck.
+ * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
+ * @returns {{ system: string, user: string, original: string }}
+ */
+export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides, deckSummary) {
+  const cleaned = stripFrontmatter(markdown, mode);
+  const allSlides = cleaned.split(/\n---\n/);
+  const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
+  const actualCount = allSlides.slice(startIdx, endIdx).length;
+
+  // Add neighbor context slides for fix mode
+  let contentForPrompt;
+  if (mode === "fix") {
+    const parts = [];
+    if (startIdx > 0) {
+      parts.push(`<!-- context: do not return -->\n${allSlides[startIdx - 1]}`);
+    }
+    parts.push(chunk);
+    if (endIdx < totalSlides) {
+      parts.push(`<!-- context: do not return -->\n${allSlides[endIdx]}`);
+    }
+    contentForPrompt = parts.join("\n\n---\n\n");
+  } else {
+    contentForPrompt = chunk;
+  }
+
+  const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
+  const paginationInstruction =
+    mode === "fix"
+      ? `\n\nReturn exactly ${actualCount} slide(s) as JSON. Each slide in the output corresponds 1:1 to a slide in the input (excluding context slides). Keep the same order.`
+      : `\n\nReturn exactly ${actualCount} slide(s) as JSON. Fix or organize these slides within the context of the full deck.`;
+
+  const userPrefix =
+    mode === "generate" && deckSummary ? `Deck Context:\n${deckSummary}\n\nInput markdown:\n` : "";
+
+  return {
+    system: systemPrompt,
+    user: userPrefix + basePrompt.replace("{{markdown}}", contentForPrompt) + paginationInstruction,
+    original: markdown,
+  };
+}
+
+/**
+ * Split markdown into individual slides (stripped of frontmatter).
+ * @param {string} markdown - The original markdown.
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @returns {string[]}
+ */
+export function splitSlides(markdown, mode) {
+  const cleaned = stripFrontmatter(markdown, mode);
+  return cleaned.split(/\n---\n/);
+}
+
+export { BATCH_SIZE };
 
 /**
  * Estimate token count (rough: 1 token ≈ 4 chars for English).

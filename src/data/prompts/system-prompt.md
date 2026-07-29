@@ -21,6 +21,8 @@ Rules:
 - "content" is the slide body (everything after layout/background/theme directives)
 - Use \n for newlines in the content string
 - Each slide in the array corresponds to one slide separated by ---
+- When instructed to return a subset of slides, return only those slides in the JSON array
+- When you have no more slides to return, respond with {"slides": []}
 - Every slide MUST have non-empty "content" with actual slide body text
 
 ## Formatting Rules (STRICT)

@@ -237,6 +237,7 @@
 .ai-sidebar__output {
   flex: 1;
   min-height: 0;
+  max-height: 200px;
   overflow-y: auto;
   padding: 14px 18px;
   font-size: 12px;
@@ -246,6 +247,19 @@
   font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
   background: var(--ai-bg);
   color: var(--ai-text);
+}
+
+.ai-sidebar__log-line {
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.ai-sidebar__log-line--warn {
+  color: #d97706;
+}
+
+.ai-sidebar__log-line--error {
+  color: var(--ai-error);
 }
 
 .ai-sidebar__actions {
