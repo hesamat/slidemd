@@ -147,6 +147,52 @@ export function estimateTokens(text) {
 }
 
 /**
+ * Estimate appropriate max_tokens based on input size and mode.
+ * @param {string} markdown - The original markdown.
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @returns {number}
+ */
+export function estimateMaxTokens(markdown, mode) {
+  const cleaned = stripFrontmatter(markdown);
+  const inputTokens = estimateTokens(cleaned);
+  const multiplier = mode === "generate" ? 1.8 : 1.2;
+  const estimated = Math.ceil(inputTokens * multiplier);
+  return Math.min(Math.max(16000, estimated), 128000);
+}
+
+/**
+ * Build messages for a batched AI call (returns a subset of slides).
+ * @param {string} markdown - The original markdown.
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @param {number} startIdx - 0-based index of the first slide to return.
+ * @param {number} batchSize - Number of slides per batch.
+ * @param {number} totalSlides - Total number of slides in the deck.
+ * @returns {{ system: string, user: string, original: string }}
+ */
+export function buildBatchMessages(markdown, mode, startIdx, batchSize, totalSlides) {
+  const cleaned = stripFrontmatter(markdown);
+  const endIdx = Math.min(startIdx + batchSize, totalSlides);
+  let paginationInstruction;
+  if (mode === "fix") {
+    paginationInstruction = `\n\nReturn only slides ${startIdx + 1}\u2013${endIdx} of ${totalSlides} as JSON. Each slide corresponds to one slide separated by --- in the input.`;
+  } else if (startIdx === 0) {
+    paginationInstruction = `\n\nReturn the first ${batchSize} slides of your reorganized presentation as JSON.`;
+  } else {
+    paginationInstruction =
+      "\n\nContinue from where you left off. Return the next " +
+      batchSize +
+      " slides. If you have no more slides, return " +
+      '{"slides": []}.';
+  }
+  const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
+  return {
+    system: systemPrompt,
+    user: basePrompt.replace("{{markdown}}", cleaned) + paginationInstruction,
+    original: markdown,
+  };
+}
+
+/**
  * Parse the AI's JSON response, handling common issues.
  * @param {string} text - Raw AI response.
  * @returns {{ slides: Array }|null}

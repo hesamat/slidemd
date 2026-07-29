@@ -6,6 +6,8 @@ import {
   buildMessages,
   extractDirectives,
   fixSlideLayouts,
+  estimateMaxTokens,
+  buildBatchMessages,
 } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
@@ -250,5 +252,90 @@ describe("parseAiResponse (edge cases)", () => {
 
   it("returns null for object without slides key", () => {
     expect(parseAiResponse('{"notSlides":[{"a":1}]}')).toBeNull();
+  });
+});
+
+describe("estimateMaxTokens", () => {
+  it("returns at least 16000", () => {
+    const md =
+      "layout: header-content\n@header\n## Hi\n\n---\n\nlayout: header-content\n@header\n## Bye";
+    expect(estimateMaxTokens(md, "fix")).toBeGreaterThanOrEqual(16000);
+  });
+
+  it("scales with input size for fix mode", () => {
+    const small = "a".repeat(1000);
+    const large = "a".repeat(100000);
+    expect(estimateMaxTokens(large, "fix")).toBeGreaterThan(estimateMaxTokens(small, "fix"));
+  });
+
+  it("scales with input size for generate mode", () => {
+    const small = "a".repeat(1000);
+    const large = "a".repeat(100000);
+    expect(estimateMaxTokens(large, "generate")).toBeGreaterThan(
+      estimateMaxTokens(small, "generate"),
+    );
+  });
+
+  it("generate mode estimates more tokens than fix mode", () => {
+    const md = "a".repeat(100000);
+    expect(estimateMaxTokens(md, "generate")).toBeGreaterThan(estimateMaxTokens(md, "fix"));
+  });
+});
+
+describe("buildBatchMessages", () => {
+  const md =
+    "layout: header-content\nbackground: #fff\n@header\n## Hi\n\n---\n\nlayout: two-column\n@main\n- Item";
+
+  it("includes pagination instructions for fix mode first batch", () => {
+    const { user } = buildBatchMessages(md, "fix", 0, 5, 20);
+    expect(user).toContain("Return only slides 1");
+    expect(user).toContain("of 20");
+    expect(user).toContain("@header");
+  });
+
+  it("includes pagination instructions for fix mode middle batch", () => {
+    const { user } = buildBatchMessages(md, "fix", 10, 5, 20);
+    expect(user).toContain("Return only slides 11");
+    expect(user).toContain("15 of 20");
+  });
+
+  it("clamps end index to totalSlides", () => {
+    const { user } = buildBatchMessages(md, "fix", 17, 5, 20);
+    expect(user).toContain("Return only slides 18");
+    expect(user).toContain("20 of 20");
+  });
+
+  it("first generate batch asks for first N slides", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 5, 20);
+    expect(user).toContain("Return the first 5 slides");
+    expect(user).toContain("@header");
+  });
+
+  it("subsequent generate batches ask to continue", () => {
+    const { user } = buildBatchMessages(md, "generate", 5, 5, 20);
+    expect(user).toContain("Continue from where you left off");
+    expect(user).toContain("Return the next 5 slides");
+  });
+
+  it("returns empty slides array instruction for done signal", () => {
+    const { user } = buildBatchMessages(md, "generate", 10, 5, 20);
+    expect(user).toContain('"slides": []');
+  });
+
+  it("strips frontmatter from markdown", () => {
+    const { user } = buildBatchMessages(md, "fix", 0, 5, 20);
+    expect(user).toContain("@header");
+    expect(user).not.toContain("layout: header-content");
+    expect(user).not.toContain("background: #fff");
+  });
+
+  it("returns system prompt", () => {
+    const { system } = buildBatchMessages(md, "fix", 0, 5, 20);
+    expect(system).toContain("You are a SlideMD markdown editor");
+  });
+
+  it("returns original markdown unchanged", () => {
+    const { original } = buildBatchMessages(md, "fix", 0, 5, 20);
+    expect(original).toBe(md);
   });
 });

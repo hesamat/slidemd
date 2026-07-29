@@ -2,13 +2,15 @@
  * AiSidebar
  *
  * Non-blocking sidebar panel for AI processing.
- * Shows streaming response while the user can still interact with the deck.
+ * Streams batches of 5 slides at a time, rendering live previews
+ * while the user can still interact with the deck.
  */
 
 import { SettingsModal } from "./settings-modal.js";
 
 const P = "ai-sidebar__";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const BATCH_SIZE = 5;
 
 export class AiSidebar {
   static _currentPanel = null;
@@ -39,7 +41,93 @@ export class AiSidebar {
   }
 
   /**
-   * Show the AI sidebar and stream the response.
+   * Stream a single batch from the API and return the accumulated text.
+   * @param {{ model: string, messages: Array, max_tokens: number, reasoning?: object }} body
+   * @param {HTMLElement} statusEl
+   * @param {HTMLElement} outputEl
+   * @param {AbortSignal} signal
+   * @returns {Promise<{ contentText: string, finishReason: string|null }>}
+   */
+  static async #streamBatch(body, statusEl, outputEl, signal) {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SettingsModal.getApiKey()}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
+    }
+
+    statusEl.textContent = "AI is working\u2026";
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let contentText = "";
+    let reasoningText = "";
+    let buffer = "";
+    let streamDone = false;
+    let finishReason = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") {
+          streamDone = true;
+          break;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta;
+          finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
+          if (!delta) continue;
+
+          // Collect reasoning tokens separately (for display only)
+          const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
+          if (reasoningDelta) {
+            reasoningText += reasoningDelta;
+            // Show reasoning in sidebar while thinking (before content arrives)
+            if (!contentText) {
+              outputEl.textContent = reasoningText;
+              outputEl.scrollTop = outputEl.scrollHeight;
+              statusEl.textContent = "Thinking\u2026";
+            }
+          }
+
+          // Collect content tokens (actual JSON output)
+          if (delta.content) {
+            contentText += delta.content;
+            // Show reasoning + content in the output panel
+            const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
+            outputEl.textContent = display;
+            outputEl.scrollTop = outputEl.scrollHeight;
+          }
+        } catch {
+          // skip malformed JSON
+        }
+      }
+      if (streamDone) break;
+    }
+
+    return { contentText, finishReason };
+  }
+
+  /**
+   * Show the AI sidebar and stream the response in batches.
    * @param {string} markdown - The markdown to enhance.
    * @param {"fix"|"generate"} mode - Enhancement mode.
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
@@ -103,52 +191,30 @@ export class AiSidebar {
 
       statusEl.textContent = "Preparing\u2026";
       const {
-        buildMessages,
-        estimateTokens,
+        buildBatchMessages,
+        estimateMaxTokens,
         parseAiResponse,
         slidesToMarkdown,
         extractDirectives,
         fixSlideLayouts,
       } = await import("../data/ai-enhancer.js");
-      const { system, user, original } = buildMessages(markdown, mode);
-      const inputTokens = estimateTokens(system + user);
-      statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
+      const { SlideRenderer } = await import("../renderer/slide-renderer.js");
+      const { ContentEnhancer } = await import("../renderer/content-enhancer.js");
+      const { MarkdownParser } = await import("../data/markdown-parser.js");
+
+      const totalSlides = markdown.split(/\n---\n/).length;
+      const maxTokens = estimateMaxTokens(markdown, mode);
+      statusEl.textContent = `Processing ${totalSlides} slides in batches of ${BATCH_SIZE}\u2026`;
 
       this._abortController = new AbortController();
+      const signal = this._abortController.signal;
+
       // Only enable reasoning for "generate" mode — fix mode should be quick and conservative
       const useReasoning = mode === "generate" && SettingsModal.getReasoning();
       const effort = SettingsModal.getEffort();
-      const body = {
-        model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        max_tokens: useReasoning ? 32000 : 16000,
-        stream: true,
-        response_format: { type: "json_object" },
-      };
-      // Enable extended thinking only for generate mode when enabled in settings
-      if (useReasoning) {
-        body.reasoning = { effort };
-      }
-      const res = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: this._abortController.signal,
-      });
 
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
-        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
-      }
-
-      noticeEl.hidden = false;
-      statusEl.textContent = "AI is working\u2026";
+      let startIdx = 0;
+      let allSlides = [];
 
       // Disable scrolling during streaming — prevents scrollbar jumping
       // and stops wheel events from bubbling up to the slide navigator
@@ -156,59 +222,84 @@ export class AiSidebar {
       const preventWheel = (e) => e.preventDefault();
       panel.addEventListener("wheel", preventWheel, { passive: false });
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let contentText = "";
-      let reasoningText = "";
-      let buffer = "";
-      let streamDone = false;
+      while (startIdx < totalSlides) {
+        if (cancelled) break;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { system, user } = buildBatchMessages(
+          markdown,
+          mode,
+          startIdx,
+          BATCH_SIZE,
+          totalSlides,
+        );
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") {
-            streamDone = true;
-            break;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta;
-            if (!delta) continue;
-
-            // Collect reasoning tokens separately (for display only)
-            const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
-            if (reasoningDelta) {
-              reasoningText += reasoningDelta;
-              // Show reasoning in sidebar while thinking (before content arrives)
-              if (!contentText) {
-                outputEl.textContent = reasoningText;
-                outputEl.scrollTop = outputEl.scrollHeight;
-                statusEl.textContent = "Thinking\u2026";
-              }
-            }
-
-            // Collect content tokens (actual JSON output)
-            if (delta.content) {
-              contentText += delta.content;
-              // Show reasoning + content in the output panel
-              const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
-              outputEl.textContent = display;
-              outputEl.scrollTop = outputEl.scrollHeight;
-            }
-          } catch {
-            // skip malformed JSON
-          }
+        const body = {
+          model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          max_tokens: maxTokens,
+          stream: true,
+          response_format: { type: "json_object" },
+        };
+        if (useReasoning) {
+          body.reasoning = { effort };
         }
-        if (streamDone) break;
+
+        statusEl.textContent = `Batch ${Math.floor(startIdx / BATCH_SIZE) + 1}\u2026 (${allSlides.length}/${totalSlides} slides done)`;
+
+        const { contentText, finishReason } = await this.#streamBatch(
+          body,
+          statusEl,
+          outputEl,
+          signal,
+        );
+
+        if (cancelled) break;
+
+        // Detect truncation
+        if (finishReason === "length") {
+          statusEl.textContent =
+            "Response truncated \u2014 deck too large for AI. Try fix mode or reduce slides.";
+          statusEl.className = `${P}status ${P}status--error`;
+          noticeEl.hidden = true;
+          cancelBtn.hidden = true;
+          closeBtn.hidden = false;
+          closeBtn.textContent = "Close";
+          outputEl.style.overflowY = "";
+          panel.removeEventListener("wheel", preventWheel);
+          await new Promise((resolve) => {
+            closeBtn.addEventListener("click", resolve, { once: true });
+          });
+          if (this._showId === myShowId) {
+            this._currentPanel = null;
+            this._showId = null;
+          }
+          panel.remove();
+          return null;
+        }
+
+        const parsed = parseAiResponse(contentText);
+        if (!parsed || !parsed.slides.length) {
+          // AI signaled done (empty slides) or invalid response
+          break;
+        }
+
+        allSlides.push(...parsed.slides);
+        statusEl.textContent = `Processed ${allSlides.length}/${totalSlides} slides\u2026`;
+
+        // Render live slide previews for this batch
+        this.#renderBatchPreviews(
+          panel,
+          parsed.slides,
+          startIdx,
+          SlideRenderer,
+          ContentEnhancer,
+          MarkdownParser,
+        );
+
+        startIdx += BATCH_SIZE;
       }
 
       // Re-enable scrolling now that streaming is done
@@ -220,8 +311,7 @@ export class AiSidebar {
         return null;
       }
 
-      const parsed = parseAiResponse(contentText);
-      if (!parsed) {
+      if (allSlides.length === 0) {
         statusEl.textContent = "Error: AI did not return valid JSON";
         statusEl.className = `${P}status ${P}status--error`;
         cancelBtn.hidden = true;
@@ -239,8 +329,8 @@ export class AiSidebar {
         return null;
       }
 
-      const origDirectives = extractDirectives(original);
-      const fixedSlides = fixSlideLayouts(parsed.slides, origDirectives, mode);
+      const origDirectives = extractDirectives(markdown);
+      const fixedSlides = fixSlideLayouts(allSlides, origDirectives, mode);
       result = slidesToMarkdown(fixedSlides);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
@@ -272,6 +362,63 @@ export class AiSidebar {
     }
     panel.remove();
     return result;
+  }
+
+  /**
+   * Render live slide previews for a batch of slides.
+   */
+  static #renderBatchPreviews(
+    panel,
+    slides,
+    startIdx,
+    SlideRenderer,
+    ContentEnhancer,
+    MarkdownParser,
+  ) {
+    const outputEl = panel.querySelector(`.${P}output`);
+    for (let i = 0; i < slides.length; i++) {
+      const slide = slides[i];
+      const globalIndex = startIdx + i;
+
+      // Parse AI content string into areas
+      const { areas } = MarkdownParser.parseAreas(slide.content);
+
+      // Build normalized slide object for SlideRenderer
+      const normalizedSlide = {
+        layout: slide.layout || "header-content",
+        areas,
+        background: slide.background || "",
+        theme: slide.theme || "",
+      };
+
+      // Render full-size slide element
+      const slideEl = SlideRenderer.renderSlide(normalizedSlide, { index: globalIndex });
+
+      // Create thumbnail wrapper
+      const thumb = document.createElement("div");
+      thumb.className = `${P}slide-thumb`;
+
+      // Scale down to fit sidebar (~190px wide from 1920px)
+      const scale = 190 / 1920;
+      slideEl.style.transform = `scale(${scale})`;
+      slideEl.style.transformOrigin = "top left";
+      slideEl.style.width = "1920px";
+      slideEl.style.height = "1080px";
+      slideEl.style.position = "absolute";
+      slideEl.style.inset = "0";
+      thumb.appendChild(slideEl);
+
+      // Add slide number overlay
+      const num = document.createElement("span");
+      num.className = `${P}slide-number`;
+      num.textContent = String(globalIndex + 1);
+      thumb.appendChild(num);
+
+      outputEl.appendChild(thumb);
+
+      // Enhance content (syntax highlighting, KaTeX, Mermaid) — fire and forget
+      ContentEnhancer.enhanceRenderedContent(slideEl, { force: true }).catch(() => {});
+    }
   }
 
   static #createPanel(mode) {

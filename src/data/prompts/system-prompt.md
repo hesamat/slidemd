@@ -22,6 +22,8 @@ Rules:
 - Use \n for newlines in the content string
 - Each slide in the array corresponds to one slide separated by ---
 - Every slide MUST have non-empty "content" with actual slide body text
+- When instructed to return a subset of slides, return only those slides in the JSON array
+- When you have no more slides to return, respond with {"slides": []}
 
 ## Formatting Rules (STRICT)
 
