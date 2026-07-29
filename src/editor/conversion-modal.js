@@ -402,9 +402,13 @@ export class ConversionModal {
         }
         restoreScroll();
         backdrop.remove();
+        // Always return images so background images can be uploaded and their
+        // file references in the markdown can be rewritten to server paths.
+        // When not importing content images, only background images are referenced
+        // in the markdown; extra uploaded images are harmless.
         resolve({
           markdown: finalMarkdown,
-          images: importImages ? extractionResult.images : [],
+          images: extractionResult.images || [],
           deckName,
           importImages,
           aiMode,

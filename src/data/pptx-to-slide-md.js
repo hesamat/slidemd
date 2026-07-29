@@ -241,38 +241,10 @@ function convertSlide(
 ) {
   const parts = [];
 
-  // Drop images early when not importing so they don't affect layout inference
-  if (!importImages) {
-    slide = {
-      ...slide,
-      elements: slide.elements.filter((el) => el.type !== ELEMENT_TYPES.IMAGE),
-    };
-  }
-
-  // Speaker notes
-  if (slide.notes) {
-    const sanitized = slide.notes
-      .replace(REGEX.NOTES_HTML_COMMENT_START, "< !--")
-      .replace(REGEX.NOTES_HTML_COMMENT_END, "-- >")
-      .replace(REGEX.NOTES_HTML_BR, "\n")
-      .replace(REGEX.NOTES_HTML_TAGS, "")
-      .trim();
-    if (sanitized) {
-      parts.push(`${DEFAULTS.NOTES_COMMENT_START}${sanitized}${DEFAULTS.NOTES_COMMENT_END}`);
-      parts.push("");
-    }
-  }
-
-  // 1. Identify layout-defining images first to ensure they are never filtered out
-  let dominantImages = importImages
-    ? findDominantImages(slide.elements, slideWidth, slideHeight)
-    : [];
-
-  // Detect full-page background images BEFORE filtering, so they survive
-  // filterMeaningfulElements (which strips massive images when other content exists).
-  // bgCandidate is always detected regardless of importImages so that background
-  // images are preserved as CSS background directives (with data URLs when not
-  // importing). This keeps slide appearance intact even when content images are skipped.
+  // Detect full-page background images BEFORE stripping images or filtering,
+  // so they are always found regardless of the importImages setting.
+  // Background images are always uploaded as files (never inlined as data URLs)
+  // to keep the markdown lightweight.
   const slideArea = slideWidth * slideHeight;
   const bgCandidate = slide.elements.find((el) => {
     if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
@@ -297,6 +269,36 @@ function convertSlide(
     });
   });
 
+  // Drop non-background images when not importing so they don't affect layout inference.
+  // The bgCandidate is always preserved so its file reference can be emitted.
+  if (!importImages) {
+    slide = {
+      ...slide,
+      elements: slide.elements.filter(
+        (el) => el.type !== ELEMENT_TYPES.IMAGE || el === bgCandidate,
+      ),
+    };
+  }
+
+  // Speaker notes
+  if (slide.notes) {
+    const sanitized = slide.notes
+      .replace(REGEX.NOTES_HTML_COMMENT_START, "< !--")
+      .replace(REGEX.NOTES_HTML_COMMENT_END, "-- >")
+      .replace(REGEX.NOTES_HTML_BR, "\n")
+      .replace(REGEX.NOTES_HTML_TAGS, "")
+      .trim();
+    if (sanitized) {
+      parts.push(`${DEFAULTS.NOTES_COMMENT_START}${sanitized}${DEFAULTS.NOTES_COMMENT_END}`);
+      parts.push("");
+    }
+  }
+
+  // 1. Identify layout-defining images first to ensure they are never filtered out
+  let dominantImages = importImages
+    ? findDominantImages(slide.elements, slideWidth, slideHeight)
+    : [];
+
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
     slide.elements,
@@ -316,14 +318,11 @@ function convertSlide(
     ),
   );
 
-  // Use pre-detected background candidate (identified before filtering).
+  // Emit background image as a file reference (always uploaded, never inlined).
   if (bgCandidate && bgCandidate.base64) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    const bgUrl = importImages
-      ? `url(${DEFAULTS.IMAGE_SUBDIR}${filename})`
-      : `url(data:image/png;base64,${bgCandidate.base64.replace(/^data:[^;]+;base64,/, "")})`;
-    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), ${bgUrl} center / cover no-repeat`;
+    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>

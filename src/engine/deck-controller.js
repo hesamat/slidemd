@@ -655,7 +655,7 @@ export class DeckController extends EventEmitter {
     // Close the conversion modal
     ConversionModal.close();
 
-    let { markdown, images, importImages, deckName, aiMode } = result;
+    let { markdown, images, deckName, aiMode } = result;
 
     // Show a loading overlay while the deck is being saved and loaded
     const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
@@ -668,9 +668,11 @@ export class DeckController extends EventEmitter {
     try {
       // Upload PPTX-extracted images via the CLI server API
       // and build a mapping from original filenames to server-saved paths.
+      // Always upload when images are present so background images (always
+      // referenced as file paths) get their paths rewritten to server URLs.
       /** @type {Map<string, string>} */
       const imagePathMap = new Map();
-      if (importImages && images?.length) {
+      if (images?.length) {
         let uploaded = 0;
         const total = images.filter((img) => img.base64 && img.ref).length;
         await Promise.all(
