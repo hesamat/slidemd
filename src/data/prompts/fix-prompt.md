@@ -31,7 +31,6 @@ Do NOT change a layout unless it is genuinely broken.
 - HTML divs with class "multi-column-list" are intentional multi-column layouts using CSS columns
 - They allow long lists to flow across multiple columns for better space usage
 - Preserve the HTML div structure and all list content as-is — do not flatten into a single-column markdown list
-- Do NOT renumber list items or change their order
 
 ## Slide Structure
 
