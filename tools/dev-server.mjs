@@ -317,6 +317,14 @@ function createHandler(format) {
       return;
     }
 
+    // ── POST /api/deck/reset ──
+    if (pathname === "/api/deck/reset" && req.method === "POST") {
+      format = null;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
       if (!format || !format.mdFile) {

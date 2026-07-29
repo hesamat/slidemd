@@ -629,6 +629,9 @@ export class DeckController extends EventEmitter {
     localStorage.setItem("webdeck_local_file_name", "New Presentation");
     localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
 
+    // Tell the CLI server to forget the old deck (clears stale image references)
+    await fetch("/api/deck/reset", { method: "POST" }).catch(() => {});
+
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
     const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
