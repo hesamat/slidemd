@@ -199,6 +199,44 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   width: 90%;
 }
 
+/* Focus layout: remove header underline, center header and lists */
+.slide[data-layout="focus"] .slide__area--header {
+  align-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 90px;
+}
+
+.slide[data-layout="focus"] .slide__area--header::after {
+  display: none;
+}
+
+.slide[data-layout="focus"] .slide__area--main ul,
+.slide[data-layout="focus"] .slide__area--main ol {
+  list-style-position: inside;
+  text-align: center;
+  padding-left: 0;
+  margin: var(--spacing-xs) auto 0;
+}
+
+.slide[data-layout="focus"] .slide__area--main li {
+  max-width: none;
+}
+
+.slide[data-layout="focus"] .slide__area--main p,
+.slide[data-layout="focus"] .slide__area--main li {
+  font-size: 32px;
+}
+
+.slide[data-layout="focus"] .slide__area h2 {
+  font-size: 48px;
+}
+
+.slide[data-layout="focus"] .slide__area h3 {
+  font-size: 38px;
+  font-weight: 600;
+}
+
 .slide__area--header:empty {
   display: none;
 }
