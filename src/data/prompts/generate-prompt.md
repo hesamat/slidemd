@@ -27,7 +27,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
 - Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead
 - Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content or focus for simple text slides
-- Use `focus` layout for section dividers, key quotes, code blocks, agenda slides, or any featured content that should be the center stage. Content is centered both horizontally and vertically in this layout
+- Use `focus` layout ONLY for centered content with at most 3 distinct element types (e.g. heading + list, heading + code + blockquote). Ideal for section dividers, key quotes, code blocks, and agenda slides. Do NOT use focus when mixing 4+ element types — use header-content instead
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
 - Improve the title slide to be more visually impactful (ONLY the first slide — title-slide has @title and @footer only, NO @header or @main)

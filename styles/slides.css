@@ -210,13 +210,17 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   display: none;
 }
 
+/* Center main content vertically and horizontally */
 .slide[data-layout="focus"] .slide__area--main {
   justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
+/* Lists: outside markers with centered text */
 .slide[data-layout="focus"] .slide__area--main ul,
 .slide[data-layout="focus"] .slide__area--main ol {
-  list-style-position: inside;
+  list-style-position: outside;
   text-align: center;
   padding-left: 0;
   margin: var(--spacing-md) auto 0;
@@ -230,9 +234,19 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 .slide[data-layout="focus"] .slide__area--main p,
 .slide[data-layout="focus"] .slide__area--main li {
   font-size: 34px;
+  font-weight: 600;
 }
 
+/* Code blocks: centered horizontally, left-aligned text for readability */
 .slide[data-layout="focus"] .slide__area--main pre {
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+/* Blockquotes: centered */
+.slide[data-layout="focus"] .slide__area--main blockquote {
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
@@ -542,25 +556,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* Allow content overflow in main area (same as media) */
 .slide__area--main {
   overflow: visible;
-}
-
-/* Focus layout: center main content vertically and horizontally */
-.slide[data-layout="focus"] .slide__area--main {
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-}
-
-/* Keep code blocks left-aligned in focus layout for readability */
-.slide[data-layout="focus"] .slide__area--main pre {
-  text-align: left;
-  align-self: stretch;
-}
-
-/* Reduce list spacing in focus layout for compact content */
-.slide[data-layout="focus"] .slide__area ul,
-.slide[data-layout="focus"] .slide__area ol {
-  gap: 2px;
 }
 
 /* Constrain images to fit within the media area */

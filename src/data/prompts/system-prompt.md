@@ -86,7 +86,7 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 | Layout         | Max bullets | Max code lines | Use case                                                    |
 | -------------- | ----------- | -------------- | ----------------------------------------------------------- |
 | title-slide    | 0           | 0              | Opening slide ONLY — title + subtitle only, no body content |
-| focus          | ~13         | ~18            | Content-first — section dividers, key quotes, code, agenda  |
+| focus          | ~13         | ~18            | Simple centered content — max 3 element types, code, agenda |
 | header-content | ~13         | ~18            | Simple slides, text-only                                    |
 | two-column     | ~6 per col  | ~15 per col    | Diagram + text, code + explanation                          |
 | left-heavy     | ~6 per col  | ~15 per col    | Left column 2x wider than right                             |
@@ -95,7 +95,7 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 
 **title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use focus or header-content instead.
 
-**focus rule**: Use focus when content should be centered and prominently featured — section dividers, key quotes, code blocks, agenda slides, or any content that needs to be the center stage. Content is centered both horizontally and vertically. Code blocks render larger in this layout (28px).
+**focus rule**: Use focus ONLY for centered content with at most 3 distinct element types (e.g. heading + list, heading + code + blockquote, heading + text + code). Ideal for section dividers, key quotes, code blocks, and agenda slides. Do NOT use focus when mixing 4+ element types — use header-content instead. Content is centered both horizontally and vertically. Code blocks render larger in this layout (28px).
 
 **header-content rule**: Use header-content for standard text slides where center alignment is not needed. This is the default for most content slides. If you are unsure between focus and header-content, use header-content.
 
