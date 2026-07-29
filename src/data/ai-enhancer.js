@@ -83,6 +83,37 @@ export function restoreDirectives(slides, origDirectives) {
 }
 
 /**
+ * Re-inject background and theme directives into AI-produced markdown.
+ * AI output lacks these directives (they were stripped before sending).
+ * This patches the markdown string to include them, so saved state preserves bg/theme.
+ *
+ * @param {string} markdown - AI-produced markdown (with layout: but no background:/theme:)
+ * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @returns {string} Markdown with background/theme directives re-injected
+ */
+export function injectDirectives(markdown, origDirectives) {
+  const sections = markdown.split(/\n\n---\n\n/);
+  const patched = sections.map((section, i) => {
+    const orig = origDirectives[i];
+    if (!orig) return section;
+
+    const lines = section.split("\n");
+    const layoutIdx = lines.findIndex((l) => /^layout:\s/.test(l));
+    if (layoutIdx === -1) return section;
+
+    const insertAfter = [];
+    if (orig.background) insertAfter.push(`background: ${orig.background}`);
+    if (orig.theme) insertAfter.push(`theme: ${orig.theme}`);
+
+    if (insertAfter.length === 0) return section;
+
+    lines.splice(layoutIdx + 1, 0, ...insertAfter);
+    return lines.join("\n");
+  });
+  return patched.join("\n\n---\n\n");
+}
+
+/**
  * Extract per-slide directives (layout, background, theme) from original markdown.
  * @param {string} markdown
  * @returns {Array<{layout: string, background: string, theme: string}>}

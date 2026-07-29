@@ -6,6 +6,7 @@ import {
   buildMessages,
   extractDirectives,
   restoreDirectives,
+  injectDirectives,
   estimateMaxTokens,
   buildDeckSummary,
   buildBatchMessages,
@@ -402,5 +403,58 @@ describe("buildBatchMessages", () => {
   it("returns correct pagination instruction for generate mode", () => {
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12);
     expect(user).toContain("Return exactly 4 slide(s)");
+  });
+});
+
+describe("injectDirectives", () => {
+  it("injects background after layout directive", () => {
+    const md = "layout: focus\n\n@header\n## Title\n\n@main\n- Content";
+    const orig = [{ layout: "focus", background: "url(images/bg.jpg)", theme: "" }];
+    const result = injectDirectives(md, orig);
+    expect(result).toContain("layout: focus\nbackground: url(images/bg.jpg)");
+  });
+
+  it("injects theme after layout directive", () => {
+    const md = "layout: focus\n\n@header\n## Title";
+    const orig = [{ layout: "focus", background: "", theme: "dark" }];
+    const result = injectDirectives(md, orig);
+    expect(result).toContain("layout: focus\ntheme: dark");
+  });
+
+  it("injects both background and theme", () => {
+    const md = "layout: focus\n\n@header\n## Title";
+    const orig = [{ layout: "focus", background: "red", theme: "dark" }];
+    const result = injectDirectives(md, orig);
+    expect(result).toContain("background: red");
+    expect(result).toContain("theme: dark");
+  });
+
+  it("does not inject when no bg/theme in original", () => {
+    const md = "layout: focus\n\n@header\n## Title";
+    const orig = [{ layout: "focus", background: "", theme: "" }];
+    const result = injectDirectives(md, orig);
+    expect(result).toBe(md);
+  });
+
+  it("handles multi-slide markdown", () => {
+    const md =
+      "layout: focus\n\n@main\n- Slide 1\n\n---\n\nlayout: header-content\n\n@main\n- Slide 2";
+    const orig = [
+      { layout: "focus", background: "red", theme: "dark" },
+      { layout: "header-content", background: "blue", theme: "" },
+    ];
+    const result = injectDirectives(md, orig);
+    expect(result).toContain("background: red");
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("background: blue");
+    expect(result).not.toMatch(/background: blue[\s\S]*theme:/);
+  });
+
+  it("preserves content after directives", () => {
+    const md = "layout: focus\n\n@header\n## Title\n\n@main\n- Content";
+    const orig = [{ layout: "focus", background: "red", theme: "dark" }];
+    const result = injectDirectives(md, orig);
+    expect(result).toContain("@header\n## Title");
+    expect(result).toContain("@main\n- Content");
   });
 });

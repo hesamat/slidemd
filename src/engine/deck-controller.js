@@ -807,6 +807,14 @@ export class DeckController extends EventEmitter {
 
       // Shared helper to apply AI result to the deck
       const applyAiResult = async (enhanced, origDirectives) => {
+        // In fix mode, re-inject background/theme directives into the markdown
+        // before saving. AI output lacks these (stripped before sending), but
+        // they must be preserved in the saved state.
+        if (origDirectives && aiMode === "fix") {
+          const { injectDirectives } = await import("../data/ai-enhancer.js");
+          enhanced = injectDirectives(enhanced, origDirectives);
+        }
+
         try {
           localStorage.setItem("webdeck_local_file", enhanced);
           localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
