@@ -432,7 +432,10 @@ function createHandler(format) {
     if (pathname === "/api/images" && req.method === "GET") {
       try {
         if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
-          res.writeHead(200, { "Content-Type": "application/json" });
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          });
           res.end(JSON.stringify({ images: [] }));
           return;
         }
@@ -440,7 +443,10 @@ function createHandler(format) {
           .readdirSync(format.imagesDir)
           .filter((name) => IMAGE_RE.test(path.extname(name)))
           .map((name) => ({ name, path: `images/${name}` }));
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        });
         res.end(JSON.stringify({ images: entries }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -511,7 +517,10 @@ function createHandler(format) {
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
           const mime = MIME[ext] || "application/octet-stream";
-          res.writeHead(200, { "Content-Type": mime });
+          res.writeHead(200, {
+            "Content-Type": mime,
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          });
           fs.createReadStream(filePath).pipe(res);
           return;
         }
