@@ -598,16 +598,6 @@ async function main() {
   if (fs.existsSync(rootImagesDir)) {
     fs.rmSync(rootImagesDir, { recursive: true, force: true });
   }
-  // Clean up orphaned images in docs/example/images/ (keep only tracked files)
-  const exampleImagesDir = path.join(ROOT, "docs", "example", "images");
-  if (fs.existsSync(exampleImagesDir)) {
-    const KEEP = new Set(["icon.png", "edit-mode.png"]);
-    for (const file of fs.readdirSync(exampleImagesDir)) {
-      if (!KEEP.has(file)) {
-        fs.rmSync(path.join(exampleImagesDir, file), { force: true });
-      }
-    }
-  }
 
   let format = null;
 
