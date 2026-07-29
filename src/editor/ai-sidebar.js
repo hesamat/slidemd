@@ -11,8 +11,6 @@ import { SettingsModal } from "./settings-modal.js";
 const P = "ai-sidebar__";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const log = (...args) => console.log("[AI-Batch]", ...args);
-
 export class AiSidebar {
   static _currentPanel = null;
   static _abortControllers = [];
@@ -104,12 +102,6 @@ export class AiSidebar {
       minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
     });
 
-    // Log when tab goes hidden (browser throttles event loop)
-    const onVisibilityChange = () => {
-      if (document.hidden) log("Tab hidden \u2014 browser may throttle streaming");
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange, { once: true });
-
     const showError = (msg) => {
       statusEl.textContent = msg;
       statusEl.className = `${P}status ${P}status--error`;
@@ -173,11 +165,9 @@ export class AiSidebar {
 
         // Split into slides to decide single vs batch path
         const allSlides = splitSlides(markdown, mode);
-        log(`Markdown split into ${allSlides.length} slides`);
 
         // ── Single-call path (≤BATCH_SIZE slides) ──
         if (allSlides.length <= BATCH_SIZE) {
-          log("Using single-call path (≤8 slides)");
           return await this.#runSingleCall(markdown, mode, {
             apiKey,
             model,
@@ -195,10 +185,8 @@ export class AiSidebar {
         for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
           batches.push({ start: i, end: Math.min(i + BATCH_SIZE, allSlides.length) });
         }
-        log(`Split ${allSlides.length} slides into ${batches.length} batches of ${BATCH_SIZE}`);
 
         const deckSummary = mode === "generate" ? buildDeckSummary(markdown) : null;
-        if (deckSummary) log("Deck summary:", deckSummary.split("\n")[0]);
 
         // Show progress UI
         outputEl.textContent = "";
@@ -221,13 +209,10 @@ export class AiSidebar {
         const retryAttempts = new Map(); // batch key -> attempt count
         const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
-        const worker = async (workerName) => {
+        const worker = async (_workerName) => {
           while (queue.length > 0) {
             if (cancelled) break;
             const batch = queue.shift();
-            log(
-              `Worker ${workerName}: picked batch ${batch.index} (slides ${batch.start}\u2013${batch.end - 1})`,
-            );
 
             const batchResult = await this.#streamBatch({
               markdown,
@@ -253,9 +238,6 @@ export class AiSidebar {
               retryAttempts.set(batch.batchKey, attempts);
 
               if (batchResult.error.type === "truncation") {
-                log(
-                  `Batch ${batch.index}: truncated, splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)}`,
-                );
                 appendLog(
                   `\u26A0 Batch ${batch.index + 1}: response truncated \u2014 splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)} slides`,
                   "warn",
@@ -277,9 +259,6 @@ export class AiSidebar {
                   },
                 );
               } else if (attempts < 2) {
-                log(
-                  `Batch ${batch.index}: ${batchResult.error.type}, retrying (attempt ${attempts + 1}/2)`,
-                );
                 appendLog(
                   `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type} \u2014 retrying...`,
                   "warn",
@@ -287,9 +266,6 @@ export class AiSidebar {
                 retryCount++;
                 queue.unshift(batch);
               } else {
-                log(
-                  `Batch ${batch.index}: FAILED after ${attempts} attempts (${batchResult.error.type})`,
-                );
                 appendLog(
                   `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
                   "error",
@@ -303,15 +279,11 @@ export class AiSidebar {
               completedSlides += batch.end - batch.start;
               const nextBatch = queue.length > 0 ? queue[0] : null;
               updateProgress(completedSlides, allSlides.length, nextBatch);
-              log(
-                `Batch ${batch.index}: done in ${batchResult.duration.toFixed(1)}s \u2014 ${batchResult.slides.length} slides parsed`,
-              );
               appendLog(
                 `\u2713 Batch ${batch.index + 1}: slides ${batch.start + 1}\u2013${batch.end} done (${batchResult.duration.toFixed(1)}s)`,
               );
             }
           }
-          log(`Worker ${workerName}: queue empty, exiting`);
         };
 
         // Create2 AbortControllers
@@ -330,7 +302,6 @@ export class AiSidebar {
         // Check for partial results
         const failedBatches = results.filter((r) => r === undefined).length;
         if (failedBatches > 0) {
-          log(`FAILED: ${failedBatches}/${batches.length} batches failed`);
           showError(
             `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
               `Try again or reduce deck size.`,
@@ -340,9 +311,6 @@ export class AiSidebar {
 
         // Combine results in order
         const allResultSlides = results.flat();
-        log(
-          `All done: ${batches.length}/${batches.length} batches complete, ${retryCount} retries, ${splitCount} splits`,
-        );
         const summaryParts = [`${allSlides.length} slides processed`];
         if (retryCount > 0)
           summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
@@ -379,7 +347,6 @@ export class AiSidebar {
       });
     }
 
-    document.removeEventListener("visibilitychange", onVisibilityChange);
     if (this._showId === myShowId) {
       this._currentPanel = null;
     }
@@ -420,9 +387,6 @@ export class AiSidebar {
     if (useReasoning) {
       body.reasoning = { effort };
     }
-    log(
-      `Single call: reasoning=${useReasoning}, effort=${effort}, max_tokens=${inputTokens.toLocaleString()}`,
-    );
 
     const res = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -511,9 +475,6 @@ export class AiSidebar {
       modelMaxOutput,
       useReasoning,
     });
-    log(
-      `Batch ${batch.index}: streaming started (~${inputTokens.toLocaleString()} tokens output budget)`,
-    );
 
     const body = {
       model,
@@ -528,9 +489,6 @@ export class AiSidebar {
     if (useReasoning) {
       body.reasoning = { effort };
     }
-    log(
-      `Batch ${batch.index}: reasoning=${useReasoning}, effort=${effort}, max_tokens=${inputTokens.toLocaleString()}`,
-    );
 
     const startTime = performance.now();
 
