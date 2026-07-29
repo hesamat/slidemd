@@ -286,29 +286,45 @@ describe("buildBatchMessages", () => {
   const md =
     "layout: header-content\nbackground: #fff\n@header\n## Hi\n\n---\n\nlayout: two-column\n@main\n- Item";
 
-  it("includes pagination instructions for fix mode first batch", () => {
+  it("fix mode sends only the chunk, not full markdown", () => {
     const { user } = buildBatchMessages(md, "fix", 0, 5, 20);
-    expect(user).toContain("Return only slides 1");
-    expect(user).toContain("of 20");
+    expect(user).toContain("Return exactly 5 slide(s)");
     expect(user).toContain("@header");
   });
 
-  it("includes pagination instructions for fix mode middle batch", () => {
-    const { user } = buildBatchMessages(md, "fix", 10, 5, 20);
-    expect(user).toContain("Return only slides 11");
-    expect(user).toContain("15 of 20");
+  it("fix mode includes chunk content for middle batch", () => {
+    const manySlides = Array.from(
+      { length: 20 },
+      (_, i) => `layout: header-content\n@header\n## Slide ${i + 1}\n\n@main\n- Item ${i + 1}`,
+    ).join("\n\n---\n\n");
+    const { user } = buildBatchMessages(manySlides, "fix", 10, 5, 20);
+    expect(user).toContain("## Slide 11");
+    expect(user).toContain("## Slide 15");
+    expect(user).not.toContain("## Slide 20");
+    expect(user).not.toContain("## Slide 1\n");
   });
 
-  it("clamps end index to totalSlides", () => {
-    const { user } = buildBatchMessages(md, "fix", 17, 5, 20);
-    expect(user).toContain("Return only slides 18");
-    expect(user).toContain("20 of 20");
+  it("fix mode clamps to available slides at end", () => {
+    const manySlides = Array.from(
+      { length: 20 },
+      (_, i) => `layout: header-content\n@header\n## Slide ${i + 1}`,
+    ).join("\n\n---\n\n");
+    const { user } = buildBatchMessages(manySlides, "fix", 17, 5, 20);
+    expect(user).toContain("Return exactly 3 slide(s)");
+    expect(user).toContain("## Slide 18");
+    expect(user).toContain("## Slide 20");
   });
 
   it("first generate batch asks for first N slides", () => {
     const { user } = buildBatchMessages(md, "generate", 0, 5, 20);
     expect(user).toContain("Return the first 5 slides");
     expect(user).toContain("@header");
+  });
+
+  it("generate mode sends full markdown for each batch", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 5, 20);
+    expect(user).toContain("@header");
+    expect(user).toContain("@main");
   });
 
   it("subsequent generate batches ask to continue", () => {

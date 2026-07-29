@@ -257,9 +257,11 @@ export class AiSidebar {
         const { SlideRenderer } = await import("../renderer/slide-renderer.js");
         const { ContentEnhancer } = await import("../renderer/content-enhancer.js");
         const { MarkdownParser } = await import("../data/markdown-parser.js");
+        const { escapeBareHtmlTags } = await import("../core/utils.js");
         window.SlideRenderer = SlideRenderer;
         window.ContentEnhancer = ContentEnhancer;
         window.MarkdownParser = MarkdownParser;
+        window.escapeBareHtmlTags = escapeBareHtmlTags;
       }
 
       const totalSlides = markdown.split(/\n---\n/).length;
@@ -346,10 +348,20 @@ export class AiSidebar {
 
         // Fix mode: update slides in-place in the deck
         if (liveMode && deckController) {
+          const parser = new window.MarkdownParser();
+          parser.ensureMarkdownIt();
           for (let i = 0; i < fixedBatch.length; i++) {
             const globalIdx = startIdx + i;
             const aiSlide = fixedBatch[i];
-            const { areas } = window.MarkdownParser.parseAreas(aiSlide.content);
+            // Parse raw markdown areas, then render to HTML
+            const { areas: rawAreas } = window.MarkdownParser.parseAreas(aiSlide.content);
+            const htmlAreas = {};
+            for (const [name, src] of Object.entries(rawAreas)) {
+              const escaped = window.escapeBareHtmlTags(src);
+              let html = parser.md.render(escaped);
+              html = parser.convertMermaidCodeBlocksToDiv(html);
+              htmlAreas[name] = html;
+            }
 
             // Update existing slide in-place
             if (globalIdx < deckController.deck.slides.length) {
@@ -357,7 +369,7 @@ export class AiSidebar {
               existing.layout = aiSlide.layout || existing.layout;
               existing.background = aiSlide.background || existing.background;
               existing.theme = aiSlide.theme || existing.theme;
-              existing.areas = areas;
+              existing.areas = htmlAreas;
 
               // Re-render the DOM element
               const container = deckController.elements.slidesContainer;

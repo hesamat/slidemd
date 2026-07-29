@@ -173,21 +173,32 @@ export function buildBatchMessages(markdown, mode, startIdx, batchSize, totalSli
   const cleaned = stripFrontmatter(markdown);
   const endIdx = Math.min(startIdx + batchSize, totalSlides);
   let paginationInstruction;
+  let contentForPrompt;
+
   if (mode === "fix") {
-    paginationInstruction = `\n\nReturn only slides ${startIdx + 1}\u2013${endIdx} of ${totalSlides} as JSON. Each slide corresponds to one slide separated by --- in the input.`;
-  } else if (startIdx === 0) {
-    paginationInstruction = `\n\nReturn the first ${batchSize} slides of your reorganized presentation as JSON.`;
+    // Fix mode: send only the relevant chunk — slides are independent and 1:1 mapped
+    const allSlides = cleaned.split(/\n---\n/);
+    const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
+    contentForPrompt = chunk;
+    paginationInstruction = `\n\nReturn exactly ${endIdx - startIdx} slide(s) as JSON. Each slide in the output corresponds 1:1 to a slide in the input. Keep the same order.`;
   } else {
-    paginationInstruction =
-      "\n\nContinue from where you left off. Return the next " +
-      batchSize +
-      " slides. If you have no more slides, return " +
-      '{"slides": []}.';
+    // Generate mode: send full markdown — AI needs full context for reorganization
+    contentForPrompt = cleaned;
+    if (startIdx === 0) {
+      paginationInstruction = `\n\nReturn the first ${batchSize} slides of your reorganized presentation as JSON.`;
+    } else {
+      paginationInstruction =
+        "\n\nContinue from where you left off. Return the next " +
+        batchSize +
+        " slides. If you have no more slides, return " +
+        '{"slides": []}.';
+    }
   }
+
   const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
   return {
     system: systemPrompt,
-    user: basePrompt.replace("{{markdown}}", cleaned) + paginationInstruction,
+    user: basePrompt.replace("{{markdown}}", contentForPrompt) + paginationInstruction,
     original: markdown,
   };
 }
