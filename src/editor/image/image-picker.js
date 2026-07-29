@@ -334,7 +334,21 @@ export class ImagePicker {
       const res = await fetch("/api/images");
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
-      const images = (data.images || []).map(({ name, path }) => ({ name, path }));
+      let images = (data.images || []).map(({ name, path }) => ({ name, path }));
+
+      // Filter to only images referenced in the current deck markdown
+      const markdown = localStorage.getItem("webdeck_local_file") || "";
+      if (markdown) {
+        const referenced = new Set();
+        for (const img of images) {
+          if (markdown.includes(img.name) || markdown.includes(img.path)) {
+            referenced.add(img.name);
+          }
+        }
+        if (referenced.size > 0) {
+          images = images.filter((img) => referenced.has(img.name));
+        }
+      }
 
       this._availableImages = images;
       this._renderGrid();
