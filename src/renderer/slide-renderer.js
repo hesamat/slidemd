@@ -8,7 +8,7 @@
 import { safeString, DESIGN_SIZE } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
-import LAYOUTS from "../data/layouts.json" with { type: "json" };
+import { LayoutData } from "../data/layout-data.js";
 
 export class SlideRenderer {
   static areaLooksLikeMediaAsset(areaHtml) {
@@ -90,8 +90,7 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
-    const layoutDef = LAYOUTS.layouts[layoutKey];
-    const fontSize = slide?.codeFontSize || layoutDef?.codeFontSize || 0;
+    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutKey) || 0;
     if (fontSize) {
       grid.style.setProperty("--code-font-size", fontSize + "px");
     }

@@ -734,9 +734,13 @@ ${initScript}
     });
 
     const results = await Promise.all(imagePromises);
+    // Apply replacements in reverse order so match indices stay valid
     let result = html;
-    for (let i = 0; i < matches.length; i++) {
-      result = result.replace(matches[i][0], results[i]);
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const match = matches[i];
+      const start = match.index;
+      const end = start + match[0].length;
+      result = result.slice(0, start) + results[i] + result.slice(end);
     }
     return result;
   }
