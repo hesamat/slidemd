@@ -10,6 +10,16 @@
  */
 
 export class DeckImagesResolver {
+  /** Cache-busting version stamp — incremented when the deck changes. */
+  static _cacheVersion = Date.now();
+
+  /**
+   * Bump the cache version so all image URLs are treated as new resources.
+   */
+  static invalidateCache() {
+    this._cacheVersion = Date.now();
+  }
+
   /**
    * Generate a data URI placeholder for a missing image.
    * @param {string} relPath
@@ -48,7 +58,7 @@ export class DeckImagesResolver {
 
     // Resolve images/ paths to HTTP routes served by the CLI dev server
     if (relPath.startsWith("images/")) {
-      return `/${relPath}`;
+      return `/${relPath}?v=${this._cacheVersion}`;
     }
 
     // Not recognized — return missing image placeholder

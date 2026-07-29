@@ -455,6 +455,26 @@ function createHandler(format) {
       return;
     }
 
+    // ── POST /api/images/clear ──
+    if (pathname === "/api/images/clear" && req.method === "POST") {
+      try {
+        if (format && format.imagesDir && fs.existsSync(format.imagesDir)) {
+          for (const file of fs.readdirSync(format.imagesDir)) {
+            const filePath = path.join(format.imagesDir, file);
+            if (fs.statSync(filePath).isFile()) {
+              fs.unlinkSync(filePath);
+            }
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
     // ── POST /api/upload-image ──
     if (pathname === "/api/upload-image" && req.method === "POST") {
       if (!format) {

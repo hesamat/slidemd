@@ -11,6 +11,8 @@ import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { RoleManager } from "./role-manager.js";
+import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
+import { ImagePicker } from "../editor/image/image-picker.js";
 
 export class ReloadManager extends EventEmitter {
   /**
@@ -298,6 +300,10 @@ export class ReloadManager extends EventEmitter {
     try {
       const { text, fileName } = event.detail || {};
       if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
+
+      // Flush cached images so the new deck doesn't show stale thumbnails
+      DeckImagesResolver.invalidateCache();
+      ImagePicker.clearImageCache();
 
       const newDeck = await DeckLoader.parseMarkdown(text);
       await this.replaceDeck(newDeck, { startAtFirstSlide: true });

@@ -18,6 +18,7 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
+import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
@@ -669,6 +670,13 @@ export class DeckController extends EventEmitter {
     });
 
     try {
+      // Clear stale images from the previous deck so the picker is clean
+      try {
+        await fetch("/api/images/clear", { method: "POST" });
+      } catch {
+        /* ignore — best-effort cleanup */
+      }
+
       // Upload PPTX-extracted images via the CLI server API
       // and build a mapping from original filenames to server-saved paths.
       // Always upload when images are present so background images (always
@@ -754,6 +762,10 @@ export class DeckController extends EventEmitter {
           markdown = updated;
         }
       }
+
+      // Flush cached images so the new deck doesn't show stale thumbnails
+      DeckImagesResolver.invalidateCache();
+      ImagePicker.clearImageCache();
 
       loading.updateMessage("Loading slides…");
       loading.updateProgress(70);
