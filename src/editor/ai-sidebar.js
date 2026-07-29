@@ -66,6 +66,7 @@ export class AiSidebar {
     const seeResultBtn = panel.querySelector('[data-action="see-result"]');
     const progressInline = panel.querySelector(`.${P}progress-inline`);
     const progressCount = panel.querySelector(`.${P}progress-count`);
+    const headerEl = panel.querySelector(`.${P}header`);
 
     let cancelled = false;
 
@@ -93,7 +94,7 @@ export class AiSidebar {
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
       progressInline.hidden = true;
-      panel.classList.remove(`${P}header--active`);
+      headerEl.classList.remove(`${P}header--active`);
       this._retryResolve?.();
     });
 
@@ -118,7 +119,7 @@ export class AiSidebar {
       closeBtn.hidden = false;
       closeBtn.textContent = "Close";
       progressInline.hidden = true;
-      panel.classList.remove(`${P}header--active`);
+      headerEl.classList.remove(`${P}header--active`);
       outputEl.hidden = false;
     };
 
@@ -132,7 +133,7 @@ export class AiSidebar {
       seeResultBtn.hidden = false;
       progressInline.hidden = true;
       outputEl.hidden = false;
-      panel.classList.remove(`${P}header--active`);
+      headerEl.classList.remove(`${P}header--active`);
       panel.classList.add(`${P}panel--done`);
     };
 
@@ -207,7 +208,7 @@ export class AiSidebar {
         progressCount.textContent = `0/${allSlides.length}`;
         statusEl.textContent = `Processing slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
         statusEl.className = `${P}status`;
-        panel.classList.add(`${P}header--active`);
+        headerEl.classList.add(`${P}header--active`);
         appendLog(
           `Split ${allSlides.length} slides into ${batches.length} batches of ${batches.length > 1 ? BATCH_SIZE : allSlides.length}`,
         );
@@ -419,6 +420,9 @@ export class AiSidebar {
     if (useReasoning) {
       body.reasoning = { effort };
     }
+    log(
+      `Single call: reasoning=${useReasoning}, effort=${effort}, max_tokens=${inputTokens.toLocaleString()}`,
+    );
 
     const res = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -524,6 +528,9 @@ export class AiSidebar {
     if (useReasoning) {
       body.reasoning = { effort };
     }
+    log(
+      `Batch ${batch.index}: reasoning=${useReasoning}, effort=${effort}, max_tokens=${inputTokens.toLocaleString()}`,
+    );
 
     const startTime = performance.now();
 

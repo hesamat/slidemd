@@ -223,17 +223,17 @@
 
 /* ── Header active flash ────────────────────────────────────── */
 .ai-sidebar__header--active {
-  animation: ai-sidebar__headerFlash 2.5s ease-in-out infinite;
+  animation: ai-sidebar__headerFlash 2s ease-in-out infinite;
 }
 
 @keyframes ai-sidebar__headerFlash {
   0%,
   100% {
-    background: var(--ai-surface);
+    border-bottom-color: var(--ai-border);
   }
 
   50% {
-    background: color-mix(in srgb, var(--ai-accent) 8%, var(--ai-surface));
+    border-bottom-color: var(--ai-accent);
   }
 }
 
