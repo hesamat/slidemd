@@ -82,6 +82,8 @@ To use AI features, configure an API key in **Settings** (OpenRouter). See [docs
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
 - `docs/example/slides.md` - example deck (diffable in git)
 - `docs/example/images/` - example images
+- `docs/prompt-template.md` - SlideMD syntax and layout guide
+- `docs/ai-prompt-template.md` - AI post-processing setup and behavior
 - `tools/` - build and export scripts
 - `tools/dev-server.mjs` - CLI dev server
 - `dist/slides.html` - generated single-file deck (build output)

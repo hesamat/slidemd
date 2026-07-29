@@ -333,7 +333,7 @@ After importing a PPTX file, optionally enhance the result with AI.
 
 - Redesigns layout and visual structure
 - Reorganizes for better flow and pacing
-- Converts diagrams to Mermaid code blocks
+- Converts diagrams to Mermaid code blocks (selective — only where they represent true flowcharts/processes)
 - Adds speaker notes to key slides
 - Splits dense slides into focused ones
 

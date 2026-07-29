@@ -20,7 +20,7 @@ A conservative mode that cleans up common PPTX extraction problems:
 - Normalizes header levels (# for title slides, ## for all others)
 - Removes bold wrapping from headers
 - Fixes two-column slides with empty right columns
-- Converts `[Diagram: ...]` markers to Mermaid code blocks
+- Converts `[Diagram: ...]` markers to Mermaid (for true flowcharts) or bullet points (for simple lists)
 
 **What it does NOT do:** Does not restructure slides, invent content, or change layouts that already work.
 
@@ -29,7 +29,7 @@ A conservative mode that cleans up common PPTX extraction problems:
 A full redesign mode that reorganizes and improves the presentation:
 
 - Reorganizes slides for better flow and pacing
-- Converts all diagram markers to Mermaid code blocks
+- Converts diagrams to Mermaid code blocks (where they represent true flowcharts/processes)
 - Improves formatting, structure, and layout
 - Adds speaker notes to key slides
 - Keeps all substantive content from the original
@@ -62,6 +62,14 @@ The AI follows these strict formatting rules:
 - Multi-column layouts (two-column, three-column): use `flowchart TD` (vertical)
 - Use varied shapes and arrow labels
 
+### Layout Options
+
+Available layouts: `title-slide`, `focus`, `header-content`, `two-column`, `three-column`, `media-span`, `left-heavy`, `right-heavy`. Custom CSS grid layouts are supported via the `gridTemplate` directive.
+
+- `focus` layout centers content both horizontally and vertically — ideal for section dividers, key quotes, code blocks, and agenda slides
+- `title-slide` uses `@title` (not `@header`) and has no `@main` area
+- Multi-column layouts require `@header`, `@main`, and the appropriate area markers (`@media`, `@secondary`)
+
 ### Code Blocks
 
 - Must have a blank line before and after the triple backticks
@@ -69,8 +77,8 @@ The AI follows these strict formatting rules:
 
 ## Prompts
 
-The full prompts used by the AI are defined in `src/data/ai-enhancer.js`:
+The full prompts used by the AI are defined in separate files under `src/data/prompts/`:
 
-- **System prompt**: SlideMD syntax reference, formatting rules, area markers
-- **Fix prompt**: Conservative formatting fixes
-- **Generate prompt**: Full redesign with layout rules, image handling, notes syntax
+- **System prompt** (`system-prompt.md`): SlideMD syntax reference, formatting rules, area markers, layout decision rules
+- **Fix prompt** (`fix-prompt.md`): Conservative formatting fixes — preserves existing content, does not invent
+- **Generate prompt** (`generate-prompt.md`): Full redesign with layout strategy, image handling, notes syntax, custom grid layouts

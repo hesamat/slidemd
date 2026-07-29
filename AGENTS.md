@@ -125,6 +125,8 @@ AI prompts live in [src/data/prompts/](src/data/prompts/). There are three promp
 | `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
 | `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
 
+User-facing documentation for the AI feature lives in [docs/ai-prompt-template.md](docs/ai-prompt-template.md) (AI post-processing setup and behavior). The general SlideMD writing guide lives in [docs/prompt-template.md](docs/prompt-template.md) (layout syntax, area markers, examples).
+
 ### Architecture Rules
 
 - **Do NOT duplicate** rules across system and user prompts. The `system` role already sets immutable rules; repeating them in `user` prompts wastes tokens and creates version skew risk. Task-specific guidance belongs in the user prompt only.
@@ -133,38 +135,19 @@ AI prompts live in [src/data/prompts/](src/data/prompts/). There are three promp
 
 ### Writing Rules
 
-- **Prefer positive instructions** over negative ones. "Use only content present in the input" instead of "Do NOT invent content". Models simulate forbidden behaviors to understand them, which can increase their likelihood.
-- **Limit negative directives** ("NEVER", "Do NOT", "MUST NOT") to ~5 per prompt. Currently the prompts have 37+ which degrades compliance.
+- **Prefer positive instructions** over negative ones. Say "Use only content present in the input" instead of "Do NOT invent content". Models simulate forbidden behaviors to understand them, which can increase their likelihood.
+- **Limit strong negative directives** ("NEVER", "Do NOT") to ~5 per prompt. Current count across all three prompts is ~12 total (system: 4, generate: 2, fix: 2) — well within the per-prompt target.
 - **Place the most critical rules first** — the model weights earlier instructions more heavily.
-- **Add success criteria** at the end of each prompt so the model can self-check:
-  ```
-  Success criteria:
-  - Every slide has non-empty content
-  - Headers follow the correct hierarchy
-  - All [Diagram:] markers are addressed
-  - The JSON is valid and parseable
-  ```
+- **Add success criteria** at the end of each prompt so the model can self-check.
 
-### Current Findings (from holistic review)
-
-| Issue                                                         | Location                                       | Severity |
-| ------------------------------------------------------------- | ---------------------------------------------- | -------- |
-| Duplicate formatting rules across system and generate prompts | `system-prompt.md` + `generate-prompt.md`      | High     |
-| 37+ negative directives across all prompts                    | All three prompts                              | Medium   |
-| Creative guidelines placed before formatting constraints      | `generate-prompt.md:5-18`                      | Medium   |
-| Layout table missing `left-heavy` and `right-heavy`           | `system-prompt.md:88-94`                       | Low      |
-| `focus` missing from title-slide alternatives in 2 places     | `system-prompt.md:51`, `generate-prompt.md:72` | Medium   |
-| Typo "reorganize for it for"                                  | `generate-prompt.md:63`                        | Low      |
-| `fix-prompt.md` doesn't mention `focus` or `gridTemplate`     | `fix-prompt.md`                                | Low      |
-| No success criteria in any prompt                             | All three prompts                              | Medium   |
-
-### When Modifying Prompts
+### Modification Checklist
 
 1. Check all three prompts for consistency — a change to one rule may need updates in the others
-2. Verify the combined system + user prompt length stays under 150 lines
-3. Count negative directives; aim for ≤5 per prompt
-4. Run `npm test` — AI enhancer tests verify prompt processing
-5. Check that both layout lists (system-prompt.md rules line 18 and layout table line 88) stay in sync with `layout-data.js`
+2. Run `npm test` — AI enhancer tests verify prompt processing
+3. Verify the combined system + user prompt length stays under 150 lines
+4. Count strong negative directives ("NEVER", "Do NOT"); aim for ≤5 per prompt
+5. Keep both layout lists in sync: `system-prompt.md` rule line 18 and layout table
+6. Reflect changes in user docs: [docs/ai-prompt-template.md](docs/ai-prompt-template.md) and [docs/example/slides.md](docs/example/slides.md)
 
 ## Known Issues
 
