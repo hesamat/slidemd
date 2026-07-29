@@ -378,29 +378,37 @@ export class AiSidebar {
               htmlAreas[name] = html;
             }
 
-            // Update existing slide in-place
+            // Update existing slide data in-place
             if (globalIdx < deckController.deck.slides.length) {
               const existing = deckController.deck.slides[globalIdx];
               existing.layout = aiSlide.layout || existing.layout;
               existing.background = aiSlide.background || existing.background;
               existing.theme = aiSlide.theme || existing.theme;
               existing.areas = htmlAreas;
-
-              // Re-render the DOM element
-              const container = deckController.elements.slidesContainer;
-              const slideEls = container.querySelectorAll(".slide");
-              if (slideEls[globalIdx]) {
-                const newEl = window.SlideRenderer.createSlideElement(
-                  deckController.deck,
-                  existing,
-                  globalIdx,
-                  globalIdx === deckController.slideNavigator.currentIndex,
-                );
-                slideEls[globalIdx].replaceWith(newEl);
-                await window.ContentEnhancer.enhanceRenderedContent(newEl, { force: true });
-              }
             }
           }
+
+          // Re-render the full slide container (clear + append all)
+          // This ensures the browser properly lays out all changes at once.
+          const container = deckController.elements.slidesContainer;
+          const currentIdx = deckController.slideNavigator.currentIndex;
+          container.innerHTML = "";
+          for (let j = 0; j < deckController.deck.slides.length; j++) {
+            const el = window.SlideRenderer.createSlideElement(
+              deckController.deck,
+              deckController.deck.slides[j],
+              j,
+              j === currentIdx,
+            );
+            container.appendChild(el);
+          }
+
+          // Enhance all newly rendered slides
+          const allSlideEls = container.querySelectorAll(".slide");
+          for (const el of allSlideEls) {
+            window.ContentEnhancer.enhanceRenderedContent(el, { force: true }).catch(() => {});
+          }
+
           deckController.dispatchEvent("deckchange", { deck: deckController.deck });
         }
 
