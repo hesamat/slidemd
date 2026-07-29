@@ -2,8 +2,7 @@
  * AiSidebar
  *
  * Non-blocking sidebar panel for AI processing.
- * Streams batches of 5 slides at a time, rendering live previews
- * while the user can still interact with the deck.
+ * Streams batches of slides at a time with truncation detection.
  */
 
 import { SettingsModal } from "./settings-modal.js";
@@ -198,9 +197,6 @@ export class AiSidebar {
         extractDirectives,
         fixSlideLayouts,
       } = await import("../data/ai-enhancer.js");
-      const { SlideRenderer } = await import("../renderer/slide-renderer.js");
-      const { ContentEnhancer } = await import("../renderer/content-enhancer.js");
-      const { MarkdownParser } = await import("../data/markdown-parser.js");
 
       const totalSlides = markdown.split(/\n---\n/).length;
       const maxTokens = estimateMaxTokens(markdown, mode);
@@ -289,16 +285,6 @@ export class AiSidebar {
         allSlides.push(...parsed.slides);
         statusEl.textContent = `Processed ${allSlides.length}/${totalSlides} slides\u2026`;
 
-        // Render live slide previews for this batch
-        this.#renderBatchPreviews(
-          panel,
-          parsed.slides,
-          startIdx,
-          SlideRenderer,
-          ContentEnhancer,
-          MarkdownParser,
-        );
-
         startIdx += BATCH_SIZE;
       }
 
@@ -362,63 +348,6 @@ export class AiSidebar {
     }
     panel.remove();
     return result;
-  }
-
-  /**
-   * Render live slide previews for a batch of slides.
-   */
-  static #renderBatchPreviews(
-    panel,
-    slides,
-    startIdx,
-    SlideRenderer,
-    ContentEnhancer,
-    MarkdownParser,
-  ) {
-    const outputEl = panel.querySelector(`.${P}output`);
-    for (let i = 0; i < slides.length; i++) {
-      const slide = slides[i];
-      const globalIndex = startIdx + i;
-
-      // Parse AI content string into areas
-      const { areas } = new MarkdownParser().parseAreas(slide.content);
-
-      // Build normalized slide object for SlideRenderer
-      const normalizedSlide = {
-        layout: slide.layout || "header-content",
-        areas,
-        background: slide.background || "",
-        theme: slide.theme || "",
-      };
-
-      // Render full-size slide element
-      const slideEl = SlideRenderer.renderSlide(normalizedSlide, { index: globalIndex });
-
-      // Create thumbnail wrapper
-      const thumb = document.createElement("div");
-      thumb.className = `${P}slide-thumb`;
-
-      // Scale down to fit sidebar (~190px wide from 1920px)
-      const scale = 190 / 1920;
-      slideEl.style.transform = `scale(${scale})`;
-      slideEl.style.transformOrigin = "top left";
-      slideEl.style.width = "1920px";
-      slideEl.style.height = "1080px";
-      slideEl.style.position = "absolute";
-      slideEl.style.inset = "0";
-      thumb.appendChild(slideEl);
-
-      // Add slide number overlay
-      const num = document.createElement("span");
-      num.className = `${P}slide-number`;
-      num.textContent = String(globalIndex + 1);
-      thumb.appendChild(num);
-
-      outputEl.appendChild(thumb);
-
-      // Enhance content (syntax highlighting, KaTeX, Mermaid) — fire and forget
-      ContentEnhancer.enhanceRenderedContent(slideEl, { force: true }).catch(() => {});
-    }
   }
 
   static #createPanel(mode) {
