@@ -9,7 +9,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Combine sparse slides into richer ones — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
 - If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
-- Use media-span only for slides with actual img tags. Code blocks and diagrams go in two-column or header-content
+- Use media-span only for slides with actual img tags. Code blocks and diagrams go in two-column, focus, or header-content
 - Combine related micro-content into cohesive slides
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers

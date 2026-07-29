@@ -88,11 +88,12 @@ export class SlideRenderer {
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
 
-    // Apply --code-font-size CSS variable from layout definition
+    // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
     const layoutDef = LAYOUTS.layouts[layoutKey];
-    if (layoutDef?.codeFontSize) {
-      grid.style.setProperty("--code-font-size", layoutDef.codeFontSize + "px");
+    const fontSize = slide?.codeFontSize || layoutDef?.codeFontSize || 0;
+    if (fontSize) {
+      grid.style.setProperty("--code-font-size", fontSize + "px");
     }
     if (layoutKey) {
       wrapper.setAttribute("data-layout", layoutKey);

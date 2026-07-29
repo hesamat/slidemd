@@ -516,7 +516,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(line);
+      /^\s*(layout|background|theme|hidden|hide|align|area-style|code-font-size)\s*:/i.test(line);
 
     let lineIdx = 0;
     let seenMarker = false;
@@ -638,6 +638,9 @@ export class MarkdownParser {
       );
       cleaned = withoutAreaStyle;
 
+      const { value: codeFontSize } = this.extractDirective(cleaned, "code-font-size");
+      const parsedCodeFontSize = codeFontSize ? parseInt(codeFontSize, 10) : 0;
+
       // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
       const {
         value: hiddenValue,
@@ -756,6 +759,7 @@ export class MarkdownParser {
         hidden,
         areas,
         areaStyle: areaStyle || "",
+        codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
       };
     });

@@ -107,7 +107,7 @@ function stripFrontmatter(markdown) {
       result.push(line);
       continue;
     }
-    if (/^(layout|theme|background|hidden):\s*.*$/.test(line)) {
+    if (/^(layout|theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
       result.push("");
       continue;
     }

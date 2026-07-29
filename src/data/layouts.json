@@ -68,7 +68,7 @@
       "gridTemplate": "\"header\" 0.08fr \"main\" 1fr \"footer\" 0.08fr / 1fr",
       "description": "Content-first layout with minimal header/footer — ideal for code, key quotes, or featured content",
       "preview": "<div style=\"grid-area: header; opacity: 0.4\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer; opacity: 0.4\"></div>",
-      "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\n```python\nprint('Hello, World!')\n```\n\n@footer\nAdditional context or reference"
+      "template": "layout: focus\n\n@header\n## Today's Topics\n\n@main\n- Introduction to Topic A\n- Deep Dive into Topic B\n- Hands-on Workshop\n- Q&A Session\n\n@footer\nAdditional context or reference"
     },
     "default": {
       "_note": "Hidden from modal. Used as fallback when no layout is specified.",

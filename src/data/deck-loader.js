@@ -389,6 +389,7 @@ Markdown-based presentations made simple.
         hidden: Boolean(s.hidden),
         areas: s.areas || {},
         areaStyle: safeString(s.areaStyle),
+        codeFontSize: Number(s.codeFontSize) || 0,
       };
     });
 
