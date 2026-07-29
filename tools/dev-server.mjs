@@ -562,6 +562,11 @@ async function main() {
   if (fs.existsSync(uploadDir)) {
     fs.rmSync(uploadDir, { recursive: true, force: true });
   }
+  // Clean up orphaned images/ at project root (uploaded by previous PPTX imports)
+  const rootImagesDir = path.join(ROOT, "images");
+  if (fs.existsSync(rootImagesDir)) {
+    fs.rmSync(rootImagesDir, { recursive: true, force: true });
+  }
 
   let format = null;
 
