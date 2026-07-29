@@ -8,6 +8,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
 - **Split merged code blocks**: Multiple functions, classes, or code snippets that were jammed together during extraction must be separated. Add blank lines between function definitions, class methods, and logical code sections. A block like `def a():\n  pass\ndef b():\n  pass` should become `def a():\n  pass\n\ndef b():\n  pass`
 - **Restore code structure**: Fix indentation, add missing newlines, and ensure each logical code unit stands on its own
+- Preserve roughly the same number of slides as the input. At most reduce by 20% through merging truly redundant slides. Never inflate the slide count — the original structure was intentional
 - Combine sparse slides into richer ones — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
 - If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
@@ -26,6 +27,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Create summary or key takeaway slides at the end of sections
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
 - Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead
+- **NEVER use flowchart LR in multi-column layouts** — always use flowchart TD (vertical) in two-column/three-column. Max 5 nodes in multi-column, max 8 in single-column
 - Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content or focus for simple text slides
 - Use `focus` layout ONLY for centered content with at most 3 distinct element types (e.g. heading + list, heading + code + blockquote). Ideal for section dividers, key quotes, code blocks, and agenda slides. Do NOT use focus when mixing 4+ element types — use header-content instead
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams

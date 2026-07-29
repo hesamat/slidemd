@@ -55,14 +55,22 @@ Right: "@header\n## Title\n\n@main\n\n- Point 1"
 
 Replace [Diagram: Item1, Item2, Item3] with a mermaid code block ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead.
 
-Mermaid orientation depends on the slide layout:
+### Diagram Rules (STRICT)
 
-- Single-column layouts (header-content, media-span): use flowchart LR (horizontal)
-- Multi-column layouts (two-column, three-column): use flowchart TD (vertical)
-- Use varied shapes and arrow labels. NOT just linear chains.
-- Keep diagrams simple: max 5 levels deep, max 8 nodes. Deep diagrams are hard to read on slides.
-- A diagram should NEVER be the last element in a long header-content slide
-- If a diagram + more than 6 bullet points on the same slide: use two-column layout
+- **NEVER use flowchart LR in multi-column layouts** — horizontal diagrams are too wide for column widths. ALWAYS use flowchart TD (vertical) in two-column, three-column, left-heavy, right-heavy layouts
+- **Max 5 nodes per diagram** in multi-column layouts. If the process has more steps, simplify or use bullet points instead
+- **Max 8 nodes per diagram** in single-column layouts
+- **Never use linear chains** — use varied shapes (rectangles, diamonds, circles) and meaningful arrow labels
+- **Diagrams must be short** — if a diagram has more than 4 levels of depth, it is too complex for a slide. Simplify to bullet points
+- **A diagram should NEVER be the last element** in a long header-content slide
+- **If a diagram + more than 6 bullet points on the same slide**: use two-column layout (diagram in @media, text in @main)
+
+### Diagram Orientation
+
+| Layout                                            | Orientation               | Max Nodes |
+| ------------------------------------------------- | ------------------------- | --------- |
+| header-content, media-span, focus                 | flowchart LR (horizontal) | 8         |
+| two-column, three-column, left-heavy, right-heavy | flowchart TD (vertical)   | 5         |
 
 Content areas: @title, @header, @main, @media, @sidebar, @footer
 
