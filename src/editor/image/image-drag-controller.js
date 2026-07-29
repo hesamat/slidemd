@@ -404,7 +404,7 @@ export class ImageDragController {
       this._dropIndicator = newGap;
     }
 
-    if (insertBeforeEl) {
+    if (insertBeforeEl && insertBeforeEl.parentNode === areaEl) {
       areaEl.insertBefore(gap, insertBeforeEl);
     } else {
       areaEl.appendChild(gap);
