@@ -40,7 +40,7 @@ export class LayoutManager {
     let updatedMarkdown = updateLayoutDirective(markdown, layoutName);
 
     const parser = new MarkdownParser();
-    const { areas: currentAreas } = parser.parseAreas(updatedMarkdown);
+    const { areas: currentAreas } = MarkdownParser.parseAreas(updatedMarkdown);
     const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layoutName), {
       fallbackAreas: Object.keys(currentAreas).length ? Object.keys(currentAreas) : ["main"],
     });
@@ -50,7 +50,7 @@ export class LayoutManager {
     updatedMarkdown = parser.collapseUnsupportedAreas(updatedMarkdown, requiredAreas);
 
     // Re-parse after collapsing to get the updated area state.
-    const { areas: areasAfterCollapse } = parser.parseAreas(updatedMarkdown);
+    const { areas: areasAfterCollapse } = MarkdownParser.parseAreas(updatedMarkdown);
 
     const areaPlaceholders = {
       secondary: "@secondary",

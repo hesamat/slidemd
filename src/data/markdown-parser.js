@@ -365,7 +365,7 @@ export class MarkdownParser {
    * @param {string} markdownText
    * @returns {import('../types.js').AreaParseResult}
    */
-  parseAreas(markdownText) {
+  static parseAreas(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const areas = {};
     const areaOffsets = {}; // 0-indexed editor line where each area's content starts
@@ -670,7 +670,7 @@ export class MarkdownParser {
 
       cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
-      const { areas: areasMd } = this.parseAreas(cleaned);
+      const { areas: areasMd } = MarkdownParser.parseAreas(cleaned);
 
       const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
         fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],

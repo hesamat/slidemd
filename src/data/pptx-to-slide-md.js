@@ -164,12 +164,13 @@ function normalizeElementUnits(el) {
  * @param {object} [opts]
  * @param {boolean} [opts.importImages=true] - When false, images are excluded from layout detection so that
  *   image-based layouts (two-column, three-column) are never inferred.
+ * @param {boolean} [opts.importBackgrounds=true] - When false, background image CSS directives are omitted.
  * @returns {string} Complete SlideMD markdown.
  */
 export function convertToSlideMd(
   extraction,
   deckName = DEFAULTS.DECK_NAME,
-  { importImages = true } = {},
+  { importImages = true, importBackgrounds = true } = {},
 ) {
   const slideWidth = emuToPoints(extraction.size?.width || DEFAULT_SLIDE_SIZE.WIDTH_EMU);
   const slideHeight = emuToPoints(extraction.size?.height || DEFAULT_SLIDE_SIZE.HEIGHT_EMU);
@@ -179,7 +180,15 @@ export function convertToSlideMd(
       ...slide,
       elements: slide.elements.map(normalizeElementUnits),
     };
-    return convertSlide(normalizedSlide, slideWidth, slideHeight, deckName, importImages, index);
+    return convertSlide(
+      normalizedSlide,
+      slideWidth,
+      slideHeight,
+      deckName,
+      importImages,
+      importBackgrounds,
+      index,
+    );
   });
 
   return slides.join("\n\n---\n\n");
@@ -228,6 +237,7 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
  * @param {number} slideHeight
  * @param {string} deckName
  * @param {boolean} importImages
+ * @param {boolean} importBackgrounds
  * @param {number} slideIndex
  * @returns {string}
  */
@@ -237,6 +247,7 @@ function convertSlide(
   slideHeight,
   deckName,
   importImages = true,
+  importBackgrounds = true,
   slideIndex = 0,
 ) {
   const parts = [];
@@ -247,7 +258,7 @@ function convertSlide(
   // to keep the markdown lightweight.
   const slideArea = slideWidth * slideHeight;
   const bgCandidate = slide.elements.find((el) => {
-    if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
+    if (el.type !== ELEMENT_TYPES.IMAGE || !el.ref) return false;
     const imgArea = (el.width || 0) * (el.height || 0);
     // Image covers >= 80% of slide — always a background
     if (imgArea >= slideArea * 0.8) return true;
@@ -319,7 +330,7 @@ function convertSlide(
   );
 
   // Emit background image as a file reference (always uploaded, never inlined).
-  if (bgCandidate && bgCandidate.base64) {
+  if (importBackgrounds && bgCandidate) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
     slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
@@ -344,7 +355,7 @@ function convertSlide(
       el !== bgCandidate &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER &&
       ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-        (importImages && el.type === ELEMENT_TYPES.IMAGE && el.base64) ||
+        (importImages && el.type === ELEMENT_TYPES.IMAGE && el.ref) ||
         (el.type === ELEMENT_TYPES.TABLE && el.rows?.length) ||
         el.type === ELEMENT_TYPES.CHART ||
         el.type === ELEMENT_TYPES.DIAGRAM),
@@ -392,7 +403,7 @@ function convertSlide(
     });
 
     const singleImageOnRight =
-      rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64;
+      rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref;
 
     // Only upgrade to media-span if there's actual body content beyond the
     // header. Otherwise @main would be empty — header-content handles this.
@@ -456,7 +467,7 @@ function convertSlide(
     const singleImage =
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
-      bodyElements[0].base64;
+      bodyElements[0].ref;
     const hasBody = bodyElements.length > 0;
     parts.push("");
     if (isHeaderValid && hasBody) {
@@ -550,7 +561,7 @@ function convertSlide(
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
-    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].base64) {
+    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref) {
       parts.push(formatImage(rightEls[0], deckName, { fitColumn: true }));
     } else {
       parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
@@ -631,7 +642,7 @@ function convertSlide(
     const singleImage =
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
-      bodyElements[0].base64;
+      bodyElements[0].ref;
     if (isHeaderValid) {
       parts.push(MARKDOWN_TAGS.HEADER);
       parts.push("");
@@ -1018,7 +1029,7 @@ function inferLayout(
 
 function findDominantImages(allEls, slideWidth, slideHeight) {
   const slideArea = slideWidth * slideHeight;
-  const images = allEls.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.base64);
+  const images = allEls.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.ref);
 
   return images.filter((el) => {
     const w = el.width || 0;
