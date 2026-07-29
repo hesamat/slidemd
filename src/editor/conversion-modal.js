@@ -157,7 +157,7 @@ export class ConversionModal {
         hideError();
         // Remove any dynamically added rows/buttons from previous conversion
         backdrop
-          .querySelectorAll(`.${P}checkbox-row, .${P}select-row, .${P}btn--ai`)
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row, .${P}btn--ai, .${P}ai-hint`)
           .forEach((el) => el.remove());
         showSpinner("Converting...");
 

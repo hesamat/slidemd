@@ -161,6 +161,7 @@ export class AiSidebar {
       let contentText = "";
       let reasoningText = "";
       let buffer = "";
+      let streamDone = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -173,7 +174,10 @@ export class AiSidebar {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
-          if (data === "[DONE]") break;
+          if (data === "[DONE]") {
+            streamDone = true;
+            break;
+          }
 
           try {
             const parsed = JSON.parse(data);
@@ -204,6 +208,7 @@ export class AiSidebar {
             // skip malformed JSON
           }
         }
+        if (streamDone) break;
       }
 
       // Re-enable scrolling now that streaming is done

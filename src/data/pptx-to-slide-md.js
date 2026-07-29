@@ -591,6 +591,14 @@ function convertSlide(
     parts.push(MARKDOWN_TAGS.SECONDARY);
     parts.push("");
     parts.push(formatSingleElement(secondaryImage));
+  } else if (layout.type === LAYOUT.FOCUS.type) {
+    // Focus layout: content-first, center stage — all elements in @main
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(
+      renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
+    );
   } else {
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
@@ -870,20 +878,31 @@ function inferLayout(
 
     if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxTitleElements) {
       const titleBodyEls = contentEls.filter((el) => el !== headerEl);
+      const hasBodyContent = titleBodyEls.some(
+        (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
+      );
       const headerHi = headerEl?.height || 0;
       const bodyHi = titleBodyEls.length ? Math.max(...titleBodyEls.map((e) => e.height || 0)) : 0;
       const isThinStripHeader =
         headerEl && bodyHi > 0 && headerHi < bodyHi * CONFIG.headerThinRatio;
 
       if (!headerEl || !isThinStripHeader) {
-        // First slide always uses title-slide; subsequent short-content slides use focus
-        return slideIndex === 0 ? LAYOUT.TITLE_SLIDE : LAYOUT.FOCUS;
+        // First slide uses title-slide only if it has no body content (title/subtitle only)
+        if (slideIndex === 0 && !hasBodyContent) return LAYOUT.TITLE_SLIDE;
+        return LAYOUT.FOCUS;
       }
     }
 
     if (hasHeader && hasBodyBelowHeader) return LAYOUT.HEADER_CONTENT;
-    if (totalLength < CONFIG.maxTitleLength)
-      return slideIndex === 0 ? LAYOUT.TITLE_SLIDE : LAYOUT.FOCUS;
+    if (totalLength < CONFIG.maxTitleLength) {
+      if (slideIndex === 0) {
+        const hasBodyContent = contentEls.some(
+          (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
+        );
+        if (!hasBodyContent) return LAYOUT.TITLE_SLIDE;
+      }
+      return LAYOUT.FOCUS;
+    }
   }
 
   // Partition elements into left vs right columns.

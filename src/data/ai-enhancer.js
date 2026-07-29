@@ -173,9 +173,11 @@ export function parseAiResponse(text) {
     }
   }
 
-  // Find JSON by locating "slides": (with colon — only in real JSON, not analysis)
-  const slidesIdx = trimmed.indexOf('"slides":');
-  if (slidesIdx >= 0) {
+  // Find JSON by locating "slides": — try last occurrence first (real JSON is usually at the end)
+  let searchPos = trimmed.length;
+  while (true) {
+    const slidesIdx = trimmed.lastIndexOf('"slides":', searchPos);
+    if (slidesIdx < 0) break;
     // Walk backwards to find the opening { (skip braces inside JSON strings)
     let start = slidesIdx;
     let inString = false;
@@ -233,6 +235,8 @@ export function parseAiResponse(text) {
         }
       }
     }
+    // Try the next occurrence further back
+    searchPos = slidesIdx - 1;
   }
 
   return null;
