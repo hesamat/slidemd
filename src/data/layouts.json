@@ -65,7 +65,7 @@
     },
     "focus": {
       "codeFontSize": 28,
-      "gridTemplate": "\"header\" 0.3fr \"main\" 1fr \"footer\" 0.2fr / 1fr",
+      "gridTemplate": "\"header\" 0.08fr \"main\" 1fr \"footer\" 0.08fr / 1fr",
       "description": "Content-first layout with minimal header/footer — ideal for code, key quotes, or featured content",
       "preview": "<div style=\"grid-area: header; opacity: 0.4\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer; opacity: 0.4\"></div>",
       "template": "layout: focus\n\n@header\n## Slide Title\n\n@main\n```python\nprint('Hello, World!')\n```\n\n@footer\nAdditional context or reference"

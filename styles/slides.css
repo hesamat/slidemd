@@ -507,6 +507,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   align-self: stretch;
 }
 
+/* Reduce list spacing in focus layout for compact content */
+.slide[data-layout="focus"] .slide__area ul,
+.slide[data-layout="focus"] .slide__area ol {
+  gap: 2px;
+}
+
 /* Constrain images to fit within the media area */
 .slide__area--media img {
   max-height: 100%;
