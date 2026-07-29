@@ -6,6 +6,13 @@ Fix formatting, structural, and content problems. Be conservative with layouts (
 
 Use only content present in the input markdown. Do NOT invent new content.
 
+## CRITICAL: Slide Count and Order
+
+- Return EXACTLY the same number of slides as the input
+- Return slides in the SAME ORDER as the input
+- Each slide in the output corresponds 1:1 to a slide in the input (separated by ---)
+- Do NOT add, remove, merge, or reorder slides
+
 ## What to Fix
 
 ### Headers & Text

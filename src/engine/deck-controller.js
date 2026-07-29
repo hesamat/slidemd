@@ -911,7 +911,7 @@ export class DeckController extends EventEmitter {
       if (aiMode) {
         try {
           const { AiSidebar } = await import("../editor/ai-sidebar.js");
-          const enhanced = await AiSidebar.show(markdown, aiMode);
+          const enhanced = await AiSidebar.show(markdown, aiMode, aiMode === "fix" ? this : null);
           if (enhanced) {
             await applyAiResult(enhanced);
           }

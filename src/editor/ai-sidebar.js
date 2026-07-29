@@ -2,8 +2,10 @@
  * AiSidebar
  *
  * Non-blocking sidebar panel for AI processing.
- * Streams batches of slides at a time, rendering them live into the deck
- * with truncation detection and snapshot-based revert on error/cancellation.
+ * Streams batches of slides at a time with truncation detection.
+ *
+ * Fix mode: slides are updated live in the deck as each batch arrives.
+ * Generate mode: batches are collected, then applied all at once.
  */
 
 import { SettingsModal } from "./settings-modal.js";
@@ -11,87 +13,6 @@ import { SettingsModal } from "./settings-modal.js";
 const P = "ai-sidebar__";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const BATCH_SIZE = 5;
-
-/**
- * Deep-clone a slides array for snapshot/revert.
- * @param {Array} slides
- * @returns {Array}
- */
-function cloneSlides(slides) {
-  return slides.map((s) => ({
-    ...s,
-    areas: { ...(s.areas || {}) },
-  }));
-}
-
-/**
- * Restore the deck from a snapshot.
- * @param {object} deckController
- * @param {Array} snapshotSlides
- * @param {number} snapshotIndex
- */
-function restoreDeck(deckController, snapshotSlides, snapshotIndex) {
-  deckController.deck.slides = cloneSlides(snapshotSlides);
-  const container = deckController.elements.slidesContainer;
-  container.innerHTML = "";
-  snapshotSlides.forEach((s, i) => {
-    const el = window.SlideRenderer.createSlideElement(
-      deckController.deck,
-      s,
-      i,
-      i === snapshotIndex,
-    );
-    container.appendChild(el);
-  });
-  deckController.slideNavigator.goTo(snapshotIndex, { broadcast: false });
-  deckController.dispatchEvent("deckchange", { deck: deckController.deck });
-}
-
-/**
- * Convert an AI JSON slide to a normalized slide object for the deck.
- * @param {object} aiSlide - { layout, content, background, theme }
- * @param {number} index
- * @returns {object}
- */
-function normalizeAiSlide(aiSlide, index) {
-  const { areas } = window.MarkdownParser.parseAreas(aiSlide.content);
-  return {
-    id: `ai-slide-${Date.now()}-${index}`,
-    title: "",
-    notes: "",
-    layout: aiSlide.layout || "header-content",
-    background: aiSlide.background || "",
-    theme: aiSlide.theme || "",
-    areas,
-  };
-}
-
-/**
- * Add a single slide to the live deck.
- * @param {object} deckController
- * @param {object} normalizedSlide
- * @param {number} insertIndex
- * @param {boolean} isActive
- */
-function addSlideToDeck(deckController, normalizedSlide, insertIndex, isActive) {
-  deckController.deck.slides.splice(insertIndex, 0, normalizedSlide);
-  const container = deckController.elements.slidesContainer;
-  const el = window.SlideRenderer.createSlideElement(
-    deckController.deck,
-    normalizedSlide,
-    insertIndex,
-    isActive,
-  );
-  // Insert at the correct position among existing slide elements
-  const existingSlides = container.querySelectorAll(".slide");
-  const anchor = existingSlides[insertIndex];
-  if (anchor) {
-    container.insertBefore(el, anchor);
-  } else {
-    container.appendChild(el);
-  }
-  window.ContentEnhancer.enhanceRenderedContent(el).catch(() => {});
-}
 
 export class AiSidebar {
   static _currentPanel = null;
@@ -181,7 +102,6 @@ export class AiSidebar {
           const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
           if (reasoningDelta) {
             reasoningText += reasoningDelta;
-            // Show reasoning in sidebar while thinking (before content arrives)
             if (!contentText) {
               outputEl.textContent = reasoningText;
               outputEl.scrollTop = outputEl.scrollHeight;
@@ -192,7 +112,6 @@ export class AiSidebar {
           // Collect content tokens (actual JSON output)
           if (delta.content) {
             contentText += delta.content;
-            // Show reasoning + content in the output panel
             const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
             outputEl.textContent = display;
             outputEl.scrollTop = outputEl.scrollHeight;
@@ -209,14 +128,12 @@ export class AiSidebar {
 
   /**
    * Show the AI sidebar and stream the response in batches.
-   * If a deckController is provided, slides are rendered live into the deck.
    * @param {string} markdown - The markdown to enhance.
    * @param {"fix"|"generate"} mode - Enhancement mode.
-   * @param {object} [deckController] - Optional deck controller for live rendering.
+   * @param {object} [deckController] - Deck controller (only used in fix mode for live updates).
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
   static async show(markdown, mode, deckController) {
-    // Clean up any existing panel before starting a new one
     this.cancel();
     this.close();
     const myShowId = Symbol();
@@ -239,52 +156,40 @@ export class AiSidebar {
     let cancelled = false;
     let result = null;
 
-    // Snapshot for revert on error/cancellation
+    // Only use live deck updates for fix mode
+    const liveMode = mode === "fix" && deckController;
+
+    // Snapshot for revert (fix mode only)
     let snapshotSlides = null;
     let snapshotIndex = 0;
-    if (deckController) {
-      snapshotSlides = cloneSlides(deckController.deck.slides);
+    if (liveMode) {
+      snapshotSlides = deckController.deck.slides.map((s) => ({
+        ...s,
+        areas: { ...(s.areas || {}) },
+      }));
       snapshotIndex = deckController.slideNavigator.currentIndex;
     }
 
-    // Helper: revert deck to snapshot
     const revertDeck = () => {
-      if (deckController && snapshotSlides) {
-        restoreDeck(deckController, snapshotSlides, snapshotIndex);
+      if (liveMode && snapshotSlides && deckController) {
+        deckController.deck.slides = snapshotSlides.map((s) => ({
+          ...s,
+          areas: { ...(s.areas || {}) },
+        }));
+        const container = deckController.elements.slidesContainer;
+        container.innerHTML = "";
+        snapshotSlides.forEach((s, i) => {
+          const el = window.SlideRenderer.createSlideElement(
+            deckController.deck,
+            s,
+            i,
+            i === snapshotIndex,
+          );
+          container.appendChild(el);
+        });
+        deckController.slideNavigator.goTo(snapshotIndex, { broadcast: false });
+        deckController.dispatchEvent("deckchange", { deck: deckController.deck });
       }
-    };
-
-    // Helper: show error state with close button
-    const showError = (msg) => {
-      revertDeck();
-      statusEl.textContent = msg;
-      statusEl.className = `${P}status ${P}status--error`;
-      noticeEl.hidden = true;
-      cancelBtn.hidden = true;
-      keepBtn.hidden = true;
-      revertBtn.hidden = true;
-      closeBtn.hidden = false;
-      closeBtn.textContent = "Close";
-      outputEl.style.overflowY = "";
-      panel.removeEventListener("wheel", preventWheel);
-    };
-
-    // Helper: show cancel confirmation (keep / revert)
-    const showCancelConfirm = () => {
-      if (!deckController || allSlides.length === 0) {
-        // No slides were added, just close
-        revertDeck();
-        this.close();
-        return;
-      }
-      statusEl.textContent = `Keep ${allSlides.length} processed slides?`;
-      statusEl.className = `${P}status`;
-      noticeEl.hidden = true;
-      cancelBtn.hidden = true;
-      outputEl.style.overflowY = "";
-      panel.removeEventListener("wheel", preventWheel);
-      keepBtn.hidden = false;
-      revertBtn.hidden = false;
     };
 
     cancelBtn.addEventListener("click", () => {
@@ -293,7 +198,6 @@ export class AiSidebar {
     });
 
     const finish = () => {
-      // Only resolve if this is still the active show() call
       if (this._showId === myShowId) {
         this._finishResolve?.();
       }
@@ -303,22 +207,13 @@ export class AiSidebar {
     seeResultBtn.addEventListener("click", finish);
 
     keepBtn.addEventListener("click", () => {
-      // Keep partial slides, apply as result
-      if (deckController && allSlides.length > 0) {
-        const { extractDirectives, fixSlideLayouts, slidesToMarkdown } =
-          window._aiEnhancerCache || {};
-        if (extractDirectives && fixSlideLayouts && slidesToMarkdown) {
-          const origDirectives = extractDirectives(markdown);
-          const fixedSlides = fixSlideLayouts(allSlides, origDirectives, mode);
-          result = slidesToMarkdown(fixedSlides);
-        }
-      }
+      // Keep current state (slides are already in the deck for fix mode)
       finish();
     });
 
     revertBtn.addEventListener("click", () => {
       revertDeck();
-      allSlides = [];
+      result = null;
       this.close();
     });
 
@@ -328,7 +223,7 @@ export class AiSidebar {
       minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
     });
 
-    let preventWheel = (e) => e.preventDefault();
+    const preventWheel = (e) => e.preventDefault();
     let allSlides = [];
 
     try {
@@ -357,11 +252,8 @@ export class AiSidebar {
         fixSlideLayouts,
       } = await import("../data/ai-enhancer.js");
 
-      // Cache for keep button handler
-      window._aiEnhancerCache = { extractDirectives, fixSlideLayouts, slidesToMarkdown };
-
-      // Load rendering dependencies if deckController provided
-      if (deckController) {
+      // Load rendering deps for fix mode live updates
+      if (liveMode) {
         const { SlideRenderer } = await import("../renderer/slide-renderer.js");
         const { ContentEnhancer } = await import("../renderer/content-enhancer.js");
         const { MarkdownParser } = await import("../data/markdown-parser.js");
@@ -377,18 +269,13 @@ export class AiSidebar {
       this._abortController = new AbortController();
       const signal = this._abortController.signal;
 
-      // Only enable reasoning for "generate" mode — fix mode should be quick and conservative
       const useReasoning = mode === "generate" && SettingsModal.getReasoning();
       const effort = SettingsModal.getEffort();
 
       let startIdx = 0;
 
-      // Disable scrolling during streaming — prevents scrollbar jumping
-      // and stops wheel events from bubbling up to the slide navigator
       outputEl.style.overflowY = "hidden";
       panel.addEventListener("wheel", preventWheel, { passive: false });
-
-      let deckCleared = false;
 
       while (startIdx < totalSlides) {
         if (cancelled) break;
@@ -415,7 +302,8 @@ export class AiSidebar {
           body.reasoning = { effort };
         }
 
-        statusEl.textContent = `Batch ${Math.floor(startIdx / BATCH_SIZE) + 1}\u2026 (${allSlides.length}/${totalSlides} slides done)`;
+        const batchNum = Math.floor(startIdx / BATCH_SIZE) + 1;
+        statusEl.textContent = `Batch ${batchNum}\u2026 (${allSlides.length}/${totalSlides} slides done)`;
 
         const { contentText, finishReason } = await this.#streamBatch(
           body,
@@ -426,11 +314,19 @@ export class AiSidebar {
 
         if (cancelled) break;
 
-        // Detect truncation
         if (finishReason === "length") {
-          showError(
-            "Response truncated \u2014 deck too large for AI. Try fix mode or reduce slides.",
-          );
+          if (liveMode) revertDeck();
+          statusEl.textContent =
+            "Response truncated \u2014 deck too large for AI. Try fix mode or reduce slides.";
+          statusEl.className = `${P}status ${P}status--error`;
+          noticeEl.hidden = true;
+          cancelBtn.hidden = true;
+          keepBtn.hidden = true;
+          revertBtn.hidden = true;
+          closeBtn.hidden = false;
+          closeBtn.textContent = "Close";
+          outputEl.style.overflowY = "";
+          panel.removeEventListener("wheel", preventWheel);
           await new Promise((resolve) => {
             closeBtn.addEventListener("click", resolve, { once: true });
           });
@@ -443,33 +339,41 @@ export class AiSidebar {
         }
 
         const parsed = parseAiResponse(contentText);
-        if (!parsed || !parsed.slides.length) {
-          // AI signaled done (empty slides) or invalid response
-          break;
-        }
+        if (!parsed || !parsed.slides.length) break;
 
-        // Clear existing slides only after the first batch is ready to render
-        if (deckController && !deckCleared) {
-          deckController.deck.slides = [];
-          deckController.elements.slidesContainer.innerHTML = "";
-          deckCleared = true;
-        }
-
-        // Apply fixSlideLayouts to this batch
         const origDirectives = extractDirectives(markdown);
         const fixedBatch = fixSlideLayouts(parsed.slides, origDirectives, mode);
 
-        // Add each slide to the deck live
-        if (deckController) {
+        // Fix mode: update slides in-place in the deck
+        if (liveMode && deckController) {
           for (let i = 0; i < fixedBatch.length; i++) {
-            const normalized = normalizeAiSlide(fixedBatch[i], startIdx + i);
-            const isActive = allSlides.length === 0 && i === 0;
-            addSlideToDeck(deckController, normalized, allSlides.length, isActive);
+            const globalIdx = startIdx + i;
+            const aiSlide = fixedBatch[i];
+            const { areas } = window.MarkdownParser.parseAreas(aiSlide.content);
+
+            // Update existing slide in-place
+            if (globalIdx < deckController.deck.slides.length) {
+              const existing = deckController.deck.slides[globalIdx];
+              existing.layout = aiSlide.layout || existing.layout;
+              existing.background = aiSlide.background || existing.background;
+              existing.theme = aiSlide.theme || existing.theme;
+              existing.areas = areas;
+
+              // Re-render the DOM element
+              const container = deckController.elements.slidesContainer;
+              const slideEls = container.querySelectorAll(".slide");
+              if (slideEls[globalIdx]) {
+                const newEl = window.SlideRenderer.createSlideElement(
+                  deckController.deck,
+                  existing,
+                  globalIdx,
+                  globalIdx === deckController.slideNavigator.currentIndex,
+                );
+                slideEls[globalIdx].replaceWith(newEl);
+                window.ContentEnhancer.enhanceRenderedContent(newEl).catch(() => {});
+              }
+            }
           }
-          // Navigate to first slide of this batch
-          const batchStart = allSlides.length - fixedBatch.length + fixedBatch.length - 1;
-          deckController.slideNavigator.goTo(Math.max(0, batchStart));
-          // Refresh thumbnails
           deckController.dispatchEvent("deckchange", { deck: deckController.deck });
         }
 
@@ -479,25 +383,42 @@ export class AiSidebar {
         startIdx += BATCH_SIZE;
       }
 
-      // Re-enable scrolling now that streaming is done
       outputEl.style.overflowY = "";
       panel.removeEventListener("wheel", preventWheel);
 
       if (cancelled) {
-        showCancelConfirm();
-        // Wait for keep/revert decision
-        await new Promise((resolve) => {
-          this._finishResolve = resolve;
-        });
-        if (this._showId === myShowId) {
-          this._currentPanel = null;
+        if (liveMode) {
+          statusEl.textContent = `Keep ${allSlides.length} processed slides?`;
+          statusEl.className = `${P}status`;
+          noticeEl.hidden = true;
+          cancelBtn.hidden = true;
+          keepBtn.hidden = false;
+          revertBtn.hidden = false;
+          outputEl.style.overflowY = "";
+          panel.removeEventListener("wheel", preventWheel);
+          await new Promise((resolve) => {
+            this._finishResolve = resolve;
+          });
+          if (this._showId === myShowId) {
+            this._currentPanel = null;
+          }
+          panel.remove();
+          return null;
         }
-        panel.remove();
-        return result;
+        this.close();
+        return null;
       }
 
       if (allSlides.length === 0) {
-        showError("Error: AI did not return valid JSON");
+        if (liveMode) revertDeck();
+        statusEl.textContent = "Error: AI did not return valid JSON";
+        statusEl.className = `${P}status ${P}status--error`;
+        noticeEl.hidden = true;
+        cancelBtn.hidden = true;
+        keepBtn.hidden = true;
+        revertBtn.hidden = true;
+        closeBtn.hidden = false;
+        closeBtn.textContent = "Close";
         await new Promise((resolve) => {
           closeBtn.addEventListener("click", resolve, { once: true });
         });
@@ -509,13 +430,7 @@ export class AiSidebar {
         return null;
       }
 
-      // If no deckController, build result markdown the old way
-      if (!deckController) {
-        result = slidesToMarkdown(allSlides);
-      } else {
-        // Slides are already in the deck — result is the final markdown for localStorage
-        result = slidesToMarkdown(allSlides);
-      }
+      result = slidesToMarkdown(allSlides);
 
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
@@ -529,11 +444,19 @@ export class AiSidebar {
       panel.classList.add(`${P}panel--done`);
     } catch (err) {
       if (err.name === "AbortError") {
-        revertDeck();
+        if (liveMode) revertDeck();
         this.close();
         return null;
       }
-      showError(`Error: ${err.message}`);
+      if (liveMode) revertDeck();
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = `${P}status ${P}status--error`;
+      noticeEl.hidden = true;
+      cancelBtn.hidden = true;
+      keepBtn.hidden = true;
+      revertBtn.hidden = true;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Close";
     }
 
     await new Promise((resolve) => {
