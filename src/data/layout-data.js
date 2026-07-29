@@ -23,8 +23,7 @@ export class LayoutData {
         key !== "default" &&
         key !== "header-two-column" &&
         key !== "sidebar-content" &&
-        key !== "content-sidebar" &&
-        key !== "focus",
+        key !== "content-sidebar",
     );
   }
 

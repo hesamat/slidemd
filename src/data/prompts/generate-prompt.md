@@ -11,6 +11,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
 - Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead — not every diagram marker needs a Mermaid visualization
 - Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content for simple text slides
+- Use `focus` layout when code or a single piece of content should be the center stage (larger font, minimal chrome)
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
 - Improve the title slide to be more visually impactful (ONLY the first slide — title-slide has @title and @footer only, NO @header or @main)

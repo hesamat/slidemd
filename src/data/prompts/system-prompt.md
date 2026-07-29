@@ -15,7 +15,7 @@ You MUST respond with valid JSON only. No other text. No explanations. No markdo
 
 Rules:
 
-- "layout" must be one of: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column
+- "layout" must be one of: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column, focus
 - "background" is optional (keep the original if provided)
 - "theme" is optional (keep the original if provided)
 - "content" is the slide body (everything after layout/background/theme directives)
@@ -88,11 +88,14 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 | Layout         | Max bullets | Max code lines | Use case                                                    |
 | -------------- | ----------- | -------------- | ----------------------------------------------------------- |
 | title-slide    | 0           | 0              | Opening slide ONLY — title + subtitle only, no body content |
+| focus          | ~13         | ~18            | Content-first — code, key quotes, or featured content       |
 | header-content | ~13         | ~18            | Simple slides, text-only                                    |
 | two-column     | ~6 per col  | ~15 per col    | Diagram + text, code + explanation                          |
 | media-span     | ~10         | ~15            | Slides with actual img tags                                 |
 
-**title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use header-content instead.
+**title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use focus or header-content instead.
+
+**focus rule**: Use focus when code or a single piece of content should be the center stage. Code blocks render larger in this layout.
 
 ## Mermaid Diagram Placement
 

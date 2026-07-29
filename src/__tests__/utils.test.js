@@ -153,6 +153,12 @@ describe("escapeBareHtmlTags", () => {
     expect(escapeBareHtmlTags('<img src="a.png">')).toBe('<img src="a.png">');
   });
 
+  it("preserves full-page grid HTML with attributed divs", () => {
+    const gridHtml =
+      '<div class="fullpage-grid" style="grid-template-columns:repeat(2,1fr)"><div class="fullpage-grid__cell" style="background:#003C68">Cell 1</div><div class="fullpage-grid__cell" style="background:#003C68">Cell 2</div></div>';
+    expect(escapeBareHtmlTags(gridHtml)).toBe(gridHtml);
+  });
+
   it("preserves always-safe bare tags (br, hr)", () => {
     expect(escapeBareHtmlTags("Line 1<br>Line 2")).toBe("Line 1<br>Line 2");
     expect(escapeBareHtmlTags("<hr>")).toBe("<hr>");

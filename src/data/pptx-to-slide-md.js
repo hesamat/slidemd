@@ -13,6 +13,7 @@ import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
 // Layout Definitions
 const LAYOUT = {
   TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
+  FOCUS: { type: "focus", spec: "focus" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
   MEDIA_SPAN: { type: "media-span", spec: "media-span" },
@@ -173,12 +174,12 @@ export function convertToSlideMd(
   const slideWidth = emuToPoints(extraction.size?.width || DEFAULT_SLIDE_SIZE.WIDTH_EMU);
   const slideHeight = emuToPoints(extraction.size?.height || DEFAULT_SLIDE_SIZE.HEIGHT_EMU);
 
-  const slides = extraction.slides.map((slide) => {
+  const slides = extraction.slides.map((slide, index) => {
     const normalizedSlide = {
       ...slide,
       elements: slide.elements.map(normalizeElementUnits),
     };
-    return convertSlide(normalizedSlide, slideWidth, slideHeight, deckName, importImages);
+    return convertSlide(normalizedSlide, slideWidth, slideHeight, deckName, importImages, index);
   });
 
   return slides.join("\n\n---\n\n");
@@ -227,9 +228,17 @@ function extractHeader(textElements, allElements, slideHeight, enforceLengthLimi
  * @param {number} slideHeight
  * @param {string} deckName
  * @param {boolean} importImages
+ * @param {number} slideIndex
  * @returns {string}
  */
-function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = true) {
+function convertSlide(
+  slide,
+  slideWidth,
+  slideHeight,
+  deckName,
+  importImages = true,
+  slideIndex = 0,
+) {
   const parts = [];
 
   // Drop images early when not importing so they don't affect layout inference
@@ -351,6 +360,7 @@ function convertSlide(slide, slideWidth, slideHeight, deckName, importImages = t
     hasMedia,
     allElements,
     dominantImages,
+    slideIndex,
   );
 
   const formatSingleElement = (el) => {
@@ -769,6 +779,10 @@ function getOverlapArea(a, b) {
  * @param {import('./pptx-extractor.js').ExtractedElement[]} textEls
  * @param {number} slideWidth
  * @param {number} slideHeight
+ * @param {boolean} [hasMedia=false]
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} [allEls=textEls]
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} [dominantImages]
+ * @param {number} [slideIndex=0]
  * @returns {{ type: string, spec: string }}
  */
 function inferLayout(
@@ -778,6 +792,7 @@ function inferLayout(
   hasMedia = false,
   allEls = textEls,
   dominantImages = findDominantImages(allEls, slideWidth, slideHeight),
+  slideIndex = 0,
 ) {
   const contentEls = textEls.filter((el) => el.content?.trim());
 
@@ -865,12 +880,14 @@ function inferLayout(
         headerEl && bodyHi > 0 && headerHi < bodyHi * CONFIG.headerThinRatio;
 
       if (!hasBullet && (!headerEl || !isThinStripHeader)) {
-        return LAYOUT.TITLE_SLIDE;
+        // First slide always uses title-slide; subsequent short-content slides use focus
+        return slideIndex === 0 ? LAYOUT.TITLE_SLIDE : LAYOUT.FOCUS;
       }
     }
 
     if (hasHeader && hasBodyBelowHeader) return LAYOUT.HEADER_CONTENT;
-    if (totalLength < CONFIG.maxTitleLength) return LAYOUT.TITLE_SLIDE;
+    if (totalLength < CONFIG.maxTitleLength)
+      return slideIndex === 0 ? LAYOUT.TITLE_SLIDE : LAYOUT.FOCUS;
   }
 
   // Partition elements into left vs right columns.
@@ -1130,7 +1147,13 @@ function hexToLuminance(hex) {
  */
 function sanitizeCssColor(color) {
   if (!color || typeof color !== "string") return "transparent";
-  const trimmed = color.trim();
+  let trimmed = color.trim();
+
+  // Normalize hex colors without # prefix (common in PPTX: "003C68" → "#003C68")
+  if (/^[0-9a-fA-F]{3}([0-9a-fA-F]{3}([0-9a-fA-F]{2})?)?$/.test(trimmed)) {
+    trimmed = `#${trimmed}`;
+  }
+
   // Named keywords we allow (non-exhaustive, safe list)
   const SAFE_KEYWORDS =
     /^(?:transparent|white|black|red|green|blue|yellow|gray|grey|orange|purple|pink|brown|cyan|magenta)$/i;
@@ -1338,7 +1361,8 @@ function formatTable(table, slideWidth, slideHeight) {
     const cells = [];
     for (const row of table.rows) {
       for (const cell of row) {
-        const text = escapeHtml(stripHtml(cell.text || "").trim());
+        // Strip HTML tags but do NOT escape — the AI processes this HTML directly
+        const text = stripHtml(cell.text || "").trim();
         const bg = sanitizeCssColor(cell.fillColor);
         const isDarkBg = isColorDark(bg);
         cells.push(

@@ -8,6 +8,7 @@
 import { safeString, DESIGN_SIZE } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
+import LAYOUTS from "../data/layouts.json" with { type: "json" };
 
 export class SlideRenderer {
   static areaLooksLikeMediaAsset(areaHtml) {
@@ -82,6 +83,13 @@ export class SlideRenderer {
       fallbackAreas: areaNamesFromContent.length ? areaNamesFromContent : ["main"],
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
+
+    // Apply --code-font-size CSS variable from layout definition
+    const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
+    const layoutDef = LAYOUTS.layouts[layoutKey];
+    if (layoutDef?.codeFontSize) {
+      grid.style.setProperty("--code-font-size", layoutDef.codeFontSize + "px");
+    }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
     grid.style.gridTemplateColumns = layout.gridTemplateColumns;

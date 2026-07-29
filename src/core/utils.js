@@ -126,13 +126,25 @@ export function escapeBareHtmlTags(markdown) {
 
       // Second pass: collect bare non-blocked non-safe tags
       const tags = [];
+      // Track tag names whose opening tags had attributes (they were skipped)
+      // so we can skip their matching closing tags too
+      const skipClosing = new Set();
       let m;
       HTML_TAG_RE.lastIndex = 0;
       while ((m = HTML_TAG_RE.exec(text)) !== null) {
         const [, closingSlash, tagName, attrs] = m;
         const lower = tagName.toLowerCase();
         if (ALWAYS_OK_BARE.has(lower)) continue;
-        if (attrs) continue;
+        if (closingSlash) {
+          // Closing tag: skip if its opening tag was skipped (had attributes)
+          if (skipClosing.has(lower)) continue;
+        } else {
+          // Opening tag: skip if it has attributes
+          if (attrs) {
+            skipClosing.add(lower);
+            continue;
+          }
+        }
         tags.push({ index: m.index, match: m[0], closingSlash, tagName, lower });
       }
 

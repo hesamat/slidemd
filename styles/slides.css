@@ -64,7 +64,8 @@
   position: absolute;
   inset: 0;
   padding: 105px 125px 80px 105px;
-  display: none;
+  visibility: hidden;
+  display: grid;
   background: var(--slide-bg);
   color: var(--slide-ink);
   font-size: 30px;
@@ -107,6 +108,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 }
 
 .slide.active {
+  visibility: visible;
   display: grid;
   animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -532,7 +534,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: var(--spacing-xs) 0;
   flex: 0 0 auto;
   align-self: flex-start;
-  line-height: 1.1;
+  font-size: var(--code-font-size, 22px);
+  line-height: 1.2;
   color: var(--code-ink);
   text-shadow: none;
   /* Prism themes sometimes set backgrounds; force our slide look */
@@ -543,7 +546,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"] > code,
 .slide__area pre > code[class*="language-"] {
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: inherit;
   line-height: inherit;
   background: transparent !important;
   padding: 0;
