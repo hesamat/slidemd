@@ -35,6 +35,12 @@ layout: focus
 
 # Content: @header, @main, @footer
 
+# Content-first (centered, minimal header/footer)
+
+layout: focus
+
+# Content: @header, @main, @footer
+
 # Header + two equal columns
 
 layout: two-column
@@ -74,7 +80,29 @@ layout: three-column
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
 - `hidden: true` - Slide hidden by default
+- `gridTemplate: "..." / columns` - Custom CSS grid layout (overrides layout preset)
 - Speaker notes: `<!-- notes: Your private notes -->` (must be the first line of the slide, before `layout:`)
+
+**Custom Grid Layouts:**
+
+When a preset layout doesn't fit, define a custom CSS grid using `gridTemplate` in the frontmatter:
+
+```markdown
+layout: custom-layout-name
+gridTemplate: "header header" "main media" / 1fr 1fr
+
+@header
+
+## Title
+
+@main
+Left content
+
+@media
+Right content
+```
+
+The `gridTemplate` value follows CSS `grid-template-areas` syntax. Column sizes after `/`. Always use `@main` for the primary content area.
 
 **Built-in Features:**
 
@@ -101,6 +129,7 @@ Slides render at **1920×1080px**. Content overflows if too much is added. These
 
 **Layout-specific guidance:**
 
+- `focus`: Content-first, centered — ~13 bullet items or ~18 code lines, minimal header/footer
 - `header-content`: ~13 bullet items in `@main`, or ~18 code lines
 - `two-column`: ~6 items per column in `@main`/`@media`
 - `media-span`: ~10 items in `@main`, media spans full height

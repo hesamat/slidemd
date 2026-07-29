@@ -125,7 +125,7 @@ AI prompts live in [src/data/prompts/](src/data/prompts/). There are three promp
 | `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
 | `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
 
-User-facing documentation for the AI feature lives in [docs/ai-prompt-template.md](docs/ai-prompt-template.md) (AI post-processing setup and behavior). The general SlideMD writing guide lives in [docs/prompt-template.md](docs/prompt-template.md) (layout syntax, area markers, examples).
+User-facing documentation: [docs/prompt-template.md](docs/prompt-template.md) (layout syntax, area markers, examples) and [docs/example/slides.md](docs/example/slides.md) (example deck). The AI prompts used by the enhancement feature live in [src/data/prompts/](src/data/prompts/).
 
 ### Architecture Rules
 
@@ -147,7 +147,7 @@ User-facing documentation for the AI feature lives in [docs/ai-prompt-template.m
 3. Verify the combined system + user prompt length stays under 150 lines
 4. Count strong negative directives ("NEVER", "Do NOT"); aim for ≤5 per prompt
 5. Keep both layout lists in sync: `system-prompt.md` rule line 18 and layout table
-6. Reflect changes in user docs: [docs/ai-prompt-template.md](docs/ai-prompt-template.md) and [docs/example/slides.md](docs/example/slides.md)
+6. Reflect changes in user docs: [docs/prompt-template.md](docs/prompt-template.md) and [docs/example/slides.md](docs/example/slides.md)
 
 ## Known Issues
 
