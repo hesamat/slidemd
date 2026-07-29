@@ -381,7 +381,7 @@ export class AiSidebar {
       const globalIndex = startIdx + i;
 
       // Parse AI content string into areas
-      const { areas } = MarkdownParser.parseAreas(slide.content);
+      const { areas } = new MarkdownParser().parseAreas(slide.content);
 
       // Build normalized slide object for SlideRenderer
       const normalizedSlide = {
