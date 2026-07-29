@@ -794,51 +794,54 @@ export class DeckController extends EventEmitter {
       // AI post-processing (runs after deck is loaded for instant feedback)
       if (aiMode) {
         const { AiSidebar } = await import("../editor/ai-sidebar.js");
-
         const enhanced = await AiSidebar.show(markdown, aiMode);
-
         if (enhanced) {
-          try {
-            localStorage.setItem("webdeck_local_file", enhanced);
-            localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-          } catch {
-            console.warn("localStorage is full or unavailable. AI result saved to memory only.");
-            window.__WEBDECK_MARKDOWN__ = enhanced;
-          }
-          await DraftManager.saveDraft(enhanced);
-
-          let newDeckData;
-          try {
-            newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
-          } catch (err) {
-            console.warn("parseDeckMarkdown failed:", err);
-          }
-
-          // Fallback: if parser returned only 1 slide but content has ---, split manually
-          if (newDeckData && newDeckData.slides.length <= 1 && enhanced.includes("\n---\n")) {
-            const parts = enhanced.split(/\n---\n/);
-            if (parts.length > 1) {
-              const md = new MarkdownParser();
-              newDeckData.slides = parts.map((part, _i) => {
-                const parsed = md.parseDeckMarkdown(part.trim());
-                return parsed.slides[0];
-              });
-              newDeckData.meta = newDeckData.meta || {};
-            }
-          }
-
-          if (newDeckData && this.reloadManager?.replaceDeck) {
-            try {
-              await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
-              markdown = enhanced;
-              Notification.success("AI enhancement applied!");
-            } catch (err) {
-              console.error("Failed to replace deck with AI result:", err);
-              Notification.error("AI enhancement could not be applied.");
-            }
-          }
+          await applyAiResult(enhanced);
         }
       }
+
+      // Shared helper to apply AI result to the deck
+      const applyAiResult = async (enhanced) => {
+        try {
+          localStorage.setItem("webdeck_local_file", enhanced);
+          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        } catch {
+          console.warn("localStorage is full or unavailable. AI result saved to memory only.");
+          window.__WEBDECK_MARKDOWN__ = enhanced;
+        }
+        await DraftManager.saveDraft(enhanced);
+
+        let newDeckData;
+        try {
+          newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
+        } catch (err) {
+          console.warn("parseDeckMarkdown failed:", err);
+        }
+
+        // Fallback: if parser returned only 1 slide but content has ---, split manually
+        if (newDeckData && newDeckData.slides.length <= 1 && enhanced.includes("\n---\n")) {
+          const parts = enhanced.split(/\n---\n/);
+          if (parts.length > 1) {
+            const md = new MarkdownParser();
+            newDeckData.slides = parts.map((part, _i) => {
+              const parsed = md.parseDeckMarkdown(part.trim());
+              return parsed.slides[0];
+            });
+            newDeckData.meta = newDeckData.meta || {};
+          }
+        }
+
+        if (newDeckData && this.reloadManager?.replaceDeck) {
+          try {
+            await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
+            markdown = enhanced;
+            Notification.success("AI enhancement applied!");
+          } catch (err) {
+            console.error("Failed to replace deck with AI result:", err);
+            Notification.error("AI enhancement could not be applied.");
+          }
+        }
+      };
 
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
@@ -892,6 +895,36 @@ export class DeckController extends EventEmitter {
               a.click();
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
+            },
+          },
+          {
+            label: "AI: Fix Issues",
+            onClick: async () => {
+              const { SettingsModal } = await import("../editor/settings-modal.js");
+              if (!SettingsModal.getApiKey()) {
+                Notification.warning("Configure API key in Settings first.", 5000);
+                return;
+              }
+              const { AiSidebar } = await import("../editor/ai-sidebar.js");
+              const enhanced = await AiSidebar.show(markdown, "fix");
+              if (enhanced) {
+                await applyAiResult(enhanced);
+              }
+            },
+          },
+          {
+            label: "AI: Inspiration",
+            onClick: async () => {
+              const { SettingsModal } = await import("../editor/settings-modal.js");
+              if (!SettingsModal.getApiKey()) {
+                Notification.warning("Configure API key in Settings first.", 5000);
+                return;
+              }
+              const { AiSidebar } = await import("../editor/ai-sidebar.js");
+              const enhanced = await AiSidebar.show(markdown, "generate");
+              if (enhanced) {
+                await applyAiResult(enhanced);
+              }
             },
           },
         ],

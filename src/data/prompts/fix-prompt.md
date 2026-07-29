@@ -25,6 +25,9 @@ Do NOT change a layout unless it is genuinely broken.
 - Do NOT add content that doesn't exist in the original (no fake headers, no invented lists)
 - Do NOT split or merge slides
 - Do NOT change image references or paths
+- Do NOT modify content inside multi-column lists (HTML divs with multi-column-list class) - preserve the HTML structure and list content as-is
+- Do NOT convert multi-column divs to plain markdown lists - keep the HTML div structure intact
+- Do NOT renumber list items or change the order of list items
 
 ## Slide Structure
 
