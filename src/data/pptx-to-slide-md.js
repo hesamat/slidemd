@@ -1253,6 +1253,7 @@ const MIN_LIST_ITEMS = 10;
 const COL3_THRESHOLD = 27;
 const MAX_GAP = 3;
 const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
+const AREA_MARKERS = new Set(Object.values(MARKDOWN_TAGS));
 
 function wrapLongLists(markdown) {
   const lines = markdown.split("\n");
@@ -1275,7 +1276,9 @@ function wrapLongLists(markdown) {
           }
           itemCount++;
           i++;
-        } else if (lines[i].trim() === "" || gapLines.length < MAX_GAP) {
+        } else if (AREA_MARKERS.has(lines[i].trim())) {
+          break;
+        } else if (gapLines.length < MAX_GAP) {
           gapLines.push(lines[i]);
           i++;
         } else {
