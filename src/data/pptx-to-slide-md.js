@@ -917,6 +917,8 @@ function inferLayout(
       const isFirstSlide = slideIndex === 0;
       const looksLikeCode = contentEls.some((el) => {
         const text = el.content?.trim() || "";
+        // Detect fenced code blocks
+        if (/```[\s\S]*```/.test(text)) return true;
         const lines = text.split("\n");
         if (lines.length < 2) return false;
         const codeKeywords =
