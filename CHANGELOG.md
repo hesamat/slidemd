@@ -13,6 +13,12 @@
 - **Model Selection**: Searchable dropdown with 200+ models from OpenRouter, with reasoning capability detection
 - **AI Prompts**: Readable prompt files in `src/data/prompts/` for easy editing
 
+### Focus Layout Improvements
+
+- **Reduced Whitespace**: Header and footer rows reduced from 0.3fr/0.2fr to 0.08fr/0.08fr, giving main content ~92% of slide height
+- **Tighter List Spacing**: Bullet point gaps reduced from 10px to 2px in focus layout
+- **Centered Lists**: Lists are now properly centered in focus layout
+
 ### PPTX Import Improvements
 
 - **AI Post-Processing**: Optional AI enhancement after PPTX import
@@ -47,6 +53,9 @@
 
 ### Bug Fixes
 
+- **wrapLongLists**: Fixed area markers and infinite blank lines being absorbed into multi-column div wrappers
+- **Blockquote Linger**: Removed transition causing blockquote to linger on slide change
+- **Full-page Tables**: Fixed escapeHtml not being applied, preventing XSS from entity-decoded content
 - **AI Sidebar**: Fixed reasoning tokens corrupting JSON parse
 - **AI Sidebar**: Fixed scrollbar jumping during streaming
 - **AI Sidebar**: Fixed wheel events changing slides during streaming
