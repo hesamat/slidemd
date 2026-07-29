@@ -482,7 +482,7 @@ function convertSlide(
       );
     } else {
       // No distinct body — place header content in main area instead
-      parts.push(formatTextElement(header.content));
+      if (header) parts.push(formatTextElement(header.content));
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
