@@ -826,22 +826,12 @@ export class DeckController extends EventEmitter {
           try {
             await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
             markdown = enhanced;
-            Notification.success("AI enhancement applied!");
           } catch (err) {
             console.error("Failed to replace deck with AI result:", err);
             Notification.error("AI enhancement could not be applied.");
           }
         }
       };
-
-      // AI post-processing (runs after deck is loaded for instant feedback)
-      if (aiMode) {
-        const { AiSidebar } = await import("../editor/ai-sidebar.js");
-        const enhanced = await AiSidebar.show(markdown, aiMode);
-        if (enhanced) {
-          await applyAiResult(enhanced);
-        }
-      }
 
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
@@ -912,38 +902,22 @@ export class DeckController extends EventEmitter {
               Notification.success("Deck saved!");
             },
           },
-          {
-            label: "AI: Fix Issues",
-            onClick: async () => {
-              const { SettingsModal } = await import("../editor/settings-modal.js");
-              if (!SettingsModal.getApiKey()) {
-                Notification.warning("Configure API key in Settings first.", 5000);
-                return;
-              }
-              const { AiSidebar } = await import("../editor/ai-sidebar.js");
-              const enhanced = await AiSidebar.show(markdown, "fix");
-              if (enhanced) {
-                await applyAiResult(enhanced);
-              }
-            },
-          },
-          {
-            label: "AI: Inspiration",
-            onClick: async () => {
-              const { SettingsModal } = await import("../editor/settings-modal.js");
-              if (!SettingsModal.getApiKey()) {
-                Notification.warning("Configure API key in Settings first.", 5000);
-                return;
-              }
-              const { AiSidebar } = await import("../editor/ai-sidebar.js");
-              const enhanced = await AiSidebar.show(markdown, "generate");
-              if (enhanced) {
-                await applyAiResult(enhanced);
-              }
-            },
-          },
         ],
       });
+
+      // AI post-processing (runs after save notification is shown)
+      if (aiMode) {
+        const { AiSidebar } = await import("../editor/ai-sidebar.js");
+        const enhanced = await AiSidebar.show(markdown, aiMode);
+        if (enhanced) {
+          try {
+            await applyAiResult(enhanced);
+          } catch (err) {
+            console.error("AI post-processing failed:", err);
+            Notification.error("AI post-processing failed. You can still save the imported deck.");
+          }
+        }
+      }
     } catch (err) {
       loading.dismiss();
       console.error("PPTX import failed:", err);
