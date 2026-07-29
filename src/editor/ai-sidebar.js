@@ -12,7 +12,7 @@ import { SettingsModal } from "./settings-modal.js";
 
 const P = "ai-sidebar__";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 
 export class AiSidebar {
   static _currentPanel = null;
@@ -146,6 +146,9 @@ export class AiSidebar {
     const outputEl = panel.querySelector(`.${P}output`);
     const statusEl = panel.querySelector(`.${P}status`);
     const noticeEl = panel.querySelector(`.${P}notice`);
+    const progressEl = panel.querySelector(`.${P}progress`);
+    const progressCountEl = panel.querySelector(`.${P}progress-count`);
+    const progressTotalEl = panel.querySelector(`.${P}progress-total`);
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
     const closeBtn = panel.querySelector('[data-action="close"]');
     const minimizeBtn = panel.querySelector('[data-action="minimize"]');
@@ -278,6 +281,11 @@ export class AiSidebar {
 
       let startIdx = 0;
 
+      // Show progress indicator
+      progressTotalEl.textContent = totalSlides;
+      progressCountEl.textContent = "0";
+      progressEl.hidden = false;
+
       outputEl.style.overflowY = "hidden";
       panel.addEventListener("wheel", preventWheel, { passive: false });
 
@@ -320,6 +328,7 @@ export class AiSidebar {
         if (cancelled) break;
 
         if (finishReason === "length") {
+          progressEl.hidden = true;
           if (liveMode) revertDeck();
           statusEl.textContent =
             "Response truncated \u2014 deck too large for AI. Try fix mode or reduce slides.";
@@ -393,7 +402,8 @@ export class AiSidebar {
         }
 
         allSlides.push(...fixedBatch);
-        statusEl.textContent = `Processed ${allSlides.length}/${totalSlides} slides\u2026`;
+        progressCountEl.textContent = allSlides.length;
+        statusEl.textContent = `Batch ${Math.floor(startIdx / BATCH_SIZE) + 1} done`;
 
         startIdx += BATCH_SIZE;
       }
@@ -402,6 +412,7 @@ export class AiSidebar {
       panel.removeEventListener("wheel", preventWheel);
 
       if (cancelled) {
+        progressEl.hidden = true;
         if (liveMode) {
           statusEl.textContent = `Keep ${allSlides.length} processed slides?`;
           statusEl.className = `${P}status`;
@@ -425,6 +436,7 @@ export class AiSidebar {
       }
 
       if (allSlides.length === 0) {
+        progressEl.hidden = true;
         if (liveMode) revertDeck();
         statusEl.textContent = "Error: AI did not return valid JSON";
         statusEl.className = `${P}status ${P}status--error`;
@@ -447,6 +459,7 @@ export class AiSidebar {
 
       result = slidesToMarkdown(allSlides);
 
+      progressEl.hidden = true;
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       noticeEl.hidden = true;
@@ -458,6 +471,7 @@ export class AiSidebar {
       seeResultBtn.hidden = false;
       panel.classList.add(`${P}panel--done`);
     } catch (err) {
+      progressEl.hidden = true;
       if (err.name === "AbortError") {
         if (liveMode) revertDeck();
         this.close();
@@ -498,6 +512,12 @@ export class AiSidebar {
         </div>
       </div>
       <div class="${P}status">Starting\u2026</div>
+      <div class="${P}progress" hidden>
+        <span class="${P}progress-count">0</span>
+        <span class="${P}progress-sep">/</span>
+        <span class="${P}progress-total">0</span>
+        <span class="${P}progress-label">slides</span>
+      </div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}output"></div>
       <div class="${P}actions">

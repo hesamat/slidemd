@@ -913,7 +913,19 @@ export class DeckController extends EventEmitter {
           const { AiSidebar } = await import("../editor/ai-sidebar.js");
           const enhanced = await AiSidebar.show(markdown, aiMode, aiMode === "fix" ? this : null);
           if (enhanced) {
-            await applyAiResult(enhanced);
+            if (aiMode === "fix") {
+              // Fix mode: deck was updated live, just persist the markdown
+              try {
+                localStorage.setItem("webdeck_local_file", enhanced);
+                localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+              } catch {
+                window.__WEBDECK_MARKDOWN__ = enhanced;
+              }
+              await DraftManager.saveDraft(enhanced);
+              markdown = enhanced;
+            } else {
+              await applyAiResult(enhanced);
+            }
           }
         } catch (err) {
           console.error("AI post-processing failed:", err);

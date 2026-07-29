@@ -207,6 +207,38 @@
   border-bottom: 1px solid var(--ai-border);
 }
 
+/* ── Progress Indicator ────────────────────────────────────── */
+.ai-sidebar__progress {
+  text-align: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-surface);
+}
+
+.ai-sidebar__progress-count {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--ai-accent);
+  line-height: 1;
+}
+
+.ai-sidebar__progress-sep,
+.ai-sidebar__progress-total {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ai-text-secondary);
+  opacity: 0.5;
+}
+
+.ai-sidebar__progress-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ai-text-secondary);
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
 .ai-sidebar__output {
   flex: 1;
   min-height: 0;
