@@ -115,6 +115,57 @@ export class NewModule {
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
 - **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
 
+## AI Prompt Engineering (2026 Best Practices)
+
+AI prompts live in [src/data/prompts/](src/data/prompts/). There are three prompts used by the AI enhancement feature:
+
+| File                 | Role     | Purpose                                             |
+| -------------------- | -------- | --------------------------------------------------- |
+| `system-prompt.md`   | `system` | Global rules, structure, formatting                 |
+| `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
+| `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
+
+### Architecture Rules
+
+- **Do NOT duplicate** rules across system and user prompts. The `system` role already sets immutable rules; repeating them in `user` prompts wastes tokens and creates version skew risk. Task-specific guidance belongs in the user prompt only.
+- **Put constraints before creative freedom** in user prompts: Formatting Rules → Content Strategy → Creative Guidelines → Input. This prevents the model from generating creative output that violates structural rules.
+- **Keep prompts focused**: The system + user prompts should not exceed ~150 combined lines of instructions. Beyond that, signal-to-noise ratio drops.
+
+### Writing Rules
+
+- **Prefer positive instructions** over negative ones. "Use only content present in the input" instead of "Do NOT invent content". Models simulate forbidden behaviors to understand them, which can increase their likelihood.
+- **Limit negative directives** ("NEVER", "Do NOT", "MUST NOT") to ~5 per prompt. Currently the prompts have 37+ which degrades compliance.
+- **Place the most critical rules first** — the model weights earlier instructions more heavily.
+- **Add success criteria** at the end of each prompt so the model can self-check:
+  ```
+  Success criteria:
+  - Every slide has non-empty content
+  - Headers follow the correct hierarchy
+  - All [Diagram:] markers are addressed
+  - The JSON is valid and parseable
+  ```
+
+### Current Findings (from holistic review)
+
+| Issue                                                         | Location                                       | Severity |
+| ------------------------------------------------------------- | ---------------------------------------------- | -------- |
+| Duplicate formatting rules across system and generate prompts | `system-prompt.md` + `generate-prompt.md`      | High     |
+| 37+ negative directives across all prompts                    | All three prompts                              | Medium   |
+| Creative guidelines placed before formatting constraints      | `generate-prompt.md:5-18`                      | Medium   |
+| Layout table missing `left-heavy` and `right-heavy`           | `system-prompt.md:88-94`                       | Low      |
+| `focus` missing from title-slide alternatives in 2 places     | `system-prompt.md:51`, `generate-prompt.md:72` | Medium   |
+| Typo "reorganize for it for"                                  | `generate-prompt.md:63`                        | Low      |
+| `fix-prompt.md` doesn't mention `focus` or `gridTemplate`     | `fix-prompt.md`                                | Low      |
+| No success criteria in any prompt                             | All three prompts                              | Medium   |
+
+### When Modifying Prompts
+
+1. Check all three prompts for consistency — a change to one rule may need updates in the others
+2. Verify the combined system + user prompt length stays under 150 lines
+3. Count negative directives; aim for ≤5 per prompt
+4. Run `npm test` — AI enhancer tests verify prompt processing
+5. Check that both layout lists (system-prompt.md rules line 18 and layout table line 88) stay in sync with `layout-data.js`
+
 ## Known Issues
 
 - **`nul` file on Windows**: The `.gitignore` previously contained `nul` which created an untracked file that cannot be deleted via normal Windows commands (it's a reserved device name). This was removed from `.gitignore` but the file may still appear in `git status`. Ignore it.

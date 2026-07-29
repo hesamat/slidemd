@@ -2,6 +2,20 @@ Create an inspired SlideMD presentation from this content and return as JSON.
 
 Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize - redesign, enhance, and elevate.
 
+## Content Strategy
+
+- Keep all substantive content but reorganize it for maximum clarity
+- Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
+- **Do NOT create sparse slides** — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
+- If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
+- If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
+- NEVER use media-span unless the slide contains an img tag. Code blocks and diagrams go in two-column or header-content
+- Combine related micro-content into cohesive slides
+- Add section dividers or overview slides when transitioning between topics
+- Every slide MUST have meaningful content in the appropriate area markers
+- **title-slide is ONLY for the opening/intro slide** — it has @title and @footer, no @main. Any slide with bullet points, lists, or body content must use focus, header-content, or two-column instead
+- **three-column area markers**: @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid
+
 ## Creative Guidelines
 
 - Reorganize for better flow, pacing, and storytelling
@@ -9,8 +23,8 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Add transition slides between major sections to improve narrative flow
 - Create summary or key takeaway slides at the end of sections
 - Enhance bullet points with better phrasing, stronger verbs, and clearer structure
-- Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead — not every diagram marker needs a Mermaid visualization
-- Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content for simple text slides
+- Convert [Diagram: ...] to Mermaid ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead
+- Prefer two-column for slides with diagrams, code examples, or dense content (>13 bullet points). Use header-content or focus for simple text slides
 - Use `focus` layout for section dividers, key quotes, code blocks, agenda slides, or any featured content that should be the center stage. Content is centered both horizontally and vertically in this layout
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
@@ -58,52 +72,20 @@ Details
 Details
 ```
 
-## Content Strategy
-
-- Keep all substantive content but reorganize for it for maximum clarity
-- Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
-- **Do NOT create sparse slides** — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
-- If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
-- If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
-- NEVER use media-span unless the slide contains an img tag. Code blocks and diagrams go in two-column or header-content
-- Combine related micro-content into cohesive slides
-- Add section dividers or overview slides when transitioning between topics
-- Every slide MUST have meaningful content in the appropriate area markers
-- **title-slide is ONLY for the opening/intro slide** — it has @title and @footer, no @main. Any slide with bullet points, lists, or body content must use header-content or two-column instead
-- **three-column area markers**: @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid
-
-## Formatting Rules (STRICT)
-
-- Area markers (@header, @main, @media, @footer) MUST have a blank line BEFORE and AFTER them
-- Example: "@header\n## Title\n\n@main\n\n- Point 1\n- Point 2" (note double newline before @main)
-- Code blocks MUST have a blank line before and after the triple backticks
-- Lists MUST have a blank line before and after them
-- Tables MUST have a blank line before and after them
-- Headers inside @main MUST have a blank line before them
-- Speaker notes (<!-- notes: ... -->) go at the very end, with a blank line before them
-- Do NOT use @notes - it is not a valid area marker. Use <!-- notes: ... --> instead
-
-## Header Rules
-
-- Title slide: # for main title, ## for subtitle/author
-- All other slides: ## for slide titles in @header
-- Inside @main: NEVER use ## for sub-sections. Use ### only if truly needed
-- Remove bold wrapping from headers
-
 ## Images (IMPORTANT)
 
 - Do NOT assume what an image shows based on its filename or position
 - If you are unsure what an image is about, DELETE the img tag
 - Only keep images if you are confident about what they depict and they add value
 
-## Mermaid Diagrams
+## Success Criteria
 
-- Use Mermaid ONLY for true flowcharts, hierarchies, or processes with clear node relationships
-- For simple lists, flat groupings, or items without clear flow/dependency, use bullet points instead
-- Keep diagrams simple: max 5 levels deep, max 8 nodes. Deep diagrams are hard to read on slides
-- Use flowchart LR (horizontal) for single-column layouts (header-content, media-span)
-- Use flowchart TD (vertical) for multi-column layouts (two-column, three-column)
-- Use varied shapes and arrow labels. NOT just linear chains.
+Before outputting, verify:
+
+- Every slide has non-empty content in at least one area
+- Headers follow the correct hierarchy for the layout
+- All [Diagram:] markers are addressed (converted or replaced with bullets)
+- The JSON is valid and parseable
 
 Input markdown:
 {{markdown}}

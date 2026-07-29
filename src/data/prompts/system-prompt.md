@@ -48,14 +48,12 @@ Right: "@header\n## Title\n\n@main\n\n- Point 1"
 - Every slide MUST have both @header and @main (or @media for media-span)
 - Two-column: @header, @main (left), @media (right). If right is empty, use header-content
 - Media-span: MUST have @media with content
-- **title-slide is ONLY for opening/intro slides**. It has only @title and @footer — NO @header, NO @main. If a slide has bullet points, lists, or any substantial content, use header-content or two-column instead
+- **title-slide is ONLY for opening/intro slides**. It has only @title and @footer — NO @header, NO @main. If a slide has bullet points, lists, or any substantial content, use focus, header-content, or two-column instead
 - NEVER mix @title with @main on the same slide — they belong to different layouts
 
 ## Converting [Diagram: ...] to Mermaid
 
-Replace [Diagram: Item1, Item2, Item3] with a mermaid code block ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships.
-
-For simple lists, flat groupings, or items without clear flow/dependency, convert to bullet points instead — not every diagram marker needs a Mermaid visualization.
+Replace [Diagram: Item1, Item2, Item3] with a mermaid code block ONLY when the content represents a true flowchart, hierarchy, or process with clear relationships. For simple lists or flat groupings, use bullet points instead.
 
 Mermaid orientation depends on the slide layout:
 
@@ -63,8 +61,8 @@ Mermaid orientation depends on the slide layout:
 - Multi-column layouts (two-column, three-column): use flowchart TD (vertical)
 - Use varied shapes and arrow labels. NOT just linear chains.
 - Keep diagrams simple: max 5 levels deep, max 8 nodes. Deep diagrams are hard to read on slides.
-
-## SlideMD Areas
+- A diagram should NEVER be the last element in a long header-content slide
+- If a diagram + more than 6 bullet points on the same slide: use two-column layout
 
 Content areas: @title, @header, @main, @media, @sidebar, @footer
 
@@ -91,15 +89,19 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 | focus          | ~13         | ~18            | Content-first — section dividers, key quotes, code, agenda  |
 | header-content | ~13         | ~18            | Simple slides, text-only                                    |
 | two-column     | ~6 per col  | ~15 per col    | Diagram + text, code + explanation                          |
+| left-heavy     | ~6 per col  | ~15 per col    | Left column 2x wider than right                             |
+| right-heavy    | ~6 per col  | ~15 per col    | Right column 2x wider than left                             |
 | media-span     | ~10         | ~15            | Slides with actual img tags                                 |
 
 **title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use focus or header-content instead.
 
 **focus rule**: Use focus for section dividers, key quotes, code blocks, agenda slides, or any featured content that should be the center stage. Content is centered both horizontally and vertically. Code blocks render larger in this layout (28px).
 
-## Mermaid Diagram Placement
+## Success Criteria
 
-- Use Mermaid ONLY for true flowcharts, hierarchies, or processes — not for simple lists
-- A Mermaid diagram should NEVER be the last element in a long header-content slide
-- If a slide has a Mermaid diagram + more than 6 bullet points: use two-column layout
-- Keep Mermaid diagrams simple: max 5 levels deep, max 8 nodes
+Before outputting, verify:
+
+- Every slide has non-empty content in at least one area
+- Headers follow the correct hierarchy for the layout
+- All [Diagram:] markers are addressed (converted or replaced with bullets)
+- The JSON is valid and parseable
