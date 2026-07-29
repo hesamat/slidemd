@@ -90,6 +90,9 @@ export class SlideRenderer {
     if (layoutDef?.codeFontSize) {
       grid.style.setProperty("--code-font-size", layoutDef.codeFontSize + "px");
     }
+    if (layoutKey) {
+      wrapper.setAttribute("data-layout", layoutKey);
+    }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
     grid.style.gridTemplateColumns = layout.gridTemplateColumns;

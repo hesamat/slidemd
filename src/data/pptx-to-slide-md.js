@@ -8,7 +8,7 @@
  * @class
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
+import { stripHtml } from "./pptx-html-to-markdown.js";
 
 // Layout Definitions
 const LAYOUT = {
