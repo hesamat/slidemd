@@ -207,36 +207,31 @@
   border-bottom: 1px solid var(--ai-border);
 }
 
-/* ── Progress Indicator ────────────────────────────────────── */
-.ai-sidebar__progress {
-  text-align: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--ai-border);
-  background: var(--ai-surface);
-}
-
-.ai-sidebar__progress-count {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--ai-accent);
-  line-height: 1;
-}
-
-.ai-sidebar__progress-sep,
-.ai-sidebar__progress-total {
-  font-size: 20px;
+/* ── Progress Indicator (inline in header) ──────────────────── */
+.ai-sidebar__progress-inline {
+  font-size: 12px;
   font-weight: 600;
   color: var(--ai-text-secondary);
-  opacity: 0.5;
+  white-space: nowrap;
 }
 
-.ai-sidebar__progress-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--ai-text-secondary);
-  opacity: 0.6;
-  margin-top: 2px;
+.ai-sidebar__progress-inline .ai-sidebar__progress-count {
+  color: var(--ai-accent);
+}
+
+/* ── Header active flash ────────────────────────────────────── */
+.ai-sidebar__header--active {
+  animation: ai-sidebar__headerFlash 2.5s ease-in-out infinite;
+}
+
+@keyframes ai-sidebar__headerFlash {
+  0%,
+  100% {
+    background: var(--ai-surface);
+  }
+  50% {
+    background: color-mix(in srgb, var(--ai-accent) 8%, var(--ai-surface));
+  }
 }
 
 .ai-sidebar__output {
@@ -311,6 +306,9 @@
     animation: none;
   }
   .ai-sidebar__status::before {
+    animation: none;
+  }
+  .ai-sidebar__header--active {
     animation: none;
   }
 }

@@ -146,7 +146,8 @@ export class AiSidebar {
     const outputEl = panel.querySelector(`.${P}output`);
     const statusEl = panel.querySelector(`.${P}status`);
     const noticeEl = panel.querySelector(`.${P}notice`);
-    const progressEl = panel.querySelector(`.${P}progress`);
+    const headerEl = panel.querySelector(`.${P}header`);
+    const progressInlineEl = panel.querySelector(`.${P}progress-inline`);
     const progressCountEl = panel.querySelector(`.${P}progress-count`);
     const progressTotalEl = panel.querySelector(`.${P}progress-total`);
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
@@ -284,7 +285,8 @@ export class AiSidebar {
       // Show progress indicator
       progressTotalEl.textContent = totalSlides;
       progressCountEl.textContent = "0";
-      progressEl.hidden = false;
+      progressInlineEl.hidden = false;
+      headerEl.classList.add(`${P}header--active`);
 
       outputEl.style.overflowY = "hidden";
       panel.addEventListener("wheel", preventWheel, { passive: false });
@@ -328,7 +330,8 @@ export class AiSidebar {
         if (cancelled) break;
 
         if (finishReason === "length") {
-          progressEl.hidden = true;
+          progressInlineEl.hidden = true;
+          headerEl.classList.remove(`${P}header--active`);
           if (liveMode) revertDeck();
           statusEl.textContent =
             "Response truncated \u2014 deck too large for AI. Try fix mode or reduce slides.";
@@ -394,7 +397,7 @@ export class AiSidebar {
                   globalIdx === deckController.slideNavigator.currentIndex,
                 );
                 slideEls[globalIdx].replaceWith(newEl);
-                window.ContentEnhancer.enhanceRenderedContent(newEl).catch(() => {});
+                await window.ContentEnhancer.enhanceRenderedContent(newEl, { force: true });
               }
             }
           }
@@ -412,7 +415,8 @@ export class AiSidebar {
       panel.removeEventListener("wheel", preventWheel);
 
       if (cancelled) {
-        progressEl.hidden = true;
+        progressInlineEl.hidden = true;
+        headerEl.classList.remove(`${P}header--active`);
         if (liveMode) {
           statusEl.textContent = `Keep ${allSlides.length} processed slides?`;
           statusEl.className = `${P}status`;
@@ -436,7 +440,8 @@ export class AiSidebar {
       }
 
       if (allSlides.length === 0) {
-        progressEl.hidden = true;
+        progressInlineEl.hidden = true;
+        headerEl.classList.remove(`${P}header--active`);
         if (liveMode) revertDeck();
         statusEl.textContent = "Error: AI did not return valid JSON";
         statusEl.className = `${P}status ${P}status--error`;
@@ -459,7 +464,8 @@ export class AiSidebar {
 
       result = slidesToMarkdown(allSlides);
 
-      progressEl.hidden = true;
+      progressInlineEl.hidden = true;
+      headerEl.classList.remove(`${P}header--active`);
       statusEl.textContent = 'Done! Click "See result" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       noticeEl.hidden = true;
@@ -471,7 +477,8 @@ export class AiSidebar {
       seeResultBtn.hidden = false;
       panel.classList.add(`${P}panel--done`);
     } catch (err) {
-      progressEl.hidden = true;
+      progressInlineEl.hidden = true;
+      headerEl.classList.remove(`${P}header--active`);
       if (err.name === "AbortError") {
         if (liveMode) revertDeck();
         this.close();
@@ -507,17 +514,14 @@ export class AiSidebar {
       <div class="${P}header">
         <span class="${P}title">${title}</span>
         <div class="${P}header-right">
+          <span class="${P}progress-inline" hidden>
+            <span class="${P}progress-count">0</span>/<span class="${P}progress-total">0</span>
+          </span>
           <button type="button" data-action="see-result" class="${P}btn ${P}btn--see-result" hidden>See result</button>
           <button type="button" data-action="minimize" class="${P}icon-btn" title="Minimize">\u2212</button>
         </div>
       </div>
       <div class="${P}status">Starting\u2026</div>
-      <div class="${P}progress" hidden>
-        <span class="${P}progress-count">0</span>
-        <span class="${P}progress-sep">/</span>
-        <span class="${P}progress-total">0</span>
-        <span class="${P}progress-label">slides</span>
-      </div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}output"></div>
       <div class="${P}actions">
