@@ -2,7 +2,7 @@ Fix this SlideMD markdown and return as JSON.
 
 ## Core Principles
 
-Fix formatting, structural, and content problems. Be conservative with layouts (don't change them unless genuinely broken), but be proactive with content quality — fix code blocks, lists, headers, and formatting that clearly lost structure during extraction.
+Fix formatting, structural, and content problems within the existing layout structure. Fix code blocks, lists, headers, and formatting that clearly lost structure during extraction. Only change a layout or area markers when the slide is in a genuinely broken state (e.g. media-span with no @media, two-column with an empty @media that has no content).
 
 Use only content present in the input markdown. Do NOT invent new content.
 
@@ -43,12 +43,13 @@ Use only content present in the input markdown. Do NOT invent new content.
 - Preserve `focus` layout — it is a valid content-first layout with centered content
 - Preserve multi-column list divs (class "multi-column-list") — these use CSS columns for compact lists
 - Preserve all image references and paths as-is
+- Preserve all area markers (@header, @main, @media, @secondary, @sidebar, @footer) exactly as they appear in the input
 
 ## Slide Structure
 
 - A slide with @main only is valid - leave it alone
 - A slide with @header and @main is valid - leave it alone
-- Two-column with empty @media -> change to header-content (remove the empty @media)
+- Two-column with an empty @media (no content at all) -> change to header-content and remove the empty @media. If @media has any content, keep the two-column layout
 - Media-span without @media -> that's broken, add @media or change layout
 
 ## Success Criteria
