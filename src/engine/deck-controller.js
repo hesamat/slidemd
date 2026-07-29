@@ -849,23 +849,30 @@ export class DeckController extends EventEmitter {
           {
             label: "Save as .textpack",
             onClick: async () => {
+              const loading = Notification.showLoadingModal(
+                "Saving deck and uploading images\u2026",
+              );
               try {
                 const mockDeck = { meta: { title: deckName || "pptx-import" } };
                 await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
                   filename: deckName || "pptx-import",
                 });
+                Notification.dismissAll();
                 Notification.success("Deck exported as .textpack!");
               } catch (err) {
                 if (err?.name !== "AbortError") {
                   console.error("Textpack export failed:", err);
                   Notification.error("Export failed: " + (err.message || err));
                 }
+              } finally {
+                loading.dismiss();
               }
             },
           },
           {
             label: "Save as .md (markdown only)",
             onClick: async () => {
+              const loading = Notification.showLoadingModal("Saving deck\u2026");
               const mdBlob = new Blob([markdown], { type: "text/markdown" });
               try {
                 if (window.showSaveFilePicker) {
@@ -881,11 +888,16 @@ export class DeckController extends EventEmitter {
                   const writable = await handle.createWritable();
                   await writable.write(mdBlob);
                   await writable.close();
+                  loading.dismiss();
+                  Notification.dismissAll();
                   Notification.success("Deck saved!");
                   return;
                 }
               } catch (err) {
-                if (err?.name === "AbortError") return;
+                if (err?.name === "AbortError") {
+                  loading.dismiss();
+                  return;
+                }
               }
               const url = URL.createObjectURL(mdBlob);
               const a = document.createElement("a");
@@ -895,6 +907,9 @@ export class DeckController extends EventEmitter {
               a.click();
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
+              loading.dismiss();
+              Notification.dismissAll();
+              Notification.success("Deck saved!");
             },
           },
           {
