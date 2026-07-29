@@ -119,11 +119,15 @@ export class AiSidebar {
           await import("../data/ai-enhancer.js");
 
         const { system, user } = buildMessages(markdown, mode);
-        const inputTokens = estimateMaxTokens(markdown, mode);
+        const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
+        const useReasoning = SettingsModal.getReasoning();
+        const inputTokens = estimateMaxTokens(markdown, mode, {
+          modelMaxOutput,
+          useReasoning,
+        });
         statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
 
         this._abortController = new AbortController();
-        const useReasoning = SettingsModal.getReasoning();
         const effort = SettingsModal.getEffort();
         const body = {
           model,
@@ -226,8 +230,13 @@ export class AiSidebar {
 
         // Detect truncation
         if (finishReason === "length") {
+          const limitDisplay = modelMaxOutput
+            ? `${modelMaxOutput.toLocaleString()} tokens`
+            : "unknown";
           statusEl.textContent =
-            "Response truncated \u2014 deck too large for AI. Try reducing the number of slides.";
+            `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
+            `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
+            `or switch to a model with a higher output token limit.`;
           statusEl.className = `${P}status ${P}status--error`;
           noticeEl.hidden = true;
           cancelBtn.hidden = true;

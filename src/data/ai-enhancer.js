@@ -178,14 +178,19 @@ export function estimateTokens(text) {
  * Estimate appropriate max_tokens based on input size and mode.
  * @param {string} markdown - The original markdown.
  * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @param {object} [opts]
+ * @param {number|null} [opts.modelMaxOutput] - Model's max completion tokens (from OpenRouter).
+ * @param {boolean} [opts.useReasoning] - Whether extended thinking is enabled.
  * @returns {number}
  */
-export function estimateMaxTokens(markdown, mode) {
+export function estimateMaxTokens(markdown, mode, opts) {
   const cleaned = stripFrontmatter(markdown, mode);
   const inputTokens = estimateTokens(cleaned);
   const multiplier = mode === "generate" ? 1.8 : 1.2;
-  const estimated = Math.ceil(inputTokens * multiplier);
-  return Math.min(Math.max(16000, estimated), 128000);
+  const reasoningMultiplier = opts?.useReasoning ? 3 : 1;
+  const estimated = Math.ceil(inputTokens * multiplier * reasoningMultiplier);
+  const floor = opts?.useReasoning ? 64000 : 16000;
+  return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
 
 /**

@@ -19,6 +19,8 @@ export class SettingsModal {
   static _currentBackdrop = null;
   /** @type {Map<string, {supported_efforts: string[]|null, mandatory: boolean}>} */
   static _modelReasoningMap = new Map();
+  /** @type {Map<string, number|null>} */
+  static _modelMaxOutputMap = new Map();
   /** @type {Array<{id: string, name: string}>} */
   static _allModels = [];
 
@@ -75,6 +77,10 @@ export class SettingsModal {
     const info = this._modelReasoningMap.get(modelId);
     if (!info || !info.supported_efforts) return [];
     return info.supported_efforts;
+  }
+
+  static getModelMaxTokens(modelId) {
+    return this._modelMaxOutputMap.get(modelId) || null;
   }
 
   static isConfigured() {
@@ -353,6 +359,7 @@ export class SettingsModal {
             mandatory: m.reasoning.mandatory || false,
           });
         }
+        this._modelMaxOutputMap.set(m.id, m.top_provider?.max_completion_tokens ?? null);
       }
 
       // Ensure saved model is in the list
@@ -362,6 +369,9 @@ export class SettingsModal {
 
       if (!this._modelReasoningMap.has(saved)) {
         this._modelReasoningMap.set(saved, { supported_efforts: null, mandatory: false });
+      }
+      if (!this._modelMaxOutputMap.has(saved)) {
+        this._modelMaxOutputMap.set(saved, null);
       }
     } catch {
       // ignore
