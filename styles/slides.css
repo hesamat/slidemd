@@ -501,9 +501,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   text-align: center;
 }
 
-/* Keep lists and code blocks left-aligned in focus layout for readability */
-.slide[data-layout="focus"] .slide__area--main ul,
-.slide[data-layout="focus"] .slide__area--main ol,
+/* Keep code blocks left-aligned in focus layout for readability */
 .slide[data-layout="focus"] .slide__area--main pre {
   text-align: left;
   align-self: stretch;

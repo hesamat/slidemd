@@ -259,6 +259,7 @@ function convertSlide(
       .trim();
     if (sanitized) {
       parts.push(`${DEFAULTS.NOTES_COMMENT_START}${sanitized}${DEFAULTS.NOTES_COMMENT_END}`);
+      parts.push("");
     }
   }
 
@@ -453,8 +454,9 @@ function convertSlide(
       bodyElements.length === 1 &&
       bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
       bodyElements[0].base64;
+    const hasBody = bodyElements.length > 0;
     parts.push("");
-    if (isHeaderValid) {
+    if (isHeaderValid && hasBody) {
       parts.push(MARKDOWN_TAGS.HEADER);
       parts.push("");
       parts.push(formatTextElement(header.content));
@@ -468,7 +470,7 @@ function convertSlide(
       const el = bodyElements[0];
       const hasExplicitDims = el.width && el.height;
       parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
-    } else {
+    } else if (hasBody) {
       parts.push(
         renderElementsWithFlex(
           bodyElements,
@@ -478,6 +480,9 @@ function convertSlide(
           formatSingleElement,
         ),
       );
+    } else {
+      // No distinct body — place header content in main area instead
+      parts.push(formatTextElement(header.content));
     }
   } else if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
