@@ -29,6 +29,42 @@ export function slidesToMarkdown(slides) {
 }
 
 /**
+ * Convert parsed deck slides (with `areas` objects) back to SlideMD markdown.
+ * Used when re-serializing after restoreDirectives().
+ * @param {{ layout: string, background?: string, theme?: string, areas: object }[]} slides
+ * @returns {string}
+ */
+export function areasToMarkdown(slides) {
+  return slides
+    .map((slide) => {
+      const parts = [];
+      if (slide.layout) parts.push(`layout: ${slide.layout}`);
+      if (slide.background) parts.push(`background: ${slide.background}`);
+      if (slide.theme) parts.push(`theme: ${slide.theme}`);
+      parts.push("");
+      // Convert areas object back to markdown with area markers
+      const areas = slide.areas || {};
+      const areaNames = Object.keys(areas);
+      if (areaNames.length === 0) {
+        parts.push("");
+      } else {
+        for (const name of areaNames) {
+          const html = areas[name];
+          if (!html) continue;
+          parts.push(`@${name}`);
+          parts.push(html);
+          parts.push("");
+        }
+      }
+      return parts
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    })
+    .join("\n\n---\n\n");
+}
+
+/**
  * Restore original backgrounds and themes onto AI-produced slides.
  * Trusts the AI for layout choices.
  * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides

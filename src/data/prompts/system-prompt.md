@@ -72,7 +72,7 @@ Content areas: @title, @header, @main, @media, @sidebar, @footer
 - In three-column layout, columns are @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid area markers
 - @secondary is ONLY for three-column layout
 
-Do NOT use @notes - it is not a valid area marker and will be silently dropped.
+ONLY use these area markers: @title, @header, @main, @media, @sidebar, @footer, @secondary. Any other @ marker (e.g. @param, @notes, @code, @example) is NOT valid and will be silently dropped — the content will be lost.
 To add speaker notes, use HTML comments: <!-- notes: Your note text here -->
 
 ## HTML Tags in Content

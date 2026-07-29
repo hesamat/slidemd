@@ -825,9 +825,9 @@ export class DeckController extends EventEmitter {
 
         // Restore original backgrounds and themes (trust AI for layouts)
         if (newDeckData && origDirectives) {
-          const { restoreDirectives, slidesToMarkdown } = await import("../data/ai-enhancer.js");
+          const { restoreDirectives, areasToMarkdown } = await import("../data/ai-enhancer.js");
           newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
-          enhanced = slidesToMarkdown(newDeckData.slides);
+          enhanced = areasToMarkdown(newDeckData.slides);
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
