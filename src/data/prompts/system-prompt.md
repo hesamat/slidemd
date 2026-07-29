@@ -79,6 +79,8 @@ Content areas: @title, @header, @main, @media, @sidebar, @footer
 - In two-column layout, right column MUST be @media (NOT @secondary)
 - In three-column layout, columns are @main (left), @media (center), @secondary (right). NEVER use @column1, @column2, @column3 — they are not valid area markers
 - @secondary is ONLY for three-column layout
+- NEVER use @secondary with two-column layout — it will be silently dropped. Use @media for the right column.
+- Simple agenda/overview slides with multiple bullet groups: use header-content with all content in @main. Do NOT split into two-column/three-column just because there are multiple bullet groups.
 
 ONLY use these area markers: @title, @header, @main, @media, @sidebar, @footer, @secondary. Any other @ marker (e.g. @param, @notes, @code, @example) is NOT valid and will be silently dropped — the content will be lost.
 To add speaker notes, use HTML comments: <!-- notes: Your note text here -->

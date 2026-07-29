@@ -6,7 +6,7 @@ layout: title-slide
 
 ### Markdown-Based Presentations
 
-### Create beautiful slides with plain Markdown. 
+### Create beautiful slides with plain Markdown.
 
 ---
 

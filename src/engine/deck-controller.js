@@ -823,13 +823,11 @@ export class DeckController extends EventEmitter {
           }
         }
 
-        // Restore original backgrounds and themes (trust AI for layouts)
-        if (newDeckData && origDirectives) {
+        // In fix mode, restore original backgrounds/themes (AI only restructures content).
+        // In generate mode, the AI's choices (theme: light, no background) stand as-is.
+        if (newDeckData && origDirectives && aiMode === "fix") {
           const { restoreDirectives } = await import("../data/ai-enhancer.js");
           newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
-          // Keep enhanced as-is (the original AI markdown) — do NOT re-serialize
-          // from parsed areas, as that would embed raw HTML into the markdown
-          // and corrupt it on next page load.
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
