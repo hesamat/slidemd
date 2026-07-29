@@ -914,15 +914,16 @@ function inferLayout(
 
     if (hasHeader && hasBodyBelowHeader) {
       // Use focus for slides where code or single-element content is the center stage
+      const isFirstSlide = slideIndex === 0;
       const looksLikeCode = contentEls.some((el) => {
         const text = el.content?.trim() || "";
         const lines = text.split("\n");
         if (lines.length < 2) return false;
         const codeKeywords =
-          /^\s*(def\s|function\s|class\s|const\s|let\s|var\s|import\s|#include|@|->|=>|\{|\}|for\s|while\s|if\s|else\s|elif|return |try\s|catch\s|from\s|async\s|await\s|void\s|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--)/;
+          /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|else\s|elif\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--)/;
         return lines.some((l) => codeKeywords.test(l));
       });
-      if (looksLikeCode && slideIndex !== 0) return LAYOUT.FOCUS;
+      if (looksLikeCode && !isFirstSlide) return LAYOUT.FOCUS;
       return LAYOUT.HEADER_CONTENT;
     }
     if (totalLength < CONFIG.maxTitleLength) {

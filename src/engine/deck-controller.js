@@ -790,9 +790,6 @@ export class DeckController extends EventEmitter {
         editCtrl.saveManager.needsSaveAs = true;
       }
 
-      loading.updateProgress(100);
-      loading.dismiss();
-
       // Shared helper to apply AI result to the deck
       const applyAiResult = async (enhanced) => {
         try {
@@ -834,6 +831,9 @@ export class DeckController extends EventEmitter {
           }
         }
       };
+
+      loading.updateProgress(100);
+      loading.dismiss();
 
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
@@ -909,15 +909,15 @@ export class DeckController extends EventEmitter {
 
       // AI post-processing (runs after save notification is shown)
       if (aiMode) {
-        const { AiSidebar } = await import("../editor/ai-sidebar.js");
-        const enhanced = await AiSidebar.show(markdown, aiMode);
-        if (enhanced) {
-          try {
+        try {
+          const { AiSidebar } = await import("../editor/ai-sidebar.js");
+          const enhanced = await AiSidebar.show(markdown, aiMode);
+          if (enhanced) {
             await applyAiResult(enhanced);
-          } catch (err) {
-            console.error("AI post-processing failed:", err);
-            Notification.error("AI post-processing failed. You can still save the imported deck.");
           }
+        } catch (err) {
+          console.error("AI post-processing failed:", err);
+          Notification.error("AI post-processing failed. You can still save the imported deck.");
         }
       }
     } catch (err) {
