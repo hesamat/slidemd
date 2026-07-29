@@ -6,11 +6,7 @@ layout: title-slide
 
 ### Markdown-Based Presentations
 
-Create beautiful slides with plain Markdown. No installation, no accounts, no build steps.
-
-@footer
-
-Press **E** to edit \u2022 **P** to present \u2022 **D** for dark mode
+### Create beautiful slides with plain Markdown. 
 
 ---
 
