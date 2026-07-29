@@ -321,7 +321,7 @@ layout: two-column
 
 @main
 
-After importing a PPTX file, optionally enhance the result with AI.
+Optionally, enhance the result with AI when importing a PPTX.
 
 ### Fix Issues
 
@@ -539,11 +539,11 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: header-content
+layout: focus
 
-@title
+@header
 
-## Ready to Present!
+## Ready to Present?
 
 @main
 

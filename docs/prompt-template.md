@@ -17,61 +17,44 @@
 **Useful Layout Patterns:**
 
 ```markdown
-# Title slide (centered)
-
+// Title slide (centered) — @title only
 layout: title-slide
 
-# Content: @title
-
-# Header + single content
-
+// Header + single content — @header, @main
 layout: header-content
 
-# Content: @header, @main (optional: @footer)
-
-# Content-first (centered, minimal header/footer)
-
+// Content-first, centered — @header, @main (minimal header/footer)
 layout: focus
 
-# Content: @header, @main, @footer
-
-# Content-first (centered, minimal header/footer)
-
-layout: focus
-
-# Content: @header, @main, @footer
-
-# Header + two equal columns
-
+// Two equal columns — @header, @main, @media
 layout: two-column
 
-# Content: @header, @main, @media
-
-# Two equal columns (no header)
-
+// Two equal columns (no header) — @main, @media
 layout: two-column
 
-# Content: @main, @media
-
-# Header + main + sidebar (for activities)
-
-layout: "header header" "main sidebar" / 1fr 300px
-
-# Content: @header, @main, @sidebar
-
-# Other commonly used presets
-
+// Left column 2x wider — @header, @main, @media
 layout: left-heavy
+
+// Right column 2x wider — @header, @main, @media
 layout: right-heavy
+
+// Three equal columns — @header, @main, @media, @secondary
 layout: three-column
+
+// Media spans full right height — @header, @main, @media
+layout: media-span
+
+// Custom sidebar layout — @header, @main, @sidebar
+layout: "header header" "main sidebar" / 1fr 300px
 ```
 
 **Content Areas:**
 
-- `@title` - Title slide content
+- `@title` - Title slide content (title-slide layout only)
 - `@header` - Top section (full width)
 - `@main` - Primary content area
-- `@media` - Secondary content (typically right column)
+- `@media` - Secondary content (right column in two-column, center in three-column)
+- `@secondary` - Third column (three-column layout only)
 - `@sidebar` - Narrow side column (300px)
 - `@footer` - Optional footer
 
