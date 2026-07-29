@@ -458,9 +458,11 @@ function createHandler(format) {
     // ── POST /api/images/clear ──
     if (pathname === "/api/images/clear" && req.method === "POST") {
       try {
-        if (format && format.imagesDir && fs.existsSync(format.imagesDir)) {
-          for (const file of fs.readdirSync(format.imagesDir)) {
-            const filePath = path.join(format.imagesDir, file);
+        // Only clear the temp uploads directory — never touch deck image folders
+        const uploadsDir = path.join(ROOT, ".webdeck-uploads", "images");
+        if (fs.existsSync(uploadsDir)) {
+          for (const file of fs.readdirSync(uploadsDir)) {
+            const filePath = path.join(uploadsDir, file);
             if (fs.statSync(filePath).isFile()) {
               fs.unlinkSync(filePath);
             }
