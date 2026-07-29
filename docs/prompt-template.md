@@ -48,15 +48,14 @@ layout: media-span
 layout: "header header" "main sidebar" / 1fr 300px
 ```
 
-**Content Areas:**
+**Content Areas by Layout:**
 
-- `@title` - Title slide content (title-slide layout only)
-- `@header` - Top section (full width)
-- `@main` - Primary content area
-- `@media` - Secondary content (right column in two-column, center in three-column)
-- `@secondary` - Third column (three-column layout only)
-- `@sidebar` - Narrow side column (300px)
-- `@footer` - Optional footer
+- `title-slide`: `@title`, `@footer`
+- `header-content`, `focus`: `@header`, `@main`, `@footer`
+- `two-column`, `left-heavy`, `right-heavy`: `@header`, `@main`, `@media`, `@footer`
+- `three-column`: `@header`, `@main`, `@media`, `@secondary`, `@footer`
+- `media-span`: `@header`, `@main`, `@media`, `@footer`
+- Custom grids: `@main` (required), plus any of `@header`, `@media`, `@sidebar`, `@secondary`, `@footer` as defined in the grid
 
 **Slide Options:**
 
