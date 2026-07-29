@@ -8,6 +8,7 @@ import {
   fixSlideLayouts,
   estimateMaxTokens,
   buildBatchMessages,
+  buildDeckSummary,
 } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
@@ -282,76 +283,100 @@ describe("estimateMaxTokens", () => {
   });
 });
 
+describe("buildDeckSummary", () => {
+  it("counts slides and lists layouts", () => {
+    const md = "layout: header-content\n@header\n## Hi\n\n---\n\nlayout: two-column\n@main\n- Item";
+    const summary = buildDeckSummary(md);
+    expect(summary).toContain("2 slides");
+    expect(summary).toContain("header-content");
+    expect(summary).toContain("two-column");
+  });
+
+  it("detects code blocks", () => {
+    const md = "layout: header-content\n@main\n```\nconst x = 1;\n```";
+    expect(buildDeckSummary(md)).toContain("code blocks");
+  });
+
+  it("detects diagrams", () => {
+    const md = "layout: header-content\n@main\n[Diagram: A, B, C]";
+    expect(buildDeckSummary(md)).toContain("diagrams");
+  });
+
+  it("detects images", () => {
+    const md = 'layout: header-content\n@main\n<img src="test.png">';
+    expect(buildDeckSummary(md)).toContain("images");
+  });
+
+  it("includes slide outline with titles", () => {
+    const md =
+      "layout: header-content\n@header\n## Introduction\n\n---\n\nlayout: header-content\n@header\n## Methods";
+    const summary = buildDeckSummary(md);
+    expect(summary).toContain("1. [header-content] Introduction");
+    expect(summary).toContain("2. [header-content] Methods");
+  });
+});
+
 describe("buildBatchMessages", () => {
   const md =
     "layout: header-content\nbackground: #fff\n@header\n## Hi\n\n---\n\nlayout: two-column\n@main\n- Item";
+  const summary = "Deck: 2 slides. Layouts: header-content, two-column.";
 
-  it("fix mode sends only the chunk, not full markdown", () => {
-    const { user } = buildBatchMessages(md, "fix", 0, 5, 20);
-    expect(user).toContain("Return exactly 5 slide(s)");
+  it("sends only the chunk, not full markdown", () => {
+    const { user } = buildBatchMessages(md, "fix", 0, 5, 20, summary);
+    expect(user).toContain("Return exactly 2 slide(s)");
     expect(user).toContain("@header");
+    expect(user).toContain("Deck Context:");
   });
 
-  it("fix mode includes chunk content for middle batch", () => {
+  it("includes chunk content for middle batch", () => {
     const manySlides = Array.from(
       { length: 20 },
       (_, i) => `layout: header-content\n@header\n## Slide ${i + 1}\n\n@main\n- Item ${i + 1}`,
     ).join("\n\n---\n\n");
-    const { user } = buildBatchMessages(manySlides, "fix", 10, 5, 20);
+    const { user } = buildBatchMessages(manySlides, "fix", 10, 5, 20, summary);
     expect(user).toContain("## Slide 11");
     expect(user).toContain("## Slide 15");
     expect(user).not.toContain("## Slide 20");
     expect(user).not.toContain("## Slide 1\n");
   });
 
-  it("fix mode clamps to available slides at end", () => {
+  it("clamps to available slides at end", () => {
     const manySlides = Array.from(
       { length: 20 },
       (_, i) => `layout: header-content\n@header\n## Slide ${i + 1}`,
     ).join("\n\n---\n\n");
-    const { user } = buildBatchMessages(manySlides, "fix", 17, 5, 20);
+    const { user } = buildBatchMessages(manySlides, "fix", 17, 5, 20, summary);
     expect(user).toContain("Return exactly 3 slide(s)");
     expect(user).toContain("## Slide 18");
     expect(user).toContain("## Slide 20");
   });
 
-  it("first generate batch asks for first N slides", () => {
-    const { user } = buildBatchMessages(md, "generate", 0, 5, 20);
-    expect(user).toContain("Return the first 5 slides");
+  it("includes deck summary in every batch", () => {
+    const { user } = buildBatchMessages(md, "fix", 0, 5, 20, summary);
+    expect(user).toContain("Deck: 2 slides");
+  });
+
+  it("generate mode also sends chunk with summary", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 5, 20, summary);
+    expect(user).toContain("Deck Context:");
     expect(user).toContain("@header");
-  });
-
-  it("generate mode sends full markdown for each batch", () => {
-    const { user } = buildBatchMessages(md, "generate", 0, 5, 20);
-    expect(user).toContain("@header");
-    expect(user).toContain("@main");
-  });
-
-  it("subsequent generate batches ask to continue", () => {
-    const { user } = buildBatchMessages(md, "generate", 5, 5, 20);
-    expect(user).toContain("Continue from where you left off");
-    expect(user).toContain("Return the next 5 slides");
-  });
-
-  it("returns empty slides array instruction for done signal", () => {
-    const { user } = buildBatchMessages(md, "generate", 10, 5, 20);
-    expect(user).toContain('"slides": []');
+    expect(user).toContain("Return exactly");
   });
 
   it("strips frontmatter from markdown", () => {
-    const { user } = buildBatchMessages(md, "fix", 0, 5, 20);
+    const { user } = buildBatchMessages(md, "fix", 0, 5, 20, summary);
     expect(user).toContain("@header");
     expect(user).not.toContain("layout: header-content");
     expect(user).not.toContain("background: #fff");
   });
 
   it("returns system prompt", () => {
-    const { system } = buildBatchMessages(md, "fix", 0, 5, 20);
+    const { system } = buildBatchMessages(md, "fix", 0, 5, 20, summary);
     expect(system).toContain("You are a SlideMD markdown editor");
   });
 
   it("returns original markdown unchanged", () => {
-    const { original } = buildBatchMessages(md, "fix", 0, 5, 20);
+    const { original } = buildBatchMessages(md, "fix", 0, 5, 20, summary);
     expect(original).toBe(md);
   });
 });

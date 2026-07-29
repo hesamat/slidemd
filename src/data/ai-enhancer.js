@@ -138,6 +138,44 @@ export function buildMessages(markdown, mode) {
 }
 
 /**
+ * Generate a lightweight deck summary for batch context.
+ * @param {string} markdown - The original markdown.
+ * @returns {string}
+ */
+export function buildDeckSummary(markdown) {
+  const slides = markdown.split(/\n---\n/);
+  const titles = slides.map((slide, i) => {
+    const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
+    const layout = layoutMatch?.[1]?.trim() || "header-content";
+    const lines = slide.split("\n").filter((l) => l.trim());
+    const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
+    const title = titleLine.replace(/^#+\s*/, "").trim();
+    return `${i + 1}. [${layout}] ${title}`;
+  });
+
+  const hasCode = slides.some((s) => /```/.test(s));
+  const hasDiagrams = slides.some((s) => /\[Diagram:/.test(s));
+  const hasImages = slides.some((s) => /<img/.test(s));
+  const uniqueLayouts = [
+    ...new Set(
+      slides.map((s) => {
+        const m = s.match(/^layout:\s*(.+)$/m);
+        return m?.[1]?.trim() || "header-content";
+      }),
+    ),
+  ];
+
+  const parts = [`Deck: ${slides.length} slides. Layouts: ${uniqueLayouts.join(", ")}.`];
+  const features = [];
+  if (hasCode) features.push("code blocks");
+  if (hasDiagrams) features.push("diagrams");
+  if (hasImages) features.push("images");
+  if (features.length) parts.push(`Features: ${features.join(", ")}.`);
+  parts.push("Outline:", titles.join("\n"));
+  return parts.join("\n");
+}
+
+/**
  * Estimate token count (rough: 1 token ≈ 4 chars for English).
  * @param {string} text
  * @returns {number}
@@ -167,38 +205,25 @@ export function estimateMaxTokens(markdown, mode) {
  * @param {number} startIdx - 0-based index of the first slide to return.
  * @param {number} batchSize - Number of slides per batch.
  * @param {number} totalSlides - Total number of slides in the deck.
+ * @param {string} deckSummary - Pre-generated deck summary.
  * @returns {{ system: string, user: string, original: string }}
  */
-export function buildBatchMessages(markdown, mode, startIdx, batchSize, totalSlides) {
+export function buildBatchMessages(markdown, mode, startIdx, batchSize, totalSlides, deckSummary) {
   const cleaned = stripFrontmatter(markdown);
+  const allSlides = cleaned.split(/\n---\n/);
   const endIdx = Math.min(startIdx + batchSize, totalSlides);
-  let paginationInstruction;
-  let contentForPrompt;
-
-  if (mode === "fix") {
-    // Fix mode: send only the relevant chunk — slides are independent and 1:1 mapped
-    const allSlides = cleaned.split(/\n---\n/);
-    const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
-    contentForPrompt = chunk;
-    paginationInstruction = `\n\nReturn exactly ${endIdx - startIdx} slide(s) as JSON. Each slide in the output corresponds 1:1 to a slide in the input. Keep the same order.`;
-  } else {
-    // Generate mode: send full markdown — AI needs full context for reorganization
-    contentForPrompt = cleaned;
-    if (startIdx === 0) {
-      paginationInstruction = `\n\nReturn the first ${batchSize} slides of your reorganized presentation as JSON.`;
-    } else {
-      paginationInstruction =
-        "\n\nContinue from where you left off. Return the next " +
-        batchSize +
-        " slides. If you have no more slides, return " +
-        '{"slides": []}.';
-    }
-  }
+  const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
+  const actualCount = allSlides.slice(startIdx, endIdx).length;
 
   const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
+  const paginationInstruction = `\n\nFix these ${actualCount} slide(s) (slides ${startIdx + 1}\u2013${startIdx + actualCount} of ${totalSlides}). Return exactly ${actualCount} slide(s) as JSON. Each slide in the output corresponds 1:1 to a slide in the input. Keep the same order.`;
+
   return {
     system: systemPrompt,
-    user: basePrompt.replace("{{markdown}}", contentForPrompt) + paginationInstruction,
+    user:
+      `Deck Context:\n${deckSummary}\n\nInput markdown:\n` +
+      basePrompt.replace("{{markdown}}", chunk) +
+      paginationInstruction,
     original: markdown,
   };
 }

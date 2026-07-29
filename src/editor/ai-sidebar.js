@@ -245,6 +245,7 @@ export class AiSidebar {
       statusEl.textContent = "Preparing\u2026";
       const {
         buildBatchMessages,
+        buildDeckSummary,
         estimateMaxTokens,
         parseAiResponse,
         slidesToMarkdown,
@@ -266,12 +267,13 @@ export class AiSidebar {
 
       const totalSlides = markdown.split(/\n---\n/).length;
       const maxTokens = estimateMaxTokens(markdown, mode);
+      const deckSummary = buildDeckSummary(markdown);
       statusEl.textContent = `Processing ${totalSlides} slides in batches of ${BATCH_SIZE}\u2026`;
 
       this._abortController = new AbortController();
       const signal = this._abortController.signal;
 
-      const useReasoning = mode === "generate" && SettingsModal.getReasoning();
+      const useReasoning = SettingsModal.getReasoning();
       const effort = SettingsModal.getEffort();
 
       let startIdx = 0;
@@ -288,6 +290,7 @@ export class AiSidebar {
           startIdx,
           BATCH_SIZE,
           totalSlides,
+          deckSummary,
         );
 
         const body = {
