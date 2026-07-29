@@ -57,8 +57,7 @@ export class ConversionModal {
       let extractionResult = null;
       let markdown = "";
       let deckName = "presentation";
-      let importImages = true;
-      let keepBackgrounds = true;
+      let importMode = "all"; // "all", "content-images", "appearance", "text-only"
       let aiMode = null; // null, "fix", or "generate"
       let codeLanguage = "";
       let isConverting = false;
@@ -172,7 +171,7 @@ export class ConversionModal {
             .replace(/\.pptx$/i, "")
             .replace(/[^a-zA-Z0-9_-]/g, "_");
 
-          // Load saved defaults before conversion so importImages is correct
+          // Load saved defaults before conversion
           let savedDefaults = {};
           try {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -181,9 +180,11 @@ export class ConversionModal {
             console.warn("Corrupted conversion defaults in localStorage, clearing:", e);
             localStorage.removeItem(STORAGE_KEY);
           }
-          importImages = savedDefaults.importImages !== false;
+          importMode = savedDefaults.importMode || "all";
 
-          markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+          markdown = convertToSlideMd(extractionResult, deckName, {
+            importImages: importMode === "all" || importMode === "content-images",
+          });
 
           const elapsed = Date.now() - started;
           if (elapsed < 300) {
@@ -229,32 +230,28 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
-          // Image import checkbox
-          importImages = savedDefaults.importImages !== false;
-          const imgCheckboxRow = document.createElement("label");
-          imgCheckboxRow.className = `${P}checkbox-row`;
-          imgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import images</span>`;
-          const imgCheckboxInput = imgCheckboxRow.querySelector(`.${P}checkbox`);
-          imgCheckboxInput.addEventListener("change", () => {
-            importImages = imgCheckboxInput.checked;
-            markdown = convertToSlideMd(extractionResult, deckName, { importImages });
-            saveDefaults({ importImages });
+          // Import mode dropdown (replaces the old image + background checkboxes)
+          const modeRow = document.createElement("div");
+          modeRow.className = `${P}select-row`;
+          modeRow.innerHTML = `
+            <label class="${P}select-label">Import</label>
+            <select class="${P}select" data-field="import-mode">
+              <option value="all" ${importMode === "all" ? "selected" : ""}>All content</option>
+              <option value="content-images" ${importMode === "content-images" ? "selected" : ""}>Slide images</option>
+              <option value="appearance" ${importMode === "appearance" ? "selected" : ""}>Slide style</option>
+              <option value="text-only" ${importMode === "text-only" ? "selected" : ""}>Text only (no images)</option>
+            </select>
+          `;
+          const modeSelect = modeRow.querySelector(`[data-field="import-mode"]`);
+          modeSelect.addEventListener("change", () => {
+            importMode = modeSelect.value;
+            markdown = convertToSlideMd(extractionResult, deckName, {
+              importImages: importMode === "all" || importMode === "content-images",
+            });
+            saveDefaults({ importMode });
           });
-          insertAfter.parentNode.insertBefore(imgCheckboxRow, insertAfter.nextSibling);
-          insertAfter = imgCheckboxRow;
-
-          // Show background/theme checkbox
-          keepBackgrounds = savedDefaults.keepBackgrounds !== false;
-          const bgCheckboxRow = document.createElement("label");
-          bgCheckboxRow.className = `${P}checkbox-row`;
-          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${keepBackgrounds ? "checked" : ""} /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
-          const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
-          bgCheckboxInput.addEventListener("change", () => {
-            keepBackgrounds = bgCheckboxInput.checked;
-            saveDefaults({ keepBackgrounds });
-          });
-          insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
-          insertAfter = bgCheckboxRow;
+          insertAfter.parentNode.insertBefore(modeRow, insertAfter.nextSibling);
+          insertAfter = modeRow;
 
           // AI mode section
           const aiDivider = document.createElement("div");
@@ -361,9 +358,11 @@ export class ConversionModal {
       };
       // Import button
       saveBtn.addEventListener("click", async () => {
-        // If user opted out of images, strip <img> tags from markdown
+        const importImages = importMode === "all" || importMode === "content-images";
+        const keepBackgrounds = importMode === "all" || importMode === "appearance";
+        // Strip <img> tags when content images are not imported
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
-        // If user opted out of backgrounds/themes, strip those directives
+        // Strip background/theme directives when not keeping slide appearance
         if (!keepBackgrounds) {
           finalMarkdown = finalMarkdown
             .replace(/^\s*background:.*$/gm, "")

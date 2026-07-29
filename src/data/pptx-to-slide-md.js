@@ -270,31 +270,32 @@ function convertSlide(
 
   // Detect full-page background images BEFORE filtering, so they survive
   // filterMeaningfulElements (which strips massive images when other content exists).
+  // bgCandidate is always detected regardless of importImages so that background
+  // images are preserved as CSS background directives (with data URLs when not
+  // importing). This keeps slide appearance intact even when content images are skipped.
   const slideArea = slideWidth * slideHeight;
-  const bgCandidate = importImages
-    ? slide.elements.find((el) => {
-        if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
-        const imgArea = (el.width || 0) * (el.height || 0);
-        // Image covers >= 80% of slide — always a background
-        if (imgArea >= slideArea * 0.8) return true;
-        // Image covers >= 60% of slide — background if it overlaps content
-        if (imgArea < slideArea * CONFIG.dominantImageThreshold) return false;
-        const contentEls = slide.elements.filter(
-          (other) =>
-            other !== el &&
-            [
-              ELEMENT_TYPES.TEXT,
-              ELEMENT_TYPES.TABLE,
-              ELEMENT_TYPES.CHART,
-              ELEMENT_TYPES.DIAGRAM,
-            ].includes(other.type),
-        );
-        return contentEls.some((cel) => {
-          const overlap = getOverlapArea(el, cel);
-          return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
-        });
-      })
-    : null;
+  const bgCandidate = slide.elements.find((el) => {
+    if (el.type !== ELEMENT_TYPES.IMAGE || !el.base64) return false;
+    const imgArea = (el.width || 0) * (el.height || 0);
+    // Image covers >= 80% of slide — always a background
+    if (imgArea >= slideArea * 0.8) return true;
+    // Image covers >= 60% of slide — background if it overlaps content
+    if (imgArea < slideArea * CONFIG.dominantImageThreshold) return false;
+    const contentEls = slide.elements.filter(
+      (other) =>
+        other !== el &&
+        [
+          ELEMENT_TYPES.TEXT,
+          ELEMENT_TYPES.TABLE,
+          ELEMENT_TYPES.CHART,
+          ELEMENT_TYPES.DIAGRAM,
+        ].includes(other.type),
+    );
+    return contentEls.some((cel) => {
+      const overlap = getOverlapArea(el, cel);
+      return overlap / imgArea > CONFIG.backgroundOverlapThreshold;
+    });
+  });
 
   // 2. Filter out decorative background/border/logo elements from the slide
   const meaningfulElements = filterMeaningfulElements(
@@ -319,7 +320,10 @@ function convertSlide(
   if (bgCandidate && bgCandidate.base64) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
+    const bgUrl = importImages
+      ? `url(${DEFAULTS.IMAGE_SUBDIR}${filename})`
+      : `url(data:image/png;base64,${bgCandidate.base64.replace(/^data:[^;]+;base64,/, "")})`;
+    slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), ${bgUrl} center / cover no-repeat`;
     // Remove the background image from dominant so it doesn't appear in @media
     dominantImages = dominantImages.filter(
       (el) =>
