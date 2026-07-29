@@ -825,9 +825,11 @@ export class DeckController extends EventEmitter {
 
         // Restore original backgrounds and themes (trust AI for layouts)
         if (newDeckData && origDirectives) {
-          const { restoreDirectives, areasToMarkdown } = await import("../data/ai-enhancer.js");
+          const { restoreDirectives } = await import("../data/ai-enhancer.js");
           newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
-          enhanced = areasToMarkdown(newDeckData.slides);
+          // Keep enhanced as-is (the original AI markdown) — do NOT re-serialize
+          // from parsed areas, as that would embed raw HTML into the markdown
+          // and corrupt it on next page load.
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
