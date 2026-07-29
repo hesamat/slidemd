@@ -638,7 +638,11 @@ export class MarkdownParser {
       );
       cleaned = withoutAreaStyle;
 
-      const { value: codeFontSize } = this.extractDirective(cleaned, "code-font-size");
+      const { value: codeFontSize, markdown: withoutCodeFontSize } = this.extractDirective(
+        cleaned,
+        "code-font-size",
+      );
+      cleaned = withoutCodeFontSize;
       const parsedCodeFontSize = codeFontSize ? parseInt(codeFontSize, 10) : 0;
 
       // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
