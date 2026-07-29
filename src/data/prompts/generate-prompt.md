@@ -6,10 +6,10 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 
 - Keep all substantive content but reorganize it for maximum clarity
 - Split overloaded slides - if a slide has more than ~10 bullet points or ~15 lines of code, split it
-- **Do NOT create sparse slides** — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
+- Combine sparse slides into richer ones — a slide with only 2 bullet points is too thin. Combine related micro-content into cohesive slides, or expand with more detail, examples, or context
 - If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
-- NEVER use media-span unless the slide contains an img tag. Code blocks and diagrams go in two-column or header-content
+- Use media-span only for slides with actual img tags. Code blocks and diagrams go in two-column or header-content
 - Combine related micro-content into cohesive slides
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
@@ -33,7 +33,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 
 ## Custom Layouts
 
-When none of the built-in layouts (header-content, two-column, three-column, media-span) fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter.
+When none of the built-in layouts fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter. The standard built-in layouts are: header-content, two-column, three-column, media-span, left-heavy, right-heavy, focus.
 
 Rules for custom layouts:
 
@@ -82,9 +82,10 @@ Details
 
 Before outputting, verify:
 
-- Every slide has non-empty content in at least one area
+- Every slide has non-empty content in at least one area marker
 - Headers follow the correct hierarchy for the layout
-- All [Diagram:] markers are addressed (converted or replaced with bullets)
+- All [Diagram:] markers are addressed — converted to Mermaid for true flowcharts, or replaced with bullet points for simple lists
+- Slides use a variety of appropriate layouts, not the same one repeated
 - The JSON is valid and parseable
 
 Input markdown:

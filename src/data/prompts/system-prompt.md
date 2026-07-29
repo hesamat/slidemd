@@ -95,13 +95,16 @@ Choose the right layout for each slide. Content capacity for a 1920x1080px slide
 
 **title-slide rule**: If the slide has ANY body content (bullet points, paragraphs, code), do NOT use title-slide. Use focus or header-content instead.
 
-**focus rule**: Use focus for section dividers, key quotes, code blocks, agenda slides, or any featured content that should be the center stage. Content is centered both horizontally and vertically. Code blocks render larger in this layout (28px).
+**focus rule**: Use focus when content should be centered and prominently featured — section dividers, key quotes, code blocks, agenda slides, or any content that needs to be the center stage. Content is centered both horizontally and vertically. Code blocks render larger in this layout (28px).
+
+**header-content rule**: Use header-content for standard text slides where center alignment is not needed. This is the default for most content slides. If you are unsure between focus and header-content, use header-content.
 
 ## Success Criteria
 
 Before outputting, verify:
 
-- Every slide has non-empty content in at least one area
-- Headers follow the correct hierarchy for the layout
-- All [Diagram:] markers are addressed (converted or replaced with bullets)
+- Every slide has non-empty content in at least one area marker
+- Headers follow the correct hierarchy for the layout (see Header Hierarchy section)
+- All [Diagram:] markers are addressed — converted to Mermaid for true flowcharts, or replaced with bullet points for simple lists
 - The JSON is valid and parseable
+- Layout names match one of the valid options listed in the Rules section

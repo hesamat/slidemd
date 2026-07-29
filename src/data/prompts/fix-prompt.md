@@ -36,9 +36,9 @@ Do NOT change a layout unless it is genuinely broken.
 
 Before outputting, verify:
 
-- Every slide has non-empty content in at least one area
+- Every slide has non-empty content in at least one area marker
 - Headers follow the correct hierarchy for the layout
-- All [Diagram:] markers are addressed (converted or replaced with bullets)
+- All [Diagram:] markers are addressed — converted to Mermaid for true flowcharts only, left as bullet points otherwise. Do NOT invent diagrams where none existed
 - The JSON is valid and parseable
 
 Input markdown:
