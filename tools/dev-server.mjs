@@ -549,6 +549,12 @@ function createHandler(format) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Clean up orphaned uploads from previous sessions (e.g. crashed PPTX imports)
+  const uploadDir = path.join(ROOT, ".webdeck-uploads");
+  if (fs.existsSync(uploadDir)) {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+  }
+
   let format = null;
 
   if (INPUT_ARG) {
