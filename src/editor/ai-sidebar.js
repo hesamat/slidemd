@@ -166,7 +166,8 @@ export class AiSidebar {
         }
 
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        const useReasoning = SettingsModal.getReasoning();
+        // Reasoning is too slow for fix mode — force it off regardless of user setting
+        const useReasoning = mode === "fix" ? false : SettingsModal.getReasoning();
         const effort = SettingsModal.getEffort();
 
         // Split into slides to decide single vs batch path
@@ -182,9 +183,7 @@ export class AiSidebar {
             modelMaxOutput,
             useReasoning,
             effort,
-            panel,
             statusEl,
-            outputEl,
             noticeEl,
             isCancelled: () => cancelled,
           });
@@ -391,18 +390,8 @@ export class AiSidebar {
    * Single API call path (small decks).
    */
   static async #runSingleCall(markdown, mode, opts) {
-    const {
-      apiKey,
-      model,
-      modelMaxOutput,
-      useReasoning,
-      effort,
-      panel,
-      statusEl,
-      outputEl,
-      noticeEl,
-      isCancelled,
-    } = opts;
+    const { apiKey, model, modelMaxOutput, useReasoning, effort, statusEl, noticeEl, isCancelled } =
+      opts;
 
     const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
       await import("../data/ai-enhancer.js");
@@ -424,7 +413,7 @@ export class AiSidebar {
         { role: "user", content: user },
       ],
       max_tokens: inputTokens,
-      stream: true,
+      stream: false,
       response_format: { type: "json_object" },
     };
     if (useReasoning) {
@@ -449,65 +438,9 @@ export class AiSidebar {
     noticeEl.hidden = false;
     statusEl.textContent = "AI is working\u2026";
 
-    outputEl.style.overflowY = "hidden";
-    const preventWheel = (e) => e.preventDefault();
-    panel.addEventListener("wheel", preventWheel, { passive: false });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let contentText = "";
-    let reasoningText = "";
-    let buffer = "";
-    let streamDone = false;
-    let finishReason = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta;
-          finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
-          if (!delta) continue;
-
-          const reasoningDelta = delta.reasoning || delta.reasoning_details?.[0]?.text || "";
-          if (reasoningDelta) {
-            reasoningText += reasoningDelta;
-            if (!contentText) {
-              outputEl.textContent = reasoningText;
-              outputEl.scrollTop = outputEl.scrollHeight;
-              statusEl.textContent = "Thinking\u2026";
-            }
-          }
-
-          if (delta.content) {
-            contentText += delta.content;
-            const display = reasoningText ? reasoningText + "\n\n" + contentText : contentText;
-            outputEl.textContent = display;
-            outputEl.scrollTop = outputEl.scrollHeight;
-          }
-        } catch {
-          // skip malformed JSON
-        }
-      }
-      if (streamDone) break;
-    }
-
-    outputEl.style.overflowY = "";
-    panel.removeEventListener("wheel", preventWheel);
+    const json = await res.json();
+    const contentText = json.choices?.[0]?.message?.content || "";
+    const finishReason = json.choices?.[0]?.finish_reason;
 
     if (isCancelled()) {
       this.close();
@@ -585,7 +518,7 @@ export class AiSidebar {
         { role: "user", content: user },
       ],
       max_tokens: inputTokens,
-      stream: true,
+      stream: false,
       response_format: { type: "json_object" },
     };
     if (useReasoning) {
@@ -610,42 +543,9 @@ export class AiSidebar {
         throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let contentText = "";
-      let buffer = "";
-      let streamDone = false;
-      let finishReason = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") {
-            streamDone = true;
-            break;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta;
-            finishReason = parsed.choices?.[0]?.finish_reason || finishReason;
-            if (delta?.content) {
-              contentText += delta.content;
-            }
-          } catch {
-            // skip malformed JSON
-          }
-        }
-        if (streamDone) break;
-      }
+      const json = await res.json();
+      const contentText = json.choices?.[0]?.message?.content || "";
+      const finishReason = json.choices?.[0]?.finish_reason;
 
       const duration = (performance.now() - startTime) / 1000;
 

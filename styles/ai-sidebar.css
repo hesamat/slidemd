@@ -60,7 +60,6 @@
 }
 
 @keyframes ai-sidebar__doneGlow {
-
   0%,
   100% {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
@@ -79,7 +78,6 @@
 }
 
 @keyframes ai-sidebar__minimizedGlow {
-
   0%,
   100% {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
@@ -193,7 +191,6 @@
 }
 
 @keyframes ai-sidebar__pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -230,7 +227,6 @@
 }
 
 @keyframes ai-sidebar__headerFlash {
-
   0%,
   100% {
     background: var(--ai-surface);
@@ -322,7 +318,6 @@
 
 /* ── Reduced motion ────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-
   .ai-sidebar__panel--done,
   .ai-sidebar__panel--minimized.ai-sidebar__panel--done {
     animation: none;
