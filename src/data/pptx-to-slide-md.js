@@ -8,7 +8,7 @@
  * @class
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml } from "./pptx-html-to-markdown.js";
+import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
 
 // Layout Definitions
 const LAYOUT = {
@@ -1384,8 +1384,8 @@ function formatTable(table, slideWidth, slideHeight) {
     const cells = [];
     for (const row of table.rows) {
       for (const cell of row) {
-        // Strip HTML tags but do NOT escape — the AI processes this HTML directly
-        const text = stripHtml(cell.text || "").trim();
+        // Strip HTML tags then escape to prevent XSS from entity-decoded content
+        const text = escapeHtml(stripHtml(cell.text || "").trim());
         const bg = sanitizeCssColor(cell.fillColor);
         const isDarkBg = isColorDark(bg);
         cells.push(
