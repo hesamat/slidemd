@@ -6,9 +6,6 @@
  * - tools/build.mjs (CLI build)
  */
 
-export const MERMAID_CDN_URL =
-  "https://cdn.jsdelivr.net/npm/mermaid@11.14.0/dist/mermaid.esm.min.mjs";
-
 export const MERMAID_INIT_OPTIONS = {
   startOnLoad: false,
   theme: "base",
@@ -44,10 +41,12 @@ export const MERMAID_INIT_OPTIONS = {
 
 /**
  * Builds a self-contained <script> tag that loads Mermaid from CDN and initializes it.
+ * @param {string} version - Installed Mermaid version to request from the CDN.
  * @param {string} [indent=''] - Optional whitespace prefix for formatting.
  * @returns {string} The complete <script> tag.
  */
-export function buildMermaidScriptTag(indent = "") {
+export function buildMermaidScriptTag(version, indent = "") {
+  const cdnUrl = `https://cdn.jsdelivr.net/npm/mermaid@${version}/dist/mermaid.esm.min.mjs`;
   const opts = JSON.stringify(MERMAID_INIT_OPTIONS);
-  return `${indent}<script type="module">import mermaid from "${MERMAID_CDN_URL}";window.mermaid=mermaid;mermaid.initialize(${opts});</script>`;
+  return `${indent}<script type="module">import mermaid from "${cdnUrl}";window.mermaid=mermaid;mermaid.initialize(${opts});</script>`;
 }

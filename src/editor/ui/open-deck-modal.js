@@ -9,6 +9,7 @@ import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
+import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
 
 export class OpenDeckModal {
   static _el = null;
@@ -63,6 +64,9 @@ export class OpenDeckModal {
    * is available.
    */
   static async _openTextpackFile() {
+    let loading = null;
+    const controller = new AbortController();
+
     try {
       const { default: JSZip } = await import("jszip");
 
@@ -82,7 +86,25 @@ export class OpenDeckModal {
         if (!file) return;
       }
 
+      loading = Notification.showLoadingModal("Opening .textpack...", {
+        title: "Opening .textpack",
+        cancelLabel: "Cancel",
+        cancelConfirmMessage: "Are you sure you want to cancel opening this .textpack?",
+        onCancel: () => controller.abort(),
+      });
+
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
+
+      loading.updateMessage("Reading archive...");
       const buf = await file.arrayBuffer();
+
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
+
+      loading.updateMessage("Extracting archive...");
       const zip = await JSZip.loadAsync(buf);
 
       // Extract text.markdown (or deck.md)
@@ -90,7 +112,17 @@ export class OpenDeckModal {
       if (!mdEntry) {
         throw new Error("Not a valid .textpack: missing text.markdown or deck.md");
       }
+
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
+
+      loading.updateMessage("Loading markdown...");
       const markdown = await mdEntry.async("text");
+
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
 
       // Collect all image entries from the ZIP (assets/ or images/ folder)
       const imageEntries = [];
@@ -114,61 +146,64 @@ export class OpenDeckModal {
 
       let resolvedMarkdown = markdown;
 
+      loading.updateMessage("Probing server...");
       // Try the CLI server first — keeps relative paths so Ctrl+S works
       let serverAvailable = false;
       try {
-        const probe = await fetch("/api/images", { method: "HEAD" });
+        const probe = await fetch("/api/images", {
+          method: "HEAD",
+          signal: controller.signal,
+        });
         serverAvailable = probe.ok;
       } catch {
         /* no server */
       }
 
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
+
       // Clear stale images from the previous deck so the picker is clean
       if (serverAvailable) {
         try {
-          await fetch("/api/images/clear", { method: "POST" });
+          await fetch("/api/images/clear", {
+            method: "POST",
+            signal: controller.signal,
+          });
         } catch {
           /* ignore — best-effort cleanup */
         }
       }
 
       if (serverAvailable && uniqueEntries.length > 0) {
-        // Upload each image to the server
-        const pathMap = new Map();
-        let failedUploads = 0;
-        await Promise.all(
-          uniqueEntries.map(async ({ name, entry }) => {
-            try {
-              const data = await entry.async("blob");
-              const fileObj = new File([data], name, { type: data.type });
-              const formData = new FormData();
-              formData.append("image", fileObj);
-              const res = await fetch("/api/upload-image", {
-                method: "POST",
-                body: formData,
-              });
-              if (!res.ok) {
-                failedUploads++;
-                return;
-              }
-              const result = await res.json();
-              if (result?.path) {
-                // Map both folder prefixes to the server path
-                pathMap.set(`images/${name}`, result.path);
-                pathMap.set(`assets/${name}`, result.path);
-              } else {
-                failedUploads++;
-              }
-            } catch {
-              failedUploads++;
-            }
-          }),
-        );
+        const total = uniqueEntries.length;
+        loading.updateMessage("Uploading images...");
+
+        const uploadEntries = [];
+        for (const { name, entry } of uniqueEntries) {
+          if (controller.signal.aborted) {
+            throw new DOMException("Open .textpack cancelled", "AbortError");
+          }
+          const data = await entry.async("blob");
+          uploadEntries.push({ key: name, file: new File([data], name, { type: data.type }) });
+        }
+
+        const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
+          signal: controller.signal,
+          onProgress: (processed) => loading.updateProgress(Math.round((processed / total) * 80)),
+        });
+
+        const failedUploads = total - uploadedPaths.size;
         if (failedUploads > 0) {
           console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
         }
 
-        // Rewrite markdown to use the server-saved paths
+        // Rewrite markdown to use the server-saved paths (both folder prefixes)
+        const pathMap = new Map();
+        for (const [name, serverPath] of uploadedPaths) {
+          pathMap.set(`images/${name}`, serverPath);
+          pathMap.set(`assets/${name}`, serverPath);
+        }
         for (const [oldPath, newPath] of pathMap) {
           const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           resolvedMarkdown = resolvedMarkdown.replace(new RegExp(escaped, "g"), newPath);
@@ -176,11 +211,19 @@ export class OpenDeckModal {
       } else if (uniqueEntries.length > 0) {
         // No server — fall back to blob URLs for in-browser display
         const assetUrls = new Map();
+        let completed = 0;
+        const total = uniqueEntries.length;
+        loading.updateMessage("Preparing images...");
         await Promise.all(
           uniqueEntries.map(async ({ folderName, name, entry }) => {
+            if (controller.signal.aborted) {
+              throw new DOMException("Open .textpack cancelled", "AbortError");
+            }
             const data = await entry.async("blob");
             const blobUrl = URL.createObjectURL(data);
             assetUrls.set(`${folderName}/${name}`, blobUrl);
+            completed++;
+            if (total > 0) loading.updateProgress(Math.round((completed / total) * 80));
           }),
         );
 
@@ -201,6 +244,10 @@ export class OpenDeckModal {
         }
       }
 
+      if (controller.signal.aborted) {
+        throw new DOMException("Open .textpack cancelled", "AbortError");
+      }
+
       localStorage.setItem("webdeck_local_file", resolvedMarkdown);
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name.replace(/\.textpack$/, ""));
@@ -214,6 +261,9 @@ export class OpenDeckModal {
       SlideRenderer.showLoadingState();
       this.hide();
 
+      loading.updateMessage("Loading deck...");
+      loading.updateProgress(95);
+
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
           detail: {
@@ -225,8 +275,12 @@ export class OpenDeckModal {
       );
 
       await DraftManager.clearDraft();
+      loading.dismiss();
     } catch (e) {
-      if (e.name !== "AbortError") {
+      if (loading) loading.dismiss();
+      if (e.name === "AbortError") {
+        Notification.info("Open .textpack cancelled");
+      } else {
         console.error("Failed to open .textpack file:", e);
         Notification.error("Failed to open .textpack file");
       }

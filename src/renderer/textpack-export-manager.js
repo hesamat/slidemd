@@ -16,20 +16,32 @@ export class TextpackExportManager {
    * @param {Object} deck - The deck object (used for title/filename only)
    * @param {Object} [options]
    * @param {string} [options.filename] - Output filename (default: auto-generated)
-   * @returns {Promise<void>}
+   * @returns {Promise<{ok: boolean, cancelled: boolean}>} `ok` when the export
+   *   completed; `cancelled` when the user aborted it (or an export was already
+   *   in progress), so callers can skip fallbacks and error messaging.
    */
   static async handleTextpackExport(markdownSource, deck, { filename = null } = {}) {
-    if (TextpackExportManager._isExporting) return;
+    if (TextpackExportManager._isExporting) return { ok: false, cancelled: true };
     TextpackExportManager._isExporting = true;
 
+    const controller = new AbortController();
+    const loading = Notification.showLoadingModal("Preparing .textpack export...", {
+      title: "Exporting .textpack",
+      cancelLabel: "Cancel",
+      cancelConfirmMessage: "Are you sure you want to cancel the .textpack export?",
+      onCancel: () => controller.abort(),
+    });
+
+    let success = false;
+    let cancelled = false;
     try {
       // Warn if the markdown contains blob URLs — images can't be fetched from them
       if (/blob:/.test(markdownSource)) {
-        Notification.warning(
-          "This deck contains images loaded without a dev server. " +
-            "Some images may not be included in the export.",
-          6000,
+        loading.updateMessage(
+          "Some images are blob URLs and won't persist. Fetching server images...",
         );
+      } else {
+        loading.updateMessage("Fetching images...");
       }
 
       const { default: JSZip } = await import("jszip");
@@ -40,28 +52,56 @@ export class TextpackExportManager {
       const imagePaths = TextpackExportManager._extractImagePaths(markdownSource);
       const assetsFolder = zip.folder("assets");
 
+      const total = imagePaths.length;
+      let completed = 0;
+
       const fetchTasks = imagePaths.map(async (relPath) => {
+        if (controller.signal.aborted) {
+          throw new DOMException(".textpack export cancelled", "AbortError");
+        }
         try {
           const url = `/${relPath}`;
-          const res = await fetch(url);
+          const res = await fetch(url, { signal: controller.signal });
           if (!res.ok) return;
           const blob = await res.blob();
           const name = relPath.split("/").pop();
           assetsFolder.file(name, blob);
-        } catch {
+        } catch (e) {
+          if (e.name === "AbortError") throw e;
           // Skip images that can't be fetched
+        } finally {
+          completed++;
+          if (total > 0) loading.updateProgress(Math.round((completed / total) * 80));
         }
       });
 
       await Promise.all(fetchTasks);
 
+      if (controller.signal.aborted) {
+        throw new DOMException(".textpack export cancelled", "AbortError");
+      }
+
+      loading.updateMessage("Building .textpack archive...");
       const buf = await zip.generateAsync({ type: "blob", compression: "STORE" });
 
       const outputFilename = filename || TextpackExportManager._generateFilename(deck);
       TextpackExportManager._downloadBlob(buf, outputFilename);
+
+      success = true;
+    } catch (e) {
+      if (e.name === "AbortError") {
+        cancelled = true;
+        Notification.info(".textpack export cancelled");
+      } else {
+        console.error("Textpack export failed:", e);
+        Notification.error("Textpack export failed: " + (e.message || e));
+      }
     } finally {
+      loading.dismiss();
       TextpackExportManager._isExporting = false;
     }
+
+    return { ok: success, cancelled };
   }
 
   /**

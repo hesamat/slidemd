@@ -1,21 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_INIT_OPTIONS,
-  buildMermaidScriptTag,
-} from "../core/mermaid-config.js";
-
-describe("MERMAID_CDN_URL", () => {
-  it("is a non-empty string", () => {
-    expect(typeof MERMAID_CDN_URL).toBe("string");
-    expect(MERMAID_CDN_URL.length).toBeGreaterThan(0);
-  });
-
-  it("points to mermaid ESM bundle", () => {
-    expect(MERMAID_CDN_URL).toContain("mermaid");
-    expect(MERMAID_CDN_URL).toMatch(/\.mjs$/);
-  });
-});
+import { MERMAID_INIT_OPTIONS, buildMermaidScriptTag } from "../core/mermaid-config.js";
 
 describe("MERMAID_INIT_OPTIONS", () => {
   it("has startOnLoad disabled", () => {
@@ -36,28 +20,29 @@ describe("MERMAID_INIT_OPTIONS", () => {
 
 describe("buildMermaidScriptTag", () => {
   it("returns a string containing a script tag", () => {
-    const result = buildMermaidScriptTag();
+    const result = buildMermaidScriptTag("11.14.0");
     expect(result).toContain("<script");
     expect(result).toContain("</script>");
   });
 
-  it("includes the CDN URL in the import", () => {
-    const result = buildMermaidScriptTag();
-    expect(result).toContain(MERMAID_CDN_URL);
+  it("includes the versioned CDN URL in the import", () => {
+    const result = buildMermaidScriptTag("11.14.0");
+    expect(result).toContain("mermaid@11.14.0");
+    expect(result).toContain(".mjs");
   });
 
   it("includes mermaid.initialize call", () => {
-    const result = buildMermaidScriptTag();
+    const result = buildMermaidScriptTag("11.14.0");
     expect(result).toContain("mermaid.initialize(");
   });
 
   it("applies indent prefix when provided", () => {
-    const result = buildMermaidScriptTag("  ");
+    const result = buildMermaidScriptTag("11.14.0", "  ");
     expect(result.startsWith("  <script")).toBe(true);
   });
 
   it("defaults to empty indent", () => {
-    const result = buildMermaidScriptTag();
+    const result = buildMermaidScriptTag("11.14.0");
     expect(result.startsWith("<script")).toBe(true);
   });
 });

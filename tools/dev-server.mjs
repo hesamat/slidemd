@@ -196,8 +196,9 @@ function startWatching(format) {
  * @returns {string}
  */
 function generateUploadFilename(originalName) {
-  const ext = path.extname(originalName).toLowerCase() || ".png";
-  const base = path.basename(originalName, ext);
+  const rawExt = path.extname(originalName);
+  const ext = rawExt.toLowerCase() || ".png";
+  const base = path.basename(originalName, rawExt);
   // Sanitize: lowercase, replace spaces/special chars with hyphens, trim
   const sanitized = base
     .toLowerCase()
@@ -211,16 +212,17 @@ function generateUploadFilename(originalName) {
 // ── Multipart parser ─────────────────────────────────────────────────────────
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_BATCH_BYTES = 100 * 1024 * 1024;
 
-function readBody(req) {
+function readBody(req, maxBytes = MAX_UPLOAD_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > MAX_UPLOAD_BYTES) {
+      if (size > maxBytes) {
         req.destroy();
-        reject(new Error("File too large (max 20 MB)"));
+        reject(new Error(`File too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)`));
         return;
       }
       chunks.push(chunk);
@@ -228,6 +230,19 @@ function readBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+/**
+ * Extract the filename from a multipart part's headers.
+ * Quoted names may contain spaces, so they are matched before bare tokens.
+ * @param {string} headerStr
+ * @returns {string|null}
+ */
+function getPartFilename(headerStr) {
+  const match = /filename=(?:"([^"]*)"|([^";\s]+))/i.exec(headerStr);
+  if (!match) return null;
+  const filename = match[1] ?? match[2];
+  return filename ? filename : null;
 }
 
 function parseMultipart(body, boundary) {
@@ -244,9 +259,8 @@ function parseMultipart(body, boundary) {
   if (headerEnd === -1) throw new Error("Missing multipart headers");
   const headerStr = body.slice(start, headerEnd).toString("utf8");
 
-  const filenameMatch = headerStr.match(/filename="?([^";\s]+)"?/i);
-  if (!filenameMatch) throw new Error("No filename in upload");
-  const filename = filenameMatch[1];
+  const filename = getPartFilename(headerStr);
+  if (!filename) throw new Error("No filename in upload");
 
   const dataStart = headerEnd + 4;
   let dataEnd = body.indexOf(boundaryBuf, dataStart);
@@ -259,6 +273,59 @@ function parseMultipart(body, boundary) {
   }
 
   return { filename, data };
+}
+
+/**
+ * Extract the boundary token from a multipart Content-Type header.
+ * @param {string} contentType
+ * @returns {string|null}
+ */
+function getMultipartBoundary(contentType) {
+  const match = /boundary=(?:"([^"]+)"|([^;\s]+))/i.exec(contentType || "");
+  if (!match) return null;
+  return match[1] || match[2] || null;
+}
+
+function parseMultipartAll(body, boundary) {
+  const boundaryBuf = Buffer.from(`--${boundary}`);
+  const endBuf = Buffer.from(`--${boundary}--`);
+  const parts = [];
+
+  let start = body.indexOf(boundaryBuf);
+  if (start === -1) throw new Error("Malformed multipart body");
+
+  while (true) {
+    const boundaryStart = start;
+    start += boundaryBuf.length;
+
+    if (body.indexOf(endBuf, boundaryStart) === boundaryStart) break;
+
+    if (body[start] === 0x0d && body[start + 1] === 0x0a) start += 2;
+
+    const headerEnd = body.indexOf(Buffer.from("\r\n\r\n"), start);
+    if (headerEnd === -1) break;
+    const headerStr = body.slice(start, headerEnd).toString("utf8");
+
+    const filename = getPartFilename(headerStr);
+    const dataStart = headerEnd + 4;
+    let dataEnd = body.indexOf(boundaryBuf, dataStart);
+    if (dataEnd === -1) dataEnd = body.indexOf(endBuf, dataStart);
+    if (dataEnd === -1) break;
+
+    let data = body.slice(dataStart, dataEnd);
+    if (data.length >= 2 && data[data.length - 2] === 0x0d && data[data.length - 1] === 0x0a) {
+      data = data.slice(0, data.length - 2);
+    }
+
+    if (filename) {
+      parts.push({ filename, data });
+    }
+
+    if (body.indexOf(endBuf, dataEnd) === dataEnd) break;
+    start = dataEnd;
+  }
+
+  return parts;
 }
 
 // ── JSON body parser ─────────────────────────────────────────────────────────
@@ -488,16 +555,15 @@ function createHandler(format) {
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
       try {
-        const contentType = req.headers["content-type"] || "";
-        const boundaryMatch = contentType.match(/boundary=(.+)/i);
-        if (!boundaryMatch) {
+        const boundary = getMultipartBoundary(req.headers["content-type"]);
+        if (!boundary) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Missing multipart boundary" }));
           return;
         }
 
         const body = await readBody(req);
-        const { filename, data } = parseMultipart(body, boundaryMatch[1]);
+        const { filename, data } = parseMultipart(body, boundary);
 
         const ext = path.extname(filename).toLowerCase() || ".bin";
         if (!IMAGE_RE.test(ext)) {
@@ -518,6 +584,48 @@ function createHandler(format) {
         res.end(JSON.stringify({ path: assetPath }));
       } catch (e) {
         console.error("[upload-image] Error:", e.message);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // ── POST /api/upload-images ──
+    if (pathname === "/api/upload-images" && req.method === "POST") {
+      if (!format) {
+        const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
+        fs.mkdirSync(tmpImgDir, { recursive: true });
+        format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
+      }
+      try {
+        const boundary = getMultipartBoundary(req.headers["content-type"]);
+        if (!boundary) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Missing multipart boundary" }));
+          return;
+        }
+
+        const body = await readBody(req, MAX_UPLOAD_BATCH_BYTES);
+        const parts = parseMultipartAll(body, boundary);
+
+        if (!fs.existsSync(format.imagesDir)) {
+          fs.mkdirSync(format.imagesDir, { recursive: true });
+        }
+
+        const paths = [];
+        for (const { filename, data } of parts) {
+          const ext = path.extname(filename).toLowerCase() || ".bin";
+          if (!IMAGE_RE.test(ext)) continue;
+
+          const safeName = generateUploadFilename(filename);
+          fs.writeFileSync(path.join(format.imagesDir, safeName), data);
+          paths.push({ name: filename, path: `images/${safeName}` });
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ paths }));
+      } catch (e) {
+        console.error("[upload-images] Error:", e.message);
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }
