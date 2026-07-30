@@ -264,4 +264,47 @@ describe("HtmlExportManager", () => {
       expect(result).toBe("slide-deck");
     });
   });
+
+  describe("_getVendorVersion", () => {
+    it("returns the installed version from node_modules", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: "9.9.9" }) }),
+      );
+      const version = await HtmlExportManager._getVendorVersion("katex");
+      expect(version).toBe("9.9.9");
+    });
+
+    it("falls back to a known-good version when node_modules is not served", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+      const version = await HtmlExportManager._getVendorVersion("katex");
+      expect(version).toBe(HtmlExportManager.FALLBACK_VENDOR_VERSIONS.katex);
+    });
+
+    it("returns null for packages without a fallback version", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
+      const version = await HtmlExportManager._getVendorVersion("unknown-pkg");
+      expect(version).toBeNull();
+    });
+  });
+
+  describe("buildMermaidScriptTagIfNeeded", () => {
+    const mermaidDeck = {
+      slides: [{ areas: { main: "<pre><code>mermaid\ngraph TD;</code></pre>" } }],
+    };
+
+    it("emits a CDN script tag using the fallback version when node_modules is unavailable", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+      const tag = await HtmlExportManager.buildMermaidScriptTagIfNeeded(mermaidDeck);
+      expect(tag).toContain(`mermaid@${HtmlExportManager.FALLBACK_VENDOR_VERSIONS.mermaid}`);
+    });
+
+    it("returns an empty string when the deck has no Mermaid content", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+      const tag = await HtmlExportManager.buildMermaidScriptTagIfNeeded({
+        slides: [{ areas: { main: "<p>hello</p>" } }],
+      });
+      expect(tag).toBe("");
+    });
+  });
 });

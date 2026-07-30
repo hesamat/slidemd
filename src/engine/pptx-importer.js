@@ -163,14 +163,10 @@ export class PptxImporter {
             label: "Save as .textpack",
             onClick: async () => {
               const mockDeck = { meta: { title: deckName || "pptx-import" } };
-              const exported = await TextpackExportManager.handleTextpackExport(
-                markdown,
-                mockDeck,
-                {
-                  filename: deckName || "pptx-import",
-                },
-              );
-              if (exported) {
+              const { ok } = await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
+                filename: deckName || "pptx-import",
+              });
+              if (ok) {
                 Notification.dismissAll();
                 Notification.success("Deck exported as .textpack!");
               }

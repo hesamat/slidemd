@@ -12,6 +12,14 @@ import { Notification } from "./notification.js";
 export class HtmlExportManager {
   static _isExporting = false;
 
+  // Known-good CDN versions used when the installed version can't be read
+  // (e.g. node_modules is not served by the host). Keep in sync with package.json.
+  static FALLBACK_VENDOR_VERSIONS = {
+    prismjs: "1.30.0",
+    katex: "0.16.27",
+    mermaid: "11.14.0",
+  };
+
   // Order of JS source files (same as build.mjs)
   static JS_BUNDLE_ORDER = [
     // Core utilities and helpers
@@ -370,19 +378,20 @@ ${initScript}
   static async fetchVendorJs(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
-    const prismVersion = await HtmlExportManager._getInstalledVersion("prismjs", signal);
-    const katexVersion = await HtmlExportManager._getInstalledVersion("katex", signal);
+    const prismVersion = await HtmlExportManager._getVendorVersion("prismjs", signal);
+    const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
 
     // Helper to fetch JS with fallback
     const fetchJs = async (localPath, cdnUrl) => {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
-      try {
-        let r = await fetch(localPath, { signal });
-        if (cdnUrl && !r.ok) r = await fetch(cdnUrl, { signal });
-        if (r.ok) return await r.text();
-      } catch (e) {
-        if (e.name === "AbortError") throw e;
-        console.warn("Failed to fetch JS:", cdnUrl);
+      for (const url of [localPath, cdnUrl].filter(Boolean)) {
+        try {
+          const r = await fetch(url, { signal });
+          if (r.ok) return await r.text();
+        } catch (e) {
+          if (e.name === "AbortError") throw e;
+          console.warn("Failed to fetch JS:", url);
+        }
       }
       return "";
     };
@@ -652,7 +661,7 @@ ${initScript}
     const needsMermaid =
       /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
     if (!needsMermaid) return "";
-    const version = await HtmlExportManager._getInstalledVersion("mermaid", signal);
+    const version = await HtmlExportManager._getVendorVersion("mermaid", signal);
     if (!version) {
       console.warn(
         "HtmlExport: Could not determine installed Mermaid version; skipping Mermaid script.",
@@ -660,6 +669,18 @@ ${initScript}
       return "";
     }
     return buildMermaidScriptTag(version, "    ");
+  }
+
+  /**
+   * Resolves the CDN version to use for a vendor package, falling back to a
+   * known-good version when the installed one can't be read.
+   * @param {string} packageName
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string|null>}
+   */
+  static async _getVendorVersion(packageName, signal = null) {
+    const installed = await HtmlExportManager._getInstalledVersion(packageName, signal);
+    return installed || HtmlExportManager.FALLBACK_VENDOR_VERSIONS[packageName] || null;
   }
 
   /**
@@ -691,11 +712,11 @@ ${initScript}
 
     const fetchCssWithFallback = async (localPath, cdnUrl, name, version = null) => {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
-      try {
-        let response = await fetch(localPath, { signal });
-        if (cdnUrl && !response.ok) response = await fetch(cdnUrl, { signal });
+      for (const url of [localPath, cdnUrl].filter(Boolean)) {
+        try {
+          const response = await fetch(url, { signal });
+          if (!response.ok) continue;
 
-        if (response.ok) {
           let css = await response.text();
           css = HtmlExportManager.filterViteArtifactsFromCss(css);
           // Convert relative font URLs to CDN absolute URLs for KaTeX
@@ -706,16 +727,16 @@ ${initScript}
             );
           }
           return `/* ${name} CSS */\n${css}`;
+        } catch (e) {
+          if (e.name === "AbortError") throw e;
+          console.warn(`Error loading ${name} CSS`);
         }
-      } catch (e) {
-        if (e.name === "AbortError") throw e;
-        console.warn(`Error loading ${name} CSS`);
       }
       return "";
     };
 
-    const prismVersion = await HtmlExportManager._getInstalledVersion("prismjs", signal);
-    const katexVersion = await HtmlExportManager._getInstalledVersion("katex", signal);
+    const prismVersion = await HtmlExportManager._getVendorVersion("prismjs", signal);
+    const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
 
     if (/<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) || /```/.test(deckHtmlText)) {
       const cdnUrl = prismVersion

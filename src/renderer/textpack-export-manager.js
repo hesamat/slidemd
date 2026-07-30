@@ -16,18 +16,12 @@ export class TextpackExportManager {
    * @param {Object} deck - The deck object (used for title/filename only)
    * @param {Object} [options]
    * @param {string} [options.filename] - Output filename (default: auto-generated)
-   * @returns {Promise<void>}
-   */
-  /**
-   * Export the current deck as a .textpack file.
-   * @param {string} markdownSource - The source markdown to embed
-   * @param {Object} deck - The deck object (used for title/filename only)
-   * @param {Object} [options]
-   * @param {string} [options.filename] - Output filename (default: auto-generated)
-   * @returns {Promise<boolean>} True if the export completed, false if it was cancelled.
+   * @returns {Promise<{ok: boolean, cancelled: boolean}>} `ok` when the export
+   *   completed; `cancelled` when the user aborted it (or an export was already
+   *   in progress), so callers can skip fallbacks and error messaging.
    */
   static async handleTextpackExport(markdownSource, deck, { filename = null } = {}) {
-    if (TextpackExportManager._isExporting) return false;
+    if (TextpackExportManager._isExporting) return { ok: false, cancelled: true };
     TextpackExportManager._isExporting = true;
 
     const controller = new AbortController();
@@ -39,6 +33,7 @@ export class TextpackExportManager {
     });
 
     let success = false;
+    let cancelled = false;
     try {
       // Warn if the markdown contains blob URLs — images can't be fetched from them
       if (/blob:/.test(markdownSource)) {
@@ -95,6 +90,7 @@ export class TextpackExportManager {
       success = true;
     } catch (e) {
       if (e.name === "AbortError") {
+        cancelled = true;
         Notification.info(".textpack export cancelled");
       } else {
         console.error("Textpack export failed:", e);
@@ -105,7 +101,7 @@ export class TextpackExportManager {
       TextpackExportManager._isExporting = false;
     }
 
-    return success;
+    return { ok: success, cancelled };
   }
 
   /**
