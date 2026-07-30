@@ -373,10 +373,7 @@ export function inferLayout(
   const hasTallColumn = bodyEls.some(
     (e) => (e.height || 0) > slideHeight * CONFIG.tallColumnHeightRatio,
   );
-  if (
-    hasTwoColumns &&
-    (hasTallColumn || (bodyEls.length >= 2 && bodyLength > CONFIG.minSubstantialBodyLength))
-  ) {
+  if (hasTwoColumns && (hasTallColumn || bodyEls.length >= 2)) {
     return LAYOUT.TWO_COLUMN;
   }
 
