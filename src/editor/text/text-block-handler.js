@@ -18,6 +18,9 @@ const SNAP = 10;
 const DEFAULT_W = 320;
 const DEFAULT_H = 80;
 
+const CLEAR_ICON =
+  '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/></svg>';
+
 /**
  * Read current settings from a text-block DOM element.
  */
@@ -460,16 +463,22 @@ export class TextBlockHandler {
               <span class="text-properties-panel__field-label">Font</span>
               <input type="number" class="text-properties-panel__input" data-field="fontSize" />
             </label>
-            <label class="text-properties-panel__field">
+            <div class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Color</span>
-              <input type="color" class="text-properties-panel__input" data-field="color" />
-            </label>
+              <span class="text-properties-panel__input-wrap">
+                <button type="button" class="text-properties-panel__clear-btn" data-action="reset-color" aria-label="Reset color">${CLEAR_ICON}</button>
+                <input type="color" class="text-properties-panel__input" data-field="color" />
+              </span>
+            </div>
           </div>
           <div class="text-properties-panel__row">
-            <label class="text-properties-panel__field">
+            <div class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Background</span>
-              <input type="color" class="text-properties-panel__input" data-field="backgroundColor" />
-            </label>
+              <span class="text-properties-panel__input-wrap">
+                <button type="button" class="text-properties-panel__clear-btn" data-action="reset-background" aria-label="No background">${CLEAR_ICON}</button>
+                <input type="color" class="text-properties-panel__input" data-field="backgroundColor" />
+              </span>
+            </div>
             <label class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Opacity</span>
               <input type="number" step="0.1" min="0" max="1" class="text-properties-panel__input" data-field="opacity" />
@@ -706,6 +715,10 @@ export class TextBlockHandler {
       this._toggleDecoration(el, "underline");
     } else if (action === "strikethrough") {
       this._toggleDecoration(el, "line-through");
+    } else if (action === "reset-color") {
+      el.style.color = "";
+    } else if (action === "reset-background") {
+      el.style.backgroundColor = "";
     }
 
     this._syncPanelUI();

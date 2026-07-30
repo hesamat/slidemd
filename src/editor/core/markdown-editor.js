@@ -15,9 +15,16 @@ import {
   redo,
 } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+} from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
+import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
+import { markdownTableAutocompleter, insertEmptyMarkdownTable } from "codemirror-markdown-tables";
 
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
 import { fencedBlockHelper } from "./codemirror/fenced-block-helper.js";
@@ -60,12 +67,48 @@ export class MarkdownEditor {
   render() {
     this.container.innerHTML = `
             <div class="markdown-editor-wrapper">
+                <div class="markdown-editor-header">
+                    <span class="markdown-editor-header__title">Markdown</span>
+                    <button type="button" class="markdown-editor-header__help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+                </div>
                 <div class="markdown-editor-codemirror" aria-label="Markdown editor"></div>
+                <div class="markdown-editor-help webdeck-hidden" aria-label="Keyboard shortcuts help">
+                    <div class="markdown-editor-help__panel">
+                        <div class="markdown-editor-help__header">
+                            <h3>Keyboard shortcuts</h3>
+                            <button type="button" class="markdown-editor-help__close" aria-label="Close help">×</button>
+                        </div>
+                        <table class="markdown-editor-help__table">
+                            <tbody>
+                                <tr><td>Find</td><td>Ctrl / Cmd + F</td></tr>
+                                <tr><td>Replace</td><td>Ctrl / Cmd + H</td></tr>
+                                <tr><td>Find next / previous</td><td>Ctrl / Cmd + G / Shift + G</td></tr>
+                                <tr><td>Undo / Redo</td><td>Ctrl / Cmd + Z / Shift + Z</td></tr>
+                                <tr><td>Autocomplete</td><td>Ctrl / Cmd + Space</td></tr>
+                                <tr><td>Insert 2×2 table</td><td>Ctrl / Cmd + Alt + T</td></tr>
+                                <tr><td>Indent / Outdent</td><td>Tab / Shift + Tab</td></tr>
+                                <tr><td>Fold / Unfold (gutter)</td><td>Click arrows</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
 
     this.editorRoot = this.container.querySelector(".markdown-editor-codemirror");
+    this._wireHelp();
     this.initializeCodeMirror();
+  }
+
+  _wireHelp() {
+    const helpBtn = this.container.querySelector(".markdown-editor-header__help");
+    const closeBtn = this.container.querySelector(".markdown-editor-help__close");
+    const overlay = this.container.querySelector(".markdown-editor-help");
+    if (!helpBtn || !overlay) return;
+
+    const toggle = () => overlay.classList.toggle("webdeck-hidden");
+    helpBtn.addEventListener("click", toggle);
+    closeBtn?.addEventListener("click", toggle);
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────
@@ -284,6 +327,8 @@ export class MarkdownEditor {
       throw ex;
     });
 
+    const markdownSupport = markdown({ codeLanguages: languages });
+
     const extensions = [
       suppressLezerHighlightCrash,
       EditorView.lineWrapping,
@@ -297,14 +342,23 @@ export class MarkdownEditor {
         ...historyKeymap,
         ...searchKeymap,
         ...completionKeymap,
+        ...closeBracketsKeymap,
+        ...foldKeymap,
       ]),
       highlightSelectionMatches(),
+      foldGutter(),
+      bracketMatching(),
+      closeBrackets(),
       autocompletion({
         activateOnTyping: true,
         override: completionSources,
       }),
       ...editorThemeExtensions,
-      markdown({ codeLanguages: languages }),
+      markdownSupport,
+      markdownSupport.language.data.of({
+        autocomplete: markdownTableAutocompleter(),
+      }),
+      keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }]),
       placeholder(this.options.placeholder),
       fencedBlockHelper,
       EditorView.updateListener.of((update) => {

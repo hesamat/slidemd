@@ -290,7 +290,113 @@
 }
 
 .markdown-editor-codemirror {
-  height: 100%;
+  height: calc(100% - 37px);
+}
+
+.markdown-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--border-medium);
+  color: var(--text-medium);
+  font-size: 13px;
+}
+
+.markdown-editor-header__title {
+  font-weight: 600;
+}
+
+.markdown-editor-header__help {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 50%;
+  color: var(--text-medium);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.markdown-editor-header__help:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.markdown-editor-help {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.markdown-editor-help__panel {
+  width: 340px;
+  max-width: 90%;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  color: var(--text-high);
+}
+
+.markdown-editor-help__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.markdown-editor-help__header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.markdown-editor-help__close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-medium);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.markdown-editor-help__close:hover {
+  color: var(--text-high);
+}
+
+.markdown-editor-help__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.markdown-editor-help__table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-medium);
+  font-size: 13px;
+}
+
+.markdown-editor-help__table td:last-child {
+  text-align: right;
+  color: var(--text-medium);
+}
+
+.markdown-editor-help__table tr:last-child td {
+  border-bottom: none;
 }
 
 .markdown-editor-codemirror .cm-editor {
@@ -1134,4 +1240,40 @@
 
 .text-properties-panel__row--footer {
   padding: 0 12px 10px;
+}
+
+.text-properties-panel__input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.text-properties-panel__input-wrap .text-properties-panel__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.text-properties-panel__clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 5px;
+  color: var(--text-medium);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.text-properties-panel__input[type="color"] {
+  cursor: pointer;
+}
+
+.text-properties-panel__clear-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
 }
