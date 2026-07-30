@@ -362,27 +362,12 @@ export function inferLayout(
     return LAYOUT.TWO_COLUMN;
   }
 
-  const bodyEls = contentEls.filter((el) => el !== headerEl);
-  const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
+  const bodyEls = allEls.filter((el) => el !== headerEl && el !== dominantImages[0]);
 
-  const bodyRichEls = allEls.filter(
-    (el) =>
-      el !== headerEl &&
-      el !== dominantImages[0] &&
-      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type),
-  );
+  const hasSubstantialBody = bodyEls.length > 0;
 
-  // Check if there are images in the body (not the dominant one)
-  const bodyImages = allEls.filter(
-    (el) => el !== headerEl && el !== dominantImages[0] && el.type === ELEMENT_TYPES.IMAGE,
-  );
-
-  const hasSubstantialBody =
-    bodyRichEls.length > 0 ||
-    bodyLength > 0 ||
-    bodyImages.length > 0;
-
-  if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
+  // Header + dominant image + body content → media-span (image spans right, content on left)
+  if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.MEDIA_SPAN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
   const hasTallColumn = bodyEls.some(
