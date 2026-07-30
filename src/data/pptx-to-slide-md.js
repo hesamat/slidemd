@@ -535,22 +535,58 @@ function convertSlide(
         layout = LAYOUT.HEADER_CONTENT;
       }
     } else {
-      parts.push("");
-      if (isHeaderValid) {
-        parts.push(MARKDOWN_TAGS.HEADER);
-        parts.push("");
-        parts.push(formatTextElement(header.content));
-        parts.push("");
-      }
-      parts.push(MARKDOWN_TAGS.MAIN);
-      parts.push("");
-      parts.push(
-        renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      // Overlap-based split
+      const leftEls = bodyElements.filter(
+        (el) =>
+          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
       );
-      parts.push("");
-      parts.push(MARKDOWN_TAGS.MEDIA);
-      parts.push("");
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      const rightEls = bodyElements.filter(
+        (el) =>
+          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
+      );
+
+      if (rightEls.length === 0) {
+        // No elements on the right — downgrade to header-content
+        layout = LAYOUT.HEADER_CONTENT;
+        parts[0] = `layout: ${layout.spec}`;
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(
+            bodyElements,
+            slideWidth,
+            slideHeight,
+            deckName,
+            formatSingleElement,
+          ),
+        );
+      } else {
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+        );
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
     parts.push("");
@@ -560,21 +596,11 @@ function convertSlide(
       parts.push(formatTextElement(header.content));
       parts.push("");
     }
-    const leftEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
+    // Put all dominant images in @media, everything else in @main
+    const mediaEls = dominantImages.filter(
+      (el) => bodyElements.includes(el) || el === dominantImages[0],
     );
-    const rightEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
-    );
-    // Wide elements that span the midpoint fail both 1.5x thresholds.
-    // Default them to the left (main) column so they aren't silently dropped.
-    const captured = new Set([...leftEls, ...rightEls]);
-    const unclassified = bodyElements.filter((el) => !captured.has(el));
-    leftEls.push(...unclassified);
+    const leftEls = bodyElements.filter((el) => !mediaEls.includes(el));
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
     parts.push(
@@ -583,10 +609,10 @@ function convertSlide(
     parts.push("");
     parts.push(MARKDOWN_TAGS.MEDIA);
     parts.push("");
-    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref) {
-      parts.push(formatImage(rightEls[0], deckName, { fitColumn: true }));
+    if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
+      parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
     } else {
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
     }
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;

@@ -362,12 +362,18 @@ export function inferLayout(
     return LAYOUT.TWO_COLUMN;
   }
 
-  const bodyEls = allEls.filter((el) => el !== headerEl && el !== dominantImages[0]);
+  const bodyEls = allEls.filter((el) => el !== headerEl && !dominantImages.includes(el));
 
-  const hasSubstantialBody = bodyEls.length > 0;
+  // Check for text/table/chart content in body (not just images)
+  const hasTextBody = bodyEls.some(
+    (el) =>
+      el.type === ELEMENT_TYPES.TEXT ||
+      el.type === ELEMENT_TYPES.TABLE ||
+      el.type === ELEMENT_TYPES.CHART,
+  );
 
-  // Header + dominant image + body content → media-span (image spans right, content on left)
-  if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.MEDIA_SPAN;
+  // Header + dominant image + text body → media-span (image spans right, text on left)
+  if (dominantImages.length === 1 && hasTextBody) return LAYOUT.MEDIA_SPAN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;
 
   const hasTallColumn = bodyEls.some(
