@@ -2,7 +2,8 @@
  * Keyboard Action Factory
  *
  * Creates the keyboard handler configuration with all action bindings.
- * Pure factory — no state, no DOM access.
+ * Uses getter functions for lazy access to managers that may not be
+ * initialized when the keyboard handler is created.
  */
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
@@ -13,35 +14,37 @@ import { isEmbedded } from "../core/utils.js";
  * Create a configured KeyboardHandler with all action bindings.
  *
  * @param {object} opts
- * @param {object} opts.slideNavigator - Slide navigation manager
- * @param {object} opts.roleManager - Role/presentation mode manager
- * @param {object} opts.breakManager - Break mode manager
- * @param {object} opts.reloadManager - Deck reload manager
+ * @param {Function} opts.getSlideNavigator - Getter for slide navigation manager
+ * @param {Function} opts.getRoleManager - Getter for role/presentation mode manager
+ * @param {Function} opts.getBreakManager - Getter for break mode manager
+ * @param {Function} opts.getReloadManager - Getter for deck reload manager
  * @param {Function} opts.toggleEditMode - Toggle edit mode callback
  * @param {Function} opts.toggleFullscreen - Toggle fullscreen callback
+ * @param {Function} opts.isEditMode - Check if in edit mode
  * @returns {KeyboardHandler}
  */
 export function createKeyboardHandler({
-  slideNavigator,
-  roleManager,
-  breakManager,
-  reloadManager,
+  getSlideNavigator,
+  getRoleManager,
+  getBreakManager,
+  getReloadManager,
   toggleEditMode,
   toggleFullscreen,
+  isEditMode,
 }) {
   const edit = () => window.__WEBDECK_EDIT_CONTROLLER__;
 
   return new KeyboardHandler({
-    next: () => slideNavigator.next(),
-    prev: () => slideNavigator.prev(),
-    first: () => slideNavigator.goTo(slideNavigator.findFirstVisibleIndex()),
-    last: () => slideNavigator.goTo(slideNavigator.findLastVisibleIndex()),
-    goto: () => slideNavigator.openGoToPrompt(),
-    viewer: () => roleManager.togglePresentWindow(),
+    next: () => getSlideNavigator().next(),
+    prev: () => getSlideNavigator().prev(),
+    first: () => getSlideNavigator().goTo(getSlideNavigator().findFirstVisibleIndex()),
+    last: () => getSlideNavigator().goTo(getSlideNavigator().findLastVisibleIndex()),
+    goto: () => getSlideNavigator().openGoToPrompt(),
+    viewer: () => getRoleManager().togglePresentWindow(),
     edit: () => toggleEditMode(),
-    break: () => breakManager.toggle(),
+    break: () => getBreakManager().toggle(),
     fullscreen: () => toggleFullscreen(),
-    reload: () => reloadManager.handleReloadDeck(),
+    reload: () => getReloadManager().handleReloadDeck(),
     theme: () => {
       ThemeManager.toggleTheme();
     },
@@ -143,10 +146,10 @@ export function createKeyboardHandler({
         console.warn("Redo shortcut failed:", e);
       }
     },
-    isEditMode: () => toggleEditMode(),
-    isBreakActive: () => breakManager.isActive,
-    endBreak: () => breakManager.setActive(false),
-    isEditorWindow: () => roleManager.isEditorWindow,
+    isEditMode: () => isEditMode(),
+    isBreakActive: () => getBreakManager()?.isActive ?? false,
+    endBreak: () => getBreakManager()?.setActive(false),
+    isEditorWindow: () => getRoleManager().isEditorWindow,
     isEmbedded: isEmbedded,
   });
 }

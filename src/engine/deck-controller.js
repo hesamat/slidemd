@@ -108,12 +108,13 @@ export class DeckController extends EventEmitter {
 
   initKeyboardHandler() {
     this.keyboardHandler = createKeyboardHandler({
-      slideNavigator: this.slideNavigator,
-      roleManager: this.roleManager,
-      breakManager: this.breakManager,
-      reloadManager: this.reloadManager,
+      getSlideNavigator: () => this.slideNavigator,
+      getRoleManager: () => this.roleManager,
+      getBreakManager: () => this.breakManager,
+      getReloadManager: () => this.reloadManager,
       toggleEditMode: () => this.toggleEditMode(),
       toggleFullscreen: () => this.toggleFullscreen(),
+      isEditMode: () => this.isEditMode(),
     });
   }
 
