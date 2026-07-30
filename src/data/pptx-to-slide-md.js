@@ -468,7 +468,7 @@ function convertSlide(
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
-      const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.6);
+      const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
       if (!(bodyElements.length === 1 && hasWideElement)) {
         layout = LAYOUT.HEADER_CONTENT;
       }
@@ -556,7 +556,7 @@ function convertSlide(
     // that spans both columns (merged code from PPTX extraction). Split its content
     // at a safe boundary — not inside a fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
-      const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.6);
+      const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
       if (wideEl && bodyElements.length === 1) {
         const rawContent = wideEl.content || "";
         const lines = rawContent.split("\n");
@@ -594,20 +594,25 @@ function convertSlide(
 
         const leftContent = lines.slice(0, splitAt).join("\n").trimEnd();
         const rightContent = lines.slice(splitAt).join("\n").trimStart();
-        parts.push("");
-        if (isHeaderValid) {
-          parts.push(MARKDOWN_TAGS.HEADER);
+        // If right side is empty after split, fall back to single-column
+        if (!rightContent) {
+          layout = LAYOUT.HEADER_CONTENT;
+        } else {
           parts.push("");
-          parts.push(formatTextElement(header.content));
+          if (isHeaderValid) {
+            parts.push(MARKDOWN_TAGS.HEADER);
+            parts.push("");
+            parts.push(formatTextElement(header.content));
+            parts.push("");
+          }
+          parts.push(MARKDOWN_TAGS.MAIN);
           parts.push("");
+          parts.push(formatTextElement(leftContent));
+          parts.push("");
+          parts.push(MARKDOWN_TAGS.MEDIA);
+          parts.push("");
+          parts.push(formatTextElement(rightContent));
         }
-        parts.push(MARKDOWN_TAGS.MAIN);
-        parts.push("");
-        parts.push(formatTextElement(leftContent));
-        parts.push("");
-        parts.push(MARKDOWN_TAGS.MEDIA);
-        parts.push("");
-        parts.push(formatTextElement(rightContent));
       } else {
         layout = LAYOUT.HEADER_CONTENT;
       }
@@ -1033,7 +1038,7 @@ function inferLayout(
         // If the code element spans most of the slide width, it's likely merged
         // from two columns — use two-column layout so content can be distributed
         const codeWidth = codeEl?.width || 0;
-        if (codeWidth > slideWidth * 0.6) return LAYOUT.TWO_COLUMN;
+        if (codeWidth > slideWidth * 0.8) return LAYOUT.TWO_COLUMN;
         return LAYOUT.FOCUS;
       }
       return LAYOUT.HEADER_CONTENT;

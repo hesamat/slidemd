@@ -1712,7 +1712,7 @@ describe("flex-row rendering", () => {
             content: mergedCode,
             left: 500000,
             top: 1500000, // below bodyThreshold (22% of 5143500 = 1131570)
-            width: 8000000, // wide element spanning most of the slide
+            width: 8000000, // wide element spanning >80% of the slide (9144000)
             height: 3500000,
           },
         ],
