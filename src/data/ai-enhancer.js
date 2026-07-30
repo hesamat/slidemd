@@ -54,8 +54,10 @@ export function areasToMarkdown(slides) {
         parts.push("");
       } else {
         for (const name of areaNames) {
-          const html = areas[name];
+          let html = areas[name];
           if (!html) continue;
+          // Strip data-source-line attributes added by markdown parser
+          html = html.replace(/\s*data-source-line="\d+"/g, "");
           parts.push(`@${name}`);
           parts.push(html);
           parts.push("");

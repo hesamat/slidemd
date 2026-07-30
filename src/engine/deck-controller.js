@@ -815,6 +815,19 @@ export class DeckController extends EventEmitter {
           enhanced = injectDirectives(enhanced, origDirectives);
         }
 
+        // In fix mode, restore original layouts onto the enhanced markdown string.
+        // The AI may have changed layouts — overwrite them with the originals.
+        if (origDirectives && aiMode === "fix") {
+          const sections = enhanced.split(/\n\n---\n\n/);
+          enhanced = sections
+            .map((section, i) => {
+              const orig = origDirectives[i];
+              if (!orig?.layout) return section;
+              return section.replace(/^(layout:\s*).+$/m, `$1${orig.layout}`);
+            })
+            .join("\n\n---\n\n");
+        }
+
         let newDeckData;
         try {
           newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
@@ -835,15 +848,6 @@ export class DeckController extends EventEmitter {
             });
             newDeckData.meta = newDeckData.meta || {};
           }
-        }
-
-        // In fix mode, restore original backgrounds/themes (AI only restructures content).
-        // In generate mode, the AI's choices (theme: light, no background) stand as-is.
-        if (newDeckData && origDirectives && aiMode === "fix") {
-          const { restoreDirectives, areasToMarkdown } = await import("../data/ai-enhancer.js");
-          newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
-          // Re-serialize the restored deck to markdown so localStorage matches rendered state
-          enhanced = areasToMarkdown(newDeckData.slides);
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
