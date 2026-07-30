@@ -807,12 +807,6 @@ export class DeckController extends EventEmitter {
 
       // Shared helper to apply AI result to the deck
       const applyAiResult = async (enhanced, origDirectives) => {
-        // Flush cached images so the new deck doesn't show stale thumbnails
-        const { DeckImagesResolver: DIR } = await import("../editor/image/deck-images-resolver.js");
-        DIR.invalidateCache();
-        const { ImagePicker: IP } = await import("../editor/image/image-picker.js");
-        IP.clearImageCache();
-
         // In fix mode, re-inject background/theme directives into the markdown
         // before saving. AI output lacks these (stripped before sending), but
         // they must be preserved in the saved state.
