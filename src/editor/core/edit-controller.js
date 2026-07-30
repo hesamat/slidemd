@@ -93,6 +93,9 @@ export class EditController {
       getDeck: () => this.deck,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       getOriginalMarkdown: () => this.originalMarkdown,
+      setOriginalMarkdown: (v) => {
+        this.originalMarkdown = v;
+      },
       getHasUnsavedChanges: () => this.hasUnsavedChanges,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
