@@ -16,6 +16,7 @@ export class SaveManager {
    * @param {() => object} opts.getDeck
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {() => string[]} opts.getOriginalMarkdown
+   * @param {(v: string[]) => void} opts.setOriginalMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    */
@@ -23,12 +24,14 @@ export class SaveManager {
     getDeck,
     getUnsavedMarkdown,
     getOriginalMarkdown,
+    setOriginalMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
   }) {
     this._getDeck = getDeck;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._getOriginalMarkdown = getOriginalMarkdown;
+    this._setOriginalMarkdown = setOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this.needsSaveAs = false;
@@ -75,7 +78,7 @@ export class SaveManager {
     await waitForImageUpload();
     const fullMarkdown = this.getFullMarkdown();
 
-    this.originalMarkdown = new MarkdownParser().splitSlides(fullMarkdown);
+    this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this.updateButton();
