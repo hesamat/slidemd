@@ -821,15 +821,6 @@ export class DeckController extends EventEmitter {
           enhanced = injectDirectives(enhanced, origDirectives);
         }
 
-        try {
-          localStorage.setItem("webdeck_local_file", enhanced);
-          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-        } catch {
-          console.warn("localStorage is full or unavailable. AI result saved to memory only.");
-          window.__WEBDECK_MARKDOWN__ = enhanced;
-        }
-        await DraftManager.saveDraft(enhanced);
-
         let newDeckData;
         try {
           newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
@@ -855,12 +846,24 @@ export class DeckController extends EventEmitter {
         // In fix mode, restore original backgrounds/themes (AI only restructures content).
         // In generate mode, the AI's choices (theme: light, no background) stand as-is.
         if (newDeckData && origDirectives && aiMode === "fix") {
-          const { restoreDirectives } = await import("../data/ai-enhancer.js");
+          const { restoreDirectives, areasToMarkdown } = await import("../data/ai-enhancer.js");
           newDeckData.slides = restoreDirectives(newDeckData.slides, origDirectives);
+          // Re-serialize the restored deck to markdown so localStorage matches rendered state
+          enhanced = areasToMarkdown(newDeckData.slides);
         }
 
         if (newDeckData && this.reloadManager?.replaceDeck) {
           try {
+            // Save the final markdown (with restored directives) to localStorage
+            // so the editor source matches the rendered deck
+            try {
+              localStorage.setItem("webdeck_local_file", enhanced);
+              localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+            } catch {
+              window.__WEBDECK_MARKDOWN__ = enhanced;
+            }
+            await DraftManager.saveDraft(enhanced);
+
             await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
             markdown = enhanced;
           } catch (err) {
