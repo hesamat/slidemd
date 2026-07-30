@@ -141,7 +141,7 @@ export class HtmlExportManager {
     let bundledJs = await HtmlExportManager.fetchAndBundleJs(signal);
     report("Inlining vendor JavaScript...", 40);
     let vendorJs = await HtmlExportManager.fetchVendorJs(deck, signal);
-    const mermaidScript = HtmlExportManager.buildMermaidScriptTagIfNeeded(deck);
+    const mermaidScript = await HtmlExportManager.buildMermaidScriptTagIfNeeded(deck, signal);
     if (minify) {
       bundledJs = HtmlExportManager.minifyJs(bundledJs);
       if (vendorJs) vendorJs = HtmlExportManager.minifyJs(vendorJs);
@@ -370,12 +370,15 @@ ${initScript}
   static async fetchVendorJs(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
+    const prismVersion = await HtmlExportManager._getInstalledVersion("prismjs", signal);
+    const katexVersion = await HtmlExportManager._getInstalledVersion("katex", signal);
+
     // Helper to fetch JS with fallback
     const fetchJs = async (localPath, cdnUrl) => {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
         let r = await fetch(localPath, { signal });
-        if (!r.ok) r = await fetch(cdnUrl, { signal });
+        if (cdnUrl && !r.ok) r = await fetch(cdnUrl, { signal });
         if (r.ok) return await r.text();
       } catch (e) {
         if (e.name === "AbortError") throw e;
@@ -394,22 +397,20 @@ ${initScript}
 
     if (needsPrism) {
       console.log("HtmlExport: Inlining Prism.js library...");
-      // We use the Autoloader version so it can fetch languages if connected to net,
-      // but the core highlighting works immediately.
-      const prismJs = await fetchJs(
-        "node_modules/prismjs/prism.js",
-        "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js",
-      );
+      const cdnUrl = prismVersion
+        ? `https://cdnjs.cloudflare.com/ajax/libs/prism/${prismVersion}/prism.min.js`
+        : null;
+      const prismJs = await fetchJs("node_modules/prismjs/prism.js", cdnUrl);
 
       vendorScripts += `/* Prism Core */\n${prismJs}\n`;
 
       // Detect and load all required language components
       const components = HtmlExportManager.detectPrismComponentsFromDeck(deck);
       for (const c of components) {
-        const langJs = await fetchJs(
-          `node_modules/prismjs/components/prism-${c}.min.js`,
-          `https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-${c}.min.js`,
-        );
+        const cdnUrl = prismVersion
+          ? `https://cdnjs.cloudflare.com/ajax/libs/prism/${prismVersion}/components/prism-${c}.min.js`
+          : null;
+        const langJs = await fetchJs(`node_modules/prismjs/components/prism-${c}.min.js`, cdnUrl);
         if (langJs) {
           vendorScripts += `/* Prism: ${c} */\n${langJs}\n`;
         }
@@ -420,13 +421,16 @@ ${initScript}
     const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
     if (needsKatex) {
       console.log("HtmlExport: Inlining KaTeX...");
-      const katexJs = await fetchJs(
-        "node_modules/katex/dist/katex.min.js",
-        "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js",
-      );
+      const katexJsCdn = katexVersion
+        ? `https://cdn.jsdelivr.net/npm/katex@${katexVersion}/dist/katex.min.js`
+        : null;
+      const katexRenderCdn = katexVersion
+        ? `https://cdn.jsdelivr.net/npm/katex@${katexVersion}/dist/contrib/auto-render.min.js`
+        : null;
+      const katexJs = await fetchJs("node_modules/katex/dist/katex.min.js", katexJsCdn);
       const katexRender = await fetchJs(
         "node_modules/katex/dist/contrib/auto-render.min.js",
-        "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js",
+        katexRenderCdn,
       );
       if (katexJs) vendorScripts += `/* KaTeX Core */\n${katexJs}\n`;
       if (katexRender) vendorScripts += `/* KaTeX Auto-Render */\n${katexRender}\n`;
@@ -643,11 +647,38 @@ ${initScript}
   /**
    * Returns a Mermaid script tag if the deck contains Mermaid diagrams, empty string otherwise.
    */
-  static buildMermaidScriptTagIfNeeded(deck) {
+  static async buildMermaidScriptTagIfNeeded(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
     const needsMermaid =
       /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
-    return needsMermaid ? buildMermaidScriptTag("    ") : "";
+    if (!needsMermaid) return "";
+    const version = await HtmlExportManager._getInstalledVersion("mermaid", signal);
+    if (!version) {
+      console.warn(
+        "HtmlExport: Could not determine installed Mermaid version; skipping Mermaid script.",
+      );
+      return "";
+    }
+    return buildMermaidScriptTag(version, "    ");
+  }
+
+  /**
+   * Fetches the installed version of a node_modules package at runtime.
+   * @param {string} packageName
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<string|null>}
+   */
+  static async _getInstalledVersion(packageName, signal = null) {
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+    try {
+      const response = await fetch(`node_modules/${packageName}/package.json`, { signal });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.version || null;
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      return null;
+    }
   }
 
   /**
@@ -658,20 +689,22 @@ ${initScript}
     const cssParts = [];
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
-    const fetchCssWithFallback = async (localPath, cdnUrl, name) => {
+    const fetchCssWithFallback = async (localPath, cdnUrl, name, version = null) => {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
         let response = await fetch(localPath, { signal });
-        if (!response.ok) response = await fetch(cdnUrl, { signal });
+        if (cdnUrl && !response.ok) response = await fetch(cdnUrl, { signal });
 
         if (response.ok) {
           let css = await response.text();
           css = HtmlExportManager.filterViteArtifactsFromCss(css);
-          // Convert relative font URLs to CDN absolute URLs
-          css = css.replace(
-            /url\((["']?)fonts\//g,
-            `url($1https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/`,
-          );
+          // Convert relative font URLs to CDN absolute URLs for KaTeX
+          if (name === "KaTeX" && version) {
+            css = css.replace(
+              /url\((["']?)fonts\//g,
+              `url($1https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`,
+            );
+          }
           return `/* ${name} CSS */\n${css}`;
         }
       } catch (e) {
@@ -681,22 +714,32 @@ ${initScript}
       return "";
     };
 
+    const prismVersion = await HtmlExportManager._getInstalledVersion("prismjs", signal);
+    const katexVersion = await HtmlExportManager._getInstalledVersion("katex", signal);
+
     if (/<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) || /```/.test(deckHtmlText)) {
+      const cdnUrl = prismVersion
+        ? `https://cdnjs.cloudflare.com/ajax/libs/prism/${prismVersion}/themes/prism-tomorrow.min.css`
+        : null;
       cssParts.push(
         await fetchCssWithFallback(
           "node_modules/prismjs/themes/prism-tomorrow.css",
-          "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css",
+          cdnUrl,
           "Prism",
         ),
       );
     }
 
     if (/(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText)) {
+      const cdnUrl = katexVersion
+        ? `https://cdn.jsdelivr.net/npm/katex@${katexVersion}/dist/katex.min.css`
+        : null;
       cssParts.push(
         await fetchCssWithFallback(
           "node_modules/katex/dist/katex.min.css",
-          "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css",
+          cdnUrl,
           "KaTeX",
+          katexVersion,
         ),
       );
     }
