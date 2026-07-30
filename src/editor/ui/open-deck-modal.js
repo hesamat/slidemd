@@ -175,51 +175,35 @@ export class OpenDeckModal {
       }
 
       if (serverAvailable && uniqueEntries.length > 0) {
-        // Upload each image to the server
+        // Upload all images in a single batch request
         const pathMap = new Map();
-        let failedUploads = 0;
-        let completed = 0;
-        const total = uniqueEntries.length;
+        const formData = new FormData();
+        for (const { name, entry } of uniqueEntries) {
+          if (controller.signal.aborted) {
+            throw new DOMException("Open .textpack cancelled", "AbortError");
+          }
+          const data = await entry.async("blob");
+          const fileObj = new File([data], name, { type: data.type });
+          formData.append("image", fileObj);
+        }
+
         loading.updateMessage("Uploading images...");
-        await Promise.all(
-          uniqueEntries.map(async ({ name, entry }) => {
-            if (controller.signal.aborted) {
-              throw new DOMException("Open .textpack cancelled", "AbortError");
-            }
-            try {
-              const data = await entry.async("blob");
-              if (controller.signal.aborted) {
-                throw new DOMException("Open .textpack cancelled", "AbortError");
-              }
-              const fileObj = new File([data], name, { type: data.type });
-              const formData = new FormData();
-              formData.append("image", fileObj);
-              const res = await fetch("/api/upload-image", {
-                method: "POST",
-                body: formData,
-                signal: controller.signal,
-              });
-              if (!res.ok) {
-                failedUploads++;
-                return;
-              }
-              const result = await res.json();
-              if (result?.path) {
-                // Map both folder prefixes to the server path
-                pathMap.set(`images/${name}`, result.path);
-                pathMap.set(`assets/${name}`, result.path);
-              } else {
-                failedUploads++;
-              }
-            } catch (e) {
-              if (e.name === "AbortError") throw e;
-              failedUploads++;
-            } finally {
-              completed++;
-              if (total > 0) loading.updateProgress(Math.round((completed / total) * 80));
-            }
-          }),
-        );
+        const res = await fetch("/api/upload-images", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("Image upload failed");
+
+        const result = await res.json();
+        const paths = result.paths || [];
+        for (const p of paths) {
+          // Map both folder prefixes to the server path
+          pathMap.set(`images/${p.name}`, p.path);
+          pathMap.set(`assets/${p.name}`, p.path);
+        }
+
+        const failedUploads = uniqueEntries.length - paths.length;
         if (failedUploads > 0) {
           console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
         }

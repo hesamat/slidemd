@@ -211,16 +211,17 @@ function generateUploadFilename(originalName) {
 // ── Multipart parser ─────────────────────────────────────────────────────────
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_BATCH_BYTES = 100 * 1024 * 1024;
 
-function readBody(req) {
+function readBody(req, maxBytes = MAX_UPLOAD_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > MAX_UPLOAD_BYTES) {
+      if (size > maxBytes) {
         req.destroy();
-        reject(new Error("File too large (max 20 MB)"));
+        reject(new Error(`File too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)`));
         return;
       }
       chunks.push(chunk);
@@ -259,6 +260,49 @@ function parseMultipart(body, boundary) {
   }
 
   return { filename, data };
+}
+
+function parseMultipartAll(body, boundary) {
+  const boundaryBuf = Buffer.from(`--${boundary}`);
+  const endBuf = Buffer.from(`--${boundary}--`);
+  const parts = [];
+
+  let start = body.indexOf(boundaryBuf);
+  if (start === -1) throw new Error("Malformed multipart body");
+
+  while (true) {
+    start += boundaryBuf.length;
+
+    if (start <= body.length - endBuf.length && body.indexOf(endBuf, start - boundaryBuf.length) === start - boundaryBuf.length) {
+      break;
+    }
+
+    if (body[start] === 0x0d && body[start + 1] === 0x0a) start += 2;
+
+    const headerEnd = body.indexOf(Buffer.from("\r\n\r\n"), start);
+    if (headerEnd === -1) break;
+    const headerStr = body.slice(start, headerEnd).toString("utf8");
+
+    const filenameMatch = headerStr.match(/filename="?([^";\s]+)"?/i);
+    const dataStart = headerEnd + 4;
+    let dataEnd = body.indexOf(boundaryBuf, dataStart);
+    if (dataEnd === -1) dataEnd = body.indexOf(endBuf, dataStart);
+    if (dataEnd === -1) break;
+
+    let data = body.slice(dataStart, dataEnd);
+    if (data.length >= 2 && data[data.length - 2] === 0x0d && data[data.length - 1] === 0x0a) {
+      data = data.slice(0, data.length - 2);
+    }
+
+    if (filenameMatch) {
+      parts.push({ filename: filenameMatch[1], data });
+    }
+
+    if (body.indexOf(endBuf, dataEnd) === dataEnd) break;
+    start = dataEnd;
+  }
+
+  return parts;
 }
 
 // ── JSON body parser ─────────────────────────────────────────────────────────
@@ -518,6 +562,49 @@ function createHandler(format) {
         res.end(JSON.stringify({ path: assetPath }));
       } catch (e) {
         console.error("[upload-image] Error:", e.message);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // ── POST /api/upload-images ──
+    if (pathname === "/api/upload-images" && req.method === "POST") {
+      if (!format) {
+        const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
+        fs.mkdirSync(tmpImgDir, { recursive: true });
+        format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
+      }
+      try {
+        const contentType = req.headers["content-type"] || "";
+        const boundaryMatch = contentType.match(/boundary=(.+)/i);
+        if (!boundaryMatch) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Missing multipart boundary" }));
+          return;
+        }
+
+        const body = await readBody(req, MAX_UPLOAD_BATCH_BYTES);
+        const parts = parseMultipartAll(body, boundaryMatch[1]);
+
+        if (!fs.existsSync(format.imagesDir)) {
+          fs.mkdirSync(format.imagesDir, { recursive: true });
+        }
+
+        const paths = [];
+        for (const { filename, data } of parts) {
+          const ext = path.extname(filename).toLowerCase() || ".bin";
+          if (!IMAGE_RE.test(ext)) continue;
+
+          const safeName = generateUploadFilename(filename);
+          fs.writeFileSync(path.join(format.imagesDir, safeName), data);
+          paths.push({ name: filename, path: `images/${safeName}` });
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ paths }));
+      } catch (e) {
+        console.error("[upload-images] Error:", e.message);
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       }
