@@ -554,14 +554,46 @@ function convertSlide(
     );
     // If the position split leaves one side empty, check for a single wide element
     // that spans both columns (merged code from PPTX extraction). Split its content
-    // at the midpoint by line count.
+    // at a safe boundary — not inside a fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.6);
       if (wideEl && bodyElements.length === 1) {
-        const lines = (wideEl.content || "").split("\n");
+        const rawContent = wideEl.content || "";
+        const lines = rawContent.split("\n");
         const mid = Math.ceil(lines.length / 2);
-        const leftContent = lines.slice(0, mid).join("\n");
-        const rightContent = lines.slice(mid).join("\n");
+
+        // Find a safe split point: not inside a fenced code block (```).
+        // Scan outward from mid to find the nearest blank line or fence boundary.
+        let splitAt = mid;
+        let inFence = false;
+        for (let i = 0; i < lines.length; i++) {
+          if (/^\s*```/.test(lines[i].trim())) inFence = !inFence;
+        }
+        // If mid is inside a fence, find the closing fence or next blank line
+        inFence = false;
+        for (let i = 0; i < mid; i++) {
+          if (/^\s*```/.test(lines[i].trim())) inFence = !inFence;
+        }
+        if (inFence) {
+          // Find the closing ``` after mid
+          for (let i = mid; i < lines.length; i++) {
+            if (/^\s*```/.test(lines[i].trim())) {
+              splitAt = i + 1;
+              break;
+            }
+          }
+        }
+        // Also prefer splitting at blank lines for cleaner output
+        const searchRange = Math.min(lines.length, mid + 5);
+        for (let i = mid; i < searchRange; i++) {
+          if (lines[i].trim() === "") {
+            splitAt = i + 1;
+            break;
+          }
+        }
+
+        const leftContent = lines.slice(0, splitAt).join("\n").trimEnd();
+        const rightContent = lines.slice(splitAt).join("\n").trimStart();
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
