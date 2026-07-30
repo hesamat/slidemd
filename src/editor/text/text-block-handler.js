@@ -174,7 +174,7 @@ export class TextBlockHandler {
       rotation: 0,
     };
     const html = buildTextBlockHtml(settings, "Text");
-    this._insertHtmlSnippet(html);
+    this._insertHtmlSnippet(html, settings.float);
   }
 
   static _nextId() {
@@ -183,10 +183,11 @@ export class TextBlockHandler {
   }
 
   /**
-   * Insert an HTML snippet at the end of the current slide's markdown, so it
-   * flows with the slide content rather than being dropped at the top.
+   * Insert an HTML snippet into the current slide. Non-floating text is placed
+   * after the @main area marker when available so it belongs to a column; float
+   * text is appended at the end of the slide as an overlay.
    */
-  static _insertHtmlSnippet(snippet) {
+  static _insertHtmlSnippet(snippet, float) {
     const editor = this._getMarkdownEditor();
     const current = editor.getValue();
     const idx = this._getCurrentSlideIndex?.() ?? 0;
@@ -194,15 +195,32 @@ export class TextBlockHandler {
     const slides = current.split(separator);
 
     const safeIdx = Math.min(Math.max(idx, 0), slides.length - 1);
-    let insertPos = 0;
+    let slideStart = 0;
     for (let i = 0; i < safeIdx; i++) {
-      insertPos += slides[i].length + separator.length;
+      slideStart += slides[i].length + separator.length;
     }
-    insertPos += slides[safeIdx].length;
 
-    const prev = current[insertPos - 1] || "";
-    const next = current[insertPos] || "";
-    const pad = prev === "\n" || next === "\n" ? "\n" : "\n\n";
+    const slide = slides[safeIdx];
+    let insertPos;
+    let pad;
+
+    if (!float) {
+      const mainMatch = slide.match(/^@main\b/m);
+      if (mainMatch) {
+        const mainIdx = slide.indexOf(mainMatch[0]);
+        const lineEnd = slide.indexOf("\n", mainIdx) + 1;
+        insertPos = slideStart + (lineEnd || slide.length);
+        pad = "\n";
+      } else {
+        insertPos = slideStart + slide.length;
+        pad = "\n\n";
+      }
+    } else {
+      insertPos = slideStart + slide.length;
+      const prev = current[insertPos - 1] || "";
+      const next = current[insertPos] || "";
+      pad = prev === "\n" || next === "\n" ? "\n" : "\n\n";
+    }
 
     editor.replaceRange(insertPos, insertPos, `${pad}${snippet}`);
     editor.focus();
@@ -450,7 +468,7 @@ export class TextBlockHandler {
           <div class="text-properties-panel__row">
             <label class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Background</span>
-              <input type="text" class="text-properties-panel__input" data-field="backgroundColor" />
+              <input type="color" class="text-properties-panel__input" data-field="backgroundColor" />
             </label>
             <label class="text-properties-panel__field">
               <span class="text-properties-panel__field-label">Opacity</span>
@@ -575,7 +593,7 @@ export class TextBlockHandler {
       } else if (input.type === "color") {
         input.value = (value || "").trim() || "#000000";
       } else if (field === "backgroundColor") {
-        input.value = value || "transparent";
+        input.value = value && value !== "transparent" ? value : "#ffffff";
       } else {
         input.value = value;
       }
