@@ -67,21 +67,19 @@ layout: two-column
 
 ---
 
-layout: left-heavy
-
+layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.8755fr 1.1245fr
 @header
 
 ## Slide Structure & Syntax
 
 @main
 
-Use `---` to separate slides. Define the layout first, then place content with `@area` markers.
-
 | Layout           | Areas                                             |
 | ---------------- | ------------------------------------------------- |
 | `header-content` | `@header` `@main` `@footer`                       |
 | `title-slide`    | `@title`                                          |
 | `focus`          | `@header` `@main` `@footer`                       |
+| `full-image`     | `@main`                                           |
 | `two-column`     | `@header` `@main` `@media` `@footer`              |
 | `media-span`     | `@header` `@main` `@media` `@footer`              |
 | `left-heavy`     | `@header` `@main` `@media` `@footer`              |
@@ -89,6 +87,8 @@ Use `---` to separate slides. Define the layout first, then place content with `
 | `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
+
+Use `---` to separate slides. Define the layout first, then place content with `@area` markers.
 
 ### Example
 
