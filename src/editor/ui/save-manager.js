@@ -95,17 +95,15 @@ export class SaveManager {
       // (e.g. after PPTX import) — would overwrite the wrong file.
       if (this.needsSaveAs) {
         // Save as .textpack (includes images from the server)
-        try {
-          await TextpackExportManager.handleTextpackExport(fullMarkdown, this.deck, {
-            filename: DeckLoader.getDisplayTitle(this.deck),
-          });
+        const exported = await TextpackExportManager.handleTextpackExport(fullMarkdown, this.deck, {
+          filename: DeckLoader.getDisplayTitle(this.deck),
+        });
+        if (exported) {
           Notification.success("Deck exported as .textpack!");
           return;
-        } catch (err) {
-          if (err?.name === "AbortError") return;
-          // Textpack export failed — fall through to .md save
-          Notification.warning("Could not export as .textpack. Saving as .md only.");
         }
+        // Textpack export failed or was cancelled — fall through to .md save
+        Notification.warning("Could not export as .textpack. Saving as .md only.");
       } else {
         try {
           const res = await fetch("/api/deck", {

@@ -162,23 +162,17 @@ export class PptxImporter {
           {
             label: "Save as .textpack",
             onClick: async () => {
-              const _saveLoading = Notification.showLoadingModal(
-                "Saving deck and uploading images\u2026",
-              );
-              try {
-                const mockDeck = { meta: { title: deckName || "pptx-import" } };
-                await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
+              const mockDeck = { meta: { title: deckName || "pptx-import" } };
+              const exported = await TextpackExportManager.handleTextpackExport(
+                markdown,
+                mockDeck,
+                {
                   filename: deckName || "pptx-import",
-                });
+                },
+              );
+              if (exported) {
                 Notification.dismissAll();
                 Notification.success("Deck exported as .textpack!");
-              } catch (err) {
-                if (err?.name !== "AbortError") {
-                  console.error("Textpack export failed:", err);
-                  Notification.error("Export failed: " + (err.message || err));
-                }
-              } finally {
-                _saveLoading.dismiss();
               }
             },
           },
