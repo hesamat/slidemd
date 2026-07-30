@@ -7,6 +7,7 @@
 import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
+import { MarkdownParser } from "../../data/markdown-parser.js";
 
 export class SaveManager {
   /**
@@ -56,6 +57,17 @@ export class SaveManager {
   }
 
   async save() {
+    // Re-cache from localStorage in case deck was replaced by AI
+    const localMd = localStorage.getItem("webdeck_local_file");
+    if (localMd) {
+      try {
+        const parser = new MarkdownParser();
+        this.originalMarkdown = parser.splitSlides(localMd);
+      } catch {
+        // keep existing cache
+      }
+    }
+
     for (let i = 0; i < this.deck.slides.length; i++) {
       if (this.unsavedMarkdown.has(i)) {
         this.originalMarkdown[i] = this.unsavedMarkdown.get(i);

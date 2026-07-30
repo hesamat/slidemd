@@ -2,11 +2,11 @@ layout: title-slide
 
 @title
 
-# SlideMD
+# Welcome to SlideMD
 
 ### Markdown-Based Presentations
 
-Create beautiful slides with plain Markdown. No installation, no accounts, no build steps.
+### Create beautiful slides with plain Markdown.
 
 ---
 
@@ -67,20 +67,19 @@ layout: two-column
 
 ---
 
-layout: left-heavy
-
+layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.8755fr 1.1245fr
 @header
 
 ## Slide Structure & Syntax
 
 @main
 
-Use `---` to separate slides. Define the layout first, then place content with `@area` markers.
-
 | Layout           | Areas                                             |
 | ---------------- | ------------------------------------------------- |
 | `header-content` | `@header` `@main` `@footer`                       |
 | `title-slide`    | `@title`                                          |
+| `focus`          | `@header` `@main` `@footer`                       |
+| `full-image`     | `@main`                                           |
 | `two-column`     | `@header` `@main` `@media` `@footer`              |
 | `media-span`     | `@header` `@main` `@media` `@footer`              |
 | `left-heavy`     | `@header` `@main` `@media` `@footer`              |
@@ -88,6 +87,8 @@ Use `---` to separate slides. Define the layout first, then place content with `
 | `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
+
+Use `---` to separate slides. Define the layout first, then place content with `@area` markers.
 
 ### Example
 
@@ -155,6 +156,7 @@ graph TD
 ---
 
 background: linear-gradient(135deg, #c7d2fe 0%, #f5d0fe 100%)
+
 layout: two-column
 
 @header
@@ -165,17 +167,20 @@ layout: two-column
 
 Press `E` to toggle split-screen editing with live preview.
 
-### Editor Features
+### Writing Tools
 
-- **Live preview** – See changes instantly as you type
-- **Slide thumbnails** – Jump to any slide while editing
-- **Quick actions** – Add, delete, duplicate, reorder slides
-- **Layout Picker** – Choose presets with filled templates
-- **Autocomplete** – `layout:`, `theme:`, `@area` directives
-- **Slash commands** – Type `/` for quick insertions
-- **Mermaid helpers** – Insert diagram scaffolds
-- **Search** – `Ctrl+F` to find within slides
-- **Context menu** – Right-click thumbnails for slide operations
+- **Live preview:** See changes instantly as you type
+- **Autocomplete:** `layout:`, `theme:`, `@media` directives
+- **Slash commands:** Type `/` for quick insertions
+- **Mermaid helper:** Insert diagram scaffolds
+- **Search:** `Ctrl+F` to find within slides
+
+### Slide Management
+
+- **Slide thumbnails:** Jump to any slide while editing
+- **Quick actions:** Add, delete, duplicate, reorder slides
+- **Layout Picker:** Choose presets with filled templates
+- **Context menu:** Right-click thumbnails for slide operations
 
 @media
 
@@ -300,10 +305,48 @@ layout: two-column
 
 ### PPTX Import (Experimental)
 
-- Import PowerPoint files via View → Import PPTX
+- Import PowerPoint files via Menu → Import PPTX
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout hints
 - Original `.pptx` is not modified
+- Optionally post-process with AI to fix formatting or redesign the deck
+
+---
+
+layout: two-column
+
+@header
+
+## AI Post-Processing
+
+@main
+
+Optionally, enhance the result with AI when importing a PPTX.
+
+### Fix Issues
+
+- Cleans up formatting, headers, and code blocks
+- Fixes broken links and list formatting
+- Normalizes header levels across slides
+- Conservative — preserves working slides as-is
+
+### AI Inspiration
+
+- Redesigns layout and visual structure
+- Reorganizes for better flow and pacing
+- Converts diagrams to Mermaid code blocks (selective — only where they represent true flowcharts/processes)
+- Adds speaker notes to key slides
+- Splits dense slides into focused ones
+
+@media
+
+### Getting Started
+
+1. Open **Settings** from the main menu
+2. Enter your OpenRouter API key
+3. Select a model (DeepSeek V4 Flash is the default)
+4. Import a PPTX file
+5. Choose **Fix Issues** or click **AI Inspiration**
 
 ---
 
@@ -496,22 +539,22 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: header-content
+layout: focus
 
-@title
+@header
 
-## Ready to Present!
+## Ready to Present?
 
 @main
 
-1. **Press `E`** – Validate slide flow and fit
-2. **Press `P`** – Open viewer on your presentation display
-3. **Press `F`** – Go fullscreen and deliver
+**Press `E`** – Validate slide flow and fit
+**Press `P`** – Open viewer on your presentation display
+**Press `F`** – Go fullscreen and deliver
 
 ### Learn More
 
-- **README.md** – Installation and setup
-- **GitHub** – Contribute, report issues, or star the project
+**README.md** – Installation and setup
+**GitHub** – Contribute, report issues, or star the project
 
 @footer
 

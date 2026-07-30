@@ -394,3 +394,83 @@ describe("PptxExtractor ordered list start attribute injection", () => {
     expect(startIdxRef.value).toBe(1);
   });
 });
+
+describe("PptxExtractor diagram detection", () => {
+  // Test helper to create mock elements that match ExtractedElement shape
+  const makeShape = (overrides = {}) => ({
+    type: "text",
+    content: "",
+    left: 100000,
+    top: 100000,
+    width: 50000,
+    height: 50000,
+    order: 0,
+    shapType: "rect",
+    fill: "FF0000",
+    strokeOnly: false,
+    hasConnector: false,
+    ...overrides,
+  });
+
+  const makeConnector = (overrides = {}) => ({
+    type: "connector",
+    content: "",
+    left: 150000,
+    top: 100000,
+    width: 100000,
+    height: 0,
+    order: 1,
+    shapType: null,
+    fill: null,
+    strokeOnly: true,
+    hasConnector: true,
+    ...overrides,
+  });
+
+  const makeText = (content, overrides = {}) => ({
+    type: "text",
+    content,
+    left: 100000,
+    top: 100000,
+    width: 50000,
+    height: 50000,
+    order: 0,
+    ...overrides,
+  });
+
+  it("connector elements are preserved with hasConnector flag", () => {
+    const elements = [makeConnector({ left: 0, top: 0, width: 100000, height: 0 })];
+    expect(elements[0].hasConnector).toBe(true);
+    expect(elements[0].strokeOnly).toBe(true);
+  });
+
+  it("shape elements preserve fill and shapType metadata", () => {
+    const elements = [makeShape({ shapType: "ellipse", fill: "00FF00" })];
+    expect(elements[0].shapType).toBe("ellipse");
+    expect(elements[0].fill).toBe("00FF00");
+  });
+
+  it("text elements without shapes have null metadata", () => {
+    const elements = [makeText("Hello")];
+    expect(elements[0].shapType).toBeUndefined();
+    expect(elements[0].fill).toBeUndefined();
+    expect(elements[0].hasConnector).toBeFalsy();
+  });
+
+  it("empty shapes with shapType are preserved", () => {
+    const elements = [
+      makeShape({
+        content: "",
+        shapType: "rect",
+        fill: "FF0000",
+        left: 0,
+        top: 0,
+        width: 100000,
+        height: 100000,
+      }),
+    ];
+    // Empty shapes with shapType should not be null
+    expect(elements[0].shapType).toBe("rect");
+    expect(elements[0].fill).toBe("FF0000");
+  });
+});

@@ -8,6 +8,7 @@
 import { safeString, DESIGN_SIZE } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
+import { LayoutData } from "../data/layout-data.js";
 
 export class SlideRenderer {
   static areaLooksLikeMediaAsset(areaHtml) {
@@ -60,6 +61,10 @@ export class SlideRenderer {
       wrapper.setAttribute("data-header-style", slide.headerStyle);
     }
 
+    if (slide?.layout) {
+      wrapper.setAttribute("data-layout", slide.layout);
+    }
+
     if (slide?.background) {
       wrapper.style.background = slide.background;
     }
@@ -82,6 +87,16 @@ export class SlideRenderer {
       fallbackAreas: areaNamesFromContent.length ? areaNamesFromContent : ["main"],
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
+
+    // Apply --code-font-size CSS variable from slide directive or layout definition
+    const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
+    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutKey) || 0;
+    if (fontSize) {
+      grid.style.setProperty("--code-font-size", fontSize + "px");
+    }
+    if (layoutKey) {
+      wrapper.setAttribute("data-layout", layoutKey);
+    }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
     grid.style.gridTemplateColumns = layout.gridTemplateColumns;

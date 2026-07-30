@@ -8,6 +8,7 @@
  * The selected image is emitted as an `<img src="..." width=... height=... />`
  * tag snippet ready to be inserted into markdown.
  */
+import { DeckImagesResolver } from "./deck-images-resolver.js";
 
 export class ImagePicker {
   static modal = null;
@@ -32,6 +33,13 @@ export class ImagePicker {
 
   /** Image cache so we can swap preview without re-fetching. */
   static _availableImages = [];
+
+  /**
+   * Clear the cached image list so the picker re-fetches on next open.
+   */
+  static clearImageCache() {
+    this._availableImages = [];
+  }
 
   /**
    * Initialize the image picker modal — call once on app start.
@@ -326,7 +334,21 @@ export class ImagePicker {
       const res = await fetch("/api/images");
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
-      const images = (data.images || []).map(({ name, path }) => ({ name, path }));
+      let images = (data.images || []).map(({ name, path }) => ({ name, path }));
+
+      // Filter to only images referenced in the current deck markdown
+      const markdown = localStorage.getItem("webdeck_local_file") || "";
+      if (markdown) {
+        const referenced = new Set();
+        for (const img of images) {
+          if (markdown.includes(img.name) || markdown.includes(img.path)) {
+            referenced.add(img.name);
+          }
+        }
+        if (referenced.size > 0) {
+          images = images.filter((img) => referenced.has(img.name));
+        }
+      }
 
       this._availableImages = images;
       this._renderGrid();
@@ -349,7 +371,7 @@ export class ImagePicker {
       .map(
         (img) => `
                 <div class="image-picker-item" data-path="${escapeAttr(img.path)}" tabindex="0" role="button" aria-label="${escapeAttr(img.name)}" draggable="true">
-                    <img src="${escapeAttr(img.path)}" alt="${escapeAttr(img.name)}" loading="lazy" />
+                    <img src="${escapeAttr(img.path)}?v=${DeckImagesResolver._cacheVersion}" alt="${escapeAttr(img.name)}" loading="lazy" />
                     <div class="image-picker-item-name">${escapeText(img.name)}</div>
                 </div>
             `,

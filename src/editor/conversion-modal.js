@@ -3,6 +3,7 @@
  *
  * Modal for importing PPTX files into the app.
  * Two-step flow: Import (extract + convert) → Import.
+ * Returns result with aiRequested flag for post-import AI processing.
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
@@ -17,6 +18,7 @@ const STORAGE_KEY = "webdeck_import_defaults";
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} deckName - Deck name derived from filename (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
+ * @property {string|null} aiMode - null, "fix", or "generate" if user requested AI post-processing.
  */
 
 export class ConversionModal {
@@ -56,7 +58,9 @@ export class ConversionModal {
       let markdown = "";
       let deckName = "presentation";
       let importImages = true;
-      let keepBackgrounds = true;
+      let importBackgrounds = true;
+      let importTheme = true;
+      let aiMode = null; // null, "fix", or "generate"
       let codeLanguage = "";
       let isConverting = false;
 
@@ -109,6 +113,20 @@ export class ConversionModal {
         if (isConverting) return;
         selectedFile = file;
         hideError();
+
+        // Show selected filename in the drop zone
+        dropZone.innerHTML = `
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span class="${P}filename">${this.#escHtml(file.name)}</span>
+          <span class="${P}drop-hint">Click to change file</span>
+        `;
+
         await startConversion();
       };
 
@@ -138,9 +156,9 @@ export class ConversionModal {
         isConverting = true;
         cancelBtn.disabled = true;
         hideError();
-        // Remove any dynamically added rows from previous conversion
+        // Remove any dynamically added rows/buttons from previous conversion
         backdrop
-          .querySelectorAll(`.${P}checkbox-row, .${P}select-row`)
+          .querySelectorAll(`.${P}checkbox-row, .${P}select-row, .${P}btn--ai, .${P}ai-hint`)
           .forEach((el) => el.remove());
         showSpinner("Converting...");
 
@@ -155,7 +173,7 @@ export class ConversionModal {
             .replace(/\.pptx$/i, "")
             .replace(/[^a-zA-Z0-9_-]/g, "_");
 
-          // Load saved defaults before conversion so importImages is correct
+          // Load saved defaults before conversion
           let savedDefaults = {};
           try {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -164,9 +182,15 @@ export class ConversionModal {
             console.warn("Corrupted conversion defaults in localStorage, clearing:", e);
             localStorage.removeItem(STORAGE_KEY);
           }
+          // Load saved defaults
           importImages = savedDefaults.importImages !== false;
+          importBackgrounds = savedDefaults.importBackgrounds !== false;
+          importTheme = savedDefaults.importTheme !== false;
 
-          markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+          markdown = convertToSlideMd(extractionResult, deckName, {
+            importImages,
+            importBackgrounds,
+          });
 
           const elapsed = Date.now() - started;
           if (elapsed < 300) {
@@ -212,31 +236,140 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(langRow, insertAfter.nextSibling);
           insertAfter = langRow;
 
-          // Image import checkbox
-          importImages = savedDefaults.importImages !== false;
-          const imgCheckboxRow = document.createElement("label");
-          imgCheckboxRow.className = `${P}checkbox-row`;
-          imgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Import images</span>`;
-          const imgCheckboxInput = imgCheckboxRow.querySelector(`.${P}checkbox`);
-          imgCheckboxInput.addEventListener("change", () => {
-            importImages = imgCheckboxInput.checked;
-            markdown = convertToSlideMd(extractionResult, deckName, { importImages });
+          // Content images checkbox
+          const imgRow = document.createElement("label");
+          imgRow.className = `${P}checkbox-row`;
+          imgRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importImages ? "checked" : ""} /><span class="${P}checkbox-label">Content images</span>`;
+          const imgInput = imgRow.querySelector(`.${P}checkbox`);
+          imgInput.addEventListener("change", () => {
+            importImages = imgInput.checked;
+            markdown = convertToSlideMd(extractionResult, deckName, {
+              importImages,
+              importBackgrounds,
+            });
             saveDefaults({ importImages });
           });
-          insertAfter.parentNode.insertBefore(imgCheckboxRow, insertAfter.nextSibling);
-          insertAfter = imgCheckboxRow;
+          insertAfter.parentNode.insertBefore(imgRow, insertAfter.nextSibling);
+          insertAfter = imgRow;
 
-          // Show background/theme checkbox
-          keepBackgrounds = savedDefaults.keepBackgrounds !== false;
-          const bgCheckboxRow = document.createElement("label");
-          bgCheckboxRow.className = `${P}checkbox-row`;
-          bgCheckboxRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${keepBackgrounds ? "checked" : ""} /><span class="${P}checkbox-label">Keep slide backgrounds and themes</span>`;
-          const bgCheckboxInput = bgCheckboxRow.querySelector(`.${P}checkbox`);
-          bgCheckboxInput.addEventListener("change", () => {
-            keepBackgrounds = bgCheckboxInput.checked;
-            saveDefaults({ keepBackgrounds });
+          // Background images checkbox
+          const bgRow = document.createElement("label");
+          bgRow.className = `${P}checkbox-row`;
+          bgRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importBackgrounds ? "checked" : ""} /><span class="${P}checkbox-label">Background images</span>`;
+          const bgInput = bgRow.querySelector(`.${P}checkbox`);
+          bgInput.addEventListener("change", () => {
+            importBackgrounds = bgInput.checked;
+            markdown = convertToSlideMd(extractionResult, deckName, {
+              importImages,
+              importBackgrounds,
+            });
+            saveDefaults({ importBackgrounds });
           });
-          insertAfter.parentNode.insertBefore(bgCheckboxRow, insertAfter.nextSibling);
+          insertAfter.parentNode.insertBefore(bgRow, insertAfter.nextSibling);
+          insertAfter = bgRow;
+
+          // Theme checkbox
+          const themeRow = document.createElement("label");
+          themeRow.className = `${P}checkbox-row`;
+          themeRow.innerHTML = `<input type="checkbox" class="${P}checkbox" ${importTheme ? "checked" : ""} /><span class="${P}checkbox-label">Slide theme and colors</span>`;
+          const themeInput = themeRow.querySelector(`.${P}checkbox`);
+          themeInput.addEventListener("change", () => {
+            importTheme = themeInput.checked;
+            saveDefaults({ importTheme });
+          });
+          insertAfter.parentNode.insertBefore(themeRow, insertAfter.nextSibling);
+          insertAfter = themeRow;
+
+          // AI mode section
+          const aiDivider = document.createElement("div");
+          aiDivider.className = `${P}checkbox-row ${P}ai-divider`;
+          aiDivider.innerHTML = `<span class="${P}checkbox-label ${P}ai-label">AI Post-Processing (optional)</span>`;
+          insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
+          insertAfter = aiDivider;
+
+          const { SettingsModal } = await import("../editor/settings-modal.js");
+
+          // AI: Fix issues checkbox with description
+          const fixRow = document.createElement("label");
+          fixRow.className = `${P}checkbox-row ${P}checkbox-row--column`;
+          fixRow.innerHTML = `<div class="${P}checkbox-content"><input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">Fix Issues</span></div><span class="${P}checkbox-desc">AI cleans up formatting, headers, and code blocks from the import</span>`;
+          const fixInput = fixRow.querySelector(`.${P}checkbox`);
+          fixInput.addEventListener("change", () => {
+            if (fixInput.checked) {
+              aiMode = "fix";
+            } else if (aiMode === "fix") {
+              aiMode = null;
+            }
+          });
+          insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
+          insertAfter = fixRow;
+
+          // AI hint when no API key
+          const aiHint = document.createElement("span");
+          aiHint.className = `${P}ai-hint`;
+          aiHint.hidden = true;
+          aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
+          insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
+          insertAfter = aiHint;
+
+          // Show Import button and AI Inspiration button
+          const actionsEl = backdrop.querySelector(`.${P}actions`);
+          const aiBtn = document.createElement("button");
+          aiBtn.type = "button";
+          aiBtn.className = `${P}btn ${P}btn--ai`;
+          aiBtn.textContent = "AI Inspiration";
+
+          // Helper to refresh AI button/checkbox state based on current API key
+          // Must be defined AFTER aiBtn and aiHint are created
+          const refreshAiState = () => {
+            const hasKey = !!SettingsModal.getApiKey();
+            fixInput.disabled = !hasKey;
+            if (aiBtn) {
+              aiBtn.disabled = !hasKey;
+              aiBtn.title = hasKey
+                ? "AI reorganizes and redesigns the entire presentation"
+                : "Configure API key in Settings first";
+            }
+            if (aiHint) {
+              aiHint.hidden = hasKey;
+            }
+          };
+
+          // Clicking the checkbox when no API key opens settings
+          fixInput.addEventListener("click", async (e) => {
+            if (!SettingsModal.getApiKey()) {
+              e.preventDefault();
+              await SettingsModal.show();
+              refreshAiState();
+              if (SettingsModal.getApiKey()) {
+                fixInput.checked = true;
+                aiMode = "fix";
+              }
+            }
+          });
+
+          aiHint.addEventListener("click", async (e) => {
+            if (e.target.dataset.action === "open-settings") {
+              e.preventDefault();
+              await SettingsModal.show();
+              refreshAiState();
+            }
+          });
+
+          aiBtn.addEventListener("click", async () => {
+            if (!SettingsModal.getApiKey()) {
+              await SettingsModal.show();
+              refreshAiState();
+              if (!SettingsModal.getApiKey()) return;
+            }
+            aiMode = "generate";
+            saveBtn.click();
+          });
+          actionsEl.insertBefore(aiBtn, saveBtn);
+          saveBtn.textContent = "Import";
+
+          // Apply initial state
+          refreshAiState();
 
           // Show Import button
           saveBtn.hidden = false;
@@ -251,15 +384,28 @@ export class ConversionModal {
         }
       };
       // Import button
-      saveBtn.addEventListener("click", () => {
-        // If user opted out of images, strip <img> tags from markdown
+      saveBtn.addEventListener("click", async () => {
+        // Strip <img> tags when content images are not imported
         let finalMarkdown = importImages ? markdown : markdown.replace(/<img\s+[^>]*>/g, "");
-        // If user opted out of backgrounds/themes, strip those directives
-        if (!keepBackgrounds) {
+        // Strip background/theme directives when not keeping slide appearance
+        if (!importTheme) {
           finalMarkdown = finalMarkdown
             .replace(/^\s*background:.*$/gm, "")
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
+        }
+        // If no AI mode, convert [Diagram: ...] markers to bullet lists.
+        // A second safety-net pass catches any markers that survived earlier processing.
+        const diagramToBullets = (md) =>
+          md.replace(/\[Diagram:\s*([^\]]+)\]/g, (_match, items) =>
+            items
+              .split(",")
+              .map((item) => `- ${item.trim()}`)
+              .filter((line) => line.length > 2)
+              .join("\n"),
+          );
+        if (!aiMode) {
+          finalMarkdown = diagramToBullets(finalMarkdown);
         }
         // Add language tag to opening fences of fenced code blocks only.
         // Use a state machine to distinguish opening fences from closing fences.
@@ -281,11 +427,16 @@ export class ConversionModal {
         }
         restoreScroll();
         backdrop.remove();
+        // Always return images so background images can be uploaded and their
+        // file references in the markdown can be rewritten to server paths.
+        // When not importing content images, only background images are referenced
+        // in the markdown; extra uploaded images are harmless.
         resolve({
           markdown: finalMarkdown,
-          images: importImages ? extractionResult.images : [],
+          images: extractionResult.images || [],
           deckName,
           importImages,
+          aiMode,
         });
       });
       // Cancel
@@ -357,78 +508,6 @@ export class ConversionModal {
         </div>
       </div>
     `;
-    this.#injectStyles(backdrop);
     return backdrop;
-  }
-
-  /**
-   * Inject modal styles.
-   * @static
-   * @param {HTMLElement} container
-   */
-  static #injectStyles(container) {
-    const style = document.createElement("style");
-    style.textContent = `
-      .${P}backdrop {
-        position: fixed; inset: 0; z-index: 10000;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-      }
-      .${P}dialog {
-        background: var(--surface-bg, #fff); color: var(--text-high, #111);
-        border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw;
-        max-height: 85vh; overflow-y: auto;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      }
-      .${P}title { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
-      .${P}drop-zone {
-        border: 2px dashed var(--border-medium, #ccc); border-radius: 8px;
-        padding: 20px; text-align: center; cursor: pointer;
-        display: flex; flex-direction: column; align-items: center; gap: 6px;
-        transition: border-color 0.2s, background 0.2s;
-      }
-      .${P}drop-zone:hover, .${P}drop-zone--active {
-        border-color: var(--accent, #6366f1); background: var(--accent-bg, rgba(99,102,241,0.05));
-      }
-      .${P}error { font-size: 13px; color: #dc2626; margin: 10px 0; }
-      .${P}code-hint { font-size: 12px; color: var(--text-medium, #666); margin: 2px 0 0; }
-      .${P}checkbox-row {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 14px; cursor: pointer; margin: 8px 0 0;
-      }
-      .${P}checkbox { width: 16px; height: 16px; cursor: pointer; }
-      .${P}select-row {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 14px; margin: 10px 0 0;
-      }
-      .${P}select-label { font-size: 13px; color: var(--text-medium, #666); white-space: nowrap; }
-      .${P}select {
-        padding: 5px 8px; border: 1px solid var(--border-medium, #ccc);
-        border-radius: 6px; font-size: 13px; background: var(--surface-bg, #fff);
-        color: var(--text-high, #111); cursor: pointer;
-      }
-      .${P}spinner-container {
-        font-size: 12px; margin: 10px 0; min-height: 18px;
-      }
-      .${P}actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 12px; }
-      .${P}btn {
-        padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
-        cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
-      }
-      .${P}btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .${P}btn--secondary { background: var(--surface-hover, #f0f0f0); color: var(--text-high, #111); }
-      .${P}btn--accent { background: var(--accent, #6366f1); color: #fff; }
-      .${P}btn--accent:hover:not(:disabled) { background: var(--accent-hover, #4f46e5); }
-      .${P}spinner {
-        display: inline-block; width: 12px; height: 12px;
-        border: 2px solid var(--border-medium, #ccc);
-        border-top-color: var(--accent, #6366f1);
-        border-radius: 50%;
-        animation: ${P}spin 0.6s linear infinite;
-        vertical-align: middle; margin-right: 6px;
-      }
-      @keyframes ${P}spin { to { transform: rotate(360deg); } }
-    `;
-    container.appendChild(style);
   }
 }

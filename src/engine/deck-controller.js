@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter, isEmbedded } from "../core/utils.js";
+import { getDeckId, EventEmitter, isEmbedded, escapeHtml } from "../core/utils.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -18,6 +18,7 @@ import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
+import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
@@ -360,7 +361,7 @@ export class DeckController extends EventEmitter {
     listen(this.elements.menuBtn, "click", () => this.toggleMenu());
     listen(this.elements.menuOpenFileBtn, "click", () => this.closeMenu());
     listen(this.elements.menuReloadDeckBtn, "click", () => {
-      this.handleReloadDeck();
+      this.reloadManager.handleReloadDeck();
       this.closeMenu();
     });
     listen(this.elements.menuToggleEditModeBtn, "click", () => {
@@ -394,6 +395,11 @@ export class DeckController extends EventEmitter {
     });
     listen(this.elements.menuConvertPptxBtn, "click", () => {
       this.handleConvertPptx();
+      this.closeMenu();
+    });
+    listen(this.elements.menuSettingsBtn, "click", async () => {
+      const { SettingsModal } = await import("../editor/settings-modal.js");
+      SettingsModal.show();
       this.closeMenu();
     });
 
@@ -519,7 +525,7 @@ export class DeckController extends EventEmitter {
     }
 
     // Fallback to plain text with line breaks
-    return `<div class="notes-content"><pre>${notes}</pre></div>`;
+    return `<div class="notes-content"><pre>${escapeHtml(notes)}</pre></div>`;
   }
 
   render() {
@@ -624,6 +630,9 @@ export class DeckController extends EventEmitter {
     localStorage.setItem("webdeck_local_file_name", "New Presentation");
     localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
 
+    // Tell the CLI server to forget the old deck (clears stale image references)
+    await fetch("/api/deck/reset", { method: "POST" }).catch(() => {});
+
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
     const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
@@ -650,7 +659,7 @@ export class DeckController extends EventEmitter {
     // Close the conversion modal
     ConversionModal.close();
 
-    let { markdown, images, importImages, deckName } = result;
+    let { markdown, images, deckName, aiMode } = result;
 
     // Show a loading overlay while the deck is being saved and loaded
     const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
@@ -661,11 +670,20 @@ export class DeckController extends EventEmitter {
     });
 
     try {
+      // Clear stale images from the previous deck so the picker is clean
+      try {
+        await fetch("/api/images/clear", { method: "POST" });
+      } catch {
+        /* ignore — best-effort cleanup */
+      }
+
       // Upload PPTX-extracted images via the CLI server API
       // and build a mapping from original filenames to server-saved paths.
+      // Always upload when images are present so background images (always
+      // referenced as file paths) get their paths rewritten to server URLs.
       /** @type {Map<string, string>} */
       const imagePathMap = new Map();
-      if (importImages && images?.length) {
+      if (images?.length) {
         let uploaded = 0;
         const total = images.filter((img) => img.base64 && img.ref).length;
         await Promise.all(
@@ -745,6 +763,10 @@ export class DeckController extends EventEmitter {
         }
       }
 
+      // Flush cached images so the new deck doesn't show stale thumbnails
+      DeckImagesResolver.invalidateCache();
+      ImagePicker.clearImageCache();
+
       loading.updateMessage("Loading slides…");
       loading.updateProgress(70);
 
@@ -783,6 +805,59 @@ export class DeckController extends EventEmitter {
         editCtrl.saveManager.needsSaveAs = true;
       }
 
+      // Shared helper to apply AI result to the deck
+      const applyAiResult = async (enhanced, origDirectives) => {
+        // In fix mode, re-inject background/theme directives into the markdown
+        // before saving. AI output lacks these (stripped before sending), but
+        // they must be preserved in the saved state.
+        if (origDirectives && aiMode === "fix") {
+          const { injectDirectives } = await import("../data/ai-enhancer.js");
+          enhanced = injectDirectives(enhanced, origDirectives);
+        }
+
+        let newDeckData;
+        try {
+          newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
+        } catch (err) {
+          console.warn("parseDeckMarkdown failed:", err);
+          Notification.error("Failed to parse AI result. The output may be malformed.");
+          return;
+        }
+
+        // Fallback: if parser returned only 1 slide but content has ---, split manually
+        if (newDeckData && newDeckData.slides.length <= 1 && enhanced.includes("\n---\n")) {
+          const parts = enhanced.split(/\n---\n/);
+          if (parts.length > 1) {
+            const md = new MarkdownParser();
+            newDeckData.slides = parts.map((part, _i) => {
+              const parsed = md.parseDeckMarkdown(part.trim());
+              return parsed.slides[0];
+            });
+            newDeckData.meta = newDeckData.meta || {};
+          }
+        }
+
+        if (newDeckData && this.reloadManager?.replaceDeck) {
+          try {
+            // Save the final markdown (with restored directives) to localStorage
+            // so the editor source matches the rendered deck
+            try {
+              localStorage.setItem("webdeck_local_file", enhanced);
+              localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+            } catch {
+              window.__WEBDECK_MARKDOWN__ = enhanced;
+            }
+            await DraftManager.saveDraft(enhanced);
+
+            await this.reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
+            markdown = enhanced;
+          } catch (err) {
+            console.error("Failed to replace deck with AI result:", err);
+            Notification.error("AI enhancement could not be applied.");
+          }
+        }
+      };
+
       loading.updateProgress(100);
       loading.dismiss();
 
@@ -792,23 +867,30 @@ export class DeckController extends EventEmitter {
           {
             label: "Save as .textpack",
             onClick: async () => {
+              const loading = Notification.showLoadingModal(
+                "Saving deck and uploading images\u2026",
+              );
               try {
                 const mockDeck = { meta: { title: deckName || "pptx-import" } };
                 await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
                   filename: deckName || "pptx-import",
                 });
+                Notification.dismissAll();
                 Notification.success("Deck exported as .textpack!");
               } catch (err) {
                 if (err?.name !== "AbortError") {
                   console.error("Textpack export failed:", err);
                   Notification.error("Export failed: " + (err.message || err));
                 }
+              } finally {
+                loading.dismiss();
               }
             },
           },
           {
             label: "Save as .md (markdown only)",
             onClick: async () => {
+              const loading = Notification.showLoadingModal("Saving deck\u2026");
               const mdBlob = new Blob([markdown], { type: "text/markdown" });
               try {
                 if (window.showSaveFilePicker) {
@@ -824,11 +906,16 @@ export class DeckController extends EventEmitter {
                   const writable = await handle.createWritable();
                   await writable.write(mdBlob);
                   await writable.close();
+                  loading.dismiss();
+                  Notification.dismissAll();
                   Notification.success("Deck saved!");
                   return;
                 }
               } catch (err) {
-                if (err?.name === "AbortError") return;
+                if (err?.name === "AbortError") {
+                  loading.dismiss();
+                  return;
+                }
               }
               const url = URL.createObjectURL(mdBlob);
               const a = document.createElement("a");
@@ -838,10 +925,29 @@ export class DeckController extends EventEmitter {
               a.click();
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
+              loading.dismiss();
+              Notification.dismissAll();
+              Notification.success("Deck saved!");
             },
           },
         ],
       });
+
+      // AI post-processing (runs after save notification is shown)
+      if (aiMode) {
+        try {
+          const { AiSidebar } = await import("../editor/ai-sidebar.js");
+          const { extractDirectives } = await import("../data/ai-enhancer.js");
+          const origDirectives = extractDirectives(markdown);
+          const enhanced = await AiSidebar.show(markdown, aiMode);
+          if (enhanced) {
+            await applyAiResult(enhanced, origDirectives);
+          }
+        } catch (err) {
+          console.error("AI post-processing failed:", err);
+          Notification.error("AI post-processing failed. You can still save the imported deck.");
+        }
+      }
     } catch (err) {
       loading.dismiss();
       console.error("PPTX import failed:", err);

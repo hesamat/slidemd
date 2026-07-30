@@ -23,8 +23,7 @@ export class LayoutData {
         key !== "default" &&
         key !== "header-two-column" &&
         key !== "sidebar-content" &&
-        key !== "content-sidebar" &&
-        key !== "focus",
+        key !== "content-sidebar",
     );
   }
 
@@ -92,5 +91,12 @@ export class LayoutData {
    */
   static hasLayout(layoutName) {
     return layoutName in LAYOUTS.layouts;
+  }
+
+  /**
+   * Get code font size for a layout (px), or 0 if not set.
+   */
+  static getCodeFontSize(layoutName) {
+    return LAYOUTS.layouts[layoutName]?.codeFontSize || 0;
   }
 }

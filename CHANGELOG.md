@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.7.0 (2026-07-28)
+
+### AI-Powered PPTX Post-Processing
+
+- **OpenRouter Integration**: Connect to OpenRouter API for AI-enhanced slide processing
+- **Settings Modal**: Configure API key, model selection, reasoning options, and model search
+- **Fix Issues Mode**: AI cleans up formatting, headers, code blocks, and common extraction problems
+- **AI Inspiration Mode**: AI reorganizes and redesigns the entire presentation with better flow, layouts, and Mermaid diagrams
+- **Streaming Sidebar**: Non-blocking panel shows AI output in real-time while you can still interact with the deck
+- **Reasoning Support**: Optional extended thinking for better AI results (model-dependent)
+- **Model Selection**: Searchable dropdown with 200+ models from OpenRouter, with reasoning capability detection
+- **AI Prompts**: Readable prompt files in `src/data/prompts/` for easy editing
+
+### Focus Layout Improvements
+
+- **Reduced Whitespace**: Header and footer rows reduced from 0.3fr/0.2fr to 0.08fr/0.08fr, giving main content ~92% of slide height
+- **Tighter List Spacing**: Bullet point gaps reduced from 10px to 2px in focus layout
+- **Centered Lists**: Lists are now properly centered in focus layout
+
+### PPTX Import Improvements
+
+- **AI Post-Processing**: Optional AI enhancement after PPTX import
+- **Fix Issues**: Conservative mode that cleans up formatting without restructuring
+- **AI Inspiration**: Full redesign mode that reorganizes slides for better flow
+- **Diagram Conversion**: `[Diagram: ...]` markers converted to Mermaid code blocks
+- **Image Alt Text**: Improved alt text generation for imported images
+- **Background Preservation**: Backgrounds and themes preserved through AI processing
+- **Flex-row rendering**: Support for flex-row layouts in PPTX import (#140)
+- **Set-as-background**: Support for setting images as slide backgrounds (#140)
+- **Image upload fix**: Fixed 400 error when no deck loaded (#145)
+
+### HTML Export Fixes
+
+- **Image Inlining**: Images now properly inlined as data URIs in exported HTML
+- **Mermaid Rendering**: Mermaid diagrams now render correctly in exported HTML
+- **KaTeX Fonts**: Fixed font loading from CDN in exported HTML
+- **API Skip**: Skip API fetches and live reload in exported HTML files
+- **Module Bundling**: Fixed missing modules in HTML export bundle
+- **MERMAID_INIT_OPTIONS**: Inlined constant to fix undefined error
+
+### Documentation
+
+- **AI Prompt Templates**: New documentation for AI post-processing prompts
+- **Example Deck**: Added AI post-processing slide to example deck
+- **README**: Updated with AI features section under PPTX Import
+
+### Testing
+
+- **HTML Export Tests**: Added 21 tests for HTML export manager
+- **Total Tests**: 500+ unit tests across 22 test files
+
+### Bug Fixes
+
+- **wrapLongLists**: Fixed area markers and infinite blank lines being absorbed into multi-column div wrappers
+- **Blockquote Linger**: Removed transition causing blockquote to linger on slide change
+- **Full-page Tables**: Fixed escapeHtml not being applied, preventing XSS from entity-decoded content
+- **AI Sidebar**: Fixed reasoning tokens corrupting JSON parse
+- **AI Sidebar**: Fixed scrollbar jumping during streaming
+- **AI Sidebar**: Fixed wheel events changing slides during streaming
+- **Settings Modal**: Fixed API key hint showing incorrectly
+- **Settings Modal**: Fixed model dropdown not closing on outside click
+- **Settings Modal**: Fixed checkbox state not updating after API key save
+- **Conversion Modal**: Fixed duplicate AI button on re-import
+- **PPTX Export**: Fixed two-column layout detection for wide elements
+- **HTML Export**: Fixed EditController and MERMAID_INIT_OPTIONS not defined errors
+- **Image Picker**: Restored ImagePicker modal with Existing/Upload/URL tabs (#142)
+- **Image Float**: Restored image float feature (#142)
+- **PPTX Import**: Flex-row rendering and set-as-background fixes (#140)
+- **Titles**: Sanitize markdown from deck/slide titles (#144)
+- **PPTX Upload**: Fixed 400 error when no deck loaded (#145)
+- **Area Overflow**: Fixed overflow warning not hiding on fix and fit-to-column spacing (#146)
+
 ## 0.6.1 (2026-07-26)
 
 ### Bug Fixes

@@ -64,7 +64,8 @@
   position: absolute;
   inset: 0;
   padding: 105px 125px 80px 105px;
-  display: none;
+  visibility: hidden;
+  display: grid;
   background: var(--slide-bg);
   color: var(--slide-ink);
   font-size: 30px;
@@ -107,6 +108,7 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 }
 
 .slide.active {
+  visibility: visible;
   display: grid;
   animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -195,6 +197,69 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 
 .slide__grid--full-height .slide__area--header::after {
   width: 90%;
+}
+
+/* Focus layout: remove header underline, center header and lists */
+.slide[data-layout="focus"] .slide__area--header {
+  align-items: center;
+  text-align: center;
+  min-height: 100px;
+}
+
+.slide[data-layout="focus"] .slide__area--header::after {
+  display: none;
+}
+
+/* Center main content vertically and horizontally */
+.slide[data-layout="focus"] .slide__area--main {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  max-width: 1050px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Lists: outside markers with centered text */
+.slide[data-layout="focus"] .slide__area--main ul,
+.slide[data-layout="focus"] .slide__area--main ol {
+  list-style-position: outside;
+  text-align: center;
+  padding-left: 0;
+  margin: var(--spacing-md) auto 0;
+  gap: var(--spacing-md);
+}
+
+.slide[data-layout="focus"] .slide__area--main p,
+.slide[data-layout="focus"] .slide__area--main li {
+  font-size: 34px;
+  font-weight: 600;
+}
+
+/* Code blocks: centered horizontally, left-aligned text for readability */
+.slide[data-layout="focus"] .slide__area--main pre {
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+/* Blockquotes: centered */
+.slide[data-layout="focus"] .slide__area--main blockquote {
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.slide[data-layout="focus"] .slide__area h2 {
+  font-size: 48px;
+}
+
+.slide[data-layout="focus"] .slide__area h3 {
+  font-size: 38px;
+  font-weight: 600;
+  margin-top: var(--spacing-xl);
+  margin-bottom: var(--spacing-sm);
 }
 
 .slide__area--header:empty {
@@ -475,6 +540,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   column-fill: balance;
   column-gap: 1.5em;
 }
+
 .multi-column-list ul,
 .multi-column-list ol {
   margin: 0;
@@ -526,12 +592,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border: 1px solid var(--code-border-color);
   border-radius: var(--radius-lg);
   padding: 12px 18px;
-  overflow: visible;
+  overflow: auto;
   box-shadow: var(--code-shadow);
   max-width: 100%;
   margin: var(--spacing-xs) 0;
   flex: 0 0 auto;
-  line-height: 1.1;
+  align-self: flex-start;
+  font-size: var(--code-font-size, 22px);
+  line-height: 1.2;
   color: var(--code-ink);
   text-shadow: none;
   /* Prism themes sometimes set backgrounds; force our slide look */
@@ -542,7 +610,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area pre[class*="language-"] > code,
 .slide__area pre > code[class*="language-"] {
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: inherit;
   line-height: inherit;
   background: transparent !important;
   padding: 0;
@@ -671,6 +739,26 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   min-height: 0;
 }
 
+/* --- FULL-IMAGE LAYOUT --- */
+
+/* Zero padding: image fills the entire slide */
+.slide[data-layout="full-image"] {
+  padding: 0;
+}
+
+.slide[data-layout="full-image"] .slide__area {
+  padding: 0;
+  overflow: hidden;
+}
+
+.slide[data-layout="full-image"] .slide__area img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  margin: 0;
+}
+
 /* Flex-row container for horizontally adjacent PPTX elements */
 .slide__area .flex-row {
   display: flex;
@@ -729,7 +817,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   padding: 16px 20px;
   background: var(--accent-light);
   margin: var(--spacing-sm) 0;
-  transition: all 200ms ease;
 }
 
 .slide__area blockquote p {

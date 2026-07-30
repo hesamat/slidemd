@@ -6,7 +6,7 @@
  * @class
  */
 // Markdown parsing and slide extraction
-import { safeString, slugifyTitle, DESIGN_SIZE } from "../core/utils.js";
+import { safeString, slugifyTitle, DESIGN_SIZE, escapeBareHtmlTags } from "../core/utils.js";
 import { LayoutParser } from "./layout-parser.js";
 
 class FenceTracker {
@@ -365,7 +365,7 @@ export class MarkdownParser {
    * @param {string} markdownText
    * @returns {import('../types.js').AreaParseResult}
    */
-  parseAreas(markdownText) {
+  static parseAreas(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const areas = {};
     const areaOffsets = {}; // 0-indexed editor line where each area's content starts
@@ -516,7 +516,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|area-style)\s*:/i.test(line);
+      /^\s*(layout|background|theme|hidden|hide|align|area-style|code-font-size)\s*:/i.test(line);
 
     let lineIdx = 0;
     let seenMarker = false;
@@ -638,6 +638,13 @@ export class MarkdownParser {
       );
       cleaned = withoutAreaStyle;
 
+      const { value: codeFontSize, markdown: withoutCodeFontSize } = this.extractDirective(
+        cleaned,
+        "code-font-size",
+      );
+      cleaned = withoutCodeFontSize;
+      const parsedCodeFontSize = codeFontSize ? parseInt(codeFontSize, 10) : 0;
+
       // Hide slides from the viewer deck by default. Use ?showHidden=1 to include them.
       const {
         value: hiddenValue,
@@ -663,7 +670,7 @@ export class MarkdownParser {
 
       cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
-      const { areas: areasMd } = this.parseAreas(cleaned);
+      const { areas: areasMd } = MarkdownParser.parseAreas(cleaned);
 
       const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
         fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
@@ -694,7 +701,8 @@ export class MarkdownParser {
 
       const areas = {};
       for (const [name, src] of Object.entries(areasMd)) {
-        let html = this.md.render(src);
+        const escaped = escapeBareHtmlTags(src);
+        let html = this.md.render(escaped);
         // Convert Mermaid code blocks to divs for client-side rendering
         html = this.convertMermaidCodeBlocksToDiv(html);
         areas[name] = html;
@@ -755,6 +763,7 @@ export class MarkdownParser {
         hidden,
         areas,
         areaStyle: areaStyle || "",
+        codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
       };
     });

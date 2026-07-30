@@ -317,6 +317,14 @@ function createHandler(format) {
       return;
     }
 
+    // ── POST /api/deck/reset ──
+    if (pathname === "/api/deck/reset" && req.method === "POST") {
+      format = null;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     // ── GET /api/deck ──
     if (pathname === "/api/deck" && req.method === "GET") {
       if (!format || !format.mdFile) {
@@ -424,7 +432,10 @@ function createHandler(format) {
     if (pathname === "/api/images" && req.method === "GET") {
       try {
         if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
-          res.writeHead(200, { "Content-Type": "application/json" });
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          });
           res.end(JSON.stringify({ images: [] }));
           return;
         }
@@ -432,8 +443,33 @@ function createHandler(format) {
           .readdirSync(format.imagesDir)
           .filter((name) => IMAGE_RE.test(path.extname(name)))
           .map((name) => ({ name, path: `images/${name}` }));
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        });
         res.end(JSON.stringify({ images: entries }));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
+    // ── POST /api/images/clear ──
+    if (pathname === "/api/images/clear" && req.method === "POST") {
+      try {
+        // Only clear the temp uploads directory — never touch deck image folders
+        const uploadsDir = path.join(ROOT, ".webdeck-uploads", "images");
+        if (fs.existsSync(uploadsDir)) {
+          for (const file of fs.readdirSync(uploadsDir)) {
+            const filePath = path.join(uploadsDir, file);
+            if (fs.statSync(filePath).isFile()) {
+              fs.unlinkSync(filePath);
+            }
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
@@ -503,7 +539,10 @@ function createHandler(format) {
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
           const mime = MIME[ext] || "application/octet-stream";
-          res.writeHead(200, { "Content-Type": mime });
+          res.writeHead(200, {
+            "Content-Type": mime,
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          });
           fs.createReadStream(filePath).pipe(res);
           return;
         }
@@ -549,6 +588,17 @@ function createHandler(format) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Clean up orphaned uploads from previous sessions (e.g. crashed PPTX imports)
+  const uploadDir = path.join(ROOT, ".webdeck-uploads");
+  if (fs.existsSync(uploadDir)) {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+  }
+  // Clean up orphaned images/ at project root (uploaded by previous PPTX imports)
+  const rootImagesDir = path.join(ROOT, "images");
+  if (fs.existsSync(rootImagesDir)) {
+    fs.rmSync(rootImagesDir, { recursive: true, force: true });
+  }
+
   let format = null;
 
   if (INPUT_ARG) {

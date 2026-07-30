@@ -63,6 +63,7 @@ export class ElementGatherer {
       menuExportTextpackBtn: $("menuExportTextpackBtn"),
       menuNewPresentationBtn: $("menuNewPresentationBtn"),
       menuConvertPptxBtn: $("menuConvertPptxBtn"),
+      menuSettingsBtn: $("menuSettingsBtn"),
       printBtn: $("printBtn"),
       reloadDeckBtn: $("reloadDeckBtn"),
 

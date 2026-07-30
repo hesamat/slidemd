@@ -220,7 +220,73 @@ Goal: CLI dev server with `.md + images/` primary format, `.textpack` sharing, a
 
 ---
 
-## Phase 8: Cloud Mode
+## Phase 8: AI Post-Processing ✅
+
+Goal: Add AI-powered post-processing for PPTX imports via OpenRouter.
+
+### Core
+
+| Task                           | Details                                                       |
+| ------------------------------ | ------------------------------------------------------------- |
+| [x] OpenRouter API integration | Connect to OpenRouter for AI-enhanced slide processing        |
+| [x] Settings modal             | API key, model selection, reasoning options                   |
+| [x] Fix Issues mode            | Conservative AI cleanup of formatting, headers, code blocks   |
+| [x] AI Inspiration mode        | Full redesign with better flow, layouts, and Mermaid diagrams |
+| [x] Streaming sidebar          | Non-blocking panel with real-time AI output                   |
+| [x] Reasoning support          | Optional extended thinking for better results                 |
+| [x] Model selection            | Searchable dropdown with reasoning capability detection       |
+
+### PPTX Import Integration
+
+| Task                                | Details                                                |
+| ----------------------------------- | ------------------------------------------------------ |
+| [x] AI post-processing after import | Optional enhancement after PPTX import                 |
+| [x] Diagram conversion              | [Diagram: ...] markers to Mermaid code blocks          |
+| [x] Image alt text                  | Improved alt text generation for imported images       |
+| [x] Background preservation         | Backgrounds and themes preserved through AI processing |
+
+### HTML Export Fixes
+
+| Task                  | Details                                            |
+| --------------------- | -------------------------------------------------- |
+| [x] Image inlining    | Images as data URIs in exported HTML               |
+| [x] Mermaid rendering | Mermaid diagrams render correctly in exported HTML |
+| [x] KaTeX fonts       | Fixed font loading from CDN                        |
+| [x] API skip          | Skip API fetches and live reload in exported HTML  |
+| [x] Module bundling   | Fixed missing modules in HTML export bundle        |
+
+### Testing
+
+| Task                    | Details                              |
+| ----------------------- | ------------------------------------ |
+| [x] HTML export tests   | 21 tests for HTML export manager     |
+| [x] Total test coverage | 500+ unit tests across 22 test files |
+
+### PPTX Import & Image Fixes (from main branch)
+
+| Task                         | Details                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| [x] Flex-row rendering       | Support for flex-row layouts in PPTX import (#140)                        |
+| [x] Set-as-background        | Support for setting images as slide backgrounds (#140)                    |
+| [x] Image Picker restoration | Restored with Existing/Upload/URL tabs and float feature (#142)           |
+| [x] Title sanitization       | Sanitize markdown from deck/slide titles (#144)                           |
+| [x] PPTX upload fix          | Fixed 400 error when no deck loaded (#145)                                |
+| [x] Area overflow fix        | Fixed overflow warning not hiding on fix and fit-to-column spacing (#146) |
+
+### Bug Fixes
+
+| Task                            | Details                                      |
+| ------------------------------- | -------------------------------------------- |
+| [x] AI sidebar reasoning tokens | Fixed corruption of JSON parse               |
+| [x] AI sidebar scrolling        | Fixed scrollbar jumping and wheel events     |
+| [x] Settings modal              | Fixed API key hint and model dropdown issues |
+| [x] Conversion modal            | Fixed duplicate AI button on re-import       |
+| [x] PPTX export                 | Fixed two-column layout detection            |
+| [x] HTML export                 | Fixed missing modules and font loading       |
+
+---
+
+## Phase 9: Cloud Mode
 
 Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/Save UX.
 
@@ -276,12 +342,13 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 6: Testing & Polish    | ✅ Complete |
 | Phase 7: PPTX Conversion     | ✅ Complete |
 | Phase 7.5: CLI Dev Server    | ✅ Complete |
-| Phase 8: Cloud Mode          | Not started |
+| Phase 8: AI Post-Processing  | ✅ Complete |
+| Phase 9: Cloud Mode          | Not started |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.

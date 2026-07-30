@@ -29,13 +29,13 @@ describe("LayoutData", () => {
       expect(layouts).not.toContain("header-two-column");
       expect(layouts).not.toContain("sidebar-content");
       expect(layouts).not.toContain("content-sidebar");
-      expect(layouts).not.toContain("focus");
     });
 
     it("includes common layouts", () => {
       const layouts = LayoutData.getAllLayouts();
       expect(layouts).toContain("two-column");
       expect(layouts).toContain("title-slide");
+      expect(layouts).toContain("focus");
     });
   });
 

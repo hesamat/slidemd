@@ -17,58 +17,78 @@
 **Useful Layout Patterns:**
 
 ```markdown
-# Title slide (centered)
-
+// Title slide (centered) — @title only
 layout: title-slide
 
-# Content: @title
-
-# Header + single content
-
+// Header + single content — @header, @main
 layout: header-content
 
-# Content: @header, @main (optional: @footer)
+// Content-first, centered — @header, @main (minimal header/footer)
+layout: focus
 
-# Header + two equal columns
-
+// Two equal columns — @header, @main, @media
 layout: two-column
 
-# Content: @header, @main, @media
-
-# Two equal columns (no header)
-
+// Two equal columns (no header) — @main, @media
 layout: two-column
 
-# Content: @main, @media
-
-# Header + main + sidebar (for activities)
-
-layout: "header header" "main sidebar" / 1fr 300px
-
-# Content: @header, @main, @sidebar
-
-# Other commonly used presets
-
+// Left column 2x wider — @header, @main, @media
 layout: left-heavy
+
+// Right column 2x wider — @header, @main, @media
 layout: right-heavy
+
+// Three equal columns — @header, @main, @media, @secondary
 layout: three-column
+
+// Media spans full right height — @header, @main, @media
+layout: media-span
+
+// Full-bleed image — @main only (img tag fills entire slide)
+layout: full-image
+
+// Custom sidebar layout — @header, @main, @sidebar
+layout: "header header" "main sidebar" / 1fr 300px
 ```
 
-**Content Areas:**
+**Content Areas by Layout:**
 
-- `@title` - Title slide content
-- `@header` - Top section (full width)
-- `@main` - Primary content area
-- `@media` - Secondary content (typically right column)
-- `@sidebar` - Narrow side column (300px)
-- `@footer` - Optional footer
+- `title-slide`: `@title`, `@footer`
+- `header-content`, `focus`: `@header`, `@main`, `@footer`
+- `two-column`, `left-heavy`, `right-heavy`: `@header`, `@main`, `@media`, `@footer`
+- `three-column`: `@header`, `@main`, `@media`, `@secondary`, `@footer`
+- `media-span`: `@header`, `@main`, `@media`, `@footer`
+- `full-image`: `@main` only (contains an `<img>` tag, no text)
+- Custom grids: `@main` (required), plus any of `@header`, `@media`, `@sidebar`, `@secondary`, `@footer` as defined in the grid
 
 **Slide Options:**
 
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
 - `hidden: true` - Slide hidden by default
+- `gridTemplate: "..." / columns` - Custom CSS grid layout (overrides layout preset)
 - Speaker notes: `<!-- notes: Your private notes -->` (must be the first line of the slide, before `layout:`)
+
+**Custom Grid Layouts:**
+
+When a preset layout doesn't fit, define a custom CSS grid using `gridTemplate` in the frontmatter:
+
+```markdown
+layout: custom-layout-name
+gridTemplate: "header header" "main media" / 1fr 1fr
+
+@header
+
+## Title
+
+@main
+Left content
+
+@media
+Right content
+```
+
+The `gridTemplate` value follows CSS `grid-template-areas` syntax. Column sizes after `/`. Always use `@main` for the primary content area.
 
 **Built-in Features:**
 
@@ -77,6 +97,38 @@ layout: three-column
 - **Diagrams:** Mermaid syntax in ```mermaid blocks
 - **Markdown:** Bold, italic, lists, blockquotes, tables, links
 - **HTML:** Inline styles for custom formatting
+
+---
+
+## Content Capacity (IMPORTANT)
+
+Slides render at **1920×1080px**. Content overflows if too much is added. These are approximate maximums for a single content area:
+
+| Content Type             | Max Items/Lines | Notes                                  |
+| ------------------------ | --------------- | -------------------------------------- |
+| Bullet list items        | ~13             | Single column, `header-content` layout |
+| Bullet list (two-column) | ~6 per column   | `two-column` layout                    |
+| Body text paragraphs     | ~15 lines       | At 30px font size                      |
+| Code lines               | ~18 lines       | At 24px mono font                      |
+| h2 headings              | ~8              | 42px each                              |
+| Table rows               | ~8              | Including header row                   |
+
+**Layout-specific guidance:**
+
+- `focus`: Content-first, centered — ~13 bullet items or ~18 code lines, minimal header/footer
+- `header-content`: ~13 bullet items in `@main`, or ~18 code lines
+- `two-column`: ~6 items per column in `@main`/`@media`
+- `media-span`: ~10 items in `@main`, media spans full height
+- `title-slide`: Title + subtitle + author only
+- `left-heavy`/`right-heavy`: Larger column holds ~10 items, smaller ~5
+- `full-image`: Single `<img>` tag only, no text — image fills the entire slide
+
+**If content exceeds these limits:**
+
+- Split across multiple slides
+- Use two-column layout to distribute content
+- Remove redundant items
+- Use shorter phrasing
 
 ---
 
@@ -95,7 +147,7 @@ layout: three-column
 **For Code Examples:**
 
 - Include brief comments explaining key lines
-- Keep examples under 20 lines
+- Keep examples under 18 lines
 - Show "bad" vs "good" patterns using two equal columns when appropriate
 
 **For Concepts:**
@@ -103,7 +155,7 @@ layout: three-column
 - Start with `##` heading for concept name
 - Use **bold** for key terms on first introduction
 - Use `code font` for syntax elements
-- Bullet lists for characteristics
+- Bullet lists for characteristics (max ~13 items per column)
 - Blockquotes for warnings or tips
 
 **For Diagrams:**
@@ -347,7 +399,8 @@ After generating the slide deck, create a **student hand-in template** for stude
 7. Include code examples in appropriate language
 8. Include submission instructions slide before end
 9. End with summary slide reviewing all learning objectives
-10. **Create a student hand-in template** as a separate markdown document after the slide deck
+10. Respect content capacity limits (~13 bullet items per column, ~18 code lines)
+11. **Create a student hand-in template** as a separate markdown document after the slide deck
 
 **Output format:**
 

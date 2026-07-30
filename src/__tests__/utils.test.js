@@ -5,6 +5,7 @@ import {
   clamp,
   safeString,
   escapeHtml,
+  escapeBareHtmlTags,
   slugifyTitle,
   getDeckId,
   normalizeCodeLanguage,
@@ -80,6 +81,106 @@ describe("escapeHtml", () => {
 
   it("leaves clean strings unchanged", () => {
     expect(escapeHtml("hello world")).toBe("hello world");
+  });
+});
+
+describe("escapeBareHtmlTags", () => {
+  it("escapes bare HTML tags like <button>", () => {
+    expect(escapeBareHtmlTags("Prefer <button> over <input>")).toBe(
+      "Prefer &lt;button&gt; over &lt;input&gt;",
+    );
+  });
+
+  it("escapes tags with attributes", () => {
+    expect(escapeBareHtmlTags('Click <input type="text"> here')).toBe(
+      'Click &lt;input type="text"&gt; here',
+    );
+  });
+
+  it("escapes blocked interactive/embedded tags", () => {
+    const input =
+      "Try <button>, <input>, <script>, <iframe>, <video>, <select>, <textarea>, <form>";
+    const result = escapeBareHtmlTags(input);
+    expect(result).toContain("&lt;button&gt;");
+    expect(result).toContain("&lt;input&gt;");
+    expect(result).toContain("&lt;script&gt;");
+    expect(result).toContain("&lt;iframe&gt;");
+    expect(result).toContain("&lt;video&gt;");
+    expect(result).toContain("&lt;select&gt;");
+    expect(result).toContain("&lt;textarea&gt;");
+    expect(result).toContain("&lt;form&gt;");
+  });
+
+  it("preserves img tags", () => {
+    const input = '<img src="a.png"> <br>';
+    expect(escapeBareHtmlTags(input)).toBe(input);
+  });
+
+  it("escapes any bare tag without attributes (teaching text)", () => {
+    expect(escapeBareHtmlTags("Use <div> containers")).toBe("Use &lt;div&gt; containers");
+    expect(escapeBareHtmlTags("Learn <section> and <article>")).toBe(
+      "Learn &lt;section&gt; and &lt;article&gt;",
+    );
+    expect(escapeBareHtmlTags("Try <nav>, <header>, <footer>")).toBe(
+      "Try &lt;nav&gt;, &lt;header&gt;, &lt;footer&gt;",
+    );
+    expect(escapeBareHtmlTags("Then </section> closes it")).toBe("Then &lt;/section&gt; closes it");
+  });
+
+  it("preserves bare tags that have matching open/close pairs", () => {
+    expect(escapeBareHtmlTags("<p>Hello</p>")).toBe("<p>Hello</p>");
+    expect(escapeBareHtmlTags("<span>text</span>")).toBe("<span>text</span>");
+    expect(escapeBareHtmlTags("<div>content</div>")).toBe("<div>content</div>");
+  });
+
+  it("preserves nested pair-matched tags", () => {
+    expect(escapeBareHtmlTags("<p><span>nested</span></p>")).toBe("<p><span>nested</span></p>");
+  });
+
+  it("escapes unmatched pairs", () => {
+    expect(escapeBareHtmlTags("<p>Hello")).toBe("&lt;p&gt;Hello");
+    expect(escapeBareHtmlTags("Hello</p>")).toBe("Hello&lt;/p&gt;");
+    expect(escapeBareHtmlTags("<p>Hello</div>")).toBe("&lt;p&gt;Hello&lt;/div&gt;");
+  });
+
+  it("handles multiple same-name pairs independently", () => {
+    expect(escapeBareHtmlTags("<p>First</p> <p>Second</p>")).toBe("<p>First</p> <p>Second</p>");
+  });
+
+  it("preserves attributed tags (intentional styling HTML)", () => {
+    expect(escapeBareHtmlTags('<div class="flex-row">')).toBe('<div class="flex-row">');
+    expect(escapeBareHtmlTags('<span style="color:red">')).toBe('<span style="color:red">');
+    expect(escapeBareHtmlTags('<img src="a.png">')).toBe('<img src="a.png">');
+  });
+
+  it("preserves full-page grid HTML with attributed divs", () => {
+    const gridHtml =
+      '<div class="fullpage-grid" style="grid-template-columns:repeat(2,1fr)"><div class="fullpage-grid__cell" style="background:#003C68">Cell 1</div><div class="fullpage-grid__cell" style="background:#003C68">Cell 2</div></div>';
+    expect(escapeBareHtmlTags(gridHtml)).toBe(gridHtml);
+  });
+
+  it("preserves always-safe bare tags (br, hr)", () => {
+    expect(escapeBareHtmlTags("Line 1<br>Line 2")).toBe("Line 1<br>Line 2");
+    expect(escapeBareHtmlTags("<hr>")).toBe("<hr>");
+  });
+
+  it("escapes closing tags", () => {
+    expect(escapeBareHtmlTags("Use </script> tag")).toBe("Use &lt;/script&gt; tag");
+  });
+
+  it("leaves valid comparison operators unchanged", () => {
+    expect(escapeBareHtmlTags("x < 5 and y > 3")).toBe("x < 5 and y > 3");
+  });
+
+  it("leaves backtick-wrapped tags unchanged", () => {
+    expect(escapeBareHtmlTags("`<button>` is an HTML element")).toBe(
+      "`<button>` is an HTML element",
+    );
+  });
+
+  it("returns non-string input as-is", () => {
+    expect(escapeBareHtmlTags(null)).toBe(null);
+    expect(escapeBareHtmlTags(42)).toBe(42);
   });
 });
 

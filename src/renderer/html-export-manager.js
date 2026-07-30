@@ -40,6 +40,7 @@ export class HtmlExportManager {
     "src/engine/deck-controller.js",
     // UI components
     "src/ui/ui-actions.js",
+    "src/editor/ui/open-deck-modal.js",
     // Entry point
     "deck.js",
   ];
@@ -104,14 +105,19 @@ export class HtmlExportManager {
     }
 
     // 3. Escape Data
-    const deckJson = JSON.stringify(deck);
+    // Inline images in deck JSON as data URIs
+    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck);
+    const deckJson = JSON.stringify(inlinedDeck);
     const escapedDeckJson = HtmlExportManager.escapeJsonForHtml(deckJson);
 
     // 4. Extract Slide HTML (The Snapshot)
     const title = DeckLoader.getDisplayTitle(deck);
-    const slidesHtml = includeSlideSnapshot
+    let slidesHtml = includeSlideSnapshot
       ? HtmlExportManager.extractSlidesHtml(slidesContainer)
       : "";
+
+    // 4b. Inline images as data URIs
+    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml);
 
     const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -153,6 +159,27 @@ export class HtmlExportManager {
                     ignoredClasses: ["no-math", "katex-ignore", "mermaid"],
                     throwOnError: false
                 });
+            }
+            // Render Mermaid diagrams
+            if (window.mermaid) {
+                const mermaidBlocks = document.querySelectorAll('.mermaid:not([data-mermaid-processed])');
+                if (mermaidBlocks.length > 0) {
+                    mermaidBlocks.forEach((el, i) => {
+                        const source = el.textContent || el.dataset.mermaidSource;
+                        if (source) {
+                            el.dataset.mermaidSource = source;
+                            el.dataset.mermaidProcessed = '1';
+                            try {
+                                const id = 'mermaid-export-' + i;
+                                mermaid.render(id, source).then(out => {
+                                    if (out && out.svg) el.innerHTML = out.svg;
+                                }).catch(e => {
+                                    console.warn('Mermaid render error:', e);
+                                });
+                            } catch(e) { console.warn('Mermaid error:', e); }
+                        }
+                    });
+                }
             }
         });
         `;
@@ -614,6 +641,11 @@ ${initScript}
         if (response.ok) {
           let css = await response.text();
           css = HtmlExportManager.filterViteArtifactsFromCss(css);
+          // Convert relative font URLs to CDN absolute URLs
+          css = css.replace(
+            /url\((["']?)fonts\//g,
+            `url($1https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/`,
+          );
           return `/* ${name} CSS */\n${css}`;
         }
       } catch (_e) {
@@ -672,6 +704,111 @@ ${initScript}
     return Array.from(slides)
       .map((slide) => slide.outerHTML)
       .join("\n");
+  }
+
+  /**
+   * Fetches images from the server and converts them to data URIs in HTML.
+   */
+  static async inlineImagesInHtml(html) {
+    if (!html) return html;
+    // Match src="images/..." and src='images/...'
+    const imgRe = /src=(["'])(images\/[^"']+)\1/g;
+    const matches = [...html.matchAll(imgRe)];
+    if (matches.length === 0) return html;
+
+    const imagePromises = matches.map(async (match) => {
+      const [fullMatch, quote, imagePath] = match;
+      try {
+        const response = await fetch(`/${imagePath}`);
+        if (!response.ok) return fullMatch;
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        return `src=${quote}${dataUrl}${quote}`;
+      } catch {
+        return fullMatch;
+      }
+    });
+
+    const results = await Promise.all(imagePromises);
+    // Apply replacements in reverse order so match indices stay valid
+    let result = html;
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const match = matches[i];
+      const start = match.index;
+      const end = start + match[0].length;
+      result = result.slice(0, start) + results[i] + result.slice(end);
+    }
+    return result;
+  }
+
+  /**
+   * Inlines images in deck JSON as data URIs.
+   */
+  static async inlineImagesInDeck(deck) {
+    if (!deck?.slides) return deck;
+
+    const imageRefs = new Set();
+    for (const slide of deck.slides) {
+      if (slide.areas) {
+        for (const area of Object.values(slide.areas)) {
+          if (typeof area === "string") {
+            const matches = area.matchAll(/src=(["'])(images\/[^"']+)\1/g);
+            for (const m of matches) imageRefs.add(m[2]);
+          }
+        }
+      }
+      // Also check background for url(images/...)
+      if (slide.background) {
+        const bgMatches = slide.background.matchAll(/url\((["']?)(images\/[^"')]+)\1?\)/g);
+        for (const m of bgMatches) imageRefs.add(m[2]);
+      }
+    }
+
+    if (imageRefs.size === 0) return deck;
+
+    // Fetch all images and convert to data URIs
+    const dataUriMap = {};
+    for (const ref of imageRefs) {
+      try {
+        const response = await fetch(`/${ref}`);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        dataUriMap[ref] = dataUrl;
+      } catch {
+        // skip failed images
+      }
+    }
+
+    if (Object.keys(dataUriMap).length === 0) return deck;
+
+    // Replace image refs in deck JSON
+    const inlinedDeck = JSON.parse(JSON.stringify(deck));
+    for (const slide of inlinedDeck.slides) {
+      if (slide.areas) {
+        for (const key of Object.keys(slide.areas)) {
+          if (typeof slide.areas[key] === "string") {
+            for (const [ref, dataUrl] of Object.entries(dataUriMap)) {
+              slide.areas[key] = slide.areas[key].replaceAll(ref, dataUrl);
+            }
+          }
+        }
+      }
+      if (slide.background) {
+        for (const [ref, dataUrl] of Object.entries(dataUriMap)) {
+          slide.background = slide.background.replaceAll(ref, dataUrl);
+        }
+      }
+    }
+    return inlinedDeck;
   }
 
   static getDeckHtmlText(deck) {

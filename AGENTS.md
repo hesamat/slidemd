@@ -18,11 +18,13 @@ Before committing, run these checks locally:
 ```bash
 npm run lint          # ESLint (errors only)
 npm run format:check  # Prettier formatting
-npm run build         # Build script
 npm test              # Vitest unit tests
+npm run build         # Build script
 ```
 
 All four must pass. If `npm run format:check` fails, run `npx prettier --write .` to fix.
+
+**Important**: Before running quality gates, verify the feature actually works by testing it in the browser or inspecting the code logic. Do NOT run the full lint/format/test/build cycle prematurely — it wastes time when the code still has issues.
 
 ## Code Organization
 
@@ -114,6 +116,40 @@ export class NewModule {
 - **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
 - **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
+
+## AI Prompt Engineering (2026 Best Practices)
+
+AI prompts live in [src/data/prompts/](src/data/prompts/). There are three prompts used by the AI enhancement feature:
+
+| File                 | Role     | Purpose                                             |
+| -------------------- | -------- | --------------------------------------------------- |
+| `system-prompt.md`   | `system` | Global rules, structure, formatting                 |
+| `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
+| `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
+
+User-facing documentation: [docs/prompt-template.md](docs/prompt-template.md) (layout syntax, area markers, examples) and [docs/example/slides.md](docs/example/slides.md) (example deck). The AI prompts used by the enhancement feature live in [src/data/prompts/](src/data/prompts/).
+
+### Architecture Rules
+
+- **Do NOT duplicate** rules across system and user prompts. The `system` role already sets immutable rules; repeating them in `user` prompts wastes tokens and creates version skew risk. Task-specific guidance belongs in the user prompt only.
+- **Put constraints before creative freedom** in user prompts: Formatting Rules → Content Strategy → Creative Guidelines → Input. This prevents the model from generating creative output that violates structural rules.
+- **Keep prompts focused**: The system + user prompts should not exceed ~150 combined lines of instructions. Beyond that, signal-to-noise ratio drops.
+
+### Writing Rules
+
+- **Prefer positive instructions** over negative ones. Say "Use only content present in the input" instead of "Do NOT invent content". Models simulate forbidden behaviors to understand them, which can increase their likelihood.
+- **Limit strong negative directives** ("NEVER", "Do NOT") to ~5 per prompt. Current count across all three prompts is ~12 total (system: 4, generate: 2, fix: 2) — well within the per-prompt target.
+- **Place the most critical rules first** — the model weights earlier instructions more heavily.
+- **Add success criteria** at the end of each prompt so the model can self-check.
+
+### Modification Checklist
+
+1. Check all three prompts for consistency — a change to one rule may need updates in the others
+2. Run `npm test` — AI enhancer tests verify prompt processing
+3. Verify the combined system + user prompt length stays under 150 lines
+4. Count strong negative directives ("NEVER", "Do NOT"); aim for ≤5 per prompt
+5. Keep both layout lists in sync: `system-prompt.md` rule line 18 and layout table
+6. Reflect changes in user docs: [docs/prompt-template.md](docs/prompt-template.md) and [docs/example/slides.md](docs/example/slides.md)
 
 ## Known Issues
 

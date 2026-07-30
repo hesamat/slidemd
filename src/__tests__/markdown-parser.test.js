@@ -288,14 +288,14 @@ describe("MarkdownParser.escapeKatexBracketDelimiters", () => {
 describe("MarkdownParser.parseAreas", () => {
   it("returns all content in main when no area markers", () => {
     const md = "# Hello\nSome content";
-    const result = parser.parseAreas(md);
+    const result = MarkdownParser.parseAreas(md);
     expect(result.areas).toHaveProperty("main");
     expect(result.areas.main).toContain("# Hello");
   });
 
   it("splits content by @area markers", () => {
     const md = "Header text\n@sidebar\nSide content\n@main\nMain content";
-    const result = parser.parseAreas(md);
+    const result = MarkdownParser.parseAreas(md);
     expect(result.areas).toHaveProperty("sidebar");
     expect(result.areas).toHaveProperty("main");
     expect(result.areas.sidebar).toContain("Side content");
@@ -304,21 +304,21 @@ describe("MarkdownParser.parseAreas", () => {
 
   it("ignores @area markers inside code fences", () => {
     const md = "```\n@fake\n```\n@real\nContent";
-    const result = parser.parseAreas(md);
+    const result = MarkdownParser.parseAreas(md);
     expect(result.areas).not.toHaveProperty("fake");
     expect(result.areas).toHaveProperty("real");
   });
 
   it("skips empty areas", () => {
     const md = "@sidebar\n\n@main\nContent";
-    const result = parser.parseAreas(md);
+    const result = MarkdownParser.parseAreas(md);
     expect(result.areas).not.toHaveProperty("sidebar");
     expect(result.areas).toHaveProperty("main");
   });
 
   it("records areaOffsets", () => {
     const md = "@sidebar\nSide\n@main\nMain";
-    const result = parser.parseAreas(md);
+    const result = MarkdownParser.parseAreas(md);
     expect(result.areaOffsets).toHaveProperty("sidebar");
     expect(result.areaOffsets).toHaveProperty("main");
   });

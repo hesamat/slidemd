@@ -3,6 +3,7 @@
  * Utility class for loading and caching external assets (e.g., markdown-it, PrismJS, KaTeX, Mermaid).
  * Each asset is loaded at most once via dynamic import and exposed on `window` for downstream consumers.
  */
+
 import { MERMAID_INIT_OPTIONS } from "./mermaid-config.js";
 
 /** @class */

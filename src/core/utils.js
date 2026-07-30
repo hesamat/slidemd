@@ -70,6 +70,114 @@ export function escapeHtml(text) {
   return safeString(text).replace(/[&<>"']/g, (match) => HTML_ESCAPES[match]);
 }
 
+/**
+ * Interactive / embedded / scripting tags — always escaped even with attributes.
+ * These are never legitimate in slide content outside of fenced code blocks.
+ */
+const BLOCKED_HTML_TAGS = new Set([
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "form",
+  "fieldset",
+  "label",
+  "datalist",
+  "output",
+  "option",
+  "optgroup",
+  "script",
+  "style",
+  "iframe",
+  "embed",
+  "object",
+  "param",
+  "noscript",
+  "audio",
+  "video",
+  "source",
+  "track",
+]);
+
+/**
+ * Bare tags that are always safe (no content model, never need attributes,
+ * never ambiguous with teaching-text).  Pass through even without attributes.
+ */
+const ALWAYS_OK_BARE = new Set(["br", "hr"]);
+
+const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
+
+export function escapeBareHtmlTags(markdown) {
+  if (typeof markdown !== "string") return markdown;
+
+  return markdown
+    .split(/(`[^`\n]+`)/)
+    .map((part, i) => {
+      if (i % 2 === 1) return part;
+
+      // First pass: always escape blocked interactive / embedded tags
+      let text = part.replace(HTML_TAG_RE, (match, closingSlash, tagName, attrs) => {
+        if (!BLOCKED_HTML_TAGS.has(tagName.toLowerCase())) return match;
+        const open = closingSlash ? "&lt;/" : "&lt;";
+        const close = "&gt;";
+        const escapedAttrs = attrs ? attrs.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
+        return open + tagName + escapedAttrs + close;
+      });
+
+      // Second pass: collect bare non-blocked non-safe tags
+      const tags = [];
+      // Track tag names whose opening tags had attributes (they were skipped)
+      // so we can skip their matching closing tags too
+      const skipClosing = new Set();
+      let m;
+      HTML_TAG_RE.lastIndex = 0;
+      while ((m = HTML_TAG_RE.exec(text)) !== null) {
+        const [, closingSlash, tagName, attrs] = m;
+        const lower = tagName.toLowerCase();
+        if (ALWAYS_OK_BARE.has(lower)) continue;
+        if (closingSlash) {
+          // Closing tag: skip if its opening tag was skipped (had attributes)
+          if (skipClosing.has(lower)) continue;
+        } else {
+          // Opening tag: skip if it has attributes
+          if (attrs) {
+            skipClosing.add(lower);
+            continue;
+          }
+        }
+        tags.push({ index: m.index, match: m[0], closingSlash, tagName, lower });
+      }
+
+      // Pair bare <p> with bare </p> → intentional HTML.  Leftovers = teaching text.
+      const paired = new Set();
+      const openStack = [];
+      for (const tag of tags) {
+        if (tag.closingSlash) {
+          for (let j = openStack.length - 1; j >= 0; j--) {
+            if (openStack[j].lower === tag.lower) {
+              paired.add(openStack[j].index);
+              paired.add(tag.index);
+              openStack.splice(j, 1);
+              break;
+            }
+          }
+        } else {
+          openStack.push(tag);
+        }
+      }
+
+      // Escape unmatched tags, right-to-left so indices stay valid
+      for (let t = tags.length - 1; t >= 0; t--) {
+        const tag = tags[t];
+        if (paired.has(tag.index)) continue;
+        const escaped = (tag.closingSlash ? "&lt;/" : "&lt;") + tag.tagName + "&gt;";
+        text = text.slice(0, tag.index) + escaped + text.slice(tag.index + tag.match.length);
+      }
+      return text;
+    })
+    .join("");
+}
+
 export function slugifyTitle(title) {
   const s = safeString(title)
     .trim()

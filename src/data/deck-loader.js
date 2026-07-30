@@ -176,22 +176,24 @@ export class DeckLoader {
    * @returns {Promise<import('../types.js').Deck>}
    */
   static async loadDeckData() {
-    // 1. Try CLI dev server API
-    try {
-      const res = await fetch("/api/deck");
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.markdown) {
-          await AssetLoader.ensureMarkdownItLoaded();
-          // Store the API URL so reload can re-fetch fresh content from disk
-          localStorage.setItem("webdeck_source_url", "/api/deck");
-          // Persist the markdown so the editor reads fresh content on init
-          localStorage.setItem("webdeck_local_file", data.markdown);
-          return new MarkdownParser().parseDeckMarkdown(data.markdown);
+    // 1. Try CLI dev server API (skip in exported HTML files)
+    if (!window.__WEBDECK_EXPORTED__) {
+      try {
+        const res = await fetch("/api/deck");
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.markdown) {
+            await AssetLoader.ensureMarkdownItLoaded();
+            // Store the API URL so reload can re-fetch fresh content from disk
+            localStorage.setItem("webdeck_source_url", "/api/deck");
+            // Persist the markdown so the editor reads fresh content on init
+            localStorage.setItem("webdeck_local_file", data.markdown);
+            return new MarkdownParser().parseDeckMarkdown(data.markdown);
+          }
         }
+      } catch {
+        // No CLI server running — fall through
       }
-    } catch {
-      // No CLI server running — fall through
     }
 
     // 2. Try Embedded JSON (build output)
@@ -204,25 +206,39 @@ export class DeckLoader {
       }
     }
 
-    // 3. Default — show welcome deck
+    // 3. Default — auto-load example deck
     // Keep existing localStorage data intact (don't wipe).
     // User may have a cached deck from a previous session.
 
     await AssetLoader.ensureMarkdownItLoaded();
-    return new MarkdownParser().parseDeckMarkdown(
-      `# Welcome to SlideMD
+    try {
+      const res = await fetch("docs/example/slides.md");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const markdown = await res.text();
 
-Markdown-based presentations made simple.
+      // Tell the CLI server where the example deck lives so it can serve images
+      await fetch("/api/deck/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dir: "docs/example" }),
+      }).catch(() => {});
 
-### What you can do
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_type", "md");
+      localStorage.setItem("webdeck_local_file_name", "example");
+      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+      localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
 
-- **Open a file** via Menu → Open File to start presenting
-- **Press \`E\`** to toggle edit mode with live preview
-- **Press \`P\`** to open a viewer for your audience
-- **Press \`D\`** to switch between dark and light themes
+      this.addRecentDeck("example");
 
-<button id="openExampleBtn" class="welcome-btn">Open Example Deck</button>`,
-    );
+      return new MarkdownParser().parseDeckMarkdown(markdown);
+    } catch (e) {
+      console.error("Failed to load example deck:", e);
+      // Final fallback — minimal deck
+      return new MarkdownParser().parseDeckMarkdown(
+        "# Welcome to SlideMD\n\nMarkdown-based presentations made simple.\n\nUse **Menu \u2192 Open File** to start presenting.",
+      );
+    }
   }
 
   /**
@@ -387,6 +403,7 @@ Markdown-based presentations made simple.
         hidden: Boolean(s.hidden),
         areas: s.areas || {},
         areaStyle: safeString(s.areaStyle),
+        codeFontSize: Number(s.codeFontSize) || 0,
       };
     });
 

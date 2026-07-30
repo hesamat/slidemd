@@ -8,6 +8,7 @@
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
+import { SlideRenderer } from "../../renderer/slide-renderer.js";
 
 export class OpenDeckModal {
   static _el = null;
@@ -122,9 +123,19 @@ export class OpenDeckModal {
         /* no server */
       }
 
+      // Clear stale images from the previous deck so the picker is clean
+      if (serverAvailable) {
+        try {
+          await fetch("/api/images/clear", { method: "POST" });
+        } catch {
+          /* ignore — best-effort cleanup */
+        }
+      }
+
       if (serverAvailable && uniqueEntries.length > 0) {
         // Upload each image to the server
         const pathMap = new Map();
+        let failedUploads = 0;
         await Promise.all(
           uniqueEntries.map(async ({ name, entry }) => {
             try {
@@ -136,18 +147,26 @@ export class OpenDeckModal {
                 method: "POST",
                 body: formData,
               });
-              if (!res.ok) return;
+              if (!res.ok) {
+                failedUploads++;
+                return;
+              }
               const result = await res.json();
               if (result?.path) {
                 // Map both folder prefixes to the server path
                 pathMap.set(`images/${name}`, result.path);
                 pathMap.set(`assets/${name}`, result.path);
+              } else {
+                failedUploads++;
               }
             } catch {
-              /* skip failed uploads */
+              failedUploads++;
             }
           }),
         );
+        if (failedUploads > 0) {
+          console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
+        }
 
         // Rewrite markdown to use the server-saved paths
         for (const [oldPath, newPath] of pathMap) {
@@ -175,6 +194,10 @@ export class OpenDeckModal {
             new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
             `$1${blobUrl}$2`,
           );
+          resolvedMarkdown = resolvedMarkdown.replace(
+            new RegExp(`(url\\(\\s*["']?)${escapedPath}(["']?\\s*\\))`, "gi"),
+            `$1${blobUrl}$2`,
+          );
         }
       }
 
@@ -187,6 +210,8 @@ export class OpenDeckModal {
       DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
       await DraftManager.saveDraft(resolvedMarkdown);
 
+      // Show loading state before hiding the modal so the user sees feedback
+      SlideRenderer.showLoadingState();
       this.hide();
 
       window.dispatchEvent(
@@ -247,6 +272,15 @@ export class OpenDeckModal {
       DeckLoader.addRecentDeck(file.name);
       await DraftManager.saveDraft(rawText);
 
+      // Clear stale images from the previous deck so the picker is clean
+      try {
+        await fetch("/api/images/clear", { method: "POST" });
+      } catch {
+        /* ignore — best-effort cleanup */
+      }
+
+      // Show loading state before hiding the modal so the user sees feedback
+      SlideRenderer.showLoadingState();
       this.hide();
 
       window.dispatchEvent(
