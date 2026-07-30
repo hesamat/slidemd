@@ -141,6 +141,7 @@
     /* Slightly tighter padding for print (vs on-screen stage) */
     padding: 92px 110px !important;
     display: grid !important;
+    visibility: visible !important;
     position: relative !important;
     inset: auto !important;
     width: 20in !important;
