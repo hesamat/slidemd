@@ -8,6 +8,7 @@
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
+import { TextBlockHandler } from "../editor/text/text-block-handler.js";
 import { isEmbedded } from "../core/utils.js";
 
 /**
@@ -95,6 +96,13 @@ export function createKeyboardHandler({
         edit()?.imageInserter?.pickAndInsert?.();
       } catch (e) {
         console.warn("Insert image shortcut failed:", e);
+      }
+    },
+    insertText: () => {
+      try {
+        TextBlockHandler.insertTextBlock();
+      } catch (e) {
+        console.warn("Insert text shortcut failed:", e);
       }
     },
     openLayout: () => {

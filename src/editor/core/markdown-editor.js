@@ -79,16 +79,7 @@ export class MarkdownEditor {
                             <button type="button" class="markdown-editor-help__close" aria-label="Close help">×</button>
                         </div>
                         <table class="markdown-editor-help__table">
-                            <tbody>
-                                <tr><td>Find</td><td>Ctrl / Cmd + F</td></tr>
-                                <tr><td>Replace</td><td>Ctrl / Cmd + H</td></tr>
-                                <tr><td>Find next / previous</td><td>Ctrl / Cmd + G / Shift + G</td></tr>
-                                <tr><td>Undo / Redo</td><td>Ctrl / Cmd + Z / Shift + Z</td></tr>
-                                <tr><td>Autocomplete</td><td>Ctrl / Cmd + Space</td></tr>
-                                <tr><td>Insert 2×2 table</td><td>Ctrl / Cmd + Alt + T</td></tr>
-                                <tr><td>Indent / Outdent</td><td>Tab / Shift + Tab</td></tr>
-                                <tr><td>Fold / Unfold (gutter)</td><td>Click arrows</td></tr>
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
                 </div>
@@ -104,11 +95,37 @@ export class MarkdownEditor {
     const helpBtn = this.container.querySelector(".markdown-editor-header__help");
     const closeBtn = this.container.querySelector(".markdown-editor-help__close");
     const overlay = this.container.querySelector(".markdown-editor-help");
+    const tbody = overlay?.querySelector(".markdown-editor-help__table tbody");
     if (!helpBtn || !overlay) return;
+
+    const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+    const mod = isMac ? "Cmd" : "Ctrl";
+    const alt = isMac ? "Option" : "Alt";
+    const rows = [
+      ["Find", `${mod} + F`],
+      ["Replace", `${mod} + H`],
+      ["Find next / previous", `${mod} + G / Shift + G`],
+      ["Undo / Redo", `${mod} + Z / Shift + Z`],
+      ["Autocomplete", `${mod} + Space`],
+      ["Insert 2×2 table", `${mod} + ${alt} + T`],
+      ["Insert image", `${alt} + I`],
+      ["Insert text block", `${alt} + T`],
+      ["Insert diagram", `${alt} + M`],
+      ["Indent / Outdent", "Tab / Shift + Tab"],
+      ["Fold / Unfold (gutter)", "Click arrows"],
+    ];
+    if (tbody) {
+      tbody.innerHTML = rows
+        .map(([name, keys]) => `<tr><td>${name}</td><td>${keys}</td></tr>`)
+        .join("");
+    }
 
     const toggle = () => overlay.classList.toggle("webdeck-hidden");
     helpBtn.addEventListener("click", toggle);
     closeBtn?.addEventListener("click", toggle);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.add("webdeck-hidden");
+    });
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────

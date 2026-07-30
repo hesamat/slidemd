@@ -225,7 +225,7 @@ export class TextBlockHandler {
       pad = prev === "\n" || next === "\n" ? "\n" : "\n\n";
     }
 
-    editor.replaceRange(insertPos, insertPos, `${pad}${snippet}`);
+    editor.replaceRange(insertPos, insertPos, `${pad}${snippet}\n\n`);
     editor.focus();
   }
 
