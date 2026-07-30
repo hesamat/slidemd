@@ -390,18 +390,17 @@ export class ImageDragController {
   static _showDropGap(areaEl, insertBeforeEl) {
     let gap = this._dropIndicator;
     if (!gap) {
-      const newGap = document.createElement("div");
-      newGap.className = "image-drop-indicator";
-      newGap.style.height = `${DROP_GAP_HEIGHT}px`;
-      newGap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
-      newGap.style.margin = `${DROP_GAP_MARGIN}px 0`;
-      newGap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
-      newGap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
-      newGap.style.background = "rgba(2, 132, 199, 0.06)";
-      newGap.style.pointerEvents = "none";
-      newGap.style.flexShrink = "0";
-      areaEl.appendChild(newGap);
-      this._dropIndicator = newGap;
+      gap = document.createElement("div");
+      gap.className = "image-drop-indicator";
+      gap.style.height = `${DROP_GAP_HEIGHT}px`;
+      gap.style.minHeight = `${DROP_GAP_HEIGHT}px`;
+      gap.style.margin = `${DROP_GAP_MARGIN}px 0`;
+      gap.style.borderRadius = `${DROP_GAP_RADIUS}px`;
+      gap.style.border = "2px dashed rgba(2, 132, 199, 0.4)";
+      gap.style.background = "rgba(2, 132, 199, 0.06)";
+      gap.style.pointerEvents = "none";
+      gap.style.flexShrink = "0";
+      this._dropIndicator = gap;
     }
 
     if (insertBeforeEl && insertBeforeEl.parentNode === areaEl) {
