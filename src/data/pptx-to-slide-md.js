@@ -549,6 +549,17 @@ function convertSlide(
           getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
       );
 
+      // Catch unclassified elements (e.g. middle image straddling the midpoint)
+      // that don't clear the 1.2x threshold for either side. Assign to the
+      // column whose center is closer to the element's center.
+      const classified = new Set([...leftEls, ...rightEls]);
+      for (const el of bodyElements) {
+        if (classified.has(el)) continue;
+        const elCenterX = (el.left || 0) + (el.width || 0) / 2;
+        if (elCenterX < midX) leftEls.push(el);
+        else rightEls.push(el);
+      }
+
       if (rightEls.length === 0) {
         // No elements on the right — downgrade to header-content
         layout = LAYOUT.HEADER_CONTENT;

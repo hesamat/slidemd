@@ -68,10 +68,11 @@ inline code in numbered lists (e.g., `1. print("hello")`).
 
 ## Edge cases
 
-| Scenario                                               | Problem                                     | Fix                                            |
-| ------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------- |
-| MEDIA_SPAN with only header + image                    | `@main` would be empty                      | Empty-@main guard downgrades to HEADER_CONTENT |
-| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN        | Requires ≥2 matching lines                     |
-| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT | Wide-element exception keeps TWO_COLUMN        |
-| Footer text in body area                               | Would affect layout inference               | Footer elements always excluded                |
-| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main             | Empty-@main guard catches this                 |
+| Scenario                                               | Problem                                       | Fix                                              |
+| ------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------ |
+| MEDIA_SPAN with only header + image                    | `@main` would be empty                        | Empty-@main guard downgrades to HEADER_CONTENT   |
+| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN          | Requires ≥2 matching lines                       |
+| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT   | Wide-element exception keeps TWO_COLUMN          |
+| Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                  |
+| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                   |
+| Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column |

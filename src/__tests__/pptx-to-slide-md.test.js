@@ -1894,4 +1894,58 @@ describe("flex-row rendering", () => {
     expect(md).toMatch(/layout: (two-column|focus)/);
     expect(md).toContain("@main");
   });
+
+  it("keeps all three images in a side-by-side 3-image slide", () => {
+    // Regression test: a middle image straddling the midpoint can be unclassified
+    // by the 1.2x overlap threshold and silently dropped.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Three People",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "I'm Charles Babbage",
+            left: 2500000,
+            top: 200000,
+            width: 4000000,
+            height: 400000,
+          },
+          {
+            type: "image",
+            ref: "image20-f6a2.jpeg",
+            base64: "abc",
+            left: 0,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.33,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+          {
+            type: "image",
+            ref: "image21-xxxx.jpeg",
+            base64: "def",
+            left: DEFAULT_SIZE.width * 0.33,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.34,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+          {
+            type: "image",
+            ref: "image22-0bac.jpeg",
+            base64: "ghi",
+            left: DEFAULT_SIZE.width * 0.67,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.33,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+        ],
+        background: "#000000",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("image20-f6a2.jpeg");
+    expect(md).toContain("image21-xxxx.jpeg");
+    expect(md).toContain("image22-0bac.jpeg");
+  });
 });
