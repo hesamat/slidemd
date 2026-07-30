@@ -23,6 +23,7 @@ import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parse
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
 import { DraftManager } from "../core/draft-manager.js";
+import { createKeyboardHandler } from "./deck-keyboard.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -106,129 +107,13 @@ export class DeckController extends EventEmitter {
   }
 
   initKeyboardHandler() {
-    const edit = () => window.__WEBDECK_EDIT_CONTROLLER__;
-    this.keyboardHandler = new KeyboardHandler({
-      next: () => this.slideNavigator.next(),
-      prev: () => this.slideNavigator.prev(),
-      first: () => this.slideNavigator.goTo(this.slideNavigator.findFirstVisibleIndex()),
-      last: () => this.slideNavigator.goTo(this.slideNavigator.findLastVisibleIndex()),
-      goto: () => this.slideNavigator.openGoToPrompt(),
-      viewer: () => this.roleManager.togglePresentWindow(),
-      edit: () => this.toggleEditMode(),
-      break: () => this.breakManager.toggle(),
-      fullscreen: () => this.toggleFullscreen(),
-      reload: () => this.reloadManager.handleReloadDeck(),
-      theme: () => {
-        // T → global app theme (light/dark).  Independent of the
-        // current slide's `theme:` directive.
-        ThemeManager.toggleTheme();
-      },
-      slideTheme: () => {
-        // Alt+T → per-slide theme (the `theme:` directive on the
-        // current slide).  Edit-mode only; the modifier shortcut
-        // guard in the keyboard handler already ensures this.
-        try {
-          edit()?.themeManager?.toggle?.();
-        } catch (e) {
-          console.warn("Slide theme shortcut failed:", e);
-        }
-      },
-      styles: () => {
-        try {
-          SlideStylePanel.toggle();
-        } catch {
-          /* style panel may not be available */
-        }
-      },
-      save: () => {
-        try {
-          edit()?.saveManager?.save?.();
-        } catch (e) {
-          console.warn("Save shortcut failed:", e);
-        }
-      },
-      newSlide: () => {
-        try {
-          edit()?.layoutManager?.showPicker?.();
-        } catch (e) {
-          console.warn("New slide shortcut failed:", e);
-        }
-      },
-      duplicateSlide: () => {
-        try {
-          edit()?.slideOps?.duplicateSlide?.();
-        } catch (e) {
-          console.warn("Duplicate slide shortcut failed:", e);
-        }
-      },
-      deleteSlide: () => {
-        try {
-          edit()?.slideOps?.deleteSlide?.();
-        } catch (e) {
-          console.warn("Delete slide shortcut failed:", e);
-        }
-      },
-      insertImage: () => {
-        try {
-          edit()?.imageInserter?.pickAndInsert?.();
-        } catch (e) {
-          console.warn("Insert image shortcut failed:", e);
-        }
-      },
-      openLayout: () => {
-        try {
-          edit()?.layoutManager?.showPickerForCurrentSlide?.();
-        } catch (e) {
-          console.warn("Open layout shortcut failed:", e);
-        }
-      },
-      toggleMermaid: () => {
-        try {
-          edit()?.mermaidHelper?.toggle?.();
-        } catch (e) {
-          console.warn("Toggle Mermaid shortcut failed:", e);
-        }
-      },
-      adjustColumns: () => {
-        try {
-          edit()?.gridResizer?.toggle?.();
-        } catch (e) {
-          console.warn("Adjust columns shortcut failed:", e);
-        }
-      },
-      moveSlideUp: () => {
-        try {
-          edit()?.slideOps?.moveSlideUp?.();
-        } catch (e) {
-          console.warn("Move slide up shortcut failed:", e);
-        }
-      },
-      moveSlideDown: () => {
-        try {
-          edit()?.slideOps?.moveSlideDown?.();
-        } catch (e) {
-          console.warn("Move slide down shortcut failed:", e);
-        }
-      },
-      undo: () => {
-        try {
-          edit()?.markdownEditor?.undo?.();
-        } catch (e) {
-          console.warn("Undo shortcut failed:", e);
-        }
-      },
-      redo: () => {
-        try {
-          edit()?.markdownEditor?.redo?.();
-        } catch (e) {
-          console.warn("Redo shortcut failed:", e);
-        }
-      },
-      isEditMode: () => this.isEditMode(),
-      isBreakActive: () => this.breakManager.isActive,
-      endBreak: () => this.breakManager.setActive(false),
-      isEditorWindow: () => this.roleManager.isEditorWindow,
-      isEmbedded: isEmbedded,
+    this.keyboardHandler = createKeyboardHandler({
+      slideNavigator: this.slideNavigator,
+      roleManager: this.roleManager,
+      breakManager: this.breakManager,
+      reloadManager: this.reloadManager,
+      toggleEditMode: () => this.toggleEditMode(),
+      toggleFullscreen: () => this.toggleFullscreen(),
     });
   }
 
