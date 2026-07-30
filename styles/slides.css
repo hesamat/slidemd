@@ -199,7 +199,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   width: 90%;
 }
 
-/* Focus layout: remove header underline, center header and lists */
+/* Focus layout: remove header underline, center header */
 .slide[data-layout="focus"] .slide__area--header {
   align-items: center;
   text-align: center;
@@ -214,17 +214,17 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 .slide[data-layout="focus"] .slide__area--main {
   justify-content: center;
   align-items: center;
-  text-align: center;
+  text-align: left;
   max-width: 1050px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* Lists: outside markers with centered text */
+/* Lists: outside markers with left-aligned text */
 .slide[data-layout="focus"] .slide__area--main ul,
 .slide[data-layout="focus"] .slide__area--main ol {
   list-style-position: outside;
-  text-align: center;
+  text-align: left;
   padding-left: 0;
   margin: var(--spacing-md) auto 0;
   gap: var(--spacing-md);
