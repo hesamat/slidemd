@@ -377,10 +377,17 @@ export function inferLayout(
     (el) => el !== headerEl && el !== dominantImages[0] && el.type === ELEMENT_TYPES.IMAGE,
   );
 
+  // Check if there's any code-like content in body (multi-line text with code patterns)
+  const hasCodeBody = bodyEls.some((el) => {
+    const text = el.content?.trim() || "";
+    return text.split("\n").length > 3 || /```[\s\S]*```/.test(text);
+  });
+
   const hasSubstantialBody =
     bodyRichEls.length > 0 ||
     bodyLength > CONFIG.minSubstantialBodyLength ||
-    bodyImages.length > 0;
+    bodyImages.length > 0 ||
+    hasCodeBody;
 
   if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;

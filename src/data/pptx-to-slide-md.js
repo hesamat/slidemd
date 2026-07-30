@@ -189,13 +189,18 @@ function convertSlide(
   let fullImageCandidate = null;
   if (bgCandidate) {
     const imgArea = (bgCandidate.width || 0) * (bgCandidate.height || 0);
-    const hasContent = slide.elements.some(
+    // Check if there are any non-image, non-footer elements besides the bgCandidate
+    const hasNonImageContent = slide.elements.some(
       (el) =>
         el !== bgCandidate &&
-        el.content?.trim() &&
+        el.type !== ELEMENT_TYPES.IMAGE &&
         el.placeholderType !== ELEMENT_TYPES.FOOTER,
     );
-    if (imgArea >= slideArea * fullImageThreshold && !hasContent) {
+    // Also check if there are other images besides the bgCandidate
+    const hasOtherImages = slide.elements.some(
+      (el) => el !== bgCandidate && el.type === ELEMENT_TYPES.IMAGE && el.ref,
+    );
+    if (imgArea >= slideArea * fullImageThreshold && !hasNonImageContent && !hasOtherImages) {
       fullImageCandidate = bgCandidate;
     }
   }
