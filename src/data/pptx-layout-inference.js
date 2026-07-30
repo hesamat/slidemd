@@ -3,6 +3,8 @@
  *
  * Pure functions that determine slide layout based on element positions.
  * Extracted from pptx-to-slide-md.js for clarity and reuse.
+ *
+ * Strategy and edge cases → docs/pptx-layout-detection.md
  */
 import { stripHtml } from "./pptx-html-to-markdown.js";
 import { LAYOUT, ELEMENT_TYPES, REGEX, CONFIG } from "./pptx-slide-config.js";
@@ -275,7 +277,8 @@ export function inferLayout(
         if (lines.length < 2) return false;
         const codeKeywords =
           /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|else\s|elif\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--|\w+\s*[=:]\s*[({[])/;
-        const isCode = lines.some((l) => codeKeywords.test(l));
+        const codeLineCount = lines.filter((l) => codeKeywords.test(l)).length;
+        const isCode = codeLineCount >= 2;
         if (isCode) codeEl = el;
         return isCode;
       });

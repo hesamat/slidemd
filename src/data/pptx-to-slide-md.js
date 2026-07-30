@@ -5,6 +5,8 @@
  * directly into SlideMD markdown. Uses element positions and
  * sizes to infer layouts deterministically.
  *
+ * Strategy and edge cases → docs/pptx-layout-detection.md
+ *
  * @class
  */
 import { isColorDark } from "./pptx-color-utils.js";
@@ -589,30 +591,59 @@ function convertSlide(
       }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    parts.push("");
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
-      parts.push("");
-      parts.push(formatTextElement(header.content));
-      parts.push("");
-    }
-    // Put all dominant images in @media, everything else in @main
+    // Put all dominant images in @media, everything else in @main.
+    // Compute first so we can guard against empty @main BEFORE any rendering.
     const mediaEls = dominantImages.filter(
       (el) => bodyElements.includes(el) || el === dominantImages[0],
     );
     const leftEls = bodyElements.filter((el) => !mediaEls.includes(el));
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(
-      renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
-    );
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MEDIA);
-    parts.push("");
-    if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
-      parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
+
+    // Guard: if no non-media body elements, @main would be empty.
+    // Downgrade to header-content and put the image(s) in @main instead.
+    if (leftEls.length === 0) {
+      layout = LAYOUT.HEADER_CONTENT;
+      parts[0] = `layout: ${layout.spec}`;
+      parts.push("");
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
+      parts.push("");
+      parts.push(
+        mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref
+          ? formatImage(mediaEls[0], deckName, { omitDimensions: false })
+          : renderElementsWithFlex(
+              mediaEls,
+              slideWidth,
+              slideHeight,
+              deckName,
+              formatSingleElement,
+            ),
+      );
     } else {
-      parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      parts.push("");
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
+      parts.push("");
+      parts.push(
+        renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+      );
+      parts.push("");
+      parts.push(MARKDOWN_TAGS.MEDIA);
+      parts.push("");
+      if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
+        parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
+      } else {
+        parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      }
     }
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
