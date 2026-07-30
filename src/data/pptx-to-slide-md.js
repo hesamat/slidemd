@@ -596,6 +596,9 @@ function convertSlide(
         const rightContent = lines.slice(splitAt).join("\n").trimStart();
         // If right side is empty after split, fall back to single-column rendering
         if (!rightContent) {
+          // Replace the layout directive in parts (already pushed as two-column)
+          const layoutIdx = parts.findIndex((p) => p.startsWith("layout:"));
+          if (layoutIdx !== -1) parts[layoutIdx] = `layout: ${LAYOUT.HEADER_CONTENT.spec}`;
           parts.push("");
           if (isHeaderValid) {
             parts.push(MARKDOWN_TAGS.HEADER);
