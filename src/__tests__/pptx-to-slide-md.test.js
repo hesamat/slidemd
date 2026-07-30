@@ -1667,4 +1667,62 @@ describe("flex-row rendering", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("[Diagram]");
   });
+
+  it("uses two-column layout for wide code elements that span the slide", () => {
+    // Simulates a PPTX slide where code from two columns was merged into one wide text element
+    const mergedCode = [
+      "products = [",
+      "    'Keyboard',",
+      "    'Mouse',",
+      "    'Monitor',",
+      "    'Webcam'",
+      "]",
+      "inventory = {",
+      "    product: 0",
+      "    for product in products",
+      "}",
+      "words = [",
+      "    'algorithm',",
+      "    'loop',",
+      "    'dictionary',",
+      "    'function'",
+      "]",
+      "lengths = {",
+      "    word: len(word)",
+      "    for word in words",
+      "}",
+    ].join("\n");
+
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Dict Comp",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## The dictionary comprehension",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: mergedCode,
+            left: 500000,
+            top: 1500000, // below bodyThreshold (22% of 5143500 = 1131570)
+            width: 8000000, // wide element spanning most of the slide
+            height: 3500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // Should get two-column because the code element is wide (>60% of slide width)
+    expect(md).toMatch(/layout: two-column/);
+    expect(md).toContain("@main");
+    expect(md).toContain("@media");
+  });
 });

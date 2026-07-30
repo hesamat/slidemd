@@ -370,6 +370,7 @@ function convertSlide(
       el.content?.trim() &&
       el.placeholderType !== ELEMENT_TYPES.FOOTER,
   );
+
   const allElements = meaningfulElements.filter(
     (el) =>
       el !== bgCandidate &&
@@ -452,6 +453,8 @@ function convertSlide(
 
   // Pre-check: if two-column split would leave one side empty, downgrade now
   // so the layout spec matches the actual rendered content.
+  // Exception: single wide code elements that span the slide — keep TWO_COLUMN
+  // so the rendering can split them at the midpoint.
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
       (el) =>
@@ -464,7 +467,11 @@ function convertSlide(
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
-      layout = LAYOUT.HEADER_CONTENT;
+      // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
+      const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.6);
+      if (!(bodyElements.length === 1 && hasWideElement)) {
+        layout = LAYOUT.HEADER_CONTENT;
+      }
     }
   }
 
@@ -545,9 +552,33 @@ function convertSlide(
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    // If the position split leaves one side empty, this isn't really two-column.
+    // If the position split leaves one side empty, check for a single wide element
+    // that spans both columns (merged code from PPTX extraction). Split its content
+    // at the midpoint by line count.
     if (leftEls.length === 0 || rightEls.length === 0) {
-      layout = LAYOUT.HEADER_CONTENT;
+      const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.6);
+      if (wideEl && bodyElements.length === 1) {
+        const lines = (wideEl.content || "").split("\n");
+        const mid = Math.ceil(lines.length / 2);
+        const leftContent = lines.slice(0, mid).join("\n");
+        const rightContent = lines.slice(mid).join("\n");
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(formatTextElement(leftContent));
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(formatTextElement(rightContent));
+      } else {
+        layout = LAYOUT.HEADER_CONTENT;
+      }
     } else {
       parts.push("");
       if (isHeaderValid) {
@@ -950,18 +981,29 @@ function inferLayout(
 
     if (hasHeader && hasBodyBelowHeader) {
       // Use focus for slides where code or single-element content is the center stage
-      const isFirstSlide = slideIndex === 0;
+      let codeEl = null;
       const looksLikeCode = contentEls.some((el) => {
         const text = el.content?.trim() || "";
         // Detect fenced code blocks
-        if (/```[\s\S]*```/.test(text)) return true;
+        if (/```[\s\S]*```/.test(text)) {
+          codeEl = el;
+          return true;
+        }
         const lines = text.split("\n");
         if (lines.length < 2) return false;
         const codeKeywords =
-          /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|else\s|elif\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--)/;
-        return lines.some((l) => codeKeywords.test(l));
+          /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|else\s|elif\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--|\w+\s*[=:]\s*[({[])/;
+        const isCode = lines.some((l) => codeKeywords.test(l));
+        if (isCode) codeEl = el;
+        return isCode;
       });
-      if (looksLikeCode && !isFirstSlide) return LAYOUT.FOCUS;
+      if (looksLikeCode) {
+        // If the code element spans most of the slide width, it's likely merged
+        // from two columns — use two-column layout so content can be distributed
+        const codeWidth = codeEl?.width || 0;
+        if (codeWidth > slideWidth * 0.6) return LAYOUT.TWO_COLUMN;
+        return LAYOUT.FOCUS;
+      }
       return LAYOUT.HEADER_CONTENT;
     }
     if (totalLength < CONFIG.maxTitleLength) {
