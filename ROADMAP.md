@@ -355,7 +355,9 @@ Goal: Make the Markdown string the single source of truth for both the user and 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
 | [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
-| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during import.      |
+| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
+
+---
 
 ## Phase 11: Content AST & Renderer
 
@@ -383,6 +385,8 @@ Goal: Add an internal, typed content model over `markdown-it` tokens to drive de
 | ----------------------------- | ------------------------------------------------------------------- |
 | [ ] Unify Mermaid/Prism/KaTeX | Single `ContentEnhancer` path across runtime, HTML export, and PDF. |
 | [ ] Add AST snapshot tests    | Verify that known decks render to a stable AST.                     |
+
+---
 
 ## Phase 12: AI Operations & Output Schema
 
@@ -413,6 +417,8 @@ Goal: Structure the AI layer with a registry of intents, validated output, and a
 | [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments.               |
 | [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts. |
 
+---
+
 ## Phase 13: State, Patches & History
 
 Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
@@ -439,6 +445,8 @@ Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
 | ------------------------------ | ------------------------------------------------------- |
 | [ ] Wire `DeckStore` to editor | Make `EditController` read and write through the store. |
 | [ ] Add global undo/redo       | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`.          |
+
+---
 
 ## Phase 14: Design System & Theme Registry
 
@@ -467,6 +475,8 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 | [ ] Add brand defaults | Default colors, fonts, and accent palette for new decks.            |
 | [ ] Add theme preview  | Render a small preview of each theme in the New Presentation modal. |
 
+---
+
 ## Phase 15: Presenter, Print & AI Commands
 
 Goal: Build out the presenter experience, simplify print/PDF preparation, and expose contextual AI commands.
@@ -493,6 +503,8 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
 | [ ] Add AI command palette UI | List of intents: summarize for executive, convert bullets to metric cards, add speaker notes. |
 | [ ] Wire `AiOperations` to UI | Each command maps to an `AiOperation` with a prompt and a selected slide.                     |
+
+---
 
 ## Phase 16: Cloud Mode
 
@@ -535,6 +547,8 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | 1    | Add `GET /api/browse` and update `POST /api/upload-image` with storage driver logic |
 | 2    | Implement GitHub Device OAuth flow helper in `tools/dev-server.mjs`                 |
 | 3    | Update UI header/modal buttons for "Open Deck", "Export .textpack", "Export .html"  |
+
+---
 
 ## Summary
 
