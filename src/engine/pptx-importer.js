@@ -11,6 +11,7 @@ import { ImagePicker } from "../editor/image/image-picker.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
+import { setImageUploadPromise, waitForImageUpload } from "../core/image-upload-promise.js";
 
 export class PptxImporter {
   /**
@@ -174,38 +175,42 @@ export class PptxImporter {
 
       if (imageFiles.size > 0) {
         // Upload images to the server in the background and then swap blob URLs for server paths
-        window.__WEBDECK_IMAGE_UPLOAD_PROMISE__ = (async () => {
-          const entries = [];
-          for (const [rawName, file] of imageFiles) {
-            entries.push({ key: rawName, file });
-          }
-          const uploadedPaths = await uploadImagesInBatches(entries, { signal: controller.signal });
-          let serverMarkdown = markdown;
-          for (const [rawName, serverPath] of uploadedPaths) {
-            const blobUrl = imageBlobs.get(rawName);
-            if (blobUrl && serverPath) {
-              serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+        setImageUploadPromise(
+          (async () => {
+            const entries = [];
+            for (const [rawName, file] of imageFiles) {
+              entries.push({ key: rawName, file });
             }
-          }
-          try {
-            localStorage.setItem("webdeck_local_file", serverMarkdown);
-            localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-          } catch {
-            window.__WEBDECK_MARKDOWN__ = serverMarkdown;
-          }
-          await DraftManager.saveDraft(serverMarkdown);
-          if (window.__WEBDECK_EDIT_CONTROLLER__) {
+            const uploadedPaths = await uploadImagesInBatches(entries, {
+              signal: controller.signal,
+            });
+            let serverMarkdown = markdown;
+            for (const [rawName, serverPath] of uploadedPaths) {
+              const blobUrl = imageBlobs.get(rawName);
+              if (blobUrl && serverPath) {
+                serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+              }
+            }
             try {
-              window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
-                new MarkdownParser().splitSlides(serverMarkdown);
+              localStorage.setItem("webdeck_local_file", serverMarkdown);
+              localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
             } catch {
-              /* ignore */
+              window.__WEBDECK_MARKDOWN__ = serverMarkdown;
             }
-          }
-        })().catch((err) => {
-          if (err.name === "AbortError") return;
-          console.warn("Background image upload failed:", err);
-        });
+            await DraftManager.saveDraft(serverMarkdown);
+            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+              try {
+                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
+                  new MarkdownParser().splitSlides(serverMarkdown);
+              } catch {
+                /* ignore */
+              }
+            }
+          })().catch((err) => {
+            if (err.name === "AbortError") return;
+            console.warn("Background image upload failed:", err);
+          }),
+        );
       }
 
       Notification.dismissAll();
@@ -214,9 +219,7 @@ export class PptxImporter {
           {
             label: "Save as .textpack",
             onClick: async () => {
-              if (window.__WEBDECK_IMAGE_UPLOAD_PROMISE__) {
-                await window.__WEBDECK_IMAGE_UPLOAD_PROMISE__;
-              }
+              await waitForImageUpload();
               const mockDeck = { meta: { title: deckName || "pptx-import" } };
               const { ok } = await TextpackExportManager.handleTextpackExport(
                 getLatestMarkdown(),
@@ -235,9 +238,7 @@ export class PptxImporter {
             label: "Save as .md (markdown only)",
             onClick: async () => {
               const loading = Notification.showLoadingModal("Saving deck\u2026");
-              if (window.__WEBDECK_IMAGE_UPLOAD_PROMISE__) {
-                await window.__WEBDECK_IMAGE_UPLOAD_PROMISE__;
-              }
+              await waitForImageUpload();
               const mdBlob = new Blob([getLatestMarkdown()], { type: "text/markdown" });
               try {
                 if (window.showSaveFilePicker) {

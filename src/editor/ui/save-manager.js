@@ -8,6 +8,7 @@ import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
 export class SaveManager {
   /**
@@ -61,31 +62,20 @@ export class SaveManager {
    * @returns {string}
    */
   getFullMarkdown() {
-    const localMd = localStorage.getItem("webdeck_local_file");
-    if (localMd) {
-      try {
-        const parser = new MarkdownParser();
-        this.originalMarkdown = parser.splitSlides(localMd);
-      } catch {
-        // keep existing cache
-      }
-    }
-
+    const merged = [...this.originalMarkdown];
     for (let i = 0; i < this.deck.slides.length; i++) {
       if (this.unsavedMarkdown.has(i)) {
-        this.originalMarkdown[i] = this.unsavedMarkdown.get(i);
+        merged[i] = this.unsavedMarkdown.get(i);
       }
     }
-
-    return this.originalMarkdown.join("\n\n---\n\n");
+    return merged.join("\n\n---\n\n");
   }
 
   async save() {
-    if (window.__WEBDECK_IMAGE_UPLOAD_PROMISE__) {
-      await window.__WEBDECK_IMAGE_UPLOAD_PROMISE__;
-    }
+    await waitForImageUpload();
     const fullMarkdown = this.getFullMarkdown();
 
+    this.originalMarkdown = new MarkdownParser().splitSlides(fullMarkdown);
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this.updateButton();
