@@ -357,30 +357,6 @@ function convertSlide(
   );
   const midX = slideWidth / 2;
 
-  // Pre-check: if two-column split would leave one side empty, downgrade now
-  // so the layout spec matches the actual rendered content.
-  // Exception: single wide code elements that span the slide — keep TWO_COLUMN
-  // so the rendering can split them at the midpoint.
-  if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const leftEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
-    );
-    const rightEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
-    );
-    if (leftEls.length === 0 || rightEls.length === 0) {
-      // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
-      const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
-      if (!(bodyElements.length === 1 && hasWideElement)) {
-        layout = LAYOUT.HEADER_CONTENT;
-      }
-    }
-  }
-
   parts.push(`layout: ${layout.spec}`);
 
   if (slide.background) {
