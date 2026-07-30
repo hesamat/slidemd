@@ -7,11 +7,21 @@
  *
  * @class
  */
-import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
-import { hexToLuminance, sanitizeCssColor, isColorDark } from "./pptx-color-utils.js";
-import { formatTextElement, wrapLongLists, formatImage, formatTable, formatChart, formatDiagram } from "./pptx-element-formatters.js";
-import { getOverlapArea, filterMeaningfulElements, findDominantImages, inferLayout } from "./pptx-layout-inference.js";
+import { isColorDark } from "./pptx-color-utils.js";
+import {
+  formatTextElement,
+  wrapLongLists,
+  formatImage,
+  formatTable,
+  formatChart,
+  formatDiagram,
+} from "./pptx-element-formatters.js";
+import {
+  getOverlapArea,
+  filterMeaningfulElements,
+  findDominantImages,
+  inferLayout,
+} from "./pptx-layout-inference.js";
 import {
   LAYOUT,
   CONVERSION,
@@ -19,7 +29,6 @@ import {
   DEFAULTS,
   ELEMENT_TYPES,
   MARKDOWN_TAGS,
-  LUMINANCE,
   REGEX,
   CONFIG,
 } from "./pptx-slide-config.js";
@@ -692,8 +701,6 @@ function convertSlide(
   return wrapLongLists(parts.join("\n"));
 }
 
-
-
 /**
  * Group body elements into horizontal flex rows based on vertical proximity.
  * Elements with similar `top` positions that are horizontally separated
@@ -823,5 +830,3 @@ function renderElementsWithFlex(elements, slideWidth, slideHeight, deckName, for
 
   return parts.join(REGEX.DOUBLE_NEWLINE);
 }
-
-

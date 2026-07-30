@@ -1,4 +1,4 @@
-import { getDeckId, EventEmitter, isEmbedded, escapeHtml } from "../core/utils.js";
+import { getDeckId, EventEmitter, escapeHtml } from "../core/utils.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -7,7 +7,6 @@ import { BreakManager } from "./break-manager.js";
 import { FreezeManager } from "./freeze-manager.js";
 import { ThemeManager } from "../renderer/theme-manager.js";
 import { Notification } from "../renderer/notification.js";
-import { KeyboardHandler } from "./keyboard-handler.js";
 import { WheelHandler } from "./wheel-handler.js";
 import { RoleManager } from "./role-manager.js";
 import { SlideNavigator } from "./slide-navigator.js";
@@ -16,12 +15,10 @@ import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
-import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { MarkdownParser, applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
-import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { createKeyboardHandler } from "./deck-keyboard.js";
 
