@@ -70,6 +70,12 @@
       "preview": "<div style=\"grid-area: header; opacity: 0.4\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: footer; opacity: 0.4\"></div>",
       "template": "layout: focus\n\n@header\n## Today's Topics\n\n@main\n- Introduction to Topic A\n- Deep Dive into Topic B\n- Hands-on Workshop\n- Q&A Session\n\n@footer\nAdditional context or reference"
     },
+    "full-image": {
+      "gridTemplate": "\"main\" 1fr / 1fr",
+      "description": "Full-bleed image covering the entire slide",
+      "preview": "<div style=\"grid-area: main\"></div>",
+      "template": "layout: full-image\n\n@main\n<img src=\"images/photo.jpg\" />"
+    },
     "default": {
       "_note": "Hidden from modal. Used as fallback when no layout is specified.",
       "gridTemplate": "\"header\" \"main\" \"footer\" / 1fr",

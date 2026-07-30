@@ -17,14 +17,14 @@ Respond with valid JSON only. No other text. No explanations. No markdown fences
 
 ### Rules
 
-- "layout" must be one of: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column, focus
+- "layout" must be one of: title-slide, header-content, two-column, media-span, left-heavy, right-heavy, three-column, focus, full-image
 - "background" is optional (keep the original if provided)
 - "theme" is optional (keep the original if provided)
 - "content" is the slide body (everything after layout/background/theme directives)
 - Use `\n` for newlines in the content string
 - Each slide in the array corresponds to one slide separated by `---`
 - When instructed to return a subset of slides, return only those slides
-- Every slide must have non-empty "content" with actual slide body text
+- Every slide must have non-empty "content" with actual slide body text or an img tag
 
 ## Formatting Rules
 
@@ -51,6 +51,7 @@ Example: `"@header\n## Title\n\n@main\n\n- Point 1\n- Point 2"` (note double new
 | right-heavy    | no     | optional | yes   | yes    | no         | no       | optional |
 | three-column   | no     | optional | yes   | yes    | yes        | no       | optional |
 | media-span     | no     | optional | yes   | yes    | no         | no       | optional |
+| full-image     | no     | no       | yes   | no     | no         | no       | no       |
 
 - @secondary is only valid in three-column layout
 - @sidebar is only valid in custom grid layouts

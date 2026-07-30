@@ -13,6 +13,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - If comparing 2-3 items (e.g. storage types, algorithms, data structures), use a **table** instead of bullet points across columns. Tables are clearer for side-by-side comparison
 - If a slide has a Mermaid diagram + any text content, use two-column (diagram in @media, text in @main)
 - Use media-span only for slides with actual img tags. Code blocks and diagrams go in two-column, focus, or header-content
+- Use `full-image` for slides that are ONLY a full-bleed image with no text. Put the `<img>` tag in `@main`. Do not add @header, @footer, or any text areas.
 - Combine related micro-content into cohesive slides
 - Add section dividers or overview slides when transitioning between topics
 - Every slide MUST have meaningful content in the appropriate area markers
@@ -39,7 +40,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 
 ## Custom Layouts
 
-When none of the built-in layouts fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter. The standard built-in layouts are: header-content, two-column, three-column, media-span, left-heavy, right-heavy, focus.
+When none of the built-in layouts fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter. The standard built-in layouts are: header-content, two-column, three-column, media-span, left-heavy, right-heavy, focus, full-image.
 
 Rules for custom layouts:
 

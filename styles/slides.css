@@ -739,6 +739,26 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   min-height: 0;
 }
 
+/* --- FULL-IMAGE LAYOUT --- */
+
+/* Zero padding: image fills the entire slide */
+.slide[data-layout="full-image"] {
+  padding: 0;
+}
+
+.slide[data-layout="full-image"] .slide__area {
+  padding: 0;
+  overflow: hidden;
+}
+
+.slide[data-layout="full-image"] .slide__area img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  margin: 0;
+}
+
 /* Flex-row container for horizontally adjacent PPTX elements */
 .slide__area .flex-row {
   display: flex;

@@ -18,6 +18,7 @@ const LAYOUT = {
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
   MEDIA_SPAN: { type: "media-span", spec: "media-span" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },
+  FULL_IMAGE: { type: "full-image", spec: "full-image" },
 };
 
 // Conversion Ratios & Normalization Thresholds
@@ -280,6 +281,24 @@ function convertSlide(
     });
   });
 
+  // Detect full-image slides: single image covering > 50% with no text content.
+  // These use the full-image layout instead of a CSS background.
+  // Footer text is excluded — it's decorative, not content.
+  const fullImageThreshold = 0.5;
+  let fullImageCandidate = null;
+  if (bgCandidate) {
+    const imgArea = (bgCandidate.width || 0) * (bgCandidate.height || 0);
+    const hasText = slide.elements.some(
+      (el) =>
+        el.type === ELEMENT_TYPES.TEXT &&
+        el.content?.trim() &&
+        el.placeholderType !== ELEMENT_TYPES.FOOTER,
+    );
+    if (imgArea >= slideArea * fullImageThreshold && !hasText) {
+      fullImageCandidate = bgCandidate;
+    }
+  }
+
   // Drop non-background images when not importing so they don't affect layout inference.
   // The bgCandidate is always preserved so its file reference can be emitted.
   if (!importImages) {
@@ -330,7 +349,8 @@ function convertSlide(
   );
 
   // Emit background image as a file reference (always uploaded, never inlined).
-  if (importBackgrounds && bgCandidate) {
+  // Skip if this is a full-image slide — the image will be emitted as an <img> tag instead.
+  if (importBackgrounds && bgCandidate && !fullImageCandidate) {
     const rawName = (bgCandidate.ref || "").split("/").pop();
     const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
     slide.background = `linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(${DEFAULTS.IMAGE_SUBDIR}${filename}) center / cover no-repeat`;
@@ -455,6 +475,22 @@ function convertSlide(
     if (bgCandidate || isColorDark(slide.background)) {
       parts.push("theme: dark");
     }
+  }
+
+  // --- FULL-IMAGE OVERRIDE ---
+  // If a full-image candidate was detected, override the layout and render
+  // the image as an <img> tag in @main instead of using CSS background.
+  if (fullImageCandidate) {
+    layout = LAYOUT.FULL_IMAGE;
+    parts[0] = `layout: ${layout.spec}`;
+    // Remove background/theme if they were set — not needed for full-image
+    if (parts[1]?.startsWith("background:")) parts.splice(1, 1);
+    if (parts[1] === "theme: dark") parts.splice(1, 1);
+    parts.push("");
+    parts.push(MARKDOWN_TAGS.MAIN);
+    parts.push("");
+    parts.push(formatImage(fullImageCandidate, deckName));
+    return parts.join("\n");
   }
 
   // --- RENDER SECTIONS ---
