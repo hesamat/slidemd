@@ -5,132 +5,35 @@
  * directly into SlideMD markdown. Uses element positions and
  * sizes to infer layouts deterministically.
  *
+ * Strategy and edge cases → docs/pptx-layout-detection.md
+ *
  * @class
  */
-import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
-
-// Layout Definitions
-const LAYOUT = {
-  TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
-  FOCUS: { type: "focus", spec: "focus" },
-  HEADER_CONTENT: { type: "header-content", spec: "header-content" },
-  TWO_COLUMN: { type: "two-column", spec: "two-column" },
-  MEDIA_SPAN: { type: "media-span", spec: "media-span" },
-  THREE_COLUMN: { type: "three-column", spec: "three-column" },
-  FULL_IMAGE: { type: "full-image", spec: "full-image" },
-};
-
-// Conversion Ratios & Normalization Thresholds
-const CONVERSION = {
-  EMU_PER_POINT: 12700,
-  EMU_THRESHOLD: 10000, // Value threshold above which numbers are treated as EMUs
-  POINTS_TO_PX: 96 / 72, // DPI point-to-pixel scale ratio (72 points = 96 pixels)
-  INDENT_DIVISOR: 2,
-};
-
-const DEFAULT_SLIDE_SIZE = {
-  WIDTH_EMU: 9144000,
-  HEIGHT_EMU: 5143500,
-};
-
-const DEFAULTS = {
-  DECK_NAME: "presentation",
-  IMAGE_FILENAME: "image.png",
-  IMAGE_MIME_PNG: ".png",
-  IMAGE_SUBDIR: "images/",
-  NOTES_COMMENT_START: "<!-- notes: ",
-  NOTES_COMMENT_END: " -->",
-  CHART_COMMENT_PREFIX: "<!-- ",
-  CHART_COMMENT_SUFFIX: " -->",
-  CHART_PLACEHOLDER: "[Chart]",
-};
-
-const ELEMENT_TYPES = {
-  FOOTER: "footer",
-  TEXT: "text",
-  IMAGE: "image",
-  TABLE: "table",
-  CHART: "chart",
-  DIAGRAM: "diagram",
-};
-
-const MARKDOWN_TAGS = {
-  TITLE: "@title",
-  HEADER: "@header",
-  MAIN: "@main",
-  MEDIA: "@media",
-  SECONDARY: "@secondary",
-  FOOTER: "@footer",
-};
-
-const LUMINANCE = {
-  RED_COEFF: 299,
-  GREEN_COEFF: 587,
-  BLUE_COEFF: 114,
-  SCALE_DIVISOR: 1000,
-  DARK_THRESHOLD: 128,
-  HEX_MIN_LENGTH: 6,
-};
-
-const REGEX = {
-  BULLET: /^(?:[\u2022\u2023\u25E6\u2043\u2219•-]\s*)+/,
-  NUMBER: /^\d+[.)]\s*/,
-  HEADING_MARKER: /^#{1,3}\s/,
-  BULLET_LINE: /(?:^|\n)\s*[-*•]\s/,
-  NUMBER_LINE: /(?:^|\n)\s*\d+[.)]\s/,
-  CODE_BLOCK: /```/,
-  BOLD_HEADING: /^\*\*[^*]+\*\*$/,
-  HEADING_REPLACE: /^#{1,3}\s+/,
-  NOTES_HTML_COMMENT_START: /<!--/g,
-  NOTES_HTML_COMMENT_END: /-->/g,
-  NOTES_HTML_BR: /<br\s*\/?>/gi,
-  NOTES_HTML_TAGS: /<[^>]+>/g,
-  IMAGE_VECTOR_EXT: /\.(emf|wmf)$/i,
-  DECK_NAME_SANITIZE: /[^a-zA-Z0-9_-]/g,
-  FILE_EXTENSION: /\.[^.]+$/,
-  HYPHEN_UNDERSCORE: /[-_]/g,
-  NEWLINE_CRLF: /\r\n?/g,
-  NEWLINE: /\n/g,
-  PIPE: /\|/g,
-  ESCAPE_PIPE: "\\|",
-  DOUBLE_NEWLINE: "\n\n",
-  TRIPLE_NEWLINE_OR_MORE: /\n{3,}/g,
-};
-
-const CONFIG = {
-  bodyTopRatio: 0.22,
-  rowMaxVerticalDiffRatio: 0.1,
-  minColumnSpreadRatio: 0.15,
-  maxTitleLength: 300,
-  maxTitleElements: 3,
-  headerThinRatio: 0.4,
-  maxHeaderHeightRatio: 0.35,
-  centerToleranceRatio: 0.1,
-  minSubstantialBodyLength: 80,
-  maxHeaderLength: 150,
-  maxHeaderLengthShort: 80,
-  minMediaAreaRatio: 0.005,
-  maxMediaAreaRatio: 0.85,
-  maxLogoAreaRatio: 0.015, // Max area of slide (1.5%) for header/footer logo filtering
-  maxBackgroundCardRatio: 1.5, // Max area multiplier relative to text for background cards
-  minDominantAreaRatio: 0.05,
-  thinLineThresholdPoints: 15, // Max thickness in points for vertical/horizontal lines
-  microNoiseThresholdPoints: 150, // Absolute minimum area in points for an image
-  marginTopRatio: 0.1, // Top 10% of slide height
-  marginBottomRatio: 0.9, // Bottom 10% of slide height
-  aspectRatioUpperLimit: 8,
-  aspectRatioLowerLimit: 0.125,
-  overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
-  dominantImageThreshold: 0.6, // Minimum area ratio for dominant image to become background
-  backgroundOverlapThreshold: 0.1, // Minimum overlap ratio for background/content
-  spreadOverlapThreshold: 0.5, // Minimum overlap ratio for two-column detection
-  partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
-  tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
-  fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
-  flexRowVerticalTolerance: 0.15, // Max top-position diff (ratio of slide height) for same row
-  flexRowMinHorizontalGap: 0.1, // Min gap (ratio of slide width) between elements in a row
-};
+import { isColorDark } from "./pptx-color-utils.js";
+import {
+  formatTextElement,
+  wrapLongLists,
+  formatImage,
+  formatTable,
+  formatChart,
+  formatDiagram,
+} from "./pptx-element-formatters.js";
+import {
+  getOverlapArea,
+  filterMeaningfulElements,
+  findDominantImages,
+  inferLayout,
+} from "./pptx-layout-inference.js";
+import {
+  LAYOUT,
+  CONVERSION,
+  DEFAULT_SLIDE_SIZE,
+  DEFAULTS,
+  ELEMENT_TYPES,
+  MARKDOWN_TAGS,
+  REGEX,
+  CONFIG,
+} from "./pptx-slide-config.js";
 
 /**
  * Convert English Metric Units (EMUs) to standard slide points.
@@ -281,20 +184,25 @@ function convertSlide(
     });
   });
 
-  // Detect full-image slides: single image covering > 50% with no text content.
+  // Detect full-image slides: single image covering > 50% with no content.
   // These use the full-image layout instead of a CSS background.
   // Footer text is excluded — it's decorative, not content.
   const fullImageThreshold = 0.5;
   let fullImageCandidate = null;
   if (bgCandidate) {
     const imgArea = (bgCandidate.width || 0) * (bgCandidate.height || 0);
-    const hasText = slide.elements.some(
+    // Check if there are any non-image, non-footer elements besides the bgCandidate
+    const hasNonImageContent = slide.elements.some(
       (el) =>
-        el.type === ELEMENT_TYPES.TEXT &&
-        el.content?.trim() &&
+        el !== bgCandidate &&
+        el.type !== ELEMENT_TYPES.IMAGE &&
         el.placeholderType !== ELEMENT_TYPES.FOOTER,
     );
-    if (imgArea >= slideArea * fullImageThreshold && !hasText) {
+    // Also check if there are other images besides the bgCandidate
+    const hasOtherImages = slide.elements.some(
+      (el) => el !== bgCandidate && el.type === ELEMENT_TYPES.IMAGE && el.ref,
+    );
+    if (imgArea >= slideArea * fullImageThreshold && !hasNonImageContent && !hasOtherImages) {
       fullImageCandidate = bgCandidate;
     }
   }
@@ -453,18 +361,18 @@ function convertSlide(
 
   // Pre-check: if two-column split would leave one side empty, downgrade now
   // so the layout spec matches the actual rendered content.
-  // Exception: single wide code elements that span the slide — keep TWO_COLUMN
-  // so the rendering can split them at the midpoint.
+  // Use 1.2x threshold (less aggressive than 1.5x) to avoid false positives
+  // on centered or right-side elements.
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const leftEls = bodyElements.filter(
       (el) =>
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
+        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
     const rightEls = bodyElements.filter(
       (el) =>
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
+        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
@@ -629,6 +537,104 @@ function convertSlide(
         layout = LAYOUT.HEADER_CONTENT;
       }
     } else {
+      // Overlap-based split
+      const leftEls = bodyElements.filter(
+        (el) =>
+          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
+          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.2,
+      );
+      const rightEls = bodyElements.filter(
+        (el) =>
+          getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
+          getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
+      );
+
+      // Catch unclassified elements (e.g. middle image straddling the midpoint)
+      // that don't clear the 1.2x threshold for either side. Assign to the
+      // column whose center is closer to the element's center.
+      const classified = new Set([...leftEls, ...rightEls]);
+      for (const el of bodyElements) {
+        if (classified.has(el)) continue;
+        const elCenterX = (el.left || 0) + (el.width || 0) / 2;
+        if (elCenterX < midX) leftEls.push(el);
+        else rightEls.push(el);
+      }
+
+      if (rightEls.length === 0) {
+        // No elements on the right — downgrade to header-content
+        layout = LAYOUT.HEADER_CONTENT;
+        parts[0] = `layout: ${layout.spec}`;
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(
+            bodyElements,
+            slideWidth,
+            slideHeight,
+            deckName,
+            formatSingleElement,
+          ),
+        );
+      } else {
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
+        );
+        parts.push("");
+        parts.push(MARKDOWN_TAGS.MEDIA);
+        parts.push("");
+        parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      }
+    }
+  } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    // Put all dominant images in @media, everything else in @main.
+    // Compute first so we can guard against empty @main BEFORE any rendering.
+    const mediaEls = dominantImages.filter(
+      (el) => bodyElements.includes(el) || el === dominantImages[0],
+    );
+    const leftEls = bodyElements.filter((el) => !mediaEls.includes(el));
+
+    // Guard: if no non-media body elements, @main would be empty.
+    // Downgrade to header-content and put the image(s) in @main instead.
+    if (leftEls.length === 0) {
+      layout = LAYOUT.HEADER_CONTENT;
+      parts[0] = `layout: ${layout.spec}`;
+      parts.push("");
+      if (isHeaderValid) {
+        parts.push(MARKDOWN_TAGS.HEADER);
+        parts.push("");
+        parts.push(formatTextElement(header.content));
+        parts.push("");
+      }
+      parts.push(MARKDOWN_TAGS.MAIN);
+      parts.push("");
+      parts.push(
+        mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref
+          ? formatImage(mediaEls[0], deckName, { omitDimensions: false })
+          : renderElementsWithFlex(
+              mediaEls,
+              slideWidth,
+              slideHeight,
+              deckName,
+              formatSingleElement,
+            ),
+      );
+    } else {
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -644,43 +650,11 @@ function convertSlide(
       parts.push("");
       parts.push(MARKDOWN_TAGS.MEDIA);
       parts.push("");
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
-    }
-  } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    parts.push("");
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
-      parts.push("");
-      parts.push(formatTextElement(header.content));
-      parts.push("");
-    }
-    const leftEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) * 1.5,
-    );
-    const rightEls = bodyElements.filter(
-      (el) =>
-        getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
-        getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
-    );
-    // Wide elements that span the midpoint fail both 1.5x thresholds.
-    // Default them to the left (main) column so they aren't silently dropped.
-    const captured = new Set([...leftEls, ...rightEls]);
-    const unclassified = bodyElements.filter((el) => !captured.has(el));
-    leftEls.push(...unclassified);
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    parts.push(
-      renderElementsWithFlex(leftEls, slideWidth, slideHeight, deckName, formatSingleElement),
-    );
-    parts.push("");
-    parts.push(MARKDOWN_TAGS.MEDIA);
-    parts.push("");
-    if (rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref) {
-      parts.push(formatImage(rightEls[0], deckName, { fitColumn: true }));
-    } else {
-      parts.push(rightEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      if (mediaEls.length === 1 && mediaEls[0].type === ELEMENT_TYPES.IMAGE && mediaEls[0].ref) {
+        parts.push(formatImage(mediaEls[0], deckName, { fitColumn: true }));
+      } else {
+        parts.push(mediaEls.map((el) => formatSingleElement(el)).join(REGEX.DOUBLE_NEWLINE));
+      }
     }
   } else if (layout.type === LAYOUT.THREE_COLUMN.type) {
     const [mediaImage, secondaryImage] = dominantImages;
@@ -798,376 +772,6 @@ function convertSlide(
   }
 
   return wrapLongLists(parts.join("\n"));
-}
-
-/**
- * Filter out slide backgrounds, structural borders, tight frames, and template logos/footers.
- * @param {import('./pptx-extractor.js').ExtractedElement[]} elements
- * @param {number} slideWidth
- * @param {number} slideHeight
- * @param {import('./pptx-extractor.js').ExtractedElement[]} dominantImages
- * @returns {import('./pptx-extractor.js').ExtractedElement[]}
- */
-function filterMeaningfulElements(elements, slideWidth, slideHeight, dominantImages = []) {
-  const slideArea = slideWidth * slideHeight;
-  const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
-  const textElements = elements.filter((el) => el.type === "text" && el.content?.trim());
-
-  return elements.filter((el) => {
-    // 1. Always keep text and rich content types
-    if (el.type === ELEMENT_TYPES.TEXT) {
-      return !!el.content?.trim();
-    }
-    if ([ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type)) {
-      return true;
-    }
-
-    if (el.type !== ELEMENT_TYPES.IMAGE) {
-      return false; // Discard unrecognized shapes that do not hold text
-    }
-
-    const w = el.width || 0;
-    const h = el.height || 0;
-    const area = w * h;
-
-    // RULE 0: Safety First. If there is absolutely no text on this slide, preserve
-    // every image (except micro-noise) to prevent creating an empty slide.
-    if (textElements.length === 0) {
-      return area >= CONFIG.microNoiseThresholdPoints;
-    }
-
-    // RULE 1: Never filter out pre-identified dominant content images
-    const isDominant = dominantImages.some(
-      (dom) => dom.ref === el.ref || (dom.left === el.left && dom.top === el.top),
-    );
-    if (isDominant) {
-      return true;
-    }
-
-    // 2. Filter out micro-noise
-    if (area < CONFIG.microNoiseThresholdPoints) return false;
-
-    // 3. Filter out massive background/watermark images ONLY if there is other
-    // content (body paragraphs) or other images to display on the slide.
-    if (area > slideArea * CONFIG.maxMediaAreaRatio) {
-      const hasOtherImages = elements.some(
-        (other) => el !== other && other.type === ELEMENT_TYPES.IMAGE,
-      );
-      const hasBodyText = textElements.some((textEl) => textEl.top >= bodyThreshold);
-
-      if (!hasOtherImages && !hasBodyText) {
-        return true; // Keep the full-bleed image because it is the sole visual content
-      }
-      return false; // Strip it because it's a template watermark behind actual content
-    }
-
-    // 4. Aspect Ratio Filter (Only catch thin lines, preserving panoramic banners)
-    const aspectRatio = w / (h || 1);
-    const isThinHorizontalLine =
-      aspectRatio > CONFIG.aspectRatioUpperLimit && h < CONFIG.thinLineThresholdPoints;
-    const isThinVerticalLine =
-      aspectRatio < CONFIG.aspectRatioLowerLimit && w < CONFIG.thinLineThresholdPoints;
-    if (isThinHorizontalLine || isThinVerticalLine) return false;
-
-    const isSmallImage = area < slideArea * CONFIG.maxLogoAreaRatio;
-
-    // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
-    if (isSmallImage) {
-      const isInTopMargin = el.top < slideHeight * CONFIG.marginTopRatio;
-      const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
-
-      // Discard small elements placed inside either the top or bottom margin bounds
-      if (isInTopMargin || isInBottomMargin) {
-        return false;
-      }
-      // Small images not in margins are kept — they are likely icons, badges, or
-      // inline decorations rather than background/border elements.
-      return true;
-    }
-
-    // 6. Text-Background / Border Overlap Filter (only for non-small images)
-    const isBackgroundOrBorder = textElements.some((textEl) => {
-      const textW = textEl.width || 0;
-      const textH = textEl.height || 0;
-      const textArea = textW * textH;
-      if (textArea === 0) return false;
-
-      const overlap = getOverlapArea(el, textEl);
-      const coversText = overlap / textArea > CONFIG.overlapRatioThreshold;
-
-      const isCardSize = area / textArea < CONFIG.maxBackgroundCardRatio;
-      const isTightBorder = overlap / area > CONFIG.overlapRatioThreshold;
-
-      return (coversText && isCardSize) || isTightBorder;
-    });
-
-    return !isBackgroundOrBorder;
-  });
-}
-
-function getOverlapArea(a, b) {
-  const xOverlap = Math.max(
-    0,
-    Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left),
-  );
-  const yOverlap = Math.max(
-    0,
-    Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top),
-  );
-  return xOverlap * yOverlap;
-}
-
-/**
- * Infer the layout type from element positions.
- * @param {import('./pptx-extractor.js').ExtractedElement[]} textEls
- * @param {number} slideWidth
- * @param {number} slideHeight
- * @param {boolean} [hasMedia=false]
- * @param {import('./pptx-extractor.js').ExtractedElement[]} [allEls=textEls]
- * @param {import('./pptx-extractor.js').ExtractedElement[]} [dominantImages]
- * @param {number} [slideIndex=0]
- * @returns {{ type: string, spec: string }}
- */
-function inferLayout(
-  textEls,
-  slideWidth,
-  slideHeight,
-  hasMedia = false,
-  allEls = textEls,
-  dominantImages = findDominantImages(allEls, slideWidth, slideHeight),
-  slideIndex = 0,
-) {
-  const contentEls = textEls.filter((el) => el.content?.trim());
-
-  if (contentEls.length === 0) {
-    // Image-only slide: determine layout from dominant images
-    if (dominantImages.length >= 3) return LAYOUT.MEDIA_SPAN;
-    if (dominantImages.length === 2) {
-      // Check if images are truly side-by-side (horizontal overlap < 30%)
-      const [img1, img2] = dominantImages;
-      const horizontalOverlap = Math.max(
-        0,
-        Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
-      );
-      if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.5) {
-        return LAYOUT.TWO_COLUMN;
-      }
-      return LAYOUT.HEADER_CONTENT;
-    }
-    return LAYOUT.HEADER_CONTENT;
-  }
-
-  const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
-  const isHeadingMarker = (el) => REGEX.HEADING_MARKER.test(el.content?.trim() || "");
-
-  const isHeader = (el) => {
-    if (el.top >= bodyThreshold) return false;
-
-    const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
-    if (isMassive) {
-      if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
-        return true;
-      }
-      return false;
-    }
-
-    if (isHeadingMarker(el)) return true;
-
-    // Extract plain text from HTML for length/bullet checks — raw HTML is
-    // often much longer than the visible text due to inline styles.
-    const text = stripHtml(el.content || "");
-    const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
-    return text.length <= CONFIG.maxHeaderLength && !hasBullet;
-  };
-
-  const headerEl = contentEls.find(isHeader) || null;
-  const hasHeader = !!headerEl;
-  const midX = slideWidth / 2;
-  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
-  const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
-
-  if (!hasMedia) {
-    const minSpread = slideWidth * CONFIG.minColumnSpreadRatio;
-
-    // Two elements are in a spread row if they are horizontally separated
-    // AND have significant vertical overlap (not just close top positions).
-    // Skip centered elements — they span both columns and should not trigger two-column.
-    const hasSpreadRow = contentEls.some((a) =>
-      contentEls.some((b) => {
-        if (a === b) return false;
-        if (isCentered(a) || isCentered(b)) return false;
-        if (Math.abs(a.left - b.left) < minSpread) return false;
-        // Check vertical overlap, not just top-position proximity
-        const overlapTop = Math.max(a.top, b.top);
-        const overlapBottom = Math.min(a.top + (a.height || 0), b.top + (b.height || 0));
-        const overlap = overlapBottom - overlapTop;
-        const minHeight = Math.min(a.height || 0, b.height || 0);
-        return overlap > 0 && minHeight > 0 && overlap / minHeight > CONFIG.spreadOverlapThreshold;
-      }),
-    );
-
-    if (hasSpreadRow) return LAYOUT.TWO_COLUMN;
-
-    const hasBodyBelowHeader = contentEls.some((el) => el !== headerEl && el.top >= bodyThreshold);
-    const totalLength = contentEls.reduce((sum, el) => sum + el.content.trim().length, 0);
-
-    if (totalLength < CONFIG.maxTitleLength && contentEls.length <= CONFIG.maxTitleElements) {
-      const titleBodyEls = contentEls.filter((el) => el !== headerEl);
-      const hasBodyContent = titleBodyEls.some(
-        (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
-      );
-      const headerHi = headerEl?.height || 0;
-      const bodyHi = titleBodyEls.length ? Math.max(...titleBodyEls.map((e) => e.height || 0)) : 0;
-      const isThinStripHeader =
-        headerEl && bodyHi > 0 && headerHi < bodyHi * CONFIG.headerThinRatio;
-
-      if (!headerEl || !isThinStripHeader) {
-        // First slide uses title-slide only if it has no body content (title/subtitle only)
-        if (slideIndex === 0 && !hasBodyContent) return LAYOUT.TITLE_SLIDE;
-        return LAYOUT.FOCUS;
-      }
-    }
-
-    if (hasHeader && hasBodyBelowHeader) {
-      // Use focus for slides where code or single-element content is the center stage
-      let codeEl = null;
-      const looksLikeCode = contentEls.some((el) => {
-        const text = el.content?.trim() || "";
-        // Detect fenced code blocks
-        if (/```[\s\S]*```/.test(text)) {
-          codeEl = el;
-          return true;
-        }
-        const lines = text.split("\n");
-        if (lines.length < 2) return false;
-        const codeKeywords =
-          /^\s*(def\s+\w|function\s+\w|class\s+\w|const\s+\w|let\s+\w|var\s+\w|import\s+[\w{#]|#include|for\s*\(|while\s*\(|if\s*\(|else\s|elif\s|return\s|try\s|catch\s|from\s+\w|async\s|await\s|void\s+\w|null\b|undefined\b|this\.|self\.|console\.|print\(|echo\s|\/\/|<!--|\w+\s*[=:]\s*[({[])/;
-        const isCode = lines.some((l) => codeKeywords.test(l));
-        if (isCode) codeEl = el;
-        return isCode;
-      });
-      if (looksLikeCode) {
-        // If the code element spans most of the slide width, it's likely merged
-        // from two columns — use two-column layout so content can be distributed
-        const codeWidth = codeEl?.width || 0;
-        if (codeWidth > slideWidth * 0.8) return LAYOUT.TWO_COLUMN;
-        return LAYOUT.FOCUS;
-      }
-      return LAYOUT.HEADER_CONTENT;
-    }
-    if (totalLength < CONFIG.maxTitleLength) {
-      if (slideIndex === 0) {
-        const hasBodyContent = contentEls.some(
-          (el) => REGEX.BULLET.test(el.content || "") || REGEX.NUMBER.test(el.content || ""),
-        );
-        if (!hasBodyContent) return LAYOUT.TITLE_SLIDE;
-      }
-      return LAYOUT.FOCUS;
-    }
-  }
-
-  // Partition elements into left vs right columns.
-  // If the element's center is clearly on one side, use it directly.
-  // If the center is near the midpoint (ambiguous), use the left edge — wide
-  // text boxes in two-column PPTX slides commonly start on the left but extend
-  // past center.
-  // Use area-overlap analysis instead of center-point to handle wide elements
-  // that straddle the midpoint.
-  const partition = (el) => {
-    if (el === headerEl || isCentered(el)) return null;
-    const overlapLeft = getOverlapArea(el, {
-      left: 0,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    const overlapRight = getOverlapArea(el, {
-      left: midX,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    if (overlapLeft > overlapRight * 1.5) return "left";
-    if (overlapRight > overlapLeft * 1.5) return "right";
-    return null; // truly ambiguous — don't force
-  };
-  const leftEls = allEls.filter((el) => partition(el) === "left");
-  const rightEls = allEls.filter((el) => partition(el) === "right");
-
-  const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
-  const hasTextColumns =
-    leftEls.some((el) => el.type === ELEMENT_TYPES.TEXT) ||
-    rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-
-  if (hasHeader && hasTwoColumns && hasTextColumns) {
-    // When the right column has only images (no text), media-span is a
-    // better fit — but only if there's actual body text beyond the header.
-    const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-    const hasBodyText = leftEls.some(
-      (el) =>
-        el !== headerEl &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
-        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-          el.type === ELEMENT_TYPES.TABLE ||
-          el.type === ELEMENT_TYPES.CHART ||
-          el.type === ELEMENT_TYPES.DIAGRAM),
-    );
-    if (!rightHasText && hasBodyText) return LAYOUT.MEDIA_SPAN;
-    return LAYOUT.TWO_COLUMN;
-  }
-
-  if (!hasHeader && dominantImages.length >= 2 && contentEls.length > 0) {
-    // Validate images are truly side-by-side (horizontal overlap < 30%)
-    const [img1, img2] = dominantImages;
-    const horizontalOverlap = Math.max(
-      0,
-      Math.min(img1.left + img1.width, img2.left + img2.width) - Math.max(img1.left, img2.left),
-    );
-    if (horizontalOverlap < Math.min(img1.width, img2.width) * 0.3) {
-      return LAYOUT.MEDIA_SPAN;
-    }
-    return LAYOUT.TWO_COLUMN;
-  }
-
-  const bodyEls = contentEls.filter((el) => el !== headerEl);
-  const bodyLength = bodyEls.reduce((sum, el) => sum + el.content.trim().length, 0);
-
-  const bodyRichEls = allEls.filter(
-    (el) =>
-      el !== headerEl &&
-      el !== dominantImages[0] &&
-      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type),
-  );
-
-  const hasSubstantialBody = bodyRichEls.length > 0 || bodyLength > CONFIG.minSubstantialBodyLength;
-
-  if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
-  if (hasHeader) return LAYOUT.HEADER_CONTENT;
-
-  const hasTallColumn = bodyEls.some(
-    (e) => (e.height || 0) > slideHeight * CONFIG.tallColumnHeightRatio,
-  );
-  if (
-    hasTwoColumns &&
-    (hasTallColumn || (bodyEls.length >= 2 && bodyLength > CONFIG.minSubstantialBodyLength))
-  ) {
-    return LAYOUT.TWO_COLUMN;
-  }
-
-  return LAYOUT.HEADER_CONTENT;
-}
-
-function findDominantImages(allEls, slideWidth, slideHeight) {
-  const slideArea = slideWidth * slideHeight;
-  const images = allEls.filter((el) => el.type === ELEMENT_TYPES.IMAGE && el.ref);
-
-  return images.filter((el) => {
-    const w = el.width || 0;
-    const h = el.height || 0;
-    const area = w * h;
-
-    return area >= slideArea * CONFIG.minDominantAreaRatio;
-  });
 }
 
 /**
@@ -1298,308 +902,4 @@ function renderElementsWithFlex(elements, slideWidth, slideHeight, deckName, for
   }
 
   return parts.join(REGEX.DOUBLE_NEWLINE);
-}
-
-function hexToLuminance(hex) {
-  if (!hex || hex.length < LUMINANCE.HEX_MIN_LENGTH) return Infinity;
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return Infinity;
-  return (
-    (r * LUMINANCE.RED_COEFF + g * LUMINANCE.GREEN_COEFF + b * LUMINANCE.BLUE_COEFF) /
-    LUMINANCE.SCALE_DIVISOR
-  );
-}
-
-/**
- * Whitelist-safe CSS color sanitizer for untrusted PPTX fill colors.
- * Allows only hex colors, rgb()/rgba(), and named keyword colors that
- * are known-safe (transparent, white, black, etc.).
- * Returns "transparent" for anything that doesn't match.
- *
- * @param {string} color
- * @returns {string}
- */
-function sanitizeCssColor(color) {
-  if (!color || typeof color !== "string") return "transparent";
-  let trimmed = color.trim();
-
-  // Normalize hex colors without # prefix (common in PPTX: "003C68" → "#003C68")
-  if (/^[0-9a-fA-F]{3}([0-9a-fA-F]{3}([0-9a-fA-F]{2})?)?$/.test(trimmed)) {
-    trimmed = `#${trimmed}`;
-  }
-
-  // Named keywords we allow (non-exhaustive, safe list)
-  const SAFE_KEYWORDS =
-    /^(?:transparent|white|black|red|green|blue|yellow|gray|grey|orange|purple|pink|brown|cyan|magenta)$/i;
-  if (SAFE_KEYWORDS.test(trimmed)) return trimmed;
-  // Hex color: #RGB, #RRGGBB, #RRGGBBAA
-  if (/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3}([0-9a-fA-F]{2})?)?$/.test(trimmed)) return trimmed;
-  // rgb()/rgba() with comma-separated or space-separated values
-  if (
-    /^rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$/i.test(
-      trimmed,
-    )
-  )
-    return trimmed;
-  // rgb()/rgba() with space-separated values and optional alpha (e.g. rgb(255 0 0 / 0.5))
-  if (
-    /^rgba?\s*\(\s*\d{1,3}\s+[\d.]+%?\s+[\d.]+%?\s*(?:\/\s*(?:0|1|0?\.\d+)%?\s*)?\)$/i.test(trimmed)
-  )
-    return trimmed;
-  return "transparent";
-}
-
-function isColorDark(colorHex) {
-  if (!colorHex) return false;
-
-  // Handle gradients: extract all hex colors, pick darkest
-  if (!colorHex.startsWith("#")) {
-    const matches = colorHex.match(/#[0-9a-fA-F]{6}/g);
-    if (!matches) return false;
-    // Find the color with lowest luminance (darkest)
-    let darkestLum = Infinity;
-    for (const m of matches) {
-      const lum = hexToLuminance(m.replace("#", ""));
-      if (lum < darkestLum) darkestLum = lum;
-    }
-    return darkestLum < LUMINANCE.DARK_THRESHOLD;
-  }
-
-  const hex = colorHex.replace("#", "");
-  return hexToLuminance(hex) < LUMINANCE.DARK_THRESHOLD;
-}
-
-function formatTextElement(raw) {
-  if (!raw) return "";
-  const lines = raw.split("\n");
-  const result = [];
-  let inFencedCode = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed) {
-      result.push("");
-      continue;
-    }
-
-    if (trimmed === "```") {
-      inFencedCode = !inFencedCode;
-      result.push(trimmed);
-      continue;
-    }
-    if (inFencedCode) {
-      result.push(line);
-      continue;
-    }
-
-    const indent = line.match(/^(\s*)/)[1];
-    const indentLevel =
-      indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
-    const prefix = "  ".repeat(indentLevel);
-
-    const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
-    const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
-
-    if (isProperBullet || isNumberedList) {
-      result.push(line);
-    } else if (REGEX.BULLET.test(trimmed)) {
-      const content = trimmed.replace(REGEX.BULLET, "");
-      result.push(`${prefix}- ${content}`);
-    } else if (REGEX.NUMBER.test(trimmed)) {
-      const match = trimmed.match(REGEX.NUMBER);
-      const content = trimmed.replace(REGEX.NUMBER, "");
-      const number = match ? match[0].replace(/[.)]\s*/, "") : "1";
-      result.push(`${prefix}${number}. ${content}`);
-    } else if (REGEX.BOLD_HEADING.test(trimmed)) {
-      result.push(`## ${trimmed.replace(/^\*\*|\*\*$/g, "")}`);
-    } else {
-      result.push(trimmed);
-    }
-  }
-
-  return result.join("\n").replace(REGEX.TRIPLE_NEWLINE_OR_MORE, REGEX.DOUBLE_NEWLINE).trim();
-}
-
-/**
- * Wrap consecutive list runs of MIN_LIST_ITEMS or more in a
- * <div class="multi-column-list"> so CSS columns split them visually.
- * Counts all items including nested sub-items towards the threshold.
- * Merges list runs separated by ≤MAX_GAP non-list lines.
- */
-const MIN_LIST_ITEMS = 10;
-const COL3_THRESHOLD = 27;
-const MAX_GAP = 3;
-const RE_ANY_LIST_ITEM = /^\s*(?:[-*•]|\d+[.)]|[a-z][.)])\s+\S/;
-const AREA_MARKERS = new Set(Object.values(MARKDOWN_TAGS));
-
-function wrapLongLists(markdown) {
-  const lines = markdown.split("\n");
-  const result = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    if (RE_ANY_LIST_ITEM.test(lines[i])) {
-      // Collect a "group": list run + small gap + more list items, etc.
-      const groupStart = i;
-      let itemCount = 0;
-      let gapLines = [];
-
-      while (i < lines.length) {
-        if (RE_ANY_LIST_ITEM.test(lines[i])) {
-          // Flush any buffered gap — if it contains list-like items, merge
-          if (gapLines.length > 0) {
-            itemCount += gapLines.filter((l) => RE_ANY_LIST_ITEM.test(l)).length;
-            gapLines = [];
-          }
-          itemCount++;
-          i++;
-        } else if (AREA_MARKERS.has(lines[i].trim())) {
-          break;
-        } else if (gapLines.length < MAX_GAP) {
-          gapLines.push(lines[i]);
-          i++;
-        } else {
-          break;
-        }
-      }
-
-      // Check if there are list items right after the gap we stopped at
-      // (the gap exceeded MAX_GAP, but the next run might still be close)
-      if (gapLines.length > MAX_GAP) {
-        // Rewind: put back the non-list lines that exceeded the gap
-        const overshoot = gapLines.length - MAX_GAP;
-        i -= overshoot;
-        gapLines.length = MAX_GAP;
-      }
-
-      if (itemCount >= MIN_LIST_ITEMS) {
-        const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
-        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
-        result.push("");
-        for (let j = groupStart; j < i; j++) result.push(lines[j]);
-        result.push("");
-        result.push("</div>");
-      } else {
-        for (let j = groupStart; j < i; j++) result.push(lines[j]);
-      }
-    } else {
-      result.push(lines[i]);
-      i++;
-    }
-  }
-
-  return result.join("\n");
-}
-
-function formatImage(
-  img,
-  _deckName = DEFAULTS.DECK_NAME,
-  { omitDimensions = false, fitColumn = false, caption } = {},
-) {
-  const rawName = (img.ref || DEFAULTS.IMAGE_FILENAME).split("/").pop();
-  const filename = rawName.replace(REGEX.IMAGE_VECTOR_EXT, DEFAULTS.IMAGE_MIME_PNG);
-
-  const src = img.blob || `${DEFAULTS.IMAGE_SUBDIR}${filename}`;
-  // Generate readable alt text from filename (e.g. "image1" -> "Slide image 1")
-  const baseAlt = filename
-    .replace(REGEX.FILE_EXTENSION, "")
-    .replace(REGEX.HYPHEN_UNDERSCORE, " ")
-    .replace(/(\d+)/g, " $1")
-    .trim();
-  const altText = caption || `Slide image ${baseAlt}`;
-
-  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
-
-  if (!omitDimensions) {
-    // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
-    const w = Math.round(img.width * CONVERSION.POINTS_TO_PX) || null;
-    const h = Math.round(img.height * CONVERSION.POINTS_TO_PX) || null;
-    if (w && h) {
-      return `<img src="${src}" width="${w}" height="${h}" alt="${altText}"${style}>`;
-    }
-  }
-  return `<img src="${src}" alt="${altText}"${style}>`;
-}
-
-function formatTable(table, slideWidth, slideHeight) {
-  if (!table.rows?.length) return "";
-
-  // Full-page tables (covering ≥80% of the slide) are visual layouts
-  // (e.g., four-pillar grids, flowchart matrices). Render as CSS grid
-  // to preserve the 2D visual structure.
-  const tableArea = (table.width || 0) * (table.height || 0);
-  const slideArea = (slideWidth || 960) * (slideHeight || 540);
-  const isFullScreen = tableArea >= slideArea * CONFIG.fullScreenTableThreshold;
-
-  if (isFullScreen) {
-    const cols = table.rows[0].length;
-    const rows = table.rows.length;
-    const cells = [];
-    for (const row of table.rows) {
-      for (const cell of row) {
-        // Strip HTML tags then escape to prevent XSS from entity-decoded content
-        const text = escapeHtml(stripHtml(cell.text || "").trim());
-        const bg = sanitizeCssColor(cell.fillColor);
-        const isDarkBg = isColorDark(bg);
-        cells.push(
-          `<div class="fullpage-grid__cell${isDarkBg ? " fullpage-grid__cell--on-color" : ""}" style="background:${bg}">${text}</div>`,
-        );
-      }
-    }
-    return `<div class="fullpage-grid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">${cells.join("")}</div>`;
-  }
-
-  const escapeCell = (text) =>
-    (text || "")
-      .replace(REGEX.NEWLINE_CRLF, "\n")
-      .replace(REGEX.NEWLINE, "<br>")
-      .replace(REGEX.PIPE, REGEX.ESCAPE_PIPE)
-      .trim();
-  const formatRow = (row) => row.map((cell) => escapeCell(cell.text)).join(" | ");
-  const separator = table.rows[0].map(() => "---").join(" | ");
-  const rows = table.rows.map(formatRow);
-  const parts = [];
-  parts.push(`| ${rows[0]} |`);
-  parts.push(`| ${separator} |`);
-  for (let i = 1; i < rows.length; i++) {
-    parts.push(`| ${rows[i]} |`);
-  }
-  return parts.join("\n");
-}
-
-function formatChart(chart) {
-  if (!chart.chartData?.length) {
-    return `${DEFAULTS.CHART_COMMENT_PREFIX}${chart.content || DEFAULTS.CHART_PLACEHOLDER}${DEFAULTS.CHART_COMMENT_SUFFIX}`;
-  }
-
-  const { headers, rows } = buildChartDataRows(chart.chartData);
-
-  const escapeCell = (text) => text.replace(REGEX.PIPE, REGEX.ESCAPE_PIPE).trim();
-  const separator = headers.map(() => "---").join(" | ");
-  const parts = [];
-  parts.push(`| ${headers.map(escapeCell).join(" | ")} |`);
-  parts.push(`| ${separator} |`);
-  for (const row of rows) {
-    parts.push(`| ${row.map(escapeCell).join(" | ")} |`);
-  }
-  return parts.join("\n");
-}
-
-function formatDiagram(diagram) {
-  if (!diagram.content) return "";
-
-  const items = diagram.content
-    .split(", ")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (items.length === 0) return "";
-  if (items.length === 1) return items[0];
-
-  // Emit a marker that AI post-processing can replace with Mermaid.
-  // If no AI mode is selected, the marker is converted back to bullets at import time.
-  return `[Diagram: ${items.join(", ")}]`;
 }

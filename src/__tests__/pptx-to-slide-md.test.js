@@ -1725,4 +1725,227 @@ describe("flex-row rendering", () => {
     expect(md).toContain("@main");
     expect(md).toContain("@media");
   });
+
+  // ── Empty @main guard tests ─────────────────────────────────────
+
+  it("downgrades media-span to header-content when @main would be empty", () => {
+    // Slide with a header + dominant image + no body text.
+    // Media-span would produce empty @main, so it should be header-content
+    // with the image in @main instead.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Header + Image",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Behold the ancient ASCII table",
+            left: 500000,
+            top: 500000,
+            width: 4000000,
+            height: 400000,
+          },
+          {
+            type: "image",
+            ref: "image3-81b0.png",
+            base64: "abc",
+            left: 4500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "#00F501",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@header");
+    expect(md).toContain("Behold the ancient ASCII table");
+    expect(md).toContain("@main");
+    expect(md).toContain("image3-81b0.png");
+    expect(md).not.toContain("@media");
+  });
+
+  it("does not emit duplicate @header when media-span downgrades to header-content", () => {
+    // Regression test: the media-span guard must compute mediaEls/leftEls
+    // BEFORE pushing any @header, otherwise @header gets emitted twice.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Double Header Regression",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## PROGRAMMING LANGUAGE PARADIGMS",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "image57-f87f.png",
+            base64: "abc",
+            left: 4500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    const headerCount = (md.match(/@header/g) || []).length;
+    expect(headerCount).toBe(1);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("PROGRAMMING LANGUAGE PARADIGMS");
+  });
+
+  it("uses header-content for body text with inline code in numbered list (single print() line)", () => {
+    // A slide with header + body text containing a numbered list with inline
+    // code (print()). The code detection should NOT trigger because there's
+    // only a single line matching the code regex — not enough to call it code.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Raw strings",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Raw strings",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content:
+              "If we do not want to use escape characters, we can create a raw string\n" +
+              "A raw string is prefixed by the letter r or R\n" +
+              "Python raw strings treat the backslash as an ordinary character\n" +
+              "\n" +
+              '1. `print("Hello\\nworld")`\n' +
+              '2. `print(r"Hello\\nworld") # This is a raw string`\n' +
+              "\n" +
+              "This is useful if we have a string that contains backslashes that must be interpreted as backslashes",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background:
+          "linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/image7-9452.jpeg) center / cover no-repeat",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@header");
+    expect(md).toContain("Raw strings");
+    expect(md).toContain("@main");
+    expect(md).toContain("print(");
+    // Should not have @media since there's no second column
+    expect(md).not.toMatch(/@media/);
+  });
+
+  it("still uses two-column for genuine code slides with ≥2 code lines", () => {
+    // A slide with a header and genuine code (multiple code lines)
+    // should still get two-column or focus layout
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Code Slide",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Code Example",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content:
+              "def hello():\n" +
+              "    print('Hello')\n" +
+              "    return True\n" +
+              "def goodbye():\n" +
+              "    print('Goodbye')\n" +
+              "    return False",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // 6 lines with code keywords (def, print, return) — should still be code
+    expect(md).toMatch(/layout: (two-column|focus)/);
+    expect(md).toContain("@main");
+  });
+
+  it("keeps all three images in a side-by-side 3-image slide", () => {
+    // Regression test: a middle image straddling the midpoint can be unclassified
+    // by the 1.2x overlap threshold and silently dropped.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Three People",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "I'm Charles Babbage",
+            left: 2500000,
+            top: 200000,
+            width: 4000000,
+            height: 400000,
+          },
+          {
+            type: "image",
+            ref: "image20-f6a2.jpeg",
+            base64: "abc",
+            left: 0,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.33,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+          {
+            type: "image",
+            ref: "image21-xxxx.jpeg",
+            base64: "def",
+            left: DEFAULT_SIZE.width * 0.33,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.34,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+          {
+            type: "image",
+            ref: "image22-0bac.jpeg",
+            base64: "ghi",
+            left: DEFAULT_SIZE.width * 0.67,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.33,
+            height: DEFAULT_SIZE.height * 0.8,
+          },
+        ],
+        background: "#000000",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("image20-f6a2.jpeg");
+    expect(md).toContain("image21-xxxx.jpeg");
+    expect(md).toContain("image22-0bac.jpeg");
+  });
 });
