@@ -372,7 +372,15 @@ export function inferLayout(
       [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type),
   );
 
-  const hasSubstantialBody = bodyRichEls.length > 0 || bodyLength > CONFIG.minSubstantialBodyLength;
+  // Check if there are images in the body (not the dominant one)
+  const bodyImages = allEls.filter(
+    (el) => el !== headerEl && el !== dominantImages[0] && el.type === ELEMENT_TYPES.IMAGE,
+  );
+
+  const hasSubstantialBody =
+    bodyRichEls.length > 0 ||
+    bodyLength > CONFIG.minSubstantialBodyLength ||
+    bodyImages.length > 0;
 
   if (dominantImages.length === 1 && hasSubstantialBody) return LAYOUT.TWO_COLUMN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;

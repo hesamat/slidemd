@@ -182,20 +182,20 @@ function convertSlide(
     });
   });
 
-  // Detect full-image slides: single image covering > 50% with no text content.
+  // Detect full-image slides: single image covering > 50% with no content.
   // These use the full-image layout instead of a CSS background.
   // Footer text is excluded — it's decorative, not content.
   const fullImageThreshold = 0.5;
   let fullImageCandidate = null;
   if (bgCandidate) {
     const imgArea = (bgCandidate.width || 0) * (bgCandidate.height || 0);
-    const hasText = slide.elements.some(
+    const hasContent = slide.elements.some(
       (el) =>
-        el.type === ELEMENT_TYPES.TEXT &&
+        el !== bgCandidate &&
         el.content?.trim() &&
         el.placeholderType !== ELEMENT_TYPES.FOOTER,
     );
-    if (imgArea >= slideArea * fullImageThreshold && !hasText) {
+    if (imgArea >= slideArea * fullImageThreshold && !hasContent) {
       fullImageCandidate = bgCandidate;
     }
   }
