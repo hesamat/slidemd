@@ -10,6 +10,7 @@ import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
+import { setImageUploadPromise } from "../../core/image-upload-promise.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
 
 const IMAGE_MIME_TYPES = {
@@ -217,19 +218,7 @@ export class OpenDeckModal {
         }
 
         for (const [relPath, blobUrl] of relPathToBlobUrl) {
-          const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          resolvedMarkdown = resolvedMarkdown.replace(
-            new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
-            `$1${blobUrl}$2`,
-          );
-          resolvedMarkdown = resolvedMarkdown.replace(
-            new RegExp(`(\\]\\()${escapedPath}(\\))`, "g"),
-            `$1${blobUrl}$2`,
-          );
-          resolvedMarkdown = resolvedMarkdown.replace(
-            new RegExp(`(url\\(\\s*["']?)${escapedPath}(["']?\\s*\\))`, "gi"),
-            `$1${blobUrl}$2`,
-          );
+          resolvedMarkdown = resolvedMarkdown.split(relPath).join(blobUrl);
         }
       }
 
@@ -268,44 +257,46 @@ export class OpenDeckModal {
 
       if (serverAvailable && uniqueEntries.length > 0) {
         // Upload images to the server in the background and then swap blob URLs for server paths
-        window.__WEBDECK_IMAGE_UPLOAD_PROMISE__ = (async () => {
-          const uploadEntries = uniqueEntries.map(({ name, data }) => ({
-            key: name,
-            file: data,
-          }));
+        setImageUploadPromise(
+          (async () => {
+            const uploadEntries = uniqueEntries.map(({ name, data }) => ({
+              key: name,
+              file: data,
+            }));
 
-          const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
-            signal: controller.signal,
-          });
+            const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
+              signal: controller.signal,
+            });
 
-          const failedUploads = uniqueEntries.length - uploadedPaths.size;
-          if (failedUploads > 0) {
-            console.warn(`${failedUploads} image(s) failed to upload and may not persist.`);
-          }
-
-          let serverMarkdown = resolvedMarkdown;
-          for (const [name, serverPath] of uploadedPaths) {
-            const blobUrl = filenameToBlobUrl.get(name);
-            if (blobUrl && serverPath) {
-              serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+            const failedUploads = uniqueEntries.length - uploadedPaths.size;
+            if (failedUploads > 0) {
+              console.warn(`${failedUploads} image(s) failed to upload and may not persist.`);
             }
-          }
 
-          localStorage.setItem("webdeck_local_file", serverMarkdown);
-          await DraftManager.saveDraft(serverMarkdown);
-
-          if (window.__WEBDECK_EDIT_CONTROLLER__) {
-            try {
-              window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
-                new MarkdownParser().splitSlides(serverMarkdown);
-            } catch {
-              /* ignore */
+            let serverMarkdown = resolvedMarkdown;
+            for (const [name, serverPath] of uploadedPaths) {
+              const blobUrl = filenameToBlobUrl.get(name);
+              if (blobUrl && serverPath) {
+                serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+              }
             }
-          }
-        })().catch((err) => {
-          if (err.name === "AbortError") return;
-          console.warn("Background image upload failed:", err);
-        });
+
+            localStorage.setItem("webdeck_local_file", serverMarkdown);
+            await DraftManager.saveDraft(serverMarkdown);
+
+            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+              try {
+                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
+                  new MarkdownParser().splitSlides(serverMarkdown);
+              } catch {
+                /* ignore */
+              }
+            }
+          })().catch((err) => {
+            if (err.name === "AbortError") return;
+            console.warn("Background image upload failed:", err);
+          }),
+        );
       }
     } catch (e) {
       if (loading) loading.dismiss();

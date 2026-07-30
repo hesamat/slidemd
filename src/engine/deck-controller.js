@@ -11,6 +11,7 @@ import { SlideNavigator } from "./slide-navigator.js";
 import { PrintManager } from "../renderer/print-manager.js";
 import { HtmlExportManager } from "../renderer/html-export-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
+import { waitForImageUpload } from "../core/image-upload-promise.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
@@ -419,9 +420,7 @@ export class DeckController extends EventEmitter {
   }
 
   async handleTextpackExport({ filename = null } = {}) {
-    if (window.__WEBDECK_IMAGE_UPLOAD_PROMISE__) {
-      await window.__WEBDECK_IMAGE_UPLOAD_PROMISE__;
-    }
+    await waitForImageUpload();
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
     const markdown =
       editController?.saveManager?.getFullMarkdown() ??
