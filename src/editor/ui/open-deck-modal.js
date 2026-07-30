@@ -9,6 +9,7 @@ import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
+import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
 
 export class OpenDeckModal {
   static _el = null;
@@ -16,11 +17,6 @@ export class OpenDeckModal {
   static _textpackBtn = null;
   static _mdBtn = null;
   static _previousFocus = null;
-
-  // Batch limits for POST /api/upload-images — kept well under the dev server's
-  // 100 MB per-request cap so a large deck degrades per batch, not entirely.
-  static UPLOAD_BATCH_MAX_FILES = 20;
-  static UPLOAD_BATCH_MAX_BYTES = 15 * 1024 * 1024;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
@@ -180,74 +176,34 @@ export class OpenDeckModal {
       }
 
       if (serverAvailable && uniqueEntries.length > 0) {
-        // Upload images in batches: fewer requests than one-per-image, while
-        // keeping each request under the server limit and failures contained.
-        const pathMap = new Map();
-        let uploaded = 0;
-        let processed = 0;
         const total = uniqueEntries.length;
         loading.updateMessage("Uploading images...");
 
-        let batch = new FormData();
-        let batchCount = 0;
-        let batchBytes = 0;
-
-        const flushBatch = async () => {
-          if (batchCount === 0) return;
-          const sending = batch;
-          const sentCount = batchCount;
-          batch = new FormData();
-          batchCount = 0;
-          batchBytes = 0;
-          try {
-            const res = await fetch("/api/upload-images", {
-              method: "POST",
-              body: sending,
-              signal: controller.signal,
-            });
-            if (!res.ok) {
-              console.warn(`Image upload batch failed (HTTP ${res.status})`);
-              return;
-            }
-            const result = await res.json();
-            for (const p of result.paths || []) {
-              // Map both folder prefixes to the server path
-              pathMap.set(`images/${p.name}`, p.path);
-              pathMap.set(`assets/${p.name}`, p.path);
-              uploaded++;
-            }
-          } catch (e) {
-            if (e.name === "AbortError") throw e;
-            console.warn("Image upload batch failed:", e);
-          } finally {
-            processed += sentCount;
-            if (total > 0) loading.updateProgress(Math.round((processed / total) * 80));
-          }
-        };
-
+        const uploadEntries = [];
         for (const { name, entry } of uniqueEntries) {
           if (controller.signal.aborted) {
             throw new DOMException("Open .textpack cancelled", "AbortError");
           }
           const data = await entry.async("blob");
-          batch.append("image", new File([data], name, { type: data.type }));
-          batchCount++;
-          batchBytes += data.size;
-          if (
-            batchCount >= OpenDeckModal.UPLOAD_BATCH_MAX_FILES ||
-            batchBytes >= OpenDeckModal.UPLOAD_BATCH_MAX_BYTES
-          ) {
-            await flushBatch();
-          }
+          uploadEntries.push({ key: name, file: new File([data], name, { type: data.type }) });
         }
-        await flushBatch();
 
-        const failedUploads = total - uploaded;
+        const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
+          signal: controller.signal,
+          onProgress: (processed) => loading.updateProgress(Math.round((processed / total) * 80)),
+        });
+
+        const failedUploads = total - uploadedPaths.size;
         if (failedUploads > 0) {
           console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
         }
 
-        // Rewrite markdown to use the server-saved paths
+        // Rewrite markdown to use the server-saved paths (both folder prefixes)
+        const pathMap = new Map();
+        for (const [name, serverPath] of uploadedPaths) {
+          pathMap.set(`images/${name}`, serverPath);
+          pathMap.set(`assets/${name}`, serverPath);
+        }
         for (const [oldPath, newPath] of pathMap) {
           const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           resolvedMarkdown = resolvedMarkdown.replace(new RegExp(escaped, "g"), newPath);

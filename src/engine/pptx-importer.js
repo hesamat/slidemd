@@ -10,6 +10,7 @@ import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
+import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
 
 export class PptxImporter {
   /**
@@ -33,24 +34,31 @@ export class PptxImporter {
     let { markdown, images, deckName, aiMode } = result;
 
     // Show a loading overlay while the deck is being saved and loaded
+    const controller = new AbortController();
     const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
       title: "Importing PPTX",
       type: "info",
       cancelLabel: "Cancel",
-      onCancel: () => {},
+      cancelConfirmMessage: "Are you sure you want to cancel the PPTX import?",
+      onCancel: () => controller.abort(),
     });
 
     try {
       // Clear stale images from the previous deck so the picker is clean
       try {
-        await fetch("/api/images/clear", { method: "POST" });
-      } catch {
+        await fetch("/api/images/clear", { method: "POST", signal: controller.signal });
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
         /* ignore — best-effort cleanup */
       }
 
       // Upload PPTX-extracted images via the CLI server API
       // and build a mapping from original filenames to server-saved paths.
-      const imagePathMap = await this.#uploadImages(images, loading);
+      const imagePathMap = await this.#uploadImages(images, loading, controller.signal);
+
+      if (controller.signal.aborted) {
+        throw new DOMException("PPTX import cancelled", "AbortError");
+      }
 
       // Rewrite markdown image references to use the server-saved paths.
       if (imagePathMap.size > 0) {
@@ -235,6 +243,10 @@ export class PptxImporter {
       }
     } catch (err) {
       loading.dismiss();
+      if (err.name === "AbortError") {
+        Notification.info("PPTX import cancelled");
+        return;
+      }
       console.error("PPTX import failed:", err);
       Notification.error(`Import failed: ${err.message || err}`);
     }
@@ -244,81 +256,63 @@ export class PptxImporter {
    * Upload PPTX-extracted images via the CLI server API.
    * @param {Array} images - Extracted images from PPTX
    * @param {object} loading - Loading indicator
+   * @param {AbortSignal} [signal] - Aborts in-flight uploads when the user cancels
    * @returns {Promise<Map<string, string>>} Map from original filename to server path
    */
-  async #uploadImages(images, loading) {
-    /** @type {Map<string, string>} */
-    const imagePathMap = new Map();
-    if (!images?.length) return imagePathMap;
+  async #uploadImages(images, loading, signal = null) {
+    if (!images?.length) return new Map();
 
-    let uploaded = 0;
-    const total = images.filter((img) => img.base64 && img.ref).length;
+    const entries = [];
+    for (const img of images) {
+      if (!img.base64 || !img.ref) continue;
+      const rawName = img.ref.split("/").pop();
+      if (!rawName) continue;
+      const file = PptxImporter.#imageToFile(img, rawName);
+      if (file) entries.push({ key: rawName, file });
+    }
 
-    await Promise.all(
-      images.map(async (img) => {
-        if (!img.base64 || !img.ref) return;
-        const rawName = img.ref.split("/").pop();
-        if (!rawName) return;
-        const safeName = rawName.replace(/\.(emf|wmf|tif|tiff|bmp)$/i, ".png");
+    const total = entries.length;
+    if (total === 0) return new Map();
 
-        // Convert base64 to File object
-        const raw = img.base64
-          .replace(/^data:[^;]*;base64,/, "")
-          .replace(/\s+/g, "")
-          .replace(/-/g, "+")
-          .replace(/_/g, "/");
-        const pad = raw.length % 4;
-        const padded = pad ? raw + "=".repeat(4 - pad) : raw;
-        let binary;
-        try {
-          binary = atob(padded);
-        } catch {
-          console.warn(
-            "Failed to decode base64 for image:",
-            img.ref,
-            "sample:",
-            padded.slice(0, 80),
-          );
-          return;
-        }
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
-        const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
-        const file = new File([blob], safeName, { type: blob.type });
+    return uploadImagesInBatches(entries, {
+      signal,
+      onProgress: (processed) => {
+        loading.updateMessage(`Uploading images… ${processed}/${total}`);
+        loading.updateProgress(Math.round((processed / total) * 60));
+      },
+    });
+  }
 
-        // Upload via API
-        try {
-          const formData = new FormData();
-          formData.append("image", file);
-          const res = await fetch("/api/upload-image", { method: "POST", body: formData });
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({ error: res.statusText }));
-            console.warn(
-              "Failed to upload PPTX image:",
-              safeName,
-              "status:",
-              res.status,
-              "error:",
-              errBody.error,
-            );
-            return;
-          }
-          const data = await res.json();
-          if (data?.path) {
-            imagePathMap.set(rawName, data.path);
-          }
-        } catch {
-          console.warn("Failed to upload PPTX image:", safeName);
-        }
-        uploaded++;
-        if (total > 0) {
-          loading.updateMessage(`Uploading images… ${uploaded}/${total}`);
-          loading.updateProgress(Math.round((uploaded / total) * 60));
-        }
-      }),
-    );
+  /**
+   * Decode a PPTX-extracted base64 image into a File.
+   * Formats browsers can't render are renamed to .png (the extractor converts them).
+   * @param {{ base64: string, ref: string }} img
+   * @param {string} rawName
+   * @returns {File|null} Null when the base64 payload can't be decoded.
+   */
+  static #imageToFile(img, rawName) {
+    const safeName = rawName.replace(/\.(emf|wmf|tif|tiff|bmp)$/i, ".png");
 
-    return imagePathMap;
+    const raw = img.base64
+      .replace(/^data:[^;]*;base64,/, "")
+      .replace(/\s+/g, "")
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const pad = raw.length % 4;
+    const padded = pad ? raw + "=".repeat(4 - pad) : raw;
+
+    let binary;
+    try {
+      binary = atob(padded);
+    } catch {
+      console.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
+      return null;
+    }
+
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const ext = safeName.match(/\.[^.]+$/)?.[0] || ".png";
+    const blob = new Blob([bytes], { type: `image/${ext.slice(1)}` });
+    return new File([blob], safeName, { type: blob.type });
   }
 }
