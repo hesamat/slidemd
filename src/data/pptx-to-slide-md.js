@@ -9,128 +9,17 @@
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
 import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
-
-// Layout Definitions
-const LAYOUT = {
-  TITLE_SLIDE: { type: "title-slide", spec: "title-slide" },
-  FOCUS: { type: "focus", spec: "focus" },
-  HEADER_CONTENT: { type: "header-content", spec: "header-content" },
-  TWO_COLUMN: { type: "two-column", spec: "two-column" },
-  MEDIA_SPAN: { type: "media-span", spec: "media-span" },
-  THREE_COLUMN: { type: "three-column", spec: "three-column" },
-  FULL_IMAGE: { type: "full-image", spec: "full-image" },
-};
-
-// Conversion Ratios & Normalization Thresholds
-const CONVERSION = {
-  EMU_PER_POINT: 12700,
-  EMU_THRESHOLD: 10000, // Value threshold above which numbers are treated as EMUs
-  POINTS_TO_PX: 96 / 72, // DPI point-to-pixel scale ratio (72 points = 96 pixels)
-  INDENT_DIVISOR: 2,
-};
-
-const DEFAULT_SLIDE_SIZE = {
-  WIDTH_EMU: 9144000,
-  HEIGHT_EMU: 5143500,
-};
-
-const DEFAULTS = {
-  DECK_NAME: "presentation",
-  IMAGE_FILENAME: "image.png",
-  IMAGE_MIME_PNG: ".png",
-  IMAGE_SUBDIR: "images/",
-  NOTES_COMMENT_START: "<!-- notes: ",
-  NOTES_COMMENT_END: " -->",
-  CHART_COMMENT_PREFIX: "<!-- ",
-  CHART_COMMENT_SUFFIX: " -->",
-  CHART_PLACEHOLDER: "[Chart]",
-};
-
-const ELEMENT_TYPES = {
-  FOOTER: "footer",
-  TEXT: "text",
-  IMAGE: "image",
-  TABLE: "table",
-  CHART: "chart",
-  DIAGRAM: "diagram",
-};
-
-const MARKDOWN_TAGS = {
-  TITLE: "@title",
-  HEADER: "@header",
-  MAIN: "@main",
-  MEDIA: "@media",
-  SECONDARY: "@secondary",
-  FOOTER: "@footer",
-};
-
-const LUMINANCE = {
-  RED_COEFF: 299,
-  GREEN_COEFF: 587,
-  BLUE_COEFF: 114,
-  SCALE_DIVISOR: 1000,
-  DARK_THRESHOLD: 128,
-  HEX_MIN_LENGTH: 6,
-};
-
-const REGEX = {
-  BULLET: /^(?:[\u2022\u2023\u25E6\u2043\u2219•-]\s*)+/,
-  NUMBER: /^\d+[.)]\s*/,
-  HEADING_MARKER: /^#{1,3}\s/,
-  BULLET_LINE: /(?:^|\n)\s*[-*•]\s/,
-  NUMBER_LINE: /(?:^|\n)\s*\d+[.)]\s/,
-  CODE_BLOCK: /```/,
-  BOLD_HEADING: /^\*\*[^*]+\*\*$/,
-  HEADING_REPLACE: /^#{1,3}\s+/,
-  NOTES_HTML_COMMENT_START: /<!--/g,
-  NOTES_HTML_COMMENT_END: /-->/g,
-  NOTES_HTML_BR: /<br\s*\/?>/gi,
-  NOTES_HTML_TAGS: /<[^>]+>/g,
-  IMAGE_VECTOR_EXT: /\.(emf|wmf)$/i,
-  DECK_NAME_SANITIZE: /[^a-zA-Z0-9_-]/g,
-  FILE_EXTENSION: /\.[^.]+$/,
-  HYPHEN_UNDERSCORE: /[-_]/g,
-  NEWLINE_CRLF: /\r\n?/g,
-  NEWLINE: /\n/g,
-  PIPE: /\|/g,
-  ESCAPE_PIPE: "\\|",
-  DOUBLE_NEWLINE: "\n\n",
-  TRIPLE_NEWLINE_OR_MORE: /\n{3,}/g,
-};
-
-const CONFIG = {
-  bodyTopRatio: 0.22,
-  rowMaxVerticalDiffRatio: 0.1,
-  minColumnSpreadRatio: 0.15,
-  maxTitleLength: 300,
-  maxTitleElements: 3,
-  headerThinRatio: 0.4,
-  maxHeaderHeightRatio: 0.35,
-  centerToleranceRatio: 0.1,
-  minSubstantialBodyLength: 80,
-  maxHeaderLength: 150,
-  maxHeaderLengthShort: 80,
-  minMediaAreaRatio: 0.005,
-  maxMediaAreaRatio: 0.85,
-  maxLogoAreaRatio: 0.015, // Max area of slide (1.5%) for header/footer logo filtering
-  maxBackgroundCardRatio: 1.5, // Max area multiplier relative to text for background cards
-  minDominantAreaRatio: 0.05,
-  thinLineThresholdPoints: 15, // Max thickness in points for vertical/horizontal lines
-  microNoiseThresholdPoints: 150, // Absolute minimum area in points for an image
-  marginTopRatio: 0.1, // Top 10% of slide height
-  marginBottomRatio: 0.9, // Bottom 10% of slide height
-  aspectRatioUpperLimit: 8,
-  aspectRatioLowerLimit: 0.125,
-  overlapRatioThreshold: 0.5, // Minimum overlap ratio to consider image as text background/border
-  dominantImageThreshold: 0.6, // Minimum area ratio for dominant image to become background
-  backgroundOverlapThreshold: 0.1, // Minimum overlap ratio for background/content
-  spreadOverlapThreshold: 0.5, // Minimum overlap ratio for two-column detection
-  partitionMidTolerance: 0.05, // Tolerance for center vs left-edge partition
-  tallColumnHeightRatio: 0.5, // Minimum height ratio for "tall" column detection
-  fullScreenTableThreshold: 0.8, // Minimum area ratio for full-page table
-  flexRowVerticalTolerance: 0.15, // Max top-position diff (ratio of slide height) for same row
-  flexRowMinHorizontalGap: 0.1, // Min gap (ratio of slide width) between elements in a row
-};
+import {
+  LAYOUT,
+  CONVERSION,
+  DEFAULT_SLIDE_SIZE,
+  DEFAULTS,
+  ELEMENT_TYPES,
+  MARKDOWN_TAGS,
+  LUMINANCE,
+  REGEX,
+  CONFIG,
+} from "./pptx-slide-config.js";
 
 /**
  * Convert English Metric Units (EMUs) to standard slide points.
