@@ -31,12 +31,16 @@ export class HtmlExportManager {
     "src/renderer/print-manager.js",
     // Engine components
     "src/engine/keyboard-handler.js",
+    "src/engine/deck-keyboard.js",
     "src/engine/wheel-handler.js",
     "src/engine/freeze-manager.js",
     "src/engine/role-manager.js",
     "src/engine/slide-navigator.js",
     "src/engine/break-manager.js",
     "src/engine/reload-manager.js",
+    "src/engine/deck-events.js",
+    "src/engine/pptx-importer.js",
+    "src/engine/presentation-creator.js",
     "src/engine/deck-controller.js",
     // UI components
     "src/ui/ui-actions.js",
