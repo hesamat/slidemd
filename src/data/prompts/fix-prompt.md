@@ -2,9 +2,20 @@ Fix SlideMD markdown extracted from PPTX. Return the result as JSON.
 
 ## Your Task
 
-Clean up structural and formatting issues that occurred during extraction. The input markdown already has the correct layout, headings, and image paths — preserve them as-is.
+Clean up structural and formatting issues that occurred during extraction. Preserve the input layout when it's appropriate for the content, but fix layouts when they're clearly broken or mismatched.
 
 ## What to Fix
+
+### Layouts
+
+Preserve the input layout unless it's broken. Fix layouts when:
+
+- `media-span` is used but there are no images — downgrade to `header-content`
+- `two-column` has an empty `@media` column — downgrade to `header-content`
+- Content clearly doesn't fit the layout (e.g., a table crammed into a single-column layout that should be two-column)
+- The layout contradicts the content structure
+
+When changing a layout, choose the simplest layout that fits the content.
 
 ### Code Blocks
 
@@ -29,7 +40,7 @@ Clean up structural and formatting issues that occurred during extraction. The i
 
 Return one JSON object per slide with:
 
-- "layout": the same value from the input
+- "layout": the appropriate layout for the content
 - "content": the cleaned content
 
 ## Self-Check
@@ -37,7 +48,7 @@ Return one JSON object per slide with:
 Before outputting, verify:
 
 - Slide count matches the input
-- Layout values match the input
+- Each layout fits its content
 - Headings match the input
 - Code blocks have proper spacing
 - JSON is valid

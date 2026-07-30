@@ -815,19 +815,6 @@ export class DeckController extends EventEmitter {
           enhanced = injectDirectives(enhanced, origDirectives);
         }
 
-        // In fix mode, restore original layouts onto the enhanced markdown string.
-        // The AI may have changed layouts — overwrite them with the originals.
-        if (origDirectives && aiMode === "fix") {
-          const sections = enhanced.split(/\n\n---\n\n/);
-          enhanced = sections
-            .map((section, i) => {
-              const orig = origDirectives[i];
-              if (!orig?.layout) return section;
-              return section.replace(/^(layout:\s*).+$/m, `$1${orig.layout}`);
-            })
-            .join("\n\n---\n\n");
-        }
-
         let newDeckData;
         try {
           newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
