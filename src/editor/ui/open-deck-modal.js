@@ -10,6 +10,22 @@ import { Notification } from "../../renderer/notification.js";
 import { DraftManager } from "../../core/draft-manager.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
+import { MarkdownParser } from "../../data/markdown-parser.js";
+
+const IMAGE_MIME_TYPES = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+};
+
+function getImageMimeType(filename) {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  return (ext && IMAGE_MIME_TYPES[ext]) || "application/octet-stream";
+}
 
 export class OpenDeckModal {
   static _el = null;
@@ -58,10 +74,10 @@ export class OpenDeckModal {
    * Open a .textpack file (ZIP archive containing text.markdown + assets/).
    * Extracts to memory and loads the deck.
    *
-   * When the CLI dev server is running, images are uploaded to the server
-   * so the markdown keeps relative `images/…` paths — this makes Ctrl+S
-   * work correctly.  Blob URLs are used only as a fallback when no server
-   * is available.
+   * Images are rendered immediately from in-memory blob URLs so the deck
+   * appears without waiting for uploads. When the CLI dev server is running,
+   * images are uploaded in the background and the saved markdown is rewritten
+   * to use server `images/…` paths once the upload completes.
    */
   static async _openTextpackFile() {
     let loading = null;
@@ -175,59 +191,32 @@ export class OpenDeckModal {
         }
       }
 
-      if (serverAvailable && uniqueEntries.length > 0) {
-        const total = uniqueEntries.length;
-        loading.updateMessage("Uploading images...");
-
-        const uploadEntries = [];
-        for (const { name, entry } of uniqueEntries) {
-          if (controller.signal.aborted) {
-            throw new DOMException("Open .textpack cancelled", "AbortError");
-          }
-          const data = await entry.async("blob");
-          uploadEntries.push({ key: name, file: new File([data], name, { type: data.type }) });
-        }
-
-        const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
-          signal: controller.signal,
-          onProgress: (processed) => loading.updateProgress(Math.round((processed / total) * 80)),
-        });
-
-        const failedUploads = total - uploadedPaths.size;
-        if (failedUploads > 0) {
-          console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
-        }
-
-        // Rewrite markdown to use the server-saved paths (both folder prefixes)
-        const pathMap = new Map();
-        for (const [name, serverPath] of uploadedPaths) {
-          pathMap.set(`images/${name}`, serverPath);
-          pathMap.set(`assets/${name}`, serverPath);
-        }
-        for (const [oldPath, newPath] of pathMap) {
-          const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          resolvedMarkdown = resolvedMarkdown.replace(new RegExp(escaped, "g"), newPath);
-        }
-      } else if (uniqueEntries.length > 0) {
-        // No server — fall back to blob URLs for in-browser display
-        const assetUrls = new Map();
-        let completed = 0;
-        const total = uniqueEntries.length;
+      // Render images immediately from in-memory blob URLs while uploading in the background
+      const filenameToBlobUrl = new Map();
+      const relPathToBlobUrl = new Map();
+      if (uniqueEntries.length > 0) {
         loading.updateMessage("Preparing images...");
         await Promise.all(
-          uniqueEntries.map(async ({ folderName, name, entry }) => {
+          uniqueEntries.map(async (item) => {
             if (controller.signal.aborted) {
               throw new DOMException("Open .textpack cancelled", "AbortError");
             }
-            const data = await entry.async("blob");
-            const blobUrl = URL.createObjectURL(data);
-            assetUrls.set(`${folderName}/${name}`, blobUrl);
-            completed++;
-            if (total > 0) loading.updateProgress(Math.round((completed / total) * 80));
+            const rawBlob = await item.entry.async("blob");
+            const type = rawBlob.type || getImageMimeType(item.name);
+            const typedFile = new File([rawBlob], item.name, { type });
+            item.data = typedFile;
+            const blobUrl = URL.createObjectURL(typedFile);
+            filenameToBlobUrl.set(item.name, blobUrl);
           }),
         );
 
-        for (const [relPath, blobUrl] of assetUrls) {
+        for (const name of filenameToBlobUrl.keys()) {
+          const blobUrl = filenameToBlobUrl.get(name);
+          relPathToBlobUrl.set(`images/${name}`, blobUrl);
+          relPathToBlobUrl.set(`assets/${name}`, blobUrl);
+        }
+
+        for (const [relPath, blobUrl] of relPathToBlobUrl) {
           const escapedPath = relPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           resolvedMarkdown = resolvedMarkdown.replace(
             new RegExp(`(src=["']?)${escapedPath}(["']?)`, "g"),
@@ -276,6 +265,48 @@ export class OpenDeckModal {
 
       await DraftManager.clearDraft();
       loading.dismiss();
+
+      if (serverAvailable && uniqueEntries.length > 0) {
+        // Upload images to the server in the background and then swap blob URLs for server paths
+        window.__WEBDECK_IMAGE_UPLOAD_PROMISE__ = (async () => {
+          const uploadEntries = uniqueEntries.map(({ name, data }) => ({
+            key: name,
+            file: data,
+          }));
+
+          const uploadedPaths = await uploadImagesInBatches(uploadEntries, {
+            signal: controller.signal,
+          });
+
+          const failedUploads = uniqueEntries.length - uploadedPaths.size;
+          if (failedUploads > 0) {
+            console.warn(`${failedUploads} image(s) failed to upload and may not persist.`);
+          }
+
+          let serverMarkdown = resolvedMarkdown;
+          for (const [name, serverPath] of uploadedPaths) {
+            const blobUrl = filenameToBlobUrl.get(name);
+            if (blobUrl && serverPath) {
+              serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+            }
+          }
+
+          localStorage.setItem("webdeck_local_file", serverMarkdown);
+          await DraftManager.saveDraft(serverMarkdown);
+
+          if (window.__WEBDECK_EDIT_CONTROLLER__) {
+            try {
+              window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
+                new MarkdownParser().splitSlides(serverMarkdown);
+            } catch {
+              /* ignore */
+            }
+          }
+        })().catch((err) => {
+          if (err.name === "AbortError") return;
+          console.warn("Background image upload failed:", err);
+        });
+      }
     } catch (e) {
       if (loading) loading.dismiss();
       if (e.name === "AbortError") {
