@@ -1380,3 +1380,52 @@ body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
 .slide[data-theme="dark"] .welcome-btn:hover {
   background: rgba(56, 189, 248, 1);
 }
+
+/* ── Text Blocks (Edit / Presentation) ─────────────────────────────────────── */
+
+.slide__area .text-block {
+  z-index: 1;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 32px;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-width: 20px;
+  min-height: 20px;
+  box-sizing: border-box;
+  pointer-events: auto;
+  display: block;
+  width: 100%;
+}
+
+.slide__area .text-block--float {
+  position: absolute;
+  width: auto;
+}
+
+body[data-edit-mode="true"] .slide__area .text-block--float {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+body[data-edit-mode="true"] .slide__area .text-block {
+  cursor: text;
+}
+
+body[data-edit-mode="true"] .slide__area .text-block--float:hover {
+  outline: 2px solid rgba(2, 132, 199, 0.35);
+  outline-offset: 2px;
+}
+
+body[data-edit-mode="true"] .slide__area .text-block.text-block--selected {
+  outline: 2px solid rgba(2, 132, 199, 0.6);
+  outline-offset: 2px;
+}
+
+body[data-edit-mode="true"] .slide__area .text-block[contenteditable="true"] {
+  cursor: text;
+  outline: 2px solid var(--accent);
+  user-select: text;
+}

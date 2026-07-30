@@ -1,0 +1,726 @@
+/**
+ * TextBlockHandler
+ *
+ * Handles insertion, drag-and-drop repositioning, inline editing, and the
+ * floating properties panel for free-form text blocks in slide content.
+ *
+ * Text blocks are stored as raw HTML <div class="text-block" ...> snippets
+ * inside the slide markdown.  They are rendered as part of the area HTML,
+ * positioned absolutely relative to their containing .slide__area, and
+ * updated by writing the modified HTML back to the markdown source.
+ */
+
+import interact from "interactjs";
+import { escapeHtml } from "../../core/utils.js";
+import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
+
+const SNAP = 10;
+const DEFAULT_W = 320;
+const DEFAULT_H = 80;
+
+/**
+ * Read current settings from a text-block DOM element.
+ */
+function readTextBlockSettings(el) {
+  const style = el.style;
+  const transform = style.transform || "";
+  const rotMatch = transform.match(/rotate\(([-\d.]+)deg\)/i);
+  return {
+    id: el.dataset.id || "",
+    float: el.classList.contains("text-block--float"),
+    left: parseFloat(style.left) || 0,
+    top: parseFloat(style.top) || 0,
+    fontSize: parseFloat(style.fontSize) || 32,
+    color: style.color || "",
+    backgroundColor: style.backgroundColor || "transparent",
+    textAlign: style.textAlign || "left",
+    opacity: Number(style.opacity) || 1,
+    zIndex: parseInt(style.zIndex, 10) || 0,
+    rotation: parseFloat(rotMatch?.[1] || "0"),
+    fontWeight: style.fontWeight || "",
+    fontStyle: style.fontStyle || "",
+    textDecoration: style.textDecoration || "",
+  };
+}
+
+/**
+ * Build the inline style string for a text block.
+ */
+function buildStyleString(settings) {
+  const parts = [];
+  if (settings.float) {
+    parts.push("position:absolute");
+    parts.push(`left:${Math.round(settings.left || 0)}px`);
+    parts.push(`top:${Math.round(settings.top || 0)}px`);
+  }
+  if (settings.fontSize) parts.push(`font-size:${settings.fontSize}px`);
+  if (settings.color) parts.push(`color:${settings.color}`);
+  if (settings.backgroundColor) parts.push(`background-color:${settings.backgroundColor}`);
+  if (settings.textAlign) parts.push(`text-align:${settings.textAlign}`);
+  if (settings.opacity != null) parts.push(`opacity:${settings.opacity}`);
+  if (settings.zIndex) parts.push(`z-index:${settings.zIndex}`);
+  if (settings.rotation) parts.push(`transform:rotate(${settings.rotation}deg)`);
+  if (settings.fontWeight) parts.push(`font-weight:${settings.fontWeight}`);
+  if (settings.fontStyle) parts.push(`font-style:${settings.fontStyle}`);
+  if (settings.textDecoration) parts.push(`text-decoration:${settings.textDecoration}`);
+  parts.push("white-space:pre-wrap");
+  return parts.join("; ");
+}
+
+/**
+ * Build a full <div> snippet for the text block, with content escaped.
+ */
+function buildTextBlockHtml(settings, content) {
+  const safeContent = escapeHtml(content).replace(/\n/g, "&#10;");
+  const style = buildStyleString(settings);
+  const cls = ["text-block", settings.float ? "text-block--float" : ""].filter(Boolean).join(" ");
+  return `<div class="${cls}" data-id="${settings.id}" style="${style}">${safeContent}</div>`;
+}
+
+/**
+ * Read the current stage scale factor from the DOM.
+ */
+function getStageScale() {
+  const stage = document.querySelector(".stage__inner");
+  if (!stage) return 1;
+  const transform = getComputedStyle(stage).transform;
+  if (!transform || transform === "none") return 1;
+  const match = transform.match(/matrix\(([^,]+),/);
+  return match ? parseFloat(match[1]) : 1;
+}
+
+export class TextBlockHandler {
+  static _initialized = false;
+  static _container = null;
+  static _selected = null;
+  static _getMarkdown = null;
+  static _setMarkdown = null;
+  static _onDelete = null;
+  static _getMarkdownEditor = null;
+  static _getCurrentSlideIndex = null;
+  static _getSlideElementByIndex = null;
+  static _idCounter = 0;
+  static _panel = null;
+  static _abortController = null;
+
+  /**
+   * @param {object} opts
+   * @param {() => string} opts.getMarkdown
+   * @param {(md: string) => void} opts.setMarkdown
+   * @param {(md: string) => void} [opts.onDelete]
+   * @param {() => object|null} opts.getMarkdownEditor
+   * @param {() => number} opts.getCurrentSlideIndex
+   * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   */
+  static init({
+    getMarkdown,
+    setMarkdown,
+    onDelete,
+    getMarkdownEditor,
+    getCurrentSlideIndex,
+    getSlideElementByIndex,
+  }) {
+    if (this._initialized) return;
+    this._initialized = true;
+    this._getMarkdown = getMarkdown;
+    this._setMarkdown = setMarkdown;
+    this._onDelete = onDelete;
+    this._getMarkdownEditor = getMarkdownEditor;
+    this._getCurrentSlideIndex = getCurrentSlideIndex;
+    this._getSlideElementByIndex = getSlideElementByIndex;
+
+    document.addEventListener("mousedown", (e) => {
+      if (!this._selected) return;
+      if (e.target.closest(".text-block") === this._selected) return;
+      if (e.target.closest(".text-properties-panel")) return;
+      if (this._selected.isContentEditable) return;
+      this.deselect();
+    });
+  }
+
+  /**
+   * Insert a default text block centered in the main area.
+   */
+  static insertTextBlock() {
+    const editor = this._getMarkdownEditor?.();
+    if (!editor) return;
+
+    const slideEl = this._getSlideElementByIndex(this._getCurrentSlideIndex());
+    const mainArea = slideEl?.querySelector(".slide__area--main");
+    const scale = getStageScale();
+    let left = 200;
+    let top = 200;
+
+    if (mainArea) {
+      const rect = mainArea.getBoundingClientRect();
+      const width = rect.width / scale || 800;
+      const height = rect.height / scale || 400;
+      left = Math.round((width - DEFAULT_W) / 2);
+      top = Math.round((height - DEFAULT_H) / 2);
+    }
+
+    const id = this._nextId();
+    const settings = {
+      id,
+      float: false,
+      left,
+      top,
+      fontSize: 32,
+      color: "",
+      backgroundColor: "transparent",
+      textAlign: "left",
+      opacity: 1,
+      zIndex: 0,
+      rotation: 0,
+    };
+    const html = buildTextBlockHtml(settings, "Text");
+    this._insertHtmlSnippet(html);
+  }
+
+  static _nextId() {
+    this._idCounter += 1;
+    return `tb-${Date.now()}-${this._idCounter}`;
+  }
+
+  /**
+   * Insert an HTML snippet at the end of the current slide's markdown, so it
+   * flows with the slide content rather than being dropped at the top.
+   */
+  static _insertHtmlSnippet(snippet) {
+    const editor = this._getMarkdownEditor();
+    const current = editor.getValue();
+    const idx = this._getCurrentSlideIndex?.() ?? 0;
+    const separator = "\n\n---\n\n";
+    const slides = current.split(separator);
+
+    const safeIdx = Math.min(Math.max(idx, 0), slides.length - 1);
+    let insertPos = 0;
+    for (let i = 0; i < safeIdx; i++) {
+      insertPos += slides[i].length + separator.length;
+    }
+    insertPos += slides[safeIdx].length;
+
+    const prev = current[insertPos - 1] || "";
+    const next = current[insertPos] || "";
+    const pad = prev === "\n" || next === "\n" ? "\n" : "\n\n";
+
+    editor.replaceRange(insertPos, insertPos, `${pad}${snippet}`);
+    editor.focus();
+  }
+
+  /**
+   * Activate drag, right-click, and inline-edit listeners for text blocks in
+   * the given slide grid container.
+   */
+  static activate(container) {
+    this.deactivate();
+    this._container = container;
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    this._interactable = interact(".text-block--float", { context: container });
+    this._interactable.draggable({
+      listeners: {
+        start: (e) => this._onDragStart(e),
+        move: (e) => this._onDragMove(e),
+        end: (e) => this._onDragEnd(e),
+      },
+    });
+
+    container.addEventListener(
+      "contextmenu",
+      (e) => {
+        const block = e.target.closest(".text-block");
+        if (!block) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.select(block);
+        this._showPanel();
+      },
+      { signal },
+    );
+
+    container.addEventListener(
+      "dblclick",
+      (e) => {
+        const block = e.target.closest(".text-block");
+        if (!block) return;
+        e.stopPropagation();
+        this._enterInlineEdit(block);
+      },
+      { signal },
+    );
+
+    container.addEventListener(
+      "blur",
+      (e) => {
+        const block = e.target.closest(".text-block");
+        if (!block) return;
+        this._finishInlineEdit(block);
+      },
+      { signal, capture: true },
+    );
+  }
+
+  static deactivate() {
+    this._interactable?.unset();
+    this._interactable = null;
+    this._container = null;
+    this._abortController?.abort();
+    this._abortController = null;
+    this.deselect();
+  }
+
+  static select(el) {
+    if (this._selected && this._selected !== el) this.deselect();
+    if (!el.isConnected) return;
+    this._selected = el;
+    el.classList.add("text-block--selected");
+    el.setAttribute("contenteditable", "false");
+  }
+
+  static deselect() {
+    if (this._selected) {
+      if (this._selected.isConnected) {
+        this._selected.classList.remove("text-block--selected");
+        if (this._selected.isContentEditable) this._finishInlineEdit(this._selected);
+      }
+      this._selected = null;
+    }
+    this._hidePanel();
+  }
+
+  static _ensureId(el) {
+    if (!el || el.dataset.id) return;
+    const content = el.innerText || "";
+    const md = this._getMarkdown?.() || "";
+    const re =
+      /<div\b(?=[^>]*?\bclass="[^"]*\btext-block\b[^"]*")(?![^>]*?\bdata-id=)[^>]*>([\s\S]*?)<\/div>/gi;
+
+    let match;
+    while ((match = re.exec(md)) !== null) {
+      const text = this._htmlToText(match[1]);
+      if (text === content) {
+        const openEnd = match[0].indexOf(">");
+        const openTag = match[0].slice(0, openEnd + 1);
+        const id = this._nextId();
+        const newOpenTag = openTag.replace(/>$/, ` data-id="${id}">`);
+        const updated =
+          md.slice(0, match.index) +
+          newOpenTag +
+          match[1] +
+          "</div>" +
+          md.slice(match.index + match[0].length);
+        el.dataset.id = id;
+        this._setMarkdown?.(updated);
+        return;
+      }
+    }
+  }
+
+  static _htmlToText(html) {
+    const div = document.createElement("div");
+    div.innerHTML = html.replace(/<br\s*\/?>/gi, "\n").replace(/&#10;/g, "\n");
+    return (div.textContent || "").trim();
+  }
+
+  static _onDragStart(e) {
+    const el = e.target?.closest?.(".text-block");
+    if (!el) return;
+    if (el.isContentEditable) {
+      e.interaction?.stop?.();
+      return;
+    }
+    this.select(el);
+    this._ensureId(el);
+    ImagePropertiesPanel.hide();
+  }
+
+  static _onDragMove(e) {
+    const el = e.target?.closest?.(".text-block");
+    if (!el || el !== this._selected) return;
+    const scale = getStageScale();
+    const dx = e.dx / scale;
+    const dy = e.dy / scale;
+    let left = (parseFloat(el.style.left) || 0) + dx;
+    let top = (parseFloat(el.style.top) || 0) + dy;
+    left = Math.round(left / SNAP) * SNAP;
+    top = Math.round(top / SNAP) * SNAP;
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }
+
+  static _onDragEnd() {
+    if (!this._selected) return;
+    this._syncToMarkdown();
+  }
+
+  static _enterInlineEdit(el) {
+    this._ensureId(el);
+    el.classList.remove("text-block--selected");
+    el.setAttribute("contenteditable", "true");
+    el.focus();
+  }
+
+  static _finishInlineEdit(el) {
+    if (!el.isContentEditable) return;
+    el.setAttribute("contenteditable", "false");
+    if (this._selected === el) el.classList.add("text-block--selected");
+    this._syncToMarkdown();
+  }
+
+  /**
+   * Find the selected text block in markdown and replace it with its current
+   * DOM state.
+   */
+  static _syncToMarkdown() {
+    const el = this._selected;
+    if (!el) return;
+    const md = this._getMarkdown?.() || "";
+    const id = el.dataset.id;
+    if (!id) return;
+
+    const openRe = new RegExp(
+      `<div\\b(?=[^>]*?\\bclass="[^"]*\\btext-block\\b[^"]*")(?=[^>]*?\\bdata-id="${id}")[^>]*>`,
+      "i",
+    );
+    const openMatch = md.match(openRe);
+    if (!openMatch) return;
+
+    const start = openMatch.index;
+    const end = md.indexOf("</div>", start + openMatch[0].length);
+    if (end === -1) return;
+
+    const settings = readTextBlockSettings(el);
+    settings.id = id;
+    const newHtml = buildTextBlockHtml(settings, el.innerText || "");
+    const updated = md.slice(0, start) + newHtml + md.slice(end + 6);
+    this._setMarkdown?.(updated);
+  }
+
+  // ─── Properties panel ─────────────────────────────────────────────────────
+
+  static _ensurePanel() {
+    if (this._panel) return;
+    const el = document.createElement("div");
+    el.id = "textPropertiesPanel";
+    el.className = "text-properties-panel webdeck-hidden";
+    el.setAttribute("role", "toolbar");
+    el.setAttribute("aria-label", "Text block properties");
+    el.innerHTML = `
+      <div class="text-properties-panel__header">
+        <button type="button" class="text-properties-panel__tab-btn active" data-tab="text">Text</button>
+        <button type="button" class="text-properties-panel__tab-btn" data-tab="style">Style</button>
+        <button type="button" class="text-properties-panel__tab-btn" data-tab="position">Position</button>
+      </div>
+      <div class="text-properties-panel__body">
+        <div class="text-properties-panel__tab" data-tab-content="text">
+          <div class="text-properties-panel__row">
+            <textarea class="text-properties-panel__textarea" data-field="content" rows="4" placeholder="Text"></textarea>
+          </div>
+          <div class="text-properties-panel__row">
+            <button type="button" class="text-properties-panel__chip" data-action="align-left">Left</button>
+            <button type="button" class="text-properties-panel__chip" data-action="align-center">Center</button>
+            <button type="button" class="text-properties-panel__chip" data-action="align-right">Right</button>
+          </div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field text-properties-panel__field--check">
+              <input type="checkbox" class="text-properties-panel__checkbox" data-field="float" />
+              <span class="text-properties-panel__field-label">Float (overlay)</span>
+            </label>
+          </div>
+        </div>
+        <div class="text-properties-panel__tab webdeck-hidden" data-tab-content="style">
+          <div class="text-properties-panel__row">
+            <button type="button" class="text-properties-panel__chip" data-action="bold">B</button>
+            <button type="button" class="text-properties-panel__chip" data-action="italic">I</button>
+            <button type="button" class="text-properties-panel__chip" data-action="underline">U</button>
+            <button type="button" class="text-properties-panel__chip" data-action="strikethrough">S</button>
+          </div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Font</span>
+              <input type="number" class="text-properties-panel__input" data-field="fontSize" />
+            </label>
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Color</span>
+              <input type="color" class="text-properties-panel__input" data-field="color" />
+            </label>
+          </div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Background</span>
+              <input type="text" class="text-properties-panel__input" data-field="backgroundColor" />
+            </label>
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Opacity</span>
+              <input type="number" step="0.1" min="0" max="1" class="text-properties-panel__input" data-field="opacity" />
+            </label>
+          </div>
+        </div>
+        <div class="text-properties-panel__tab webdeck-hidden" data-tab-content="position">
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">X</span>
+              <input type="number" class="text-properties-panel__input" data-field="left" />
+            </label>
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Y</span>
+              <input type="number" class="text-properties-panel__input" data-field="top" />
+            </label>
+          </div>
+          <div class="text-properties-panel__row">
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Rotate</span>
+              <input type="number" class="text-properties-panel__input" data-field="rotation" />
+            </label>
+            <label class="text-properties-panel__field">
+              <span class="text-properties-panel__field-label">Z-Index</span>
+              <input type="number" class="text-properties-panel__input" data-field="zIndex" />
+            </label>
+          </div>
+        </div>
+        <div class="text-properties-panel__row text-properties-panel__row--footer">
+          <button type="button" class="text-properties-panel__btn text-properties-panel__btn--danger" data-action="delete">Delete</button>
+        </div>
+      </div>
+    `;
+    this._panel = el;
+    document.body.appendChild(el);
+    this._wirePanel();
+  }
+
+  static _wirePanel() {
+    if (!this._panel) return;
+    const { _panel: el } = this;
+
+    el.addEventListener("input", (e) => {
+      const field = e.target?.dataset?.field;
+      if (!field) return;
+      const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+      this._onPanelInput(field, value);
+    });
+
+    el.addEventListener("change", () => this._syncToMarkdown());
+    el.addEventListener("click", (e) => {
+      const tab = e.target?.closest?.("[data-tab]")?.dataset?.tab;
+      if (tab) {
+        this._switchTab(tab);
+        return;
+      }
+      const action = e.target?.closest?.("[data-action]")?.dataset?.action;
+      if (!action) return;
+      this._onPanelAction(action);
+    });
+
+    // Sync when a textarea loses focus.
+    el.addEventListener(
+      "blur",
+      (e) => {
+        if (e.target?.tagName === "TEXTAREA") this._syncToMarkdown();
+      },
+      true,
+    );
+  }
+
+  static _switchTab(tab) {
+    if (!this._panel) return;
+    this._panel.querySelectorAll("[data-tab]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+    });
+    this._panel.querySelectorAll("[data-tab-content]").forEach((pane) => {
+      pane.classList.toggle("webdeck-hidden", pane.dataset.tabContent !== tab);
+    });
+  }
+
+  static _showPanel() {
+    this._ensurePanel();
+    const el = this._selected;
+    if (!el || !this._panel) return;
+    ImagePropertiesPanel.hide();
+    this._ensureId(el);
+    this._syncPanelUI();
+    this._switchTab("text");
+    this._panel.classList.remove("webdeck-hidden");
+
+    const rect = el.getBoundingClientRect();
+    const panelH = this._panel.offsetHeight || 260;
+    const panelW = this._panel.offsetWidth || 280;
+
+    let left = rect.right + window.scrollX + 8;
+    let top = rect.top + window.scrollY;
+    if (left + panelW > window.innerWidth) {
+      left = rect.left + window.scrollX - panelW - 8;
+    }
+    top = Math.max(8, Math.min(top, window.innerHeight - panelH - 8));
+
+    this._panel.style.top = `${top}px`;
+    this._panel.style.left = `${left}px`;
+  }
+
+  static _hidePanel() {
+    if (this._panel) this._panel.classList.add("webdeck-hidden");
+  }
+
+  static _syncPanelUI() {
+    const el = this._selected;
+    if (!el || !this._panel) return;
+    const settings = readTextBlockSettings(el);
+
+    const setValue = (field, value) => {
+      const input = this._panel.querySelector(`[data-field="${field}"]`);
+      if (!input) return;
+      if (input.type === "checkbox") {
+        input.checked = !!value;
+      } else if (input.type === "color") {
+        input.value = (value || "").trim() || "#000000";
+      } else if (field === "backgroundColor") {
+        input.value = value || "transparent";
+      } else {
+        input.value = value;
+      }
+    };
+
+    setValue("content", el.innerText || "");
+    setValue("left", settings.left);
+    setValue("top", settings.top);
+    setValue("fontSize", settings.fontSize);
+    setValue("rotation", settings.rotation);
+    setValue("color", settings.color);
+    setValue("backgroundColor", settings.backgroundColor);
+    setValue("opacity", settings.opacity);
+    setValue("zIndex", settings.zIndex);
+    setValue("float", settings.float);
+
+    this._panel.querySelectorAll("[data-action]").forEach((btn) => {
+      const action = btn.dataset.action;
+      let active = false;
+      switch (action) {
+        case "align-left":
+          active = settings.textAlign === "left";
+          break;
+        case "align-center":
+          active = settings.textAlign === "center";
+          break;
+        case "align-right":
+          active = settings.textAlign === "right";
+          break;
+        case "bold":
+          active = settings.fontWeight === "bold" || settings.fontWeight === "700";
+          break;
+        case "italic":
+          active = settings.fontStyle === "italic";
+          break;
+        case "underline":
+          active = settings.textDecoration.includes("underline");
+          break;
+        case "strikethrough":
+          active = settings.textDecoration.includes("line-through");
+          break;
+      }
+      btn.classList.toggle("active", active);
+    });
+  }
+
+  static _onPanelInput(field, value) {
+    const el = this._selected;
+    if (!el) return;
+
+    if (field === "content") {
+      el.innerText = value;
+      return;
+    }
+
+    if (field === "float") {
+      el.classList.toggle("text-block--float", !!value);
+      el.style.position = value ? "absolute" : "";
+      return;
+    }
+
+    const numeric = ["left", "top", "fontSize", "rotation", "zIndex"].includes(field);
+    if (numeric) {
+      const n = parseFloat(value);
+      if (Number.isNaN(n)) return;
+      if (field === "rotation") {
+        el.style.transform = n ? `rotate(${n}deg)` : "";
+      } else if (["left", "top", "fontSize"].includes(field)) {
+        el.style[field === "fontSize" ? "fontSize" : field] = `${n}px`;
+      } else {
+        el.style[field] = String(n);
+      }
+      return;
+    }
+
+    if (field === "opacity") {
+      el.style.opacity = value;
+    } else if (["color", "backgroundColor"].includes(field)) {
+      el.style[field] = value;
+    }
+  }
+
+  static _onPanelAction(action) {
+    const el = this._selected;
+    if (!el) return;
+
+    if (action === "delete") {
+      this._deleteSelected();
+      return;
+    }
+
+    const alignMap = {
+      "align-left": "left",
+      "align-center": "center",
+      "align-right": "right",
+    };
+    if (alignMap[action]) {
+      el.style.textAlign = alignMap[action];
+      this._syncPanelUI();
+      this._syncToMarkdown();
+      return;
+    }
+
+    if (action === "bold") {
+      const isBold = el.style.fontWeight === "bold" || el.style.fontWeight === "700";
+      el.style.fontWeight = isBold ? "" : "bold";
+    } else if (action === "italic") {
+      el.style.fontStyle = el.style.fontStyle === "italic" ? "" : "italic";
+    } else if (action === "underline") {
+      this._toggleDecoration(el, "underline");
+    } else if (action === "strikethrough") {
+      this._toggleDecoration(el, "line-through");
+    }
+
+    this._syncPanelUI();
+    this._syncToMarkdown();
+  }
+
+  static _toggleDecoration(el, kind) {
+    const set = new Set((el.style.textDecoration || "").split(" ").filter(Boolean));
+    if (set.has(kind)) set.delete(kind);
+    else set.add(kind);
+    el.style.textDecoration = Array.from(set).join(" ") || "";
+  }
+
+  static _deleteSelected() {
+    const el = this._selected;
+    if (!el) return;
+    const md = this._getMarkdown?.() || "";
+    const id = el.dataset.id;
+    if (!id) return;
+
+    const openRe = new RegExp(
+      `<div\\b(?=[^>]*?\\bclass="[^"]*\\btext-block\\b[^"]*")(?=[^>]*?\\bdata-id="${id}")[^>]*>`,
+      "i",
+    );
+    const openMatch = md.match(openRe);
+    if (!openMatch) return;
+
+    const start = openMatch.index;
+    const end = md.indexOf("</div>", start + openMatch[0].length);
+    if (end === -1) return;
+
+    const updated = md.slice(0, start) + md.slice(end + 6);
+    this.deselect();
+    this._onDelete?.(updated);
+  }
+}
