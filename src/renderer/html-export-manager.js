@@ -7,6 +7,7 @@
 import { DeckLoader } from "../data/deck-loader.js";
 import LAYOUTS_JSON from "../data/layouts.json" with { type: "json" };
 import { buildMermaidScriptTag } from "../core/mermaid-config.js";
+import { Notification } from "./notification.js";
 
 export class HtmlExportManager {
   static _isExporting = false;
@@ -61,27 +62,57 @@ export class HtmlExportManager {
   static async handleHtmlExport(
     slidesContainer,
     deck,
-    { filename = null, includeSlideSnapshot = false, minify = true, useCdn = true } = {},
+    { filename = null, includeSlideSnapshot = false, minify = true } = {},
   ) {
     if (HtmlExportManager._isExporting) return;
     HtmlExportManager._isExporting = true;
 
+    const controller = new AbortController();
+    HtmlExportManager._abortController = controller;
+
+    const loading = Notification.showLoadingModal("Preparing HTML export...", {
+      title: "Exporting HTML",
+      cancelLabel: "Cancel",
+      cancelConfirmMessage: "Are you sure you want to cancel the HTML export?",
+      onCancel: () => {
+        controller.abort();
+        if (HtmlExportManager._abortController === controller) {
+          HtmlExportManager._abortController = null;
+        }
+      },
+    });
+
     try {
-      // Generate the standalone HTML (runtime enhancers run in exported file)
       const html = await HtmlExportManager.generateStandaloneHtml(deck, slidesContainer, {
         includeSlideSnapshot,
         minify,
-        useCdn,
+        signal: controller.signal,
+        onProgress: (message, percent) => {
+          loading.updateMessage(message);
+          if (typeof percent === "number") loading.updateProgress(percent);
+        },
       });
 
       // Trigger download
       const outputFilename = filename || HtmlExportManager.generateFilename(deck);
       HtmlExportManager.downloadHtml(html, outputFilename);
+
+      loading.dismiss();
+      Notification.success("HTML export complete");
     } catch (e) {
+      if (e.name === "AbortError") {
+        loading.dismiss();
+        Notification.info("HTML export cancelled");
+        return;
+      }
+      loading.dismiss();
       console.warn("HTML export failed:", e);
-      throw e;
+      Notification.error(`HTML export failed: ${e.message || e}`);
     } finally {
       HtmlExportManager._isExporting = false;
+      if (HtmlExportManager._abortController === controller) {
+        HtmlExportManager._abortController = null;
+      }
     }
   }
 
@@ -91,18 +122,26 @@ export class HtmlExportManager {
   static async generateStandaloneHtml(
     deck,
     slidesContainer,
-    { includeSlideSnapshot = false, minify = true, useCdn = true } = {},
+    { includeSlideSnapshot = false, minify = true, signal = null, onProgress = null } = {},
   ) {
+    const report = (message, percent) => {
+      if (typeof onProgress === "function") onProgress(message, percent);
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+    };
+
     // 1. Get CSS (Vendor + App)
+    report("Collecting styles...", 10);
     const mainCss = HtmlExportManager.extractCssFromDocument();
-    const vendorCssData = await HtmlExportManager.fetchVendorCss(deck, useCdn);
-    let allCss = vendorCssData.css + "\n\n" + mainCss;
+    const vendorCss = await HtmlExportManager.fetchVendorCss(deck, signal);
+    let allCss = vendorCss + "\n\n" + mainCss;
     if (minify) allCss = HtmlExportManager.minifyCss(allCss);
 
     // 2. Get JS (App Bundle + Vendor Libraries)
-    let bundledJs = await HtmlExportManager.fetchAndBundleJs();
-    let vendorJs = useCdn ? "" : await HtmlExportManager.fetchVendorJs(deck);
-    const vendorScripts = useCdn ? HtmlExportManager.generateCdnScripts(deck) : "";
+    report("Bundling app JavaScript...", 25);
+    let bundledJs = await HtmlExportManager.fetchAndBundleJs(signal);
+    report("Inlining vendor JavaScript...", 40);
+    let vendorJs = await HtmlExportManager.fetchVendorJs(deck, signal);
+    const mermaidScript = HtmlExportManager.buildMermaidScriptTagIfNeeded(deck);
     if (minify) {
       bundledJs = HtmlExportManager.minifyJs(bundledJs);
       if (vendorJs) vendorJs = HtmlExportManager.minifyJs(vendorJs);
@@ -110,18 +149,21 @@ export class HtmlExportManager {
 
     // 3. Escape Data
     // Inline images in deck JSON as data URIs
-    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck);
+    report("Inlining deck images...", 55);
+    const inlinedDeck = await HtmlExportManager.inlineImagesInDeck(deck, signal);
     const deckJson = JSON.stringify(inlinedDeck);
     const escapedDeckJson = HtmlExportManager.escapeJsonForHtml(deckJson);
 
     // 4. Extract Slide HTML (The Snapshot)
+    report("Building slide snapshot...", 70);
     const title = DeckLoader.getDisplayTitle(deck);
     let slidesHtml = includeSlideSnapshot
       ? HtmlExportManager.extractSlidesHtml(slidesContainer)
       : "";
 
     // 4b. Inline images as data URIs
-    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml);
+    report("Inlining slide images...", 85);
+    slidesHtml = await HtmlExportManager.inlineImagesInHtml(slidesHtml, signal);
 
     const presenterHideCss = `
 /* Hide presenter-only elements in exported HTML */
@@ -131,7 +173,7 @@ export class HtmlExportManager {
 `;
 
     // We add a small init script to trigger Prism and KaTeX on load
-    // Use 'load' instead of 'DOMContentLoaded' to ensure CDN scripts are loaded
+    // Use 'load' instead of 'DOMContentLoaded' to ensure vendor scripts are loaded and the DOM is ready
     const initScript = `
         // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
         window.__WEBDECK_EXPORTED__ = true;
@@ -145,7 +187,7 @@ export class HtmlExportManager {
             });
         } catch (e) { /* ignore localStorage errors */ }
 
-        // Wait for window.load to ensure all CDN scripts (Prism, KaTeX, etc.) are loaded
+        // Wait for window.load to ensure all vendor scripts are loaded
         window.addEventListener('load', () => {
             // Re-run Prism if it's available (fixes broken snapshots)
             if (window.Prism) {
@@ -188,6 +230,7 @@ export class HtmlExportManager {
         });
         `;
 
+    report("Finalizing HTML...", 95);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -195,7 +238,6 @@ export class HtmlExportManager {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
     <meta name="theme-color" content="#3b82f6" />
-${vendorCssData.links}
     <style>
 ${presenterHideCss}
 ${allCss}
@@ -236,7 +278,7 @@ ${slidesHtml}
     <script type="application/json" id="deckData">${escapedDeckJson}</script>
     
     <!-- Vendor Libraries -->
-${vendorScripts}
+${mermaidScript}
 ${vendorJs ? `    <script>\n${vendorJs}\n    </script>` : ""}
 
     <!-- App Logic -->
@@ -322,19 +364,21 @@ ${initScript}
   }
 
   /**
-   * Fetches vendor JS libraries (specifically Prism) to inline in the export.
-   * This ensures code highlighting works even if snapshotting fails.
+   * Fetches vendor JS libraries (Prism and KaTeX) to inline in the export.
+   * Mermaid is loaded from a CDN script tag when needed.
    */
-  static async fetchVendorJs(deck) {
+  static async fetchVendorJs(deck, signal = null) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
     // Helper to fetch JS with fallback
     const fetchJs = async (localPath, cdnUrl) => {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        let r = await fetch(localPath);
-        if (!r.ok) r = await fetch(cdnUrl);
+        let r = await fetch(localPath, { signal });
+        if (!r.ok) r = await fetch(cdnUrl, { signal });
         if (r.ok) return await r.text();
-      } catch (_e) {
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
         console.warn("Failed to fetch JS:", cdnUrl);
       }
       return "";
@@ -372,8 +416,21 @@ ${initScript}
       }
     }
 
-    // Note: Mermaid is loaded from CDN, not inlined, to avoid large file size
-    // See generateCdnScripts for Mermaid CDN script
+    // Check if we need KaTeX
+    const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
+    if (needsKatex) {
+      console.log("HtmlExport: Inlining KaTeX...");
+      const katexJs = await fetchJs(
+        "node_modules/katex/dist/katex.min.js",
+        "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js",
+      );
+      const katexRender = await fetchJs(
+        "node_modules/katex/dist/contrib/auto-render.min.js",
+        "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js",
+      );
+      if (katexJs) vendorScripts += `/* KaTeX Core */\n${katexJs}\n`;
+      if (katexRender) vendorScripts += `/* KaTeX Auto-Render */\n${katexRender}\n`;
+    }
 
     return vendorScripts;
   }
@@ -381,19 +438,20 @@ ${initScript}
   /**
    * Fetches and bundles all JS source files.
    */
-  static async fetchAndBundleJs() {
+  static async fetchAndBundleJs(signal = null) {
     const parts = [];
     console.log("HtmlExport: Starting JS bundle...");
 
     for (const filePath of HtmlExportManager.JS_BUNDLE_ORDER) {
       try {
-        const response = await fetch(filePath);
+        const response = await fetch(filePath, { signal });
         if (!response.ok) continue;
 
         let src = await response.text();
         const processedSrc = await HtmlExportManager.stripEsmSyntax(src, filePath);
         parts.push(processedSrc);
       } catch (e) {
+        if (e.name === "AbortError") throw e;
         console.error(`Could not load ${filePath}:`, e);
       }
     }
@@ -583,64 +641,28 @@ ${initScript}
   }
 
   /**
-   * Generates CDN script tags for vendor libraries
+   * Returns a Mermaid script tag if the deck contains Mermaid diagrams, empty string otherwise.
    */
-  static generateCdnScripts(deck) {
+  static buildMermaidScriptTagIfNeeded(deck) {
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
-    const scripts = [];
-
-    const needsPrism =
-      /<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) ||
-      /```[\s\S]*?\n/.test(deckHtmlText) ||
-      /~~~[\s\S]*?\n/.test(deckHtmlText);
-
-    if (needsPrism) {
-      scripts.push(
-        '    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>',
-      );
-
-      // Add detected language components
-      const components = HtmlExportManager.detectPrismComponentsFromDeck(deck);
-      for (const c of components) {
-        scripts.push(
-          `    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-${c}.min.js"></script>`,
-        );
-      }
-    }
-
     const needsMermaid =
       /\bmermaid\b/i.test(deckHtmlText) || /(```|~~~)\s*mermaid/i.test(deckHtmlText);
-    if (needsMermaid) {
-      // Use ESM import for Mermaid to avoid CORS issues with file:// protocol
-      scripts.push(buildMermaidScriptTag("    "));
-    }
-
-    const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
-    if (needsKatex) {
-      scripts.push(
-        '    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>',
-      );
-      scripts.push(
-        '    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>',
-      );
-    }
-
-    return scripts.join("\n");
+    return needsMermaid ? buildMermaidScriptTag("    ") : "";
   }
 
   /**
-   * Fetches vendor CSS with CDN fallback
-   * Returns an object with { links: string, css: string }
+   * Fetches vendor CSS from node_modules with CDN fallback.
+   * Always inlines CSS into the export (no external links).
    */
-  static async fetchVendorCss(deck, useCdn = false) {
-    const links = [];
+  static async fetchVendorCss(deck, signal = null) {
     const cssParts = [];
     const deckHtmlText = HtmlExportManager.getDeckHtmlText(deck);
 
     const fetchCssWithFallback = async (localPath, cdnUrl, name) => {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        let response = await fetch(localPath);
-        if (!response.ok) response = await fetch(cdnUrl);
+        let response = await fetch(localPath, { signal });
+        if (!response.ok) response = await fetch(cdnUrl, { signal });
 
         if (response.ok) {
           let css = await response.text();
@@ -652,42 +674,31 @@ ${initScript}
           );
           return `/* ${name} CSS */\n${css}`;
         }
-      } catch (_e) {
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
         console.warn(`Error loading ${name} CSS`);
       }
       return "";
     };
 
     if (/<pre\b[\s\S]*?<code\b/i.test(deckHtmlText) || /```/.test(deckHtmlText)) {
-      if (useCdn) {
-        links.push(
-          '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">',
-        );
-      } else {
-        cssParts.push(
-          await fetchCssWithFallback(
-            "node_modules/prismjs/themes/prism-tomorrow.css",
-            "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css",
-            "Prism",
-          ),
-        );
-      }
+      cssParts.push(
+        await fetchCssWithFallback(
+          "node_modules/prismjs/themes/prism-tomorrow.css",
+          "https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css",
+          "Prism",
+        ),
+      );
     }
 
     if (/(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText)) {
-      if (useCdn) {
-        links.push(
-          '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">',
-        );
-      } else {
-        cssParts.push(
-          await fetchCssWithFallback(
-            "node_modules/katex/dist/katex.min.css",
-            "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css",
-            "KaTeX",
-          ),
-        );
-      }
+      cssParts.push(
+        await fetchCssWithFallback(
+          "node_modules/katex/dist/katex.min.css",
+          "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css",
+          "KaTeX",
+        ),
+      );
     }
 
     cssParts.push(`
@@ -696,10 +707,7 @@ ${initScript}
 .mermaid svg { max-width: 100%; height: auto; background-color: transparent; }
 `);
 
-    return {
-      links: links.join("\n"),
-      css: cssParts.join("\n\n"),
-    };
+    return cssParts.join("\n\n");
   }
 
   static extractSlidesHtml(slidesContainer) {
@@ -713,26 +721,32 @@ ${initScript}
   /**
    * Fetches images from the server and converts them to data URIs in HTML.
    */
-  static async inlineImagesInHtml(html) {
+  static async inlineImagesInHtml(html, signal = null) {
     if (!html) return html;
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
     // Match src="images/..." and src='images/...'
     const imgRe = /src=(["'])(images\/[^"']+)\1/g;
     const matches = [...html.matchAll(imgRe)];
     if (matches.length === 0) return html;
 
     const imagePromises = matches.map(async (match) => {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       const [fullMatch, quote, imagePath] = match;
       try {
-        const response = await fetch(`/${imagePath}`);
+        const response = await fetch(`/${imagePath}`, { signal });
         if (!response.ok) return fullMatch;
         const blob = await response.blob();
-        const dataUrl = await new Promise((resolve) => {
+        if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+        const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
+          reader.onabort = () => reject(new DOMException("HTML export cancelled", "AbortError"));
           reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read image"));
           reader.readAsDataURL(blob);
         });
         return `src=${quote}${dataUrl}${quote}`;
-      } catch {
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
         return fullMatch;
       }
     });
@@ -752,8 +766,9 @@ ${initScript}
   /**
    * Inlines images in deck JSON as data URIs.
    */
-  static async inlineImagesInDeck(deck) {
+  static async inlineImagesInDeck(deck, signal = null) {
     if (!deck?.slides) return deck;
+    if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
 
     const imageRefs = new Set();
     for (const slide of deck.slides) {
@@ -777,17 +792,22 @@ ${initScript}
     // Fetch all images and convert to data URIs
     const dataUriMap = {};
     for (const ref of imageRefs) {
+      if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        const response = await fetch(`/${ref}`);
+        const response = await fetch(`/${ref}`, { signal });
         if (!response.ok) continue;
         const blob = await response.blob();
-        const dataUrl = await new Promise((resolve) => {
+        if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
+        const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
+          reader.onabort = () => reject(new DOMException("HTML export cancelled", "AbortError"));
           reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read image"));
           reader.readAsDataURL(blob);
         });
         dataUriMap[ref] = dataUrl;
-      } catch {
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
         // skip failed images
       }
     }
