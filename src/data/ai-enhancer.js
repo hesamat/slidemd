@@ -22,7 +22,12 @@ export function slidesToMarkdown(slides) {
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
       parts.push("");
-      parts.push(slide.content);
+      // Strip SLIDE INDEX comments from content
+      const content = (slide.content || "").replace(
+        /<!-- SLIDE INDEX \d+ \(return this\) -->\n?/g,
+        "",
+      );
+      parts.push(content);
       return parts.join("\n");
     })
     .join("\n\n---\n\n");
@@ -65,8 +70,8 @@ export function areasToMarkdown(slides) {
 }
 
 /**
- * Restore original backgrounds and themes onto AI-produced slides.
- * Trusts the AI for layout choices.
+ * Restore original layout, backgrounds, and themes onto AI-produced slides.
+ * In fix mode, the AI often changes layouts despite instructions — restore originals.
  * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
  * @param {{ layout: string, background: string, theme: string }[]} origDirectives
  * @returns {typeof slides}
@@ -76,6 +81,7 @@ export function restoreDirectives(slides, origDirectives) {
     const orig = origDirectives[i] || {};
     return {
       ...slide,
+      layout: orig.layout || slide.layout || "header-content",
       background: orig.background || slide.background || "",
       theme: orig.theme || slide.theme || "",
     };
@@ -136,7 +142,8 @@ export function extractDirectives(markdown) {
  * Strip frontmatter directives from markdown.
  * Only replaces directives outside fenced code blocks.
  *
- * Fix mode: strips layout, theme, background, hidden, code-font-size
+ * Fix mode: keeps layout (so AI preserves it), strips theme/background/hidden/code-font-size
+ *   (restored post-AI via injectDirectives/restoreDirectives).
  * Generate mode: strips layout, hidden, code-font-size — keeps background and theme
  *   so the AI can see the originals and make informed decisions.
  *
@@ -165,8 +172,8 @@ function stripFrontmatter(markdown, mode) {
         continue;
       }
     } else {
-      // Fix mode: strip all directives — originals are restored post-AI
-      if (/^(layout|theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
+      // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
+      if (/^(theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
         result.push("");
         continue;
       }
@@ -252,16 +259,24 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
   const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
   const actualCount = allSlides.slice(startIdx, endIdx).length;
 
-  // Add neighbor context slides for fix mode
+  // Add neighbor context slides for fix mode with explicit indices
   let contentForPrompt;
   if (mode === "fix") {
     const parts = [];
     if (startIdx > 0) {
-      parts.push(`<!-- context: do not return -->\n${allSlides[startIdx - 1]}`);
+      parts.push(
+        `<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index ${startIdx - 1}) -->\n${allSlides[startIdx - 1]}`,
+      );
     }
-    parts.push(chunk);
+    // Add explicit indices to each slide in the chunk
+    const indexedSlides = allSlides.slice(startIdx, endIdx).map((slide, i) => {
+      return `<!-- SLIDE INDEX ${startIdx + i} (return this) -->\n${slide}`;
+    });
+    parts.push(indexedSlides.join("\n\n---\n\n"));
     if (endIdx < totalSlides) {
-      parts.push(`<!-- context: do not return -->\n${allSlides[endIdx]}`);
+      parts.push(
+        `<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index ${endIdx}) -->\n${allSlides[endIdx]}`,
+      );
     }
     contentForPrompt = parts.join("\n\n---\n\n");
   } else {
@@ -271,7 +286,7 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
   const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
   const paginationInstruction =
     mode === "fix"
-      ? `\n\nReturn exactly ${actualCount} slide(s) as JSON. Each slide in the output corresponds 1:1 to a slide in the input (excluding context slides). Keep the same order.`
+      ? `\n\nCRITICAL: You must return EXACTLY ${actualCount} slide(s) — one for each "SLIDE INDEX" comment in the input (indices ${startIdx} through ${endIdx - 1}). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.`
       : `\n\nReturn exactly ${actualCount} slide(s) as JSON. Fix or organize these slides within the context of the full deck.`;
 
   const userPrefix =
@@ -419,4 +434,66 @@ export function parseAiResponse(text) {
   }
 
   return null;
+}
+
+/**
+ * Extract first heading from each slide in markdown.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+export function extractHeadings(markdown) {
+  const slides = markdown.split(/\n---\n/);
+  return slides.map((slide) => {
+    const match = slide.match(/^##?\s+(.+)/m);
+    return match?.[1]?.trim() || "";
+  });
+}
+
+/**
+ * Validate AI fix output against original slides.
+ * Compares slide count and checks each AI slide corresponds to its original by position.
+ *
+ * @param {{ layout: string, background?: string, theme?: string }[]} originalDirectives - Original per-slide directives
+ * @param {{ layout: string, content: string }[]} fixedSlides - AI output slides (JSON)
+ * @param {{ skipLayoutCheck?: boolean, originalHeadings?: string[] }} [opts] - Options
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateFixOutput(originalDirectives, fixedSlides, opts) {
+  const errors = [];
+
+  // 1. Slide count
+  if (originalDirectives.length !== fixedSlides.length) {
+    errors.push(
+      `Slide count mismatch: ${originalDirectives.length} input → ${fixedSlides.length} output`,
+    );
+  }
+
+  // 2. Layout preservation (compare against originals) — skip if restoreDirectives will fix it
+  if (!opts?.skipLayoutCheck) {
+    const count = Math.min(originalDirectives.length, fixedSlides.length);
+    for (let i = 0; i < count; i++) {
+      const origLayout = originalDirectives[i]?.layout || "";
+      const fixedLayout = fixedSlides[i]?.layout || "";
+      if (origLayout && fixedLayout && origLayout !== fixedLayout) {
+        errors.push(`Slide ${i + 1}: layout changed "${origLayout}" → "${fixedLayout}"`);
+      }
+    }
+  }
+
+  // 3. Positional check — each AI slide should correspond to the original at the same position
+  if (opts?.originalHeadings) {
+    const count = Math.min(opts.originalHeadings.length, fixedSlides.length);
+    for (let i = 0; i < count; i++) {
+      const origHeading = opts.originalHeadings[i] || "";
+      const fixedContent = fixedSlides[i]?.content || "";
+      const fixedHeading = fixedContent.match(/^##?\s+(.+)/m)?.[1]?.trim() || "";
+      // Skip if either heading is empty (can't compare)
+      if (!origHeading || !fixedHeading) continue;
+      if (origHeading !== fixedHeading) {
+        errors.push(`Slide ${i + 1}: heading mismatch "${origHeading}" → "${fixedHeading}"`);
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
 }

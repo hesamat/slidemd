@@ -159,8 +159,7 @@ export class AiSidebar {
         }
 
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        // Reasoning is too slow for fix mode — force it off regardless of user setting
-        const useReasoning = mode === "fix" ? false : SettingsModal.getReasoning();
+        const useReasoning = SettingsModal.getReasoning();
         const effort = SettingsModal.getEffort();
 
         // Split into slides to decide single vs batch path
@@ -258,6 +257,20 @@ export class AiSidebar {
                     batchKey: `${mid}-${batch.end}`,
                   },
                 );
+              } else if (batchResult.error.type === "validation" && attempts < 2) {
+                const errs = batchResult.error.errors;
+                console.warn(
+                  `[AI Fix] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
+                );
+                for (const e of errs) {
+                  console.warn(`  - ${e}`);
+                }
+                appendLog(
+                  `\u21BB Batch ${batch.index + 1}: ${errs.length} validation issue${errs.length === 1 ? "" : "s"} \u2014 retrying...`,
+                  "warn",
+                );
+                retryCount++;
+                queue.unshift(batch);
               } else if (attempts < 2) {
                 appendLog(
                   `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type} \u2014 retrying...`,
@@ -266,6 +279,16 @@ export class AiSidebar {
                 retryCount++;
                 queue.unshift(batch);
               } else {
+                const errs =
+                  batchResult.error.type === "validation" ? batchResult.error.errors : [];
+                if (errs.length > 0) {
+                  console.warn(
+                    `[AI Fix] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                  );
+                  for (const e of errs) {
+                    console.warn(`  - ${e}`);
+                  }
+                }
                 appendLog(
                   `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
                   "error",
@@ -356,84 +379,137 @@ export class AiSidebar {
 
   /**
    * Single API call path (small decks).
+   * For fix mode, validates output and retries with escalation on failure.
    */
   static async #runSingleCall(markdown, mode, opts) {
     const { apiKey, model, modelMaxOutput, useReasoning, effort, statusEl, noticeEl, isCancelled } =
       opts;
 
-    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
-      await import("../data/ai-enhancer.js");
+    const {
+      buildMessages,
+      estimateMaxTokens,
+      parseAiResponse,
+      slidesToMarkdown,
+      extractDirectives,
+      extractHeadings,
+      validateFixOutput,
+    } = await import("../data/ai-enhancer.js");
 
-    const { system, user } = buildMessages(markdown, mode);
-    const inputTokens = estimateMaxTokens(markdown, mode, {
-      modelMaxOutput,
-      useReasoning,
-    });
-    statusEl.textContent = `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
+    const originalDirectives = extractDirectives(markdown);
+    const originalHeadings = extractHeadings(markdown);
+    const maxAttempts = mode === "fix" ? 3 : 1;
+    let lastErrors = [];
 
-    const ctrl = new AbortController();
-    this._abortControllers = [ctrl];
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const { system, user } = buildMessages(markdown, mode);
+      const escalatedUser =
+        attempt > 1
+          ? user +
+            `\n\nPREVIOUS ATTEMPT FAILED VALIDATION:\n${lastErrors.join("\n")}\n\nYou MUST preserve original layouts and heading levels exactly. Do NOT change layouts or heading levels.`
+          : user;
 
-    const body = {
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      max_tokens: inputTokens,
-      stream: false,
-      response_format: { type: "json_object" },
-    };
-    if (useReasoning) {
-      body.reasoning = { effort };
+      const inputTokens = estimateMaxTokens(markdown, mode, {
+        modelMaxOutput,
+        useReasoning,
+      });
+      statusEl.textContent =
+        attempt > 1
+          ? `Retry ${attempt}/${maxAttempts} (${lastErrors.length} issue${lastErrors.length === 1 ? "" : "s"})\u2026`
+          : `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
+
+      const ctrl = new AbortController();
+      this._abortControllers = [ctrl];
+
+      const body = {
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: escalatedUser },
+        ],
+        max_tokens: inputTokens,
+        stream: false,
+        response_format: { type: "json_object" },
+      };
+      if (useReasoning) {
+        body.reasoning = { effort };
+      }
+
+      const res = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "");
+        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
+      }
+
+      noticeEl.hidden = false;
+      statusEl.textContent = "AI is working\u2026";
+
+      const json = await res.json();
+      const contentText = json.choices?.[0]?.message?.content || "";
+      const finishReason = json.choices?.[0]?.finish_reason;
+
+      if (isCancelled()) {
+        this.close();
+        return null;
+      }
+
+      if (finishReason === "length") {
+        const limitDisplay = modelMaxOutput
+          ? `${modelMaxOutput.toLocaleString()} tokens`
+          : "unknown";
+        throw new Error(
+          `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
+            `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
+            `or switch to a model with a higher output token limit.`,
+        );
+      }
+
+      const parsed = parseAiResponse(contentText);
+      if (!parsed) {
+        throw new Error("AI did not return valid JSON");
+      }
+
+      // Validate fix mode output (only slide count and heading match — layout restored post-AI)
+      if (mode === "fix") {
+        const validation = validateFixOutput(originalDirectives, parsed.slides, {
+          skipLayoutCheck: true,
+          originalHeadings,
+        });
+        if (validation.valid) {
+          return slidesToMarkdown(parsed.slides);
+        }
+        lastErrors = validation.errors;
+        console.warn(
+          `[AI Fix] Attempt ${attempt}: ${validation.errors.length} validation issue(s):`,
+        );
+        for (const err of validation.errors) {
+          console.warn(`  - ${err}`);
+        }
+        if (attempt < maxAttempts) {
+          continue; // retry with escalation
+        }
+        // Last attempt failed — accept but log warnings
+        console.warn("[AI Fix] Accepting output after max attempts with validation issues");
+      }
+
+      return slidesToMarkdown(parsed.slides);
     }
 
-    const res = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
-    }
-
-    noticeEl.hidden = false;
-    statusEl.textContent = "AI is working\u2026";
-
-    const json = await res.json();
-    const contentText = json.choices?.[0]?.message?.content || "";
-    const finishReason = json.choices?.[0]?.finish_reason;
-
-    if (isCancelled()) {
-      this.close();
-      return null;
-    }
-
-    if (finishReason === "length") {
-      const limitDisplay = modelMaxOutput ? `${modelMaxOutput.toLocaleString()} tokens` : "unknown";
-      throw new Error(
-        `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
-          `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
-          `or switch to a model with a higher output token limit.`,
-      );
-    }
-
-    const parsed = parseAiResponse(contentText);
-    if (!parsed) {
-      throw new Error("AI did not return valid JSON");
-    }
-
-    return slidesToMarkdown(parsed.slides);
+    // Should not reach here, but handle gracefully
+    return null;
   }
 
   /**
    * Stream a single batch and return parsed slides.
+   * For fix mode, validates output before returning.
    * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
    */
   static async #streamBatch(opts) {
@@ -451,8 +527,14 @@ export class AiSidebar {
       signal,
     } = opts;
 
-    const { buildBatchMessages, estimateMaxTokens, parseAiResponse } =
-      await import("../data/ai-enhancer.js");
+    const {
+      buildBatchMessages,
+      estimateMaxTokens,
+      parseAiResponse,
+      extractDirectives,
+      extractHeadings,
+      validateFixOutput,
+    } = await import("../data/ai-enhancer.js");
 
     const batchMarkdown = (() => {
       const cleaned = markdown
@@ -521,6 +603,19 @@ export class AiSidebar {
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
         return { error: { type: "parse-error" } };
+      }
+
+      // Validate fix mode output (only slide count and heading match — layout restored post-AI)
+      if (mode === "fix") {
+        const origDirectives = extractDirectives(markdown).slice(batch.start, batch.end);
+        const origHeadings = extractHeadings(markdown).slice(batch.start, batch.end);
+        const validation = validateFixOutput(origDirectives, parsed.slides, {
+          skipLayoutCheck: true,
+          originalHeadings: origHeadings,
+        });
+        if (!validation.valid) {
+          return { error: { type: "validation", errors: validation.errors } };
+        }
       }
 
       return { slides: parsed.slides, duration };

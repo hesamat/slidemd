@@ -5,11 +5,13 @@ import {
   slidesToMarkdown,
   buildMessages,
   extractDirectives,
+  extractHeadings,
   restoreDirectives,
   injectDirectives,
   estimateMaxTokens,
   buildDeckSummary,
   buildBatchMessages,
+  validateFixOutput,
 } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
@@ -82,6 +84,26 @@ describe("slidesToMarkdown", () => {
   });
 });
 
+describe("extractHeadings", () => {
+  it("extracts first heading from each slide", () => {
+    const md =
+      "layout: header-content\n@header\n## Intro\n\n@main\n- Hi\n\n---\n\nlayout: two-column\n@header\n## Overview\n\n@main\n- Left";
+    const result = extractHeadings(md);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe("Intro");
+    expect(result[1]).toBe("Overview");
+  });
+
+  it("returns empty string for slides without headings", () => {
+    const md =
+      "layout: focus\n@main\n- Just a bullet\n\n---\n\nlayout: focus\n@main\n- Another bullet";
+    const result = extractHeadings(md);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe("");
+    expect(result[1]).toBe("");
+  });
+});
+
 describe("extractDirectives", () => {
   it("extracts layout, background, theme per slide", () => {
     const md =
@@ -110,17 +132,18 @@ describe("restoreDirectives", () => {
     expect(result[0].theme).toBe("dark");
   });
 
-  it("trusts AI layout choices", () => {
+  it("restores original layout over AI choice", () => {
     const slides = [{ layout: "two-column", content: "@main\n- Item 1" }];
     const orig = [{ layout: "header-content", background: "", theme: "" }];
     const result = restoreDirectives(slides, orig);
-    expect(result[0].layout).toBe("two-column");
+    expect(result[0].layout).toBe("header-content");
   });
 
-  it("prefers original bg/theme over AI", () => {
+  it("prefers original layout/bg/theme over AI", () => {
     const slides = [{ layout: "focus", background: "red", theme: "light", content: "@main\n- Hi" }];
-    const orig = [{ layout: "", background: "blue", theme: "dark" }];
+    const orig = [{ layout: "header-content", background: "blue", theme: "dark" }];
     const result = restoreDirectives(slides, orig);
+    expect(result[0].layout).toBe("header-content");
     expect(result[0].background).toBe("blue");
     expect(result[0].theme).toBe("dark");
   });
@@ -128,6 +151,7 @@ describe("restoreDirectives", () => {
   it("falls back to AI values when no original", () => {
     const slides = [{ layout: "focus", background: "red", theme: "light", content: "@main\n- Hi" }];
     const result = restoreDirectives(slides, []);
+    expect(result[0].layout).toBe("focus");
     expect(result[0].background).toBe("red");
     expect(result[0].theme).toBe("light");
   });
@@ -149,15 +173,18 @@ describe("restoreDirectives", () => {
 });
 
 describe("buildMessages", () => {
-  it("strips frontmatter from markdown in fix mode", () => {
+  it("strips frontmatter from markdown in fix mode but keeps layout", () => {
     const md =
       "layout: header-content\nbackground: #fff\ntheme: dark\n@header\n## Title\n\n@main\n- Item";
     const { user } = buildMessages(md, "fix");
     expect(user).toContain("@header");
     expect(user).toContain("- Item");
-    expect(user).not.toContain("layout:");
-    expect(user).not.toContain("background:");
-    expect(user).not.toContain("theme:");
+    // Layout is kept so AI can preserve it
+    const markdownSection = user.split("Input markdown:")[1] || "";
+    expect(markdownSection).toContain("layout: header-content");
+    // Background and theme are stripped (restored post-AI)
+    expect(markdownSection).not.toContain("background: #fff");
+    expect(markdownSection).not.toContain("theme: dark");
   });
 
   it("keeps background and theme in generate mode", () => {
@@ -176,9 +203,10 @@ describe("buildMessages", () => {
     const md =
       "layout: header-content\n@main\n```\nlayout: two-column\nbackground: #fff\n```\n- Item";
     const { user } = buildMessages(md, "fix");
+    // Both the outer layout and the code block content are kept
+    expect(user).toContain("layout: header-content");
     expect(user).toContain("layout: two-column");
     expect(user).toContain("background: #fff");
-    expect(user).not.toMatch(/^layout: header-content/m);
   });
 
   it("includes hidden in stripped frontmatter", () => {
@@ -354,7 +382,7 @@ describe("buildBatchMessages", () => {
 
   it("fix mode: includes neighbor context on left edge", () => {
     const { user } = buildBatchMessages(md, "fix", 4, 8, 12);
-    expect(user).toContain("context: do not return");
+    expect(user).toContain("CONTEXT SLIDE");
     expect(user).toContain("## Slide 4");
     expect(user).toContain("## Slide 5");
     expect(user).toContain("## Slide 8");
@@ -363,19 +391,19 @@ describe("buildBatchMessages", () => {
 
   it("fix mode: no left neighbor for first batch", () => {
     const { user } = buildBatchMessages(md, "fix", 0, 4, 12);
-    const contextMatches = user.match(/context: do not return/g);
+    const contextMatches = user.match(/CONTEXT SLIDE/g);
     expect(contextMatches).toHaveLength(1); // only right neighbor
   });
 
   it("fix mode: no right neighbor for last batch", () => {
     const { user } = buildBatchMessages(md, "fix", 8, 12, 12);
-    const contextMatches = user.match(/context: do not return/g);
+    const contextMatches = user.match(/CONTEXT SLIDE/g);
     expect(contextMatches).toHaveLength(1); // only left neighbor
   });
 
   it("fix mode: no neighbors for middle batch with both edges", () => {
     const { user } = buildBatchMessages(md, "fix", 4, 8, 12);
-    const contextMatches = user.match(/context: do not return/g);
+    const contextMatches = user.match(/CONTEXT SLIDE/g);
     expect(contextMatches).toHaveLength(2); // both left and right
   });
 
@@ -396,8 +424,8 @@ describe("buildBatchMessages", () => {
 
   it("returns correct pagination instruction for fix mode", () => {
     const { user } = buildBatchMessages(md, "fix", 0, 4, 12);
-    expect(user).toContain("Return exactly 4 slide(s)");
-    expect(user).toContain("1:1");
+    expect(user).toContain("CRITICAL: You must return EXACTLY 4 slide(s)");
+    expect(user).toContain("indices 0 through 3");
   });
 
   it("returns correct pagination instruction for generate mode", () => {
@@ -456,5 +484,157 @@ describe("injectDirectives", () => {
     const result = injectDirectives(md, orig);
     expect(result).toContain("@header\n## Title");
     expect(result).toContain("@main\n- Content");
+  });
+});
+
+describe("validateFixOutput", () => {
+  it("returns valid when slide count and layouts match", () => {
+    const orig = [
+      { layout: "header-content", background: "", theme: "" },
+      { layout: "two-column", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "header-content", content: "@header\n## Title\n\n@main\n- Item" },
+      { layout: "two-column", content: "@header\n## Overview\n\n@main\n- Left\n\n@media\n- Right" },
+    ];
+    const result = validateFixOutput(orig, fixed);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("detects slide count mismatch", () => {
+    const orig = [
+      { layout: "header-content", background: "", theme: "" },
+      { layout: "two-column", background: "", theme: "" },
+    ];
+    const fixed = [{ layout: "header-content", content: "@header\n## Title" }];
+    const result = validateFixOutput(orig, fixed);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Slide count mismatch");
+    expect(result.errors[0]).toContain("2 input → 1 output");
+  });
+
+  it("detects layout change", () => {
+    const orig = [{ layout: "media-span", background: "", theme: "" }];
+    const fixed = [{ layout: "two-column", content: "@header\n## Title\n\n@main\n- Item" }];
+    const result = validateFixOutput(orig, fixed);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain('layout changed "media-span" → "two-column"');
+  });
+
+  it("detects heading mismatch against original", () => {
+    const orig = [
+      { layout: "header-content", background: "", theme: "" },
+      { layout: "header-content", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "header-content", content: "@header\n## Module Design\n\n@main\n- Point 1" },
+      { layout: "two-column", content: "@header\n## Different Title\n\n@main\n- Point 2" },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      originalHeadings: ["Module Design", "Other Slide"],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("heading mismatch"))).toBe(true);
+  });
+
+  it("allows slides with same heading when original matches", () => {
+    const orig = [
+      { layout: "media-span", background: "", theme: "" },
+      { layout: "media-span", background: "", theme: "" },
+    ];
+    const fixed = [
+      {
+        layout: "media-span",
+        content: '@header\n## Example\n\n@media\n<img src="images/a.jpeg">',
+      },
+      {
+        layout: "media-span",
+        content: '@header\n## Example\n\n@media\n<img src="images/b.jpeg">',
+      },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      originalHeadings: ["Example", "Example"],
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("allows empty headings (no heading to compare)", () => {
+    const orig = [
+      { layout: "focus", background: "", theme: "" },
+      { layout: "focus", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "focus", content: "@main\n- Just a bullet" },
+      { layout: "focus", content: "@main\n- Another bullet" },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      originalHeadings: ["", ""],
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("reports multiple errors at once", () => {
+    const orig = [
+      { layout: "media-span", background: "", theme: "" },
+      { layout: "header-content", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- Item" },
+      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- Other" },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      originalHeadings: ["Title A", "Title C"],
+    });
+    expect(result.valid).toBe(false);
+    // Should have layout change error + heading mismatch error
+    expect(result.errors.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("skips layout check when skipLayoutCheck is true", () => {
+    const orig = [
+      { layout: "media-span", background: "", theme: "" },
+      { layout: "focus", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- Item" },
+      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- Other" },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      skipLayoutCheck: true,
+      originalHeadings: ["Title A", "Title B"],
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("still checks slide count with skipLayoutCheck", () => {
+    const orig = [
+      { layout: "media-span", background: "", theme: "" },
+      { layout: "focus", background: "", theme: "" },
+    ];
+    const fixed = [{ layout: "two-column", content: "@header\n## Title" }];
+    const result = validateFixOutput(orig, fixed, { skipLayoutCheck: true });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain("Slide count mismatch");
+  });
+
+  it("still checks heading match with skipLayoutCheck", () => {
+    const orig = [
+      { layout: "media-span", background: "", theme: "" },
+      { layout: "focus", background: "", theme: "" },
+    ];
+    const fixed = [
+      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- A" },
+      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- B" },
+    ];
+    const result = validateFixOutput(orig, fixed, {
+      skipLayoutCheck: true,
+      originalHeadings: ["Title A", "Wrong Title"],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("heading mismatch"))).toBe(true);
   });
 });
