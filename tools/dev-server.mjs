@@ -649,7 +649,7 @@ function createHandler(format) {
           const mime = MIME[ext] || "application/octet-stream";
           res.writeHead(200, {
             "Content-Type": mime,
-            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Cache-Control": "public, max-age=60",
           });
           fs.createReadStream(filePath).pipe(res);
           return;

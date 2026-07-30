@@ -56,8 +56,11 @@ export class SaveManager {
     // no-op
   }
 
-  async save() {
-    // Re-cache from localStorage in case deck was replaced by AI
+  /**
+   * Return the current full markdown, merging saved original and any unsaved edits.
+   * @returns {string}
+   */
+  getFullMarkdown() {
     const localMd = localStorage.getItem("webdeck_local_file");
     if (localMd) {
       try {
@@ -74,13 +77,20 @@ export class SaveManager {
       }
     }
 
+    return this.originalMarkdown.join("\n\n---\n\n");
+  }
+
+  async save() {
+    if (window.__WEBDECK_IMAGE_UPLOAD_PROMISE__) {
+      await window.__WEBDECK_IMAGE_UPLOAD_PROMISE__;
+    }
+    const fullMarkdown = this.getFullMarkdown();
+
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this.updateButton();
 
     try {
-      const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
-
       // Warn if the markdown contains blob URLs — they can't persist to disk.
       const hasBlobUrls = /blob:/.test(fullMarkdown);
       if (hasBlobUrls) {
