@@ -594,9 +594,18 @@ function convertSlide(
 
         const leftContent = lines.slice(0, splitAt).join("\n").trimEnd();
         const rightContent = lines.slice(splitAt).join("\n").trimStart();
-        // If right side is empty after split, fall back to single-column
+        // If right side is empty after split, fall back to single-column rendering
         if (!rightContent) {
-          layout = LAYOUT.HEADER_CONTENT;
+          parts.push("");
+          if (isHeaderValid) {
+            parts.push(MARKDOWN_TAGS.HEADER);
+            parts.push("");
+            parts.push(formatTextElement(header.content));
+            parts.push("");
+          }
+          parts.push(MARKDOWN_TAGS.MAIN);
+          parts.push("");
+          parts.push(formatTextElement(leftContent));
         } else {
           parts.push("");
           if (isHeaderValid) {
