@@ -125,6 +125,7 @@ Use preset names instead of full CSS grid strings:
 - `left-heavy` - Two columns with left side larger (2:1)
 - `right-heavy` - Two columns with right side larger (1:2)
 - `three-column` - Three equal columns
+- `full-image` - Full-bleed image covering the entire slide (no text)
 
 ## Edit Mode Tips
 

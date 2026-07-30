@@ -44,6 +44,9 @@ layout: three-column
 // Media spans full right height — @header, @main, @media
 layout: media-span
 
+// Full-bleed image — @main only (img tag fills entire slide)
+layout: full-image
+
 // Custom sidebar layout — @header, @main, @sidebar
 layout: "header header" "main sidebar" / 1fr 300px
 ```
@@ -55,6 +58,7 @@ layout: "header header" "main sidebar" / 1fr 300px
 - `two-column`, `left-heavy`, `right-heavy`: `@header`, `@main`, `@media`, `@footer`
 - `three-column`: `@header`, `@main`, `@media`, `@secondary`, `@footer`
 - `media-span`: `@header`, `@main`, `@media`, `@footer`
+- `full-image`: `@main` only (contains an `<img>` tag, no text)
 - Custom grids: `@main` (required), plus any of `@header`, `@media`, `@sidebar`, `@secondary`, `@footer` as defined in the grid
 
 **Slide Options:**
@@ -117,6 +121,7 @@ Slides render at **1920×1080px**. Content overflows if too much is added. These
 - `media-span`: ~10 items in `@main`, media spans full height
 - `title-slide`: Title + subtitle + author only
 - `left-heavy`/`right-heavy`: Larger column holds ~10 items, smaller ~5
+- `full-image`: Single `<img>` tag only, no text — image fills the entire slide
 
 **If content exceeds these limits:**
 
