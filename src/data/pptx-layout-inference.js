@@ -112,7 +112,9 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
       return true;
     }
 
-    // 6. Text-Background / Border Overlap Filter (only for non-small images)
+    // 6. Text-Background / Border Overlap Filter (only for non-small images).
+    // Dominant content images are never backgrounds — skip this check for them.
+    if (isDominant) return true;
     const isBackgroundOrBorder = textElements.some((textEl) => {
       const textW = textEl.width || 0;
       const textH = textEl.height || 0;
