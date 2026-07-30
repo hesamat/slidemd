@@ -17,6 +17,11 @@ export class OpenDeckModal {
   static _mdBtn = null;
   static _previousFocus = null;
 
+  // Batch limits for POST /api/upload-images — kept well under the dev server's
+  // 100 MB per-request cap so a large deck degrades per batch, not entirely.
+  static UPLOAD_BATCH_MAX_FILES = 20;
+  static UPLOAD_BATCH_MAX_BYTES = 15 * 1024 * 1024;
+
   static init() {
     this._el = document.getElementById("openDeckModal");
     this._fileListEl = document.getElementById("openDeckFileList");
@@ -175,35 +180,69 @@ export class OpenDeckModal {
       }
 
       if (serverAvailable && uniqueEntries.length > 0) {
-        // Upload all images in a single batch request
+        // Upload images in batches: fewer requests than one-per-image, while
+        // keeping each request under the server limit and failures contained.
         const pathMap = new Map();
-        const formData = new FormData();
+        let uploaded = 0;
+        let processed = 0;
+        const total = uniqueEntries.length;
+        loading.updateMessage("Uploading images...");
+
+        let batch = new FormData();
+        let batchCount = 0;
+        let batchBytes = 0;
+
+        const flushBatch = async () => {
+          if (batchCount === 0) return;
+          const sending = batch;
+          const sentCount = batchCount;
+          batch = new FormData();
+          batchCount = 0;
+          batchBytes = 0;
+          try {
+            const res = await fetch("/api/upload-images", {
+              method: "POST",
+              body: sending,
+              signal: controller.signal,
+            });
+            if (!res.ok) {
+              console.warn(`Image upload batch failed (HTTP ${res.status})`);
+              return;
+            }
+            const result = await res.json();
+            for (const p of result.paths || []) {
+              // Map both folder prefixes to the server path
+              pathMap.set(`images/${p.name}`, p.path);
+              pathMap.set(`assets/${p.name}`, p.path);
+              uploaded++;
+            }
+          } catch (e) {
+            if (e.name === "AbortError") throw e;
+            console.warn("Image upload batch failed:", e);
+          } finally {
+            processed += sentCount;
+            if (total > 0) loading.updateProgress(Math.round((processed / total) * 80));
+          }
+        };
+
         for (const { name, entry } of uniqueEntries) {
           if (controller.signal.aborted) {
             throw new DOMException("Open .textpack cancelled", "AbortError");
           }
           const data = await entry.async("blob");
-          const fileObj = new File([data], name, { type: data.type });
-          formData.append("image", fileObj);
+          batch.append("image", new File([data], name, { type: data.type }));
+          batchCount++;
+          batchBytes += data.size;
+          if (
+            batchCount >= OpenDeckModal.UPLOAD_BATCH_MAX_FILES ||
+            batchBytes >= OpenDeckModal.UPLOAD_BATCH_MAX_BYTES
+          ) {
+            await flushBatch();
+          }
         }
+        await flushBatch();
 
-        loading.updateMessage("Uploading images...");
-        const res = await fetch("/api/upload-images", {
-          method: "POST",
-          body: formData,
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("Image upload failed");
-
-        const result = await res.json();
-        const paths = result.paths || [];
-        for (const p of paths) {
-          // Map both folder prefixes to the server path
-          pathMap.set(`images/${p.name}`, p.path);
-          pathMap.set(`assets/${p.name}`, p.path);
-        }
-
-        const failedUploads = uniqueEntries.length - paths.length;
+        const failedUploads = total - uploaded;
         if (failedUploads > 0) {
           console.warn(`${failedUploads} image(s) failed to upload and may not display.`);
         }

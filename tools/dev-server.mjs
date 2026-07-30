@@ -196,8 +196,9 @@ function startWatching(format) {
  * @returns {string}
  */
 function generateUploadFilename(originalName) {
-  const ext = path.extname(originalName).toLowerCase() || ".png";
-  const base = path.basename(originalName, ext);
+  const rawExt = path.extname(originalName);
+  const ext = rawExt.toLowerCase() || ".png";
+  const base = path.basename(originalName, rawExt);
   // Sanitize: lowercase, replace spaces/special chars with hyphens, trim
   const sanitized = base
     .toLowerCase()
@@ -231,6 +232,19 @@ function readBody(req, maxBytes = MAX_UPLOAD_BYTES) {
   });
 }
 
+/**
+ * Extract the filename from a multipart part's headers.
+ * Quoted names may contain spaces, so they are matched before bare tokens.
+ * @param {string} headerStr
+ * @returns {string|null}
+ */
+function getPartFilename(headerStr) {
+  const match = /filename=(?:"([^"]*)"|([^";\s]+))/i.exec(headerStr);
+  if (!match) return null;
+  const filename = match[1] ?? match[2];
+  return filename ? filename : null;
+}
+
 function parseMultipart(body, boundary) {
   const boundaryBuf = Buffer.from(`--${boundary}`);
   const endBuf = Buffer.from(`--${boundary}--`);
@@ -245,9 +259,8 @@ function parseMultipart(body, boundary) {
   if (headerEnd === -1) throw new Error("Missing multipart headers");
   const headerStr = body.slice(start, headerEnd).toString("utf8");
 
-  const filenameMatch = headerStr.match(/filename="?([^";\s]+)"?/i);
-  if (!filenameMatch) throw new Error("No filename in upload");
-  const filename = filenameMatch[1];
+  const filename = getPartFilename(headerStr);
+  if (!filename) throw new Error("No filename in upload");
 
   const dataStart = headerEnd + 4;
   let dataEnd = body.indexOf(boundaryBuf, dataStart);
@@ -262,6 +275,17 @@ function parseMultipart(body, boundary) {
   return { filename, data };
 }
 
+/**
+ * Extract the boundary token from a multipart Content-Type header.
+ * @param {string} contentType
+ * @returns {string|null}
+ */
+function getMultipartBoundary(contentType) {
+  const match = /boundary=(?:"([^"]+)"|([^;\s]+))/i.exec(contentType || "");
+  if (!match) return null;
+  return match[1] || match[2] || null;
+}
+
 function parseMultipartAll(body, boundary) {
   const boundaryBuf = Buffer.from(`--${boundary}`);
   const endBuf = Buffer.from(`--${boundary}--`);
@@ -271,11 +295,10 @@ function parseMultipartAll(body, boundary) {
   if (start === -1) throw new Error("Malformed multipart body");
 
   while (true) {
+    const boundaryStart = start;
     start += boundaryBuf.length;
 
-    if (start <= body.length - endBuf.length && body.indexOf(endBuf, start - boundaryBuf.length) === start - boundaryBuf.length) {
-      break;
-    }
+    if (body.indexOf(endBuf, boundaryStart) === boundaryStart) break;
 
     if (body[start] === 0x0d && body[start + 1] === 0x0a) start += 2;
 
@@ -283,7 +306,7 @@ function parseMultipartAll(body, boundary) {
     if (headerEnd === -1) break;
     const headerStr = body.slice(start, headerEnd).toString("utf8");
 
-    const filenameMatch = headerStr.match(/filename="?([^";\s]+)"?/i);
+    const filename = getPartFilename(headerStr);
     const dataStart = headerEnd + 4;
     let dataEnd = body.indexOf(boundaryBuf, dataStart);
     if (dataEnd === -1) dataEnd = body.indexOf(endBuf, dataStart);
@@ -294,8 +317,8 @@ function parseMultipartAll(body, boundary) {
       data = data.slice(0, data.length - 2);
     }
 
-    if (filenameMatch) {
-      parts.push({ filename: filenameMatch[1], data });
+    if (filename) {
+      parts.push({ filename, data });
     }
 
     if (body.indexOf(endBuf, dataEnd) === dataEnd) break;
@@ -532,16 +555,15 @@ function createHandler(format) {
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
       try {
-        const contentType = req.headers["content-type"] || "";
-        const boundaryMatch = contentType.match(/boundary=(.+)/i);
-        if (!boundaryMatch) {
+        const boundary = getMultipartBoundary(req.headers["content-type"]);
+        if (!boundary) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Missing multipart boundary" }));
           return;
         }
 
         const body = await readBody(req);
-        const { filename, data } = parseMultipart(body, boundaryMatch[1]);
+        const { filename, data } = parseMultipart(body, boundary);
 
         const ext = path.extname(filename).toLowerCase() || ".bin";
         if (!IMAGE_RE.test(ext)) {
@@ -576,16 +598,15 @@ function createHandler(format) {
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
       try {
-        const contentType = req.headers["content-type"] || "";
-        const boundaryMatch = contentType.match(/boundary=(.+)/i);
-        if (!boundaryMatch) {
+        const boundary = getMultipartBoundary(req.headers["content-type"]);
+        if (!boundary) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Missing multipart boundary" }));
           return;
         }
 
         const body = await readBody(req, MAX_UPLOAD_BATCH_BYTES);
-        const parts = parseMultipartAll(body, boundaryMatch[1]);
+        const parts = parseMultipartAll(body, boundary);
 
         if (!fs.existsSync(format.imagesDir)) {
           fs.mkdirSync(format.imagesDir, { recursive: true });
