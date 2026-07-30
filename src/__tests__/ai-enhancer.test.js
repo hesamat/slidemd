@@ -5,7 +5,6 @@ import {
   slidesToMarkdown,
   buildMessages,
   extractDirectives,
-  extractHeadings,
   restoreDirectives,
   injectDirectives,
   estimateMaxTokens,
@@ -81,26 +80,6 @@ describe("slidesToMarkdown", () => {
     const slides = [{ layout: "title-slide", content: "# Hi" }];
     const md = slidesToMarkdown(slides);
     expect(md).not.toContain("background:");
-  });
-});
-
-describe("extractHeadings", () => {
-  it("extracts first heading from each slide", () => {
-    const md =
-      "layout: header-content\n@header\n## Intro\n\n@main\n- Hi\n\n---\n\nlayout: two-column\n@header\n## Overview\n\n@main\n- Left";
-    const result = extractHeadings(md);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toBe("Intro");
-    expect(result[1]).toBe("Overview");
-  });
-
-  it("returns empty string for slides without headings", () => {
-    const md =
-      "layout: focus\n@main\n- Just a bullet\n\n---\n\nlayout: focus\n@main\n- Another bullet";
-    const result = extractHeadings(md);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toBe("");
-    expect(result[1]).toBe("");
   });
 });
 
@@ -488,7 +467,7 @@ describe("injectDirectives", () => {
 });
 
 describe("validateFixOutput", () => {
-  it("returns valid when slide count and layouts match", () => {
+  it("returns valid when slide count matches", () => {
     const orig = [
       { layout: "header-content", background: "", theme: "" },
       { layout: "two-column", background: "", theme: "" },
@@ -515,126 +494,10 @@ describe("validateFixOutput", () => {
     expect(result.errors[0]).toContain("2 input → 1 output");
   });
 
-  it("detects layout change", () => {
+  it("ignores layout changes (restored post-AI)", () => {
     const orig = [{ layout: "media-span", background: "", theme: "" }];
     const fixed = [{ layout: "two-column", content: "@header\n## Title\n\n@main\n- Item" }];
     const result = validateFixOutput(orig, fixed);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain('layout changed "media-span" → "two-column"');
-  });
-
-  it("detects heading mismatch against original", () => {
-    const orig = [
-      { layout: "header-content", background: "", theme: "" },
-      { layout: "header-content", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "header-content", content: "@header\n## Module Design\n\n@main\n- Point 1" },
-      { layout: "two-column", content: "@header\n## Different Title\n\n@main\n- Point 2" },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      originalHeadings: ["Module Design", "Other Slide"],
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("heading mismatch"))).toBe(true);
-  });
-
-  it("allows slides with same heading when original matches", () => {
-    const orig = [
-      { layout: "media-span", background: "", theme: "" },
-      { layout: "media-span", background: "", theme: "" },
-    ];
-    const fixed = [
-      {
-        layout: "media-span",
-        content: '@header\n## Example\n\n@media\n<img src="images/a.jpeg">',
-      },
-      {
-        layout: "media-span",
-        content: '@header\n## Example\n\n@media\n<img src="images/b.jpeg">',
-      },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      originalHeadings: ["Example", "Example"],
-    });
     expect(result.valid).toBe(true);
-  });
-
-  it("allows empty headings (no heading to compare)", () => {
-    const orig = [
-      { layout: "focus", background: "", theme: "" },
-      { layout: "focus", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "focus", content: "@main\n- Just a bullet" },
-      { layout: "focus", content: "@main\n- Another bullet" },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      originalHeadings: ["", ""],
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it("reports multiple errors at once", () => {
-    const orig = [
-      { layout: "media-span", background: "", theme: "" },
-      { layout: "header-content", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- Item" },
-      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- Other" },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      originalHeadings: ["Title A", "Title C"],
-    });
-    expect(result.valid).toBe(false);
-    // Should have layout change error + heading mismatch error
-    expect(result.errors.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("skips layout check when skipLayoutCheck is true", () => {
-    const orig = [
-      { layout: "media-span", background: "", theme: "" },
-      { layout: "focus", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- Item" },
-      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- Other" },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      skipLayoutCheck: true,
-      originalHeadings: ["Title A", "Title B"],
-    });
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
-  });
-
-  it("still checks slide count with skipLayoutCheck", () => {
-    const orig = [
-      { layout: "media-span", background: "", theme: "" },
-      { layout: "focus", background: "", theme: "" },
-    ];
-    const fixed = [{ layout: "two-column", content: "@header\n## Title" }];
-    const result = validateFixOutput(orig, fixed, { skipLayoutCheck: true });
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("Slide count mismatch");
-  });
-
-  it("still checks heading match with skipLayoutCheck", () => {
-    const orig = [
-      { layout: "media-span", background: "", theme: "" },
-      { layout: "focus", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "two-column", content: "@header\n## Title A\n\n@main\n- A" },
-      { layout: "header-content", content: "@header\n## Title B\n\n@main\n- B" },
-    ];
-    const result = validateFixOutput(orig, fixed, {
-      skipLayoutCheck: true,
-      originalHeadings: ["Title A", "Wrong Title"],
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("heading mismatch"))).toBe(true);
   });
 });

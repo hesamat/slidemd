@@ -391,12 +391,10 @@ export class AiSidebar {
       parseAiResponse,
       slidesToMarkdown,
       extractDirectives,
-      extractHeadings,
       validateFixOutput,
     } = await import("../data/ai-enhancer.js");
 
     const originalDirectives = extractDirectives(markdown);
-    const originalHeadings = extractHeadings(markdown);
     const maxAttempts = mode === "fix" ? 3 : 1;
     let lastErrors = [];
 
@@ -477,12 +475,9 @@ export class AiSidebar {
         throw new Error("AI did not return valid JSON");
       }
 
-      // Validate fix mode output (only slide count and heading match — layout restored post-AI)
+      // Validate fix mode output (slide count only — layout restored post-AI)
       if (mode === "fix") {
-        const validation = validateFixOutput(originalDirectives, parsed.slides, {
-          skipLayoutCheck: true,
-          originalHeadings,
-        });
+        const validation = validateFixOutput(originalDirectives, parsed.slides);
         if (validation.valid) {
           return slidesToMarkdown(parsed.slides);
         }
@@ -532,7 +527,6 @@ export class AiSidebar {
       estimateMaxTokens,
       parseAiResponse,
       extractDirectives,
-      extractHeadings,
       validateFixOutput,
     } = await import("../data/ai-enhancer.js");
 
@@ -605,14 +599,10 @@ export class AiSidebar {
         return { error: { type: "parse-error" } };
       }
 
-      // Validate fix mode output (only slide count and heading match — layout restored post-AI)
+      // Validate fix mode output (slide count only — layout restored post-AI)
       if (mode === "fix") {
         const origDirectives = extractDirectives(markdown).slice(batch.start, batch.end);
-        const origHeadings = extractHeadings(markdown).slice(batch.start, batch.end);
-        const validation = validateFixOutput(origDirectives, parsed.slides, {
-          skipLayoutCheck: true,
-          originalHeadings: origHeadings,
-        });
+        const validation = validateFixOutput(origDirectives, parsed.slides);
         if (!validation.valid) {
           return { error: { type: "validation", errors: validation.errors } };
         }

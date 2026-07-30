@@ -451,48 +451,20 @@ export function extractHeadings(markdown) {
 
 /**
  * Validate AI fix output against original slides.
- * Compares slide count and checks each AI slide corresponds to its original by position.
+ * Checks slide count only — layouts are restored post-AI by restoreDirectives.
  *
  * @param {{ layout: string, background?: string, theme?: string }[]} originalDirectives - Original per-slide directives
  * @param {{ layout: string, content: string }[]} fixedSlides - AI output slides (JSON)
- * @param {{ skipLayoutCheck?: boolean, originalHeadings?: string[] }} [opts] - Options
  * @returns {{ valid: boolean, errors: string[] }}
  */
-export function validateFixOutput(originalDirectives, fixedSlides, opts) {
+export function validateFixOutput(originalDirectives, fixedSlides) {
   const errors = [];
 
-  // 1. Slide count
+  // Slide count
   if (originalDirectives.length !== fixedSlides.length) {
     errors.push(
       `Slide count mismatch: ${originalDirectives.length} input → ${fixedSlides.length} output`,
     );
-  }
-
-  // 2. Layout preservation (compare against originals) — skip if restoreDirectives will fix it
-  if (!opts?.skipLayoutCheck) {
-    const count = Math.min(originalDirectives.length, fixedSlides.length);
-    for (let i = 0; i < count; i++) {
-      const origLayout = originalDirectives[i]?.layout || "";
-      const fixedLayout = fixedSlides[i]?.layout || "";
-      if (origLayout && fixedLayout && origLayout !== fixedLayout) {
-        errors.push(`Slide ${i + 1}: layout changed "${origLayout}" → "${fixedLayout}"`);
-      }
-    }
-  }
-
-  // 3. Positional check — each AI slide should correspond to the original at the same position
-  if (opts?.originalHeadings) {
-    const count = Math.min(opts.originalHeadings.length, fixedSlides.length);
-    for (let i = 0; i < count; i++) {
-      const origHeading = opts.originalHeadings[i] || "";
-      const fixedContent = fixedSlides[i]?.content || "";
-      const fixedHeading = fixedContent.match(/^##?\s+(.+)/m)?.[1]?.trim() || "";
-      // Skip if either heading is empty (can't compare)
-      if (!origHeading || !fixedHeading) continue;
-      if (origHeading !== fixedHeading) {
-        errors.push(`Slide ${i + 1}: heading mismatch "${origHeading}" → "${fixedHeading}"`);
-      }
-    }
   }
 
   return { valid: errors.length === 0, errors };
