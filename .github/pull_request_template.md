@@ -6,6 +6,14 @@
 
 <!-- List the key changes (bullet points are fine) -->
 
+## Acceptance Criteria
+
+<!-- What specific conditions must be met for this PR to be considered complete? -->
+
+- [ ]
+- [ ]
+- [ ]
+
 ## Test Plan
 
 <!-- How was this tested? -->
