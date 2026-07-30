@@ -162,7 +162,7 @@ export class PptxImporter {
           {
             label: "Save as .textpack",
             onClick: async () => {
-              const loading = Notification.showLoadingModal(
+              const saveLoading = Notification.showLoadingModal(
                 "Saving deck and uploading images\u2026",
               );
               try {
@@ -178,7 +178,7 @@ export class PptxImporter {
                   Notification.error("Export failed: " + (err.message || err));
                 }
               } finally {
-                loading.dismiss();
+                saveLoading.dismiss();
               }
             },
           },

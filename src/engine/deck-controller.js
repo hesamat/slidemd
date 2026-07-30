@@ -443,6 +443,7 @@ export class DeckController extends EventEmitter {
   }
 
   destroy() {
+    if (this._deckEvents) this._deckEvents.teardown();
     if (this.reloadManager) this.reloadManager.destroy();
     if (this.breakManager) this.breakManager.destroy();
     if (this.freezeManager) this.freezeManager.destroy();

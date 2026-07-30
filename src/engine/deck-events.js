@@ -86,16 +86,20 @@ export class DeckEvents {
 
   setup() {
     const listen = (el, evt, fn) => el?.addEventListener(evt, fn);
+    const bind = (target, evt, fn, opts) => {
+      target.addEventListener(evt, fn, opts);
+      this._boundHandlers.push({ target, evt, fn, opts });
+    };
 
     // Document-level events
-    document.addEventListener("keydown", this._handleKeyboard);
-    document.addEventListener("wheel", this._handleWheel, { passive: false });
-    document.addEventListener("click", this._handleDocumentClick);
-    document.addEventListener("fullscreenchange", this._applyStageScale);
-    window.addEventListener("storage", this._handleStorage);
-    window.addEventListener("resize", this._applyStageScale);
-    window.addEventListener("beforeprint", this._handleBeforePrint);
-    window.addEventListener("webdeck-load-local", this._handleLocalFileLoad);
+    bind(document, "keydown", this._handleKeyboard);
+    bind(document, "wheel", this._handleWheel, { passive: false });
+    bind(document, "click", this._handleDocumentClick);
+    bind(document, "fullscreenchange", this._applyStageScale);
+    bind(window, "storage", this._handleStorage);
+    bind(window, "resize", this._applyStageScale);
+    bind(window, "beforeprint", this._handleBeforePrint);
+    bind(window, "webdeck-load-local", this._handleLocalFileLoad);
 
     // Button events
     listen(this._elements.presentBtn, "click", () => this._roleManager.togglePresentWindow());
@@ -161,5 +165,12 @@ export class DeckEvents {
         localStorage.setItem("webdeck_local_file_name", e.target.files[0].name);
       }
     });
+  }
+
+  teardown() {
+    for (const { target, evt, fn, opts } of this._boundHandlers) {
+      target.removeEventListener(evt, fn, opts);
+    }
+    this._boundHandlers = [];
   }
 }
