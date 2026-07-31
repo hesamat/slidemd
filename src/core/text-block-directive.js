@@ -18,21 +18,57 @@ import { escapeHtml } from "./utils.js";
 const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}\s*\r?\n([\s\S]*?)^:::\s*$/gim;
 
 /**
- * Parse a string of attribute key=value pairs from a directive opening line.
- * Values may be quoted or unquoted.  Booleans accept "true"/"false".
+ * Parse a string of attribute tokens from a directive opening line.
+ * Tokens are either `key=value` pairs (value optionally quoted) or bare flag
+ * names such as `float` or `bold`, which resolve to "true".
  * @param {string} attrString
  * @returns {Record<string, string>}
  */
 function parseAttributes(attrString) {
   const attrs = {};
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9]*)\s*=\s*("([^"]*)"|([^\s"]+)|(\S+))/g;
+  const tokenRe = /([a-zA-Z][a-zA-Z0-9]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
   let m;
   while ((m = tokenRe.exec(attrString)) !== null) {
     const key = m[1];
-    const value = m[3] ?? m[4] ?? m[5] ?? "";
-    attrs[key] = value;
+    attrs[key] = m[2] ?? m[3] ?? "true";
   }
   return attrs;
+}
+
+/**
+ * Characters and constructs that must never reach an inline style declaration.
+ */
+const CSS_UNSAFE_RE = /[<>"'`;{}\\]|url\s*\(|expression\s*\(|javascript:|@import|\/\*/i;
+
+/**
+ * Sanitise a CSS value coming from a directive attribute.  Anything that could
+ * terminate the declaration or smuggle in a resource load is dropped entirely.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function sanitizeCssValue(value) {
+  const s = String(value ?? "").trim();
+  if (!s || CSS_UNSAFE_RE.test(s)) return "";
+  return s;
+}
+
+/**
+ * Sanitise a text block identifier to a conservative token charset.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function sanitizeId(value) {
+  return String(value ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+}
+
+/**
+ * Coerce a value to a finite number, or null when it is not numeric.
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function finiteNumber(value) {
+  const n = typeof value === "number" ? value : parseFloat(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -61,23 +97,35 @@ function toNum(v) {
  */
 function buildStyleString(settings) {
   const parts = [];
+  const push = (prop, value) => {
+    const safe = sanitizeCssValue(value);
+    if (safe) parts.push(`${prop}:${safe}`);
+  };
+  const pushNum = (prop, value, suffix = "") => {
+    const n = finiteNumber(value);
+    if (n != null) parts.push(`${prop}:${n}${suffix}`);
+  };
+
   if (settings.float) {
     parts.push("position:absolute");
-    parts.push(`left:${Math.round(settings.left || 0)}px`);
-    parts.push(`top:${Math.round(settings.top || 0)}px`);
+    parts.push(`left:${Math.round(finiteNumber(settings.left) || 0)}px`);
+    parts.push(`top:${Math.round(finiteNumber(settings.top) || 0)}px`);
   }
-  if (settings.fontSize) parts.push(`font-size:${settings.fontSize}px`);
-  if (settings.color) parts.push(`color:${settings.color}`);
+  if (settings.fontSize) pushNum("font-size", settings.fontSize, "px");
+  push("color", settings.color);
   if (settings.backgroundColor && settings.backgroundColor !== "transparent") {
-    parts.push(`background-color:${settings.backgroundColor}`);
+    push("background-color", settings.backgroundColor);
   }
-  if (settings.textAlign) parts.push(`text-align:${settings.textAlign}`);
-  if (settings.opacity != null) parts.push(`opacity:${settings.opacity}`);
-  if (settings.zIndex) parts.push(`z-index:${settings.zIndex}`);
-  if (settings.rotation) parts.push(`transform:rotate(${settings.rotation}deg)`);
-  if (settings.fontWeight) parts.push(`font-weight:${settings.fontWeight}`);
-  if (settings.fontStyle) parts.push(`font-style:${settings.fontStyle}`);
-  if (settings.textDecoration) parts.push(`text-decoration:${settings.textDecoration}`);
+  push("text-align", settings.textAlign);
+  if (settings.opacity != null) pushNum("opacity", settings.opacity);
+  if (settings.zIndex) pushNum("z-index", settings.zIndex);
+  if (settings.rotation) {
+    const n = finiteNumber(settings.rotation);
+    if (n) parts.push(`transform:rotate(${n}deg)`);
+  }
+  push("font-weight", settings.fontWeight);
+  push("font-style", settings.fontStyle);
+  push("text-decoration", settings.textDecoration);
   parts.push("white-space:pre-wrap");
   return parts.join("; ");
 }
@@ -92,7 +140,8 @@ export function buildTextBlockHtml(settings, content) {
   const safeContent = escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
   const cls = ["text-block", settings.float ? "text-block--float" : ""].filter(Boolean).join(" ");
-  return `<div class="${cls}" data-id="${settings.id || ""}" style="${style}">${safeContent}</div>\n\n`;
+  const id = sanitizeId(settings.id);
+  return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }
 
 /**
@@ -102,24 +151,28 @@ export function buildTextBlockHtml(settings, content) {
  * @returns {string}
  */
 export function buildTextBlockDirective(settings, content) {
+  const id = sanitizeId(settings.id);
+  const color = sanitizeCssValue(settings.color);
+  const backgroundColor = sanitizeCssValue(settings.backgroundColor);
+  const textAlign = sanitizeCssValue(settings.textAlign);
   const attrs = [
-    settings.id ? `id="${settings.id}"` : "",
-    settings.float ? "float" : "",
+    id ? `id="${id}"` : "",
+    settings.float ? "float=true" : "",
     settings.float && settings.left ? `x=${Math.round(settings.left)}` : "",
     settings.float && settings.top ? `y=${Math.round(settings.top)}` : "",
     settings.fontSize && settings.fontSize !== 32 ? `fontSize=${settings.fontSize}` : "",
-    settings.color ? `color="${settings.color}"` : "",
-    settings.backgroundColor && settings.backgroundColor !== "transparent"
-      ? `backgroundColor="${settings.backgroundColor}"`
+    color ? `color="${color}"` : "",
+    backgroundColor && backgroundColor !== "transparent"
+      ? `backgroundColor="${backgroundColor}"`
       : "",
-    settings.textAlign && settings.textAlign !== "left" ? `align=${settings.textAlign}` : "",
+    textAlign && textAlign !== "left" ? `align=${textAlign}` : "",
     settings.opacity != null && settings.opacity !== 1 ? `opacity=${settings.opacity}` : "",
     settings.zIndex ? `z=${settings.zIndex}` : "",
     settings.rotation ? `rotate=${settings.rotation}` : "",
-    settings.fontWeight === "bold" ? "bold" : "",
-    settings.fontStyle === "italic" ? "italic" : "",
-    settings.textDecoration?.includes("underline") ? "underline" : "",
-    settings.textDecoration?.includes("line-through") ? "strikethrough" : "",
+    settings.fontWeight === "bold" || settings.fontWeight === "700" ? "bold=true" : "",
+    settings.fontStyle === "italic" ? "italic=true" : "",
+    settings.textDecoration?.includes("underline") ? "underline=true" : "",
+    settings.textDecoration?.includes("line-through") ? "strikethrough=true" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -141,7 +194,7 @@ export function parseTextBlockDirectives(markdown) {
   TEXT_BLOCK_RE.lastIndex = 0;
   while ((match = TEXT_BLOCK_RE.exec(markdown)) !== null) {
     const attrs = parseAttributes(match[1]);
-    const id = attrs.id || "";
+    const id = sanitizeId(attrs.id);
     const float = toBool(attrs.float);
     const left = toNum(attrs.x);
     const top = toNum(attrs.y);
@@ -216,6 +269,7 @@ export function convertTextBlockDirectivesToHtml(markdown) {
  * @returns {string|null} The updated markdown, or null if the block was not found.
  */
 export function updateTextBlockDirective(markdown, id, settings, content) {
+  if (!id) return null;
   const blocks = parseTextBlockDirectives(markdown);
   const block = blocks.find((b) => b.settings.id === id);
   if (!block) return null;
@@ -230,6 +284,7 @@ export function updateTextBlockDirective(markdown, id, settings, content) {
  * @returns {string|null} The updated markdown, or null if the block was not found.
  */
 export function removeTextBlockDirective(markdown, id) {
+  if (!id) return null;
   const blocks = parseTextBlockDirectives(markdown);
   const block = blocks.find((b) => b.settings.id === id);
   if (!block) return null;

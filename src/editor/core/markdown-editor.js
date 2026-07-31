@@ -1,4 +1,4 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -55,6 +55,8 @@ export class MarkdownEditor {
     this.view = null;
     this.editorRoot = null;
     this.suppressChange = false;
+    this._tableCompartment = new Compartment();
+    this._completionSources = [];
 
     // Render immediately so DOM elements exist
     this.render();
@@ -324,10 +326,11 @@ export class MarkdownEditor {
 
   // ── CodeMirror setup ─────────────────────────────────────────────────────
 
-  async initializeCodeMirror() {
+  initializeCodeMirror() {
     if (!this.editorRoot) return;
 
     const completionSources = createCompletionSources();
+    this._completionSources = completionSources;
 
     // Suppress the known Lezer crash where hasChild() tries to access
     // tree.children on a Tree node that was never fully initialized.
@@ -342,13 +345,6 @@ export class MarkdownEditor {
         return;
       throw ex;
     });
-
-    const markdownSupport = markdown({ codeLanguages: languages });
-
-    // The table helper is browser-only; keep tests from loading it in Node.
-    const tableMod =
-      typeof navigator !== "undefined" ? await import("codemirror-markdown-tables") : null;
-    const { markdownTableAutocompleter, insertEmptyMarkdownTable } = tableMod || {};
 
     const extensions = [
       suppressLezerHighlightCrash,
@@ -370,20 +366,14 @@ export class MarkdownEditor {
       foldGutter(),
       bracketMatching(),
       closeBrackets(),
-      autocompletion({
-        activateOnTyping: true,
-        override: completionSources,
-      }),
+      this._tableCompartment.of(
+        autocompletion({
+          activateOnTyping: true,
+          override: completionSources,
+        }),
+      ),
       ...editorThemeExtensions,
-      markdownSupport,
-      markdownTableAutocompleter
-        ? markdownSupport.language.data.of({
-            autocomplete: markdownTableAutocompleter(),
-          })
-        : null,
-      insertEmptyMarkdownTable
-        ? keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }])
-        : null,
+      markdown({ codeLanguages: languages }),
       placeholder(this.options.placeholder),
       fencedBlockHelper,
       EditorView.updateListener.of((update) => {
@@ -403,6 +393,34 @@ export class MarkdownEditor {
         extensions,
       }),
       parent: this.editorRoot,
+    });
+
+    this.tableSupportReady = this._loadTableSupport().catch((err) => {
+      console.warn("Markdown table support unavailable:", err);
+    });
+  }
+
+  /**
+   * Load the browser-only markdown table helper and fold it into the editor.
+   * The autocompleter has to live in the `override` list because `override`
+   * makes @codemirror/autocomplete ignore language-data completion sources.
+   */
+  async _loadTableSupport() {
+    // The table helper touches browser globals; keep Node tests from loading it.
+    if (typeof navigator === "undefined") return;
+
+    const { markdownTableAutocompleter, insertEmptyMarkdownTable } =
+      await import("codemirror-markdown-tables");
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: this._tableCompartment.reconfigure([
+        autocompletion({
+          activateOnTyping: true,
+          override: [...this._completionSources, markdownTableAutocompleter()],
+        }),
+        keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }]),
+      ]),
     });
   }
 }

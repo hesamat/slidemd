@@ -292,9 +292,11 @@ export class TextBlockHandler {
     const match = blocks.find((b) => !b.settings.id && b.content.trim() === content);
     if (!match) return;
 
+    // Splice by the matched block's own offsets; looking the block up by an
+    // empty id would rewrite whichever id-less block comes first in the slide.
     const id = this._nextId();
-    const updated = updateTextBlockDirective(md, "", { ...match.settings, id }, match.content);
-    if (updated == null) return;
+    const directive = buildTextBlockDirective({ ...match.settings, id }, match.content);
+    const updated = md.slice(0, match.start) + directive + md.slice(match.end);
     el.dataset.id = id;
     this._setMarkdown?.(updated);
   }

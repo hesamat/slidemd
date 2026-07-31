@@ -74,6 +74,9 @@ export class EditController {
 
       const textBlock = e.target.closest(".text-block");
       if (textBlock) {
+        // Leave clicks alone while the block is being edited inline, otherwise
+        // re-selecting it clears contenteditable and drops the typed text.
+        if (textBlock.isContentEditable) return;
         e.preventDefault();
         e.stopPropagation();
         ImageInteractionHandler.deselect();
