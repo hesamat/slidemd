@@ -607,8 +607,27 @@ export class TextBlockHandler {
     }
 
     if (field === "float") {
-      el.classList.toggle("text-block--float", !!value);
-      el.style.position = value ? "absolute" : "";
+      const isFloat = !!value;
+      if (isFloat) {
+        const area = el.closest(".slide__area");
+        if (area) {
+          const rect = el.getBoundingClientRect();
+          const areaRect = area.getBoundingClientRect();
+          const cs = getComputedStyle(area);
+          const padL = parseFloat(cs.paddingLeft) || 0;
+          const padT = parseFloat(cs.paddingTop) || 0;
+          const scale = getStageScale();
+          const left = Math.round((rect.left - areaRect.left) / scale - padL / scale);
+          const top = Math.round((rect.top - areaRect.top) / scale - padT / scale);
+          el.style.left = `${left}px`;
+          el.style.top = `${top}px`;
+        }
+      } else {
+        el.style.left = "";
+        el.style.top = "";
+      }
+      el.classList.toggle("text-block--float", isFloat);
+      el.style.position = isFloat ? "absolute" : "";
       return;
     }
 
