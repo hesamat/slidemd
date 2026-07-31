@@ -176,6 +176,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   width: 55%;
   height: 1px;
   background: rgba(23, 32, 39, 0.52);
+  transform: translateZ(0);
 }
 
 .slide[data-theme="dark"] .slide__area--header::after {
