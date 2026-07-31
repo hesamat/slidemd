@@ -140,6 +140,9 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
   overflow-wrap: break-word;
   max-width: 100%;
   position: relative;
+  row-gap: var(--spacing-xs);
+  max-width: 100%;
+  position: relative;
   padding: 10px;
 }
 
