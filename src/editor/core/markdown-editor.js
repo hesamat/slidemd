@@ -160,15 +160,17 @@ export class MarkdownEditor {
     if (suppressOnChange) this.suppressChange = true;
 
     try {
-      const scrollTop = this.view.scrollDOM.scrollTop;
-
-      // Use dispatch (not setState) so the change is recorded in the undo
-      // history — Ctrl+Z / Cmd+Z will revert it.
-      this.view.dispatch({
-        changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-      });
-
-      this.view.scrollDOM.scrollTop = scrollTop;
+      // Replace the whole document with a fresh state.  Using dispatch with
+      // a full-document change can crash CodeMirror's incremental parser and
+      // RangeSet mapper (e.g. "Position out of range" / "parents.pop()").
+      // Note: this clears the undo history, which is acceptable for a
+      // full-document replacement.
+      this.view.setState(
+        EditorState.create({
+          doc: this.value,
+          extensions: this.extensions,
+        }),
+      );
 
       if (!suppressOnChange) {
         this.scheduleOnChange();
@@ -200,11 +202,16 @@ export class MarkdownEditor {
         0,
         Math.min(cursorPosition ?? this.value.length, this.value.length),
       );
-      this.view.dispatch({
-        changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-        selection: EditorSelection.cursor(position),
-        scrollIntoView,
-      });
+      this.view.setState(
+        EditorState.create({
+          doc: this.value,
+          extensions: this.extensions,
+          selection: EditorSelection.cursor(position),
+        }),
+      );
+      if (scrollIntoView) {
+        this.view.dispatch({ effects: [EditorView.scrollIntoView()] });
+      }
       if (focus) this.view.focus();
     } finally {
       if (suppressOnChange) this.suppressChange = false;
