@@ -160,3 +160,7 @@ AI prompts live in [src/data/prompts/](src/data/prompts/):
 - **`nul` file on Windows**: The `.gitignore` previously contained `nul` which created an untracked file that cannot be deleted via normal Windows commands (it's a reserved device name). This was removed from `.gitignore` but the file may still appear in `git status`. Ignore it.
 - **PowerShell quoting**: The `gh` CLI and `npm` commands with special characters (parentheses, quotes) fail in PowerShell. Use `cmd /c` wrapper or write content to temp files and use `--body-file`, `-F` flags.
 - **npm via PowerShell**: `npm.ps1` is blocked by execution policy on this system. Use `cmd /c "npm ..."` to run npm commands.
+
+## Pull Requests
+
+When a PR changes user-facing behavior (image loading, `.textpack` open, PPTX import, save/export, editing flows, etc.), include the specific manual/browser verification steps in the PR description. Use the `## Acceptance Criteria` or `## Manual Verification` section to list the exact actions to perform, not just a generic "manual test" checkbox.

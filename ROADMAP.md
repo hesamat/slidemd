@@ -286,7 +286,227 @@ Goal: Add AI-powered post-processing for PPTX imports via OpenRouter.
 
 ---
 
-## Phase 9: Cloud Mode
+## Phase 9: Text Insertion & Editor UX
+
+Goal: Add draggable text blocks and polish the core editor experience. This is the current active workstream.
+
+### Text Insertion
+
+| Task                                                            | Details                                                                                                                             |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Text insertion with drag, snap, and properties panel (#154) | Implement text blocks with the same UX as image insertion — drag, snap, floating position, right-click properties, and persistence. |
+| [ ] Persist text position and styling                           | Store position, rotation, background, font size, color, and alignment in the slide markdown.                                        |
+| [ ] Inline text editing                                         | Allow double-click/inline editing or edit through the properties panel.                                                             |
+
+### Editor UX
+
+| Task                                                                    | Details                                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [ ] Improve main menu layout, groupings, and edit button options (#147) | Reorganize the header menu for clearer access to edit, save, export, and AI actions. |
+| [ ] Add tooltips to edit-mode controls (#121)                           | Show tooltips for editor controls to improve discoverability.                        |
+| [ ] Make Alt+N new slide shortcut discoverable (#109)                   | Add a menu item, hint, or keybinding label for the new-slide shortcut.               |
+| [ ] Right-click context menu format options (#92)                       | Add font, color, and alignment options to the right-click menu for selected content. |
+
+### Layout & Media
+
+| Task                                                      | Details                                                                            |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [ ] Adjust width and alignment of main column (#152)      | Add UI controls for `header-content` and `focus` main column width and alignment.  |
+| [ ] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
+| [ ] Allow dragging Mermaid diagrams between areas (#123)  | Support drag-and-drop of Mermaid diagrams across `@area` boundaries.               |
+| [ ] Improve image properties style tab UI (#126)          | Improve the style tab in the image properties panel.                               |
+
+---
+
+## Phase 10: Markdown-First Foundation
+
+Goal: Make the Markdown string the single source of truth for both the user and the AI, using YAML frontmatter and lightweight slot directives for layout and styling.
+
+### Data Model
+
+| Task                                           | Details                                                                                              |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [ ] Make `DeckStore` hold the Markdown array   | Source of truth: an array of slide strings joined by `---`.                                          |
+| [ ] Canonical split/rejoin API                 | `MarkdownParser.splitIntoSlides(markdown)` and `MarkdownParser.joinSlides(slides)`.                  |
+| [ ] Treat `Deck` as a read-only view           | Re-parse the Markdown string when it changes; keep the `Deck` object as a transient view only.       |
+| [ ] Use the Markdown string as the only schema | Render through the internal Markdown-it pipeline; keep the Markdown string as the user-facing model. |
+
+### Frontmatter & Area Directives
+
+| Task                                           | Details                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [ ] Expand `MarkdownParser.extractFrontmatter` | Parse `layout`, `theme`, `background`, `hidden`, etc. into a plain object per slide.    |
+| [ ] Document and enforce `@area` as canonical  | Use `@left`, `@right`, `@hero`, `@main` for slot boundaries in examples and AI prompts. |
+| [ ] Update AI prompts to emit `@area` markers  | Instruct the LLM to place `@area` directives when it needs multi-slot layouts.          |
+| [ ] Enforce `layout` against `LayoutData`      | Use the values defined in the `LayoutData` registry for frontmatter layouts and slots.  |
+
+### Targeted AI Slide Patching
+
+| Task                                                   | Details                                                                                            |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| [ ] Add `enhanceSlide(slideMarkdown, intent)`          | Build a prompt containing one slide Markdown string and an intent string.                          |
+| [ ] Instruct the LLM to output a slide Markdown string | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
+| [ ] Validate the response with `MarkdownParser`        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
+| [ ] Patch by index                                     | Swap the edited slide string back into the array and rejoin with `---`.                            |
+| [ ] Simplify `ai-sidebar.js`                           | Route single-slide requests to `enhanceSlide`; use whole-deck batching only for full-deck intents. |
+
+### PPTX Import & Export
+
+| Task                                             | Details                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
+| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
+
+---
+
+## Phase 11: Content AST & Renderer
+
+Goal: Add an internal, typed content model over `markdown-it` tokens to drive deterministic rendering, while keeping the user-facing model as Markdown.
+
+### Content Model
+
+| Task                        | Details                                                                  |
+| --------------------------- | ------------------------------------------------------------------------ |
+| [ ] Add `ContentNode` types | Heading, paragraph, list, code, image, table, mermaid, math, blockquote. |
+| [ ] Add `ContentCompiler`   | Convert `markdown-it` tokens to a typed `ContentNode[]`.                 |
+| [ ] Add node serializers    | Render each `ContentNode` to HTML/DOM.                                   |
+
+### Renderer
+
+| Task                          | Details                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| [ ] Add `AstRenderer`         | Walk the `ContentNode[]` tree and build the slide DOM.                    |
+| [ ] Replace `innerHTML` usage | Use the typed renderer in `SlideRenderer` instead of direct `innerHTML`.  |
+| [ ] Add SSR/print support     | Use the same renderer for exported HTML and the `tools/pdf.mjs` pipeline. |
+
+### Exports
+
+| Task                          | Details                                                             |
+| ----------------------------- | ------------------------------------------------------------------- |
+| [ ] Unify Mermaid/Prism/KaTeX | Single `ContentEnhancer` path across runtime, HTML export, and PDF. |
+| [ ] Add AST snapshot tests    | Verify that known decks render to a stable AST.                     |
+
+---
+
+## Phase 12: AI Operations & Output Schema
+
+Goal: Structure the AI layer with a registry of intents, validated output, and a clean operation contract.
+
+### AI Operation Model
+
+| Task                                     | Details                                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiOperation`                    | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                   |
+| [ ] Add `AiIntentRegistry`               | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`). |
+| [ ] Add `AiOrchestrator`                 | Pick the right context window, call the LLM, validate and apply the result.                                 |
+| [ ] Support locally run AI models (#148) | Add OpenAI-compatible provider support for Ollama, LM Studio, and custom base URLs.                         |
+
+### Output Validation
+
+| Task                                | Details                                                                                                    |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiOutputSchema`            | Define the expected Markdown structure for each intent (one valid slide).                                  |
+| [ ] Add `AiOutputValidator`         | Parse returned Markdown and check layout, `@area` markers, and slot validity.                              |
+| [ ] Enforce AI content rules (#150) | Default headers to h1, avoid `header-content` for multi-image slides, and preserve multi-column-list HTML. |
+| [ ] Add repair loop                 | On validation failure, ask the LLM to fix the specific issue or fall back.                                 |
+
+### Prompt Engineering
+
+| Task                           | Details                                                                |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments.               |
+| [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts. |
+
+---
+
+## Phase 13: State, Patches & History
+
+Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
+
+### State Model
+
+| Task                  | Details                                                                 |
+| --------------------- | ----------------------------------------------------------------------- |
+| [ ] Add `DeckStore`   | Single source of truth for the slide-string array and the active index. |
+| [ ] Add `SlidePatch`  | `{ index, before, after, source }` object describing one slide change.  |
+| [ ] Add `DeckHistory` | Stack of full deck snapshots for undo/redo.                             |
+
+### Conflict & Merge
+
+| Task                       | Details                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| [ ] Add `ConflictResolver` | Reconcile overlapping user and AI edits before applying a patch.   |
+| [ ] Add `applyPatch`       | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
+| [ ] Add `revertPatch`      | Roll back to the snapshot before a specific patch.                 |
+
+### Editor Wiring
+
+| Task                           | Details                                                 |
+| ------------------------------ | ------------------------------------------------------- |
+| [ ] Wire `DeckStore` to editor | Make `EditController` read and write through the store. |
+| [ ] Add global undo/redo       | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`.          |
+
+---
+
+## Phase 14: Design System & Theme Registry
+
+Goal: Centralize tokens, themes, and layout governance for consistent and predictable decks.
+
+### Tokens & Themes
+
+| Task                            | Details                                                             |
+| ------------------------------- | ------------------------------------------------------------------- |
+| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.    |
+| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.       |
+| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry. |
+
+### Layout Governance
+
+| Task                           | Details                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry. |
+| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.  |
+| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.               |
+
+### Brand Defaults
+
+| Task                   | Details                                                             |
+| ---------------------- | ------------------------------------------------------------------- |
+| [ ] Add brand defaults | Default colors, fonts, and accent palette for new decks.            |
+| [ ] Add theme preview  | Render a small preview of each theme in the New Presentation modal. |
+
+---
+
+## Phase 15: Presenter, Print & AI Commands
+
+Goal: Build out the presenter experience, simplify print/PDF preparation, and expose contextual AI commands.
+
+### Presenter View
+
+| Task                        | Details                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| [ ] Add `PresenterModel`    | Track elapsed time, clock, current notes, and next-slide preview. |
+| [ ] Add speaker notes panel | Dedicated presenter panel with current and next slide notes.      |
+| [ ] Add timer and clock UI  | Display elapsed and wall-clock time in presenter view.            |
+
+### Print & PDF
+
+| Task                                    | Details                                                                       |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                |
+| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`. |
+| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                       |
+
+### Contextual AI Commands
+
+| Task                          | Details                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| [ ] Add AI command palette UI | List of intents: summarize for executive, convert bullets to metric cards, add speaker notes. |
+| [ ] Wire `AiOperations` to UI | Each command maps to an `AiOperation` with a prompt and a selected slide.                     |
+
+---
+
+## Phase 16: Cloud Mode
 
 Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/Save UX.
 
@@ -332,23 +552,30 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ## Summary
 
-| Phase                        | Status      |
-| ---------------------------- | ----------- |
-| Phase 1: Safety Net          | ✅ Complete |
-| Phase 2: Build Modernization | ✅ Complete |
-| Phase 3: Distribution        | ✅ Complete |
-| Phase 4: New Presentation    | ✅ Complete |
-| Phase 5: Quick Fixes         | ✅ Complete |
-| Phase 6: Testing & Polish    | ✅ Complete |
-| Phase 7: PPTX Conversion     | ✅ Complete |
-| Phase 7.5: CLI Dev Server    | ✅ Complete |
-| Phase 8: AI Post-Processing  | ✅ Complete |
-| Phase 9: Cloud Mode          | Not started |
+| Phase                                    | Status      |
+| ---------------------------------------- | ----------- |
+| Phase 1: Safety Net                      | ✅ Complete |
+| Phase 2: Build Modernization             | ✅ Complete |
+| Phase 3: Distribution                    | ✅ Complete |
+| Phase 4: New Presentation                | ✅ Complete |
+| Phase 5: Quick Fixes                     | ✅ Complete |
+| Phase 6: Testing & Polish                | ✅ Complete |
+| Phase 7: PPTX Conversion                 | ✅ Complete |
+| Phase 7.5: CLI Dev Server                | ✅ Complete |
+| Phase 8: AI Post-Processing              | ✅ Complete |
+| Phase 9: Text Insertion & Editor UX      | In progress |
+| Phase 10: Markdown-First Foundation      | Planned     |
+| Phase 11: Content AST & Renderer         | Planned     |
+| Phase 12: AI Operations & Output Schema  | Planned     |
+| Phase 13: State, Patches & History       | Planned     |
+| Phase 14: Design System & Theme Registry | Planned     |
+| Phase 15: Presenter, Print & AI Commands | Planned     |
+| Phase 16: Cloud Mode                     | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) is the current active workstream and includes draggable text blocks, editor polish, and layout/media controls. Phase 10 (Markdown-First Foundation) transitions the platform to an extended-Markdown source of truth, frontmatter and `@area` directives, and slide-level AI patching. Phases 11-15 add an internal content AST, AI operations and output validation, state patches and history, a design system and theme registry, and presenter/print/AI command layers. Phase 16 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.

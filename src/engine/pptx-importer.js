@@ -11,6 +11,7 @@ import { ImagePicker } from "../editor/image/image-picker.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
+import { setImageUploadPromise, waitForImageUpload } from "../core/image-upload-promise.js";
 
 export class PptxImporter {
   /**
@@ -33,9 +34,34 @@ export class PptxImporter {
 
     let { markdown, images, deckName, aiMode } = result;
 
-    // Show a loading overlay while the deck is being saved and loaded
+    // Convert PPTX-extracted images to in-memory blob URLs so the deck renders immediately
+    const imageBlobs = new Map();
+    const imageFiles = new Map();
+    if (images?.length) {
+      for (const img of images) {
+        if (!img.base64 || !img.ref) continue;
+        const rawName = img.ref.split("/").pop();
+        if (!rawName) continue;
+        const file = PptxImporter.#imageToFile(img, rawName);
+        if (!file) continue;
+        const blobUrl = URL.createObjectURL(file);
+        imageBlobs.set(rawName, blobUrl);
+        imageFiles.set(rawName, file);
+      }
+    }
+
+    // Rewrite markdown image references to use the in-memory blob URLs
+    if (imageBlobs.size > 0) {
+      for (const [rawName, blobUrl] of imageBlobs) {
+        const oldRef = `images/${rawName}`;
+        const escaped = oldRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        markdown = markdown.replace(new RegExp(escaped, "g"), blobUrl);
+      }
+    }
+
+    // Show a loading overlay while the deck is being loaded
     const controller = new AbortController();
-    const loading = Notification.showLoadingModal("Saving deck and uploading images…", {
+    const loading = Notification.showLoadingModal("Loading slides…", {
       title: "Importing PPTX",
       type: "info",
       cancelLabel: "Cancel",
@@ -52,30 +78,10 @@ export class PptxImporter {
         /* ignore — best-effort cleanup */
       }
 
-      // Upload PPTX-extracted images via the CLI server API
-      // and build a mapping from original filenames to server-saved paths.
-      const imagePathMap = await this.#uploadImages(images, loading, controller.signal);
-
-      if (controller.signal.aborted) {
-        throw new DOMException("PPTX import cancelled", "AbortError");
-      }
-
-      // Rewrite markdown image references to use the server-saved paths.
-      if (imagePathMap.size > 0) {
-        let updated = markdown;
-        for (const [oldName, newPath] of imagePathMap) {
-          const oldRef = `images/${oldName}`;
-          const escaped = oldRef.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          updated = updated.replace(new RegExp(escaped, "g"), newPath);
-        }
-        markdown = updated;
-      }
-
       // Flush cached images so the new deck doesn't show stale thumbnails
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
-      loading.updateMessage("Loading slides…");
       loading.updateProgress(70);
 
       // Store markdown info in localStorage so edit mode can find it
@@ -164,16 +170,64 @@ export class PptxImporter {
       loading.updateProgress(100);
       loading.dismiss();
 
+      const getLatestMarkdown = () =>
+        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || markdown;
+
+      if (imageFiles.size > 0) {
+        // Upload images to the server in the background and then swap blob URLs for server paths
+        setImageUploadPromise(
+          (async () => {
+            const entries = [];
+            for (const [rawName, file] of imageFiles) {
+              entries.push({ key: rawName, file });
+            }
+            const uploadedPaths = await uploadImagesInBatches(entries, {
+              signal: controller.signal,
+            });
+            let serverMarkdown = markdown;
+            for (const [rawName, serverPath] of uploadedPaths) {
+              const blobUrl = imageBlobs.get(rawName);
+              if (blobUrl && serverPath) {
+                serverMarkdown = serverMarkdown.split(blobUrl).join(serverPath);
+              }
+            }
+            try {
+              localStorage.setItem("webdeck_local_file", serverMarkdown);
+              localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+            } catch {
+              window.__WEBDECK_MARKDOWN__ = serverMarkdown;
+            }
+            await DraftManager.saveDraft(serverMarkdown);
+            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+              try {
+                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
+                  new MarkdownParser().splitSlides(serverMarkdown);
+              } catch {
+                /* ignore */
+              }
+            }
+          })().catch((err) => {
+            if (err.name === "AbortError") return;
+            console.warn("Background image upload failed:", err);
+          }),
+        );
+      }
+
       Notification.dismissAll();
       Notification.success("PPTX imported successfully.", 0, {
         actions: [
           {
             label: "Save as .textpack",
             onClick: async () => {
+              await waitForImageUpload();
               const mockDeck = { meta: { title: deckName || "pptx-import" } };
-              const { ok } = await TextpackExportManager.handleTextpackExport(markdown, mockDeck, {
-                filename: deckName || "pptx-import",
-              });
+              const { ok } = await TextpackExportManager.handleTextpackExport(
+                getLatestMarkdown(),
+                mockDeck,
+                {
+                  filename: deckName || "pptx-import",
+                },
+              );
               if (ok) {
                 Notification.dismissAll();
                 Notification.success("Deck exported as .textpack!");
@@ -184,7 +238,8 @@ export class PptxImporter {
             label: "Save as .md (markdown only)",
             onClick: async () => {
               const loading = Notification.showLoadingModal("Saving deck\u2026");
-              const mdBlob = new Blob([markdown], { type: "text/markdown" });
+              await waitForImageUpload();
+              const mdBlob = new Blob([getLatestMarkdown()], { type: "text/markdown" });
               try {
                 if (window.showSaveFilePicker) {
                   const handle = await window.showSaveFilePicker({
@@ -250,37 +305,6 @@ export class PptxImporter {
       console.error("PPTX import failed:", err);
       Notification.error(`Import failed: ${err.message || err}`);
     }
-  }
-
-  /**
-   * Upload PPTX-extracted images via the CLI server API.
-   * @param {Array} images - Extracted images from PPTX
-   * @param {object} loading - Loading indicator
-   * @param {AbortSignal} [signal] - Aborts in-flight uploads when the user cancels
-   * @returns {Promise<Map<string, string>>} Map from original filename to server path
-   */
-  async #uploadImages(images, loading, signal = null) {
-    if (!images?.length) return new Map();
-
-    const entries = [];
-    for (const img of images) {
-      if (!img.base64 || !img.ref) continue;
-      const rawName = img.ref.split("/").pop();
-      if (!rawName) continue;
-      const file = PptxImporter.#imageToFile(img, rawName);
-      if (file) entries.push({ key: rawName, file });
-    }
-
-    const total = entries.length;
-    if (total === 0) return new Map();
-
-    return uploadImagesInBatches(entries, {
-      signal,
-      onProgress: (processed) => {
-        loading.updateMessage(`Uploading images… ${processed}/${total}`);
-        loading.updateProgress(Math.round((processed / total) * 60));
-      },
-    });
   }
 
   /**

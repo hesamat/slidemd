@@ -8,6 +8,7 @@ import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
 export class SaveManager {
   /**
@@ -15,6 +16,7 @@ export class SaveManager {
    * @param {() => object} opts.getDeck
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {() => string[]} opts.getOriginalMarkdown
+   * @param {(v: string[]) => void} opts.setOriginalMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    */
@@ -22,12 +24,14 @@ export class SaveManager {
     getDeck,
     getUnsavedMarkdown,
     getOriginalMarkdown,
+    setOriginalMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
   }) {
     this._getDeck = getDeck;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._getOriginalMarkdown = getOriginalMarkdown;
+    this._setOriginalMarkdown = setOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this.needsSaveAs = false;
@@ -56,31 +60,30 @@ export class SaveManager {
     // no-op
   }
 
-  async save() {
-    // Re-cache from localStorage in case deck was replaced by AI
-    const localMd = localStorage.getItem("webdeck_local_file");
-    if (localMd) {
-      try {
-        const parser = new MarkdownParser();
-        this.originalMarkdown = parser.splitSlides(localMd);
-      } catch {
-        // keep existing cache
-      }
-    }
-
+  /**
+   * Return the current full markdown, merging saved original and any unsaved edits.
+   * @returns {string}
+   */
+  getFullMarkdown() {
+    const merged = [...this.originalMarkdown];
     for (let i = 0; i < this.deck.slides.length; i++) {
       if (this.unsavedMarkdown.has(i)) {
-        this.originalMarkdown[i] = this.unsavedMarkdown.get(i);
+        merged[i] = this.unsavedMarkdown.get(i);
       }
     }
+    return merged.join("\n\n---\n\n");
+  }
 
+  async save() {
+    await waitForImageUpload();
+    const fullMarkdown = this.getFullMarkdown();
+
+    this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this.updateButton();
 
     try {
-      const fullMarkdown = this.originalMarkdown.join("\n\n---\n\n");
-
       // Warn if the markdown contains blob URLs — they can't persist to disk.
       const hasBlobUrls = /blob:/.test(fullMarkdown);
       if (hasBlobUrls) {
