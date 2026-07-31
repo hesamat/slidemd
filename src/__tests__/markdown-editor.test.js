@@ -10,10 +10,8 @@ describe("MarkdownEditor suppression reset", () => {
     const editor = {
       value: "",
       view: {
-        scrollDOM: { scrollTop: 0 },
-        state: { doc: { length: 0 } },
-        dispatch() {
-          throw new Error("dispatch failed");
+        setState() {
+          throw new Error("setState failed");
         },
       },
       suppressChange: false,
@@ -21,7 +19,7 @@ describe("MarkdownEditor suppression reset", () => {
 
     expect(() =>
       MarkdownEditor.prototype.setValue.call(editor, "next", { suppressOnChange: true }),
-    ).toThrow("dispatch failed");
+    ).toThrow("setState failed");
     expect(editor.suppressChange).toBe(false);
   });
 
@@ -29,10 +27,10 @@ describe("MarkdownEditor suppression reset", () => {
     const editor = {
       value: "",
       view: {
-        state: { doc: { length: 0 } },
-        dispatch() {
-          throw new Error("dispatch failed");
+        setState() {
+          throw new Error("setState failed");
         },
+        dispatch() {},
         focus() {},
       },
       suppressChange: false,
@@ -42,7 +40,7 @@ describe("MarkdownEditor suppression reset", () => {
       MarkdownEditor.prototype.setValueWithCursor.call(editor, "next", 1, {
         suppressOnChange: true,
       }),
-    ).toThrow("dispatch failed");
+    ).toThrow("setState failed");
     expect(editor.suppressChange).toBe(false);
   });
 
@@ -52,9 +50,7 @@ describe("MarkdownEditor suppression reset", () => {
     const editor = {
       value: "",
       view: {
-        scrollDOM: { scrollTop: 0 },
-        state: { doc: { length: 0 } },
-        dispatch() {},
+        setState() {},
       },
       suppressChange: false,
       debounceTimer: null,

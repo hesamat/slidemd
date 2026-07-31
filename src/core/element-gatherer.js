@@ -66,6 +66,7 @@ export class ElementGatherer {
       menuSettingsBtn: $("menuSettingsBtn"),
       printBtn: $("printBtn"),
       reloadDeckBtn: $("reloadDeckBtn"),
+      toggleEditModeLabel: $("toggleEditModeLabel"),
 
       // Theme
       themeToggleBtn: $("themeToggleBtn"),

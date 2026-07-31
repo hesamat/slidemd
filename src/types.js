@@ -102,6 +102,7 @@
  * @property {HTMLElement} menuSettingsBtn
  * @property {HTMLElement} printBtn
  * @property {HTMLElement} reloadDeckBtn
+ * @property {HTMLElement} toggleEditModeLabel
  * @property {HTMLElement} themeToggleBtn
  */
 
