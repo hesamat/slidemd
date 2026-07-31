@@ -9,6 +9,10 @@ This project prioritizes:
 - Offline-friendly builds with no Tailwind or CDN dependencies at runtime
 - Markdown-first authoring with simple directives
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the planned phases, open issues, and architecture direction.
+
 ## Download
 
 Download the latest release from [GitHub Releases](https://github.com/hesamat/html-presentation/releases/latest). Each release includes:

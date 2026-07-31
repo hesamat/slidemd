@@ -1,4 +1,4 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -15,8 +15,14 @@ import {
   redo,
 } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+} from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
+import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
@@ -49,6 +55,8 @@ export class MarkdownEditor {
     this.view = null;
     this.editorRoot = null;
     this.suppressChange = false;
+    this._tableCompartment = new Compartment();
+    this._completionSources = [];
 
     // Render immediately so DOM elements exist
     this.render();
@@ -60,12 +68,65 @@ export class MarkdownEditor {
   render() {
     this.container.innerHTML = `
             <div class="markdown-editor-wrapper">
+                <div class="markdown-editor-header">
+                    <span class="markdown-editor-header__title">Markdown</span>
+                    <button type="button" class="markdown-editor-header__help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+                </div>
                 <div class="markdown-editor-codemirror" aria-label="Markdown editor"></div>
+                <div class="markdown-editor-help webdeck-hidden" aria-label="Keyboard shortcuts help">
+                    <div class="markdown-editor-help__panel">
+                        <div class="markdown-editor-help__header">
+                            <h3>Keyboard shortcuts</h3>
+                            <button type="button" class="markdown-editor-help__close" aria-label="Close help">×</button>
+                        </div>
+                        <table class="markdown-editor-help__table">
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
 
     this.editorRoot = this.container.querySelector(".markdown-editor-codemirror");
+    this._wireHelp();
     this.initializeCodeMirror();
+  }
+
+  _wireHelp() {
+    const helpBtn = this.container.querySelector(".markdown-editor-header__help");
+    const closeBtn = this.container.querySelector(".markdown-editor-help__close");
+    const overlay = this.container.querySelector(".markdown-editor-help");
+    const tbody = overlay?.querySelector(".markdown-editor-help__table tbody");
+    if (!helpBtn || !overlay) return;
+
+    const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+    const mod = isMac ? "Cmd" : "Ctrl";
+    const alt = isMac ? "Option" : "Alt";
+    const rows = [
+      ["Find", `${mod} + F`],
+      ["Replace", `${mod} + H`],
+      ["Find next / previous", `${mod} + G / Shift + G`],
+      ["Undo / Redo", `${mod} + Z / Shift + Z`],
+      ["Autocomplete", `${mod} + Space`],
+      ["Insert 2×2 table", `${mod} + ${alt} + T`],
+      ["Insert image", `${alt} + I`],
+      ["Insert text block", `${alt} + T`],
+      ["Insert diagram", `${alt} + M`],
+      ["Indent / Outdent", "Tab / Shift + Tab"],
+      ["Fold / Unfold (gutter)", "Click arrows"],
+    ];
+    if (tbody) {
+      tbody.innerHTML = rows
+        .map(([name, keys]) => `<tr><td>${name}</td><td>${keys}</td></tr>`)
+        .join("");
+    }
+
+    const toggle = () => overlay.classList.toggle("webdeck-hidden");
+    helpBtn.addEventListener("click", toggle);
+    closeBtn?.addEventListener("click", toggle);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.add("webdeck-hidden");
+    });
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────
@@ -269,6 +330,7 @@ export class MarkdownEditor {
     if (!this.editorRoot) return;
 
     const completionSources = createCompletionSources();
+    this._completionSources = completionSources;
 
     // Suppress the known Lezer crash where hasChild() tries to access
     // tree.children on a Tree node that was never fully initialized.
@@ -297,12 +359,19 @@ export class MarkdownEditor {
         ...historyKeymap,
         ...searchKeymap,
         ...completionKeymap,
+        ...closeBracketsKeymap,
+        ...foldKeymap,
       ]),
       highlightSelectionMatches(),
-      autocompletion({
-        activateOnTyping: true,
-        override: completionSources,
-      }),
+      foldGutter(),
+      bracketMatching(),
+      closeBrackets(),
+      this._tableCompartment.of(
+        autocompletion({
+          activateOnTyping: true,
+          override: completionSources,
+        }),
+      ),
       ...editorThemeExtensions,
       markdown({ codeLanguages: languages }),
       placeholder(this.options.placeholder),
@@ -314,16 +383,44 @@ export class MarkdownEditor {
         if (this.suppressChange) return;
         this.scheduleOnChange();
       }),
-    ];
+    ].filter(Boolean);
 
     this.extensions = extensions;
 
     this.view = new EditorView({
       state: EditorState.create({
-        doc: this.value,
+        doc: this.value || "",
         extensions,
       }),
       parent: this.editorRoot,
+    });
+
+    this.tableSupportReady = this._loadTableSupport().catch((err) => {
+      console.warn("Markdown table support unavailable:", err);
+    });
+  }
+
+  /**
+   * Load the browser-only markdown table helper and fold it into the editor.
+   * The autocompleter has to live in the `override` list because `override`
+   * makes @codemirror/autocomplete ignore language-data completion sources.
+   */
+  async _loadTableSupport() {
+    // The table helper touches browser globals; keep Node tests from loading it.
+    if (typeof navigator === "undefined") return;
+
+    const { markdownTableAutocompleter, insertEmptyMarkdownTable } =
+      await import("codemirror-markdown-tables");
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: this._tableCompartment.reconfigure([
+        autocompletion({
+          activateOnTyping: true,
+          override: [...this._completionSources, markdownTableAutocompleter()],
+        }),
+        keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }]),
+      ]),
     });
   }
 }

@@ -7,6 +7,7 @@
  */
 // Markdown parsing and slide extraction
 import { safeString, slugifyTitle, DESIGN_SIZE, escapeBareHtmlTags } from "../core/utils.js";
+import { convertTextBlockDirectivesToHtml } from "../core/text-block-directive.js";
 import { LayoutParser } from "./layout-parser.js";
 
 class FenceTracker {
@@ -701,7 +702,8 @@ export class MarkdownParser {
 
       const areas = {};
       for (const [name, src] of Object.entries(areasMd)) {
-        const escaped = escapeBareHtmlTags(src);
+        const withTextBlocks = convertTextBlockDirectivesToHtml(src);
+        const escaped = escapeBareHtmlTags(withTextBlocks);
         let html = this.md.render(escaped);
         // Convert Mermaid code blocks to divs for client-side rendering
         html = this.convertMermaidCodeBlocksToDiv(html);

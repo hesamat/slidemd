@@ -234,8 +234,7 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
       !window.__WEBDECK_EXPORTED__
     ) {
       url.searchParams.set("role", "editor");
-      window.location.href = url.toString();
-      return;
+      window.history.replaceState({}, "", url.toString());
     }
 
     RoleManager.initRole();
