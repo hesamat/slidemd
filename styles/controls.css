@@ -28,6 +28,7 @@ html[data-webdeck-role="editor"] .topbar {
   gap: 16px;
   border-bottom: 1px solid var(--border-medium);
   background: var(--surface-bg);
+  backdrop-filter: blur(14px);
 }
 
 html[data-webdeck-role="editor"] #editorOnlyControls {
@@ -115,13 +116,6 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
   padding: 6px 8px;
   border-radius: 9px;
   font-size: 11px;
-}
-
-.topbar .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
 }
 
 .btn:disabled {
@@ -385,15 +379,6 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
   height: 1px;
   margin: 6px 0;
   background: var(--border-subtle);
-}
-
-.menu-group-header {
-  padding: 10px 12px 4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-low);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* ===== Mode Toggles ===== */
