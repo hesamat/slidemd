@@ -36,6 +36,12 @@ When changing a layout, choose the simplest layout that fits the content.
 - Convert [Diagram: ...] markers to Mermaid only when they represent true flowcharts or processes
 - Use bullet points for simple lists
 
+### Images
+
+- Preserve every `<img src="images/...">` and `background: url(images/...)` exactly as they appear.
+- Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or any other form.
+- Keep image filenames, dimensions, and alt text unchanged.
+
 ## Output Format
 
 Return one JSON object per slide with:

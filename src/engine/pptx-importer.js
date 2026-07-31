@@ -284,10 +284,14 @@ export class PptxImporter {
       // AI post-processing (runs after save notification is shown)
       if (aiMode) {
         try {
+          // Wait for background image uploads to finish so the AI works with
+          // server `images/...` paths instead of in-memory blob URLs.
+          await waitForImageUpload();
+          const aiMarkdown = getLatestMarkdown();
           const { AiSidebar } = await import("../editor/ai-sidebar.js");
           const { extractDirectives } = await import("../data/ai-enhancer.js");
-          const origDirectives = extractDirectives(markdown);
-          const enhanced = await AiSidebar.show(markdown, aiMode);
+          const origDirectives = extractDirectives(aiMarkdown);
+          const enhanced = await AiSidebar.show(aiMarkdown, aiMode);
           if (enhanced) {
             await applyAiResult(enhanced, origDirectives);
           }
