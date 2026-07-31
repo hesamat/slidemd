@@ -306,6 +306,9 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 | [ ] Add tooltips to edit-mode controls (#121)                           | Show tooltips for editor controls to improve discoverability.                        |
 | [ ] Make Alt+N new slide shortcut discoverable (#109)                   | Add a menu item, hint, or keybinding label for the new-slide shortcut.               |
 | [ ] Right-click context menu format options (#92)                       | Add font, color, and alignment options to the right-click menu for selected content. |
+| [ ] Add full-text search across all slides                              | Search slide body, titles, and optional notes; jump to matches.                      |
+| [ ] Add command palette (Ctrl/Cmd+Shift+P)                              | Quick access to new slide, duplicate, delete, layout, and other actions.             |
+| [ ] Make keyboard shortcuts discoverable in the palette                 | Surface Alt+N, Alt+D, Alt+Backspace, and other edit shortcuts.                       |
 
 ### Layout & Media
 
@@ -385,6 +388,15 @@ Goal: Add an internal, typed content model over `markdown-it` tokens to drive de
 | ----------------------------- | ------------------------------------------------------------------- |
 | [ ] Unify Mermaid/Prism/KaTeX | Single `ContentEnhancer` path across runtime, HTML export, and PDF. |
 | [ ] Add AST snapshot tests    | Verify that known decks render to a stable AST.                     |
+
+### Stepped Content & Motion
+
+| Task                                      | Details                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| [ ] Add click-step reveal directives      | `<!-- click -->` or `@click` to reveal bullets, code lines, diagrams. |
+| [ ] Evaluate Shiki for code highlighting  | Keep offline build; use AST renderer to pre-tokenize code blocks.     |
+| [ ] Add CSS-based slide transitions       | Per-deck default and per-slide override via frontmatter.              |
+| [ ] Add reduced-motion preference support | Respect `prefers-reduced-motion` for all transitions and reveals.     |
 
 ---
 
@@ -470,10 +482,11 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 
 ### Brand Defaults
 
-| Task                   | Details                                                             |
-| ---------------------- | ------------------------------------------------------------------- |
-| [ ] Add brand defaults | Default colors, fonts, and accent palette for new decks.            |
-| [ ] Add theme preview  | Render a small preview of each theme in the New Presentation modal. |
+| Task                               | Details                                                             |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| [ ] Add brand defaults             | Default colors, fonts, and accent palette for new decks.            |
+| [ ] Add theme preview              | Render a small preview of each theme in the New Presentation modal. |
+| [ ] Add motion / transition tokens | Define default transition, duration, and easing per theme.          |
 
 ---
 
@@ -483,11 +496,15 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 
 ### Presenter View
 
-| Task                        | Details                                                           |
-| --------------------------- | ----------------------------------------------------------------- |
-| [ ] Add `PresenterModel`    | Track elapsed time, clock, current notes, and next-slide preview. |
-| [ ] Add speaker notes panel | Dedicated presenter panel with current and next slide notes.      |
-| [ ] Add timer and clock UI  | Display elapsed and wall-clock time in presenter view.            |
+| Task                          | Details                                                           |
+| ----------------------------- | ----------------------------------------------------------------- |
+| [ ] Add `PresenterModel`      | Track elapsed time, clock, current notes, and next-slide preview. |
+| [ ] Add speaker notes panel   | Dedicated presenter panel with current and next slide notes.      |
+| [ ] Add timer and clock UI    | Display elapsed and wall-clock time in presenter view.            |
+| [ ] Add next-slide preview    | Show the upcoming slide in the presenter panel.                   |
+| [ ] Add slide grid overview   | Grid view of all slides for quick jumping during Q&A.             |
+| [ ] Add go-to-slide search    | Search by title or content from presenter view.                   |
+| [ ] Add presenter annotations | Optional laser pointer / drawing overlay (stretch).               |
 
 ### Print & PDF
 
