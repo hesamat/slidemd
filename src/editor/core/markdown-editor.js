@@ -346,7 +346,9 @@ export class MarkdownEditor {
     const suppressLezerHighlightCrash = EditorView.exceptionSink.of((ex) => {
       if (
         ex instanceof TypeError &&
-        ex.message.includes("Cannot read properties of undefined") &&
+        (ex.message.includes("Cannot read properties of undefined") ||
+          ex.message.includes("tree.children is undefined") ||
+          ex.message.includes("can't access property")) &&
         /hasChild|nextChild|highlightRange/.test(ex.stack || "")
       )
         return;
