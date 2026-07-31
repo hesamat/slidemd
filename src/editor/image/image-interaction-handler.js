@@ -324,7 +324,8 @@ export class ImageInteractionHandler {
 
   /**
    * Reorder an image within its area by moving its tag in the markdown source.
-   * The image snaps to its new position (left/top reset to 0).
+   * The image snaps to its new position (top reset to 0), but its horizontal
+   * left offset is preserved so right/center alignment stays put.
    * @param {HTMLElement} img - The image being moved
    * @param {HTMLElement|null} targetEl - Element to insert before, or null for end
    */
@@ -414,7 +415,10 @@ export class ImageInteractionHandler {
     // Ensure blank line after image for markdown-it block rendering.
     // If `after` already starts with \n, we need an extra \n to form the blank line.
     const trailingNewlines = after.startsWith("\n") ? "\n" : "\n\n";
-    const updated = before + needsNewline + newTag + trailingNewlines + after;
+    let updated = before + needsNewline + newTag + trailingNewlines + after;
+    // Collapse any accidental runs of 3+ newlines so repeated drags don't
+    // keep growing blank gaps in the markdown.
+    updated = updated.replace(/\n{3,}/g, "\n\n");
 
     // Move the image in the DOM immediately for visual snap, then update markdown.
     // The markdown update uses suppressOnChange so it won't trigger a re-render
@@ -422,7 +426,6 @@ export class ImageInteractionHandler {
     if (targetEl && targetEl.parentNode) {
       targetEl.parentNode.insertBefore(img, targetEl);
     }
-    img.style.left = "0px";
     img.style.top = "0px";
     // Delay overlay update so browser recalculates layout first
     requestAnimationFrame(() => this._updateOverlay());
