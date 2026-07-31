@@ -57,7 +57,7 @@ export class OpenDeckModal {
     if (!this._el) return;
     this._previousFocus = document.activeElement;
     this._el.classList.remove("webdeck-hidden");
-    this._textpackBtn?.focus();
+    this._mdBtn?.focus();
   }
 
   static hide() {
