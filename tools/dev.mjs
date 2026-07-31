@@ -10,14 +10,14 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
-// CLI server on port 8003
-const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8003"];
+// CLI server on port 8001
+const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8001"];
 const cli = spawn(process.execPath, cliArgs, {
   cwd: path.join(__dirname, ".."),
   stdio: "inherit",
 });
 
-// Vite on port 8002 (proxies /api and /images to CLI server)
+// Vite on port 8000 (proxies /api and /images to CLI server)
 const vite = spawn("npx", ["vite"], {
   cwd: path.join(__dirname, ".."),
   stdio: "inherit",
