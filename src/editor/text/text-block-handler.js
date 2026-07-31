@@ -21,7 +21,6 @@ import {
   removeLegacyTextBlock,
 } from "../../core/text-block-directive.js";
 
-const SNAP = 10;
 const DEFAULT_W = 320;
 const DEFAULT_H = 80;
 
@@ -317,10 +316,8 @@ export class TextBlockHandler {
     const scale = getStageScale();
     const dx = e.dx / scale;
     const dy = e.dy / scale;
-    let left = (parseFloat(el.style.left) || 0) + dx;
-    let top = (parseFloat(el.style.top) || 0) + dy;
-    left = Math.round(left / SNAP) * SNAP;
-    top = Math.round(top / SNAP) * SNAP;
+    const left = (parseFloat(el.style.left) || 0) + dx;
+    const top = (parseFloat(el.style.top) || 0) + dy;
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
   }
