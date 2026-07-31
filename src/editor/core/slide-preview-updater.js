@@ -16,6 +16,7 @@ import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
+import { TextBlockHandler } from "../text/text-block-handler.js";
 import { Notification } from "../../renderer/notification.js";
 
 export class SlidePreviewUpdater {
@@ -267,6 +268,7 @@ export class SlidePreviewUpdater {
             this.gridResizer.attachForSlide(newSlideEl, slideData);
             const grid = newSlideEl.querySelector(".slide__grid");
             if (grid) {
+              TextBlockHandler.activate(grid);
               ImageInteractionHandler.activate(grid);
             }
             if (this._pendingReadyCallback) {

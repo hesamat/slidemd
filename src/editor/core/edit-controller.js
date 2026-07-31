@@ -12,6 +12,7 @@ import { fitToWidth, getStageScale } from "../image/image-position-presets.js";
 import { SlideOperations } from "./slide-operations.js";
 import { ImageBackgroundHandler } from "../image/image-background-handler.js";
 import { ImageInserter } from "../image/image-inserter.js";
+import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaNavigation } from "../navigation/area-navigation.js";
 import { MarkdownEditor } from "./markdown-editor.js";
 import { SlideThumbnails } from "./slide-thumbnails.js";
@@ -54,6 +55,7 @@ export class EditController {
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
+      TextBlockHandler.deactivate();
       SlideStylePanel.hide();
       this.loadSlideIntoEditor();
     };
@@ -69,13 +71,27 @@ export class EditController {
     };
     this._onSlidesContainerClick = (e) => {
       if (!this.isEditMode) return;
+
+      const textBlock = e.target.closest(".text-block");
+      if (textBlock) {
+        // Leave clicks alone while the block is being edited inline, otherwise
+        // re-selecting it clears contenteditable and drops the typed text.
+        if (textBlock.isContentEditable) return;
+        e.preventDefault();
+        e.stopPropagation();
+        ImageInteractionHandler.deselect();
+        TextBlockHandler.select(textBlock);
+        TextBlockHandler._showPanel();
+        return;
+      }
+
       const img = e.target.closest("img");
       if (!img) return;
       if (img.closest(".editor-area-label, .editor-slide-warning")) return;
 
       e.preventDefault();
       e.stopPropagation();
-
+      TextBlockHandler.deselect();
       ImageInteractionHandler.select(img);
     };
 
@@ -177,6 +193,7 @@ export class EditController {
         layout: () => this.layoutManager.showPickerForCurrentSlide(),
         "adjust-columns": () => this.gridResizer.toggle(),
         image: () => this.imageInserter.pickAndInsert(),
+        text: () => TextBlockHandler.insertTextBlock(),
         mermaid: () => this.mermaidHelper.toggle(),
         theme: () => this.themeManager.toggle(),
         "area-style": () => SlideStylePanel.toggle(),
@@ -318,6 +335,21 @@ export class EditController {
         },
       },
     );
+    TextBlockHandler.init({
+      getMarkdown: () => this.markdownEditor?.getValue() ?? "",
+      setMarkdown: (updated) => {
+        this.markdownEditor?.setValue(updated, { suppressOnChange: true });
+        this.unsavedMarkdown.set(this.currentSlideIndex, updated);
+        this.updateUnsavedChangesFlag();
+      },
+      onDelete: (updated) => {
+        this.markdownEditor?.setValue(updated, { suppressOnChange: false });
+      },
+      getMarkdownEditor: () => this.markdownEditor,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+    });
+
     this._initImagePropertiesPanel();
 
     // Slide style panel — for styling all areas uniformly
@@ -409,6 +441,7 @@ export class EditController {
       document.body.removeAttribute("data-edit-mode");
       this.mermaidHelper.hide();
       ImageInteractionHandler.deactivate();
+      TextBlockHandler.deactivate();
       SlideStylePanel.hide();
       this.placeholderDialogEl?.remove();
       this.placeholderDialogEl = null;

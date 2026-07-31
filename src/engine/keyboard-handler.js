@@ -63,11 +63,12 @@ export class KeyboardHandler {
     { key: "d", ctrl: false, shift: false, alt: true, action: "duplicateSlide" },
     { key: "Backspace", ctrl: false, shift: false, alt: true, action: "deleteSlide" },
     { key: "i", ctrl: false, shift: false, alt: true, action: "insertImage" },
+    { key: "t", ctrl: false, shift: false, alt: true, action: "insertText" },
     { key: "l", ctrl: false, shift: false, alt: true, action: "openLayout" },
     { key: "m", ctrl: false, shift: false, alt: true, action: "toggleMermaid" },
 
     { key: "a", ctrl: false, shift: false, alt: true, action: "adjustColumns" },
-    { key: "t", ctrl: false, shift: false, alt: true, action: "slideTheme" },
+    { key: "t", ctrl: false, shift: true, alt: true, action: "slideTheme" },
     { key: "s", ctrl: false, shift: false, alt: true, action: "styles" },
     { key: "ArrowUp", ctrl: false, shift: true, alt: true, action: "moveSlideUp" },
     { key: "ArrowDown", ctrl: false, shift: true, alt: true, action: "moveSlideDown" },
@@ -90,13 +91,14 @@ export class KeyboardHandler {
    * @param {Function} actions.fullscreen - Toggle fullscreen mode
    * @param {Function} actions.reload - Reload the deck (R; works in both modes)
    * @param {Function} actions.theme - Toggle global app theme (light/dark); T in both modes
-   * @param {Function} actions.slideTheme - Toggle current slide's theme (`theme:` directive); Alt+T in edit mode
+   * @param {Function} actions.slideTheme - Toggle current slide's theme (`theme:` directive); Alt+Shift+T in edit mode
    * @param {Function} actions.styles - Toggle slide styles panel (edit mode only, Alt+S)
    * @param {Function} actions.save - Save changes (edit mode only, Ctrl+S)
    * @param {Function} actions.newSlide - New slide via layout picker (edit mode only, Alt+N)
    * @param {Function} actions.duplicateSlide - Duplicate current slide (edit mode only, Alt+D)
    * @param {Function} actions.deleteSlide - Delete current slide (edit mode only, Alt+Backspace)
    * @param {Function} actions.insertImage - Open image picker (edit mode only, Alt+I)
+   * @param {Function} actions.insertText - Insert a new text block (edit mode only, Alt+T)
    * @param {Function} actions.openLayout - Open layout picker for current slide (edit mode only, Alt+L)
    * @param {Function} actions.toggleMermaid - Toggle Mermaid helper panel (edit mode only, Alt+M)
 
