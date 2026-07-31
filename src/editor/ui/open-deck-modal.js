@@ -30,14 +30,12 @@ function getImageMimeType(filename) {
 
 export class OpenDeckModal {
   static _el = null;
-  static _fileListEl = null;
   static _textpackBtn = null;
   static _mdBtn = null;
   static _previousFocus = null;
 
   static init() {
     this._el = document.getElementById("openDeckModal");
-    this._fileListEl = document.getElementById("openDeckFileList");
     this._textpackBtn = document.getElementById("openDeckTextpackBtn");
     this._mdBtn = document.getElementById("openDeckMdBtn");
 
@@ -59,8 +57,6 @@ export class OpenDeckModal {
     if (!this._el) return;
     this._previousFocus = document.activeElement;
     this._el.classList.remove("webdeck-hidden");
-    this._fileListEl.innerHTML = "";
-    this._renderRecentDecks();
     this._textpackBtn?.focus();
   }
 
@@ -232,7 +228,6 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.removeItem("webdeck_source_url");
 
-      DeckLoader.addRecentDeck(file.name.replace(/\.textpack$/, ""));
       await DraftManager.saveDraft(resolvedMarkdown);
 
       // Show loading state before hiding the modal so the user sees feedback
@@ -345,7 +340,6 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.setItem("webdeck_source_url", file.name);
 
-      DeckLoader.addRecentDeck(file.name);
       await DraftManager.saveDraft(rawText);
 
       // Clear stale images from the previous deck so the picker is clean
@@ -409,75 +403,5 @@ export class OpenDeckModal {
 
       input.click();
     });
-  }
-
-  static _renderRecentDecks() {
-    const recent = DeckLoader.getRecentDecks();
-    if (recent.length === 0 || !this._fileListEl) return;
-    if (this._fileListEl.children.length > 0) return;
-
-    const heading = document.createElement("div");
-    heading.className = "open-deck__section-label";
-    heading.textContent = "Recent";
-
-    const list = document.createElement("div");
-    list.className = "open-deck__recent-list";
-
-    for (const entry of recent) {
-      const btn = document.createElement("button");
-      btn.className = "open-deck__recent-item";
-      btn.dataset.recentFile = entry.name;
-
-      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      icon.setAttribute("width", "14");
-      icon.setAttribute("height", "14");
-      icon.setAttribute("viewBox", "0 0 24 24");
-      icon.setAttribute("fill", "none");
-      icon.setAttribute("stroke", "currentColor");
-      icon.setAttribute("stroke-width", "2");
-      icon.setAttribute("stroke-linecap", "round");
-      icon.setAttribute("stroke-linejoin", "round");
-      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circle.setAttribute("cx", "12");
-      circle.setAttribute("cy", "12");
-      circle.setAttribute("r", "10");
-      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-      poly.setAttribute("points", "12 6 12 12 16 14");
-      icon.appendChild(circle);
-      icon.appendChild(poly);
-
-      const nameSpan = document.createElement("span");
-      nameSpan.className = "open-deck__recent-name";
-      nameSpan.textContent = entry.name;
-
-      const timeSpan = document.createElement("span");
-      timeSpan.className = "open-deck__recent-time";
-      timeSpan.textContent = this._timeAgo(entry.timestamp);
-
-      btn.appendChild(icon);
-      btn.appendChild(nameSpan);
-      btn.appendChild(timeSpan);
-
-      btn.addEventListener("click", async () => {
-        await DeckLoader.loadRecentDeck(entry.name);
-        this.hide();
-      });
-
-      list.appendChild(btn);
-    }
-
-    this._fileListEl.appendChild(heading);
-    this._fileListEl.appendChild(list);
-  }
-
-  static _timeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return "just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
   }
 }

@@ -294,15 +294,15 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 
 | Task                                                            | Details                                                                                                                             |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Text insertion with drag, snap, and properties panel (#154) | Implement text blocks with the same UX as image insertion — drag, snap, floating position, right-click properties, and persistence. |
-| [ ] Persist text position and styling                           | Store position, rotation, background, font size, color, and alignment in the slide markdown.                                        |
-| [ ] Inline text editing                                         | Allow double-click/inline editing or edit through the properties panel.                                                             |
+| [x] Text insertion with drag, snap, and properties panel (#154) | Implement text blocks with the same UX as image insertion — drag, snap, floating position, right-click properties, and persistence. |
+| [x] Persist text position and styling                           | Store position, rotation, background, font size, color, and alignment in the slide markdown.                                        |
+| [x] Inline text editing                                         | Allow double-click/inline editing or edit through the properties panel.                                                             |
 
 ### Editor UX
 
 | Task                                                                    | Details                                                                              |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [ ] Improve main menu layout, groupings, and edit button options (#147) | Reorganize the header menu for clearer access to edit, save, export, and AI actions. |
+| [x] Improve main menu layout, groupings, and edit button options (#147) | Reorganize the header menu for clearer access to edit, save, export, and AI actions. |
 | [ ] Add tooltips to edit-mode controls (#121)                           | Show tooltips for editor controls to improve discoverability.                        |
 | [ ] Make Alt+N new slide shortcut discoverable (#109)                   | Add a menu item, hint, or keybinding label for the new-slide shortcut.               |
 | [ ] Right-click context menu format options (#92)                       | Add font, color, and alignment options to the right-click menu for selected content. |

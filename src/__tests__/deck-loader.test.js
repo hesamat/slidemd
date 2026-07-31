@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { DeckLoader } from "../data/deck-loader.js";
 
 describe("DeckLoader.normalizeDeck", () => {
@@ -126,82 +126,5 @@ describe("DeckLoader.normalizeDeck", () => {
     };
     const result = DeckLoader.normalizeDeck(deck);
     expect(result.slides[0].hidden).toBe(true);
-  });
-});
-
-describe("DeckLoader recent decks", () => {
-  let store;
-
-  beforeEach(() => {
-    store = {};
-    globalThis.localStorage = {
-      getItem: (k) => store[k] ?? null,
-      setItem: (k, v) => {
-        store[k] = String(v);
-      },
-      removeItem: (k) => {
-        delete store[k];
-      },
-    };
-  });
-
-  afterEach(() => {
-    delete globalThis.localStorage;
-  });
-
-  describe("getRecentDecks", () => {
-    it("returns empty array when no data", () => {
-      expect(DeckLoader.getRecentDecks()).toEqual([]);
-    });
-
-    it("returns parsed array from localStorage", () => {
-      store.webdeck_recent_decks = JSON.stringify([
-        { name: "a.md", timestamp: 100 },
-        { name: "b.md", timestamp: 200 },
-      ]);
-      const result = DeckLoader.getRecentDecks();
-      expect(result).toHaveLength(2);
-      expect(result[0].name).toBe("a.md");
-    });
-
-    it("returns empty array on corrupt data", () => {
-      store.webdeck_recent_decks = "not-json";
-      expect(DeckLoader.getRecentDecks()).toEqual([]);
-    });
-  });
-
-  describe("addRecentDeck", () => {
-    it("adds a new entry at the front", () => {
-      DeckLoader.addRecentDeck("test.md");
-      const result = DeckLoader.getRecentDecks();
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe("test.md");
-      expect(result[0].timestamp).toBeTypeOf("number");
-    });
-
-    it("moves existing entry to front", () => {
-      store.webdeck_recent_decks = JSON.stringify([
-        { name: "old.md", timestamp: 100 },
-        { name: "test.md", timestamp: 200 },
-      ]);
-      DeckLoader.addRecentDeck("old.md");
-      const result = DeckLoader.getRecentDecks();
-      expect(result).toHaveLength(2);
-      expect(result[0].name).toBe("old.md");
-      expect(result[1].name).toBe("test.md");
-    });
-
-    it("trims to max 10 entries", () => {
-      const entries = Array.from({ length: 10 }, (_, i) => ({
-        name: `f${i}.md`,
-        timestamp: i,
-      }));
-      store.webdeck_recent_decks = JSON.stringify(entries);
-      DeckLoader.addRecentDeck("new.md");
-      const result = DeckLoader.getRecentDecks();
-      expect(result).toHaveLength(10);
-      expect(result[0].name).toBe("new.md");
-      expect(result[9].name).toBe("f8.md");
-    });
   });
 });

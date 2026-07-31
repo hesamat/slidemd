@@ -424,6 +424,9 @@ export class EditController {
       this.elements.editorPanel?.classList.remove("webdeck-hidden");
       this.elements.presenterPanel?.classList.add("webdeck-hidden");
       this.elements.toggleEditModeBtn.classList.add("active");
+      if (this.elements.toggleEditModeLabel) this.elements.toggleEditModeLabel.textContent = "Done";
+      this.elements.toggleEditModeBtn?.setAttribute("aria-label", "Exit edit mode");
+      this.elements.toggleEditModeBtn?.setAttribute("title", "Exit edit mode (E)");
       document.body.setAttribute("data-edit-mode", "true");
 
       // Initialize the markdown editor if not already initialized
@@ -438,6 +441,9 @@ export class EditController {
     } else {
       this.elements.editorPanel?.classList.add("webdeck-hidden");
       this.elements.toggleEditModeBtn.classList.remove("active");
+      if (this.elements.toggleEditModeLabel) this.elements.toggleEditModeLabel.textContent = "Edit";
+      this.elements.toggleEditModeBtn?.setAttribute("aria-label", "Toggle edit mode");
+      this.elements.toggleEditModeBtn?.setAttribute("title", "Edit Mode (E)");
       document.body.removeAttribute("data-edit-mode");
       this.mermaidHelper.hide();
       ImageInteractionHandler.deactivate();

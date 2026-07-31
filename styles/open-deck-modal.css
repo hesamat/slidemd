@@ -22,7 +22,7 @@
   gap: 12px;
   padding: 14px 16px;
   background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: inherit;
@@ -69,8 +69,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: none;
-  border: 1px solid transparent;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: inherit;
@@ -83,7 +83,7 @@
 
 .open-deck__file-item:hover {
   background: var(--surface-hover);
-  border-color: var(--border-subtle);
+  border-color: var(--border-medium);
 }
 
 .open-deck__file-item svg {
@@ -118,8 +118,8 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: none;
-  border: 1px solid transparent;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: inherit;
@@ -130,9 +130,17 @@
   width: 100%;
 }
 
-.open-deck__recent-item:hover {
+.open-deck__recent-item:not(:disabled):hover {
   background: var(--surface-hover);
+  border-color: var(--border-medium);
+}
+
+.open-deck__recent-item:disabled {
+  background: var(--surface-bg);
   border-color: var(--border-subtle);
+  color: var(--text-low);
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .open-deck__recent-item svg {

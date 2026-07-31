@@ -45,6 +45,7 @@
               </svg>
             </button>
             <div id="menuDropdown" class="menu-dropdown__content webdeck-hidden">
+              <div class="menu-group-header">File</div>
               <button id="menuOpenFileBtn" class="menu-item" type="button">
                 <svg
                   width="16"
@@ -96,7 +97,7 @@
                 </svg>
                 <span>Import PPTX (experimental)</span>
               </button>
-              <div class="menu-divider"></div>
+              <div class="menu-group-header">Edit</div>
               <button id="menuToggleEditModeBtn" class="menu-item" type="button">
                 <svg
                   width="16"
@@ -112,6 +113,7 @@
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
                 <span>Toggle Edit Mode</span>
+                <kbd class="menu-item__hint">E</kbd>
               </button>
               <button
                 id="menuSaveBtn"
@@ -154,8 +156,9 @@
                   ></path>
                 </svg>
                 <span>Reload</span>
+                <kbd class="menu-item__hint">R</kbd>
               </button>
-              <div class="menu-divider"></div>
+              <div class="menu-group-header">Export</div>
               <button id="menuPrintBtn" class="menu-item" type="button">
                 <svg
                   width="16"
@@ -232,14 +235,15 @@
           </div>
           <button
             id="toggleEditModeBtn"
-            class="icon-btn"
+            class="btn btn--sm"
             type="button"
             aria-label="Toggle edit mode"
             title="Edit Mode (E)"
           >
             <svg
-              width="18"
-              height="18"
+              class="btn-icon"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -250,6 +254,7 @@
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg>
+            <span id="toggleEditModeLabel">Edit</span>
           </button>
           <h1 id="deckTitle" class="topbar__title">Slide Deck</h1>
         </div>
@@ -911,7 +916,6 @@
               </div>
             </button>
           </div>
-          <div id="openDeckFileList" class="open-deck__file-list"></div>
         </div>
       </div>
     </div>

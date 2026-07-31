@@ -10,9 +10,6 @@ import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
 import { Notification } from "../renderer/notification.js";
 
-const RECENT_DECKS_KEY = "webdeck_recent_decks";
-const MAX_RECENT_DECKS = 10;
-
 /** @class */
 export class DeckLoader {
   /**
@@ -31,87 +28,6 @@ export class DeckLoader {
     if (localFileName) return localFileName;
 
     return "Slide Deck";
-  }
-
-  // ── Recent decks ────────────────────────────────────────────────────────
-
-  /**
-   * Get the list of recently opened decks from localStorage.
-   * @static
-   * @returns {Array<{name: string, timestamp: number}>}
-   */
-  static getRecentDecks() {
-    try {
-      return JSON.parse(localStorage.getItem(RECENT_DECKS_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Add a file to the recent decks list (most recent first, max 10).
-   * @static
-   * @param {string} fileName
-   */
-  static addRecentDeck(fileName) {
-    const recent = this.getRecentDecks().filter((d) => d.name !== fileName);
-    recent.unshift({ name: fileName, timestamp: Date.now() });
-    localStorage.setItem(RECENT_DECKS_KEY, JSON.stringify(recent.slice(0, MAX_RECENT_DECKS)));
-  }
-
-  /**
-   * Load a deck from the recent list.
-   * Tries localStorage cache first, then falls back to file handle registry.
-   * @static
-   * @param {string} fileName
-   * @returns {Promise<void>}
-   */
-  static async loadRecentDeck(fileName) {
-    const recent = this.getRecentDecks();
-    const entry = recent.find((d) => d.name === fileName);
-    if (!entry) {
-      Notification.warning(`"${fileName}" not found in recent decks.`);
-      return;
-    }
-
-    const text = localStorage.getItem("webdeck_local_file");
-    const storedName = localStorage.getItem("webdeck_local_file_name");
-    if (text && storedName === fileName) {
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: { text, fileType: "md", fileName },
-        }),
-      );
-      return;
-    }
-
-    const handle = DeckLoader.fileHandleRegistry.get(fileName);
-    if (handle) {
-      try {
-        const permission = await handle.requestPermission({ mode: "read" });
-        if (permission === "granted") {
-          const file = await handle.getFile();
-          const rawText = await file.text();
-
-          localStorage.setItem("webdeck_local_file", rawText);
-          localStorage.setItem("webdeck_local_file_type", "md");
-          localStorage.setItem("webdeck_local_file_name", fileName);
-          localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-
-          window.dispatchEvent(
-            new CustomEvent("webdeck-load-local", {
-              detail: { text: rawText, fileType: "md", fileName },
-            }),
-          );
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to reload from file handle:", e);
-        DeckLoader.fileHandleRegistry.delete(fileName);
-      }
-    }
-
-    Notification.info(`"${fileName}" is not cached. Use Open File to reload from disk.`);
   }
 
   /**
@@ -229,8 +145,6 @@ export class DeckLoader {
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
 
-      this.addRecentDeck("example");
-
       return new MarkdownParser().parseDeckMarkdown(markdown);
     } catch (e) {
       console.error("Failed to load example deck:", e);
@@ -263,8 +177,6 @@ export class DeckLoader {
       localStorage.setItem("webdeck_local_file_name", "example");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
-
-      this.addRecentDeck("example");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {
