@@ -157,9 +157,9 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 
 /* Header areas get a hairline separator at the bottom of the left
    half — a full-width border felt too heavy for what's meant to be
-   a subtle section divider.  The line is drawn with a
-   pseudo-element so we can size it independently of the area's
-   padding/width.
+   a subtle section divider.  The line is drawn as a background
+   gradient on the header itself so it stays pixel-aligned in Firefox
+   instead of relying on a thin absolute pseudo-element.
 
    `.slide__area--title` is intentionally excluded: it's the
    centered, large-title style used for title slides
@@ -168,37 +168,40 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 .slide__area--header {
   position: relative;
   padding: 12px 16px;
+  --header-hairline-color: rgba(23, 32, 39, 0.52);
+  --header-hairline-width: 55%;
+  --header-hairline-thickness: calc(1px / var(--stage-scale, 1));
+  --header-hairline-left: 16px;
+  background: linear-gradient(
+    to right,
+    var(--header-hairline-color) 0%,
+    var(--header-hairline-color) var(--header-hairline-width),
+    transparent var(--header-hairline-width)
+  );
+  background-size: 100% var(--header-hairline-thickness);
+  background-position: var(--header-hairline-left) 100%;
+  background-repeat: no-repeat;
 }
 
-.slide__area--header::after {
-  content: "";
-  position: absolute;
-  left: 16px;
-  bottom: 0;
-  width: 55%;
-  height: 1px;
-  background: rgba(23, 32, 39, 0.52);
+.slide[data-theme="dark"] .slide__area--header {
+  --header-hairline-color: rgba(225, 211, 252, 0.8);
 }
 
-.slide[data-theme="dark"] .slide__area--header::after {
-  background: rgba(225, 211, 252, 0.8);
+.slide[data-header-style="none"] .slide__area--header {
+  background-image: none;
 }
 
-.slide[data-header-style="none"] .slide__area--header::after {
-  display: none;
+.slide[data-header-style="full"] .slide__area--header {
+  --header-hairline-width: 100%;
+  --header-hairline-left: 0px;
 }
 
-.slide[data-header-style="full"] .slide__area--header::after {
-  left: 0;
-  width: 100%;
+.slide[data-header-style="thick"] .slide__area--header {
+  --header-hairline-thickness: calc(3px / var(--stage-scale, 1));
 }
 
-.slide[data-header-style="thick"] .slide__area--header::after {
-  height: 3px;
-}
-
-.slide__grid--full-height .slide__area--header::after {
-  width: 90%;
+.slide__grid--full-height .slide__area--header {
+  --header-hairline-width: 90%;
 }
 
 /* Focus layout: remove header underline, center header */
@@ -206,10 +209,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   align-items: center;
   text-align: center;
   min-height: 100px;
-}
-
-.slide[data-layout="focus"] .slide__area--header::after {
-  display: none;
+  background-image: none;
 }
 
 /* Center main content vertically and horizontally */

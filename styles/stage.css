@@ -84,7 +84,7 @@
   right: 20px;
   font-size: 20px;
   color: var(--slide-ink-light);
-  border: 1px solid var(--slide-ink-light);
+  border: calc(1px / var(--stage-scale, 1)) solid var(--slide-ink-light);
   background: var(--slide-bg);
   padding: 7px 12px;
   border-radius: 999px;
