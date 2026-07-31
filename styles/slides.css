@@ -689,6 +689,12 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border-radius: 0;
   max-width: none !important;
   height: auto;
+  align-self: flex-start;
+}
+
+/* Drag-and-drop gap indicator should span the area, not collapse to 0 width. */
+.image-drop-indicator {
+  align-self: stretch !important;
 }
 
 /* Full-bleed media in paragraphs */
@@ -713,7 +719,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    box origin rather than from the centered position. */
 .slide__area p:has(> .img-positioned),
 .slide__area p:has(> img[style*="position: relative"]) {
-  display: block;
+  display: block !important;
+  align-self: stretch !important;
+  max-width: 100% !important;
 }
 
 /* Figure-like layout with captions */

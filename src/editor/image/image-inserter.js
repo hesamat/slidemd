@@ -54,58 +54,49 @@ export class ImageInserter {
     if (!this.markdownEditor) return;
 
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
+    const markdownAtOpen = this.markdownEditor.getValue();
+    const cursorArea =
+      savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= markdownAtOpen.length
+        ? this._getAreaNav().getAreaAtCursor(markdownAtOpen, savedCursorPos)
+        : null;
 
-    ImagePicker.show((snippet) => {
-      const current = this.markdownEditor.getValue();
+    ImagePicker.show(
+      (snippet, areaName) => {
+        const current = this.markdownEditor.getValue();
+        const range = this._getAreaNav().getAreaContentRange(current, areaName);
 
-      // Find a safe insert position: after @main line, or before @footer, or at end
-      const mainMatch = current.match(/^@main\b/m);
-      const footerIdx = current.search(/^@footer\b/m);
+        let insertPos;
+        let afterSnippet;
 
-      let insertPos;
-      let afterSnippet;
+        const posInArea =
+          savedCursorPos !== null && savedCursorPos >= range.from && savedCursorPos <= range.to;
 
-      if (savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= current.length) {
-        // Cursor is in a valid position — check it's past the frontmatter/layout area
-        const pos = savedCursorPos;
-        const mainIdx = mainMatch ? current.indexOf(mainMatch[0]) : -1;
-        // Position after the @main line (skip past the marker and its newline)
-        const safePos = mainIdx >= 0 ? current.indexOf("\n", mainIdx) + 1 : 0;
-
-        if (pos >= safePos) {
-          // Cursor is past the frontmatter — insert here
+        if (posInArea) {
+          // Cursor is inside the target area — insert at the cursor.
+          const pos = savedCursorPos;
           const isAtEnd = pos >= current.length;
           const prevChar = pos === 0 ? "\n" : current[pos - 1];
           const nextChar = isAtEnd ? "\n" : current[pos];
 
           const before = prevChar === "\n" ? "" : "\n\n";
           const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
-          const leadTrim = pos === 0 ? before.replace(/^\n+/, "") : before;
 
           insertPos = pos;
-          afterSnippet = `${leadTrim}${snippet}${after}`;
+          afterSnippet = `${before}${snippet}${after}`;
         } else {
-          // Cursor is in frontmatter — insert after first @area
-          insertPos = safePos;
-          afterSnippet = `${snippet}\n\n`;
+          // Cursor is outside the target area (or missing). Insert at the end of
+          // the area so the image ends up in the right section instead of the
+          // frontmatter or the top of the deck.
+          insertPos = range.to;
+          const isAtEnd = insertPos >= current.length;
+          afterSnippet = isAtEnd ? `\n\n${snippet}\n` : `\n\n${snippet}\n\n`;
         }
-      } else {
-        // No valid cursor — insert before @footer or at end
-        if (footerIdx > 0) {
-          insertPos = footerIdx;
-          afterSnippet = `${snippet}\n\n`;
-        } else if (mainMatch) {
-          insertPos = current.indexOf("\n", current.indexOf(mainMatch[0])) + 1;
-          afterSnippet = `${snippet}\n`;
-        } else {
-          insertPos = current.length;
-          afterSnippet = `\n\n${snippet}\n`;
-        }
-      }
 
-      this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
-      this.markdownEditor.focus();
-    });
+        this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+        this.markdownEditor.focus();
+      },
+      { areaName: cursorArea },
+    );
   }
 
   /**
@@ -243,13 +234,20 @@ export class ImageInserter {
     const areaName = areaEl?.dataset.areaName || "main";
 
     const targetArea = areaEl || slideEl.querySelector(".slide__area[data-area-name='main']");
+    const targetCs = targetArea ? getComputedStyle(targetArea) : null;
     const areaWidth = targetArea
-      ? (targetArea.getBoundingClientRect().width -
-          (parseFloat(getComputedStyle(targetArea).paddingLeft) || 0) -
-          (parseFloat(getComputedStyle(targetArea).paddingRight) || 0)) /
-        scale
+      ? targetArea.getBoundingClientRect().width / scale -
+        (parseFloat(targetCs.paddingLeft) || 0) -
+        (parseFloat(targetCs.paddingRight) || 0)
       : 480;
     const width = Math.round(areaWidth);
+
+    const areaHeight = targetArea
+      ? targetArea.getBoundingClientRect().height / scale -
+        (parseFloat(targetCs.paddingTop) || 0) -
+        (parseFloat(targetCs.paddingBottom) || 0)
+      : 480;
+    const maxHeight = Math.round(areaHeight);
 
     const alt =
       imgPath
@@ -257,7 +255,7 @@ export class ImageInserter {
         .pop()
         .replace(/\.[^.]+$/, "")
         .replace(/^\d+[-_]?/, "") || "image";
-    const snippet = `<img src="${imgPath}" alt="${alt}" style="position: relative; left: 0px; top: 0px; width: ${width}px; border: none; object-fit: contain; cursor: move;" />`;
+    const snippet = `<img class="img-positioned" src="${imgPath}" alt="${alt}" style="position: relative; left: 0px; top: 0px; width: ${width}px; max-height: ${maxHeight}px; border: none; object-fit: contain; cursor: move;" />`;
 
     const markdown = this.markdownEditor?.getValue() ?? "";
     const range = this._getAreaNav().getAreaContentRange(markdown, areaName);

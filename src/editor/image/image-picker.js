@@ -27,6 +27,7 @@ export class ImagePicker {
   static selectedAlign = "center";
   static selectedFreeflow = false;
   static onSelectCallback = null;
+  static _preferredArea = null;
 
   /** Currently selected image path (or URL). */
   static selectedPath = "";
@@ -287,21 +288,33 @@ export class ImagePicker {
    * @param {boolean} [options.pathOnly=false] - When true, the picker
    *   hides size/alignment/insert controls and calls `onSelect(path)`
    *   with the chosen path string instead of a full `<img>` snippet.
+   * @param {string|null} [options.areaName=null] - Target @area for the
+   *   insertion (usually derived from the markdown cursor).  Used to measure
+   *   the matching area and to report the destination back to the caller.
    */
-  static async show(onSelect, { pathOnly = false } = {}) {
+  static async show(onSelect, { pathOnly = false, areaName = null } = {}) {
     this.init();
     this.onSelectCallback = onSelect;
     this._pathOnly = !!pathOnly;
+    this._preferredArea = areaName || null;
     this.selectedPath = "";
-    this.selectedAlign = "center";
     this.selectedFreeflow = false;
+
+    // Default to "center" in @main areas and "left" in @title/secondary/...,
+    // because non-main areas are narrow/centered and a left default puts the
+    // image at the start of the content instead of floating in the middle.
+    this.selectedAlign =
+      this._resolveTargetArea()?.dataset?.areaName === "main" ? "center" : "left";
+
     // Default sizing: 800px wide, centered.  Users can override.
     this.widthInput.value = "320";
     this.heightInput.value = "";
     this.urlInput.value = "";
     this.urlPreview.style.display = "none";
     // Reset align buttons
-    this.alignButtons.forEach((b) => b.classList.toggle("active", b.dataset.align === "center"));
+    this.alignButtons.forEach((b) =>
+      b.classList.toggle("active", b.dataset.align === this.selectedAlign),
+    );
     // Reset freeflow button
     if (this.freeflowBtn) {
       this.freeflowBtn.classList.remove("active");
@@ -464,8 +477,8 @@ export class ImagePicker {
       cb(this.selectedPath);
       return;
     }
-    const snippet = this._buildSnippet(this.selectedPath);
-    cb(snippet);
+    const { snippet, areaName } = this._buildSnippet(this.selectedPath);
+    cb(snippet, areaName);
   }
 
   /**
@@ -492,39 +505,78 @@ export class ImagePicker {
 
     if (!Number.isFinite(w) || w <= 0) w = 800;
 
-    // Measure the active slide's @main area to get the real content width
+    // Measure the area the image is being inserted into so alignment offsets
+    // are computed against the correct content width.
+    const targetArea = this._resolveTargetArea();
+    const areaName = targetArea?.dataset?.areaName ?? this._preferredArea ?? "main";
+    const cs = targetArea ? getComputedStyle(targetArea) : null;
+    const padL = parseFloat(cs?.paddingLeft) || 0;
+    const padR = parseFloat(cs?.paddingRight) || 0;
+    const padT = parseFloat(cs?.paddingTop) || 0;
+    const padB = parseFloat(cs?.paddingBottom) || 0;
+    const contentW = targetArea ? targetArea.clientWidth - padL - padR : w;
+    const areaHeight = targetArea ? targetArea.clientHeight - padT - padB : 320;
+
+    // Use absolute positioning only when the user explicitly chooses free-flow.
+    // For @title and other non-@main areas we keep position: relative and let
+    // the CSS turn the containing paragraph into a full-width block.
+    const isFloating = this.selectedFreeflow;
     let left = 0;
-    if (this.selectedAlign === "center" || this.selectedAlign === "right") {
-      const mainArea = document.querySelector(".slide.active .slide__area[data-area-name='main']");
-      if (mainArea) {
-        const cs = getComputedStyle(mainArea);
-        const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
-        const contentW = mainArea.clientWidth - padL - padR;
-        if (this.selectedAlign === "center") {
-          left = Math.max(0, Math.round((contentW - w) / 2));
-        } else {
-          left = Math.max(0, contentW - w);
-        }
+    let top = 0;
+    if (isFloating) {
+      // For position: absolute, left/top are from the slide area's padding edge,
+      // so we add the padding to align inside the content box.
+      if (this.selectedAlign === "center") {
+        left = Math.max(0, padL + Math.round((contentW - w) / 2));
+      } else if (this.selectedAlign === "right") {
+        left = Math.max(0, padL + contentW - w);
+      } else {
+        left = Math.max(0, padL);
+      }
+      top = Math.max(0, padT);
+    } else {
+      if (this.selectedAlign === "center") {
+        left = Math.max(0, Math.round((contentW - w) / 2));
+      } else if (this.selectedAlign === "right") {
+        left = Math.max(0, contentW - w);
       }
     }
 
+    const maxHeight = Number.isFinite(h) && h > 0 ? h : areaHeight;
+
     const styleParts = [
-      this.selectedFreeflow ? "position: absolute" : "position: relative",
-      `left: ${left}px`,
-      "top: 0px",
+      isFloating ? "position: absolute" : "position: relative",
+      `left: ${Math.round(left)}px`,
+      `top: ${Math.round(top)}px`,
       `width: ${w}px`,
+      `max-height: ${maxHeight}px`,
       "border: none",
       "object-fit: contain",
       "cursor: move",
     ];
 
-    if (Number.isFinite(h) && h > 0) {
-      styleParts.push(`height: ${h}px`);
-    }
+    const classAttr = this.selectedFreeflow ? ' class="img-freeflow"' : ' class="img-positioned"';
+    const snippet = `<img${classAttr} src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
+    return { snippet, areaName };
+  }
 
-    const classAttr = this.selectedFreeflow ? ' class="img-freeflow"' : "";
-    return `<img${classAttr} src="${src}" alt="${alt}" style="${styleParts.join("; ")}" />`;
+  /**
+   * Resolve the slide area element the image will be inserted into: the
+   * caller-provided area (cursor-derived) when it exists on the active slide,
+   * otherwise @main, otherwise the first area.
+   * @private
+   * @returns {HTMLElement|null}
+   */
+  static _resolveTargetArea() {
+    const base = "#stageInner .slide.active .slide__area";
+    const preferred = /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(this._preferredArea || "")
+      ? document.querySelector(`${base}[data-area-name='${this._preferredArea}']`)
+      : null;
+    return (
+      preferred ||
+      document.querySelector(`${base}[data-area-name='main']`) ||
+      document.querySelector(base)
+    );
   }
 
   /**
