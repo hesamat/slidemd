@@ -389,7 +389,7 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
   color: var(--text-low);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-medium);
 }
 
 /* ===== Mode Toggles ===== */
