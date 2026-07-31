@@ -174,7 +174,7 @@ export function buildTextBlockDirective(settings, content) {
     settings.float ? "float=true" : "",
     settings.float && settings.left ? `x=${Math.round(settings.left)}` : "",
     settings.float && settings.top ? `y=${Math.round(settings.top)}` : "",
-    settings.fontSize && settings.fontSize !== 32 ? `fontSize=${settings.fontSize}` : "",
+    settings.fontSize && settings.fontSize !== 30 ? `fontSize=${settings.fontSize}` : "",
     color ? `color="${color}"` : "",
     backgroundColor && backgroundColor !== "transparent"
       ? `backgroundColor="${backgroundColor}"`
@@ -241,7 +241,7 @@ export function parseTextBlockDirectives(markdown) {
         float,
         left,
         top,
-        fontSize: fontSize || 32,
+        fontSize: fontSize || 30,
         color,
         backgroundColor,
         textAlign,

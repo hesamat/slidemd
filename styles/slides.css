@@ -1408,7 +1408,7 @@ body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
   z-index: 1;
   padding: 8px 12px;
   border-radius: 4px;
-  font-size: 32px;
+  font-size: 30px;
   line-height: 1.2;
   word-wrap: break-word;
   overflow-wrap: break-word;
