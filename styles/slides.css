@@ -541,13 +541,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .text-block--multi-column {
   column-fill: balance;
-  column-gap: 1.5em;
+  column-gap: 0.75em;
 }
 
 .text-block--multi-column ul,
 .text-block--multi-column ol {
   margin: 0;
-  padding-left: 1.5em;
+  padding-left: 1em;
 }
 
 /* Allow media shadows to render beyond the content box */
