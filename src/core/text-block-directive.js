@@ -142,7 +142,11 @@ function buildStyleString(settings) {
  */
 export function buildTextBlockHtml(settings, content) {
   const isColumn = Boolean(settings.columnCount);
-  const safeContent = isColumn ? content : escapeHtml(content).replace(/\n/g, "&#10;");
+  const safeContent = isColumn
+    ? content.endsWith("\n")
+      ? content
+      : `${content}\n`
+    : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
   const cls = [
     "text-block",
@@ -153,7 +157,7 @@ export function buildTextBlockHtml(settings, content) {
     .join(" ");
   const id = sanitizeId(settings.id);
   if (isColumn) {
-    return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">\n\n${safeContent}\n\n</div>\n\n`;
+    return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">\n\n${safeContent}</div>\n\n`;
   }
   return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }

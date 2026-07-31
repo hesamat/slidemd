@@ -125,7 +125,6 @@ export function wrapLongLists(markdown) {
         result.push(`::: text-block { column-count=${cols} }`);
         result.push("");
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
-        result.push("");
         result.push(":::");
       } else {
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
