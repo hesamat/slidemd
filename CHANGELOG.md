@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.2 (2026-07-31)
+
+### Text Blocks
+
+- Added multi-column text block support with `::: text-block { column-count=... }`.
+- PPTX import wraps long lists in `::: text-block { column-count=... }` instead of `multi-column-list`.
+
+### AI PPTX Fix
+
+- PPTX import waits for background image uploads before running AI Fix, preventing `blob:` URLs from being written to the markdown.
+- Fix prompt now explicitly preserves `images/...` paths and `background: url(images/...)` values.
+
+### Styling
+
+- Tightened multi-column text-block spacing to fit more list items.
+- Default text-block font size reduced from 32px to 30px.
+
+### Documentation
+
+- README mentions `::: text-block` multi-column usage.
+- Example deck includes a multi-column text-block slide.
+
 ## 0.7.0 (2026-07-28)
 
 ### AI-Powered PPTX Post-Processing
