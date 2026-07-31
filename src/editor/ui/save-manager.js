@@ -96,20 +96,22 @@ export class SaveManager {
     return fullMarkdown;
   }
 
-  async _doMarkdownSave(fullMarkdown) {
-    try {
-      const res = await fetch("/api/deck", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown: fullMarkdown }),
-      });
-      if (res.ok) {
-        Notification.success("Deck saved to disk!");
-        this.needsSaveAs = false;
-        return;
+  async _doMarkdownSave(fullMarkdown, skipServer = false) {
+    if (!skipServer) {
+      try {
+        const res = await fetch("/api/deck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: fullMarkdown }),
+        });
+        if (res.ok) {
+          Notification.success("Deck saved to disk!");
+          this.needsSaveAs = false;
+          return;
+        }
+      } catch {
+        // No CLI server — fall through to file picker
       }
-    } catch {
-      // No CLI server — fall through to file picker
     }
 
     // Fallback: save via file picker / download
@@ -132,7 +134,7 @@ export class SaveManager {
     }
     if (cancelled) return;
     Notification.warning("Could not export as .textpack. Saving as .md only.");
-    await this._doMarkdownSave(fullMarkdown);
+    await this._doMarkdownSave(fullMarkdown, this.needsSaveAs);
   }
 
   async save() {
