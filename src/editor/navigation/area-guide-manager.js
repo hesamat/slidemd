@@ -5,6 +5,7 @@
  * Extracted from EditController.
  */
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
+import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 
@@ -210,15 +211,17 @@ export class AreaGuideManager {
     requestAnimationFrame(() => {
       this.updateAreaOverflow(slideEl);
       this._onAttachGridResizer(slideEl, slideData);
-      // Re-activate image drag/resize on the current slide's grid.
-      // This is needed because updatePreview() (which normally calls
+      // Re-activate image and text-block interaction on the current slide's
+      // grid.  This is needed because updatePreview() (which normally calls
       // activate) is skipped when loadSlideIntoEditor() runs with
       // suppressOnChange — e.g. when entering edit mode or navigating
       // slides.  Without this, existing images can only be moved via
-      // keyboard arrows, not dragged or resized.
+      // keyboard arrows and text blocks respond to neither drag nor
+      // double-click.
       const grid = slideEl.querySelector(".slide__grid");
       if (grid) {
         ImageInteractionHandler.activate(grid);
+        TextBlockHandler.activate(grid);
       }
     });
   }
