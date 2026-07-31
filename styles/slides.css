@@ -692,6 +692,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   align-self: flex-start;
 }
 
+/* Drag-and-drop gap indicator should span the area, not collapse to 0 width. */
+.image-drop-indicator {
+  align-self: stretch !important;
+}
+
 /* Full-bleed media in paragraphs */
 .slide__area p > :is(img, video):only-child {
   width: 100%;

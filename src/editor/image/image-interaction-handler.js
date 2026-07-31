@@ -379,7 +379,8 @@ export class ImageInteractionHandler {
     insertAt = Math.max(0, insertAt);
 
     // Build a new image tag — free-flow images preserve their position,
-    // normal images snap to 0,0.
+    // normal images reset their top (they snap to the flow) but keep the
+    // horizontal left from the drag so right/center alignment isn't lost.
     const src = img.dataset.originalSrc || draggedEntry.src || "";
     const w = Math.round(parseFloat(img.style.width) || img.offsetWidth || IMG_FALLBACK_W);
     const h = Math.round(parseFloat(img.style.height) || img.offsetHeight || 0);
@@ -391,7 +392,15 @@ export class ImageInteractionHandler {
           const classAttr = ' class="img-freeflow"';
           return `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
         })()
-      : buildRepositionedImgTag(img, src, alt, w, h);
+      : buildRepositionedImgTag(
+          img,
+          src,
+          alt,
+          w,
+          h,
+          Math.round(parseFloat(img.style.left) || 0),
+          0,
+        );
 
     // Insert the new tag at the new position
     const before = withoutImage.slice(0, insertAt);

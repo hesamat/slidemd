@@ -305,14 +305,16 @@ export function buildInlineStyleString(imgElement) {
  * @param {string} alt
  * @param {number} width - Width in design pixels
  * @param {number|null} height - Height in design pixels, or null
+ * @param {number} [left=0] - Left offset in design pixels
+ * @param {number} [top=0] - Top offset in design pixels
  * @returns {string} The complete `<img ... />` tag
  */
-export function buildRepositionedImgTag(imgElement, src, alt, width, height) {
+export function buildRepositionedImgTag(imgElement, src, alt, width, height, left = 0, top = 0) {
   const s = readImageSettings(imgElement);
   const parts = [
     "position: relative",
-    "left: 0px",
-    "top: 0px",
+    `left: ${Math.round(left)}px`,
+    `top: ${Math.round(top)}px`,
     `width: ${width}px`,
     height ? `height: ${height}px` : "",
     s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
