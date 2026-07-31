@@ -70,3 +70,9 @@ Replace `[Diagram: Item1, Item2, Item3]` with a mermaid code block when the cont
 - Multi-column layouts: use flowchart TD (vertical), max 5 nodes
 - Single-column layouts: use flowchart LR (horizontal), max 8 nodes
 - Avoid linear chains — use varied shapes and meaningful arrow labels
+
+## Text Blocks
+
+- Use `::: text-block { ... }` containers for styled or positioned text. Never use raw `<div style="...">` HTML for text blocks.
+- The opening fence is `::: text-block { attr1=value1 attr2=value2 }` and the closing fence is `:::`.
+- Preserve any existing `::: text-block` blocks exactly, including all attributes and the inner text.

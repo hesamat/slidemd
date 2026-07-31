@@ -11,8 +11,15 @@
  */
 
 import interact from "interactjs";
-import { escapeHtml } from "../../core/utils.js";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
+import {
+  buildTextBlockDirective,
+  parseTextBlockDirectives,
+  updateTextBlockDirective,
+  removeTextBlockDirective,
+  replaceLegacyTextBlock,
+  removeLegacyTextBlock,
+} from "../../core/text-block-directive.js";
 
 const SNAP = 10;
 const DEFAULT_W = 320;
@@ -44,40 +51,6 @@ function readTextBlockSettings(el) {
     fontStyle: style.fontStyle || "",
     textDecoration: style.textDecoration || "",
   };
-}
-
-/**
- * Build the inline style string for a text block.
- */
-function buildStyleString(settings) {
-  const parts = [];
-  if (settings.float) {
-    parts.push("position:absolute");
-    parts.push(`left:${Math.round(settings.left || 0)}px`);
-    parts.push(`top:${Math.round(settings.top || 0)}px`);
-  }
-  if (settings.fontSize) parts.push(`font-size:${settings.fontSize}px`);
-  if (settings.color) parts.push(`color:${settings.color}`);
-  if (settings.backgroundColor) parts.push(`background-color:${settings.backgroundColor}`);
-  if (settings.textAlign) parts.push(`text-align:${settings.textAlign}`);
-  if (settings.opacity != null) parts.push(`opacity:${settings.opacity}`);
-  if (settings.zIndex) parts.push(`z-index:${settings.zIndex}`);
-  if (settings.rotation) parts.push(`transform:rotate(${settings.rotation}deg)`);
-  if (settings.fontWeight) parts.push(`font-weight:${settings.fontWeight}`);
-  if (settings.fontStyle) parts.push(`font-style:${settings.fontStyle}`);
-  if (settings.textDecoration) parts.push(`text-decoration:${settings.textDecoration}`);
-  parts.push("white-space:pre-wrap");
-  return parts.join("; ");
-}
-
-/**
- * Build a full <div> snippet for the text block, with content escaped.
- */
-function buildTextBlockHtml(settings, content) {
-  const safeContent = escapeHtml(content).replace(/\n/g, "&#10;");
-  const style = buildStyleString(settings);
-  const cls = ["text-block", settings.float ? "text-block--float" : ""].filter(Boolean).join(" ");
-  return `<div class="${cls}" data-id="${settings.id}" style="${style}">${safeContent}</div>`;
 }
 
 /**
@@ -176,8 +149,8 @@ export class TextBlockHandler {
       zIndex: 0,
       rotation: 0,
     };
-    const html = buildTextBlockHtml(settings, "Text");
-    this._insertHtmlSnippet(html, settings.float);
+    const directive = buildTextBlockDirective(settings, "Text");
+    this._insertHtmlSnippet(directive, settings.float);
   }
 
   static _nextId() {
@@ -313,36 +286,17 @@ export class TextBlockHandler {
 
   static _ensureId(el) {
     if (!el || el.dataset.id) return;
-    const content = el.innerText || "";
+    const content = el.innerText?.trim() || "";
     const md = this._getMarkdown?.() || "";
-    const re =
-      /<div\b(?=[^>]*?\bclass="[^"]*\btext-block\b[^"]*")(?![^>]*?\bdata-id=)[^>]*>([\s\S]*?)<\/div>/gi;
+    const blocks = parseTextBlockDirectives(md);
+    const match = blocks.find((b) => !b.settings.id && b.content.trim() === content);
+    if (!match) return;
 
-    let match;
-    while ((match = re.exec(md)) !== null) {
-      const text = this._htmlToText(match[1]);
-      if (text === content) {
-        const openEnd = match[0].indexOf(">");
-        const openTag = match[0].slice(0, openEnd + 1);
-        const id = this._nextId();
-        const newOpenTag = openTag.replace(/>$/, ` data-id="${id}">`);
-        const updated =
-          md.slice(0, match.index) +
-          newOpenTag +
-          match[1] +
-          "</div>" +
-          md.slice(match.index + match[0].length);
-        el.dataset.id = id;
-        this._setMarkdown?.(updated);
-        return;
-      }
-    }
-  }
-
-  static _htmlToText(html) {
-    const div = document.createElement("div");
-    div.innerHTML = html.replace(/<br\s*\/?>/gi, "\n").replace(/&#10;/g, "\n");
-    return (div.textContent || "").trim();
+    const id = this._nextId();
+    const updated = updateTextBlockDirective(md, "", { ...match.settings, id }, match.content);
+    if (updated == null) return;
+    el.dataset.id = id;
+    this._setMarkdown?.(updated);
   }
 
   static _onDragStart(e) {
@@ -397,26 +351,20 @@ export class TextBlockHandler {
   static _syncToMarkdown() {
     const el = this._selected;
     if (!el) return;
-    const md = this._getMarkdown?.() || "";
     const id = el.dataset.id;
     if (!id) return;
-
-    const openRe = new RegExp(
-      `<div\\b(?=[^>]*?\\bclass="[^"]*\\btext-block\\b[^"]*")(?=[^>]*?\\bdata-id="${id}")[^>]*>`,
-      "i",
-    );
-    const openMatch = md.match(openRe);
-    if (!openMatch) return;
-
-    const start = openMatch.index;
-    const end = md.indexOf("</div>", start + openMatch[0].length);
-    if (end === -1) return;
+    const md = this._getMarkdown?.() || "";
 
     const settings = readTextBlockSettings(el);
     settings.id = id;
-    const newHtml = buildTextBlockHtml(settings, el.innerText || "");
-    const updated = md.slice(0, start) + newHtml + md.slice(end + 6);
-    this._setMarkdown?.(updated);
+    const content = el.innerText || "";
+    let updated = updateTextBlockDirective(md, id, settings, content);
+    if (updated == null) {
+      updated = replaceLegacyTextBlock(md, id, settings, content);
+    }
+    if (updated != null) {
+      this._setMarkdown?.(updated);
+    }
   }
 
   // ─── Properties panel ─────────────────────────────────────────────────────
@@ -735,22 +683,15 @@ export class TextBlockHandler {
   static _deleteSelected() {
     const el = this._selected;
     if (!el) return;
-    const md = this._getMarkdown?.() || "";
     const id = el.dataset.id;
     if (!id) return;
+    const md = this._getMarkdown?.() || "";
 
-    const openRe = new RegExp(
-      `<div\\b(?=[^>]*?\\bclass="[^"]*\\btext-block\\b[^"]*")(?=[^>]*?\\bdata-id="${id}")[^>]*>`,
-      "i",
-    );
-    const openMatch = md.match(openRe);
-    if (!openMatch) return;
-
-    const start = openMatch.index;
-    const end = md.indexOf("</div>", start + openMatch[0].length);
-    if (end === -1) return;
-
-    const updated = md.slice(0, start) + md.slice(end + 6);
+    let updated = removeTextBlockDirective(md, id);
+    if (updated == null) {
+      updated = removeLegacyTextBlock(md, id);
+    }
+    if (updated == null) return;
     this.deselect();
     this._onDelete?.(updated);
   }
