@@ -27,6 +27,7 @@ export const highlightField = StateField.define({
     return Decoration.none;
   },
   update(deco, tr) {
+    deco = deco.map(tr.changes);
     if (tr.effects.length) {
       let d = deco;
       for (const e of tr.effects) {
