@@ -383,11 +383,13 @@ html[data-webdeck-role="editor"] #editorOnlyControls {
 
 .menu-group-header {
   padding: 10px 12px 4px;
+  margin-bottom: 4px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-low);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ===== Mode Toggles ===== */
