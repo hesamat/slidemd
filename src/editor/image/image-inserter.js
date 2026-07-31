@@ -228,18 +228,16 @@ export class ImageInserter {
     const targetArea = areaEl || slideEl.querySelector(".slide__area[data-area-name='main']");
     const targetCs = targetArea ? getComputedStyle(targetArea) : null;
     const areaWidth = targetArea
-      ? (targetArea.getBoundingClientRect().width -
-          (parseFloat(targetCs.paddingLeft) || 0) -
-          (parseFloat(targetCs.paddingRight) || 0)) /
-        scale
+      ? targetArea.getBoundingClientRect().width / scale -
+        (parseFloat(targetCs.paddingLeft) || 0) -
+        (parseFloat(targetCs.paddingRight) || 0)
       : 480;
     const width = Math.round(areaWidth);
 
     const areaHeight = targetArea
-      ? (targetArea.getBoundingClientRect().height -
-          (parseFloat(targetCs.paddingTop) || 0) -
-          (parseFloat(targetCs.paddingBottom) || 0)) /
-        scale
+      ? targetArea.getBoundingClientRect().height / scale -
+        (parseFloat(targetCs.paddingTop) || 0) -
+        (parseFloat(targetCs.paddingBottom) || 0)
       : 480;
     const maxHeight = Math.round(areaHeight);
 
