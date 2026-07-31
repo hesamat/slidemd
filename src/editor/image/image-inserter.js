@@ -54,41 +54,49 @@ export class ImageInserter {
     if (!this.markdownEditor) return;
 
     const savedCursorPos = this.markdownEditor.view?.state?.selection?.main?.from ?? null;
+    const markdownAtOpen = this.markdownEditor.getValue();
+    const cursorArea =
+      savedCursorPos !== null && savedCursorPos >= 0 && savedCursorPos <= markdownAtOpen.length
+        ? this._getAreaNav().getAreaAtCursor(markdownAtOpen, savedCursorPos)
+        : null;
 
-    ImagePicker.show((snippet, areaName) => {
-      const current = this.markdownEditor.getValue();
-      const range = this._getAreaNav().getAreaContentRange(current, areaName);
+    ImagePicker.show(
+      (snippet, areaName) => {
+        const current = this.markdownEditor.getValue();
+        const range = this._getAreaNav().getAreaContentRange(current, areaName);
 
-      let insertPos;
-      let afterSnippet;
+        let insertPos;
+        let afterSnippet;
 
-      const posInArea =
-        savedCursorPos !== null && savedCursorPos >= range.from && savedCursorPos <= range.to;
+        const posInArea =
+          savedCursorPos !== null && savedCursorPos >= range.from && savedCursorPos <= range.to;
 
-      if (posInArea) {
-        // Cursor is inside the target area — insert at the cursor.
-        const pos = savedCursorPos;
-        const isAtEnd = pos >= current.length;
-        const prevChar = pos === 0 ? "\n" : current[pos - 1];
-        const nextChar = isAtEnd ? "\n" : current[pos];
+        if (posInArea) {
+          // Cursor is inside the target area — insert at the cursor.
+          const pos = savedCursorPos;
+          const isAtEnd = pos >= current.length;
+          const prevChar = pos === 0 ? "\n" : current[pos - 1];
+          const nextChar = isAtEnd ? "\n" : current[pos];
 
-        const before = prevChar === "\n" ? "" : "\n\n";
-        const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
+          const before = prevChar === "\n" ? "" : "\n\n";
+          const after = isAtEnd ? "" : nextChar === "\n" ? "\n" : "\n\n";
 
-        insertPos = pos;
-        afterSnippet = `${before}${snippet}${after}`;
-      } else {
-        // Cursor is outside the target area (or missing). Insert at the end of
-        // the area so the image ends up in the right section instead of the
-        // frontmatter or the top of the deck.
-        insertPos = range.to;
-        const isAtEnd = insertPos >= current.length;
-        afterSnippet = isAtEnd ? `\n\n${snippet}\n` : `\n\n${snippet}\n\n`;
-      }
+          insertPos = pos;
+          afterSnippet = `${before}${snippet}${after}`;
+        } else {
+          // Cursor is outside the target area (or missing). Insert at the end of
+          // the area so the image ends up in the right section instead of the
+          // frontmatter or the top of the deck.
+          insertPos = range.to;
+          const isAtEnd = insertPos >= current.length;
+          afterSnippet = isAtEnd ? `\n\n${snippet}\n` : `\n\n${snippet}\n\n`;
+        }
 
-      this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
-      this.markdownEditor.focus();
-    });
+        this.markdownEditor.replaceRange(insertPos, insertPos, afterSnippet);
+        this.markdownEditor.focus();
+      },
+      { areaName: cursorArea },
+    );
   }
 
   /**
