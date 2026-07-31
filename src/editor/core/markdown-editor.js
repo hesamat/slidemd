@@ -24,7 +24,6 @@ import {
 import { markdown } from "@codemirror/lang-markdown";
 import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { markdownTableAutocompleter, insertEmptyMarkdownTable } from "codemirror-markdown-tables";
 
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
 import { fencedBlockHelper } from "./codemirror/fenced-block-helper.js";
@@ -325,7 +324,7 @@ export class MarkdownEditor {
 
   // ── CodeMirror setup ─────────────────────────────────────────────────────
 
-  initializeCodeMirror() {
+  async initializeCodeMirror() {
     if (!this.editorRoot) return;
 
     const completionSources = createCompletionSources();
@@ -345,6 +344,11 @@ export class MarkdownEditor {
     });
 
     const markdownSupport = markdown({ codeLanguages: languages });
+
+    // The table helper is browser-only; keep tests from loading it in Node.
+    const tableMod =
+      typeof navigator !== "undefined" ? await import("codemirror-markdown-tables") : null;
+    const { markdownTableAutocompleter, insertEmptyMarkdownTable } = tableMod || {};
 
     const extensions = [
       suppressLezerHighlightCrash,
@@ -372,10 +376,14 @@ export class MarkdownEditor {
       }),
       ...editorThemeExtensions,
       markdownSupport,
-      markdownSupport.language.data.of({
-        autocomplete: markdownTableAutocompleter(),
-      }),
-      keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }]),
+      markdownTableAutocompleter
+        ? markdownSupport.language.data.of({
+            autocomplete: markdownTableAutocompleter(),
+          })
+        : null,
+      insertEmptyMarkdownTable
+        ? keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }])
+        : null,
       placeholder(this.options.placeholder),
       fencedBlockHelper,
       EditorView.updateListener.of((update) => {
@@ -385,13 +393,13 @@ export class MarkdownEditor {
         if (this.suppressChange) return;
         this.scheduleOnChange();
       }),
-    ];
+    ].filter(Boolean);
 
     this.extensions = extensions;
 
     this.view = new EditorView({
       state: EditorState.create({
-        doc: this.value,
+        doc: this.value || "",
         extensions,
       }),
       parent: this.editorRoot,
