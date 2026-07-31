@@ -26,7 +26,7 @@ const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}\s*\r?\n([\s\S]*?)^:::\s*$
  */
 function parseAttributes(attrString) {
   const attrs = {};
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
+  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
   let m;
   while ((m = tokenRe.exec(attrString)) !== null) {
     const key = m[1];
@@ -126,7 +126,11 @@ function buildStyleString(settings) {
   push("font-weight", settings.fontWeight);
   push("font-style", settings.fontStyle);
   push("text-decoration", settings.textDecoration);
-  parts.push("white-space:pre-wrap");
+  if (settings.columnCount) {
+    pushNum("column-count", settings.columnCount);
+  } else {
+    parts.push("white-space:pre-wrap");
+  }
   return parts.join("; ");
 }
 
@@ -137,10 +141,20 @@ function buildStyleString(settings) {
  * @returns {string}
  */
 export function buildTextBlockHtml(settings, content) {
-  const safeContent = escapeHtml(content).replace(/\n/g, "&#10;");
+  const isColumn = Boolean(settings.columnCount);
+  const safeContent = isColumn ? content : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
-  const cls = ["text-block", settings.float ? "text-block--float" : ""].filter(Boolean).join(" ");
+  const cls = [
+    "text-block",
+    settings.float ? "text-block--float" : "",
+    isColumn ? "text-block--multi-column" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const id = sanitizeId(settings.id);
+  if (isColumn) {
+    return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">\n\n${safeContent}\n\n</div>\n\n`;
+  }
   return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }
 
@@ -169,6 +183,7 @@ export function buildTextBlockDirective(settings, content) {
     settings.opacity != null && settings.opacity !== 1 ? `opacity=${settings.opacity}` : "",
     settings.zIndex ? `z=${settings.zIndex}` : "",
     settings.rotation ? `rotate=${settings.rotation}` : "",
+    settings.columnCount ? `column-count=${Math.round(settings.columnCount)}` : "",
     settings.fontWeight === "bold" || settings.fontWeight === "700" ? "bold=true" : "",
     settings.fontStyle === "italic" ? "italic=true" : "",
     settings.textDecoration?.includes("underline") ? "underline=true" : "",
@@ -205,6 +220,7 @@ export function parseTextBlockDirectives(markdown) {
     const opacity = toNum(attrs.opacity) || 1;
     const zIndex = toNum(attrs.z);
     const rotation = toNum(attrs.rotate);
+    const columnCount = toNum(attrs.columnCount ?? attrs["column-count"]);
     const fontWeight = toBool(attrs.bold) ? "bold" : "";
     const fontStyle = toBool(attrs.italic) ? "italic" : "";
     const decorations = [];
@@ -232,6 +248,7 @@ export function parseTextBlockDirectives(markdown) {
         opacity,
         zIndex,
         rotation,
+        columnCount,
         fontWeight,
         fontStyle,
         textDecoration,

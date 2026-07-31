@@ -46,6 +46,7 @@ function readTextBlockSettings(el) {
     opacity: Number(style.opacity) || 1,
     zIndex: parseInt(style.zIndex, 10) || 0,
     rotation: parseFloat(rotMatch?.[1] || "0"),
+    columnCount: parseInt(style.columnCount, 10) || 0,
     fontWeight: style.fontWeight || "",
     fontStyle: style.fontStyle || "",
     textDecoration: style.textDecoration || "",
@@ -147,6 +148,7 @@ export class TextBlockHandler {
       opacity: 1,
       zIndex: 0,
       rotation: 0,
+      columnCount: 0,
     };
     const directive = buildTextBlockDirective(settings, "Text");
     this._insertHtmlSnippet(directive, settings.float);

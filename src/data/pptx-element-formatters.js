@@ -122,11 +122,11 @@ export function wrapLongLists(markdown) {
 
       if (itemCount >= MIN_LIST_ITEMS) {
         const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
-        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
+        result.push(`::: text-block { column-count=${cols} }`);
         result.push("");
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
         result.push("");
-        result.push("</div>");
+        result.push(":::");
       } else {
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
       }
