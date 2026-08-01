@@ -210,7 +210,7 @@ export class MarkdownEditor {
         }),
       );
       if (scrollIntoView) {
-        this.view.dispatch({ effects: [EditorView.scrollIntoView()] });
+        this.view.dispatch({ effects: [EditorView.scrollIntoView(position)] });
       }
       if (focus) this.view.focus();
     } finally {

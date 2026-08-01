@@ -47,9 +47,13 @@ export function formatTextElement(raw) {
 
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
+    const isLetterList = /^[a-zA-Z][.)]\s+\S/.test(trimmed);
 
     if (isProperBullet || isNumberedList) {
       result.push(line);
+    } else if (isLetterList) {
+      const content = trimmed.replace(/^[a-zA-Z][.)]\s*/, "");
+      result.push(`${prefix}  - ${content}`);
     } else if (REGEX.BULLET.test(trimmed)) {
       const content = trimmed.replace(REGEX.BULLET, "");
       result.push(`${prefix}- ${content}`);
@@ -122,11 +126,11 @@ export function wrapLongLists(markdown) {
 
       if (itemCount >= MIN_LIST_ITEMS) {
         const cols = itemCount >= COL3_THRESHOLD ? 3 : 2;
-        result.push(`<div class="multi-column-list" style="column-count: ${cols};">`);
+        result.push(`::: text-block { column-count=${cols} }`);
         result.push("");
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
+        result.push(":::");
         result.push("");
-        result.push("</div>");
       } else {
         for (let j = groupStart; j < i; j++) result.push(lines[j]);
       }

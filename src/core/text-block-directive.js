@@ -13,9 +13,40 @@
  * for both humans and LLMs.
  */
 
+import MarkdownIt from "markdown-it";
 import { escapeHtml } from "./utils.js";
 
-const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}\s*\r?\n([\s\S]*?)^:::\s*$/gim;
+const textBlockMd = new MarkdownIt({ html: false });
+
+// Source-map plugin: add data-source-line to block-level opening tags so
+// clicking inside a pre-rendered multi-column text block still jumps to the
+// correct source line. token.map[0] is the 0-indexed line within the content;
+// buildTextBlockHtml offsets it by the directive's starting line.
+const originalRenderToken = textBlockMd.renderer.renderToken.bind(textBlockMd.renderer);
+textBlockMd.renderer.renderToken = function (tokens, idx, options, env) {
+  const token = tokens[idx];
+  if (token.map && token.type.endsWith("_open") && env?.sourceLine != null) {
+    const line = env.sourceLine + 1 + token.map[0];
+    token.attrPush(["data-source-line", String(line)]);
+  }
+  return originalRenderToken(tokens, idx, options, env);
+};
+
+const blockRules = ["fence", "code_block", "hr"];
+for (const ruleName of blockRules) {
+  const originalRule = textBlockMd.renderer.rules[ruleName];
+  if (!originalRule) continue;
+  textBlockMd.renderer.rules[ruleName] = function (tokens, idx, options, env, slf) {
+    const token = tokens[idx];
+    if (token.map && env?.sourceLine != null) {
+      const line = env.sourceLine + 1 + token.map[0];
+      token.attrPush(["data-source-line", String(line)]);
+    }
+    return originalRule(tokens, idx, options, env, slf);
+  };
+}
+
+const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::\s*$/gim;
 
 /**
  * Parse a string of attribute tokens from a directive opening line.
@@ -26,7 +57,7 @@ const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}\s*\r?\n([\s\S]*?)^:::\s*$
  */
 function parseAttributes(attrString) {
   const attrs = {};
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
+  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
   let m;
   while ((m = tokenRe.exec(attrString)) !== null) {
     const key = m[1];
@@ -126,7 +157,11 @@ function buildStyleString(settings) {
   push("font-weight", settings.fontWeight);
   push("font-style", settings.fontStyle);
   push("text-decoration", settings.textDecoration);
-  parts.push("white-space:pre-wrap");
+  if (settings.columnCount) {
+    pushNum("column-count", settings.columnCount);
+  } else {
+    parts.push("white-space:pre-wrap");
+  }
   return parts.join("; ");
 }
 
@@ -134,14 +169,24 @@ function buildStyleString(settings) {
  * Render a text block as the HTML div the slide renderer and editor expect.
  * @param {object} settings
  * @param {string} content
+ * @param {number} [sourceLine=0] - 0-indexed line of the directive within the area.
  * @returns {string}
  */
-export function buildTextBlockHtml(settings, content) {
-  const safeContent = escapeHtml(content).replace(/\n/g, "&#10;");
+export function buildTextBlockHtml(settings, content, sourceLine = 0) {
+  const isColumn = Boolean(settings.columnCount);
+  const safeContent = isColumn
+    ? textBlockMd.render(content, { sourceLine })
+    : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
-  const cls = ["text-block", settings.float ? "text-block--float" : ""].filter(Boolean).join(" ");
+  const cls = [
+    "text-block",
+    settings.float ? "text-block--float" : "",
+    isColumn ? "text-block--multi-column" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const id = sanitizeId(settings.id);
-  return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
+  return `<div class="${cls}" data-id="${id}" data-source-line="${sourceLine}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }
 
 /**
@@ -160,7 +205,7 @@ export function buildTextBlockDirective(settings, content) {
     settings.float ? "float=true" : "",
     settings.float && settings.left ? `x=${Math.round(settings.left)}` : "",
     settings.float && settings.top ? `y=${Math.round(settings.top)}` : "",
-    settings.fontSize && settings.fontSize !== 32 ? `fontSize=${settings.fontSize}` : "",
+    settings.fontSize && settings.fontSize !== 30 ? `fontSize=${settings.fontSize}` : "",
     color ? `color="${color}"` : "",
     backgroundColor && backgroundColor !== "transparent"
       ? `backgroundColor="${backgroundColor}"`
@@ -169,6 +214,7 @@ export function buildTextBlockDirective(settings, content) {
     settings.opacity != null && settings.opacity !== 1 ? `opacity=${settings.opacity}` : "",
     settings.zIndex ? `z=${settings.zIndex}` : "",
     settings.rotation ? `rotate=${settings.rotation}` : "",
+    settings.columnCount ? `column-count=${Math.round(settings.columnCount)}` : "",
     settings.fontWeight === "bold" || settings.fontWeight === "700" ? "bold=true" : "",
     settings.fontStyle === "italic" ? "italic=true" : "",
     settings.textDecoration?.includes("underline") ? "underline=true" : "",
@@ -205,6 +251,7 @@ export function parseTextBlockDirectives(markdown) {
     const opacity = toNum(attrs.opacity) || 1;
     const zIndex = toNum(attrs.z);
     const rotation = toNum(attrs.rotate);
+    const columnCount = toNum(attrs.columnCount ?? attrs["column-count"]);
     const fontWeight = toBool(attrs.bold) ? "bold" : "";
     const fontStyle = toBool(attrs.italic) ? "italic" : "";
     const decorations = [];
@@ -225,13 +272,14 @@ export function parseTextBlockDirectives(markdown) {
         float,
         left,
         top,
-        fontSize: fontSize || 32,
+        fontSize: fontSize || 30,
         color,
         backgroundColor,
         textAlign,
         opacity,
         zIndex,
         rotation,
+        columnCount,
         fontWeight,
         fontStyle,
         textDecoration,
@@ -254,7 +302,8 @@ export function convertTextBlockDirectivesToHtml(markdown) {
   let result = markdown;
   for (let i = blocks.length - 1; i >= 0; i--) {
     const { start, end, settings, content } = blocks[i];
-    const html = buildTextBlockHtml(settings, content);
+    const sourceLine = markdown.slice(0, start).split("\n").length - 1;
+    const html = buildTextBlockHtml(settings, content, sourceLine);
     result = result.slice(0, start) + html + result.slice(end);
   }
   return result;

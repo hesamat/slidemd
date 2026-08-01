@@ -99,6 +99,7 @@ To use AI features, configure an API key in **Settings** (OpenRouter). The AI be
 - Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
+- Text blocks: `::: text-block { column-count=2 }` wraps content in a styled, positioned, or multi-column block.
 
 Minimal example:
 

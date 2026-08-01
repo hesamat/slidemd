@@ -539,6 +539,33 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
+layout: header-content
+
+@header
+
+## Multi-Column Text Blocks
+
+@main
+
+Use `::: text-block { column-count=2 }` to wrap long lists so they flow across multiple columns:
+
+::: text-block { column-count=2 }
+
+1. Text blocks
+2. Float positioning
+3. Font size and color
+4. Multi-column lists
+5. PPTX import support
+6. Live editing
+7. Markdown directives
+8. Offline builds
+9. PDF export
+10. HTML export
+
+:::
+
+---
+
 layout: focus
 
 @header

@@ -97,6 +97,7 @@ The `gridTemplate` value follows CSS `grid-template-areas` syntax. Column sizes 
 - **Diagrams:** Mermaid syntax in ```mermaid blocks
 - **Markdown:** Bold, italic, lists, blockquotes, tables, links
 - **HTML:** Inline styles for custom formatting
+- **Text blocks:** `::: text-block { ... }` for styled, positioned, or multi-column text; use `column-count=N` to flow long lists across N columns
 
 ---
 
@@ -164,6 +165,13 @@ Slides render at **1920×1080px**. Content overflows if too much is added. These
 - Sequence diagrams for function calls or API interactions
 - Class diagrams for data structures
 - Add `classDef` styling for color-coding
+
+**For Images:**
+
+- Preserve every `<img src="images/...">` and `background: url(images/...)` exactly as they appear
+- Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or any other form
+- Keep image filenames, dimensions, and alt text unchanged
+- When generating image tags, use `src="images/filename.png"` and place them in the appropriate `@media` or `@main` area
 
 ---
 
@@ -334,6 +342,29 @@ background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)
 **Template location:** [Course LMS page / Handout folder]
 **Deadline:** End of class today
 ````
+
+### Multi-column List Slide
+
+```markdown
+layout: header-content
+
+@header
+
+# Long List Example
+
+@main
+
+::: text-block { column-count=2 }
+
+1. First item
+2. Second item
+3. Third item
+4. Fourth item
+5. Fifth item
+6. Sixth item
+
+:::
+```
 
 ---
 

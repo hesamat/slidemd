@@ -39,13 +39,14 @@ function readTextBlockSettings(el) {
     float: el.classList.contains("text-block--float"),
     left: parseFloat(style.left) || 0,
     top: parseFloat(style.top) || 0,
-    fontSize: parseFloat(style.fontSize) || 32,
+    fontSize: parseFloat(style.fontSize) || 30,
     color: style.color || "",
     backgroundColor: style.backgroundColor || "transparent",
     textAlign: style.textAlign || "left",
     opacity: Number(style.opacity) || 1,
     zIndex: parseInt(style.zIndex, 10) || 0,
     rotation: parseFloat(rotMatch?.[1] || "0"),
+    columnCount: parseInt(style.columnCount, 10) || 0,
     fontWeight: style.fontWeight || "",
     fontStyle: style.fontStyle || "",
     textDecoration: style.textDecoration || "",
@@ -140,13 +141,14 @@ export class TextBlockHandler {
       float: false,
       left,
       top,
-      fontSize: 32,
+      fontSize: 30,
       color: "",
       backgroundColor: "transparent",
       textAlign: "left",
       opacity: 1,
       zIndex: 0,
       rotation: 0,
+      columnCount: 0,
     };
     const directive = buildTextBlockDirective(settings, "Text");
     this._insertHtmlSnippet(directive, settings.float);
@@ -224,7 +226,7 @@ export class TextBlockHandler {
       "contextmenu",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || this.isMultiColumn(block)) return;
         e.preventDefault();
         e.stopPropagation();
         this.select(block);
@@ -237,7 +239,7 @@ export class TextBlockHandler {
       "dblclick",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || this.isMultiColumn(block)) return;
         e.stopPropagation();
         this._enterInlineEdit(block);
       },
@@ -248,7 +250,7 @@ export class TextBlockHandler {
       "blur",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || this.isMultiColumn(block)) return;
         this._finishInlineEdit(block);
       },
       { signal, capture: true },
@@ -283,6 +285,14 @@ export class TextBlockHandler {
     this._hidePanel();
   }
 
+  /**
+   * Multi-column text blocks are rendered markdown layout wrappers, not
+   * free-form text, and must not be edited as text blocks.
+   */
+  static isMultiColumn(el) {
+    return !!el && el.classList.contains("text-block--multi-column");
+  }
+
   static _ensureId(el) {
     if (!el || el.dataset.id) return;
     const content = el.innerText?.trim() || "";
@@ -302,7 +312,7 @@ export class TextBlockHandler {
 
   static _onDragStart(e) {
     const el = e.target?.closest?.(".text-block");
-    if (!el) return;
+    if (!el || this.isMultiColumn(el)) return;
     if (el.isContentEditable) {
       e.interaction?.stop?.();
       return;

@@ -484,7 +484,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area ol {
   display: grid;
   gap: var(--spacing-sm);
-  line-height: 1.5;
+  line-height: 1.4;
   padding-left: 1.5em;
   margin-top: var(--spacing-xs);
 }
@@ -537,6 +537,17 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .multi-column-list ol {
   margin: 0;
   padding-left: 1.5em;
+}
+
+.text-block--multi-column {
+  column-fill: balance;
+  column-gap: 0.75em;
+}
+
+.text-block--multi-column ul,
+.text-block--multi-column ol {
+  margin: 0;
+  padding-left: 1em;
 }
 
 /* Allow media shadows to render beyond the content box */
@@ -1397,7 +1408,7 @@ body[data-edit-mode="true"] .slide__area .image-placeholder--editable::after {
   z-index: 1;
   padding: 8px 12px;
   border-radius: 4px;
-  font-size: 32px;
+  font-size: 30px;
   line-height: 1.2;
   word-wrap: break-word;
   overflow-wrap: break-word;
