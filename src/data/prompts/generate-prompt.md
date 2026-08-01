@@ -35,6 +35,7 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 - Use `focus` layout ONLY for centered content with at most 3 distinct element types (e.g. heading + list, heading + code + blockquote). Ideal for section dividers, key quotes, code blocks, and agenda slides. Do NOT use focus when mixing 4+ element types — use header-content instead
 - Use media-span ONLY for slides with actual images (e.g. img tags). Never use media-span for code or diagrams
 - Add speaker notes to key slides using: <!-- notes: Your note text here -->
+- For long lists in a single content area, wrap them in `::: text-block { column-count=2 }` to flow across two columns instead of splitting the slide
 - Improve the title slide to be more visually impactful (ONLY the first slide — title-slide has @title and @footer only, NO @header or @main)
 - Feel free to invent custom layouts using CSS grid if none of the built-in layouts fit. When doing so, use @main for the primary content area for best compatibility with the renderer
 

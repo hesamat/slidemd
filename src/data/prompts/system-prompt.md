@@ -73,6 +73,7 @@ Replace `[Diagram: Item1, Item2, Item3]` with a mermaid code block when the cont
 
 ## Text Blocks
 
-- Use `::: text-block { ... }` containers for styled or positioned text. Never use raw `<div style="...">` HTML for text blocks.
+- Use `::: text-block { ... }` containers for styled, positioned, or multi-column text. Never use raw `<div style="...">` HTML for text blocks.
 - The opening fence is `::: text-block { attr1=value1 attr2=value2 }` and the closing fence is `:::`.
+- Use `column-count=N` to flow long lists across N columns.
 - Preserve any existing `::: text-block` blocks exactly, including all attributes and the inner text.

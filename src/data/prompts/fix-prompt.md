@@ -42,6 +42,12 @@ When changing a layout, choose the simplest layout that fits the content.
 - Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or any other form.
 - Keep image filenames, dimensions, and alt text unchanged.
 
+### Text Blocks
+
+- Preserve `::: text-block { ... }` containers exactly as they appear.
+- Keep `column-count=N` and all other attributes unchanged.
+- Do NOT flatten the inner list into plain lines.
+
 ## Output Format
 
 Return one JSON object per slide with:
