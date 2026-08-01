@@ -6,6 +6,14 @@
 
 - Added multi-column text block support with `::: text-block { column-count=... }`.
 - PPTX import wraps long lists in `::: text-block { column-count=... }` instead of `multi-column-list`.
+- Pre-render multi-column content with `html: false` to avoid raw HTML injection (XSS).
+- Restore `data-source-line` for source-jump on pre-rendered multi-column list items.
+
+### Editor
+
+- Keep multi-column text blocks that contain lists out of the text-block edit path to prevent flattening imported lists.
+- Extract `TextBlockHandler.isListMultiColumn()` helper.
+- Fix CodeMirror `scrollIntoView` crash by passing the cursor position.
 
 ### AI PPTX Fix
 
@@ -16,11 +24,15 @@
 
 - Tightened multi-column text-block spacing to fit more list items.
 - Default text-block font size reduced from 32px to 30px.
+- Reduced line-height for list items.
+- Convert PPTX lettered sublist markers (`a.`, `b.`, etc.) into nested bullets.
 
 ### Documentation
 
 - README mentions `::: text-block` multi-column usage.
 - Example deck includes a multi-column text-block slide.
+- `docs/prompt-template.md` now covers `::: text-block`, `column-count`, image preservation, and a multi-column list example.
+- `fix-prompt`, `generate-prompt`, and `system-prompt` updated to preserve and use multi-column text blocks and `images/...` paths.
 
 ## 0.7.0 (2026-07-28)
 
