@@ -303,7 +303,7 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 | Task                                                                    | Details                                                                              |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | [x] Improve main menu layout, groupings, and edit button options (#147) | Reorganize the header menu for clearer access to edit, save, export, and AI actions. |
-| [ ] Add tooltips to edit-mode controls (#121)                           | Show tooltips for editor controls to improve discoverability.                        |
+| [x] Add tooltips to edit-mode controls (#121)                           | Show tooltips for editor controls to improve discoverability.                        |
 | [ ] Make Alt+N new slide shortcut discoverable (#109)                   | Add a menu item, hint, or keybinding label for the new-slide shortcut.               |
 | [ ] Right-click context menu format options (#92)                       | Add font, color, and alignment options to the right-click menu for selected content. |
 | [ ] Add full-text search across all slides                              | Search slide body, titles, and optional notes; jump to matches.                      |
