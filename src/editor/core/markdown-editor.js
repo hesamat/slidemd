@@ -109,9 +109,6 @@ export class MarkdownEditor {
       ["Undo / Redo", `${mod} + Z / Shift + Z`],
       ["Autocomplete", `${mod} + Space`],
       ["Insert 2×2 table", `${mod} + ${alt} + T`],
-      ["Insert image", `${alt} + I`],
-      ["Insert text block", `${alt} + T`],
-      ["Insert diagram", `${alt} + M`],
       ["Indent / Outdent", "Tab / Shift + Tab"],
       ["Fold / Unfold (gutter)", "Click arrows"],
     ];
