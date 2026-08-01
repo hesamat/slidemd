@@ -11,8 +11,8 @@
 
 ### Editor
 
-- Keep multi-column text blocks that contain lists out of the text-block edit path to prevent flattening imported lists.
-- Extract `TextBlockHandler.isListMultiColumn()` helper.
+- Keep all multi-column text blocks out of the text-block edit path to prevent pre-rendered markdown from being flattened to plain text.
+- Extract `TextBlockHandler.isMultiColumn()` helper.
 - Fix CodeMirror `scrollIntoView` crash by passing the cursor position.
 
 ### AI PPTX Fix

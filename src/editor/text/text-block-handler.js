@@ -226,7 +226,7 @@ export class TextBlockHandler {
       "contextmenu",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block || this.isListMultiColumn(block)) return;
+        if (!block || this.isMultiColumn(block)) return;
         e.preventDefault();
         e.stopPropagation();
         this.select(block);
@@ -239,7 +239,7 @@ export class TextBlockHandler {
       "dblclick",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block || this.isListMultiColumn(block)) return;
+        if (!block || this.isMultiColumn(block)) return;
         e.stopPropagation();
         this._enterInlineEdit(block);
       },
@@ -250,7 +250,7 @@ export class TextBlockHandler {
       "blur",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block || this.isListMultiColumn(block)) return;
+        if (!block || this.isMultiColumn(block)) return;
         this._finishInlineEdit(block);
       },
       { signal, capture: true },
@@ -286,13 +286,11 @@ export class TextBlockHandler {
   }
 
   /**
-   * Multi-column text blocks that contain lists are rendered markdown layout
-   * wrappers, not free-form text, and must not be edited as text blocks.
+   * Multi-column text blocks are rendered markdown layout wrappers, not
+   * free-form text, and must not be edited as text blocks.
    */
-  static isListMultiColumn(el) {
-    return (
-      !!el && el.classList.contains("text-block--multi-column") && !!el.querySelector("ul, ol")
-    );
+  static isMultiColumn(el) {
+    return !!el && el.classList.contains("text-block--multi-column");
   }
 
   static _ensureId(el) {
@@ -314,7 +312,7 @@ export class TextBlockHandler {
 
   static _onDragStart(e) {
     const el = e.target?.closest?.(".text-block");
-    if (!el || this.isListMultiColumn(el)) return;
+    if (!el || this.isMultiColumn(el)) return;
     if (el.isContentEditable) {
       e.interaction?.stop?.();
       return;
