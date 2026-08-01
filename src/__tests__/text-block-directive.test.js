@@ -88,4 +88,19 @@ describe("text block html escaping", () => {
     expect(html).not.toContain("url(");
     expect(html).not.toContain("background:");
   });
+
+  it("pre-renders multi-column content so markdown lists become HTML", () => {
+    const html = buildTextBlockHtml({ columnCount: 2 }, "1. First\n2. Second\n");
+    expect(html).toMatch(/<ol[^>]*>/);
+    expect(html).toMatch(/<li[^>]*>First<\/li>/);
+    expect(html).toMatch(/<li[^>]*>Second<\/li>/);
+    expect(html).toContain("</ol>");
+    expect(html).toContain("data-source-line");
+  });
+
+  it("neutralizes HTML in multi-column content", () => {
+    const html = buildTextBlockHtml({ columnCount: 2 }, "- <img src=x onerror=alert(1)>");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
 });

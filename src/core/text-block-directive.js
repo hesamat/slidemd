@@ -13,9 +13,40 @@
  * for both humans and LLMs.
  */
 
+import MarkdownIt from "markdown-it";
 import { escapeHtml } from "./utils.js";
 
-const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}\s*\r?\n([\s\S]*?)^:::\s*$/gim;
+const textBlockMd = new MarkdownIt({ html: false });
+
+// Source-map plugin: add data-source-line to block-level opening tags so
+// clicking inside a pre-rendered multi-column text block still jumps to the
+// correct source line. token.map[0] is the 0-indexed line within the content;
+// buildTextBlockHtml offsets it by the directive's starting line.
+const originalRenderToken = textBlockMd.renderer.renderToken.bind(textBlockMd.renderer);
+textBlockMd.renderer.renderToken = function (tokens, idx, options, env) {
+  const token = tokens[idx];
+  if (token.map && token.type.endsWith("_open") && env?.sourceLine != null) {
+    const line = env.sourceLine + 1 + token.map[0];
+    token.attrPush(["data-source-line", String(line)]);
+  }
+  return originalRenderToken(tokens, idx, options, env);
+};
+
+const blockRules = ["fence", "code_block", "hr"];
+for (const ruleName of blockRules) {
+  const originalRule = textBlockMd.renderer.rules[ruleName];
+  if (!originalRule) continue;
+  textBlockMd.renderer.rules[ruleName] = function (tokens, idx, options, env, slf) {
+    const token = tokens[idx];
+    if (token.map && env?.sourceLine != null) {
+      const line = env.sourceLine + 1 + token.map[0];
+      token.attrPush(["data-source-line", String(line)]);
+    }
+    return originalRule(tokens, idx, options, env, slf);
+  };
+}
+
+const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::\s*$/gim;
 
 /**
  * Parse a string of attribute tokens from a directive opening line.
@@ -138,14 +169,13 @@ function buildStyleString(settings) {
  * Render a text block as the HTML div the slide renderer and editor expect.
  * @param {object} settings
  * @param {string} content
+ * @param {number} [sourceLine=0] - 0-indexed line of the directive within the area.
  * @returns {string}
  */
-export function buildTextBlockHtml(settings, content) {
+export function buildTextBlockHtml(settings, content, sourceLine = 0) {
   const isColumn = Boolean(settings.columnCount);
   const safeContent = isColumn
-    ? content.endsWith("\n")
-      ? content
-      : `${content}\n`
+    ? textBlockMd.render(content, { sourceLine })
     : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
   const cls = [
@@ -156,10 +186,7 @@ export function buildTextBlockHtml(settings, content) {
     .filter(Boolean)
     .join(" ");
   const id = sanitizeId(settings.id);
-  if (isColumn) {
-    return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">\n\n${safeContent}</div>\n\n`;
-  }
-  return `<div class="${cls}" data-id="${id}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
+  return `<div class="${cls}" data-id="${id}" data-source-line="${sourceLine}" style="${escapeHtml(style)}">${safeContent}</div>\n\n`;
 }
 
 /**
@@ -275,7 +302,8 @@ export function convertTextBlockDirectivesToHtml(markdown) {
   let result = markdown;
   for (let i = blocks.length - 1; i >= 0; i--) {
     const { start, end, settings, content } = blocks[i];
-    const html = buildTextBlockHtml(settings, content);
+    const sourceLine = markdown.slice(0, start).split("\n").length - 1;
+    const html = buildTextBlockHtml(settings, content, sourceLine);
     result = result.slice(0, start) + html + result.slice(end);
   }
   return result;
