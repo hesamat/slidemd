@@ -353,10 +353,15 @@ Goal: Make the Markdown string the single source of truth for both the user and 
 | [ ] Patch by index                                     | Swap the edited slide string back into the array and rejoin with `---`.                            |
 | [ ] Simplify `ai-sidebar.js`                           | Route single-slide requests to `enhanceSlide`; use whole-deck batching only for full-deck intents. |
 
-### PPTX Import & Export
+### Office Document Import & Export
 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
+| [ ] Switch PPTX/ODP parser to `officeparser`     | Replace `pptxtojson` with `officeparser` for PPTX and ODP AST  |
+| [ ] Add `.odp` file type to import               | Update conversion modal to accept `.odp` uploads               |
+| [ ] Normalize `officeparser` AST                 | Adapt `PptxExtractor` to consume `officeparser` output         |
+| [ ] Preserve image extraction                    | Keep embedded image extraction for ODP like PPTX               |
+| [ ] Verify no PPTX import regressions            | Ensure existing PPTX import tests still pass                   |
 | [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
 | [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
 
