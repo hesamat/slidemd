@@ -72,7 +72,12 @@ export class MermaidHelperManager {
   insertTemplate(templateName) {
     const editor = this._getMarkdownEditor?.();
     if (!editor) return;
-    const snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
+    let snippet = TEMPLATES[templateName] || TEMPLATES.flowchart;
+    const { from } = editor.getSelection();
+    const value = editor.getValue();
+    if (from > 0 && value[from - 1] !== "\n") {
+      snippet = "\n" + snippet;
+    }
     editor.insertText(snippet);
     editor.focus();
   }

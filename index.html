@@ -461,7 +461,12 @@
                   <div id="insertDropdownContent" class="insert-dropdown__content webdeck-hidden">
                     <div class="insert-dropdown__group">
                       <span class="insert-dropdown__group-label">Layout</span>
-                      <button type="button" class="menu-item" data-insert-action="layout">
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="layout"
+                        title="Change slide layout (Alt+L)"
+                      >
                         <svg
                           width="16"
                           height="16"
@@ -484,6 +489,7 @@
                         type="button"
                         class="menu-item"
                         data-insert-action="adjust-columns"
+                        title="Adjust columns (Alt+A)"
                       >
                         <svg
                           width="16"
@@ -505,7 +511,12 @@
                     <div class="insert-dropdown__group">
                       <span class="insert-dropdown__group-label">Appearance</span>
 
-                      <button type="button" class="menu-item" data-insert-action="area-style">
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="area-style"
+                        title="Edit area styles (Alt+S)"
+                      >
                         <svg
                           width="16"
                           height="16"
@@ -530,6 +541,7 @@
                         class="menu-item"
                         data-insert-action="theme"
                         id="toggleThemeMenuItem"
+                        title="Change slide theme (Alt+Shift+T)"
                       >
                         <svg
                           class="theme-icon-light"
@@ -572,7 +584,12 @@
                     </div>
                     <div class="insert-dropdown__group">
                       <span class="insert-dropdown__group-label">Insert</span>
-                      <button type="button" class="menu-item" data-insert-action="image">
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="image"
+                        title="Insert an image (Alt+I)"
+                      >
                         <svg
                           width="16"
                           height="16"
@@ -590,7 +607,12 @@
                         <span>Image</span>
                         <kbd class="insert-dropdown__hint">Alt+I</kbd>
                       </button>
-                      <button type="button" class="menu-item" data-insert-action="text">
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="text"
+                        title="Insert a text block (Alt+T)"
+                      >
                         <svg
                           width="16"
                           height="16"
@@ -608,7 +630,12 @@
                         <span>Text</span>
                         <kbd class="insert-dropdown__hint">Alt+T</kbd>
                       </button>
-                      <button type="button" class="menu-item" data-insert-action="mermaid">
+                      <button
+                        type="button"
+                        class="menu-item"
+                        data-insert-action="mermaid"
+                        title="Insert a Mermaid diagram (Alt+M)"
+                      >
                         <svg
                           width="16"
                           height="16"
@@ -641,22 +668,52 @@
             >
               <div class="editor__helper-title">Mermaid helpers</div>
               <div class="editor__helper-grid">
-                <button class="btn btn--sm" type="button" data-mermaid-template="flowchart">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="flowchart"
+                  title="Insert a flowchart"
+                >
                   Flowchart
                 </button>
-                <button class="btn btn--sm" type="button" data-mermaid-template="erDiagram">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="erDiagram"
+                  title="Insert an ER diagram"
+                >
                   ER
                 </button>
-                <button class="btn btn--sm" type="button" data-mermaid-template="sequence">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="sequence"
+                  title="Insert a sequence diagram"
+                >
                   Sequence
                 </button>
-                <button class="btn btn--sm" type="button" data-mermaid-template="class">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="class"
+                  title="Insert a class diagram"
+                >
                   Class
                 </button>
-                <button class="btn btn--sm" type="button" data-mermaid-template="state">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="state"
+                  title="Insert a state diagram"
+                >
                   State
                 </button>
-                <button class="btn btn--sm" type="button" data-mermaid-template="gantt">
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  data-mermaid-template="gantt"
+                  title="Insert a Gantt chart"
+                >
                   Gantt
                 </button>
               </div>

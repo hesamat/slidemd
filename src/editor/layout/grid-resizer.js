@@ -241,6 +241,7 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
     const handle = document.createElement("div");
     handle.className = "grid-resize-handle grid-resize-handle--col";
     handle.setAttribute("aria-label", "Resize column");
+    handle.setAttribute("title", "Drag to resize column");
     handle.style.left = `${xDesign}px`;
     handle.style.top = `${metrics.topOffset}px`;
     handle.style.height = `${totalGridHeight}px`;
