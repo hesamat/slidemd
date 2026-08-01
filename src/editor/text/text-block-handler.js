@@ -226,7 +226,7 @@ export class TextBlockHandler {
       "contextmenu",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || block.classList.contains("text-block--multi-column")) return;
         e.preventDefault();
         e.stopPropagation();
         this.select(block);
@@ -239,7 +239,7 @@ export class TextBlockHandler {
       "dblclick",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || block.classList.contains("text-block--multi-column")) return;
         e.stopPropagation();
         this._enterInlineEdit(block);
       },
@@ -250,7 +250,7 @@ export class TextBlockHandler {
       "blur",
       (e) => {
         const block = e.target.closest(".text-block");
-        if (!block) return;
+        if (!block || block.classList.contains("text-block--multi-column")) return;
         this._finishInlineEdit(block);
       },
       { signal, capture: true },
@@ -304,7 +304,7 @@ export class TextBlockHandler {
 
   static _onDragStart(e) {
     const el = e.target?.closest?.(".text-block");
-    if (!el) return;
+    if (!el || el.classList.contains("text-block--multi-column")) return;
     if (el.isContentEditable) {
       e.interaction?.stop?.();
       return;
