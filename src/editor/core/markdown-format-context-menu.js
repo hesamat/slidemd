@@ -28,8 +28,8 @@ export class MarkdownFormatContextMenu {
   static open(opts) {
     MarkdownFormatContextMenu.closeActive();
     const menu = new MarkdownFormatContextMenu(opts);
-    MarkdownFormatContextMenu._active = menu;
     menu.render();
+    MarkdownFormatContextMenu._active = menu;
   }
 
   constructor({ editor, from, to, clientX, clientY, items }) {
