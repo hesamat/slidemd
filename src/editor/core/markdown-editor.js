@@ -22,12 +22,42 @@ import {
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldKeymap, bracketMatching, syntaxTree } from "@codemirror/language";
+import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
 import { fencedBlockHelper } from "./codemirror/fenced-block-helper.js";
 import { editorThemeExtensions } from "./codemirror/editor-theme.js";
 import { createCompletionSources } from "./codemirror/completion-sources.js";
 import { MarkdownFormatContextMenu } from "./markdown-format-context-menu.js";
+
+function isInFencedCode(doc, lineNumber) {
+  let fenceChar = null;
+  let fenceLength = 0;
+
+  for (let number = 1; number <= lineNumber; number += 1) {
+    const text = doc.line(number).text;
+    const match = text.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    const wasInFence = fenceChar !== null;
+    let isFenceLine = wasInFence;
+
+    if (match) {
+      const marker = match[1];
+      const suffix = match[2].trim();
+      if (!wasInFence) {
+        fenceChar = marker[0];
+        fenceLength = marker.length;
+        isFenceLine = true;
+      } else if (marker[0] === fenceChar && marker.length >= fenceLength && !suffix) {
+        fenceChar = null;
+        fenceLength = 0;
+        isFenceLine = true;
+      }
+    }
+
+    if (number === lineNumber) return isFenceLine;
+  }
+
+  return false;
+}
 
 /**
  * MarkdownEditor
@@ -363,9 +393,7 @@ export class MarkdownEditor {
 
         const line = view.state.doc.lineAt(pos);
         const lineText = line.text.trim();
-        for (let node = syntaxTree(view.state).resolve(pos, 1); node; node = node.parent) {
-          if (node.name === "FencedCode") return false;
-        }
+        if (isInFencedCode(view.state.doc, line.number)) return false;
 
         const customItems = this.options.getContextMenuItems?.(lineText);
         if (customItems && customItems.length) {
