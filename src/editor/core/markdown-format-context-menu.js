@@ -137,39 +137,40 @@ export class MarkdownFormatContextMenu {
 
   _isMarkerAt(value, i, marker) {
     if (value.slice(i, i + marker.length) !== marker) return false;
-    // For "*", make sure it isn't just part of a "**" block.
-    if (marker === "*" && (value[i - 1] === "*" || value[i + 1] === "*")) return false;
+    // Reject markers that are part of a longer run (e.g. a single "*" inside "**").
+    if (value[i - 1] === marker[0] || value[i + marker.length] === marker[0]) return false;
     return true;
   }
 
-  _enclosingInlineRange(before, after) {
+  _enclosingInlineRange(before, _after) {
     const { from, to } = this._inlineRange();
     if (this._from !== this._to) return { from, to };
     if (from === to) return { from, to };
 
     const value = this._value;
-    const beforeLen = before.length;
-    const afterLen = after.length;
+    const marker = before;
+    const markerLen = marker.length;
 
-    let left = -1;
-    for (let i = from - beforeLen; i >= 0; i--) {
-      if (this._isMarkerAt(value, i, before)) {
-        left = i;
-        break;
+    // Only look for markers on the current line so we do not accidentally
+    // grab formatting from other text elsewhere in the slide.
+    const positions = [];
+    for (let i = this._lineFrom; i <= this._lineTo - markerLen; i++) {
+      if (this._isMarkerAt(value, i, marker)) positions.push(i);
+    }
+
+    // Pair markers in order (opening/closing) and find the pair that
+    // encloses the cursor/selection.
+    for (let p = 0; p + 1 < positions.length; p += 2) {
+      const open = positions[p];
+      const close = positions[p + 1];
+      const contentStart = open + markerLen;
+      const contentEnd = close;
+      if (from >= contentStart && to <= contentEnd) {
+        return { from: contentStart, to: contentEnd };
       }
     }
-    if (left === -1) return { from, to };
 
-    let right = -1;
-    for (let i = to; i <= value.length - afterLen; i++) {
-      if (this._isMarkerAt(value, i, after)) {
-        right = i;
-        break;
-      }
-    }
-    if (right === -1 || right < to) return { from, to };
-
-    return { from: left + beforeLen, to: right };
+    return { from, to };
   }
 
   _renderPrimary() {
