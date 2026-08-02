@@ -573,23 +573,23 @@ export class EditController {
     const markerRange = this.areaNav.getAreaMarkerRange(originalMarkdown, areaName);
     if (!markerRange) return;
 
-    // Compute the new layout directive (or removal) without rewriting the whole document.
-    const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
-    const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
-    const newLayoutLine =
-      layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
+    const changes = [{ from: markerRange.from, to: markerRange.to, insert: "" }];
 
     const parser = new MarkdownParser();
     const layoutResult = parser.extractDirective(originalMarkdown, "layout");
 
-    const changes = [
-      { from: markerRange.from, to: markerRange.to, insert: "" },
-      {
-        from: layoutResult.found ? layoutResult.from : 0,
-        to: layoutResult.found ? layoutResult.to : 0,
+    if (layoutResult.found) {
+      // Compute the new layout directive without rewriting the whole document.
+      const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
+      const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
+      const newLayoutLine =
+        layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
+      changes.push({
+        from: layoutResult.from,
+        to: layoutResult.to,
         insert: newLayoutLine,
-      },
-    ];
+      });
+    }
 
     this.markdownEditor.view.dispatch({ changes });
     this.markdownEditor.focus();
