@@ -22,9 +22,7 @@ import {
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
-import { languages } from "@codemirror/language-data";
-
+import { foldGutter, foldKeymap, bracketMatching, syntaxTree } from "@codemirror/language";
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
 import { fencedBlockHelper } from "./codemirror/fenced-block-helper.js";
 import { editorThemeExtensions } from "./codemirror/editor-theme.js";
@@ -365,6 +363,9 @@ export class MarkdownEditor {
 
         const line = view.state.doc.lineAt(pos);
         const lineText = line.text.trim();
+        for (let node = syntaxTree(view.state).resolve(pos, 1); node; node = node.parent) {
+          if (node.name === "FencedCode") return false;
+        }
 
         const customItems = this.options.getContextMenuItems?.(lineText);
         if (customItems && customItems.length) {
@@ -437,7 +438,7 @@ export class MarkdownEditor {
         }),
       ),
       ...editorThemeExtensions,
-      markdown({ codeLanguages: languages }),
+      markdown(),
       placeholder(this.options.placeholder),
       fencedBlockHelper,
       formatContextMenu,
