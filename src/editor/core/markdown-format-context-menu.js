@@ -129,10 +129,7 @@ export class MarkdownFormatContextMenu {
   }
 
   _blockRange() {
-    return {
-      from: this._from === this._to ? this._lineFrom : this._from,
-      to: this._from === this._to ? this._lineTo : this._to,
-    };
+    return { from: this._lineFrom, to: this._lineTo };
   }
 
   _isMarkerAt(value, i, marker) {
