@@ -225,7 +225,6 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
 .slide[data-layout="focus"] .slide__area--main p,
 .slide[data-layout="focus"] .slide__area--main li {
   font-size: 34px;
-  font-weight: 600;
 }
 
 /* Code blocks: centered horizontally, left-aligned text for readability */
