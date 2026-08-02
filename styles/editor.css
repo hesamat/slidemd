@@ -379,6 +379,68 @@
   color: var(--text-high);
 }
 
+/* Markdown format context menu (right-click in CodeMirror) */
+.markdown-format-context-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--surface-elevated);
+  background-color: rgb(248, 250, 252);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-high);
+  animation: menuFadeIn 0.12s ease;
+}
+
+[data-theme="dark"] .markdown-format-context-menu {
+  background-color: rgb(30, 41, 59);
+}
+
+.markdown-format-context-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-high);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.markdown-format-context-menu__item:hover,
+.markdown-format-context-menu__item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.markdown-format-context-menu__label {
+  flex: 1;
+}
+
+.markdown-format-context-menu__hint {
+  flex-shrink: 0;
+  margin-left: 8px;
+  color: var(--text-low);
+  font-size: 10px;
+}
+
+.markdown-format-context-menu__divider {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border-subtle);
+}
+
 .markdown-editor-help__table {
   width: 100%;
   border-collapse: collapse;

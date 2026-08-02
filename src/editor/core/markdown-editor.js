@@ -29,6 +29,7 @@ import { addHighlight, removeHighlight, highlightField } from "./codemirror/high
 import { fencedBlockHelper } from "./codemirror/fenced-block-helper.js";
 import { editorThemeExtensions } from "./codemirror/editor-theme.js";
 import { createCompletionSources } from "./codemirror/completion-sources.js";
+import { MarkdownFormatContextMenu } from "./markdown-format-context-menu.js";
 
 /**
  * MarkdownEditor
@@ -48,6 +49,7 @@ export class MarkdownEditor {
       placeholder: options.placeholder || "Edit markdown for current slide...",
       onChange: options.onChange || (() => {}),
       debounceDelay: options.debounceDelay || 150,
+      getContextMenuItems: options.getContextMenuItems || null,
     };
 
     this.debounceTimer = null;
@@ -352,6 +354,62 @@ export class MarkdownEditor {
       throw ex;
     });
 
+    const formatContextMenu = EditorView.domEventHandlers({
+      contextmenu: (e, view) => {
+        MarkdownFormatContextMenu.closeActive();
+
+        if (e.button !== 2) return false;
+
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        if (pos == null) return false;
+
+        const line = view.state.doc.lineAt(pos);
+        const lineText = line.text.trim();
+
+        const customItems = this.options.getContextMenuItems?.(lineText);
+        if (customItems && customItems.length) {
+          e.preventDefault();
+          e.stopPropagation();
+          MarkdownFormatContextMenu.open({
+            editor: this,
+            from: pos,
+            to: pos,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            items: customItems,
+          });
+          return true;
+        }
+
+        const isAreaOrDirective =
+          /^@[a-zA-Z0-9_-]+/.test(lineText) ||
+          /^:::/.test(lineText) ||
+          /^<!--/.test(lineText) ||
+          /^(layout|background|theme|hidden|hide|align|area-style|code-font-size|header-style)\s*:/i.test(
+            lineText,
+          );
+        if (isAreaOrDirective) return false;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        let { from, to } = view.state.selection.main;
+        if (from === to) {
+          from = pos;
+          to = pos;
+        }
+
+        MarkdownFormatContextMenu.open({
+          editor: this,
+          from,
+          to,
+          clientX: e.clientX,
+          clientY: e.clientY,
+        });
+        return true;
+      },
+    });
+
     const extensions = [
       suppressLezerHighlightCrash,
       EditorView.lineWrapping,
@@ -382,6 +440,7 @@ export class MarkdownEditor {
       markdown({ codeLanguages: languages }),
       placeholder(this.options.placeholder),
       fencedBlockHelper,
+      formatContextMenu,
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) return;
         this.value = update.state.doc.toString();

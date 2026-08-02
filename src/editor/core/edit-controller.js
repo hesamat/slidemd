@@ -434,6 +434,7 @@ export class EditController {
         this.markdownEditor = new MarkdownEditor(this.elements.markdownEditor, {
           onChange: (value) => this.onEditorInput(value),
           debounceDelay: 300,
+          getContextMenuItems: (lineText) => this._getCodeMirrorContextMenuItems(lineText),
         });
       }
 
@@ -650,5 +651,78 @@ export class EditController {
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
+  }
+
+  _getCodeMirrorContextMenuItems(lineText) {
+    const trimmed = lineText.trim();
+
+    const areaMatch = trimmed.match(/^@([a-zA-Z0-9_-]+)$/);
+    if (areaMatch) {
+      const name = areaMatch[1];
+      const items = [];
+      if (this._canDeleteArea(name)) {
+        items.push({
+          label: `Delete @${name}`,
+          action: () => this._deleteAreaFromMarkdown(name),
+        });
+      }
+      if (this._canSwapArea(name)) {
+        items.push({
+          label: "Swap with next",
+          action: () => this._swapAreaInMarkdown(name),
+        });
+      }
+      if (this._canMakeFullHeight(name)) {
+        items.push({
+          label: "Make full height",
+          action: () => this._makeAreaFullHeight(name),
+        });
+      }
+      return items.length ? items : null;
+    }
+
+    const directiveMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\s*:/);
+    if (!directiveMatch) return null;
+
+    const directive = directiveMatch[1].toLowerCase();
+    switch (directive) {
+      case "layout":
+        return [
+          {
+            label: "Change layout",
+            action: () => this.layoutManager.showPickerForCurrentSlide(),
+          },
+        ];
+      case "theme":
+        return [
+          {
+            label: "Toggle theme",
+            action: () => this.themeManager.toggle(),
+          },
+        ];
+      case "background":
+        return [
+          {
+            label: "Edit background",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      case "area-style":
+        return [
+          {
+            label: "Edit area style",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      case "header-style":
+        return [
+          {
+            label: "Edit header style",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      default:
+        return null;
+    }
   }
 }
