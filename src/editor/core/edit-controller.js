@@ -581,14 +581,16 @@ export class EditController {
     if (layoutResult.found) {
       // Compute the new layout directive without rewriting the whole document.
       const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
-      const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
-      const newLayoutLine =
-        layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
-      changes.push({
-        from: layoutResult.from,
-        to: layoutResult.to,
-        insert: newLayoutLine,
-      });
+      if (updatedMarkdown !== originalMarkdown) {
+        const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
+        const newLayoutLine =
+          layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
+        changes.push({
+          from: layoutResult.from,
+          to: layoutResult.to,
+          insert: newLayoutLine,
+        });
+      }
     }
 
     // CodeMirror requires multi-change transactions to be in document order.

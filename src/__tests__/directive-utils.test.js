@@ -5,8 +5,16 @@ import {
   updateThemeDirective,
   updateAreaStyleDirective,
   updateHeaderStyleDirective,
+  removeAreaFromLayout,
   describeBackground,
 } from "../editor/core/directive-utils.js";
+
+describe("removeAreaFromLayout", () => {
+  it("leaves a blank layout directive unchanged", () => {
+    const md = "background: #fff\nlayout:\n\n@main\ncontent\n@media\nimage";
+    expect(removeAreaFromLayout(md, "media")).toBe(md);
+  });
+});
 
 describe("updateLayoutDirective", () => {
   it("replaces existing layout directive", () => {
