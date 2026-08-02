@@ -591,6 +591,8 @@ export class EditController {
       });
     }
 
+    // CodeMirror requires multi-change transactions to be in document order.
+    changes.sort((a, b) => a.from - b.from);
     this.markdownEditor.view.dispatch({ changes });
     this.markdownEditor.focus();
   }

@@ -8,6 +8,24 @@
  * Each action is a toggle: if the target already has the formatting, it is
  * removed; otherwise it is applied.
  */
+function markerRunBefore(value, position, marker) {
+  let start = position;
+  while (start > 0 && value[start - 1] === marker) start -= 1;
+  return position - start;
+}
+
+function markerRunAfter(value, position, marker) {
+  let end = position;
+  while (end < value.length && value[end] === marker) end += 1;
+  return end - position;
+}
+
+function hasTargetMarker(marker, markerLength, runLength) {
+  if (marker === "*" && markerLength === 1) return runLength % 2 === 1;
+  if (marker === "`" && markerLength === 1) return runLength === 1;
+  return runLength >= markerLength;
+}
+
 export class MarkdownFormatContextMenu {
   static _active = null;
 
@@ -267,27 +285,37 @@ export class MarkdownFormatContextMenu {
     const { from, to } = this._enclosingInlineRange(before, after);
     if (from === to) return;
 
-    const beforeLen = before.length;
-    const afterLen = after.length;
     const value = this._value;
     const selected = value.slice(from, to);
+    const marker = before[0];
+    const markerLength = before.length;
+    const selectedBefore = markerRunAfter(selected, 0, marker);
+    const selectedAfter = markerRunBefore(selected, selected.length, marker);
+    const hasSelectedMarker =
+      selectedBefore > 0 &&
+      selectedAfter > 0 &&
+      hasTargetMarker(marker, markerLength, selectedBefore) &&
+      hasTargetMarker(marker, after.length, selectedAfter);
 
-    // Selection already includes the markers (e.g. "**word**").
-    if (
-      selected.startsWith(before) &&
-      selected.endsWith(after) &&
-      !selected.startsWith(before + before) &&
-      !selected.endsWith(after + after)
-    ) {
-      this._editor.replaceRange(from, to, selected.slice(beforeLen, selected.length - afterLen));
+    if (hasSelectedMarker) {
+      this._editor.replaceRange(
+        from,
+        to,
+        selected.slice(markerLength, selected.length - after.length),
+      );
       return;
     }
 
-    // Selection is inside markers (e.g. "word" in "**word**").
-    const left = value.slice(from - beforeLen, from);
-    const right = value.slice(to, to + afterLen);
-    if (left === before && right === after) {
-      this._editor.replaceRange(from - beforeLen, to + afterLen, selected);
+    const leftRun = markerRunBefore(value, from, marker);
+    const rightRun = markerRunAfter(value, to, marker);
+    const hasSurroundingMarker =
+      leftRun > 0 &&
+      rightRun > 0 &&
+      hasTargetMarker(marker, markerLength, leftRun) &&
+      hasTargetMarker(marker, after.length, rightRun);
+
+    if (hasSurroundingMarker) {
+      this._editor.replaceRange(from - markerLength, to + after.length, value.slice(from, to));
       return;
     }
 
