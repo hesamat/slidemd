@@ -14,7 +14,7 @@ layout: two-column
 
 @header
 
-## What is SlideMD?
+# What is SlideMD?
 
 @main
 
@@ -42,7 +42,7 @@ layout: two-column
 
 @header
 
-## Quick Start
+# Quick Start
 
 @main
 
@@ -70,7 +70,7 @@ layout: two-column
 layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.8755fr 1.1245fr
 @header
 
-## Slide Structure & Syntax
+# Slide Structure & Syntax
 
 @main
 
@@ -97,7 +97,7 @@ layout: two-column
 
 @header
 
-## Slide Title
+# Slide Title
 
 @main
 Left column content.
@@ -116,7 +116,7 @@ layout: left-heavy
 
 @header
 
-## Code, Math & Diagrams
+# Code, Math & Diagrams
 
 @main
 
@@ -161,7 +161,7 @@ layout: two-column
 
 @header
 
-## Edit Mode
+# Edit Mode
 
 @main
 
@@ -198,7 +198,7 @@ layout: two-column
 
 @header
 
-## Speaker Notes
+# Speaker Notes
 
 @main
 
@@ -238,7 +238,7 @@ layout: two-column
 
 @header
 
-## Images & Media
+# Images & Media
 
 @main
 
@@ -278,7 +278,7 @@ layout: two-column
 
 @header
 
-## Supported File Formats
+# Supported File Formats
 
 @main
 
@@ -317,7 +317,7 @@ layout: two-column
 
 @header
 
-## AI Post-Processing
+# AI Post-Processing
 
 @main
 
@@ -356,7 +356,7 @@ background: #3e1d5f
 
 @header
 
-## Custom Layouts & Themes
+# Custom Layouts & Themes
 
 @main
 
@@ -404,7 +404,7 @@ layout: two-column
 
 @header
 
-## Markdown Styling
+# Markdown Styling
 
 @main
 
@@ -449,7 +449,7 @@ layout: two-column
 
 @header
 
-## Presentation Flow
+# Presentation Flow
 
 @main
 
@@ -482,7 +482,7 @@ layout: two-column
 
 @header
 
-## Keyboard Shortcuts Reference
+# Keyboard Shortcuts Reference
 
 @main
 
@@ -515,7 +515,7 @@ layout: header-content
 
 @header
 
-## Quick Authoring Reference
+# Quick Authoring Reference
 
 @main
 
@@ -543,7 +543,7 @@ layout: header-content
 
 @header
 
-## Multi-Column Text Blocks
+# Multi-Column Text Blocks
 
 @main
 
@@ -570,7 +570,7 @@ layout: focus
 
 @header
 
-## Ready to Present?
+# Ready to Present?
 
 @main
 

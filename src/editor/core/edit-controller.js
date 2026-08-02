@@ -434,6 +434,7 @@ export class EditController {
         this.markdownEditor = new MarkdownEditor(this.elements.markdownEditor, {
           onChange: (value) => this.onEditorInput(value),
           debounceDelay: 300,
+          getContextMenuItems: (lineText) => this._getCodeMirrorContextMenuItems(lineText),
         });
       }
 
@@ -566,16 +567,35 @@ export class EditController {
   }
 
   _deleteAreaFromMarkdown(areaName) {
-    if (!this.markdownEditor) return;
-    let markdown = this.markdownEditor.getValue();
-    // Remove the area's content from the markdown.
-    const afterContentDelete = this.areaNav.deleteArea(markdown, areaName);
-    if (afterContentDelete === null) return;
-    markdown = afterContentDelete;
-    // Also remove the area from the layout directive so the grid doesn't
-    // reference a non-existent area.
-    markdown = removeAreaFromLayout(markdown, areaName);
-    this.markdownEditor.setValue(markdown, { suppressOnChange: false });
+    if (!this.markdownEditor?.view) return;
+    const originalMarkdown = this.markdownEditor.getValue();
+
+    const markerRange = this.areaNav.getAreaMarkerRange(originalMarkdown, areaName);
+    if (!markerRange) return;
+
+    const changes = [{ from: markerRange.from, to: markerRange.to, insert: "" }];
+
+    const parser = new MarkdownParser();
+    const layoutResult = parser.extractDirective(originalMarkdown, "layout");
+
+    if (layoutResult.found) {
+      // Compute the new layout directive without rewriting the whole document.
+      const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
+      if (updatedMarkdown !== originalMarkdown) {
+        const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
+        const newLayoutLine =
+          layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
+        changes.push({
+          from: layoutResult.from,
+          to: layoutResult.to,
+          insert: newLayoutLine,
+        });
+      }
+    }
+
+    // CodeMirror requires multi-change transactions to be in document order.
+    changes.sort((a, b) => a.from - b.from);
+    this.markdownEditor.view.dispatch({ changes });
     this.markdownEditor.focus();
   }
 
@@ -650,5 +670,78 @@ export class EditController {
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
+  }
+
+  _getCodeMirrorContextMenuItems(lineText) {
+    const trimmed = lineText.trim();
+
+    const areaMatch = trimmed.match(/^@([a-zA-Z0-9_-]+)$/);
+    if (areaMatch) {
+      const name = areaMatch[1];
+      const items = [];
+      if (this._canDeleteArea(name)) {
+        items.push({
+          label: `Delete @${name}`,
+          action: () => this._deleteAreaFromMarkdown(name),
+        });
+      }
+      if (this._canSwapArea(name)) {
+        items.push({
+          label: "Swap with next",
+          action: () => this._swapAreaInMarkdown(name),
+        });
+      }
+      if (this._canMakeFullHeight(name)) {
+        items.push({
+          label: "Make full height",
+          action: () => this._makeAreaFullHeight(name),
+        });
+      }
+      return items.length ? items : null;
+    }
+
+    const directiveMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\s*:/);
+    if (!directiveMatch) return null;
+
+    const directive = directiveMatch[1].toLowerCase();
+    switch (directive) {
+      case "layout":
+        return [
+          {
+            label: "Change layout",
+            action: () => this.layoutManager.showPickerForCurrentSlide(),
+          },
+        ];
+      case "theme":
+        return [
+          {
+            label: "Toggle theme",
+            action: () => this.themeManager.toggle(),
+          },
+        ];
+      case "background":
+        return [
+          {
+            label: "Edit background",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      case "area-style":
+        return [
+          {
+            label: "Edit area style",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      case "header-style":
+        return [
+          {
+            label: "Edit header style",
+            action: () => SlideStylePanel.show(),
+          },
+        ];
+      default:
+        return null;
+    }
   }
 }

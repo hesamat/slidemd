@@ -121,6 +121,28 @@ export class AreaNavigation {
     };
   }
 
+  getAreaMarkerRange(markdown, areaName) {
+    const text = String(markdown || "").replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const target = String(areaName || "")
+      .trim()
+      .toLowerCase();
+    if (!target) return null;
+
+    const markers = this._collectMarkers(lines);
+    const entry = markers.find((m) => m.name === target);
+    if (!entry) return null;
+
+    let pos = 0;
+    for (let i = 0; i < entry.idx; i++) {
+      pos += lines[i].length + 1;
+    }
+
+    const markerEnd = pos + lines[entry.idx].length;
+    const hasTrailingNewline = entry.idx < lines.length - 1;
+    return { from: pos, to: hasTrailingNewline ? markerEnd + 1 : markerEnd };
+  }
+
   /**
    * Remove an @area marker line from the markdown, preserving all content.
    * The content that followed the marker is absorbed into the preceding area.

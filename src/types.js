@@ -45,6 +45,8 @@
  * @typedef {Object} DirectiveResult
  * @property {string} value - Extracted directive value (empty string if not found).
  * @property {boolean} found - Whether the directive was present.
+ * @property {number} from - Start index of the directive line in the original text (or -1 if not found).
+ * @property {number} to - End index of the directive line in the original text (or -1 if not found).
  * @property {string} markdown - Remaining markdown after directive removal.
  */
 
