@@ -243,7 +243,11 @@ export class MarkdownFormatContextMenu {
       btn.type = "button";
       btn.className = "markdown-format-context-menu__item";
       btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="markdown-format-context-menu__label">${item.label}</span>`;
+
+      const label = document.createElement("span");
+      label.className = "markdown-format-context-menu__label";
+      label.textContent = item.label;
+      btn.appendChild(label);
 
       if (item.more || item.back) {
         const hint = document.createElement("span");

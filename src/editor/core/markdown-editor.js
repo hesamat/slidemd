@@ -22,7 +22,7 @@ import {
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
-import { foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
+import { foldGutter, foldKeymap, bracketMatching, LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 
 import { addHighlight, removeHighlight, highlightField } from "./codemirror/highlight-line.js";
@@ -410,6 +410,13 @@ export class MarkdownEditor {
       },
     });
 
+    const preloadedPython = LanguageDescription.of({
+      name: "Python",
+      alias: ["python", "py"],
+      support: python(),
+    });
+    const codeLanguages = languages.map((d) => (d.name === "Python" ? preloadedPython : d));
+
     const extensions = [
       suppressLezerHighlightCrash,
       EditorView.lineWrapping,
@@ -437,7 +444,7 @@ export class MarkdownEditor {
         }),
       ),
       ...editorThemeExtensions,
-      markdown({ codeLanguages: languages }),
+      markdown({ codeLanguages }),
       placeholder(this.options.placeholder),
       fencedBlockHelper,
       formatContextMenu,

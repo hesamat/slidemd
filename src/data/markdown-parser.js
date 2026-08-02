@@ -287,13 +287,20 @@ export class MarkdownParser {
    * @returns {import('../types.js').DirectiveResult}
    */
   extractDirective(markdownText, directiveName) {
-    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+    const text = safeString(markdownText).replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
     const fence = new FenceTracker();
     let value = "";
     let found = false;
+    let from = -1;
+    let to = -1;
     const out = [];
+    let offset = 0;
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineStart = offset;
+      const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
       fence.toggle(line);
       if (!fence.isInFence) {
         const pattern = new RegExp(`^\\s*${directiveName}\\s*:\\s*(.*)\\s*$`, "i");
@@ -301,13 +308,17 @@ export class MarkdownParser {
         if (match) {
           value = match[1].trim();
           found = true;
+          from = lineStart;
+          to = lineEnd;
+          offset = lineEnd;
           continue;
         }
       }
       out.push(line);
+      offset = lineEnd;
     }
 
-    return { value, found, markdown: out.join("\n").trim() };
+    return { value, found, from, to, markdown: out.join("\n").trim() };
   }
 
   /**

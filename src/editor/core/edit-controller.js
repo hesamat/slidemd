@@ -567,16 +567,31 @@ export class EditController {
   }
 
   _deleteAreaFromMarkdown(areaName) {
-    if (!this.markdownEditor) return;
-    let markdown = this.markdownEditor.getValue();
-    // Remove the area's content from the markdown.
-    const afterContentDelete = this.areaNav.deleteArea(markdown, areaName);
-    if (afterContentDelete === null) return;
-    markdown = afterContentDelete;
-    // Also remove the area from the layout directive so the grid doesn't
-    // reference a non-existent area.
-    markdown = removeAreaFromLayout(markdown, areaName);
-    this.markdownEditor.setValue(markdown, { suppressOnChange: false });
+    if (!this.markdownEditor?.view) return;
+    const originalMarkdown = this.markdownEditor.getValue();
+
+    const markerRange = this.areaNav.getAreaMarkerRange(originalMarkdown, areaName);
+    if (!markerRange) return;
+
+    // Compute the new layout directive (or removal) without rewriting the whole document.
+    const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
+    const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
+    const newLayoutLine =
+      layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
+
+    const parser = new MarkdownParser();
+    const layoutResult = parser.extractDirective(originalMarkdown, "layout");
+
+    const changes = [
+      { from: markerRange.from, to: markerRange.to, insert: "" },
+      {
+        from: layoutResult.found ? layoutResult.from : 0,
+        to: layoutResult.found ? layoutResult.to : 0,
+        insert: newLayoutLine,
+      },
+    ];
+
+    this.markdownEditor.view.dispatch({ changes });
     this.markdownEditor.focus();
   }
 
