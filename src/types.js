@@ -101,6 +101,7 @@
  * @property {HTMLElement} menuExportTextpackBtn
  * @property {HTMLElement} menuNewPresentationBtn
  * @property {HTMLElement} menuConvertPptxBtn
+ * @property {HTMLElement} menuCommandPaletteBtn
  * @property {HTMLElement} menuSettingsBtn
  * @property {HTMLElement} printBtn
  * @property {HTMLElement} reloadDeckBtn

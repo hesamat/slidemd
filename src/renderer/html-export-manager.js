@@ -51,6 +51,7 @@ export class HtmlExportManager {
     "src/engine/deck-events.js",
     "src/engine/pptx-importer.js",
     "src/engine/presentation-creator.js",
+    "src/engine/command-palette.js",
     "src/engine/deck-controller.js",
     // UI components
     "src/ui/ui-actions.js",

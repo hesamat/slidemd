@@ -105,6 +105,7 @@ export class KeyboardHandler {
    * @param {Function} actions.insertText - Insert a new text block (edit mode only, Alt+T)
    * @param {Function} actions.openLayout - Open layout picker for current slide (edit mode only, Alt+L)
    * @param {Function} actions.toggleMermaid - Toggle Mermaid helper panel (edit mode only, Alt+M)
+   * @param {Function} actions.commandPalette - Open command palette (Ctrl+K or Cmd+K)
 
    * @param {Function} actions.adjustColumns - Toggle column resize handles (edit mode only, Alt+A)
    * @param {Function} actions.isEditMode - Callback to check if edit mode is active
@@ -183,6 +184,20 @@ export class KeyboardHandler {
     const inCodeMirror = this.#isInCodeMirror(e);
     const isEditMode = !!this.actions.isEditMode?.();
     const isEditorWindow = !!this.actions.isEditorWindow?.();
+
+    // ── Layer 0: Global command palette (Ctrl+K / Cmd+K) ───────────────
+    // Works in both edit and presentation modes, but don't re-open if it's
+    // already focused inside the palette itself.
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      !e.shiftKey &&
+      e.key.toLowerCase() === "k" &&
+      !e.target?.closest?.(".command-palette__dialog")
+    ) {
+      e.preventDefault();
+      this.actions.commandPalette?.();
+      return;
+    }
 
     // ── Layer 1: Edit-mode modifier shortcuts (Ctrl+ / Alt+) ────────────
     // These work while typing in the CodeMirror editor AND in non-editable

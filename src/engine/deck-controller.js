@@ -17,6 +17,7 @@ import { UiActions } from "../ui/ui-actions.js";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { createKeyboardHandler } from "./deck-keyboard.js";
 import { DeckEvents } from "./deck-events.js";
+import { CommandPalette } from "./command-palette.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -47,6 +48,7 @@ export class DeckController extends EventEmitter {
     this.initSlideNavigator();
     this.initRoleManager();
     this.initReloadManager();
+    this.initCommandPalette();
     this.initKeyboardHandler();
     this.initWheelHandler();
     this.initBreakManager();
@@ -99,12 +101,233 @@ export class DeckController extends EventEmitter {
     // Note: broadcast channel initialized later, after breakManager exists
   }
 
+  initCommandPalette() {
+    const run = (id) => () => this.keyboardHandler?.actions?.[id]?.();
+
+    this.commandPalette = new CommandPalette({
+      commands: [
+        {
+          id: "search",
+          name: "Search slides",
+          shortcut: "/",
+          category: "Navigation",
+          action: run("search"),
+        },
+        {
+          id: "goto",
+          name: "Go to slide",
+          shortcut: "G",
+          category: "Navigation",
+          action: run("goto"),
+        },
+        {
+          id: "next",
+          name: "Next slide",
+          shortcut: "→ / Space",
+          category: "Navigation",
+          action: run("next"),
+        },
+        {
+          id: "prev",
+          name: "Previous slide",
+          shortcut: "← / Backspace",
+          category: "Navigation",
+          action: run("prev"),
+        },
+        {
+          id: "first",
+          name: "First slide",
+          shortcut: "Home",
+          category: "Navigation",
+          action: run("first"),
+        },
+        {
+          id: "last",
+          name: "Last slide",
+          shortcut: "End",
+          category: "Navigation",
+          action: run("last"),
+        },
+
+        {
+          id: "edit",
+          name: "Toggle edit mode",
+          shortcut: "E",
+          category: "View",
+          isEnabled: () => this.roleManager?.isEditorWindow,
+          action: run("edit"),
+        },
+        {
+          id: "viewer",
+          name: "Open presenter view",
+          shortcut: "P",
+          category: "View",
+          isEnabled: () => this.roleManager?.isEditorWindow && !this.isEditMode(),
+          action: run("viewer"),
+        },
+        {
+          id: "fullscreen",
+          name: "Toggle fullscreen",
+          shortcut: "F",
+          category: "View",
+          action: run("fullscreen"),
+        },
+        {
+          id: "break",
+          name: "Toggle break timer",
+          shortcut: "B",
+          category: "View",
+          isEnabled: () => this.roleManager?.isEditorWindow && !this.isEditMode(),
+          action: run("break"),
+        },
+        {
+          id: "theme",
+          name: "Toggle app theme",
+          shortcut: "T",
+          category: "View",
+          action: run("theme"),
+        },
+        {
+          id: "reload",
+          name: "Reload deck",
+          shortcut: "R",
+          category: "View",
+          action: run("reload"),
+        },
+
+        {
+          id: "save",
+          name: "Save changes",
+          shortcut: "Ctrl+S",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("save"),
+        },
+        {
+          id: "newSlide",
+          name: "New slide",
+          shortcut: "Alt+N",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("newSlide"),
+        },
+        {
+          id: "duplicateSlide",
+          name: "Duplicate slide",
+          shortcut: "Alt+D",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("duplicateSlide"),
+        },
+        {
+          id: "deleteSlide",
+          name: "Delete slide",
+          shortcut: "Alt+Backspace",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("deleteSlide"),
+        },
+        {
+          id: "insertImage",
+          name: "Insert image",
+          shortcut: "Alt+I",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("insertImage"),
+        },
+        {
+          id: "insertText",
+          name: "Insert text block",
+          shortcut: "Alt+T",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("insertText"),
+        },
+        {
+          id: "openLayout",
+          name: "Open layout picker",
+          shortcut: "Alt+L",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("openLayout"),
+        },
+        {
+          id: "toggleMermaid",
+          name: "Toggle Mermaid helper",
+          shortcut: "Alt+M",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("toggleMermaid"),
+        },
+        {
+          id: "adjustColumns",
+          name: "Adjust columns",
+          shortcut: "Alt+A",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("adjustColumns"),
+        },
+        {
+          id: "slideTheme",
+          name: "Toggle slide theme",
+          shortcut: "Alt+Shift+T",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("slideTheme"),
+        },
+        {
+          id: "styles",
+          name: "Toggle slide styles",
+          shortcut: "Alt+S",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("styles"),
+        },
+        {
+          id: "undo",
+          name: "Undo",
+          shortcut: "Ctrl+Z",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("undo"),
+        },
+        {
+          id: "redo",
+          name: "Redo",
+          shortcut: "Ctrl+Y",
+          category: "Edit",
+          isEnabled: () => this.isEditMode(),
+          action: run("redo"),
+        },
+
+        { id: "print", name: "Print to PDF", category: "Export", action: () => this.handlePrint() },
+        {
+          id: "htmlExport",
+          name: "Export HTML",
+          category: "Export",
+          action: () => this.handleHtmlExport(),
+        },
+        {
+          id: "textpackExport",
+          name: "Export Textpack",
+          category: "Export",
+          action: () => this.handleTextpackExport(),
+        },
+      ],
+    });
+  }
+
+  handleCommandPalette() {
+    this.commandPalette?.open();
+  }
+
   initKeyboardHandler() {
     this.keyboardHandler = createKeyboardHandler({
       getSlideNavigator: () => this.slideNavigator,
       getRoleManager: () => this.roleManager,
       getBreakManager: () => this.breakManager,
       getReloadManager: () => this.reloadManager,
+      getCommandPalette: () => this.commandPalette,
       toggleEditMode: () => this.toggleEditMode(),
       toggleFullscreen: () => this.toggleFullscreen(),
       isEditMode: () => this.isEditMode(),
@@ -237,6 +460,7 @@ export class DeckController extends EventEmitter {
       handleTextpackExport: () => this.handleTextpackExport(),
       handleNewPresentation: () => this.handleNewPresentation(),
       handleConvertPptx: () => this.handleConvertPptx(),
+      handleCommandPalette: () => this.handleCommandPalette(),
       roleManager: this.roleManager,
       breakManager: this.breakManager,
       freezeManager: this.freezeManager,
