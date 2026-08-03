@@ -79,9 +79,12 @@
   border: 1px solid var(--border-subtle);
   box-sizing: border-box;
   display: grid;
+  margin: 0 auto;
+  max-width: 100%;
   overflow: hidden;
   padding: 8px;
   position: relative;
+  width: 284px;
 }
 
 .layout-option__preview::after {
@@ -177,6 +180,10 @@
 
 .layout-picker-custom-form__preview .layout-option__preview {
   aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  max-width: 100%;
+  padding: 3px;
+  width: 142px;
 }
 
 .layout-picker-custom-form__hint {
