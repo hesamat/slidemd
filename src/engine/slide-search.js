@@ -446,6 +446,7 @@ export class SlideSearch {
     input.addEventListener("input", () => {
       if (this._searchTimeout) clearTimeout(this._searchTimeout);
       this._searchTimeout = setTimeout(() => {
+        this._searchTimeout = null;
         this._renderResults(input.value);
       }, SEARCH_DELAY_MS);
     });
@@ -660,8 +661,8 @@ export class SlideSearch {
       if (this._searchTimeout) {
         clearTimeout(this._searchTimeout);
         this._searchTimeout = null;
+        this._renderResults(this._input.value);
       }
-      this._renderResults(this._input.value);
       if (this._selectedResultIndex >= 0) {
         this._activateResult(this._selectedResultIndex);
       } else if (this._results.length > 0) {
@@ -713,11 +714,25 @@ export class SlideSearch {
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
-      this._selectResult((index + 1) % this._results.length);
+      const nextIndex = (index + 1) % this._results.length;
+      this._selectResult(nextIndex);
+      this._focusResult(nextIndex);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       e.stopPropagation();
-      this._selectResult((index - 1 + this._results.length) % this._results.length);
+      const nextIndex = (index - 1 + this._results.length) % this._results.length;
+      this._selectResult(nextIndex);
+      this._focusResult(nextIndex);
     }
+  }
+
+  /**
+   * Move keyboard focus to the result at the given list index.
+   * @param {number} listIndex
+   * @private
+   */
+  _focusResult(listIndex) {
+    const items = this._list?.querySelectorAll(".slide-search__item");
+    items?.[listIndex]?.focus();
   }
 }

@@ -41,6 +41,7 @@ export class HtmlExportManager {
     // Engine components
     "src/engine/keyboard-shortcuts.js",
     "src/engine/keyboard-handler.js",
+    "src/engine/command-registry.js",
     "src/engine/deck-keyboard.js",
     "src/engine/wheel-handler.js",
     "src/engine/freeze-manager.js",
@@ -52,6 +53,7 @@ export class HtmlExportManager {
     "src/engine/deck-events.js",
     "src/engine/pptx-importer.js",
     "src/engine/presentation-creator.js",
+    "src/engine/command-palette.js",
     "src/engine/deck-controller.js",
     // UI components
     "src/ui/ui-actions.js",

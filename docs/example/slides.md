@@ -58,6 +58,8 @@ layout: two-column
 ### Essential Shortcuts
 
 - Press **`E`** to toggle Edit Mode
+- Press **`Ctrl+K`** (`**Cmd+K**` on Mac) to open the **Command Palette**
+- Press **`/`** or **`Ctrl+Shift+F`** (`**Cmd+Shift+F**` on Mac) to search across slides
 - Navigate with **Arrow Keys** or **Space** or mouse scroll
 - Add speaker notes using HTML comments before the `layout` tag:
   ```html
@@ -173,7 +175,7 @@ Press `E` to toggle split-screen editing with live preview.
 - **Autocomplete:** `layout:`, `theme:`, `@media` directives
 - **Slash commands:** Type `/` for quick insertions
 - **Mermaid helper:** Insert diagram scaffolds
-- **Search:** `Ctrl+F` to find within slides
+- **Search:** `/` or `Ctrl+Shift+F` (`Cmd+Shift+F` on Mac) to search across all slides
 
 ### Slide Management
 

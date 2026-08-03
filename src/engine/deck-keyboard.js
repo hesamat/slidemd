@@ -19,6 +19,7 @@ import { isEmbedded } from "../core/utils.js";
  * @param {Function} opts.getRoleManager - Getter for role/presentation mode manager
  * @param {Function} opts.getBreakManager - Getter for break mode manager
  * @param {Function} opts.getReloadManager - Getter for deck reload manager
+ * @param {Function} opts.getCommandPalette - Getter for command palette
  * @param {Function} opts.toggleEditMode - Toggle edit mode callback
  * @param {Function} opts.toggleFullscreen - Toggle fullscreen callback
  * @param {Function} opts.isEditMode - Check if in edit mode
@@ -29,6 +30,7 @@ export function createKeyboardHandler({
   getRoleManager,
   getBreakManager,
   getReloadManager,
+  getCommandPalette,
   toggleEditMode,
   toggleFullscreen,
   isEditMode,
@@ -42,6 +44,7 @@ export function createKeyboardHandler({
     last: () => getSlideNavigator().goTo(getSlideNavigator().findLastVisibleIndex()),
     goto: () => getSlideNavigator().openGoToPrompt(),
     search: () => getSlideNavigator().openSearchPrompt(),
+    commandPalette: () => getCommandPalette()?.open(),
     viewer: () => getRoleManager().togglePresentWindow(),
     edit: () => toggleEditMode(),
     break: () => getBreakManager().toggle(),

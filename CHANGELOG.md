@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.7.3 (2026-08-02)
+
+### Command Palette
+
+- Add fuzzy command palette for quick access to deck actions (`Ctrl+K` / `Cmd+K`).
+- Display keyboard shortcuts next to each command.
+- Filter commands by availability and mode (edit/view).
+
+### Full-Text Slide Search
+
+- Add full-text search across slide titles, body content, and speaker notes.
+- Open search with `/`, `?`, footer shortcut, or `Ctrl+Shift+F` in edit mode.
+- Keyboard navigation and selection in results.
+
+### Editor / Navigation
+
+- Centralize command definitions and key bindings in `src/engine/command-registry.js`.
+- Fix command palette visibility while presenting in fullscreen.
+- Fix slide-search keyboard focus and Enter selection behavior.
+
+### Dependencies
+
+- Updated npm dependencies.
+
 ## 0.7.2 (2026-07-31)
 
 ### Text Blocks

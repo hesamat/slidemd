@@ -17,6 +17,8 @@ import { UiActions } from "../ui/ui-actions.js";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { createKeyboardHandler } from "./deck-keyboard.js";
 import { DeckEvents } from "./deck-events.js";
+import { CommandPalette } from "./command-palette.js";
+import { buildPaletteCommands } from "./command-registry.js";
 
 export class DeckController extends EventEmitter {
   static updateDeckTitle(elements, title) {
@@ -48,6 +50,7 @@ export class DeckController extends EventEmitter {
     this.initRoleManager();
     this.initReloadManager();
     this.initKeyboardHandler();
+    this.initCommandPalette();
     this.initWheelHandler();
     this.initBreakManager();
     this.initFreezeManager();
@@ -99,12 +102,30 @@ export class DeckController extends EventEmitter {
     // Note: broadcast channel initialized later, after breakManager exists
   }
 
+  initCommandPalette() {
+    const actions = {
+      ...this.keyboardHandler.actions,
+      print: () => this.handlePrint(),
+      htmlExport: () => this.handleHtmlExport(),
+      textpackExport: () => this.handleTextpackExport(),
+    };
+
+    this.commandPalette = new CommandPalette({
+      commands: buildPaletteCommands(this, actions),
+    });
+  }
+
+  handleCommandPalette() {
+    this.commandPalette?.open();
+  }
+
   initKeyboardHandler() {
     this.keyboardHandler = createKeyboardHandler({
       getSlideNavigator: () => this.slideNavigator,
       getRoleManager: () => this.roleManager,
       getBreakManager: () => this.breakManager,
       getReloadManager: () => this.reloadManager,
+      getCommandPalette: () => this.commandPalette,
       toggleEditMode: () => this.toggleEditMode(),
       toggleFullscreen: () => this.toggleFullscreen(),
       isEditMode: () => this.isEditMode(),
@@ -237,6 +258,7 @@ export class DeckController extends EventEmitter {
       handleTextpackExport: () => this.handleTextpackExport(),
       handleNewPresentation: () => this.handleNewPresentation(),
       handleConvertPptx: () => this.handleConvertPptx(),
+      handleCommandPalette: () => this.handleCommandPalette(),
       roleManager: this.roleManager,
       breakManager: this.breakManager,
       freezeManager: this.freezeManager,

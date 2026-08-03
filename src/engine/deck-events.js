@@ -27,6 +27,7 @@ export class DeckEvents {
    * @param {Function} opts.handleTextpackExport - Textpack export handler
    * @param {Function} opts.handleNewPresentation - New presentation handler
    * @param {Function} opts.handleConvertPptx - PPTX convert handler
+   * @param {Function} opts.handleCommandPalette - Open command palette
    * @param {object} opts.roleManager - Role manager
    * @param {object} opts.breakManager - Break manager
    * @param {object} opts.freezeManager - Freeze manager
@@ -51,6 +52,7 @@ export class DeckEvents {
     handleTextpackExport,
     handleNewPresentation,
     handleConvertPptx,
+    handleCommandPalette,
     roleManager,
     breakManager,
     freezeManager,
@@ -74,6 +76,7 @@ export class DeckEvents {
     this._handleTextpackExport = handleTextpackExport;
     this._handleNewPresentation = handleNewPresentation;
     this._handleConvertPptx = handleConvertPptx;
+    this._handleCommandPalette = handleCommandPalette;
     this._roleManager = roleManager;
     this._breakManager = breakManager;
     this._freezeManager = freezeManager;
@@ -147,6 +150,10 @@ export class DeckEvents {
     });
     listen(this._elements.menuConvertPptxBtn, "click", () => {
       this._handleConvertPptx();
+      this._closeMenu();
+    });
+    listen(this._elements.menuCommandPaletteBtn, "click", () => {
+      this._handleCommandPalette();
       this._closeMenu();
     });
     listen(this._elements.menuSettingsBtn, "click", async () => {

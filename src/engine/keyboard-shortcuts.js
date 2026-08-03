@@ -197,6 +197,12 @@ export const SHORTCUTS = [
       { key: "y", modifiers: { cmdOrCtrl: true } },
     ],
   },
+  {
+    id: "commandPalette",
+    name: "Open command palette",
+    category: "View",
+    bindings: [{ key: "k", modifiers: { cmdOrCtrl: true }, global: true }],
+  },
 ];
 
 const MAC_KEY_LABELS = {
