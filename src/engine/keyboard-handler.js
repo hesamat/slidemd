@@ -172,16 +172,13 @@ export class KeyboardHandler {
     const isEditMode = !!this.actions.isEditMode?.();
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
-    // ── Layer 0: Global shortcuts (e.g. command palette) ─────────────────
-    // These work in both edit and presentation modes, but don't re-open if
-    // already focused inside the palette itself.
+    // ── Layer 0: Global shortcuts ───────────────────────────────────────
+    // These work in both edit and presentation modes.  Only prevent the
+    // default and fire if an action callback is actually wired up.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
-    if (
-      globalAction &&
-      (globalAction !== "commandPalette" || !e.target?.closest?.(".command-palette__dialog"))
-    ) {
+    if (globalAction && this.actions[globalAction]) {
       e.preventDefault();
-      this.actions[globalAction]?.();
+      this.actions[globalAction]();
       return;
     }
 

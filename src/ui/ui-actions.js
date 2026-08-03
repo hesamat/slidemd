@@ -57,7 +57,7 @@ export class UiActions {
    * marked with `data-shortcut`.
    */
   static renderShortcutHints() {
-    document.querySelectorAll("[data-shortcut]").forEach((el) => {
+    document.querySelectorAll("kbd[data-shortcut]").forEach((el) => {
       const text = formatShortcut(el.dataset.shortcut);
       if (text) el.textContent = text;
     });

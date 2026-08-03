@@ -103,12 +103,6 @@ export const SHORTCUTS = [
     category: "View",
     bindings: [{ key: "r" }, { key: "R" }],
   },
-  {
-    id: "commandPalette",
-    name: "Command palette",
-    category: "View",
-    bindings: [{ key: "k", modifiers: { cmdOrCtrl: true }, global: true }],
-  },
 
   {
     id: "save",
