@@ -314,7 +314,7 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 
 | Task                                                      | Details                                                                            |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [ ] Adjust width and alignment of main column (#152)      | Add UI controls for `header-content` and `focus` main column width and alignment.  |
+| [x] Adjust width and alignment of main column (#152)      | Add UI controls for `header-content` and `focus` main column width and alignment.  |
 | [ ] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
 | [ ] Allow dragging Mermaid diagrams between areas (#123)  | Support drag-and-drop of Mermaid diagrams across `@area` boundaries.               |
 | [ ] Improve image properties style tab UI (#126)          | Improve the style tab in the image properties panel.                               |
