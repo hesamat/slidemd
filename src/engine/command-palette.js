@@ -33,7 +33,9 @@ export class CommandPalette {
       return;
     }
     this._buildDom();
-    document.body.appendChild(this._modal);
+    const fullscreenElement = document.fullscreenElement;
+    const targetParent = fullscreenElement || document.body;
+    targetParent.appendChild(this._modal);
     this._input?.focus();
     this._input?.select();
     this._filter("");
