@@ -8,6 +8,7 @@ import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
 import { LayoutParser } from "../../data/layout-parser.js";
+import { parseSingleColumnLayout } from "../core/directive-utils.js";
 
 export class AreaGuideManager {
   /**
@@ -152,11 +153,14 @@ export class AreaGuideManager {
           ? this._canMakeFullHeight(name)
           : name !== "main";
         const canAlignMain = name === "main";
+        const active = parseSingleColumnLayout(slideData?.layout);
+        const activeAlign = active?.align;
         this._contextMenu.open(e.clientX, e.clientY, name, {
           canDelete,
           canSwap,
           canMakeFullHeight,
           canAlignMain,
+          activeAlign,
         });
       });
     });

@@ -48,6 +48,7 @@ export class AreaContextMenu {
    * @param {boolean} [opts.canSwap=false]  — show swap option
    * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
+   * @param {string} [opts.activeAlign]  — currently active alignment for main
    */
   open(clientX, clientY, areaName, opts = {}) {
     this.close();
@@ -55,6 +56,7 @@ export class AreaContextMenu {
     const canSwap = opts.canSwap === true;
     const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
+    const activeAlign = opts.activeAlign;
     if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
 
     const menu = document.createElement("div");
@@ -75,6 +77,10 @@ export class AreaContextMenu {
         btn.style.flex = "1";
         btn.style.justifyContent = "center";
         btn.textContent = align[0].toUpperCase() + align.slice(1);
+        if (align === activeAlign) {
+          btn.classList.add("area-context-menu__item--active");
+          btn.setAttribute("aria-pressed", "true");
+        }
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.close();
