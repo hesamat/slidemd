@@ -177,9 +177,9 @@ export class SlideRenderer {
       }
 
       // Custom focus grids set the main column width via grid tracks, so the
-      // default focus max-width cap must be disabled.
+      // per-element line-max cap must be disabled for the main area contents.
       if (isCustomFocus && name === "main") {
-        area.style.maxWidth = "none";
+        area.style.setProperty("--line-max", "none");
       }
 
       // Footer spans full width when full-height areas exist
