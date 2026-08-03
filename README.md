@@ -136,7 +136,9 @@ Use preset names instead of full CSS grid strings:
 
 Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:
 
-- Search inside the slide with Ctrl/Cmd+F (and Ctrl/Cmd+G to jump results).
+- Open the **Command Palette** with `Ctrl+K` (`Cmd+K` on Mac) to run any action by name.
+- **Search across all slides** with `/` or `Ctrl+Shift+F` (`Cmd+Shift+F` on Mac).
+- Search inside the current slide with `Ctrl/Cmd+F` (and `Ctrl/Cmd+G` to jump results).
 - Autocomplete for `layout:`, `theme:`, `background:`, `hidden:`, and `@area` markers.
 - Slash commands: type `/` to insert common directives and blocks.
 - Type ``` or ~~~ to expand fenced blocks quickly.
@@ -180,6 +182,11 @@ Notes:
 
 - `B` (break) and `P` (present) are intentionally disabled in edit mode — the break is for the presenter view, not for editing, and the presenter window is only useful when presenting, not when writing. Both buttons are also hidden from the footer in edit mode.
 - The presenter panel includes a `Break length` dropdown (5–15 minutes, default 10). When a break is started the break slide shows the time you'll return (current time + selected minutes).
+
+### Search and Command Palette
+
+- `/` or `Ctrl+Shift+F` (`Cmd+Shift+F` on Mac): Open full-text slide search
+- `Ctrl+K` (`Cmd+K` on Mac): Open the command palette to run any action
 
 ### Edit Mode
 
