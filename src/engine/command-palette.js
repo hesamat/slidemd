@@ -273,21 +273,25 @@ export class CommandPalette {
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectNext();
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectPrev();
       return;
     }
     if (e.key === "Enter") {
       e.preventDefault();
+      e.stopPropagation();
       this._activate(this._selectedIndex);
       return;
     }
     if (e.key === "Tab") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectNext();
     }
   }
