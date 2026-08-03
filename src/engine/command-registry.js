@@ -213,6 +213,22 @@ export const COMMANDS = [
     isEnabled: (ctx) => ctx.isEditMode(),
   },
   {
+    id: "moveSlideUp",
+    name: "Move slide up",
+    shortcut: "Alt+Shift+↑",
+    category: "Edit",
+    modifiers: [{ key: "ArrowUp", shift: true, alt: true }],
+    isEnabled: (ctx) => ctx.isEditMode(),
+  },
+  {
+    id: "moveSlideDown",
+    name: "Move slide down",
+    shortcut: "Alt+Shift+↓",
+    category: "Edit",
+    modifiers: [{ key: "ArrowDown", shift: true, alt: true }],
+    isEnabled: (ctx) => ctx.isEditMode(),
+  },
+  {
     id: "undo",
     name: "Undo",
     shortcut: "Ctrl+Z",
