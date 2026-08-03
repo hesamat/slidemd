@@ -179,6 +179,7 @@ export class EditController {
       onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
       getWarnings: () => this.warnings,
+      onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
 
     this.warnings = new SlideWarningManager({
@@ -494,7 +495,7 @@ export class EditController {
       this.originalMarkdown[this.currentSlideIndex] ??
       "";
 
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true });
+    this.markdownEditor.setValue(markdown, { suppressOnChange: true, recordHistory: false });
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
     this.saveManager.updateButton();
     this.areaGuides.refresh();
@@ -669,6 +670,16 @@ export class EditController {
     });
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _fixMismatchedAreas(allowedAreas) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const fixed = new MarkdownParser().normalizeAreaMarkers(markdown, allowedAreas);
+    if (fixed === markdown) return;
+
+    this.markdownEditor.setValue(fixed, { suppressOnChange: false });
     this.markdownEditor.focus();
   }
 

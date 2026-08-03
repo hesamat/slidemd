@@ -52,18 +52,13 @@ export class LayoutManager {
     // Re-parse after collapsing to get the updated area state.
     const { areas: areasAfterCollapse } = MarkdownParser.parseAreas(updatedMarkdown);
 
-    const areaPlaceholders = {
-      secondary: "@secondary",
-      media: "@media",
-      sidebar: "@sidebar",
-      main: "@main",
-    };
+    const skipAreas = new Set(["header", "title", "footer"]);
 
     const lines = updatedMarkdown.replace(/\r\n?/g, "\n").split("\n");
 
     for (const area of requiredAreas) {
-      if (area === "header" || area === "title" || area === "footer") continue;
-      if (areasAfterCollapse[area] || !areaPlaceholders[area]) continue;
+      if (skipAreas.has(area)) continue;
+      if (areasAfterCollapse[area]) continue;
 
       // Physical marker line positions are recomputed each iteration because
       // earlier insertions shift the line numbers of later anchors.
@@ -78,7 +73,7 @@ export class LayoutManager {
       // area exists, append to the end of the slide.
       const anchorLine = this._findAnchorLine(requiredAreas, area, markerPositions);
 
-      const block = ["", areaPlaceholders[area], ""];
+      const block = ["", `@${area}`, ""];
       if (anchorLine === -1) {
         while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
         lines.push(...block);

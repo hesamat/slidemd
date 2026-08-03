@@ -36,7 +36,7 @@ export class SlideWarningManager {
     this.pendingSlideWarning = message;
   }
 
-  showSlideWarning(message) {
+  showSlideWarning(message, onClick = null) {
     const slideEl = this.getSlideElementByIndex(this.currentSlideIndex);
     if (!slideEl) return;
 
@@ -48,8 +48,34 @@ export class SlideWarningManager {
     }
 
     banner.textContent = message;
+    banner.removeAttribute("tabindex");
+    banner.removeAttribute("role");
+    banner.removeAttribute("aria-live");
+    banner.classList.remove("editor-slide-warning--clickable");
+    banner.onclick = null;
+    banner.onkeydown = null;
+    banner.style.cursor = "";
+
     banner.setAttribute("role", "status");
     banner.setAttribute("aria-live", "polite");
+
+    if (onClick) {
+      banner.setAttribute("role", "button");
+      banner.setAttribute("tabindex", "0");
+      banner.setAttribute("aria-live", "off");
+      banner.classList.add("editor-slide-warning--clickable");
+      banner.style.cursor = "pointer";
+      banner.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      };
+      banner.onclick = (e) => {
+        e.stopPropagation();
+        onClick();
+      };
+    }
   }
 
   clearSlideWarning() {

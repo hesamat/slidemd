@@ -1,5 +1,6 @@
 import { snippetCompletion, startCompletion } from "@codemirror/autocomplete";
 import { LayoutData } from "../../../data/layout-data.js";
+import { LayoutParser } from "../../../data/layout-parser.js";
 
 /**
  * Autocompletion sources for the markdown editor.
@@ -23,6 +24,37 @@ function createSlashCommand(label, insertText, triggerCompletion) {
       }
     },
   };
+}
+
+/**
+ * Get the raw text of the slide that contains the cursor position.
+ * Slides are separated by `---` lines (approximate; does not track fences).
+ */
+function getCurrentSlideText(context) {
+  const doc = context.state.doc.toString();
+  const pos = context.pos;
+  const before = doc.slice(0, pos);
+  const after = doc.slice(pos);
+  const prevSep = before.lastIndexOf("\n---\n");
+  const start = prevSep >= 0 ? prevSep + 5 : 0;
+  const nextSep = after.indexOf("\n---\n");
+  const end = nextSep >= 0 ? pos + nextSep : doc.length;
+  return doc.slice(start, end);
+}
+
+/**
+ * Resolve the area names for the current slide's `layout:` directive.
+ * Supports preset names, custom names from localStorage, and inline grid strings.
+ */
+function getCurrentSlideAreaNames(context) {
+  const slide = getCurrentSlideText(context);
+  const match = slide.match(/^layout\s*:\s*(.+)$/m);
+  if (!match) return null;
+
+  const layout = match[1].trim();
+  const grid = LayoutData.getGridTemplate(layout) || layout;
+  const parsed = LayoutParser.parse(grid);
+  return parsed.orderedAreas;
 }
 
 function layoutCompletionSource(layoutCompletions) {
@@ -114,11 +146,14 @@ function slashCommandSource() {
   };
 }
 
-function areaCompletionSource(areaCompletions) {
+function areaCompletionSource(fallbackAreaNames) {
   return (context) => {
     const match = context.matchBefore(/@[a-z0-9_-]*$/i);
     if (!match) return null;
-    return { from: match.from, options: areaCompletions };
+    const currentAreas = getCurrentSlideAreaNames(context);
+    const names = currentAreas && currentAreas.length ? currentAreas : fallbackAreaNames;
+    const options = names.map((name) => ({ label: `@${name}`, type: "keyword" }));
+    return { from: match.from, options };
   };
 }
 
@@ -148,21 +183,36 @@ export function createCompletionSources() {
   const layoutNames = LayoutData.getAllLayouts();
   const layoutCompletions = layoutNames.map((name) => ({ label: name, type: "keyword" }));
 
-  const areaNames = Array.from(
+  // Snippet shortcuts for common custom grid patterns.
+  layoutCompletions.push(
+    snippetCompletion('"header header" "main media" / 1fr 1fr', {
+      label: "custom-two-col",
+      type: "keyword",
+    }),
+    snippetCompletion('"header" auto "main" 1fr / 800px', {
+      label: "custom-narrow",
+      type: "keyword",
+    }),
+    snippetCompletion('"left right" / 1fr 1fr', {
+      label: "custom-split",
+      type: "keyword",
+    }),
+  );
+
+  const fallbackAreaNames = Array.from(
     new Set(
       layoutNames
         .flatMap((name) => LayoutData.getAreaNames(name))
         .concat(["main", "header", "footer", "media", "sidebar", "secondary", "title"]),
     ),
   );
-  const areaCompletions = areaNames.map((name) => ({ label: `@${name}`, type: "keyword" }));
 
   return [
     slashCommandSource(),
     layoutCompletionSource(layoutCompletions),
     directiveCompletionSource(),
     notesCompletionSource(),
-    areaCompletionSource(areaCompletions),
+    areaCompletionSource(fallbackAreaNames),
     fenceCompletionSource(),
   ];
 }

@@ -90,3 +90,121 @@
   color: var(--text-medium);
   border: 1px solid var(--border-subtle);
 }
+
+/* Custom layout creation form */
+.layout-picker-custom-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-medium);
+}
+
+.layout-picker-custom-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.layout-picker-custom-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-high);
+}
+
+.layout-picker-custom-form__input {
+  padding: 8px 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  color: var(--text-high);
+  font-size: 13px;
+}
+
+.layout-picker-custom-form__input:focus {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.layout-picker-custom-form__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layout-picker-custom-form__preview .layout-option__preview {
+  aspect-ratio: 16 / 9;
+}
+
+.layout-picker-custom-form__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-medium);
+}
+
+.layout-picker-custom-form__hint code {
+  font-size: 11px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: var(--surface-elevated);
+}
+
+.layout-picker-custom-form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.layout-picker-custom-form__actions .btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  color: var(--text-high);
+  cursor: pointer;
+}
+
+.layout-picker-custom-form__actions .btn:hover {
+  background: var(--surface-bg);
+}
+
+.layout-picker-custom-form__actions .btn.btn--primary {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-high);
+}
+
+.layout-picker-custom-form__actions .btn.btn--primary:hover {
+  background: var(--accent-border);
+  color: var(--surface-bg);
+}
+
+/* Custom layout creation tile */
+.layout-option--custom {
+  border-style: dashed;
+  border-color: var(--border-medium);
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-option--custom:hover {
+  border-color: var(--accent-border);
+}
+
+.layout-option__preview--custom {
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+}
+
+.layout-option__preview--custom::after {
+  display: none;
+}
+
+.layout-option__custom-icon {
+  font-size: 32px;
+  color: var(--text-medium);
+  line-height: 1;
+}

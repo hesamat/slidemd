@@ -2,57 +2,163 @@
  * LayoutData
  * Manages layout templates, descriptions, and grid template data.
  * Provides access to layout configuration without UI concerns.
+ * Built-in presets are defined in layouts.json; user-created custom
+ * layouts are persisted in localStorage.
  */
 
 import LAYOUTS from "./layouts.json" with { type: "json" };
 
+const STORAGE_KEY = "webdeck:custom-layouts";
+const HIDDEN_PRESETS = new Set([
+  "default",
+  "header-two-column",
+  "sidebar-content",
+  "content-sidebar",
+]);
+
 export class LayoutData {
-  /**
-   * Get the markdown template for a layout
-   */
-  static getTemplate(layoutName) {
-    return LAYOUTS.layouts[layoutName]?.template || LAYOUTS.layouts.default?.template;
+  static _loadCustomLayouts() {
+    if (typeof localStorage === "undefined") return {};
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  static _saveCustomLayouts(map) {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    } catch {
+      // Ignore localStorage write failures (e.g. quota exceeded, private mode).
+    }
+  }
+
+  static _normalizeName(name) {
+    return String(name || "")
+      .trim()
+      .toLowerCase();
   }
 
   /**
-   * Get all available layout names (excluding default)
+   * Get all user-defined custom layout names.
+   */
+  static getAllCustomLayoutNames() {
+    return Object.keys(this._loadCustomLayouts()).sort();
+  }
+
+  /**
+   * Get the grid template for a custom layout, or null if it does not exist.
+   */
+  static getCustomLayout(name) {
+    const key = this._normalizeName(name);
+    return key ? this._loadCustomLayouts()[key] || null : null;
+  }
+
+  /**
+   * Save (or overwrite) a user-defined custom layout in localStorage.
+   */
+  static setCustomLayout(name, gridTemplate) {
+    const key = this._normalizeName(name);
+    if (!key) return false;
+    const map = this._loadCustomLayouts();
+    map[key] = String(gridTemplate || "").trim();
+    this._saveCustomLayouts(map);
+    return true;
+  }
+
+  /**
+   * Delete a user-defined custom layout.
+   */
+  static deleteCustomLayout(name) {
+    const key = this._normalizeName(name);
+    const map = this._loadCustomLayouts();
+    delete map[key];
+    this._saveCustomLayouts(map);
+  }
+
+  /**
+   * Get the markdown template for a layout.
+   * For built-in presets the stored template is returned;
+   * for custom layouts a template is generated from the area names;
+   * unknown layouts fall back to the default template.
+   */
+  static getTemplate(layoutName) {
+    const jsonTemplate = LAYOUTS.layouts[layoutName]?.template;
+    if (jsonTemplate) return jsonTemplate;
+
+    if (this.getGridTemplate(layoutName)) {
+      const areas = this.getAreaNames(layoutName);
+      const lines = [`layout: ${layoutName}`];
+      if (areas.includes("title")) {
+        lines.push(`\n@title\n\n# Your Title Here`);
+      } else if (areas.includes("header")) {
+        lines.push(`\n@header\n\n## Slide Title`);
+      }
+      for (const area of areas) {
+        if (area === "title" || area === "header" || area === "footer") continue;
+        const label = area.replace(/[-_]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+        lines.push(`\n@${area}\n\n### ${label}\n\nAdd your content here`);
+      }
+      if (areas.includes("footer")) {
+        lines.push(`\n@footer\n\nAdditional context or reference`);
+      }
+      return lines.join("");
+    }
+
+    return LAYOUTS.layouts.default?.template || "";
+  }
+
+  /**
+   * Get all available layout names (excluding default + hidden presets).
+   * Custom user layouts are appended after built-in presets.
    */
   static getAllLayouts() {
-    return Object.keys(LAYOUTS.layouts).filter(
-      (key) =>
-        key !== "default" &&
-        key !== "header-two-column" &&
-        key !== "sidebar-content" &&
-        key !== "content-sidebar",
+    const presetNames = Object.keys(LAYOUTS.layouts).filter((key) => !HIDDEN_PRESETS.has(key));
+    const custom = this.getAllCustomLayoutNames().filter((name) => !LAYOUTS.layouts[name]);
+    return [...presetNames, ...custom];
+  }
+
+  /**
+   * Get layout description.
+   */
+  static getDescription(layoutName) {
+    const key = this._normalizeName(layoutName);
+    return (
+      LAYOUTS.layouts[key]?.description || (this.getCustomLayout(key) ? "Custom user layout" : "")
     );
   }
 
   /**
-   * Get layout description
-   */
-  static getDescription(layoutName) {
-    return LAYOUTS.layouts[layoutName]?.description || "";
-  }
-
-  /**
-   * Get layout preview HTML
+   * Get layout preview HTML for the layout picker.
+   * For custom layouts a preview is generated from the area names.
    */
   static getPreviewHTML(layoutName) {
-    return LAYOUTS.layouts[layoutName]?.preview || '<div style="grid-area: main"></div>';
+    const jsonPreview = LAYOUTS.layouts[layoutName]?.preview;
+    if (jsonPreview) return jsonPreview;
+
+    const areas = this.getAreaNames(layoutName);
+    if (areas.length === 0) return '<div style="grid-area: main"></div>';
+    return areas.map((area) => `<div style="grid-area: ${area}"></div>`).join("");
   }
 
   /**
-   * Get grid template for a layout (for LayoutParser compatibility)
+   * Get the grid template string for a layout.
+   * Checks user-defined custom layouts first, then built-in presets.
    */
   static getGridTemplate(layoutName) {
-    return LAYOUTS.layouts[layoutName]?.gridTemplate || null;
+    const key = this._normalizeName(layoutName);
+    if (!key) return null;
+    return this.getCustomLayout(key) || LAYOUTS.layouts[key]?.gridTemplate || null;
   }
 
   /**
-   * Get ordered area names for a layout
+   * Get ordered area names for a layout.
    */
   static getAreaNames(layoutName) {
-    const gridTemplate = LAYOUTS.layouts[layoutName]?.gridTemplate;
+    const gridTemplate = this.getGridTemplate(layoutName);
     if (!gridTemplate) return ["main"];
 
     const rowMatches = gridTemplate.match(/"[^"]*"|'[^']*'/g) || [];
@@ -62,6 +168,8 @@ export class LayoutData {
       const content = row.slice(1, -1);
       const names = content.split(/\s+/).filter(Boolean);
       for (const name of names) {
+        // In CSS grid-template-areas, '.' means an empty cell.
+        // Avoid generating a corresponding slide area for it.
         if (/^\.+$/.test(name)) continue;
         if (!areas.includes(name)) areas.push(name);
       }
@@ -71,7 +179,7 @@ export class LayoutData {
   }
 
   /**
-   * Get all layout presets as an object (for LayoutParser compatibility)
+   * Get all layout presets as an object (for LayoutParser compatibility).
    */
   static getPresets() {
     return Object.fromEntries(
@@ -87,10 +195,11 @@ export class LayoutData {
   }
 
   /**
-   * Check if a layout exists
+   * Check if a layout exists (built-in or custom).
    */
   static hasLayout(layoutName) {
-    return layoutName in LAYOUTS.layouts;
+    const key = this._normalizeName(layoutName);
+    return key in LAYOUTS.layouts || this.getCustomLayout(key) !== null;
   }
 
   /**

@@ -66,16 +66,14 @@ layout: "header header" "main sidebar" / 1fr 300px
 - `theme: dark` or `theme: light`
 - `background: linear-gradient(...)` or `background: #color`
 - `hidden: true` - Slide hidden by default
-- `gridTemplate: "..." / columns` - Custom CSS grid layout (overrides layout preset)
 - Speaker notes: `<!-- notes: Your private notes -->` (must be the first line of the slide, before `layout:`)
 
 **Custom Grid Layouts:**
 
-When a preset layout doesn't fit, define a custom CSS grid using `gridTemplate` in the frontmatter:
+When a preset layout doesn't fit, define a custom CSS grid directly in the `layout:` directive:
 
 ```markdown
-layout: custom-layout-name
-gridTemplate: "header header" "main media" / 1fr 1fr
+layout: "header header" "main media" / 1fr 1fr
 
 @header
 
@@ -88,7 +86,7 @@ Left content
 Right content
 ```
 
-The `gridTemplate` value follows CSS `grid-template-areas` syntax. Column sizes after `/`. Always use `@main` for the primary content area.
+The `layout:` value follows CSS `grid-template` shorthand syntax. Quoted rows list the area names; column sizes follow `/`. Always use `@main` for the primary content area.
 
 **Built-in Features:**
 

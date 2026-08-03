@@ -1123,6 +1123,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   border-color: rgba(248, 113, 113, 0.55);
 }
 
+.editor-slide-warning--clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
 /* ==========================================================================
    8. Grid Resize Handles (Edit Mode)
    ========================================================================== */

@@ -168,12 +168,10 @@ export function makeAreaFullHeight(markdown, areaName) {
 }
 
 /**
- * Remove an area from the slide's layout directive by switching to the
- * appropriate standard preset.
- *
- * - 3+ content columns → switch to "two-column"
- * - 2 content columns  → switch to "header-content"
- * - 1 content column   → no change (main area cannot be deleted)
+ * Remove an area from the slide's layout directive by rebuilding the grid.
+ * The target area's cells are replaced with empty cells (.), and any row
+ * that becomes entirely empty is removed. This preserves a custom grid
+ * instead of collapsing to a standard preset.
  *
  * @param {string} markdown  — slide markdown source
  * @param {string} areaName  — area to remove (e.g. "media", "secondary")
@@ -183,7 +181,7 @@ export function removeAreaFromLayout(markdown, areaName) {
   const name = String(areaName || "")
     .trim()
     .toLowerCase();
-  if (!name) return markdown;
+  if (!name || name === "main") return markdown;
 
   const parser = new MarkdownParser();
   const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
@@ -191,19 +189,25 @@ export function removeAreaFromLayout(markdown, areaName) {
 
   const resolved = LayoutParser.resolvePreset(layoutValue);
   const layout = LayoutParser.parse(resolved);
-  const contentAreas = (layout.orderedAreas || []).filter(
-    (a) => a !== "header" && a !== "footer" && a !== "title",
-  );
+  if (!layout.orderedAreas.includes(name)) return markdown;
 
-  // How many content areas remain after removing the deleted one?
-  const remaining = contentAreas.filter((a) => a !== name).length;
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return markdown;
 
-  let newLayout;
-  if (remaining >= 2) {
-    newLayout = "two-column";
-  } else {
-    newLayout = "header-content";
+  const newRows = [];
+  for (const rowMatch of rowMatches) {
+    const cells = rowMatch.slice(1, -1).split(/\s+/).filter(Boolean);
+    const replaced = cells.map((c) => (c === name ? "." : c));
+    const nonEmpty = replaced.some((c) => c !== ".");
+    if (nonEmpty) {
+      newRows.push(`"${replaced.join(" ")}"`);
+    }
   }
 
+  if (newRows.length === 0) {
+    return updateLayoutDirective(stripped, "header-content");
+  }
+
+  const newLayout = `${newRows.join(" ")} / ${layout.gridTemplateColumns}`;
   return updateLayoutDirective(stripped, newLayout);
 }

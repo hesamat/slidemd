@@ -14,6 +14,28 @@ describe("removeAreaFromLayout", () => {
     const md = "background: #fff\nlayout:\n\n@main\ncontent\n@media\nimage";
     expect(removeAreaFromLayout(md, "media")).toBe(md);
   });
+
+  it("replaces an area's cells with dots in a custom grid", () => {
+    const md = 'layout: "header header" "main media" / 1fr 1fr\n\n@media\nimage';
+    const result = removeAreaFromLayout(md, "media");
+    expect(result).toContain('layout: "header header" "main ." / 1fr 1fr');
+  });
+
+  it("removes a row that becomes entirely empty", () => {
+    const md = 'layout: "header" "main" "footer" / 1fr\n\n@header\ntitle';
+    const result = removeAreaFromLayout(md, "header");
+    expect(result).toContain('layout: "main" "footer" / 1fr');
+  });
+
+  it("leaves the markdown unchanged when the area is not in the layout", () => {
+    const md = 'layout: "header" "main" / 1fr\n\n@header\ntitle';
+    expect(removeAreaFromLayout(md, "media")).toBe(md);
+  });
+
+  it("does not allow removing main", () => {
+    const md = 'layout: "header" "main" / 1fr\n\n@main\ncontent';
+    expect(removeAreaFromLayout(md, "main")).toBe(md);
+  });
 });
 
 describe("updateLayoutDirective", () => {
