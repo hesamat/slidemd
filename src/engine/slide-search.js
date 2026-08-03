@@ -657,6 +657,11 @@ export class SlideSearch {
 
     if (e.key === "Enter") {
       e.preventDefault();
+      if (this._searchTimeout) {
+        clearTimeout(this._searchTimeout);
+        this._searchTimeout = null;
+      }
+      this._renderResults(this._input.value);
       if (this._selectedResultIndex >= 0) {
         this._activateResult(this._selectedResultIndex);
       } else if (this._results.length > 0) {
@@ -703,12 +708,15 @@ export class SlideSearch {
 
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      e.stopPropagation();
       this._activateResult(index);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectResult((index + 1) % this._results.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectResult((index - 1 + this._results.length) % this._results.length);
     }
   }
