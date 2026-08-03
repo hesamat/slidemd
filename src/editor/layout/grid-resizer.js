@@ -9,7 +9,7 @@
  */
 
 import { DESIGN_SIZE } from "../../core/utils.js";
-import { buildSingleColumnCustomLayout } from "../core/directive-utils.js";
+import { buildSingleColumnCustomLayout, parseSingleColumnLayout } from "../core/directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
@@ -36,9 +36,12 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || "minmax(0, 1fr)");
   const scale = _getScale(stageEl);
+  const rawSpec = `${layoutInfo.gridTemplateAreas || '"main"'} / ${layoutInfo.gridTemplateColumns || "1fr"}`;
+  const parsedLayout = parseSingleColumnLayout(rawSpec);
+  const align = parsedLayout?.align ?? "left";
 
-  _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
-  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange);
+  _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange, align);
+  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align);
 }
 
 /**
@@ -226,7 +229,15 @@ function _collectRowBoundaries(slideEl, scale) {
 
 // ─── Column handles ───────────────────────────────────────────────────────────
 
-function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
+function _injectColumnHandles(
+  slideEl,
+  layoutInfo,
+  colTracks,
+  rowTracks,
+  scale,
+  onLayoutChange,
+  align,
+) {
   if (colTracks.length < 2) return;
 
   const metrics = _getRenderedTrackMetrics(slideEl, scale);
@@ -262,6 +273,7 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
       layoutInfo,
       onLayoutChange,
       metrics,
+      align,
     );
   }
 }
@@ -276,6 +288,7 @@ function _attachColDragLogic(
   layoutInfo,
   onLayoutChange,
   metrics,
+  align,
 ) {
   let startClientX = 0;
   let startLeftPx = 0;
@@ -287,14 +300,10 @@ function _attachColDragLogic(
     const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
     const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
 
-    const newTracks = _buildResizedTrackList(
-      colTracks,
-      leftIdx,
-      rightIdx,
-      newLeftPx,
-      newRightPx,
-      totalWidth,
-    );
+    const newTracks =
+      align === "center" && colTracks.length === 3
+        ? _buildCenterResizedTrackList(colTracks, leftIdx === 0 ? newLeftPx : newRightPx)
+        : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     // Live visual update: set the column template directly on the slide grid
     const slideGrid = _getGridElement(slideEl);
@@ -311,14 +320,10 @@ function _attachColDragLogic(
     const deltaDesign = (e.clientX - startClientX) / scale;
     const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
     const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
-    const newTracks = _buildResizedTrackList(
-      colTracks,
-      leftIdx,
-      rightIdx,
-      newLeftPx,
-      newRightPx,
-      totalWidth,
-    );
+    const newTracks =
+      align === "center" && colTracks.length === 3
+        ? _buildCenterResizedTrackList(colTracks, leftIdx === 0 ? newLeftPx : newRightPx)
+        : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     onLayoutChange({ cols: newTracks.join(" "), rows: null });
   };
@@ -374,6 +379,25 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
   });
 }
 
+/**
+ * Build a new track list for a centered main column (three fr columns).
+ * The left and right side tracks are kept equal so the main stays centered.
+ */
+function _buildCenterResizedTrackList(tracks, sidePx) {
+  const maxSide = (DESIGN_SIZE.width - MIN_TRACK_PX) / 2;
+  const clampedSide = Math.max(MIN_TRACK_PX, Math.min(maxSide, sidePx));
+  const mainPx = DESIGN_SIZE.width - 2 * clampedSide;
+  const totalFr =
+    tracks.reduce((sum, t) => sum + (t.isFr ? t.frValue || 1 : 0), 0) || tracks.length;
+  const sideFr = (clampedSide / DESIGN_SIZE.width) * totalFr;
+  const mainFr = (mainPx / DESIGN_SIZE.width) * totalFr;
+  return tracks.map((track, index) => {
+    if (index === 0 || index === 2) return `${sideFr.toFixed(4)}fr`;
+    if (index === 1) return `${mainFr.toFixed(4)}fr`;
+    return track.raw;
+  });
+}
+
 // ─── Single-column main-width handle ───────────────────────────────────────────
 
 /**
@@ -381,7 +405,7 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
  * The first drag converts the layout to a two-column fr grid so the existing
  * resizer can take over on subsequent renders.
  */
-function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange) {
+function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align) {
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   if (colTracks.length !== 1) return;
   const mainArea = slideEl.querySelector('[data-area-name="main"]');
@@ -419,7 +443,7 @@ function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange) {
       Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
     );
     const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
-    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, "left");
+    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, align);
     if (newLayout && slideGrid) {
       const parsed = LayoutParser.parse(newLayout, { fallbackAreas: ["main"] });
       slideGrid.style.gridTemplateAreas = parsed.gridTemplateAreas;
@@ -442,7 +466,7 @@ function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange) {
       Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
     );
     const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
-    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, "left");
+    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, align);
     if (newLayout) onLayoutChange({ spec: newLayout });
   };
 
