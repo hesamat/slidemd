@@ -10,6 +10,7 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { formatShortcut } from "../../engine/keyboard-shortcuts.js";
 
 // Touch long-press: how long (in ms) the user must hold a thumbnail
 // before the context menu opens, and how long the optional haptic
@@ -373,16 +374,24 @@ class SlideContextMenu {
     menu.style.top = `${clientY}px`;
 
     const items = [
-      { label: "New slide", kbd: "Alt+N", action: (index) => this._newAfter(index) },
-      { label: "Duplicate slide", kbd: "Alt+D", action: () => this._duplicate() },
-      { label: "Delete slide", kbd: "Alt+⌫", action: () => this._delete() },
+      {
+        label: "New slide",
+        kbd: formatShortcut("newSlide"),
+        action: (index) => this._newAfter(index),
+      },
+      {
+        label: "Duplicate slide",
+        kbd: formatShortcut("duplicateSlide"),
+        action: () => this._duplicate(),
+      },
+      { label: "Delete slide", kbd: formatShortcut("deleteSlide"), action: () => this._delete() },
     ];
 
     const totalSlides = this._thumbnails._deck.slides.length;
     if (index > 0) {
       items.splice(1, 0, {
         label: "Move up",
-        kbd: "Alt+Shift+\u2191",
+        kbd: formatShortcut("moveSlideUp"),
         action: () => this._moveUp(index),
       });
     }
@@ -390,7 +399,7 @@ class SlideContextMenu {
       const insertAt = index > 0 ? 3 : 2;
       items.splice(insertAt, 0, {
         label: "Move down",
-        kbd: "Alt+Shift+\u2193",
+        kbd: formatShortcut("moveSlideDown"),
         action: () => this._moveDown(index),
       });
     }

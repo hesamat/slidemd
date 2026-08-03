@@ -1,3 +1,5 @@
+import { formatShortcut } from "../engine/keyboard-shortcuts.js";
+
 /**
  * UiActions
  * Simple UI actions that don't require state management.
@@ -48,5 +50,16 @@ export class UiActions {
     } else {
       menuDropdown.classList.add("webdeck-hidden");
     }
+  }
+
+  /**
+   * Render shortcut hints from the central registry into all elements
+   * marked with `data-shortcut`.
+   */
+  static renderShortcutHints() {
+    document.querySelectorAll("[data-shortcut]").forEach((el) => {
+      const text = formatShortcut(el.dataset.shortcut);
+      if (text) el.textContent = text;
+    });
   }
 }

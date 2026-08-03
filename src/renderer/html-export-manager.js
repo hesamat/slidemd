@@ -39,6 +39,7 @@ export class HtmlExportManager {
     "src/renderer/theme-manager.js",
     "src/renderer/print-manager.js",
     // Engine components
+    "src/engine/keyboard-shortcuts.js",
     "src/engine/keyboard-handler.js",
     "src/engine/deck-keyboard.js",
     "src/engine/wheel-handler.js",
