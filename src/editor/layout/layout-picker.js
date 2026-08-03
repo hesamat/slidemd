@@ -94,12 +94,12 @@ export class LayoutPicker {
     const updatePreview = () => {
       const grid = String(gridInput.value).trim();
       if (!grid) {
-        preview.style = "";
+        preview.style.cssText = "";
         preview.innerHTML = "";
         return;
       }
       const parsed = LayoutParser.parse(grid);
-      preview.style = this.getGridStyleForTemplate(grid);
+      preview.style.cssText = this.getGridStyleForTemplate(grid);
       preview.innerHTML = parsed.orderedAreas
         .map((area) => `<div style="grid-area: ${escapeHtml(area)}"></div>`)
         .join("");
@@ -219,6 +219,20 @@ export class LayoutPicker {
         }
       });
     });
+
+    const deleteButtons = this.grid.querySelectorAll(".layout-option__delete");
+    deleteButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const layout = btn.dataset.delete;
+        if (!layout) return;
+        if (typeof window !== "undefined" && window.confirm(`Delete custom layout "${layout}"?`)) {
+          LayoutData.deleteCustomLayout(layout);
+          this.renderGrid();
+        }
+      });
+    });
   }
 
   /**
@@ -231,6 +245,10 @@ export class LayoutPicker {
     const gridStyle = escapeHtml(this.getGridTemplateStyle(layout));
     const safeLayout = escapeHtml(layout);
     const areas = LayoutData.getAreaNames(layout);
+    const isCustom = LayoutData.getCustomLayout(layout) !== null;
+    const deleteBtn = isCustom
+      ? `<button type="button" class="layout-option__delete" data-delete="${safeLayout}" aria-label="Delete ${safeLayout} layout" title="Delete custom layout">&times;</button>`
+      : "";
     const areasMarkup = areas
       .map(
         (area) => `
@@ -241,6 +259,7 @@ export class LayoutPicker {
 
     return `
                 <div class="layout-option" data-layout="${safeLayout}" tabindex="0" role="button" aria-label="Select ${safeLayout} layout">
+                    ${deleteBtn}
                     <div class="layout-option__preview" style="${gridStyle}">
                         ${preview}
                     </div>
@@ -311,11 +330,7 @@ export class LayoutPicker {
    * Used for both preset previews and the custom layout live preview.
    */
   static getGridStyleForTemplate(gridTemplate) {
-    if (!gridTemplate || !gridTemplate.includes("/")) {
-      return `grid: ${gridTemplate.replace(/"/g, "'")};`;
-    }
-
-    const parsed = LayoutParser.parse(gridTemplate, { fallbackAreas: ["main"] });
+    const parsed = LayoutParser.parse(gridTemplate || "", { fallbackAreas: ["main"] });
     let cols = parsed.gridTemplateColumns;
 
     // Scale down fixed pixel widths for previews (e.g., 300px -> 60px)
@@ -324,10 +339,7 @@ export class LayoutPicker {
       return `${scaled}px`;
     });
 
-    // Use single quotes inside the HTML style attribute for compatibility.
-    const areas = parsed.gridTemplateAreas.replace(/"/g, "'");
-
-    return `grid: ${areas} ${parsed.gridTemplateRows} / ${cols};`;
+    return `grid-template-areas: ${parsed.gridTemplateAreas}; grid-template-rows: ${parsed.gridTemplateRows}; grid-template-columns: ${cols};`;
   }
 
   /**

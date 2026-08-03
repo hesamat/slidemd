@@ -7,6 +7,7 @@
 }
 
 .layout-option {
+  position: relative;
   background: var(--surface-elevated);
   border: 2px solid var(--border-medium);
   border-radius: var(--radius-md);
@@ -34,23 +35,63 @@
   background: var(--accent-bg);
 }
 
+.layout-option__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--slide-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  color: var(--text-low);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  padding: 0;
+  transition:
+    opacity 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+  z-index: 1;
+}
+
+.layout-option:hover .layout-option__delete,
+.layout-option:focus-within .layout-option__delete,
+.layout-option__delete:focus {
+  opacity: 0.8;
+}
+
+.layout-option__delete:hover {
+  opacity: 1;
+  color: var(--text-high);
+  border-color: var(--accent-border);
+}
+
 .layout-option__preview {
   aspect-ratio: 16 / 9;
   background: var(--slide-bg);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  box-sizing: border-box;
   display: grid;
   overflow: hidden;
+  padding: 8px;
   position: relative;
 }
 
 .layout-option__preview::after {
   content: "";
   position: absolute;
-  inset: 4px;
+  inset: 8px;
   border: 1px dashed var(--border-subtle);
   border-radius: 2px;
   opacity: 0.5;
+  pointer-events: none;
 }
 
 /* Grid templates are now applied dynamically via JavaScript based on layouts.json */
@@ -60,6 +101,8 @@
   background: rgba(var(--color-primary), 0.15);
   border-radius: 2px;
   border: 1px solid rgba(var(--color-primary), 0.3);
+  min-height: 10px;
+  min-width: 10px;
 }
 
 .layout-option__name {
