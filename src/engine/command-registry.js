@@ -121,6 +121,7 @@ export const COMMANDS = [
     category: "View",
     plainKeys: ["r", "R"],
     editor: true,
+    isEnabled: (ctx) => ctx.roleManager?.isEditorWindow,
   },
 
   {
