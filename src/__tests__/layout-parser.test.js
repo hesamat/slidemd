@@ -69,5 +69,17 @@ describe("LayoutParser", () => {
       const result = LayoutParser.parse("'header header' / 1fr 1fr");
       expect(result.gridTemplateAreas).toBe('"header header"');
     });
+
+    it("treats custom area names as content rows", () => {
+      const result = LayoutParser.parse('"header" "body" / 1fr');
+      expect(result.gridTemplateRows).toBe("auto minmax(0, 1fr)");
+      expect(result.orderedAreas).toEqual(["header", "body"]);
+    });
+
+    it("keeps header/footer rows auto when paired with a full-height span", () => {
+      const result = LayoutParser.parse('"header media" "main media" "footer media" / 1fr 1fr');
+      expect(result.gridTemplateRows).toBe("auto minmax(0, 1fr) auto");
+      expect(result.orderedAreas).toEqual(["header", "media", "main", "footer"]);
+    });
   });
 });

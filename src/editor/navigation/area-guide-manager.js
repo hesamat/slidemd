@@ -24,8 +24,9 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string) => boolean} opts.canMakeFullHeight
-   * @param {(areaName: string, align: string) => void} opts.onAlignMain
+   * @param {(areaName: string, align: string) => void} [opts.onAlignMain]
    * @param {() => object} opts.getWarnings
+   * @param {(allowedAreas: string[]) => void} [opts.onFixAreaMismatch]
    */
   constructor({
     getIsEditMode,
@@ -42,6 +43,7 @@ export class AreaGuideManager {
     canMakeFullHeight,
     onAlignMain,
     getWarnings,
+    onFixAreaMismatch,
   }) {
     this._getIsEditMode = getIsEditMode;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
@@ -57,6 +59,7 @@ export class AreaGuideManager {
     this._canMakeFullHeight = canMakeFullHeight;
     this._onAlignMain = onAlignMain;
     this._getWarnings = getWarnings;
+    this._onFixAreaMismatch = onFixAreaMismatch;
 
     this._contextMenu = new AreaContextMenu({
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
@@ -143,8 +146,6 @@ export class AreaGuideManager {
       label.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const resolvedLayout = LayoutParser.resolvePreset(slideData?.layout);
-        const isCustomLayout = slideData?.layout && resolvedLayout === slideData.layout;
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
         const canMakeFullHeight = this._canMakeFullHeight
@@ -156,7 +157,6 @@ export class AreaGuideManager {
           canSwap,
           canMakeFullHeight,
           canAlignMain,
-          isCustomLayout,
         });
       });
     });
@@ -198,9 +198,45 @@ export class AreaGuideManager {
       }
     });
 
+    // Detect @area markers that do not exist in the resolved layout.
+    const slideData = this.deck?.slides?.[this.currentSlideIndex];
+    let mismatchMessage = "";
+    let allowedAreas = null;
+    if (slideData?.layout !== undefined) {
+      const resolved = LayoutParser.resolvePreset(slideData.layout);
+      const markerNames = slideData._markerNames || [];
+      const fallback = markerNames.length ? [...new Set([...markerNames, "main"])] : ["main"];
+      const layout = LayoutParser.parse(resolved, { fallbackAreas: fallback });
+      const allowed = new Set(layout.orderedAreas);
+      const mismatched = markerNames.filter((a) => {
+        let normalized = a;
+        if (a === "header" && !allowed.has("header") && allowed.has("title")) {
+          normalized = "title";
+        } else if (a === "title" && !allowed.has("title") && allowed.has("header")) {
+          normalized = "header";
+        }
+        return !allowed.has(normalized);
+      });
+      if (mismatched.length > 0) {
+        mismatchMessage = `Unsupported @area markers: ${mismatched
+          .map((a) => `@${a}`)
+          .join(", ")} — click to convert`;
+        allowedAreas = [...allowed];
+      }
+    }
+
     const warnings = this._getWarnings?.();
     if (!warnings) return;
-    if (overflowing.length > 0) {
+
+    const onFix = allowedAreas ? () => this._onFixAreaMismatch?.(allowedAreas) : null;
+    if (overflowing.length > 0 && mismatchMessage) {
+      warnings.showSlideWarning(
+        `Content overflows: ${overflowing.join(", ")}. ${mismatchMessage}`,
+        onFix,
+      );
+    } else if (mismatchMessage) {
+      warnings.showSlideWarning(mismatchMessage, onFix);
+    } else if (overflowing.length > 0) {
       warnings.showSlideWarning(`Content overflows: ${overflowing.join(", ")}`);
     } else {
       warnings.clearSlideWarning();

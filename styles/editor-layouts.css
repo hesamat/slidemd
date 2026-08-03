@@ -7,6 +7,7 @@
 }
 
 .layout-option {
+  position: relative;
   background: var(--surface-elevated);
   border: 2px solid var(--border-medium);
   border-radius: var(--radius-md);
@@ -34,23 +35,66 @@
   background: var(--accent-bg);
 }
 
+.layout-option__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--slide-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  color: rgba(var(--color-primary), 0.7);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.7;
+  padding: 0;
+  transition:
+    opacity 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+  z-index: 1;
+}
+
+.layout-option:hover .layout-option__delete,
+.layout-option:focus-within .layout-option__delete,
+.layout-option__delete:focus {
+  opacity: 1;
+}
+
+.layout-option__delete:hover {
+  color: rgba(var(--color-primary), 1);
+  border-color: var(--accent-border);
+}
+
 .layout-option__preview {
   aspect-ratio: 16 / 9;
   background: var(--slide-bg);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  box-sizing: border-box;
   display: grid;
+  margin: 0 auto;
+  max-width: 100%;
   overflow: hidden;
+  padding: 8px;
   position: relative;
+  width: 284px;
 }
 
 .layout-option__preview::after {
   content: "";
   position: absolute;
-  inset: 4px;
+  inset: 8px;
   border: 1px dashed var(--border-subtle);
   border-radius: 2px;
   opacity: 0.5;
+  pointer-events: none;
 }
 
 /* Grid templates are now applied dynamically via JavaScript based on layouts.json */
@@ -60,6 +104,8 @@
   background: rgba(var(--color-primary), 0.15);
   border-radius: 2px;
   border: 1px solid rgba(var(--color-primary), 0.3);
+  min-height: 10px;
+  min-width: 10px;
 }
 
 .layout-option__name {
@@ -89,4 +135,126 @@
   background: rgba(var(--color-secondary), 0.12);
   color: var(--text-medium);
   border: 1px solid var(--border-subtle);
+}
+
+/* Custom layout creation form */
+.layout-picker-custom-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-medium);
+}
+
+.layout-picker-custom-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.layout-picker-custom-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-high);
+}
+
+.layout-picker-custom-form__input {
+  padding: 8px 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  color: var(--text-high);
+  font-size: 13px;
+}
+
+.layout-picker-custom-form__input:focus {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.layout-picker-custom-form__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layout-picker-custom-form__preview .layout-option__preview {
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  max-width: 100%;
+  padding: 3px;
+  width: 142px;
+}
+
+.layout-picker-custom-form__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-medium);
+}
+
+.layout-picker-custom-form__hint code {
+  font-size: 11px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: var(--surface-elevated);
+}
+
+.layout-picker-custom-form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.layout-picker-custom-form__actions .btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border: 1px solid var(--border-medium);
+  background: var(--surface-elevated);
+  color: var(--text-high);
+  cursor: pointer;
+}
+
+.layout-picker-custom-form__actions .btn:hover {
+  background: var(--surface-bg);
+}
+
+.layout-picker-custom-form__actions .btn.btn--primary {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-high);
+}
+
+.layout-picker-custom-form__actions .btn.btn--primary:hover {
+  background: var(--accent-border);
+  color: var(--surface-bg);
+}
+
+/* Custom layout creation tile */
+.layout-option--custom {
+  border-style: dashed;
+  border-color: var(--border-medium);
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-option--custom:hover {
+  border-color: var(--accent-border);
+}
+
+.layout-option__preview--custom {
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+}
+
+.layout-option__preview--custom::after {
+  display: none;
+}
+
+.layout-option__custom-icon {
+  font-size: 32px;
+  color: var(--text-medium);
+  line-height: 1;
 }

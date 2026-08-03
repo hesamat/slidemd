@@ -132,6 +132,18 @@ Use preset names instead of full CSS grid strings:
 - `three-column` - Three equal columns
 - `full-image` - Full-bleed image covering the entire slide (no text)
 
+## Custom Layouts
+
+For grids not covered by presets, set a CSS `grid-template` shorthand directly:
+
+```markdown
+layout: "header header" "main media" / 2fr 1fr
+```
+
+- Quoted rows define area names; column sizes follow the `/` separator.
+- Each `@area` marker must match a name in the grid. Unsupported areas are highlighted in edit mode with a one-click fix.
+- Custom layouts can be saved in the **Layout Picker** (`Custom` tile) as named user preferences stored in `localStorage` and reused across decks.
+
 ## Edit Mode Tips
 
 Edit mode uses a CodeMirror-based editor with helpers to reduce layout guesswork:

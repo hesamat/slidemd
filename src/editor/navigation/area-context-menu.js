@@ -48,16 +48,14 @@ export class AreaContextMenu {
    * @param {boolean} [opts.canSwap=false]  — show swap option
    * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
-   * @param {boolean} [opts.isCustomLayout=false]  — show disabled message for custom layouts
    */
   open(clientX, clientY, areaName, opts = {}) {
     this.close();
-    const isCustomLayout = opts.isCustomLayout === true;
     const canDelete = opts.canDelete !== false;
     const canSwap = opts.canSwap === true;
     const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
-    if (!isCustomLayout && !canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
+    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -65,75 +63,68 @@ export class AreaContextMenu {
     menu.style.left = `${clientX}px`;
     menu.style.top = `${clientY}px`;
 
-    if (isCustomLayout && !canAlignMain) {
-      const msg = document.createElement("div");
-      msg.className = "area-context-menu__message";
-      msg.textContent = "Area adjustments are only available for standard layouts";
-      menu.appendChild(msg);
-    } else {
-      if (canAlignMain && areaName === "main") {
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.gap = "4px";
-        row.style.marginBottom = "4px";
-        for (const align of ["left", "center", "right"]) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "area-context-menu__item";
-          btn.style.flex = "1";
-          btn.style.justifyContent = "center";
-          btn.textContent = align[0].toUpperCase() + align.slice(1);
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.close();
-            this._onAlignMain?.(areaName, align);
-          });
-          row.appendChild(btn);
-        }
-        menu.appendChild(row);
-      }
-
-      if (!isCustomLayout && canSwap) {
+    if (canAlignMain && areaName === "main") {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.gap = "4px";
+      row.style.marginBottom = "4px";
+      for (const align of ["left", "center", "right"]) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "area-context-menu__item";
-        btn.setAttribute("role", "menuitem");
-        btn.innerHTML = `<span class="area-context-menu__label">Swap with next</span>`;
+        btn.style.flex = "1";
+        btn.style.justifyContent = "center";
+        btn.textContent = align[0].toUpperCase() + align.slice(1);
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.close();
-          this._onSwapArea?.(areaName);
+          this._onAlignMain?.(areaName, align);
         });
-        menu.appendChild(btn);
+        row.appendChild(btn);
       }
+      menu.appendChild(row);
+    }
 
-      if (!isCustomLayout && canMakeFullHeight) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "area-context-menu__item";
-        btn.setAttribute("role", "menuitem");
-        btn.innerHTML = `<span class="area-context-menu__label">Make full height</span>`;
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          this.close();
-          this._onMakeFullHeight?.(areaName);
-        });
-        menu.appendChild(btn);
-      }
+    if (canSwap) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-context-menu__item";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = `<span class="area-context-menu__label">Swap with next</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.close();
+        this._onSwapArea?.(areaName);
+      });
+      menu.appendChild(btn);
+    }
 
-      if (!isCustomLayout && canDelete) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "area-context-menu__item";
-        btn.setAttribute("role", "menuitem");
-        btn.innerHTML = `<span class="area-context-menu__label">Delete @${areaName}</span>`;
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          this.close();
-          this._onDeleteArea?.(areaName);
-        });
-        menu.appendChild(btn);
-      }
+    if (canMakeFullHeight) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-context-menu__item";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = `<span class="area-context-menu__label">Make full height</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.close();
+        this._onMakeFullHeight?.(areaName);
+      });
+      menu.appendChild(btn);
+    }
+
+    if (canDelete) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-context-menu__item";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = `<span class="area-context-menu__label">Delete @${areaName}</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.close();
+        this._onDeleteArea?.(areaName);
+      });
+      menu.appendChild(btn);
     }
 
     document.body.appendChild(menu);

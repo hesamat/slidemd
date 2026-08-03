@@ -162,19 +162,46 @@ export function makeAreaFullHeight(markdown, areaName) {
     return result;
   });
 
-  const newAreas = newRows.map((row) => `"${row.join(" ")}"`).join(" ");
-  const newLayout = `${newAreas} / ${layout.gridTemplateColumns}`;
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(`"${newRows[i].join(" ")}"`);
+    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
+      parts.push(layout.rowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
 
   return updateLayoutDirective(stripped, newLayout);
 }
 
 /**
- * Remove an area from the slide's layout directive by switching to the
- * appropriate standard preset.
- *
- * - 3+ content columns → switch to "two-column"
- * - 2 content columns  → switch to "header-content"
- * - 1 content column   → no change (main area cannot be deleted)
+ * Split a CSS grid track list into individual track tokens without
+ * breaking on spaces inside functional notations (minmax, repeat, etc.).
+ */
+function _splitTrackList(columns) {
+  const tracks = [];
+  let current = "";
+  let depth = 0;
+  for (const ch of String(columns || "").trim()) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (/\s/.test(ch) && depth === 0) {
+      if (current.trim()) tracks.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) tracks.push(current.trim());
+  return tracks;
+}
+
+/**
+ * Remove an area from the slide's layout directive by rebuilding the grid.
+ * The target area's cells are replaced with empty cells (.), any row
+ * that becomes entirely empty is removed, and any column that becomes
+ * entirely empty is also dropped. This preserves a custom grid instead
+ * of collapsing to a standard preset.
  *
  * @param {string} markdown  — slide markdown source
  * @param {string} areaName  — area to remove (e.g. "media", "secondary")
@@ -184,7 +211,7 @@ export function removeAreaFromLayout(markdown, areaName) {
   const name = String(areaName || "")
     .trim()
     .toLowerCase();
-  if (!name) return markdown;
+  if (!name || name === "main") return markdown;
 
   const parser = new MarkdownParser();
   const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
@@ -192,20 +219,66 @@ export function removeAreaFromLayout(markdown, areaName) {
 
   const resolved = LayoutParser.resolvePreset(layoutValue);
   const layout = LayoutParser.parse(resolved);
-  const contentAreas = (layout.orderedAreas || []).filter(
-    (a) => a !== "header" && a !== "footer" && a !== "title",
+  if (!layout.orderedAreas.includes(name)) return markdown;
+
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return markdown;
+
+  const colCount = Math.max(
+    ...rowMatches.map((m) => m.slice(1, -1).split(/\s+/).filter(Boolean).length),
   );
 
-  // How many content areas remain after removing the deleted one?
-  const remaining = contentAreas.filter((a) => a !== name).length;
-
-  let newLayout;
-  if (remaining >= 2) {
-    newLayout = "two-column";
-  } else {
-    newLayout = "header-content";
+  const replacedRows = [];
+  const rowData = [];
+  for (let i = 0; i < rowMatches.length; i++) {
+    const cells = rowMatches[i].slice(1, -1).split(/\s+/).filter(Boolean);
+    const replaced = cells.map((c) => (c === name ? "." : c));
+    replacedRows.push(replaced);
+    if (replaced.some((c) => c !== ".")) {
+      rowData.push({ index: i, cells: replaced, size: layout.rowSizes[i] || "minmax(0, 1fr)" });
+    }
   }
 
+  if (rowData.length === 0) {
+    return updateLayoutDirective(stripped, "header-content");
+  }
+
+  // Drop columns that are entirely dots or only duplicate content already
+  // present in a kept column to the left (common for spanning header/footer).
+  const keepCol = new Array(colCount).fill(false);
+  for (let j = 0; j < colCount; j++) {
+    for (let i = 0; i < replacedRows.length; i++) {
+      const cell = replacedRows[i][j];
+      if (cell === "." || cell === undefined) continue;
+      const seenLeft = keepCol.some((keep, k) => keep && replacedRows[i][k] === cell);
+      if (!seenLeft) {
+        keepCol[j] = true;
+        break;
+      }
+    }
+  }
+
+  const newRows = rowData.map(({ cells }) => {
+    const kept = cells.filter((_, j) => keepCol[j]);
+    return `"${kept.join(" ") || "."}"`;
+  });
+  const newRowSizes = rowData.map(({ size }) => size);
+
+  let newCols = layout.gridTemplateColumns;
+  const tracks = _splitTrackList(layout.gridTemplateColumns);
+  if (tracks.length === colCount) {
+    const keptTracks = tracks.filter((_, i) => keepCol[i]);
+    newCols = keptTracks.join(" ") || "1fr";
+  }
+
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(newRows[i]);
+    if (layout.hasExplicitRowSizes && i < newRowSizes.length) {
+      parts.push(newRowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${newCols}`;
   return updateLayoutDirective(stripped, newLayout);
 }
 

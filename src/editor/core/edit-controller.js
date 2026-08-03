@@ -26,10 +26,10 @@ import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
 import {
-  removeAreaFromLayout,
+  buildSingleColumnCustomLayout,
   makeAreaFullHeight,
   parseSingleColumnLayout,
-  buildSingleColumnCustomLayout,
+  removeAreaFromLayout,
   updateLayoutDirective,
 } from "./directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
@@ -186,6 +186,7 @@ export class EditController {
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
       onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
       getWarnings: () => this.warnings,
+      onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
 
     this.warnings = new SlideWarningManager({
@@ -501,7 +502,7 @@ export class EditController {
       this.originalMarkdown[this.currentSlideIndex] ??
       "";
 
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true });
+    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory: true });
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
     this.saveManager.updateButton();
     this.areaGuides.refresh();
@@ -641,7 +642,6 @@ export class EditController {
     });
     if (!contentRow) return false;
     const cells = contentRow.slice(1, -1).split(/\s+/);
-    if (cells.length < 2) return false;
     const rightMostCol = cells[cells.length - 1];
     return name === rightMostCol;
   }
@@ -694,6 +694,16 @@ export class EditController {
     const updated = updateLayoutDirective(markdown, newLayout);
     if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
+  }
+
+  _fixMismatchedAreas(allowedAreas) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const fixed = new MarkdownParser().normalizeAreaMarkers(markdown, allowedAreas);
+    if (fixed === markdown) return;
+
+    this.markdownEditor.setValue(fixed, { suppressOnChange: false });
+    this.markdownEditor.focus();
   }
 
   _getCodeMirrorContextMenuItems(lineText) {

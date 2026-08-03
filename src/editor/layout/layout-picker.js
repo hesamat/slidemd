@@ -4,14 +4,16 @@
  * Handles modal display, grid rendering, and user interactions.
  */
 
+import { escapeHtml } from "../../core/utils.js";
 import { LayoutData } from "../../data/layout-data.js";
-import LAYOUTS from "../../data/layouts.json" with { type: "json" };
+import { LayoutParser } from "../../data/layout-parser.js";
 
 export class LayoutPicker {
   static modal = null;
   static overlay = null;
   static closeBtn = null;
   static grid = null;
+  static customForm = null;
   static onSelectCallback = null;
 
   /**
@@ -29,7 +31,7 @@ export class LayoutPicker {
 
     // Close modal handlers
     const closeModal = () => {
-      this.modal.classList.add("webdeck-hidden");
+      this.hide();
     };
 
     this.overlay?.addEventListener("click", closeModal);
@@ -42,8 +44,137 @@ export class LayoutPicker {
       }
     });
 
-    // Generate layout options
+    this._buildCustomForm();
     this.renderGrid();
+  }
+
+  /**
+   * Build the custom layout creation form and insert it into the modal body.
+   */
+  static _buildCustomForm() {
+    const body = this.modal?.querySelector(".modal__body");
+    if (!body || body.querySelector("#layoutPickerCustomForm")) {
+      return;
+    }
+
+    const form = document.createElement("div");
+    form.id = "layoutPickerCustomForm";
+    form.className = "layout-picker-custom-form webdeck-hidden";
+    form.innerHTML = `
+      <div class="layout-picker-custom-form__fields">
+        <label class="layout-picker-custom-form__label">
+          <span>Layout name</span>
+          <input type="text" id="customLayoutName" class="layout-picker-custom-form__input" placeholder="e.g. my-2x2" autocomplete="off">
+        </label>
+        <label class="layout-picker-custom-form__label">
+          <span>Grid template</span>
+          <textarea id="customLayoutGrid" class="layout-picker-custom-form__input" rows="2" placeholder='"header header" "main media" / 1fr 1fr'></textarea>
+        </label>
+        <div class="layout-picker-custom-form__preview" aria-live="polite">
+          <div class="layout-option__preview" id="customLayoutPreview" style=""></div>
+          <p class="layout-picker-custom-form__hint">
+            Use quoted area names like <code>"header header"</code>,
+            followed by columns after <code>/</code>.
+          </p>
+        </div>
+      </div>
+      <div class="layout-picker-custom-form__actions">
+        <button type="button" id="saveCustomLayoutBtn" class="btn btn--primary">Save & Use</button>
+        <button type="button" id="cancelCustomLayoutBtn" class="btn">Cancel</button>
+      </div>
+    `;
+
+    body.appendChild(form);
+    this.customForm = form;
+
+    const nameInput = form.querySelector("#customLayoutName");
+    const gridInput = form.querySelector("#customLayoutGrid");
+    const preview = form.querySelector("#customLayoutPreview");
+
+    const updatePreview = () => {
+      const grid = String(gridInput.value).trim();
+      if (!grid) {
+        preview.style.cssText = "";
+        preview.innerHTML = "";
+        return;
+      }
+      const parsed = LayoutParser.parse(grid);
+      preview.style.cssText = this.getGridStyleForTemplate(grid);
+      preview.innerHTML = parsed.orderedAreas
+        .map((area) => `<div style="grid-area: ${escapeHtml(area)}"></div>`)
+        .join("");
+    };
+
+    gridInput.addEventListener("input", updatePreview);
+    nameInput.addEventListener("input", () => {
+      nameInput.value = String(nameInput.value)
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9_-]/g, "");
+    });
+
+    form.querySelector("#saveCustomLayoutBtn").addEventListener("click", () => {
+      const name = String(nameInput.value).trim().toLowerCase();
+      const grid = String(gridInput.value).trim();
+      nameInput.setCustomValidity("");
+      if (!name || !grid) return;
+
+      if (LayoutData.isBuiltIn(name)) {
+        nameInput.setCustomValidity("A built-in preset with that name already exists.");
+        nameInput.reportValidity();
+        return;
+      }
+
+      const parsed = LayoutParser.parse(grid);
+      if (parsed.orderedAreas.length === 0) return;
+
+      if (!LayoutData.setCustomLayout(name, grid)) {
+        nameInput.setCustomValidity("Could not save layout.");
+        nameInput.reportValidity();
+        return;
+      }
+
+      this._hideCustomForm();
+      this.renderGrid();
+      this.selectLayout(name);
+    });
+
+    form.querySelector("#cancelCustomLayoutBtn").addEventListener("click", () => {
+      this._hideCustomForm();
+    });
+  }
+
+  /**
+   * Show the custom layout form.
+   */
+  static _showCustomForm() {
+    this.customForm?.classList.remove("webdeck-hidden");
+    const nameInput = this.customForm?.querySelector("#customLayoutName");
+    this._clearCustomForm();
+    nameInput?.focus();
+  }
+
+  /**
+   * Hide the custom layout form.
+   */
+  static _hideCustomForm() {
+    this.customForm?.classList.add("webdeck-hidden");
+  }
+
+  /**
+   * Clear the custom layout form fields and preview.
+   */
+  static _clearCustomForm() {
+    const nameInput = this.customForm?.querySelector("#customLayoutName");
+    const gridInput = this.customForm?.querySelector("#customLayoutGrid");
+    const preview = this.customForm?.querySelector("#customLayoutPreview");
+    if (nameInput) nameInput.value = "";
+    if (gridInput) gridInput.value = "";
+    if (preview) {
+      preview.style = "";
+      preview.innerHTML = "";
+    }
   }
 
   /**
@@ -57,33 +188,8 @@ export class LayoutPicker {
     const layouts = LayoutData.getAllLayouts();
 
     this.grid.innerHTML = layouts
-      .map((layout) => {
-        const description = LayoutData.getDescription(layout);
-        const preview = LayoutData.getPreviewHTML(layout);
-        const formattedName = LayoutData.formatLayoutName(layout);
-        const gridStyle = this.getGridTemplateStyle(layout);
-        const areas = LayoutData.getAreaNames(layout);
-        const areasMarkup = areas
-          .map(
-            (area) => `
-                <span class="layout-option__area">@${area}</span>
-            `,
-          )
-          .join("");
-
-        return `
-                <div class="layout-option" data-layout="${layout}" tabindex="0" role="button" aria-label="Select ${layout} layout">
-                    <div class="layout-option__preview" style="${gridStyle}">
-                        ${preview}
-                    </div>
-                    <div class="layout-option__name">${formattedName}</div>
-                    <div class="layout-option__description">${description}</div>
-                    <div class="layout-option__areas" aria-hidden="true">
-                        ${areasMarkup}
-                    </div>
-                </div>
-            `;
-      })
+      .map((layout) => this._renderOption(layout))
+      .concat(this._renderCustomOption())
       .join("");
 
     // Add click handlers to layout options
@@ -93,7 +199,11 @@ export class LayoutPicker {
       option.addEventListener("click", (e) => {
         e.stopPropagation();
         const layout = option.dataset.layout;
-        this.selectLayout(layout);
+        if (layout === "__custom__") {
+          this._showCustomForm();
+        } else {
+          this.selectLayout(layout);
+        }
       });
 
       // Keyboard navigation
@@ -101,10 +211,80 @@ export class LayoutPicker {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           const layout = option.dataset.layout;
-          this.selectLayout(layout);
+          if (layout === "__custom__") {
+            this._showCustomForm();
+          } else {
+            this.selectLayout(layout);
+          }
         }
       });
     });
+
+    const deleteButtons = this.grid.querySelectorAll(".layout-option__delete");
+    deleteButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const layout = btn.dataset.delete;
+        if (!layout) return;
+        if (typeof window !== "undefined" && window.confirm(`Delete custom layout "${layout}"?`)) {
+          LayoutData.deleteCustomLayout(layout);
+          this.renderGrid();
+        }
+      });
+    });
+  }
+
+  /**
+   * Render a single layout option tile.
+   */
+  static _renderOption(layout) {
+    const description = LayoutData.getDescription(layout);
+    const preview = LayoutData.getPreviewHTML(layout);
+    const formattedName = escapeHtml(LayoutData.formatLayoutName(layout));
+    const gridStyle = escapeHtml(this.getGridTemplateStyle(layout));
+    const safeLayout = escapeHtml(layout);
+    const areas = LayoutData.getAreaNames(layout);
+    const isCustom = LayoutData.getCustomLayout(layout) !== null;
+    const deleteBtn = isCustom
+      ? `<button type="button" class="layout-option__delete" data-delete="${safeLayout}" aria-label="Delete ${safeLayout} layout" title="Delete custom layout">&times;</button>`
+      : "";
+    const areasMarkup = areas
+      .map(
+        (area) => `
+                <span class="layout-option__area">@${escapeHtml(area)}</span>
+            `,
+      )
+      .join("");
+
+    return `
+                <div class="layout-option" data-layout="${safeLayout}" tabindex="0" role="button" aria-label="Select ${safeLayout} layout">
+                    ${deleteBtn}
+                    <div class="layout-option__preview" style="${gridStyle}">
+                        ${preview}
+                    </div>
+                    <div class="layout-option__name">${formattedName}</div>
+                    <div class="layout-option__description">${escapeHtml(description)}</div>
+                    <div class="layout-option__areas" aria-hidden="true">
+                        ${areasMarkup}
+                    </div>
+                </div>
+            `;
+  }
+
+  /**
+   * Render the "Custom" creation tile.
+   */
+  static _renderCustomOption() {
+    return `
+      <div class="layout-option layout-option--custom" data-layout="__custom__" tabindex="0" role="button" aria-label="Create a custom layout">
+        <div class="layout-option__preview layout-option__preview--custom">
+          <span class="layout-option__custom-icon">+</span>
+        </div>
+        <div class="layout-option__name">Custom</div>
+        <div class="layout-option__description">Define your own grid</div>
+      </div>
+    `;
   }
 
   /**
@@ -118,6 +298,7 @@ export class LayoutPicker {
 
     this.onSelectCallback = onSelectCallback;
     this.modal.classList.remove("webdeck-hidden");
+    this._hideCustomForm();
 
     // Focus first layout option
     const firstOption = this.modal?.querySelector(".layout-option");
@@ -131,64 +312,40 @@ export class LayoutPicker {
     if (this.modal) {
       this.modal.classList.add("webdeck-hidden");
     }
+    this._hideCustomForm();
     this.onSelectCallback = null;
   }
 
   /**
-   * Get grid template style for preview rendering
-   * Converts grid shorthand like '"main" / 1fr' to proper grid property 'grid: 'main' 1fr / 1fr'
-   * Uses single quotes to avoid conflicts with HTML attribute double quotes
-   * Scales down fixed pixel widths for preview contexts
+   * Get grid template style for preview rendering for a named layout.
    */
   static getGridTemplateStyle(layoutName) {
-    const gridTemplate = LAYOUTS.layouts[layoutName]?.gridTemplate;
+    const gridTemplate = LayoutData.getGridTemplate(layoutName);
     if (!gridTemplate) return "";
+    return this.getGridStyleForTemplate(gridTemplate);
+  }
 
-    // The grid property needs row heights: "areas" row-height / columns
-    // If format is '"areas" / cols', convert to '"areas" 1fr / cols'
-    if (gridTemplate.includes("/")) {
-      const [areasPart, colsPart] = gridTemplate.split("/");
-      const areas = areasPart.trim();
-      let cols = colsPart.trim();
+  /**
+   * Build a CSS grid shorthand style string for a raw grid template spec.
+   * Used for both preset previews and the custom layout live preview.
+   */
+  static getGridStyleForTemplate(gridTemplate) {
+    const parsed = LayoutParser.parse(gridTemplate || "", { fallbackAreas: ["main"] });
+    let cols = parsed.gridTemplateColumns;
 
-      // Scale down fixed pixel widths for previews (e.g., 300px -> 60px)
-      cols = cols.replace(/(\d+)px/g, (_, pixels) => {
-        const scaled = Math.round(parseInt(pixels) / 5);
-        return `${scaled}px`;
-      });
+    // Scale down fixed pixel widths for previews (e.g., 300px -> 60px)
+    cols = cols.replace(/(\d+)px/g, (_, pixels) => {
+      const scaled = Math.round(parseInt(pixels) / 5);
+      return `${scaled}px`;
+    });
 
-      // If areasPart doesn't include row height (no space after closing quote), add 1fr for each row
-      if (areas.endsWith('"') || areas.endsWith("'")) {
-        // Convert double quotes to single quotes
-        const areasSingle = areas.replace(/"/g, "'");
-
-        // Parse the grid template areas
-        // Each quoted string is a row definition (may contain multiple areas)
-        // e.g., "'sidebar main'" is one row with two areas
-        // e.g., "'header' 'main'" are two rows
-        const rowDefinitions = [];
-
-        // Match complete quoted strings (rows)
-        const rowRegex = /'([^']+)'/g;
-        let match;
-
-        while ((match = rowRegex.exec(areasSingle)) !== null) {
-          const fullRowDef = match[0]; // e.g., 'sidebar main' or 'header'
-          rowDefinitions.push(fullRowDef);
-        }
-
-        // Each row definition needs a height
-        const rowsWithHeights = rowDefinitions
-          .map((rowDef) => `${rowDef} ${rowDef.includes("main") ? "2fr" : "1fr"}`)
-          .join(" ");
-        return `grid: ${rowsWithHeights} / ${cols};`;
-      }
-      // Convert any double quotes to single quotes for HTML compatibility
-      return `grid: ${gridTemplate.replace(/"/g, "'")};`;
+    // Reject CSS injection attempts in track lists before emitting an inline style.
+    const unsafe = /[;{}@]|\burl\(/i;
+    if (unsafe.test(parsed.gridTemplateRows) || unsafe.test(cols)) {
+      return "";
     }
 
-    // Convert any double quotes to single quotes for HTML compatibility
-    return `grid: ${gridTemplate.replace(/"/g, "'")};`;
+    return `grid-template-areas: ${parsed.gridTemplateAreas}; grid-template-rows: ${parsed.gridTemplateRows}; grid-template-columns: ${cols};`;
   }
 
   /**

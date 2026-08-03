@@ -133,6 +133,7 @@ export class StyleApplier {
 
     this.markdownEditor?.setValue(this.unsavedMarkdown.get(this.currentSlideIndex) ?? "", {
       suppressOnChange: true,
+      recordHistory: false,
     });
     Notification.success("Style applied to all slides");
   }

@@ -40,20 +40,19 @@ Your goal is to go ABOVE AND BEYOND the original slides. Do not just reorganize 
 
 ## Custom Layouts
 
-When none of the built-in layouts fit your content, you can define a custom layout using CSS grid. Add a `gridTemplate` directive in the slide's frontmatter. The standard built-in layouts are: header-content, two-column, three-column, media-span, left-heavy, right-heavy, focus, full-image.
+When none of the built-in layouts fit your content, you can define a custom layout using CSS grid directly in the `layout:` directive. The standard built-in layouts are: header-content, two-column, three-column, media-span, left-heavy, right-heavy, focus, full-image.
 
 Rules for custom layouts:
 
 - Always use @main for the primary/largest content area
 - Use @media, @secondary, @sidebar for additional areas
-- The gridTemplate value is a CSS grid-template-areas string
-- Column sizes follow the areas string with / notation
+- The `layout:` value is a CSS `grid-template` shorthand string with quoted area names
+- Column sizes follow the areas string with `/` notation
 
 Example — a 2x2 grid with a wide header:
 
 ```
-layout: custom-2x2
-gridTemplate: "header header" "main media" "secondary sidebar" / 1fr 1fr
+layout: "header header" "main media" "secondary sidebar" / 1fr 1fr
 
 @header
 ## Comparison
