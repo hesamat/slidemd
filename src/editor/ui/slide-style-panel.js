@@ -19,10 +19,12 @@ import {
   buildBackgroundPanelHtml,
   buildAreaStylePanelHtml,
   buildTitlePanelHtml,
+  buildLayoutPanelHtml,
   syncBgState,
   parseBackgroundValue,
   getDefaultBorderColor,
 } from "./style-helpers.js";
+import { buildSingleColumnCustomLayout, parseSingleColumnLayout } from "../core/directive-utils.js";
 
 const STORAGE_KEY_AREA_STYLE = "webdeck:default-area-style";
 const STORAGE_KEY_HEADER_STYLE = "webdeck:default-header-style";
@@ -44,6 +46,7 @@ export class SlideStylePanel {
   static _currentImageBlobUrl = "";
   static _imageOverlay = 40;
   static _currentTheme = "";
+  static _layoutChanged = false;
 
   static init(getMarkdown, setMarkdown, applyToAll, onPickImage) {
     this._getMarkdown = getMarkdown;
@@ -114,7 +117,28 @@ export class SlideStylePanel {
     const markdown = this._getMarkdown();
     const parser = new MarkdownParser();
 
-    let { markdown: stripped } = parser.extractDirective(markdown, "area-style");
+    let working = markdown;
+    if (this._layoutChanged) {
+      const currentLayout = this._readDirective("layout") || "default";
+      const parsed = parseSingleColumnLayout(currentLayout);
+      const widthEl = this.el.querySelector('[data-panel="layout"] [data-field="main-width"]');
+      const alignBtn = this.el.querySelector(
+        '[data-panel="layout"] [data-align-group] .style-btn-option.selected',
+      );
+      if (parsed && widthEl && alignBtn) {
+        const newLayout = buildSingleColumnCustomLayout(
+          parsed.base,
+          parseInt(widthEl.value, 10),
+          alignBtn.dataset.align || "center",
+        );
+        if (newLayout) {
+          const { markdown: withoutLayout } = parser.extractDirective(working, "layout");
+          working = `layout: ${newLayout}\n${withoutLayout}`;
+        }
+      }
+    }
+
+    let { markdown: stripped } = parser.extractDirective(working, "area-style");
     const cssString = this._buildCssFromUI();
     if (cssString) stripped = `area-style: ${cssString}\n${stripped}`;
 
@@ -149,7 +173,7 @@ export class SlideStylePanel {
 
   static _getSelectedHeaderStyle() {
     if (!this.el) return "line";
-    const selected = this.el.querySelector(`.style-btn-option.selected`);
+    const selected = this.el.querySelector('[data-panel="title"] .style-btn-option.selected');
     return selected?.dataset.headerStyle || "line";
   }
 
@@ -215,7 +239,7 @@ export class SlideStylePanel {
     setNum('[data-field="padding"]', parsed["padding"] !== undefined ? padding : 10);
 
     const headerStyle = this._readHeaderStyleFromMarkdown();
-    this.el.querySelectorAll(".style-btn-option").forEach((btn) => {
+    this.el.querySelectorAll('[data-panel="title"] .style-btn-option').forEach((btn) => {
       btn.classList.toggle("selected", btn.dataset.headerStyle === headerStyle);
     });
 
@@ -234,6 +258,19 @@ export class SlideStylePanel {
 
     this._syncBgUI();
 
+    const layoutValue = this._readDirective("layout") || "default";
+    const parsedLayout = parseSingleColumnLayout(layoutValue);
+    const layoutEl = this.el.querySelector('[data-panel="layout"]');
+    if (layoutEl) {
+      const mw = layoutEl.querySelector('[data-field="main-width"]');
+      if (mw) mw.value = parsedLayout ? parsedLayout.width : 100;
+      const align = parsedLayout ? parsedLayout.align : "center";
+      layoutEl.querySelectorAll("[data-align-group] .style-btn-option").forEach((btn) => {
+        btn.classList.toggle("selected", btn.dataset.align === align);
+      });
+    }
+
+    this._layoutChanged = false;
     syncSliderLabels(this.el);
     syncTitleDisabled(this.el, {
       titleBtnSelector: '[data-panel="title"] .style-btn-option',
@@ -286,6 +323,7 @@ export class SlideStylePanel {
         <div class="${P}tabs">
           <button class="${P}tab active" data-tab="background" type="button">Background</button>
           <button class="${P}tab" data-tab="borders" type="button">Borders</button>
+          <button class="${P}tab" data-tab="layout" type="button">Layout</button>
           <button class="${P}tab" data-tab="title" type="button">Title</button>
         </div>
         <div class="${P}body">
@@ -294,6 +332,9 @@ export class SlideStylePanel {
           </div>
           <div class="${P}tab-panel" data-panel="borders">
             ${buildAreaStylePanelHtml()}
+          </div>
+          <div class="${P}tab-panel" data-panel="layout">
+            ${buildLayoutPanelHtml()}
           </div>
           <div class="${P}tab-panel" data-panel="title">
             ${buildTitlePanelHtml()}
@@ -366,6 +407,26 @@ export class SlideStylePanel {
         btn.classList.add("selected");
       });
     });
+
+    // Layout controls
+    const mw = el.querySelector('[data-field="main-width"]');
+    if (mw) {
+      mw.addEventListener("input", () => {
+        this._layoutChanged = true;
+        syncSliderLabels(this.el);
+      });
+    }
+    el.querySelectorAll('[data-panel="layout"] [data-align-group] .style-btn-option').forEach(
+      (btn) => {
+        btn.addEventListener("click", () => {
+          this._layoutChanged = true;
+          el.querySelectorAll('[data-panel="layout"] [data-align-group] .style-btn-option').forEach(
+            (b) => b.classList.remove("selected"),
+          );
+          btn.classList.add("selected");
+        });
+      },
+    );
 
     // Background swatches
     el.querySelector(".style-swatch-grid").addEventListener("click", (e) => {

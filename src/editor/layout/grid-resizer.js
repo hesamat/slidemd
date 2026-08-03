@@ -9,6 +9,8 @@
  */
 
 import { DESIGN_SIZE } from "../../core/utils.js";
+import { buildSingleColumnCustomLayout } from "../core/directive-utils.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
 const MIN_TRACK_PX = 80;
@@ -21,7 +23,7 @@ const MIN_TRACK_PX = 80;
  * @param {HTMLElement} slideEl     - The `.slide` article element.
  * @param {object}      layoutInfo  - Output of `LayoutParser.parse()`.
  * @param {HTMLElement} stageEl     - `#deckStage` — carries `--stage-scale`.
- * @param {function}    onLayoutChange - Called with `{ cols, rows }` after drag.
+ * @param {function}    onLayoutChange - Called with `{ cols, rows }` or `{ spec }` after drag.
  *                                       Either value may be `null` if unchanged.
  */
 export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) {
@@ -36,6 +38,7 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
   const scale = _getScale(stageEl);
 
   _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
+  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange);
 }
 
 /**
@@ -366,5 +369,95 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
         ? `${((secondPx / totalPx) * (secondTrack.frValue || 1)).toFixed(4)}fr`
         : track.raw;
     return track.raw;
+  });
+}
+
+// ─── Single-column main-width handle ───────────────────────────────────────────
+
+/**
+ * For single-column layouts, inject a right-edge handle on the main column.
+ * The first drag converts the layout to a two-column fr grid so the existing
+ * resizer can take over on subsequent renders.
+ */
+function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange) {
+  const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
+  if (colTracks.length !== 1) return;
+  const mainArea = slideEl.querySelector('[data-area-name="main"]');
+  if (!mainArea) return;
+
+  const slideRect = slideEl.getBoundingClientRect();
+  const mainRect = mainArea.getBoundingClientRect();
+  const rightDesign = (mainRect.right - slideRect.left) / scale;
+  const topDesign = (mainRect.top - slideRect.top) / scale;
+  const heightDesign = mainRect.height / scale;
+
+  const handle = document.createElement("div");
+  handle.className = "grid-resize-handle grid-resize-handle--col";
+  handle.setAttribute("aria-label", "Resize main column");
+  handle.setAttribute("title", "Resize main column");
+  handle.style.left = `${rightDesign}px`;
+  handle.style.top = `${topDesign}px`;
+  handle.style.height = `${heightDesign}px`;
+  slideEl.appendChild(handle);
+
+  let startClientX = 0;
+  let startRightDesign = 0;
+  let startLeftDesign = 0;
+
+  const base = String(layoutInfo.gridTemplateRows || "").includes("0.08fr")
+    ? "focus"
+    : "header-content";
+  const slideGrid = _getGridElement(slideEl);
+
+  const onMouseMove = (e) => {
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
+    const newWidth = Math.min(
+      DESIGN_SIZE.width,
+      Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
+    );
+    const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
+    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, "left");
+    if (newLayout && slideGrid) {
+      const parsed = LayoutParser.parse(newLayout, { fallbackAreas: ["main"] });
+      slideGrid.style.gridTemplateAreas = parsed.gridTemplateAreas;
+      slideGrid.style.gridTemplateColumns = parsed.gridTemplateColumns;
+      slideGrid.style.gridTemplateRows = parsed.gridTemplateRows;
+    }
+  };
+
+  const onMouseUp = (e) => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    slideEl.style.pointerEvents = "";
+
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
+    const newWidth = Math.min(
+      DESIGN_SIZE.width,
+      Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
+    );
+    const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
+    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, "left");
+    if (newLayout) onLayoutChange({ spec: newLayout });
+  };
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    startClientX = e.clientX;
+    startRightDesign = rightDesign;
+    startLeftDesign = (mainRect.left - slideRect.left) / scale;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    slideEl.style.pointerEvents = "none";
+    handle.style.pointerEvents = "auto";
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   });
 }

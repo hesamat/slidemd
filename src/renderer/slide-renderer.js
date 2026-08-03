@@ -90,12 +90,29 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
-    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutKey) || 0;
+    let layoutStyleKey = layoutKey;
+    let isCustomFocus = false;
+    if (layoutKey && !LayoutData.hasLayout(layoutKey)) {
+      const resolved = String(resolvedLayout || "").toLowerCase();
+      if (
+        resolved.includes("header") &&
+        resolved.includes("footer") &&
+        resolved.includes("0.08fr")
+      ) {
+        layoutStyleKey = "focus";
+        isCustomFocus = true;
+      } else if (resolved.includes("header") && resolved.includes("footer")) {
+        layoutStyleKey = "header-content";
+      } else {
+        layoutStyleKey = "custom";
+      }
+    }
+    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutStyleKey) || 0;
     if (fontSize) {
       grid.style.setProperty("--code-font-size", fontSize + "px");
     }
-    if (layoutKey) {
-      wrapper.setAttribute("data-layout", layoutKey);
+    if (layoutStyleKey) {
+      wrapper.setAttribute("data-layout", layoutStyleKey);
     }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
@@ -150,6 +167,12 @@ export class SlideRenderer {
 
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
+      }
+
+      // Custom focus grids set the main column width via grid tracks, so the
+      // default focus max-width cap must be disabled.
+      if (isCustomFocus && name === "main") {
+        area.style.maxWidth = "none";
       }
 
       // Footer spans full width when full-height areas exist

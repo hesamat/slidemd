@@ -101,6 +101,8 @@ export function syncSliderLabels(rootEl) {
   if (r) set('[data-display="radius"]', `${r.value}px`);
   const p = rootEl.querySelector('[data-field="padding"]');
   if (p) set('[data-display="padding"]', `${p.value}px`);
+  const mw = rootEl.querySelector('[data-field="main-width"]');
+  if (mw) set('[data-display="main-width"]', `${mw.value}%`);
 }
 
 export function syncTitleDisabled(rootEl, { titleBtnSelector, hintSelector } = {}) {
@@ -211,6 +213,30 @@ export function buildTitlePanelHtml() {
         <button class="style-btn-option" data-header-style="none" type="button">None</button>
       </div>
       <p class="style-disabled-hint" style="display:none">Disabled when content borders are active.</p>
+    </div>
+  `;
+}
+
+/**
+ * Build the layout panel HTML for single-column main width/alignment controls.
+ */
+export function buildLayoutPanelHtml() {
+  return `
+    <div class="style-inline-section">
+      <span class="style-label">Main Column Width</span>
+      <p class="style-hint">Available for single-column layouts such as header-content and focus.</p>
+      <div class="style-control-row">
+        <input type="range" class="style-range" data-field="main-width" min="30" max="100" value="100" />
+        <span class="style-control-value" data-display="main-width">100%</span>
+      </div>
+    </div>
+    <div class="style-inline-section">
+      <span class="style-label">Main Column Alignment</span>
+      <div class="style-btn-group" data-align-group>
+        <button class="style-btn-option" data-align="left" type="button">Left</button>
+        <button class="style-btn-option selected" data-align="center" type="button">Center</button>
+        <button class="style-btn-option" data-align="right" type="button">Right</button>
+      </div>
     </div>
   `;
 }
