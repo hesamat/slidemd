@@ -307,8 +307,8 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 | [x] Make Alt+N new slide shortcut discoverable (#109)                   | Add a menu item, hint, or keybinding label for the new-slide shortcut.               |
 | [x] Right-click context menu format options (#92)                       | Add font, color, and alignment options to the right-click menu for selected content. |
 | [x] Add full-text search across all slides                              | Search slide body, titles, and optional notes; jump to matches.                      |
-| [ ] Add command palette (Ctrl/Cmd+Shift+P)                              | Quick access to new slide, duplicate, delete, layout, and other actions.             |
-| [ ] Make keyboard shortcuts discoverable in the palette                 | Surface Alt+N, Alt+D, Alt+Backspace, and other edit shortcuts.                       |
+| [x] Add command palette (Ctrl/Cmd+Shift+P)                              | Quick access to new slide, duplicate, delete, layout, and other actions.             |
+| [x] Make keyboard shortcuts discoverable in the palette                 | Surface Alt+N, Alt+D, Alt+Backspace, and other edit shortcuts.                       |
 
 ### Layout & Media
 
