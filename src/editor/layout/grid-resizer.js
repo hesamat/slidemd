@@ -233,7 +233,9 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
     : 0;
 
   for (let i = 0; i < colTracks.length - 1; i++) {
-    if (!colTracks[i].isFr && !colTracks[i + 1].isFr) continue;
+    // Only allow resizing when both adjacent tracks are fr-based; resizing a
+    // fr against a fixed (px/%) track would produce unbalanced, broken grids.
+    if (!colTracks[i].isFr || !colTracks[i + 1].isFr) continue;
     const xDesign = metrics.leftOffset + boundaries[i + 1];
     const leftTrackIdx = i;
     const rightTrackIdx = i + 1;

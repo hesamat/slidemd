@@ -60,10 +60,11 @@ Do not run the full gate cycle prematurely — first verify the feature actually
 
 ### When Working with Layouts
 
-- Layout definitions are in [src/data/layout-data.js](src/data/layout-data.js)
-- Use CSS grid strings; consider adding presets for common patterns
-- Area markers route content to specific grid regions
-- Text before the first `@area` marker flows into `@main`
+- Layout definitions are in [src/data/layout-data.js](src/data/layout-data.js). Built-in presets live in [src/data/layouts.json](src/data/layouts.json); user-created custom layouts are persisted in `localStorage` under `webdeck:custom-layouts`.
+- `layout:` accepts either a preset name or a CSS `grid-template` shorthand string with quoted area names, e.g. `layout: "header header" "main media" / 2fr 1fr`.
+- Area markers route content to specific grid regions; the `@` name must match a name in the `layout:` grid.
+- Text before the first `@area` marker flows into `@main`.
+- The Layout Picker's `Custom` tile lets users save named grid strings to `localStorage` and reuse them across decks.
 
 ### When Working with Themes
 

@@ -516,6 +516,81 @@ export class MarkdownParser {
   }
 
   /**
+   * Rename unsupported @area markers to the closest supported area that is not
+   * already present in the markdown. If no supported slot is available, the
+   * marker is dropped and its content is merged into the previous area.
+   *
+   * @param {string} markdownText
+   * @param {string[]} allowedAreas — area names the target layout supports
+   * @returns {string} normalized markdown
+   */
+  normalizeAreaMarkers(markdownText, allowedAreas) {
+    const allowed = new Set((allowedAreas || []).map((a) => a.toLowerCase()));
+    if (!allowed.size) return markdownText;
+
+    const markers = this.findAreaMarkers(markdownText);
+    const present = new Set(markers.map((m) => m.name));
+    const missing = (allowedAreas || []).map((a) => a.toLowerCase()).filter((a) => !present.has(a));
+
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+    const fence = new FenceTracker();
+    const markerRe = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
+
+    const wantsTitle = allowed.has("title");
+    const wantsHeader = allowed.has("header");
+
+    const out = [];
+    const used = new Set();
+
+    for (const line of lines) {
+      fence.toggle(line);
+
+      if (!fence.isInFence) {
+        const m = line.match(markerRe);
+        if (m) {
+          const rawName = m[1].toLowerCase();
+
+          // --- alias normalization ---
+          let name = rawName;
+          if (rawName === "header" && wantsTitle && !wantsHeader) {
+            name = "title";
+          } else if (rawName === "title" && wantsHeader && !wantsTitle) {
+            name = "header";
+          }
+
+          if (allowed.has(name)) {
+            out.push(name === rawName ? line : `@${name}`);
+            used.add(name);
+            continue;
+          }
+
+          // Unsupported marker — convert to the closest missing supported area.
+          const candidates = missing.filter((a) => !used.has(a));
+          if (candidates.length === 0) continue;
+
+          let slot = candidates[0];
+          let best = _editDistance(rawName, slot);
+          for (let i = 1; i < candidates.length; i++) {
+            const d = _editDistance(rawName, candidates[i]);
+            if (d < best) {
+              best = d;
+              slot = candidates[i];
+            }
+          }
+
+          out.push(`@${slot}`);
+          used.add(slot);
+          continue;
+        }
+      }
+
+      out.push(line);
+    }
+
+    return out.join("\n");
+  }
+
+  /**
    * Compute the 0-indexed editor line where each area's content begins in the
    * raw slide markdown. Directives (layout, background, etc.) and HTML
    * comments (e.g. <!-- notes: ... -->) are treated as non-content lines:
@@ -683,6 +758,8 @@ export class MarkdownParser {
       cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
       const { areas: areasMd } = MarkdownParser.parseAreas(cleaned);
+      const markerList = this.findAreaMarkers(cleaned);
+      const markerNames = [...new Set(markerList.map((m) => m.name))];
 
       const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
         fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
@@ -778,6 +855,7 @@ export class MarkdownParser {
         areaStyle: areaStyle || "",
         codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
+        _markerNames: markerNames,
       };
     });
 
@@ -792,4 +870,29 @@ export class MarkdownParser {
       slides,
     };
   }
+}
+
+function _editDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const prev = new Array(n + 1);
+  for (let j = 0; j <= n; j++) {
+    prev[j] = j;
+  }
+
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= n; j++) {
+      prev[j] = curr[j];
+    }
+  }
+
+  return prev[n];
 }

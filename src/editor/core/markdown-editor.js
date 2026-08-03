@@ -1,4 +1,4 @@
-import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -178,26 +178,57 @@ export class MarkdownEditor {
    * @param {boolean} [options.suppressOnChange=false] - When true, the debounced
    *   onChange callback is skipped. Use this when the caller will trigger
    *   updatePreview() manually to avoid a redundant re-render.
+   * @param {boolean} [options.recordHistory=true] - When true, the change is
+   *   recorded in the undo history so the user can Ctrl+Z it.
    */
   setValue(value, options = {}) {
     this.value = value || "";
     if (!this.view) return;
 
-    const { suppressOnChange = false } = options;
+    const { suppressOnChange = false, recordHistory = true, clearHistory = false } = options;
     if (suppressOnChange) this.suppressChange = true;
 
     try {
-      // Replace the whole document with a fresh state.  Using dispatch with
-      // a full-document change can crash CodeMirror's incremental parser and
-      // RangeSet mapper (e.g. "Position out of range" / "parents.pop()").
-      // Note: this clears the undo history, which is acceptable for a
-      // full-document replacement.
-      this.view.setState(
-        EditorState.create({
-          doc: this.value,
-          extensions: this.extensions,
-        }),
-      );
+      // Replace the whole document as a transaction so the history extension
+      // records it (Ctrl+Z works). If the incremental parser/RangeSet mapper
+      // throws on a full-doc change, fall back to recreating the state.
+      // When loading a different slide (clearHistory) we recreate the state so
+      // the previous slide's undo stack is discarded.
+      if (this.view.state?.doc) {
+        if (clearHistory) {
+          this.view.setState(
+            EditorState.create({
+              doc: this.value,
+              extensions: this.extensions,
+            }),
+          );
+        } else {
+          const spec = {
+            changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
+          };
+          if (!recordHistory) {
+            spec.annotations = [Transaction.addToHistory.of(false)];
+          }
+
+          try {
+            this.view.dispatch(spec);
+          } catch {
+            this.view.setState(
+              EditorState.create({
+                doc: this.value,
+                extensions: this.extensions,
+              }),
+            );
+          }
+        }
+      } else {
+        this.view.setState(
+          EditorState.create({
+            doc: this.value,
+            extensions: this.extensions,
+          }),
+        );
+      }
 
       if (!suppressOnChange) {
         this.scheduleOnChange();
@@ -221,7 +252,12 @@ export class MarkdownEditor {
     this.value = value || "";
     if (!this.view) return;
 
-    const { suppressOnChange = false, scrollIntoView = true, focus = true } = options;
+    const {
+      suppressOnChange = false,
+      scrollIntoView = true,
+      focus = true,
+      recordHistory = true,
+    } = options;
     if (suppressOnChange) this.suppressChange = true;
 
     try {
@@ -229,16 +265,43 @@ export class MarkdownEditor {
         0,
         Math.min(cursorPosition ?? this.value.length, this.value.length),
       );
-      this.view.setState(
-        EditorState.create({
-          doc: this.value,
-          extensions: this.extensions,
+      if (this.view.state?.doc) {
+        const spec = {
+          changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
           selection: EditorSelection.cursor(position),
-        }),
-      );
-      if (scrollIntoView) {
-        this.view.dispatch({ effects: [EditorView.scrollIntoView(position)] });
+          effects: scrollIntoView ? [EditorView.scrollIntoView(position)] : [],
+        };
+        if (!recordHistory) {
+          spec.annotations = [Transaction.addToHistory.of(false)];
+        }
+
+        try {
+          this.view.dispatch(spec);
+        } catch {
+          this.view.setState(
+            EditorState.create({
+              doc: this.value,
+              extensions: this.extensions,
+              selection: EditorSelection.cursor(position),
+            }),
+          );
+          if (scrollIntoView) {
+            this.view.dispatch({ effects: [EditorView.scrollIntoView(position)] });
+          }
+        }
+      } else {
+        this.view.setState(
+          EditorState.create({
+            doc: this.value,
+            extensions: this.extensions,
+            selection: EditorSelection.cursor(position),
+          }),
+        );
+        if (scrollIntoView) {
+          this.view.dispatch({ effects: [EditorView.scrollIntoView(position)] });
+        }
       }
+
       if (focus) this.view.focus();
     } finally {
       if (suppressOnChange) this.suppressChange = false;

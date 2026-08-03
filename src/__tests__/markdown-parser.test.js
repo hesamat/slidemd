@@ -389,6 +389,44 @@ describe("MarkdownParser.collapseUnsupportedAreas", () => {
   });
 });
 
+describe("MarkdownParser.normalizeAreaMarkers", () => {
+  it("converts a typo close to a missing supported area", () => {
+    const md = "@main\nA\n@mediaasd\nB";
+    const result = parser.normalizeAreaMarkers(md, ["header", "main", "media"]);
+    expect(result).toContain("@main");
+    expect(result).toContain("A");
+    expect(result).not.toContain("@mediaasd");
+    expect(result).toContain("@media");
+    expect(result).toContain("B");
+  });
+
+  it("converts an unsupported area to the closest missing one", () => {
+    const md = "@main\nA\n@extra\nB";
+    const result = parser.normalizeAreaMarkers(md, ["main", "media", "secondary"]);
+    expect(result).toContain("@main");
+    expect(result).toContain("A");
+    expect(result).not.toContain("@extra");
+    expect(result).toContain("@media");
+    expect(result).toContain("B");
+  });
+
+  it("drops unsupported marker when no missing supported slot exists", () => {
+    const md = "@main\nA\n@media\nB\n@unknown\nC";
+    const result = parser.normalizeAreaMarkers(md, ["main", "media"]);
+    expect(result).toContain("@main");
+    expect(result).toContain("@media");
+    expect(result).not.toContain("@unknown");
+    expect(result).toContain("C");
+  });
+
+  it("ignores @area markers inside code fences", () => {
+    const md = "```\n@fake\n```\n@main\nA";
+    const result = parser.normalizeAreaMarkers(md, ["main", "media"]);
+    expect(result).toContain("@fake");
+    expect(result).toContain("@main");
+  });
+});
+
 describe("MarkdownParser.computeAreaOffsets", () => {
   it("returns main offset at 0 for simple content", () => {
     const offsets = parser.computeAreaOffsets("# Hello\nWorld");

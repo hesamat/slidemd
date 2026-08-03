@@ -83,6 +83,7 @@ export class SourceJumpHandler {
           suppressOnChange: true,
           scrollIntoView: true,
           focus: false,
+          recordHistory: false,
         });
         markdownEditor.highlightLine(targetLine);
       },
