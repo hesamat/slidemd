@@ -16,6 +16,7 @@ const HIDDEN_PRESETS = new Set([
   "sidebar-content",
   "content-sidebar",
 ]);
+const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export class LayoutData {
   static _customMap = null;
@@ -27,7 +28,13 @@ export class LayoutData {
       if (!raw) return Object.create(null);
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return Object.create(null);
-      return Object.assign(Object.create(null), parsed);
+      const map = Object.create(null);
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === "string" && !BLOCKED_KEYS.has(key)) {
+          map[key] = value;
+        }
+      }
+      return map;
     } catch {
       return Object.create(null);
     }
@@ -60,7 +67,8 @@ export class LayoutData {
    * Check whether a name is already used by a built-in preset.
    */
   static isBuiltIn(name) {
-    return this._normalizeName(name) in LAYOUTS.layouts;
+    const key = this._normalizeName(name);
+    return Object.prototype.hasOwnProperty.call(LAYOUTS.layouts, key);
   }
 
   /**
@@ -84,7 +92,7 @@ export class LayoutData {
    */
   static setCustomLayout(name, gridTemplate) {
     const key = this._normalizeName(name);
-    if (!key || this.isBuiltIn(key)) return false;
+    if (!key || BLOCKED_KEYS.has(key) || this.isBuiltIn(key)) return false;
     const map = this._getCustomMap();
     map[key] = String(gridTemplate || "").trim();
     this._saveCustomLayouts(map);
@@ -223,7 +231,10 @@ export class LayoutData {
    */
   static hasLayout(layoutName) {
     const key = this._normalizeName(layoutName);
-    return key in LAYOUTS.layouts || this.getCustomLayout(key) !== null;
+    return (
+      Object.prototype.hasOwnProperty.call(LAYOUTS.layouts, key) ||
+      this.getCustomLayout(key) !== null
+    );
   }
 
   /**
