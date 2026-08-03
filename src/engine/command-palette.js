@@ -297,11 +297,13 @@ export class CommandPalette {
   }
 
   _selectNext() {
+    if (this._filtered.length === 0) return;
     this._selectedIndex = (this._selectedIndex + 1) % this._filtered.length;
     this._updateSelection();
   }
 
   _selectPrev() {
+    if (this._filtered.length === 0) return;
     this._selectedIndex = (this._selectedIndex - 1 + this._filtered.length) % this._filtered.length;
     this._updateSelection();
   }
