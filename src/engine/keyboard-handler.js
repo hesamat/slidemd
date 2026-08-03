@@ -2,12 +2,72 @@
  * KeyboardHandler
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
+import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
 
 export class KeyboardHandler {
-  // Built from the supplied command registry at construction time.
-  #keyboardActions = {};
-  #viewingActions = {};
-  #editModeModifierActions = [];
+  static #buildPlainKeyMap() {
+    const map = {};
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (binding.global) continue;
+        const hasModifiers =
+          binding.modifiers &&
+          (binding.modifiers.cmdOrCtrl || binding.modifiers.alt || binding.modifiers.shift);
+        if (hasModifiers) continue;
+        map[binding.key] = shortcut.id;
+      }
+    }
+    return map;
+  }
+
+  static #buildModifierActions() {
+    const list = [];
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (binding.global) continue;
+        const m = binding.modifiers || {};
+        const hasModifiers = m.cmdOrCtrl || m.alt || m.shift;
+        if (!hasModifiers) continue;
+        list.push({
+          id: shortcut.id,
+          key: binding.key,
+          ctrl: !!m.ctrl,
+          shift: !!m.shift,
+          alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
+        });
+      }
+    }
+    return list;
+  }
+
+  static #buildGlobalActions() {
+    const list = [];
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (!binding.global) continue;
+        const m = binding.modifiers || {};
+        list.push({
+          id: shortcut.id,
+          key: binding.key,
+          ctrl: !!m.ctrl,
+          shift: !!m.shift,
+          alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
+        });
+      }
+    }
+    return list;
+  }
+
+  // Single-key shortcuts (no modifiers) that work in view/both modes.
+  static #PLAIN_KEY_ACTIONS = KeyboardHandler.#buildPlainKeyMap();
+
+  // Edit-mode modifier shortcuts.
+  static #MODIFIER_ACTIONS = KeyboardHandler.#buildModifierActions();
+
+  // Global shortcuts that work in every mode (e.g. command palette).
+  static #GLOBAL_ACTIONS = KeyboardHandler.#buildGlobalActions();
 
   /**
    * Creates a new KeyboardHandler.
@@ -35,48 +95,15 @@ export class KeyboardHandler {
    * @param {Function} actions.openLayout - Open layout picker for current slide (edit mode only, Alt+L)
    * @param {Function} actions.toggleMermaid - Toggle Mermaid helper panel (edit mode only, Alt+M)
    * @param {Function} actions.commandPalette - Open command palette (Ctrl+K or Cmd+K)
-
    * @param {Function} actions.adjustColumns - Toggle column resize handles (edit mode only, Alt+A)
    * @param {Function} actions.isEditMode - Callback to check if edit mode is active
    * @param {Function} actions.isBreakActive - Callback to check if break mode is active
    * @param {Function} actions.endBreak - Callback to end break mode
    * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
    * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
-   * @param {Array<{id: string, plainKeys?: string[], viewing?: boolean, modifiers?: Array<{key: string, ctrl?: boolean, shift?: boolean, alt?: boolean}>}>} commands - Command registry used to build key maps
    */
-  constructor(actions, commands = []) {
+  constructor(actions) {
     this.actions = actions;
-    this.#buildKeyMaps(commands);
-  }
-
-  /**
-   * Build keyboard lookup tables from the command registry.
-   * Plain keys are split into the main and viewing maps, and modifier
-   * combos feed the edit-mode layer. The command palette itself is
-   * handled separately because it is global (Ctrl+K / Cmd+K).
-   * @param {Array} commands
-   * @private
-   */
-  #buildKeyMaps(commands) {
-    for (const cmd of commands) {
-      if (cmd.plainKeys) {
-        for (const key of cmd.plainKeys) {
-          if (cmd.viewing) this.#viewingActions[key] = cmd.id;
-          else this.#keyboardActions[key] = cmd.id;
-        }
-      }
-      if (cmd.modifiers) {
-        for (const m of cmd.modifiers) {
-          this.#editModeModifierActions.push({
-            key: m.key,
-            ctrl: !!m.ctrl,
-            shift: !!m.shift,
-            alt: !!m.alt,
-            action: cmd.id,
-          });
-        }
-      }
-    }
   }
 
   /**
@@ -117,21 +144,32 @@ export class KeyboardHandler {
   }
 
   /**
-   * Find a matching edit-mode modifier action for the given key event.
+   * Find a matching modifier action for the given key event.
    * @param {KeyboardEvent} e
-   * @returns {string|null} action name or null
+   * @param {Array<{id: string, key: string, ctrl: boolean, shift: boolean, alt: boolean}>} entries
+   * @returns {string|null} action id or null
    */
-  #findModifierAction(e) {
-    for (const entry of this.#editModeModifierActions) {
+  #findModifierAction(e, entries) {
+    for (const entry of entries) {
       const keyMatch =
         e.key.toLowerCase() === entry.key.toLowerCase() ||
         (entry.key.length === 1 && e.code === `Key${entry.key.toUpperCase()}`) ||
         e.code === entry.key;
       if (!keyMatch) continue;
-      if (!!e.ctrlKey !== entry.ctrl) continue;
+
+      if (entry.cmdOrCtrl) {
+        const onMac = isMac();
+        const primary = onMac ? e.metaKey : e.ctrlKey;
+        const other = onMac ? e.ctrlKey : e.metaKey;
+        if (!primary) continue;
+        if (other) continue;
+      } else if (!!e.ctrlKey !== entry.ctrl) {
+        continue;
+      }
+
       if (!!e.shiftKey !== entry.shift) continue;
       if (!!e.altKey !== entry.alt) continue;
-      return entry.action;
+      return entry.id;
     }
     return null;
   }
@@ -146,28 +184,24 @@ export class KeyboardHandler {
     const isEditMode = !!this.actions.isEditMode?.();
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
-    // ── Layer 0: Global command palette (Ctrl+K / Cmd+K) ───────────────
-    // Works in both edit and presentation modes, but don't re-open if it's
-    // already focused inside the palette itself.
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      !e.shiftKey &&
-      e.key.toLowerCase() === "k" &&
-      !e.target?.closest?.(".command-palette__dialog")
-    ) {
+    // ── Layer 0: Global shortcuts ───────────────────────────────────────
+    // These work in both edit and presentation modes.  Only prevent the
+    // default and fire if an action callback is actually wired up.
+    const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
+    if (globalAction && this.actions[globalAction]) {
       e.preventDefault();
-      this.actions.commandPalette?.();
+      this.actions[globalAction]();
       return;
     }
 
-    // ── Layer 1: Edit-mode modifier shortcuts (Ctrl+ / Alt+) ────────────
+    // ── Layer 1: Edit-mode modifier shortcuts (Ctrl+ / Alt+) ─────────────
     // These work while typing in the CodeMirror editor AND in non-editable
     // surfaces (the slide preview, the editor panel itself).  We
     // intentionally avoid firing inside non-CodeMirror inputs — modal text
     // fields, image property panels — so they keep their native behaviour
     // and don't accidentally delete a slide, etc.
     if (isEditMode && isEditorWindow && (inCodeMirror || !isEditable)) {
-      const modifierAction = this.#findModifierAction(e);
+      const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
         // Undo/Redo are handled by CodeMirror's own keymap when focus is
         // inside the editor.  Only fire from the document handler when
@@ -193,9 +227,9 @@ export class KeyboardHandler {
     // key lookups.  Shift is allowed (e.g. "G" and "g" both map to goto).
     if (e.altKey) return;
 
-    // Determine which action map to consult based on edit mode.
+    // Determine which action to dispatch based on the plain key.
     const plainKey = e.key;
-    const singleAction = this.#keyboardActions[plainKey] || this.#viewingActions[plainKey] || null;
+    const singleAction = KeyboardHandler.#PLAIN_KEY_ACTIONS[plainKey] || null;
 
     if (!singleAction) return;
 

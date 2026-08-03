@@ -11,6 +11,7 @@ import { Notification } from "./src/renderer/notification.js";
 import { RoleManager } from "./src/engine/role-manager.js";
 import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
+import { UiActions } from "./src/ui/ui-actions.js";
 import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
 (() => {
   "use strict";
@@ -104,6 +105,7 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
 
     // 4. Update UI Initial State
     DeckController.updateSlideCount(elements, deck.slides.length);
+    UiActions.renderShortcutHints();
 
     // 5. Initialize Controller
     const controller = new DeckController(deck, elements);
