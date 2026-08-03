@@ -124,7 +124,7 @@ export class NewModule {
 - **Modify deck content**: Edit [docs/example/slides.md](docs/example/slides.md)
 - **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
 - **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
-- **Add keyboard shortcut**: Modify [src/engine/keyboard-handler.js](src/engine/keyboard-handler.js)
+- **Add or change a keyboard shortcut**: Update [src/engine/keyboard-shortcuts.js](src/engine/keyboard-shortcuts.js), then run the quality gates
 
 ## AI Prompt Engineering (2026 Best Practices)
 

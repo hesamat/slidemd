@@ -2,83 +2,72 @@
  * KeyboardHandler
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
+import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
 
 export class KeyboardHandler {
-  static #KEYBOARD_ACTIONS = {
-    ArrowRight: "next",
-    " ": "next",
-    PageDown: "next",
-    ArrowDown: "next",
-    ArrowLeft: "prev",
-    PageUp: "prev",
-    ArrowUp: "prev",
-    Backspace: "prev",
-    Home: "first",
-    End: "last",
-    g: "goto",
-    G: "goto",
-    "/": "search",
-    "?": "search",
-    f: "fullscreen",
-    F: "fullscreen",
-    // Editor-window-only actions that work in BOTH viewing and edit mode.
-    // E toggles edit mode (on when off, off when on).
-    // R reloads the deck (useful after switching files, etc.).
-    // T toggles the global app theme (light/dark).
-    e: "edit",
-    E: "edit",
-    r: "reload",
-    R: "reload",
-    t: "theme",
-    T: "theme",
-  };
+  static #buildPlainKeyMap() {
+    const map = {};
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (binding.global) continue;
+        const hasModifiers =
+          binding.modifiers &&
+          (binding.modifiers.cmdOrCtrl || binding.modifiers.alt || binding.modifiers.shift);
+        if (hasModifiers) continue;
+        map[binding.key] = shortcut.id;
+      }
+    }
+    return map;
+  }
 
-  // Editor-window-only, viewing-mode actions (disabled in edit mode).
-  // B (break) is intentionally here — the break timer is for the presenter
-  // view, not for editing.  In edit mode B is hidden from the footer too.
-  static #VIEWING_ACTIONS = {
-    b: "break",
-    B: "break",
-    p: "viewer",
-    P: "viewer",
-  };
+  static #buildModifierActions() {
+    const list = [];
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (binding.global) continue;
+        const m = binding.modifiers || {};
+        const hasModifiers = m.cmdOrCtrl || m.alt || m.shift;
+        if (!hasModifiers) continue;
+        list.push({
+          id: shortcut.id,
+          key: binding.key,
+          ctrl: !!m.ctrl,
+          shift: !!m.shift,
+          alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
+        });
+      }
+    }
+    return list;
+  }
 
-  // Edit-mode actions that work even while the user is typing in the
-  // markdown editor. Each entry encodes the exact key combo that must match.
-  // Conventions:
-  //   • Ctrl + S     → Save (the only Ctrl shortcut; the browser's Ctrl+S
-  //                    "Save Page As" is preventable; Ctrl+N and Ctrl+D are
-  //                    browser-reserved and cannot be intercepted)
-  //   • Alt + letter → structural / insert / slide theme / styles
-  //                    (New, Duplicate, Image, Layout, Mermaid, BG, Columns,
-  //                     Slide Theme, Styles)
-  //   • Alt + Backspace → destructive slide op (Delete); avoids CodeMirror's
-  //                        default Ctrl+Backspace word-delete binding
-  //
-  // Note: there are two theme-related shortcuts by design.  T (single key)
-  // toggles the global *app* theme and works in both modes.  Alt+T toggles
-  // the current *slide*'s theme (the `theme:` directive in its markdown)
-  // and works even while typing in the editor.  They are independent.
-  static #EDIT_MODE_MODIFIER_ACTIONS = [
-    { key: "s", ctrl: true, shift: false, alt: false, action: "save" },
-    { key: "n", ctrl: false, shift: false, alt: true, action: "newSlide" },
-    { key: "d", ctrl: false, shift: false, alt: true, action: "duplicateSlide" },
-    { key: "Backspace", ctrl: false, shift: false, alt: true, action: "deleteSlide" },
-    { key: "i", ctrl: false, shift: false, alt: true, action: "insertImage" },
-    { key: "t", ctrl: false, shift: false, alt: true, action: "insertText" },
-    { key: "l", ctrl: false, shift: false, alt: true, action: "openLayout" },
-    { key: "m", ctrl: false, shift: false, alt: true, action: "toggleMermaid" },
-    { key: "f", ctrl: true, shift: true, alt: false, action: "search" },
+  static #buildGlobalActions() {
+    const list = [];
+    for (const shortcut of SHORTCUTS) {
+      for (const binding of shortcut.bindings) {
+        if (!binding.global) continue;
+        const m = binding.modifiers || {};
+        list.push({
+          id: shortcut.id,
+          key: binding.key,
+          ctrl: !!m.ctrl,
+          shift: !!m.shift,
+          alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
+        });
+      }
+    }
+    return list;
+  }
 
-    { key: "a", ctrl: false, shift: false, alt: true, action: "adjustColumns" },
-    { key: "t", ctrl: false, shift: true, alt: true, action: "slideTheme" },
-    { key: "s", ctrl: false, shift: false, alt: true, action: "styles" },
-    { key: "ArrowUp", ctrl: false, shift: true, alt: true, action: "moveSlideUp" },
-    { key: "ArrowDown", ctrl: false, shift: true, alt: true, action: "moveSlideDown" },
-    { key: "z", ctrl: true, shift: false, alt: false, action: "undo" },
-    { key: "z", ctrl: true, shift: true, alt: false, action: "redo" },
-    { key: "y", ctrl: true, shift: false, alt: false, action: "redo" },
-  ];
+  // Single-key shortcuts (no modifiers) that work in view/both modes.
+  static #PLAIN_KEY_ACTIONS = KeyboardHandler.#buildPlainKeyMap();
+
+  // Edit-mode modifier shortcuts.
+  static #MODIFIER_ACTIONS = KeyboardHandler.#buildModifierActions();
+
+  // Global shortcuts that work in every mode (e.g. command palette).
+  static #GLOBAL_ACTIONS = KeyboardHandler.#buildGlobalActions();
 
   /**
    * Creates a new KeyboardHandler.
@@ -105,7 +94,7 @@ export class KeyboardHandler {
    * @param {Function} actions.insertText - Insert a new text block (edit mode only, Alt+T)
    * @param {Function} actions.openLayout - Open layout picker for current slide (edit mode only, Alt+L)
    * @param {Function} actions.toggleMermaid - Toggle Mermaid helper panel (edit mode only, Alt+M)
-
+   * @param {Function} actions.commandPalette - Open command palette (Ctrl+K or Cmd+K)
    * @param {Function} actions.adjustColumns - Toggle column resize handles (edit mode only, Alt+A)
    * @param {Function} actions.isEditMode - Callback to check if edit mode is active
    * @param {Function} actions.isBreakActive - Callback to check if break mode is active
@@ -155,21 +144,32 @@ export class KeyboardHandler {
   }
 
   /**
-   * Find a matching edit-mode modifier action for the given key event.
+   * Find a matching modifier action for the given key event.
    * @param {KeyboardEvent} e
-   * @returns {string|null} action name or null
+   * @param {Array<{id: string, key: string, ctrl: boolean, shift: boolean, alt: boolean}>} entries
+   * @returns {string|null} action id or null
    */
-  #findModifierAction(e) {
-    for (const entry of KeyboardHandler.#EDIT_MODE_MODIFIER_ACTIONS) {
+  #findModifierAction(e, entries) {
+    for (const entry of entries) {
       const keyMatch =
         e.key.toLowerCase() === entry.key.toLowerCase() ||
         (entry.key.length === 1 && e.code === `Key${entry.key.toUpperCase()}`) ||
         e.code === entry.key;
       if (!keyMatch) continue;
-      if (!!e.ctrlKey !== entry.ctrl) continue;
+
+      if (entry.cmdOrCtrl) {
+        const onMac = isMac();
+        const primary = onMac ? e.metaKey : e.ctrlKey;
+        const other = onMac ? e.ctrlKey : e.metaKey;
+        if (!primary) continue;
+        if (other) continue;
+      } else if (!!e.ctrlKey !== entry.ctrl) {
+        continue;
+      }
+
       if (!!e.shiftKey !== entry.shift) continue;
       if (!!e.altKey !== entry.alt) continue;
-      return entry.action;
+      return entry.id;
     }
     return null;
   }
@@ -184,14 +184,24 @@ export class KeyboardHandler {
     const isEditMode = !!this.actions.isEditMode?.();
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
-    // ── Layer 1: Edit-mode modifier shortcuts (Ctrl+ / Alt+) ────────────
+    // ── Layer 0: Global shortcuts ───────────────────────────────────────
+    // These work in both edit and presentation modes.  Only prevent the
+    // default and fire if an action callback is actually wired up.
+    const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
+    if (globalAction && this.actions[globalAction]) {
+      e.preventDefault();
+      this.actions[globalAction]();
+      return;
+    }
+
+    // ── Layer 1: Edit-mode modifier shortcuts (Ctrl+ / Alt+) ─────────────
     // These work while typing in the CodeMirror editor AND in non-editable
     // surfaces (the slide preview, the editor panel itself).  We
     // intentionally avoid firing inside non-CodeMirror inputs — modal text
     // fields, image property panels — so they keep their native behaviour
     // and don't accidentally delete a slide, etc.
     if (isEditMode && isEditorWindow && (inCodeMirror || !isEditable)) {
-      const modifierAction = this.#findModifierAction(e);
+      const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
         // Undo/Redo are handled by CodeMirror's own keymap when focus is
         // inside the editor.  Only fire from the document handler when
@@ -217,12 +227,9 @@ export class KeyboardHandler {
     // key lookups.  Shift is allowed (e.g. "G" and "g" both map to goto).
     if (e.altKey) return;
 
-    // Determine which action map to consult based on edit mode.
+    // Determine which action to dispatch based on the plain key.
     const plainKey = e.key;
-    const singleAction =
-      KeyboardHandler.#KEYBOARD_ACTIONS[plainKey] ||
-      KeyboardHandler.#VIEWING_ACTIONS[plainKey] ||
-      null;
+    const singleAction = KeyboardHandler.#PLAIN_KEY_ACTIONS[plainKey] || null;
 
     if (!singleAction) return;
 
