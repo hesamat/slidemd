@@ -15,10 +15,10 @@ describe("removeAreaFromLayout", () => {
     expect(removeAreaFromLayout(md, "media")).toBe(md);
   });
 
-  it("replaces an area's cells with dots in a custom grid", () => {
+  it("replaces an area's cells and drops the now-empty redundant column", () => {
     const md = 'layout: "header header" "main media" / 1fr 1fr\n\n@media\nimage';
     const result = removeAreaFromLayout(md, "media");
-    expect(result).toContain('layout: "header header" "main ." / 1fr 1fr');
+    expect(result).toContain('layout: "header" "main" / 1fr');
   });
 
   it("removes a row that becomes entirely empty", () => {

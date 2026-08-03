@@ -339,6 +339,12 @@ export class LayoutPicker {
       return `${scaled}px`;
     });
 
+    // Reject CSS injection attempts in track lists before emitting an inline style.
+    const unsafe = /[;{}@]|\burl\(/i;
+    if (unsafe.test(parsed.gridTemplateRows) || unsafe.test(cols)) {
+      return "";
+    }
+
     return `grid-template-areas: ${parsed.gridTemplateAreas}; grid-template-rows: ${parsed.gridTemplateRows}; grid-template-columns: ${cols};`;
   }
 
