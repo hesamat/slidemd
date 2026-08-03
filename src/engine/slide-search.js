@@ -703,12 +703,15 @@ export class SlideSearch {
 
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      e.stopPropagation();
       this._activateResult(index);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectResult((index + 1) % this._results.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       this._selectResult((index - 1 + this._results.length) % this._results.length);
     }
   }
