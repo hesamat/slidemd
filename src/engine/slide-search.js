@@ -446,6 +446,7 @@ export class SlideSearch {
     input.addEventListener("input", () => {
       if (this._searchTimeout) clearTimeout(this._searchTimeout);
       this._searchTimeout = setTimeout(() => {
+        this._searchTimeout = null;
         this._renderResults(input.value);
       }, SEARCH_DELAY_MS);
     });
