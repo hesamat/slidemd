@@ -341,6 +341,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   background: var(--surface-hover);
 }
 
+.area-context-menu__item--active {
+  background: var(--accent);
+  color: white;
+}
+
+[data-theme="dark"] .area-context-menu__item--active {
+  background: var(--accent);
+  color: rgb(15, 23, 42);
+}
+
 .area-context-menu__label {
   flex: 1;
 }

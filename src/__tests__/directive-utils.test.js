@@ -7,6 +7,8 @@ import {
   updateHeaderStyleDirective,
   removeAreaFromLayout,
   describeBackground,
+  buildSingleColumnCustomLayout,
+  parseSingleColumnLayout,
 } from "../editor/core/directive-utils.js";
 
 describe("removeAreaFromLayout", () => {
@@ -35,6 +37,43 @@ describe("removeAreaFromLayout", () => {
   it("does not allow removing main", () => {
     const md = 'layout: "header" "main" / 1fr\n\n@main\ncontent';
     expect(removeAreaFromLayout(md, "main")).toBe(md);
+  });
+});
+
+describe("single-column layout helpers", () => {
+  it("rejects multi-column grids even when they contain main at a supported index", () => {
+    expect(
+      parseSingleColumnLayout(
+        '"header header" auto "main media" 1fr "footer footer" auto / 2fr 1fr',
+      ),
+    ).toBeNull();
+    expect(
+      parseSingleColumnLayout(
+        '"header header header" auto "main media secondary" 1fr "footer footer footer" auto / 1fr 1fr 1fr',
+      ),
+    ).toBeNull();
+  });
+
+  it("recognizes centered filler-column grids and preserves focus row sizes", () => {
+    const layout =
+      '"header header header" 0.08fr ". main ." 1fr "footer footer footer" 0.08fr / 1fr 2fr 1fr';
+    expect(parseSingleColumnLayout(layout)).toEqual({ base: "focus", width: 50, align: "center" });
+    expect(buildSingleColumnCustomLayout("focus", 40, "center", "0.08fr 1fr 0.08fr")).toContain(
+      '"header header header" 0.08fr ". main ." 1fr "footer footer footer" 0.08fr',
+    );
+  });
+
+  it("returns the base preset for a centered 100% width", () => {
+    expect(buildSingleColumnCustomLayout("focus", 100, "center")).toBe("focus");
+  });
+
+  it("does not classify a title row as an editable single-column layout", () => {
+    expect(parseSingleColumnLayout('"title" 1fr "main" 1fr / 1fr')).toBeNull();
+  });
+
+  it("preserves full-image structure when building an aligned grid", () => {
+    expect(buildSingleColumnCustomLayout("full-image", 60, "left")).toContain('"main ."');
+    expect(buildSingleColumnCustomLayout("full-image", 60, "left")).not.toContain("header");
   });
 });
 

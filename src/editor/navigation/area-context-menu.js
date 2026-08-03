@@ -11,11 +11,13 @@ export class AreaContextMenu {
    * @param {(areaName: string) => void} opts.onDeleteArea
    * @param {(areaName: string) => void} opts.onSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
+   * @param {(areaName: string, align: string) => void} opts.onAlignMain
    */
-  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight }) {
+  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
+    this._onAlignMain = onAlignMain;
     this._menuEl = null;
     this._abortController = null;
   }
@@ -45,19 +47,51 @@ export class AreaContextMenu {
    * @param {boolean} [opts.canDelete=true]
    * @param {boolean} [opts.canSwap=false]  — show swap option
    * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
+   * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
+   * @param {string} [opts.activeAlign]  — currently active alignment for main
    */
   open(clientX, clientY, areaName, opts = {}) {
     this.close();
     const canDelete = opts.canDelete !== false;
     const canSwap = opts.canSwap === true;
     const canMakeFullHeight = opts.canMakeFullHeight === true;
-    if (!canDelete && !canSwap && !canMakeFullHeight) return;
+    const canAlignMain = opts.canAlignMain === true;
+    const activeAlign = opts.activeAlign;
+    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
     menu.setAttribute("role", "menu");
     menu.style.left = `${clientX}px`;
     menu.style.top = `${clientY}px`;
+
+    if (canAlignMain && areaName === "main") {
+      const row = document.createElement("div");
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", "Main alignment");
+      row.style.display = "flex";
+      row.style.gap = "4px";
+      row.style.marginBottom = "4px";
+      for (const align of ["left", "center", "right"]) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.setAttribute("role", "menuitem");
+        btn.className = "area-context-menu__item";
+        btn.style.flex = "1";
+        btn.style.justifyContent = "center";
+        btn.textContent = align[0].toUpperCase() + align.slice(1);
+        const isActive = align === activeAlign;
+        btn.setAttribute("aria-pressed", String(isActive));
+        if (isActive) btn.classList.add("area-context-menu__item--active");
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.close();
+          this._onAlignMain?.(areaName, align);
+        });
+        row.appendChild(btn);
+      }
+      menu.appendChild(row);
+    }
 
     if (canSwap) {
       const btn = document.createElement("button");

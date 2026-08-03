@@ -8,6 +8,7 @@ import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaContextMenu } from "./area-context-menu.js";
 import { LayoutParser } from "../../data/layout-parser.js";
+import { parseSingleColumnLayout } from "../core/directive-utils.js";
 
 export class AreaGuideManager {
   /**
@@ -24,6 +25,7 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string) => boolean} opts.canMakeFullHeight
+   * @param {(areaName: string, align: string) => void} [opts.onAlignMain]
    * @param {() => object} opts.getWarnings
    * @param {(allowedAreas: string[]) => void} [opts.onFixAreaMismatch]
    */
@@ -40,6 +42,7 @@ export class AreaGuideManager {
     canSwapArea,
     onMakeFullHeight,
     canMakeFullHeight,
+    onAlignMain,
     getWarnings,
     onFixAreaMismatch,
   }) {
@@ -55,6 +58,7 @@ export class AreaGuideManager {
     this._canSwapArea = canSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._canMakeFullHeight = canMakeFullHeight;
+    this._onAlignMain = onAlignMain;
     this._getWarnings = getWarnings;
     this._onFixAreaMismatch = onFixAreaMismatch;
 
@@ -62,6 +66,7 @@ export class AreaGuideManager {
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
       onSwapArea: (areaName) => this._onSwapArea?.(areaName),
       onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
+      onAlignMain: (areaName, align) => this._onAlignMain?.(areaName, align),
     });
     this._contextMenu.init();
   }
@@ -147,10 +152,15 @@ export class AreaGuideManager {
         const canMakeFullHeight = this._canMakeFullHeight
           ? this._canMakeFullHeight(name)
           : name !== "main";
+        const active = parseSingleColumnLayout(slideData?.layout);
+        const canAlignMain = name === "main" && Boolean(active);
+        const activeAlign = active?.align;
         this._contextMenu.open(e.clientX, e.clientY, name, {
           canDelete,
           canSwap,
           canMakeFullHeight,
+          canAlignMain,
+          activeAlign,
         });
       });
     });

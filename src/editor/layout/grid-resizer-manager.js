@@ -53,8 +53,12 @@ export class GridResizerManager {
       fallbackAreas: areaNames.length ? areaNames : ["main"],
     });
 
-    attachGridResizer(slideEl, layoutInfo, this._deckStage, (change) =>
-      this._onGridResize(change, layoutInfo),
+    attachGridResizer(
+      slideEl,
+      layoutInfo,
+      this._deckStage,
+      (change) => this._onGridResize(change, layoutInfo),
+      layoutSpec,
     );
 
     slideEl.querySelectorAll(".grid-resize-handle").forEach((h) => {
@@ -86,8 +90,13 @@ export class GridResizerManager {
 
   _onGridResize(change, layoutInfo) {
     if (!this.markdownEditor) return;
-    const newSpec = buildLayoutSpec(layoutInfo, change.cols, change.rows);
     const markdown = this.markdownEditor.getValue();
+    let newSpec;
+    if (change.spec) {
+      newSpec = change.spec;
+    } else {
+      newSpec = buildLayoutSpec(layoutInfo, change.cols, change.rows);
+    }
     const newMarkdown = updateLayoutDirective(markdown, newSpec);
     this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
   }

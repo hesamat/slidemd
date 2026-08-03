@@ -25,7 +25,13 @@ import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
-import { removeAreaFromLayout, makeAreaFullHeight } from "./directive-utils.js";
+import {
+  buildSingleColumnCustomLayout,
+  makeAreaFullHeight,
+  parseSingleColumnLayout,
+  removeAreaFromLayout,
+  updateLayoutDirective,
+} from "./directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
@@ -178,6 +184,7 @@ export class EditController {
       canSwapArea: (name) => this._canSwapArea(name),
       onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
+      onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
       getWarnings: () => this.warnings,
       onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
@@ -626,6 +633,7 @@ export class EditController {
     // Only allow full-height on the right-most column area
     const slide = this.deck?.slides?.[this.currentSlideIndex];
     const resolvedLayout = LayoutParser.resolvePreset(slide?.layout);
+    if (parseSingleColumnLayout(resolvedLayout)) return false;
     const layout = LayoutParser.parse(resolvedLayout);
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
     if (rowMatches.length === 0) return false;
@@ -669,6 +677,30 @@ export class EditController {
       }
     });
 
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _alignMainInMarkdown(areaName, align) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const parser = new MarkdownParser();
+    const { value: layoutValue = "" } = parser.extractDirective(markdown, "layout");
+    const parsed = parseSingleColumnLayout(layoutValue);
+    if (!parsed) return;
+
+    const resolved = LayoutParser.resolvePreset(layoutValue);
+    const layoutInfo = LayoutParser.parse(resolved);
+    const newLayout = buildSingleColumnCustomLayout(
+      parsed.base,
+      parsed.width,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
+    if (!newLayout) return;
+
+    const updated = updateLayoutDirective(markdown, newLayout);
+    if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

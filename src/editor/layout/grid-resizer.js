@@ -9,6 +9,8 @@
  */
 
 import { DESIGN_SIZE } from "../../core/utils.js";
+import { buildSingleColumnCustomLayout, parseSingleColumnLayout } from "../core/directive-utils.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 
 // Minimum track size in design-space pixels to prevent collapsing a track to zero.
 const MIN_TRACK_PX = 80;
@@ -21,10 +23,11 @@ const MIN_TRACK_PX = 80;
  * @param {HTMLElement} slideEl     - The `.slide` article element.
  * @param {object}      layoutInfo  - Output of `LayoutParser.parse()`.
  * @param {HTMLElement} stageEl     - `#deckStage` — carries `--stage-scale`.
- * @param {function}    onLayoutChange - Called with `{ cols, rows }` after drag.
+ * @param {function}    onLayoutChange - Called with `{ cols, rows }` or `{ spec }` after drag.
  *                                       Either value may be `null` if unchanged.
+ * @param {string}      [layoutSpec=""] - Original layout directive value (for base/align detection).
  */
-export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) {
+export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange, layoutSpec = "") {
   if (!slideEl || !layoutInfo) return;
 
   // The slide DOM can be reused in edit mode (e.g. navigating without rerender),
@@ -34,8 +37,12 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || "minmax(0, 1fr)");
   const scale = _getScale(stageEl);
+  const parsedLayout = parseSingleColumnLayout(layoutSpec || "");
+  const align = parsedLayout?.align ?? "left";
+  const base = parsedLayout?.base;
 
-  _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange);
+  _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange, align);
+  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align, base);
 }
 
 /**
@@ -223,7 +230,15 @@ function _collectRowBoundaries(slideEl, scale) {
 
 // ─── Column handles ───────────────────────────────────────────────────────────
 
-function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange) {
+function _injectColumnHandles(
+  slideEl,
+  layoutInfo,
+  colTracks,
+  rowTracks,
+  scale,
+  onLayoutChange,
+  align,
+) {
   if (colTracks.length < 2) return;
 
   const metrics = _getRenderedTrackMetrics(slideEl, scale);
@@ -231,6 +246,11 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
   const totalGridHeight = boundaries.length
     ? _getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0
     : 0;
+  const slideRect = slideEl.getBoundingClientRect();
+  const mainArea = slideEl.querySelector('[data-area-name="main"]');
+  const mainRect = mainArea?.getBoundingClientRect();
+  const handleTop = mainRect ? (mainRect.top - slideRect.top) / scale : metrics.topOffset;
+  const handleHeight = mainRect ? mainRect.height / scale : totalGridHeight;
 
   for (let i = 0; i < colTracks.length - 1; i++) {
     // Only allow resizing when both adjacent tracks are fr-based; resizing a
@@ -245,8 +265,8 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
     handle.setAttribute("aria-label", "Resize column");
     handle.setAttribute("title", "Resize column");
     handle.style.left = `${xDesign}px`;
-    handle.style.top = `${metrics.topOffset}px`;
-    handle.style.height = `${totalGridHeight}px`;
+    handle.style.top = `${handleTop}px`;
+    handle.style.height = `${handleHeight}px`;
     slideEl.appendChild(handle);
 
     _attachColDragLogic(
@@ -259,6 +279,7 @@ function _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, 
       layoutInfo,
       onLayoutChange,
       metrics,
+      align,
     );
   }
 }
@@ -273,25 +294,27 @@ function _attachColDragLogic(
   layoutInfo,
   onLayoutChange,
   metrics,
+  align,
 ) {
   let startClientX = 0;
   let startLeftPx = 0;
   let startRightPx = 0;
   let totalWidth = 0;
+  const totalGridWidth = metrics.columns.reduce((sum, w) => sum + w, 0);
 
   const onMouseMove = (e) => {
     const deltaDesign = (e.clientX - startClientX) / scale;
     const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
     const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
 
-    const newTracks = _buildResizedTrackList(
-      colTracks,
-      leftIdx,
-      rightIdx,
-      newLeftPx,
-      newRightPx,
-      totalWidth,
-    );
+    const newTracks =
+      align === "center" && colTracks.length === 3
+        ? _buildCenterResizedTrackList(
+            colTracks,
+            leftIdx === 0 ? newLeftPx : newRightPx,
+            totalGridWidth,
+          )
+        : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     // Live visual update: set the column template directly on the slide grid
     const slideGrid = _getGridElement(slideEl);
@@ -308,14 +331,14 @@ function _attachColDragLogic(
     const deltaDesign = (e.clientX - startClientX) / scale;
     const newLeftPx = Math.max(MIN_TRACK_PX, startLeftPx + deltaDesign);
     const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
-    const newTracks = _buildResizedTrackList(
-      colTracks,
-      leftIdx,
-      rightIdx,
-      newLeftPx,
-      newRightPx,
-      totalWidth,
-    );
+    const newTracks =
+      align === "center" && colTracks.length === 3
+        ? _buildCenterResizedTrackList(
+            colTracks,
+            leftIdx === 0 ? newLeftPx : newRightPx,
+            totalGridWidth,
+          )
+        : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     onLayoutChange({ cols: newTracks.join(" "), rows: null });
   };
@@ -368,5 +391,134 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
         ? `${((secondPx / totalPx) * (secondTrack.frValue || 1)).toFixed(4)}fr`
         : track.raw;
     return track.raw;
+  });
+}
+
+/**
+ * Build a new track list for a centered main column (three fr columns).
+ * The left and right side tracks are kept equal so the main stays centered.
+ */
+function _buildCenterResizedTrackList(tracks, sidePx, totalWidth) {
+  const maxSide = (totalWidth - MIN_TRACK_PX) / 2;
+  const clampedSide = Math.max(MIN_TRACK_PX, Math.min(maxSide, sidePx));
+  const mainPx = totalWidth - 2 * clampedSide;
+  const totalFr =
+    tracks.reduce((sum, t) => sum + (t.isFr ? t.frValue || 1 : 0), 0) || tracks.length;
+  const sideFr = (clampedSide / totalWidth) * totalFr;
+  const mainFr = (mainPx / totalWidth) * totalFr;
+  return tracks.map((track, index) => {
+    if (index === 0 || index === 2) return `${sideFr.toFixed(4)}fr`;
+    if (index === 1) return `${mainFr.toFixed(4)}fr`;
+    return track.raw;
+  });
+}
+
+// ─── Single-column main-width handle ───────────────────────────────────────────
+
+/**
+ * For single-column layouts, inject a right-edge handle on the main column.
+ * The first drag converts the layout to a two-column fr grid so the existing
+ * resizer can take over on subsequent renders.
+ */
+function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align, base) {
+  if (!base) return;
+  const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
+  if (colTracks.length !== 1) return;
+  const mainArea = slideEl.querySelector('[data-area-name="main"]');
+  if (!mainArea) return;
+
+  const slideRect = slideEl.getBoundingClientRect();
+  const mainRect = mainArea.getBoundingClientRect();
+  const rightDesign = (mainRect.right - slideRect.left) / scale;
+  const topDesign = (mainRect.top - slideRect.top) / scale;
+  const heightDesign = mainRect.height / scale;
+
+  const handle = document.createElement("div");
+  handle.className = "grid-resize-handle grid-resize-handle--col";
+  handle.setAttribute("aria-label", "Resize main column");
+  handle.setAttribute("title", "Resize main column");
+  handle.style.left = `${rightDesign}px`;
+  handle.style.top = `${topDesign}px`;
+  handle.style.height = `${heightDesign}px`;
+  slideEl.appendChild(handle);
+
+  let startClientX = 0;
+  let startRightDesign = 0;
+  let startLeftDesign = 0;
+
+  const slideGrid = _getGridElement(slideEl);
+  const metrics = _getRenderedTrackMetrics(slideEl, scale);
+  const totalGridWidth = metrics.columns.reduce((sum, w) => sum + w, 0);
+  const maxMainWidth =
+    align === "center" ? totalGridWidth - 2 * MIN_TRACK_PX : totalGridWidth - MIN_TRACK_PX;
+
+  const onMouseMove = (e) => {
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
+    const newWidth = Math.min(
+      maxMainWidth,
+      Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
+    );
+    const widthPercent = Math.round((newWidth / totalGridWidth) * 100);
+    const newLayout = buildSingleColumnCustomLayout(
+      base,
+      widthPercent,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
+    if (newLayout && slideGrid) {
+      const parsed = LayoutParser.parse(LayoutParser.resolvePreset(newLayout), {
+        fallbackAreas: ["main"],
+      });
+      slideGrid.style.gridTemplateAreas = parsed.gridTemplateAreas;
+      slideGrid.style.gridTemplateColumns = parsed.gridTemplateColumns;
+      slideGrid.style.gridTemplateRows = parsed.gridTemplateRows;
+    }
+  };
+
+  const onMouseUp = (e) => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    slideEl.style.pointerEvents = "";
+
+    const deltaDesign = (e.clientX - startClientX) / scale;
+    const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
+    const newWidth = Math.min(
+      maxMainWidth,
+      Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
+    );
+    const widthPercent = Math.round((newWidth / totalGridWidth) * 100);
+    const newLayout = buildSingleColumnCustomLayout(
+      base,
+      widthPercent,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
+    if (newLayout) {
+      onLayoutChange({ spec: newLayout });
+    } else if (slideGrid) {
+      slideGrid.style.removeProperty("grid-template-areas");
+      slideGrid.style.removeProperty("grid-template-columns");
+      slideGrid.style.removeProperty("grid-template-rows");
+    }
+  };
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    startClientX = e.clientX;
+    startRightDesign = rightDesign;
+    startLeftDesign = (mainRect.left - slideRect.left) / scale;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    slideEl.style.pointerEvents = "none";
+    handle.style.pointerEvents = "auto";
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   });
 }

@@ -10,6 +10,21 @@ import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
 
+function _getCustomSingleColumnStyle(layout) {
+  const rows = String(layout?.gridTemplateAreas || "")
+    .match(/"[^"]*"|'[^']*'/g)
+    ?.map((row) => row.slice(1, -1).trim().split(/\s+/).filter(Boolean));
+  if (!rows || rows.length !== 3) return null;
+  if (!rows[0].every((cell) => cell === "header")) return null;
+  if (!rows[1].every((cell) => cell === "main" || cell === ".")) return null;
+  if (!rows[1].includes("main")) return null;
+  if (!rows[2].every((cell) => cell === "footer")) return null;
+
+  const rowSizes = layout.gridTemplateRows?.split(/\s+/) || [];
+  const isFocusRow = (value) => /^([\d.]+)fr$/i.test(value) && parseFloat(value) === 0.08;
+  return isFocusRow(rowSizes[0]) && isFocusRow(rowSizes[2]) ? "focus" : "header-content";
+}
+
 export class SlideRenderer {
   static areaLooksLikeMediaAsset(areaHtml) {
     const html = safeString(areaHtml).trim();
@@ -90,12 +105,21 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
-    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutKey) || 0;
+    let layoutStyleKey = layoutKey;
+    let dataLayout = layoutKey;
+    let isCustomFocus = false;
+    if (layoutKey && !LayoutData.hasLayout(layoutKey)) {
+      const customStyle = _getCustomSingleColumnStyle(layout);
+      layoutStyleKey = customStyle || "custom";
+      isCustomFocus = customStyle === "focus";
+      dataLayout = customStyle || "custom";
+    }
+    const fontSize = slide?.codeFontSize || LayoutData.getCodeFontSize(layoutStyleKey) || 0;
     if (fontSize) {
       grid.style.setProperty("--code-font-size", fontSize + "px");
     }
-    if (layoutKey) {
-      wrapper.setAttribute("data-layout", layoutKey);
+    if (dataLayout) {
+      wrapper.setAttribute("data-layout", dataLayout);
     }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
@@ -150,6 +174,12 @@ export class SlideRenderer {
 
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
+      }
+
+      // Custom focus grids set the main column width via grid tracks, so the
+      // per-element line-max cap must be disabled for the main area contents.
+      if (isCustomFocus && name === "main") {
+        area.style.setProperty("--line-max", "none");
       }
 
       // Footer spans full width when full-height areas exist
