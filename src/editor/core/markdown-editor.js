@@ -185,30 +185,41 @@ export class MarkdownEditor {
     this.value = value || "";
     if (!this.view) return;
 
-    const { suppressOnChange = false, recordHistory = true } = options;
+    const { suppressOnChange = false, recordHistory = true, clearHistory = false } = options;
     if (suppressOnChange) this.suppressChange = true;
 
     try {
       // Replace the whole document as a transaction so the history extension
       // records it (Ctrl+Z works). If the incremental parser/RangeSet mapper
       // throws on a full-doc change, fall back to recreating the state.
+      // When loading a different slide (clearHistory) we recreate the state so
+      // the previous slide's undo stack is discarded.
       if (this.view.state?.doc) {
-        const spec = {
-          changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-        };
-        if (!recordHistory) {
-          spec.annotations = [Transaction.addToHistory.of(false)];
-        }
-
-        try {
-          this.view.dispatch(spec);
-        } catch {
+        if (clearHistory) {
           this.view.setState(
             EditorState.create({
               doc: this.value,
               extensions: this.extensions,
             }),
           );
+        } else {
+          const spec = {
+            changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
+          };
+          if (!recordHistory) {
+            spec.annotations = [Transaction.addToHistory.of(false)];
+          }
+
+          try {
+            this.view.dispatch(spec);
+          } catch {
+            this.view.setState(
+              EditorState.create({
+                doc: this.value,
+                extensions: this.extensions,
+              }),
+            );
+          }
         }
       } else {
         this.view.setState(

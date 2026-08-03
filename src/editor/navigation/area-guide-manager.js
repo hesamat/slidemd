@@ -202,7 +202,15 @@ export class AreaGuideManager {
       const fallback = markerNames.length ? [...new Set([...markerNames, "main"])] : ["main"];
       const layout = LayoutParser.parse(resolved, { fallbackAreas: fallback });
       const allowed = new Set(layout.orderedAreas);
-      const mismatched = markerNames.filter((a) => !allowed.has(a));
+      const mismatched = markerNames.filter((a) => {
+        let normalized = a;
+        if (a === "header" && !allowed.has("header") && allowed.has("title")) {
+          normalized = "title";
+        } else if (a === "title" && !allowed.has("title") && allowed.has("header")) {
+          normalized = "header";
+        }
+        return !allowed.has(normalized);
+      });
       if (mismatched.length > 0) {
         mismatchMessage = `Unsupported @area markers: ${mismatched
           .map((a) => `@${a}`)

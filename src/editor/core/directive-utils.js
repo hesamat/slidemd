@@ -161,9 +161,14 @@ export function makeAreaFullHeight(markdown, areaName) {
     return result;
   });
 
-  const newAreas = newRows.map((row) => `"${row.join(" ")}"`).join(" ");
-  const rowSizePart = layout.hasExplicitRowSizes ? ` ${layout.rowSizes.join(" ")}` : "";
-  const newLayout = `${newAreas}${rowSizePart} / ${layout.gridTemplateColumns}`;
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(`"${newRows[i].join(" ")}"`);
+    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
+      parts.push(layout.rowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
 
   return updateLayoutDirective(stripped, newLayout);
 }
@@ -211,7 +216,13 @@ export function removeAreaFromLayout(markdown, areaName) {
     return updateLayoutDirective(stripped, "header-content");
   }
 
-  const rowSizePart = layout.hasExplicitRowSizes ? ` ${newRowSizes.join(" ")}` : "";
-  const newLayout = `${newRows.join(" ")}${rowSizePart} / ${layout.gridTemplateColumns}`;
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(newRows[i]);
+    if (layout.hasExplicitRowSizes && i < newRowSizes.length) {
+      parts.push(newRowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
   return updateLayoutDirective(stripped, newLayout);
 }

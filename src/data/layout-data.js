@@ -21,12 +21,15 @@ export class LayoutData {
   static _customMap = null;
 
   static _loadCustomLayouts() {
-    if (typeof localStorage === "undefined") return {};
+    if (typeof localStorage === "undefined") return Object.create(null);
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
+      if (!raw) return Object.create(null);
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return Object.create(null);
+      return Object.assign(Object.create(null), parsed);
     } catch {
-      return {};
+      return Object.create(null);
     }
   }
 

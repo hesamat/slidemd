@@ -495,7 +495,7 @@ export class EditController {
       this.originalMarkdown[this.currentSlideIndex] ??
       "";
 
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true, recordHistory: false });
+    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory: true });
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
     this.saveManager.updateButton();
     this.areaGuides.refresh();
