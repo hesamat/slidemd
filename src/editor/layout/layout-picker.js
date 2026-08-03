@@ -4,6 +4,7 @@
  * Handles modal display, grid rendering, and user interactions.
  */
 
+import { escapeHtml } from "../../core/utils.js";
 import { LayoutData } from "../../data/layout-data.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 
@@ -100,7 +101,7 @@ export class LayoutPicker {
       const parsed = LayoutParser.parse(grid);
       preview.style = this.getGridStyleForTemplate(grid);
       preview.innerHTML = parsed.orderedAreas
-        .map((area) => `<div style="grid-area: ${area}"></div>`)
+        .map((area) => `<div style="grid-area: ${escapeHtml(area)}"></div>`)
         .join("");
     };
 
@@ -226,24 +227,25 @@ export class LayoutPicker {
   static _renderOption(layout) {
     const description = LayoutData.getDescription(layout);
     const preview = LayoutData.getPreviewHTML(layout);
-    const formattedName = LayoutData.formatLayoutName(layout);
-    const gridStyle = this.getGridTemplateStyle(layout);
+    const formattedName = escapeHtml(LayoutData.formatLayoutName(layout));
+    const gridStyle = escapeHtml(this.getGridTemplateStyle(layout));
+    const safeLayout = escapeHtml(layout);
     const areas = LayoutData.getAreaNames(layout);
     const areasMarkup = areas
       .map(
         (area) => `
-                <span class="layout-option__area">@${area}</span>
+                <span class="layout-option__area">@${escapeHtml(area)}</span>
             `,
       )
       .join("");
 
     return `
-                <div class="layout-option" data-layout="${layout}" tabindex="0" role="button" aria-label="Select ${layout} layout">
+                <div class="layout-option" data-layout="${safeLayout}" tabindex="0" role="button" aria-label="Select ${safeLayout} layout">
                     <div class="layout-option__preview" style="${gridStyle}">
                         ${preview}
                     </div>
                     <div class="layout-option__name">${formattedName}</div>
-                    <div class="layout-option__description">${description}</div>
+                    <div class="layout-option__description">${escapeHtml(description)}</div>
                     <div class="layout-option__areas" aria-hidden="true">
                         ${areasMarkup}
                     </div>

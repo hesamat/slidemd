@@ -6,6 +6,7 @@
  * layouts are persisted in localStorage.
  */
 
+import { escapeHtml } from "../core/utils.js";
 import LAYOUTS from "./layouts.json" with { type: "json" };
 
 const STORAGE_KEY = "webdeck:custom-layouts";
@@ -159,7 +160,7 @@ export class LayoutData {
 
     const areas = this.getAreaNames(layoutName);
     if (areas.length === 0) return '<div style="grid-area: main"></div>';
-    return areas.map((area) => `<div style="grid-area: ${area}"></div>`).join("");
+    return areas.map((area) => `<div style="grid-area: ${escapeHtml(area)}"></div>`).join("");
   }
 
   /**
