@@ -41,6 +41,7 @@ export function createKeyboardHandler({
     first: () => getSlideNavigator().goTo(getSlideNavigator().findFirstVisibleIndex()),
     last: () => getSlideNavigator().goTo(getSlideNavigator().findLastVisibleIndex()),
     goto: () => getSlideNavigator().openGoToPrompt(),
+    search: () => getSlideNavigator().openSearchPrompt(),
     viewer: () => getRoleManager().togglePresentWindow(),
     edit: () => toggleEditMode(),
     break: () => getBreakManager().toggle(),

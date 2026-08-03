@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from "../core/utils.js";
+import { SlideSearch } from "./slide-search.js";
 
 export class SlideNavigator extends EventEmitter {
   /**
@@ -22,6 +23,13 @@ export class SlideNavigator extends EventEmitter {
     this.isEditMode = options.isEditMode || (() => false);
     this.freezeManager = null;
     this.currentIndex = 0;
+
+    this.slideSearch = new SlideSearch({
+      getDeck: () => this.deck,
+      onSelect: (index) => this.goTo(index),
+      getCurrentIndex: () => this.currentIndex,
+      isEditMode: () => this._isEditMode(),
+    });
   }
 
   /**
@@ -297,6 +305,13 @@ export class SlideNavigator extends EventEmitter {
     };
     document.addEventListener("keydown", escapeHandler);
     this._goToModalEscapeHandler = escapeHandler;
+  }
+
+  /**
+   * Opens the full-text search modal.
+   */
+  openSearchPrompt() {
+    this.slideSearch.open();
   }
 
   /**
