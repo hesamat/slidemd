@@ -2,7 +2,7 @@
  * KeyboardHandler
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
-import { SHORTCUTS } from "./keyboard-shortcuts.js";
+import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
 
 export class KeyboardHandler {
   static #buildPlainKeyMap() {
@@ -31,9 +31,10 @@ export class KeyboardHandler {
         list.push({
           id: shortcut.id,
           key: binding.key,
-          ctrl: !!m.cmdOrCtrl,
+          ctrl: !!m.ctrl,
           shift: !!m.shift,
           alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
         });
       }
     }
@@ -49,9 +50,10 @@ export class KeyboardHandler {
         list.push({
           id: shortcut.id,
           key: binding.key,
-          ctrl: !!m.cmdOrCtrl,
+          ctrl: !!m.ctrl,
           shift: !!m.shift,
           alt: !!m.alt,
+          cmdOrCtrl: !!m.cmdOrCtrl,
         });
       }
     }
@@ -154,7 +156,17 @@ export class KeyboardHandler {
         (entry.key.length === 1 && e.code === `Key${entry.key.toUpperCase()}`) ||
         e.code === entry.key;
       if (!keyMatch) continue;
-      if (!!e.ctrlKey !== entry.ctrl) continue;
+
+      if (entry.cmdOrCtrl) {
+        const onMac = isMac();
+        const primary = onMac ? e.metaKey : e.ctrlKey;
+        const other = onMac ? e.ctrlKey : e.metaKey;
+        if (!primary) continue;
+        if (other) continue;
+      } else if (!!e.ctrlKey !== entry.ctrl) {
+        continue;
+      }
+
       if (!!e.shiftKey !== entry.shift) continue;
       if (!!e.altKey !== entry.alt) continue;
       return entry.id;
