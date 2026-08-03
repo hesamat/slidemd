@@ -162,7 +162,8 @@ export function makeAreaFullHeight(markdown, areaName) {
   });
 
   const newAreas = newRows.map((row) => `"${row.join(" ")}"`).join(" ");
-  const newLayout = `${newAreas} / ${layout.gridTemplateColumns}`;
+  const rowSizePart = layout.hasExplicitRowSizes ? ` ${layout.rowSizes.join(" ")}` : "";
+  const newLayout = `${newAreas}${rowSizePart} / ${layout.gridTemplateColumns}`;
 
   return updateLayoutDirective(stripped, newLayout);
 }
@@ -195,12 +196,14 @@ export function removeAreaFromLayout(markdown, areaName) {
   if (rowMatches.length === 0) return markdown;
 
   const newRows = [];
-  for (const rowMatch of rowMatches) {
-    const cells = rowMatch.slice(1, -1).split(/\s+/).filter(Boolean);
+  const newRowSizes = [];
+  for (let i = 0; i < rowMatches.length; i++) {
+    const cells = rowMatches[i].slice(1, -1).split(/\s+/).filter(Boolean);
     const replaced = cells.map((c) => (c === name ? "." : c));
     const nonEmpty = replaced.some((c) => c !== ".");
     if (nonEmpty) {
       newRows.push(`"${replaced.join(" ")}"`);
+      newRowSizes.push(layout.rowSizes[i] || "minmax(0, 1fr)");
     }
   }
 
@@ -208,6 +211,7 @@ export function removeAreaFromLayout(markdown, areaName) {
     return updateLayoutDirective(stripped, "header-content");
   }
 
-  const newLayout = `${newRows.join(" ")} / ${layout.gridTemplateColumns}`;
+  const rowSizePart = layout.hasExplicitRowSizes ? ` ${newRowSizes.join(" ")}` : "";
+  const newLayout = `${newRows.join(" ")}${rowSizePart} / ${layout.gridTemplateColumns}`;
   return updateLayoutDirective(stripped, newLayout);
 }

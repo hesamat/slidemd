@@ -198,10 +198,11 @@ export class AreaGuideManager {
     let allowedAreas = null;
     if (slideData?.layout !== undefined) {
       const resolved = LayoutParser.resolvePreset(slideData.layout);
-      const layout = LayoutParser.parse(resolved);
+      const markerNames = slideData._markerNames || [];
+      const fallback = markerNames.length ? [...new Set([...markerNames, "main"])] : ["main"];
+      const layout = LayoutParser.parse(resolved, { fallbackAreas: fallback });
       const allowed = new Set(layout.orderedAreas);
-      const markerAreas = Object.keys(slideData._areaOffsets || {});
-      const mismatched = markerAreas.filter((a) => !allowed.has(a));
+      const mismatched = markerNames.filter((a) => !allowed.has(a));
       if (mismatched.length > 0) {
         mismatchMessage = `Unsupported @area markers: ${mismatched
           .map((a) => `@${a}`)

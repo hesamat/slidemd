@@ -17,6 +17,8 @@ const HIDDEN_PRESETS = new Set([
 ]);
 
 export class LayoutData {
+  static _customMap = null;
+
   static _loadCustomLayouts() {
     if (typeof localStorage === "undefined") return {};
     try {
@@ -27,8 +29,16 @@ export class LayoutData {
     }
   }
 
+  static _getCustomMap() {
+    if (this._customMap === null) {
+      this._customMap = this._loadCustomLayouts();
+    }
+    return this._customMap;
+  }
+
   static _saveCustomLayouts(map) {
     if (typeof localStorage === "undefined") return;
+    this._customMap = map;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
     } catch {
@@ -43,10 +53,17 @@ export class LayoutData {
   }
 
   /**
+   * Check whether a name is already used by a built-in preset.
+   */
+  static isBuiltIn(name) {
+    return this._normalizeName(name) in LAYOUTS.layouts;
+  }
+
+  /**
    * Get all user-defined custom layout names.
    */
   static getAllCustomLayoutNames() {
-    return Object.keys(this._loadCustomLayouts()).sort();
+    return Object.keys(this._getCustomMap()).sort();
   }
 
   /**
@@ -54,16 +71,17 @@ export class LayoutData {
    */
   static getCustomLayout(name) {
     const key = this._normalizeName(name);
-    return key ? this._loadCustomLayouts()[key] || null : null;
+    return key ? this._getCustomMap()[key] || null : null;
   }
 
   /**
    * Save (or overwrite) a user-defined custom layout in localStorage.
+   * Rejects built-in preset names so users cannot shadow them.
    */
   static setCustomLayout(name, gridTemplate) {
     const key = this._normalizeName(name);
-    if (!key) return false;
-    const map = this._loadCustomLayouts();
+    if (!key || this.isBuiltIn(key)) return false;
+    const map = this._getCustomMap();
     map[key] = String(gridTemplate || "").trim();
     this._saveCustomLayouts(map);
     return true;
@@ -74,7 +92,7 @@ export class LayoutData {
    */
   static deleteCustomLayout(name) {
     const key = this._normalizeName(name);
-    const map = this._loadCustomLayouts();
+    const map = this._getCustomMap();
     delete map[key];
     this._saveCustomLayouts(map);
   }
@@ -164,6 +182,7 @@ export class LayoutData {
     const rowMatches = gridTemplate.match(/"[^"]*"|'[^']*'/g) || [];
     const areas = [];
 
+    const areaNameRe = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
     for (const row of rowMatches) {
       const content = row.slice(1, -1);
       const names = content.split(/\s+/).filter(Boolean);
@@ -171,6 +190,7 @@ export class LayoutData {
         // In CSS grid-template-areas, '.' means an empty cell.
         // Avoid generating a corresponding slide area for it.
         if (/^\.+$/.test(name)) continue;
+        if (!areaNameRe.test(name)) continue;
         if (!areas.includes(name)) areas.push(name);
       }
     }

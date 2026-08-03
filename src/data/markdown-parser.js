@@ -758,6 +758,8 @@ export class MarkdownParser {
       cleaned = this.escapeKatexBracketDelimiters(cleaned);
 
       const { areas: areasMd } = MarkdownParser.parseAreas(cleaned);
+      const markerList = this.findAreaMarkers(cleaned);
+      const markerNames = [...new Set(markerList.map((m) => m.name))];
 
       const resolvedLayout = LayoutParser.parse(LayoutParser.resolvePreset(layout), {
         fallbackAreas: Object.keys(areasMd).length ? Object.keys(areasMd) : ["main"],
@@ -853,6 +855,7 @@ export class MarkdownParser {
         areaStyle: areaStyle || "",
         codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
+        _markerNames: markerNames,
       };
     });
 

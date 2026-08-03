@@ -116,12 +116,24 @@ export class LayoutPicker {
     form.querySelector("#saveCustomLayoutBtn").addEventListener("click", () => {
       const name = String(nameInput.value).trim().toLowerCase();
       const grid = String(gridInput.value).trim();
+      nameInput.setCustomValidity("");
       if (!name || !grid) return;
+
+      if (LayoutData.isBuiltIn(name)) {
+        nameInput.setCustomValidity("A built-in preset with that name already exists.");
+        nameInput.reportValidity();
+        return;
+      }
 
       const parsed = LayoutParser.parse(grid);
       if (parsed.orderedAreas.length === 0) return;
 
-      LayoutData.setCustomLayout(name, grid);
+      if (!LayoutData.setCustomLayout(name, grid)) {
+        nameInput.setCustomValidity("Could not save layout.");
+        nameInput.reportValidity();
+        return;
+      }
+
       this._hideCustomForm();
       this.renderGrid();
       this.selectLayout(name);
@@ -301,9 +313,8 @@ export class LayoutPicker {
       return `grid: ${gridTemplate.replace(/"/g, "'")};`;
     }
 
-    const parts = gridTemplate.split("/");
-    const areasPart = String(parts[0]).trim();
-    let cols = parts.slice(1).join("/").trim();
+    const parsed = LayoutParser.parse(gridTemplate, { fallbackAreas: ["main"] });
+    let cols = parsed.gridTemplateColumns;
 
     // Scale down fixed pixel widths for previews (e.g., 300px -> 60px)
     cols = cols.replace(/(\d+)px/g, (_, pixels) => {
@@ -311,25 +322,10 @@ export class LayoutPicker {
       return `${scaled}px`;
     });
 
-    // Convert double quotes to single quotes for HTML compatibility
-    const areasSingle = areasPart.replace(/"/g, "'");
+    // Use single quotes inside the HTML style attribute for compatibility.
+    const areas = parsed.gridTemplateAreas.replace(/"/g, "'");
 
-    // Match complete quoted strings (rows)
-    const rowDefinitions = [];
-    const rowRegex = /'([^']+)'/g;
-    let match;
-
-    while ((match = rowRegex.exec(areasSingle)) !== null) {
-      const fullRowDef = match[0]; // e.g., 'sidebar main' or 'header'
-      rowDefinitions.push(fullRowDef);
-    }
-
-    // Each row definition needs a height
-    const rowsWithHeights = rowDefinitions
-      .map((rowDef) => `${rowDef} ${rowDef.includes("main") ? "2fr" : "1fr"}`)
-      .join(" ");
-
-    return `grid: ${rowsWithHeights} / ${cols.replace(/"/g, "'")};`;
+    return `grid: ${areas} ${parsed.gridTemplateRows} / ${cols};`;
   }
 
   /**

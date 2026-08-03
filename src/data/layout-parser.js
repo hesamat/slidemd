@@ -48,10 +48,12 @@ export class LayoutParser {
     }
     const fullSpanAreas = new Set();
     for (const [n, c] of areaRowCounts) {
-      if (c === rowAreaNames.length) fullSpanAreas.add(n);
+      // An area only spans the full height if it appears in more than one row.
+      if (c === rowAreaNames.length && rowAreaNames.length > 1) fullSpanAreas.add(n);
     }
 
     const rowSizes = [];
+    let hasExplicitRowSizes = false;
     for (let i = 0; i < rowMatches.length; i++) {
       const afterRow = left.indexOf(rowMatches[i]) + rowMatches[i].length;
       const nextRowIdx = i + 1 < rowMatches.length ? left.indexOf(rowMatches[i + 1]) : left.length;
@@ -60,6 +62,7 @@ export class LayoutParser {
       if (between && !between.startsWith('"') && !between.startsWith("'")) {
         // Explicit size provided
         rowSizes.push(between);
+        hasExplicitRowSizes = true;
       } else {
         // Header/footer/title rows stay compact (auto). A full-height spanning
         // area (present in every row) does not force an otherwise compact row
@@ -76,12 +79,14 @@ export class LayoutParser {
     const gridTemplateRows = rowSizes.length ? rowSizes.join(" ") : "minmax(0, 1fr)";
 
     const orderedAreas = [];
+    const areaNameRe = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
     for (const row of rowsRaw) {
       const names = row.split(/\s+/).filter(Boolean);
       for (const name of names) {
         // In CSS grid-template-areas, '.' means an empty cell.
         // Avoid generating a corresponding slide area for it.
         if (/^\.+$/.test(name)) continue;
+        if (!areaNameRe.test(name)) continue;
         if (!orderedAreas.includes(name)) orderedAreas.push(name);
       }
     }
@@ -90,6 +95,8 @@ export class LayoutParser {
       gridTemplateAreas,
       gridTemplateColumns: cols,
       gridTemplateRows,
+      rowSizes,
+      hasExplicitRowSizes,
       orderedAreas: orderedAreas.length ? orderedAreas : [...new Set(fallbackAreas)],
     };
   }

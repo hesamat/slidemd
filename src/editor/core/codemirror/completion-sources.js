@@ -1,6 +1,7 @@
 import { snippetCompletion, startCompletion } from "@codemirror/autocomplete";
 import { LayoutData } from "../../../data/layout-data.js";
 import { LayoutParser } from "../../../data/layout-parser.js";
+import { MarkdownParser } from "../../../data/markdown-parser.js";
 
 /**
  * Autocompletion sources for the markdown editor.
@@ -28,18 +29,23 @@ function createSlashCommand(label, insertText, triggerCompletion) {
 
 /**
  * Get the raw text of the slide that contains the cursor position.
- * Slides are separated by `---` lines (approximate; does not track fences).
+ * Uses fence-aware splitting so `---` inside code blocks is not treated
+ * as a slide separator.
  */
 function getCurrentSlideText(context) {
   const doc = context.state.doc.toString();
   const pos = context.pos;
-  const before = doc.slice(0, pos);
-  const after = doc.slice(pos);
-  const prevSep = before.lastIndexOf("\n---\n");
-  const start = prevSep >= 0 ? prevSep + 5 : 0;
-  const nextSep = after.indexOf("\n---\n");
-  const end = nextSep >= 0 ? pos + nextSep : doc.length;
-  return doc.slice(start, end);
+  const slides = new MarkdownParser().splitSlides(doc);
+
+  let offset = 0;
+  for (const slide of slides) {
+    const start = doc.indexOf(slide, offset);
+    if (start < 0) break;
+    const end = start + slide.length;
+    if (pos >= start && pos <= end) return slide;
+    offset = end;
+  }
+  return doc;
 }
 
 /**
@@ -59,7 +65,7 @@ function getCurrentSlideAreaNames(context) {
 
 function layoutCompletionSource(layoutCompletions) {
   return (context) => {
-    const match = context.matchBefore(/layout:\s*[a-z0-9-]*$/i);
+    const match = context.matchBefore(/(?:^|\n)\s*layout:\s*.*/i);
     if (!match) return null;
     let from = match.from + match.text.indexOf(":") + 1;
     const docText = context.state.doc.sliceString(match.from, match.to);

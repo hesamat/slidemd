@@ -40,6 +40,7 @@ export class AreaNavigation {
       this.markdownEditor.setValueWithCursor(markdown, cursorPosition, {
         suppressOnChange: true,
         scrollIntoView: true,
+        recordHistory: false,
       });
       return;
     }
