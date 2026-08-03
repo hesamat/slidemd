@@ -25,8 +25,9 @@ const MIN_TRACK_PX = 80;
  * @param {HTMLElement} stageEl     - `#deckStage` — carries `--stage-scale`.
  * @param {function}    onLayoutChange - Called with `{ cols, rows }` or `{ spec }` after drag.
  *                                       Either value may be `null` if unchanged.
+ * @param {string}      [layoutSpec=""] - Original layout directive value (for base/align detection).
  */
-export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) {
+export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange, layoutSpec = "") {
   if (!slideEl || !layoutInfo) return;
 
   // The slide DOM can be reused in edit mode (e.g. navigating without rerender),
@@ -36,8 +37,7 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || "minmax(0, 1fr)");
   const scale = _getScale(stageEl);
-  const rawSpec = buildLayoutSpec(layoutInfo, null, null);
-  const parsedLayout = parseSingleColumnLayout(rawSpec);
+  const parsedLayout = parseSingleColumnLayout(layoutSpec || "");
   const align = parsedLayout?.align ?? "left";
   const base = parsedLayout?.base;
 

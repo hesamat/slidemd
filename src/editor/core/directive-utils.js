@@ -298,8 +298,13 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   const gridTemplate = LayoutData.getGridTemplate(base);
   if (!gridTemplate) return null;
 
-  const w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
-  if (w >= 1 && align === "center") return base;
+  let w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
+  if (w >= 1) {
+    if (align === "center") return base;
+    // A left/right aligned full-width main column would look unchanged,
+    // so default to an actual side-by-side split.
+    w = 0.5;
+  }
 
   const sep = gridTemplate.lastIndexOf(" / ");
   const areasPart = sep >= 0 ? gridTemplate.slice(0, sep) : gridTemplate;
@@ -342,6 +347,7 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
         : `1fr ${mainFrStr}fr 1fr`;
 
   const rowSizeTokens = _splitTrackString(rowSizes);
+  const useRowSizes = rowSizeTokens.length === rows.length;
   const newRows = rows.map((row, i) => {
     const token = row.cells[0];
     let newCells;
@@ -356,7 +362,7 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
     } else {
       newCells = Array(numCols).fill(token);
     }
-    const sizeToken = rowSizeTokens[i] || row.size;
+    const sizeToken = useRowSizes ? rowSizeTokens[i] : row.size;
     const sizeStr = sizeToken ? ` ${sizeToken}` : "";
     return `"${newCells.join(" ")}"${sizeStr}`;
   });

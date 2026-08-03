@@ -53,8 +53,12 @@ export class GridResizerManager {
       fallbackAreas: areaNames.length ? areaNames : ["main"],
     });
 
-    attachGridResizer(slideEl, layoutInfo, this._deckStage, (change) =>
-      this._onGridResize(change, layoutInfo),
+    attachGridResizer(
+      slideEl,
+      layoutInfo,
+      this._deckStage,
+      (change) => this._onGridResize(change, layoutInfo),
+      layoutSpec,
     );
 
     slideEl.querySelectorAll(".grid-resize-handle").forEach((h) => {
