@@ -152,8 +152,8 @@ export class AreaGuideManager {
         const canMakeFullHeight = this._canMakeFullHeight
           ? this._canMakeFullHeight(name)
           : name !== "main";
-        const canAlignMain = name === "main";
         const active = parseSingleColumnLayout(slideData?.layout);
+        const canAlignMain = name === "main" && Boolean(active);
         const activeAlign = active?.align;
         this._contextMenu.open(e.clientX, e.clientY, name, {
           canDelete,

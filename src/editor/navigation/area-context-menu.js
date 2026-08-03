@@ -67,20 +67,22 @@ export class AreaContextMenu {
 
     if (canAlignMain && areaName === "main") {
       const row = document.createElement("div");
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", "Main alignment");
       row.style.display = "flex";
       row.style.gap = "4px";
       row.style.marginBottom = "4px";
       for (const align of ["left", "center", "right"]) {
         const btn = document.createElement("button");
         btn.type = "button";
+        btn.setAttribute("role", "menuitem");
         btn.className = "area-context-menu__item";
         btn.style.flex = "1";
         btn.style.justifyContent = "center";
         btn.textContent = align[0].toUpperCase() + align.slice(1);
-        if (align === activeAlign) {
-          btn.classList.add("area-context-menu__item--active");
-          btn.setAttribute("aria-pressed", "true");
-        }
+        const isActive = align === activeAlign;
+        btn.setAttribute("aria-pressed", String(isActive));
+        if (isActive) btn.classList.add("area-context-menu__item--active");
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.close();

@@ -633,6 +633,7 @@ export class EditController {
     // Only allow full-height on the right-most column area
     const slide = this.deck?.slides?.[this.currentSlideIndex];
     const resolvedLayout = LayoutParser.resolvePreset(slide?.layout);
+    if (parseSingleColumnLayout(resolvedLayout)) return false;
     const layout = LayoutParser.parse(resolvedLayout);
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
     if (rowMatches.length === 0) return false;
@@ -688,12 +689,20 @@ export class EditController {
     const parsed = parseSingleColumnLayout(layoutValue);
     if (!parsed) return;
 
-    const newLayout = buildSingleColumnCustomLayout(parsed.base, parsed.width, align);
+    const resolved = LayoutParser.resolvePreset(layoutValue);
+    const layoutInfo = LayoutParser.parse(resolved);
+    const newLayout = buildSingleColumnCustomLayout(
+      parsed.base,
+      parsed.width,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
     if (!newLayout) return;
 
     const updated = updateLayoutDirective(markdown, newLayout);
     if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
   }
 
   _fixMismatchedAreas(allowedAreas) {

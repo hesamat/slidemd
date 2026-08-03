@@ -36,12 +36,13 @@ export function attachGridResizer(slideEl, layoutInfo, stageEl, onLayoutChange) 
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   const rowTracks = _parseTrackList(layoutInfo.gridTemplateRows || "minmax(0, 1fr)");
   const scale = _getScale(stageEl);
-  const rawSpec = `${layoutInfo.gridTemplateAreas || '"main"'} / ${layoutInfo.gridTemplateColumns || "1fr"}`;
+  const rawSpec = buildLayoutSpec(layoutInfo, null, null);
   const parsedLayout = parseSingleColumnLayout(rawSpec);
   const align = parsedLayout?.align ?? "left";
+  const base = parsedLayout?.base;
 
   _injectColumnHandles(slideEl, layoutInfo, colTracks, rowTracks, scale, onLayoutChange, align);
-  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align);
+  _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align, base);
 }
 
 /**
@@ -245,6 +246,11 @@ function _injectColumnHandles(
   const totalGridHeight = boundaries.length
     ? _getBoundaryPositions(metrics.rows, metrics.rowGap).at(-1) || 0
     : 0;
+  const slideRect = slideEl.getBoundingClientRect();
+  const mainArea = slideEl.querySelector('[data-area-name="main"]');
+  const mainRect = mainArea?.getBoundingClientRect();
+  const handleTop = mainRect ? (mainRect.top - slideRect.top) / scale : metrics.topOffset;
+  const handleHeight = mainRect ? mainRect.height / scale : totalGridHeight;
 
   for (let i = 0; i < colTracks.length - 1; i++) {
     // Only allow resizing when both adjacent tracks are fr-based; resizing a
@@ -259,8 +265,8 @@ function _injectColumnHandles(
     handle.setAttribute("aria-label", "Resize column");
     handle.setAttribute("title", "Resize column");
     handle.style.left = `${xDesign}px`;
-    handle.style.top = `${metrics.topOffset}px`;
-    handle.style.height = `${totalGridHeight}px`;
+    handle.style.top = `${handleTop}px`;
+    handle.style.height = `${handleHeight}px`;
     slideEl.appendChild(handle);
 
     _attachColDragLogic(
@@ -294,6 +300,7 @@ function _attachColDragLogic(
   let startLeftPx = 0;
   let startRightPx = 0;
   let totalWidth = 0;
+  const totalGridWidth = metrics.columns.reduce((sum, w) => sum + w, 0);
 
   const onMouseMove = (e) => {
     const deltaDesign = (e.clientX - startClientX) / scale;
@@ -302,7 +309,11 @@ function _attachColDragLogic(
 
     const newTracks =
       align === "center" && colTracks.length === 3
-        ? _buildCenterResizedTrackList(colTracks, leftIdx === 0 ? newLeftPx : newRightPx)
+        ? _buildCenterResizedTrackList(
+            colTracks,
+            leftIdx === 0 ? newLeftPx : newRightPx,
+            totalGridWidth,
+          )
         : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     // Live visual update: set the column template directly on the slide grid
@@ -322,7 +333,11 @@ function _attachColDragLogic(
     const newRightPx = Math.max(MIN_TRACK_PX, startRightPx - deltaDesign);
     const newTracks =
       align === "center" && colTracks.length === 3
-        ? _buildCenterResizedTrackList(colTracks, leftIdx === 0 ? newLeftPx : newRightPx)
+        ? _buildCenterResizedTrackList(
+            colTracks,
+            leftIdx === 0 ? newLeftPx : newRightPx,
+            totalGridWidth,
+          )
         : _buildResizedTrackList(colTracks, leftIdx, rightIdx, newLeftPx, newRightPx, totalWidth);
 
     onLayoutChange({ cols: newTracks.join(" "), rows: null });
@@ -383,14 +398,14 @@ function _buildResizedTrackList(tracks, firstIdx, secondIdx, firstPx, secondPx, 
  * Build a new track list for a centered main column (three fr columns).
  * The left and right side tracks are kept equal so the main stays centered.
  */
-function _buildCenterResizedTrackList(tracks, sidePx) {
-  const maxSide = (DESIGN_SIZE.width - MIN_TRACK_PX) / 2;
+function _buildCenterResizedTrackList(tracks, sidePx, totalWidth) {
+  const maxSide = (totalWidth - MIN_TRACK_PX) / 2;
   const clampedSide = Math.max(MIN_TRACK_PX, Math.min(maxSide, sidePx));
-  const mainPx = DESIGN_SIZE.width - 2 * clampedSide;
+  const mainPx = totalWidth - 2 * clampedSide;
   const totalFr =
     tracks.reduce((sum, t) => sum + (t.isFr ? t.frValue || 1 : 0), 0) || tracks.length;
-  const sideFr = (clampedSide / DESIGN_SIZE.width) * totalFr;
-  const mainFr = (mainPx / DESIGN_SIZE.width) * totalFr;
+  const sideFr = (clampedSide / totalWidth) * totalFr;
+  const mainFr = (mainPx / totalWidth) * totalFr;
   return tracks.map((track, index) => {
     if (index === 0 || index === 2) return `${sideFr.toFixed(4)}fr`;
     if (index === 1) return `${mainFr.toFixed(4)}fr`;
@@ -405,7 +420,8 @@ function _buildCenterResizedTrackList(tracks, sidePx) {
  * The first drag converts the layout to a two-column fr grid so the existing
  * resizer can take over on subsequent renders.
  */
-function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align) {
+function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, align, base) {
+  if (!base) return;
   const colTracks = _parseTrackList(layoutInfo.gridTemplateColumns || "1fr");
   if (colTracks.length !== 1) return;
   const mainArea = slideEl.querySelector('[data-area-name="main"]');
@@ -430,22 +446,30 @@ function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, alig
   let startRightDesign = 0;
   let startLeftDesign = 0;
 
-  const base = String(layoutInfo.gridTemplateRows || "").includes("0.08fr")
-    ? "focus"
-    : "header-content";
   const slideGrid = _getGridElement(slideEl);
+  const metrics = _getRenderedTrackMetrics(slideEl, scale);
+  const totalGridWidth = metrics.columns.reduce((sum, w) => sum + w, 0);
+  const maxMainWidth =
+    align === "center" ? totalGridWidth - 2 * MIN_TRACK_PX : totalGridWidth - MIN_TRACK_PX;
 
   const onMouseMove = (e) => {
     const deltaDesign = (e.clientX - startClientX) / scale;
     const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
     const newWidth = Math.min(
-      DESIGN_SIZE.width,
+      maxMainWidth,
       Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
     );
-    const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
-    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, align);
+    const widthPercent = Math.round((newWidth / totalGridWidth) * 100);
+    const newLayout = buildSingleColumnCustomLayout(
+      base,
+      widthPercent,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
     if (newLayout && slideGrid) {
-      const parsed = LayoutParser.parse(newLayout, { fallbackAreas: ["main"] });
+      const parsed = LayoutParser.parse(LayoutParser.resolvePreset(newLayout), {
+        fallbackAreas: ["main"],
+      });
       slideGrid.style.gridTemplateAreas = parsed.gridTemplateAreas;
       slideGrid.style.gridTemplateColumns = parsed.gridTemplateColumns;
       slideGrid.style.gridTemplateRows = parsed.gridTemplateRows;
@@ -462,12 +486,23 @@ function _injectMainWidthHandle(slideEl, layoutInfo, scale, onLayoutChange, alig
     const deltaDesign = (e.clientX - startClientX) / scale;
     const newRightDesign = Math.max(startLeftDesign + MIN_TRACK_PX, startRightDesign + deltaDesign);
     const newWidth = Math.min(
-      DESIGN_SIZE.width,
+      maxMainWidth,
       Math.max(MIN_TRACK_PX, newRightDesign - startLeftDesign),
     );
-    const widthPercent = Math.round((newWidth / DESIGN_SIZE.width) * 100);
-    const newLayout = buildSingleColumnCustomLayout(base, widthPercent, align);
-    if (newLayout) onLayoutChange({ spec: newLayout });
+    const widthPercent = Math.round((newWidth / totalGridWidth) * 100);
+    const newLayout = buildSingleColumnCustomLayout(
+      base,
+      widthPercent,
+      align,
+      layoutInfo.gridTemplateRows,
+    );
+    if (newLayout) {
+      onLayoutChange({ spec: newLayout });
+    } else if (slideGrid) {
+      slideGrid.style.removeProperty("grid-template-areas");
+      slideGrid.style.removeProperty("grid-template-columns");
+      slideGrid.style.removeProperty("grid-template-rows");
+    }
   };
 
   handle.addEventListener("mousedown", (e) => {

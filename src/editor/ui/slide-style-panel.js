@@ -7,6 +7,7 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { LayoutParser } from "../../data/layout-parser.js";
 import {
   isColorDark,
   buildImageBackground,
@@ -126,10 +127,13 @@ export class SlideStylePanel {
         '[data-panel="layout"] [data-align-group] .style-btn-option.selected',
       );
       if (parsed && widthEl && alignBtn) {
+        const resolved = LayoutParser.resolvePreset(currentLayout);
+        const layoutInfo = LayoutParser.parse(resolved);
         const newLayout = buildSingleColumnCustomLayout(
           parsed.base,
           parseInt(widthEl.value, 10),
           alignBtn.dataset.align || "center",
+          layoutInfo.gridTemplateRows,
         );
         if (newLayout) {
           const { markdown: withoutLayout } = parser.extractDirective(working, "layout");
@@ -263,11 +267,21 @@ export class SlideStylePanel {
     const layoutEl = this.el.querySelector('[data-panel="layout"]');
     if (layoutEl) {
       const mw = layoutEl.querySelector('[data-field="main-width"]');
+      const alignButtons = layoutEl.querySelectorAll("[data-align-group] .style-btn-option");
+      const hint = layoutEl.querySelector(".style-hint");
       if (mw) mw.value = parsedLayout ? parsedLayout.width : 100;
       const align = parsedLayout ? parsedLayout.align : "center";
-      layoutEl.querySelectorAll("[data-align-group] .style-btn-option").forEach((btn) => {
+      alignButtons.forEach((btn) => {
         btn.classList.toggle("selected", btn.dataset.align === align);
       });
+      const disabled = !parsedLayout;
+      if (mw) mw.disabled = disabled;
+      alignButtons.forEach((btn) => (btn.disabled = disabled));
+      if (hint) {
+        hint.textContent = disabled
+          ? "Layout adjustment is only available for single-column layouts."
+          : "Available for single-column layouts such as header-content and focus.";
+      }
     }
 
     this._layoutChanged = false;

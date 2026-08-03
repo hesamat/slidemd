@@ -286,17 +286,20 @@ export function removeAreaFromLayout(markdown, areaName) {
  * Build a custom single-column grid layout with a resizable/alignable main column.
  * Header and footer span all columns; main is placed left/center/right.
  *
- * @param {string} baseLayout - One of: header-content, focus, default.
+ * @param {string} baseLayout - One of: header-content, focus, default, full-image.
  * @param {number} width - Main column width percentage (0-100).
  * @param {string} align - "left", "center", or "right".
- * @returns {string|null} Grid spec string or null if base not single-column.
+ * @returns {string|null} Preset name at 100% centered width, otherwise a grid spec.
  */
-export function buildSingleColumnCustomLayout(baseLayout, width, align) {
+export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes = "") {
   const base = String(baseLayout || "")
     .trim()
     .toLowerCase();
   const gridTemplate = LayoutData.getGridTemplate(base);
   if (!gridTemplate) return null;
+
+  const w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
+  if (w >= 1 && align === "center") return base;
 
   const sep = gridTemplate.lastIndexOf(" / ");
   const areasPart = sep >= 0 ? gridTemplate.slice(0, sep) : gridTemplate;
@@ -321,10 +324,9 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align) {
     numCols = 2;
   }
 
-  const w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
   let mainFr;
   if (w >= 1) {
-    mainFr = numCols === 2 ? 200 : 400;
+    mainFr = 999;
   } else if (numCols === 2) {
     mainFr = w / (1 - w);
   } else {
@@ -339,7 +341,8 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align) {
         ? `1fr ${mainFrStr}fr`
         : `1fr ${mainFrStr}fr 1fr`;
 
-  const newRows = rows.map((row) => {
+  const rowSizeTokens = _splitTrackString(rowSizes);
+  const newRows = rows.map((row, i) => {
     const token = row.cells[0];
     let newCells;
     if (token === "main") {
@@ -353,7 +356,8 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align) {
     } else {
       newCells = Array(numCols).fill(token);
     }
-    const sizeStr = row.size ? ` ${row.size}` : "";
+    const sizeToken = rowSizeTokens[i] || row.size;
+    const sizeStr = sizeToken ? ` ${sizeToken}` : "";
     return `"${newCells.join(" ")}"${sizeStr}`;
   });
 
@@ -373,7 +377,7 @@ export function parseSingleColumnLayout(layoutValue) {
   if (!raw) {
     return { base: "default", width: 100, align: "center" };
   }
-  if (["header-content", "focus", "default"].includes(key)) {
+  if (["header-content", "focus", "default", "full-image"].includes(key)) {
     return { base: key, width: 100, align: "center" };
   }
 
@@ -395,10 +399,18 @@ export function parseSingleColumnLayout(layoutValue) {
   const mainRow = rows.find((r) => r.cells.includes("main"));
   if (!mainRow) return null;
   const mainIdx = mainRow.cells.indexOf("main");
-  if (mainIdx < 0 || mainIdx > 2) return null;
+  const numCols = mainRow.cells.length;
+  if (numCols > 3 || mainIdx < 0 || mainIdx > 2) return null;
+
+  // Single-column layout: the main row may only contain 'main' and '.' fillers.
+  for (let i = 0; i < mainRow.cells.length; i++) {
+    if (i === mainIdx && mainRow.cells[i] !== "main") return null;
+    if (i !== mainIdx && mainRow.cells[i] !== ".") return null;
+  }
 
   const colTokens = _splitTrackString(colsPart);
-  if (colTokens.length < mainIdx + 1) return null;
+  if (colTokens.length !== numCols || rows.some((row) => row.cells.length !== numCols)) return null;
+
   const mainTrack = colTokens[mainIdx];
   const frMatch = mainTrack.match(/^([\d.]+)fr$/i);
   const mainFr = frMatch ? parseFloat(frMatch[1]) : 1;
@@ -409,20 +421,35 @@ export function parseSingleColumnLayout(layoutValue) {
   let width = totalFr > 0 ? Math.round((mainFr / totalFr) * 100) : 100;
   if (width < 1) width = 100;
 
-  let align = "center";
-  if (mainIdx === 0 && colTokens.length === 2) align = "left";
-  else if (mainIdx === 1 && colTokens.length === 2) align = "right";
-  else if (mainIdx === 1 && colTokens.length === 3) align = "center";
+  let align;
+  if (numCols === 1) {
+    align = "center";
+  } else if (numCols === 2 && mainIdx === 0) {
+    align = "left";
+  } else if (numCols === 2 && mainIdx === 1) {
+    align = "right";
+  } else if (numCols === 3 && mainIdx === 1) {
+    align = "center";
+  } else {
+    return null;
+  }
 
-  let base = "header-content";
-  if (
-    raw.includes("0.08fr") &&
-    rows.some((r) => r.cells.includes("header")) &&
-    rows.some((r) => r.cells.includes("footer"))
-  ) {
-    base = "focus";
-  } else if (rows.some((r) => r.cells.includes("title"))) {
-    base = "title-slide";
+  const allCells = rows.flatMap((r) => r.cells);
+  const uniqueAreas = new Set(allCells);
+  uniqueAreas.delete(".");
+  const areaArray = [...uniqueAreas];
+  if (!areaArray.includes("main")) return null;
+
+  // Reject title-slide and other non-standard single-column grids.
+  if (areaArray.includes("title")) return null;
+
+  let base;
+  if (areaArray.includes("header") && areaArray.includes("footer")) {
+    base = raw.includes("0.08fr") ? "focus" : "header-content";
+  } else if (areaArray.length === 1 && areaArray[0] === "main") {
+    base = "full-image";
+  } else {
+    return null;
   }
 
   return { base, width, align };
