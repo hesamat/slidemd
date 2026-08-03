@@ -17,6 +17,8 @@ export class KeyboardHandler {
     End: "last",
     g: "goto",
     G: "goto",
+    "/": "search",
+    "?": "search",
     f: "fullscreen",
     F: "fullscreen",
     // Editor-window-only actions that work in BOTH viewing and edit mode.
@@ -66,6 +68,7 @@ export class KeyboardHandler {
     { key: "t", ctrl: false, shift: false, alt: true, action: "insertText" },
     { key: "l", ctrl: false, shift: false, alt: true, action: "openLayout" },
     { key: "m", ctrl: false, shift: false, alt: true, action: "toggleMermaid" },
+    { key: "f", ctrl: true, shift: true, alt: false, action: "search" },
 
     { key: "a", ctrl: false, shift: false, alt: true, action: "adjustColumns" },
     { key: "t", ctrl: false, shift: true, alt: true, action: "slideTheme" },
@@ -85,6 +88,7 @@ export class KeyboardHandler {
    * @param {Function} actions.first - Navigate to first slide
    * @param {Function} actions.last - Navigate to last slide
    * @param {Function} actions.goto - Open "go to slide" prompt
+   * @param {Function} actions.search - Open full-text slide search (/ or Ctrl+Shift+F)
    * @param {Function} actions.viewer - Open viewer window (editor only, viewing mode)
    * @param {Function} actions.edit - Toggle edit mode (E; works in both modes)
    * @param {Function} actions.break - Toggle break timer (editor only, viewing mode)
@@ -260,6 +264,9 @@ export class KeyboardHandler {
         break;
       case "goto":
         this.actions.goto?.();
+        break;
+      case "search":
+        this.actions.search?.();
         break;
       case "viewer":
         if (isEditorWindow && !isEditMode) {

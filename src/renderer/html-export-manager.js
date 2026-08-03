@@ -44,6 +44,7 @@ export class HtmlExportManager {
     "src/engine/wheel-handler.js",
     "src/engine/freeze-manager.js",
     "src/engine/role-manager.js",
+    "src/engine/slide-search.js",
     "src/engine/slide-navigator.js",
     "src/engine/break-manager.js",
     "src/engine/reload-manager.js",

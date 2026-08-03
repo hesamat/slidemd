@@ -121,6 +121,7 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
         else if (action === "theme") ThemeManager.toggleTheme();
         else if (action === "fullscreen") controller.toggleFullscreen();
         else if (action === "goto") controller.slideNavigator.openGoToPrompt();
+        else if (action === "search") controller.slideNavigator.openSearchPrompt();
         else if (action === "break") {
           if (controller.isEditMode()) {
             Notification.info("Break is unavailable in edit mode");
