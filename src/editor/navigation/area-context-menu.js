@@ -21,6 +21,7 @@ export class AreaContextMenu {
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
     this._menuEl = null;
+    this._colorInput = null;
     this._abortController = null;
   }
 
@@ -141,11 +142,23 @@ export class AreaContextMenu {
         input.style.opacity = "0";
         input.style.pointerEvents = "none";
         input.style.left = "-9999px";
+
+        this._colorInput = input;
         input.addEventListener("change", (ev) => {
+          this._colorInput = null;
           this.close();
           this._onSetBackground?.(areaName, ev.target.value);
           input.remove();
         });
+
+        const onFocus = () => {
+          if (!this._colorInput) return;
+          this._colorInput.remove();
+          this._colorInput = null;
+          this.close();
+        };
+
+        window.addEventListener("focus", onFocus, { once: true });
         document.body.appendChild(input);
         input.click();
       });
@@ -181,6 +194,10 @@ export class AreaContextMenu {
     if (this._menuEl) {
       this._menuEl.remove();
       this._menuEl = null;
+    }
+    if (this._colorInput) {
+      this._colorInput.remove();
+      this._colorInput = null;
     }
   }
 

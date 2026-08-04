@@ -182,6 +182,8 @@ export class SlideRenderer {
         this._applyAreaStyle(area, perAreaStyle);
       }
 
+      area.dataset.appliedAreaStyle = [areaStyle, perAreaStyle].filter(Boolean).join("; ");
+
       // Custom focus grids set the main column width via grid tracks, so the
       // per-element line-max cap must be disabled for the main area contents.
       if (isCustomFocus && name === "main") {

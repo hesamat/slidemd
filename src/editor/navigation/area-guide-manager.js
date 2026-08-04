@@ -164,7 +164,7 @@ export class AreaGuideManager {
           canSwap,
           canMakeFullHeight,
           canAlignMain,
-          canSetBackground: true,
+          canSetBackground: name !== "footer",
           activeAlign,
         });
       });
