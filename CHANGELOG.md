@@ -15,8 +15,7 @@
 
 - Add `AiOutputValidator` with layout, area, and content-rule checks.
 - Add `AiPromptComposer` for reusable system/user prompt fragments.
-- Split prompts into `system-prompt.md`, `generate-prompt.md`, `fix-prompt.md`.
-- Remove duplicate diagram instruction and add success criteria to fix prompt.
+- Update `fix-prompt.md` to remove duplicate diagram rule and add success criteria.
 - Accept partial fix output after exhausting batch validation retries.
 - Surface provider error body in failure messages.
 
