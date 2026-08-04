@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0 (Unreleased)
+
+### Deck Store & Patches
+
+- Add canonical `DeckStore` with `SlidePatch` and `DeckHistory` for undoable, patch-based slide mutations.
+- Add `SlidePatch` type and helpers for insert, delete, edit, and move operations.
+- Add `DeckHistory` with bounded undo/redo snapshots.
+- Wire `EditController`, `SlideOperations`, `ReloadManager`, and `DeckController` to the store at defined boundaries.
+- Add `DeckLoader.getSourceMarkdown()` helper to centralize markdown source resolution.
+- Extract `splitSlides()` as a fence-aware shared utility for `MarkdownParser` and `DeckStore`.
+- Route undo/redo keyboard shortcuts through `EditController`.
+- Add unit tests for `SlidePatch`, `DeckHistory`, `DeckStore`, and `SlideOperations`.
+- Total tests now **626**.
+
 ## 0.7.5 (2026-08-04)
 
 ### Security
