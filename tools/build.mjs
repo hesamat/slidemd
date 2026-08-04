@@ -395,6 +395,33 @@ function prismComponentForLang(lang) {
         makefile: "makefile",
         cmake: "cmake",
         sql: "sql",
+        yaml: "yaml",
+        yml: "yaml",
+        toml: "toml",
+        ini: "ini",
+        rust: "rust",
+        rs: "rust",
+        go: "go",
+        golang: "go",
+        ruby: "ruby",
+        rb: "ruby",
+        php: "php",
+        swift: "swift",
+        kotlin: "kotlin",
+        kt: "kotlin",
+        scala: "scala",
+        r: "r",
+        perl: "perl",
+        pl: "perl",
+        lua: "lua",
+        graphql: "graphql",
+        docker: "docker",
+        dockerfile: "docker",
+        nginx: "nginx",
+        vim: "vim",
+        regex: "regex",
+        diff: "diff",
+        http: "http",
     };
     return map[l] || null;
 }
@@ -412,6 +439,17 @@ function prismDependencies(component) {
             return ["clike", "c"];
         case "cpp":
             return ["clike", "cpp"];
+        case "go":
+        case "ruby":
+            return ["clike", component];
+        case "php":
+            return ["clike", "markup", "markup-templating", "php"];
+        case "scala":
+            return ["clike", "java", "scala"];
+        case "markdown":
+            return ["markup", "markdown"];
+        case "nginx":
+            return ["clike", "nginx"];
         default:
             return [component];
     }
@@ -636,15 +674,18 @@ html = html.replace(
     () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
 
-// Initialize KaTeX auto-render for dist builds (needed since ensureKatexLoaded is stubbed out)
-if (usesKatex) {
-    const katexInitScript = '<script>window.addEventListener("DOMContentLoaded",function(){if(typeof renderMathInElement==="function"){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredClasses:["no-math","katex-ignore","mermaid"],throwOnError:!1});}});</script>';
-    html = html.replace(/<\/head>/i, `${katexInitScript}</head>`);
-    console.log(`Added KaTeX auto-render initialization`);
+// Trigger the shared enhancer for dist builds after deck.js has rendered the
+// slides. ContentEnhancer is exposed by the bundled source.
+if (usesKatex || usesPrism || usesMermaid) {
+    const enhanceInitScript = '<script>(function(){let done=false;function enhance(){if(done)return;done=true;if(typeof ContentEnhancer!=="undefined"&&ContentEnhancer.enhanceRenderedContent){ContentEnhancer.enhanceRenderedContent(document.body,{renderAllSlides:!0,force:!0}).catch(function(e){console.warn("Enhancement error:",e)});}}window.addEventListener("webdeck:ready",enhance,{once:true});if(window.__WEBDECK_READY__)enhance();})();</script>';
+    html = html.replace(/<\/head>/i, `${enhanceInitScript}</head>`);
+    console.log(`Added shared content enhancer initialization for ${[usesPrism && "Prism", usesKatex && "KaTeX", usesMermaid && "Mermaid"].filter(Boolean).join(", ")}`);
 }
 
-// Mark this as an exported build (for deck.js to skip broadcast-based loading)
-html = html.replace(/<\/head>/i, '<script>window.__WEBDECK_EXPORTED__=true;</script></head>');
+// Mark this as an exported build (for deck.js to skip broadcast-based loading).
+// The bundled Mermaid module is loaded through AssetLoader, not a CDN script.
+const exportMarker = `<script>window.__WEBDECK_EXPORTED__=true;window.__WEBDECK_BUNDLED_BUILD__=true;${usesMermaid ? "window.__WEBDECK_HAS_MERMAID__=true;" : ""}</script>`;
+html = html.replace(/<\/head>/i, `${exportMarker}</head>`);
 
 fs.writeFileSync(outHtml, html, "utf8");
 {

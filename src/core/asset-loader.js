@@ -72,10 +72,30 @@ export class AssetLoader {
         () => import("prismjs/components/prism-java.js"),
         () => import("prismjs/components/prism-css.js"),
         () => import("prismjs/components/prism-markup.js"),
+        () => import("prismjs/components/prism-markup-templating.js"),
         () => import("prismjs/components/prism-yaml.js"),
+        () => import("prismjs/components/prism-toml.js"),
+        () => import("prismjs/components/prism-ini.js"),
         () => import("prismjs/components/prism-c.js"),
         () => import("prismjs/components/prism-cpp.js"),
         () => import("prismjs/components/prism-markdown.js"),
+        () => import("prismjs/components/prism-rust.js"),
+        () => import("prismjs/components/prism-go.js"),
+        () => import("prismjs/components/prism-ruby.js"),
+        () => import("prismjs/components/prism-php.js"),
+        () => import("prismjs/components/prism-swift.js"),
+        () => import("prismjs/components/prism-kotlin.js"),
+        () => import("prismjs/components/prism-scala.js"),
+        () => import("prismjs/components/prism-r.js"),
+        () => import("prismjs/components/prism-perl.js"),
+        () => import("prismjs/components/prism-lua.js"),
+        () => import("prismjs/components/prism-graphql.js"),
+        () => import("prismjs/components/prism-docker.js"),
+        () => import("prismjs/components/prism-nginx.js"),
+        () => import("prismjs/components/prism-vim.js"),
+        () => import("prismjs/components/prism-regex.js"),
+        () => import("prismjs/components/prism-diff.js"),
+        () => import("prismjs/components/prism-http.js"),
         () => import("prismjs/components/prism-makefile.js"),
         () => import("prismjs/components/prism-cmake.js"),
         () => import("prismjs/components/prism-sql.js"),
@@ -134,10 +154,39 @@ export class AssetLoader {
 
     const mermaidInitOptions = MERMAID_INIT_OPTIONS;
 
-    // Use a preloaded global Mermaid if present (e.g., bundled in dist builds)
+    // Use a preloaded global Mermaid if present (e.g., bundled in dist builds).
     if (window.mermaid && typeof window.mermaid.initialize === "function") {
       window.mermaid.initialize(mermaidInitOptions);
       window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
+      return;
+    }
+
+    // App-exported HTML uses a separately loaded Mermaid module and sets
+    // window.__WEBDECK_HAS_MERMAID__ before it starts. Bundled dist builds
+    // use the normal dynamic-import path instead.
+    if (window.__WEBDECK_EXPORTED__ && !window.__WEBDECK_BUNDLED_BUILD__) {
+      if (!window.__WEBDECK_HAS_MERMAID__) return;
+
+      await this.once("mermaid-export", async () => {
+        return new Promise((resolve) => {
+          if (window.__WEBDECK_MERMAID__) return resolve();
+          let timeout;
+          const finish = () => {
+            clearInterval(interval);
+            clearTimeout(timeout);
+            resolve();
+          };
+          const interval = setInterval(() => {
+            if (window.__WEBDECK_MERMAID__) finish();
+          }, 50);
+          timeout = setTimeout(finish, 5000);
+        });
+      });
+
+      if (window.mermaid && typeof window.mermaid.initialize === "function") {
+        window.mermaid.initialize(mermaidInitOptions);
+        window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
+      }
       return;
     }
 
@@ -151,19 +200,17 @@ export class AssetLoader {
   }
 
   /**
-   * Preload all optional rich-text enhancers (Prism, KaTeX, Mermaid) in parallel.
+   * Preload optional rich-text enhancers (Prism, KaTeX) in parallel.
+   * Mermaid is loaded on-demand by ContentEnhancer so it does not block these.
    * Failures are silently ignored — the deck renders without them.
    * @static
    * @returns {Promise<void>}
    */
   static async ensureRichTextEnhancers() {
     // Never throw: the deck should still render without optional enhancers.
-    await Promise.allSettled([
-      this.ensurePrismLoaded(),
-      this.ensureKatexLoaded(),
-      // Mermaid is loaded lazily too, but preloading here keeps navigation snappy once you hit a Mermaid slide.
-      this.ensureMermaidLoaded(),
-    ]);
+    // Mermaid is loaded on-demand by ContentEnhancer so Prism/KaTeX do not
+    // block waiting for a diagram library that the deck may not even use.
+    await Promise.allSettled([this.ensurePrismLoaded(), this.ensureKatexLoaded()]);
   }
 }
 

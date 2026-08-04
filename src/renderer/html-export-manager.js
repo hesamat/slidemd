@@ -18,6 +18,7 @@ export class HtmlExportManager {
     prismjs: "1.30.0",
     katex: "0.16.27",
     mermaid: "11.14.0",
+    dompurify: "3.4.12",
   };
 
   // Order of JS source files (same as build.mjs)
@@ -25,6 +26,7 @@ export class HtmlExportManager {
     // Core utilities and helpers
     "src/core/utils.js",
     "src/core/element-gatherer.js",
+    "src/core/mermaid-config.js",
     "src/core/asset-loader.js",
     // Data loading and parsing
     "src/data/layout-data.js",
@@ -143,7 +145,9 @@ export class HtmlExportManager {
 
     // 1. Get CSS (Vendor + App)
     report("Collecting styles...", 10);
-    const mainCss = HtmlExportManager.extractCssFromDocument();
+    const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
+    let mainCss = HtmlExportManager.extractCssFromDocument();
+    mainCss = HtmlExportManager.fixKatexFontUrls(mainCss, katexVersion);
     const vendorCss = await HtmlExportManager.fetchVendorCss(deck, signal);
     let allCss = vendorCss + "\n\n" + mainCss;
     if (minify) allCss = HtmlExportManager.minifyCss(allCss);
@@ -158,6 +162,10 @@ export class HtmlExportManager {
       bundledJs = HtmlExportManager.minifyJs(bundledJs);
       if (vendorJs) vendorJs = HtmlExportManager.minifyJs(vendorJs);
     }
+
+    // Prevent inline script text from closing the <script> tag prematurely.
+    bundledJs = HtmlExportManager.escapeInlineScriptText(bundledJs);
+    if (vendorJs) vendorJs = HtmlExportManager.escapeInlineScriptText(vendorJs);
 
     // 3. Escape Data
     // Inline images in deck JSON as data URIs
@@ -184,63 +192,9 @@ export class HtmlExportManager {
 .viewer { width: 100% !important; height: 100% !important; }
 `;
 
-    // We add a small init script to trigger Prism and KaTeX on load
-    // Use 'load' instead of 'DOMContentLoaded' to ensure vendor scripts are loaded and the DOM is ready
-    const initScript = `
-        // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
-        window.__WEBDECK_EXPORTED__ = true;
-
-        // Clear any stored slide state so we always start on slide 1
-        try {
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('webdeck:')) {
-                    localStorage.removeItem(key);
-                }
-            });
-        } catch (e) { /* ignore localStorage errors */ }
-
-        // Wait for window.load to ensure all vendor scripts are loaded
-        window.addEventListener('load', () => {
-            // Re-run Prism if it's available (fixes broken snapshots)
-            if (window.Prism) {
-                window.Prism.highlightAll();
-            }
-            // Render KaTeX math if it's available
-            if (window.renderMathInElement) {
-                window.renderMathInElement(document.body, {
-                    delimiters: [
-                        { left: "$$", right: "$$", display: true },
-                        { left: "$", right: "$", display: false },
-                        { left: "\\\\(", right: "\\\\)", display: false },
-                        { left: "\\\\[", right: "\\\\]", display: true }
-                    ],
-                    ignoredClasses: ["no-math", "katex-ignore", "mermaid"],
-                    throwOnError: false
-                });
-            }
-            // Render Mermaid diagrams
-            if (window.mermaid) {
-                const mermaidBlocks = document.querySelectorAll('.mermaid:not([data-mermaid-processed])');
-                if (mermaidBlocks.length > 0) {
-                    mermaidBlocks.forEach((el, i) => {
-                        const source = el.textContent || el.dataset.mermaidSource;
-                        if (source) {
-                            el.dataset.mermaidSource = source;
-                            el.dataset.mermaidProcessed = '1';
-                            try {
-                                const id = 'mermaid-export-' + i;
-                                mermaid.render(id, source).then(out => {
-                                    if (out && out.svg) el.innerHTML = out.svg;
-                                }).catch(e => {
-                                    console.warn('Mermaid render error:', e);
-                                });
-                            } catch(e) { console.warn('Mermaid error:', e); }
-                        }
-                    });
-                }
-            }
-        });
-        `;
+    const escapedInitScript = HtmlExportManager.escapeInlineScriptText(
+      HtmlExportManager.getInitScript(),
+    );
 
     report("Finalizing HTML...", 95);
     return `<!DOCTYPE html>
@@ -250,10 +204,21 @@ export class HtmlExportManager {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
     <meta name="theme-color" content="#3b82f6" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
 ${presenterHideCss}
 ${allCss}
     </style>
+    <script>window.__WEBDECK_EXPORTED__ = true;</script>
 </head>
 <body>
     <div id="app" class="app">
@@ -296,7 +261,7 @@ ${vendorJs ? `    <script>\n${vendorJs}\n    </script>` : ""}
     <!-- App Logic -->
     <script>
 ${bundledJs}
-${initScript}
+${escapedInitScript}
     </script>
 </body>
 </html>`;
@@ -333,6 +298,33 @@ ${initScript}
       makefile: "makefile",
       cmake: "cmake",
       sql: "sql",
+      yaml: "yaml",
+      yml: "yaml",
+      toml: "toml",
+      ini: "ini",
+      rust: "rust",
+      rs: "rust",
+      go: "go",
+      golang: "go",
+      ruby: "ruby",
+      rb: "ruby",
+      php: "php",
+      swift: "swift",
+      kotlin: "kotlin",
+      kt: "kotlin",
+      scala: "scala",
+      r: "r",
+      perl: "perl",
+      pl: "perl",
+      lua: "lua",
+      graphql: "graphql",
+      docker: "docker",
+      dockerfile: "docker",
+      nginx: "nginx",
+      vim: "vim",
+      regex: "regex",
+      diff: "diff",
+      http: "http",
     };
     return map[l] || null;
   }
@@ -352,6 +344,17 @@ ${initScript}
         return ["clike", "c"];
       case "cpp":
         return ["clike", "cpp"];
+      case "go":
+      case "ruby":
+        return ["clike", component];
+      case "php":
+        return ["clike", "markup", "markup-templating", "php"];
+      case "scala":
+        return ["clike", "java", "scala"];
+      case "markdown":
+        return ["markup", "markdown"];
+      case "nginx":
+        return ["clike", "nginx"];
       default:
         return [component];
     }
@@ -384,6 +387,7 @@ ${initScript}
 
     const prismVersion = await HtmlExportManager._getVendorVersion("prismjs", signal);
     const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
+    const dompurifyVersion = await HtmlExportManager._getVendorVersion("dompurify", signal);
 
     // Helper to fetch JS with fallback
     const fetchJs = async (localPath, cdnUrl) => {
@@ -401,6 +405,18 @@ ${initScript}
     };
 
     let vendorScripts = "";
+
+    // DOMPurify is always inlined because slide-renderer.js sanitizes user HTML.
+    const dompurifyCdn = dompurifyVersion
+      ? `https://cdnjs.cloudflare.com/ajax/libs/dompurify/${dompurifyVersion}/purify.min.js`
+      : null;
+    const dompurifyJs = await fetchJs("node_modules/dompurify/dist/purify.js", dompurifyCdn);
+    if (!dompurifyJs) {
+      throw new Error(
+        "HTML export requires DOMPurify, but it could not be loaded from node_modules or the CDN.",
+      );
+    }
+    vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
 
     // Check if we need Prism
     const needsPrism =
@@ -636,6 +652,24 @@ ${initScript}
       .join("\n");
   }
 
+  /**
+   * Convert absolute or relative KaTeX font URLs from the dev bundle into
+   * CDN URLs so the exported HTML loads them without a local node_modules server.
+   */
+  static fixKatexFontUrls(cssText, version) {
+    if (!cssText || !version) return cssText;
+    const cdnBase = `https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`;
+    // Restrict all URL rewrites to KaTeX @font-face rules so app CSS with its
+    // own relative fonts directory is not affected.
+    const katexFontBlockRe = /@font-face\s*\{[^{}]*?\bKaTeX[^{}]*?\}/gi;
+    return cssText.replace(katexFontBlockRe, (block) =>
+      block
+        .replace(/url\((['"]?)\/node_modules\/katex\/dist\/fonts\//g, `url($1${cdnBase}`)
+        .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`)
+        .replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`),
+    );
+  }
+
   static minifyCss(cssText) {
     if (!cssText) return "";
     return cssText
@@ -655,6 +689,15 @@ ${initScript}
       .map((line) => line.trimEnd())
       .join("\n");
     return trimmed.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  /**
+   * Escape </script sequences inside inline script text so the HTML parser does not
+   * close the script tag prematurely (e.g., from strings or regexes in the bundle).
+   */
+  static escapeInlineScriptText(jsText) {
+    if (!jsText) return jsText;
+    return jsText.replace(/<\/script/gi, "<\\/script");
   }
 
   /**
@@ -792,8 +835,8 @@ ${initScript}
   static async inlineImagesInHtml(html, signal = null) {
     if (!html) return html;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
-    // Match src="images/..." and src='images/...'
-    const imgRe = /src=(["'])(images\/[^"']+)\1/g;
+    // Match src="images/..." / src='images/...' and in-memory blob URLs from imports.
+    const imgRe = /src=(["'])((?:images\/|blob:)[^"']+)\1/g;
     const matches = [...html.matchAll(imgRe)];
     if (matches.length === 0) return html;
 
@@ -801,7 +844,8 @@ ${initScript}
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       const [fullMatch, quote, imagePath] = match;
       try {
-        const response = await fetch(`/${imagePath}`, { signal });
+        const fetchUrl = imagePath.startsWith("blob:") ? imagePath : `/${imagePath}`;
+        const response = await fetch(fetchUrl, { signal });
         if (!response.ok) return fullMatch;
         const blob = await response.blob();
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
@@ -843,14 +887,16 @@ ${initScript}
       if (slide.areas) {
         for (const area of Object.values(slide.areas)) {
           if (typeof area === "string") {
-            const matches = area.matchAll(/src=(["'])(images\/[^"']+)\1/g);
+            const matches = area.matchAll(/src=(["'])((?:images\/|blob:)[^"']+)\1/g);
             for (const m of matches) imageRefs.add(m[2]);
           }
         }
       }
-      // Also check background for url(images/...)
+      // Also check background for url(images/...) or url(blob:...)
       if (slide.background) {
-        const bgMatches = slide.background.matchAll(/url\((["']?)(images\/[^"')]+)\1?\)/g);
+        const bgMatches = slide.background.matchAll(
+          /url\((["']?)((?:images\/|blob:)[^"')]+)\1?\)/g,
+        );
         for (const m of bgMatches) imageRefs.add(m[2]);
       }
     }
@@ -862,7 +908,8 @@ ${initScript}
     for (const ref of imageRefs) {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        const response = await fetch(`/${ref}`, { signal });
+        const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
+        const response = await fetch(fetchUrl, { signal });
         if (!response.ok) continue;
         const blob = await response.blob();
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
@@ -920,6 +967,45 @@ ${initScript}
     );
   }
 
+  /**
+   * Returns the init script injected into exported HTML bundles.
+   * The script re-uses the same ContentEnhancer pipeline as the runtime and
+   * the PDF build path, so all three export/print surfaces stay in sync.
+   */
+  static getInitScript() {
+    return `
+        // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
+        window.__WEBDECK_EXPORTED__ = true;
+
+        // Clear any stored slide state so we always start on slide 1
+        try {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('webdeck:')) {
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch (e) { /* ignore localStorage errors */ }
+
+        // Re-run the shared enhancer after deck.js has rendered the slides.
+        (function runEnhancer() {
+            let done = false;
+            const enhance = () => {
+                if (done) return;
+                done = true;
+                if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.normalizeEmojiText) {
+                    ContentEnhancer.normalizeEmojiText(document.body);
+                }
+                if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
+                    ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
+                        .catch(e => console.warn('Enhancement error:', e));
+                }
+            };
+            window.addEventListener('webdeck:ready', enhance, { once: true });
+            if (window.__WEBDECK_READY__) enhance();
+        })();
+        `;
+  }
+
   static downloadHtml(html, filename) {
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -939,6 +1025,8 @@ ${initScript}
   static escapeHtml(text) {
     const div = document.createElement("div");
     div.textContent = text;
+    // This is a safe read: textContent escapes the input, and innerHTML
+    // returns the escaped representation. No untrusted string is assigned.
     return div.innerHTML;
   }
 }

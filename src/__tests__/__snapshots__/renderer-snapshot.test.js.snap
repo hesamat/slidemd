@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SlideRenderer markdown → DOM snapshots > produces a stable math + mermaid slide with raw HTML sanitized 1`] = `
+"<div class="slide active" role="region" aria-roledescription="slide" aria-label="Slide 3 of 3: Math and Diagrams" data-layout="left-heavy"><div class="slide__grid" style="grid-template-areas: &quot;header header&quot; &quot;main media&quot; &quot;footer footer&quot;; grid-template-columns: 2fr 1fr; grid-template-rows: auto minmax(0, 1fr) auto;"><div class="slide__area slide__area--header" style="grid-area: header;" data-area-name="header" data-applied-area-style=""><h1 data-source-line="1">Math and Diagrams</h1>
+</div><div class="slide__area slide__area--main" style="grid-area: main;" data-area-name="main" data-applied-area-style=""><p data-source-line="1">Inline math: $x = 1$</p>
+<p data-source-line="3">Block math:</p>
+<p data-source-line="5">$$E = mc^2$$</p>
+<p data-source-line="7"><a href="https://example.com">link</a></p>
+<p data-source-line="9">&lt;script&gt;alert('xss')&lt;/script&gt;</p>
+</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""><div class="mermaid" data-source-line="1" data-mermaid-source="b64:Z3JhcGggVEQKICAgIEFbU3RhcnRdIC0tPiBCW0VuZF0K"></div>
+</div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div></div></div>"
+`;
+
+exports[`SlideRenderer markdown → DOM snapshots > produces a stable title slide 1`] = `
+"<div class="slide active" role="region" aria-roledescription="slide" aria-label="Slide 1 of 3: Hello SlideMD" data-layout="title-slide"><div class="slide__grid" style="grid-template-areas: &quot;title&quot; &quot;footer&quot;; grid-template-columns: 1fr; grid-template-rows: 1fr auto;"><div class="slide__area slide__area--title" style="grid-area: title;" data-area-name="title" data-applied-area-style=""><h1 data-source-line="1">Hello SlideMD</h1>
+</div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div></div></div>"
+`;
+
+exports[`SlideRenderer markdown → DOM snapshots > produces a stable two-column slide 1`] = `
+"<div class="slide active" role="region" aria-roledescription="slide" aria-label="Slide 2 of 3: Snapshot Sample" data-layout="two-column"><div class="slide__grid" style="grid-template-areas: &quot;header header&quot; &quot;main media&quot; &quot;footer footer&quot;; grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr) auto;"><div class="slide__area slide__area--header" style="grid-area: header;" data-area-name="header" data-applied-area-style=""><h1 data-source-line="1">Snapshot Sample</h1>
+</div><div class="slide__area slide__area--main" style="grid-area: main;" data-area-name="main" data-applied-area-style=""><p data-source-line="1">Markdown is <strong>great</strong>.</p>
+<ul data-source-line="3">
+<li data-source-line="3">First bullet</li>
+<li data-source-line="4">Second bullet</li>
+</ul>
+<blockquote data-source-line="6">
+<p data-source-line="6">A blockquote with <code>code</code>.</p>
+</blockquote>
+</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""></div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div><div class="slide__area slide__area--sidebar" style="grid-area: sidebar;" data-area-name="sidebar" data-applied-area-style=""><pre><code data-source-line="1" class="language-python">def hello():
+    return "world"
+</code></pre>
+</div></div></div>"
+`;

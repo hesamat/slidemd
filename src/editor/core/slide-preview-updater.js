@@ -233,7 +233,7 @@ export class SlidePreviewUpdater {
 
             // Build a temporary off-screen container with the new HTML
             const temp = document.createElement("div");
-            temp.innerHTML = html;
+            temp.innerHTML = SlideRenderer.sanitizeAreaHtml(html);
             try {
               await ContentEnhancer.enhanceRenderedContent(temp, { force: true });
             } catch {

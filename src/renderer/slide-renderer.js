@@ -5,10 +5,92 @@
  * for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
+import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
+import createDOMPurify from "dompurify";
+
+const SAFE_URI_REGEXP =
+  /^(?:(?:https?|mailto|ftp|ftps|tel|callto|cid|xmpp):|blob:|data:image\/(?:avif|bmp|gif|jpeg|jpg|png|webp)(?:[;,]|$)|[^-a-z0-9+.]|[-a-z0-9+.]+(?:[^-a-z0-9+.:]|$))/i;
+const URI_ATTRIBUTES = new Set([
+  "action",
+  "background",
+  "cite",
+  "classid",
+  "codebase",
+  "data",
+  "formaction",
+  "href",
+  "longdesc",
+  "manifest",
+  "ping",
+  "poster",
+  "profile",
+  "src",
+  "srcset",
+  "usemap",
+  "xlink:href",
+  "xml:base",
+]);
+const PURIFY_CONFIG = {
+  // SlideMD relies on inline styles, link targets, and data-attributes.
+  // DOMPurify's default tag set already covers the structural HTML produced
+  // by markdown-it; we just need to keep a few extra attributes it drops.
+  ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
+  ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+};
+
+let _purify;
+let _configuredPurifiers = new WeakSet();
+let _domPurifyWarned = false;
+
+function configureDOMPurify(purify) {
+  if (!purify || _configuredPurifiers.has(purify)) return purify;
+  purify.addHook("uponSanitizeAttribute", (_node, data) => {
+    if (
+      URI_ATTRIBUTES.has(data.attrName.toLowerCase()) &&
+      !SAFE_URI_REGEXP.test(data.attrValue || "")
+    ) {
+      data.keepAttr = false;
+    }
+  });
+  _configuredPurifiers.add(purify);
+  return purify;
+}
+
+function getDOMPurify() {
+  // In the dev ESM build, the import is available and creates a sanitizer.
+  // In the self-contained HTML/PDF bundles the import is stripped, but the
+  // same DOMPurify library is loaded as a vendor global (window.DOMPurify).
+  if (_purify !== undefined) return configureDOMPurify(_purify);
+
+  if (typeof createDOMPurify !== "undefined") {
+    try {
+      _purify = createDOMPurify(window);
+    } catch {
+      _purify = null;
+    }
+  }
+
+  if (!_purify && typeof window !== "undefined" && window.DOMPurify) {
+    _purify = window.DOMPurify;
+  }
+
+  return configureDOMPurify(_purify);
+}
+
+function sanitizeAreaHtml(html) {
+  const purify = getDOMPurify();
+  if (!purify) {
+    if (!_domPurifyWarned) {
+      _domPurifyWarned = true;
+      console.warn("DOMPurify not available; rendering slide HTML as text");
+    }
+    return escapeHtml(html);
+  }
+  return purify.sanitize(html, PURIFY_CONFIG);
+}
 
 function _getCustomSingleColumnStyle(layout) {
   const rows = String(layout?.gridTemplateAreas || "")
@@ -51,6 +133,10 @@ export class SlideRenderer {
         areaEl.style.setProperty(prop, val);
       }
     }
+  }
+
+  static sanitizeAreaHtml(html) {
+    return sanitizeAreaHtml(html);
   }
 
   static createSlideElement(deck, slide, index, isActive) {
@@ -198,7 +284,7 @@ export class SlideRenderer {
         area.style.paddingRight = "0";
       }
 
-      area.innerHTML = html;
+      area.innerHTML = this.sanitizeAreaHtml(html);
       grid.appendChild(area);
     });
 

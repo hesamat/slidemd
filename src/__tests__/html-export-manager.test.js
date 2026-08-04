@@ -99,6 +99,32 @@ describe("HtmlExportManager", () => {
 
       expect(result).toContain('src="images/error.png"');
     });
+
+    it("replaces blob: src with data URI", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["blob-data"], { type: "image/png" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/png;base64,ZmFrZS1pbWFnZS1kYXRh";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
+
+      const html = '<img src="blob:http://localhost:8000/abc-123" alt="test">';
+      const result = await HtmlExportManager.inlineImagesInHtml(html);
+
+      expect(result).toContain("data:image/png;base64,");
+      expect(result).not.toContain("blob:");
+      expect(fetch).toHaveBeenCalledWith("blob:http://localhost:8000/abc-123", expect.any(Object));
+    });
   });
 
   describe("inlineImagesInDeck", () => {
@@ -169,6 +195,64 @@ describe("HtmlExportManager", () => {
       const result = await HtmlExportManager.inlineImagesInDeck(deck);
 
       expect(result.slides[0].background).toContain("data:image/jpeg;base64,");
+    });
+
+    it("inlines blob: src in slide areas", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["blob-data"], { type: "image/png" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/png;base64,ZmFrZQ==";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
+
+      const deck = {
+        slides: [{ areas: { main: '<img src="blob:http://localhost:8000/abc-123" alt="Blob">' } }],
+      };
+
+      const result = await HtmlExportManager.inlineImagesInDeck(deck);
+
+      expect(result.slides[0].areas.main).toContain("data:image/png;base64,");
+      expect(result.slides[0].areas.main).not.toContain("blob:");
+      expect(fetch).toHaveBeenCalledWith("blob:http://localhost:8000/abc-123", expect.any(Object));
+    });
+
+    it("inlines blob: background images", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(["blob-data"], { type: "image/jpeg" })),
+        }),
+      );
+      vi.stubGlobal(
+        "FileReader",
+        class {
+          readAsDataURL() {
+            this.result = "data:image/jpeg;base64,ZmFrZQ==";
+            if (this.onloadend) this.onloadend();
+          }
+        },
+      );
+
+      const deck = {
+        slides: [{ background: "linear-gradient(...), url(blob:http://localhost:8000/abc-123)" }],
+      };
+
+      const result = await HtmlExportManager.inlineImagesInDeck(deck);
+
+      expect(result.slides[0].background).toContain("data:image/jpeg;base64,");
+      expect(result.slides[0].background).not.toContain("blob:");
+      expect(fetch).toHaveBeenCalledWith("blob:http://localhost:8000/abc-123", expect.any(Object));
     });
 
     it("handles multiple images in same deck", async () => {
@@ -288,6 +372,39 @@ describe("HtmlExportManager", () => {
     });
   });
 
+  describe("fetchVendorJs", () => {
+    it("fails the export when DOMPurify cannot be loaded", async () => {
+      vi.spyOn(HtmlExportManager, "_getVendorVersion").mockResolvedValue("3.4.12");
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+      await expect(HtmlExportManager.fetchVendorJs({ slides: [] })).rejects.toThrow(
+        "HTML export requires DOMPurify",
+      );
+    });
+  });
+
+  describe("getInitScript", () => {
+    it("reuses ContentEnhancer.enhanceRenderedContent for all slides", () => {
+      const init = HtmlExportManager.getInitScript();
+      expect(init).toContain("ContentEnhancer.normalizeEmojiText");
+      expect(init).toContain("webdeck:ready");
+      expect(init).toContain("ContentEnhancer.enhanceRenderedContent");
+      expect(init).toContain("renderAllSlides: true");
+      expect(init).toContain("force: true");
+      expect(init).not.toContain("window.Prism.highlightAll");
+      expect(init).not.toContain("mermaid.render");
+    });
+  });
+
+  describe("escapeInlineScriptText", () => {
+    it("escapes literal </script to prevent premature script tag closing", () => {
+      const input = "const s = `<script>alert(1)</script>`;";
+      const escaped = HtmlExportManager.escapeInlineScriptText(input);
+      expect(escaped).toContain("<\\/script");
+      expect(escaped).not.toContain("</script>");
+    });
+  });
+
   describe("buildMermaidScriptTagIfNeeded", () => {
     const mermaidDeck = {
       slides: [{ areas: { main: "<pre><code>mermaid\ngraph TD;</code></pre>" } }],
@@ -305,6 +422,17 @@ describe("HtmlExportManager", () => {
         slides: [{ areas: { main: "<p>hello</p>" } }],
       });
       expect(tag).toBe("");
+    });
+  });
+
+  describe("prismDependencies", () => {
+    it("includes markup-templating for php", () => {
+      expect(HtmlExportManager.prismDependencies("php")).toEqual([
+        "clike",
+        "markup",
+        "markup-templating",
+        "php",
+      ]);
     });
   });
 });

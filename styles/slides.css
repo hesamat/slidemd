@@ -416,6 +416,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* --- HEADING STYLES --- */
 
+.slide__area .slide-emoji {
+  display: inline-block;
+  font-size: 0.8em;
+  line-height: 1;
+  vertical-align: -0.08em;
+  letter-spacing: normal;
+}
+
 .slide__area h1 {
   font-size: 56px;
   line-height: 1.15;

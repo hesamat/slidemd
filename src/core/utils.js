@@ -317,3 +317,57 @@ export function splitCssDeclarations(cssText) {
   if (current.trim()) decls.push(current);
   return decls;
 }
+
+/**
+ * Decode the most common HTML entities produced by markdown-it / escapeHtml.
+ * @param {string} html
+ * @returns {string}
+ */
+export function unescapeHtml(html) {
+  // Decode &amp; last so literal sequences like &amp;lt; become &lt; (typed text)
+  // rather than < (a real bracket).
+  return safeString(html)
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Base64-encode a (possibly Unicode) string. Returns null if the environment
+ * does not support btoa or encoding fails.
+ * @param {string} str
+ * @returns {string|null}
+ */
+export function base64Encode(str) {
+  if (typeof btoa !== "function") return null;
+  try {
+    return btoa(
+      encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+        String.fromCharCode(parseInt(hex, 16)),
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decode a string produced by base64Encode. Falls back to the raw string on failure.
+ * @param {string} str
+ * @returns {string}
+ */
+export function base64Decode(str) {
+  if (typeof atob !== "function" || !str) return str;
+  try {
+    return decodeURIComponent(
+      atob(str)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    );
+  } catch {
+    return str;
+  }
+}

@@ -36,6 +36,12 @@ describe("buildMermaidScriptTag", () => {
     expect(result).toContain("mermaid.initialize(");
   });
 
+  it("sets the __WEBDECK_HAS_MERMAID__ synchronously and __WEBDECK_MERMAID__ in the module", () => {
+    const result = buildMermaidScriptTag("11.14.0");
+    expect(result).toContain("window.__WEBDECK_HAS_MERMAID__ = true");
+    expect(result).toContain("window.__WEBDECK_MERMAID__={mermaid}");
+  });
+
   it("applies indent prefix when provided", () => {
     const result = buildMermaidScriptTag("11.14.0", "  ");
     expect(result.startsWith("  <script")).toBe(true);

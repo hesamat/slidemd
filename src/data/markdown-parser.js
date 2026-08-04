@@ -6,7 +6,15 @@
  * @class
  */
 // Markdown parsing and slide extraction
-import { safeString, slugifyTitle, DESIGN_SIZE, escapeBareHtmlTags } from "../core/utils.js";
+import {
+  safeString,
+  slugifyTitle,
+  DESIGN_SIZE,
+  escapeBareHtmlTags,
+  escapeHtml,
+  base64Encode,
+  unescapeHtml,
+} from "../core/utils.js";
 import { convertTextBlockDirectivesToHtml } from "../core/text-block-directive.js";
 import { LayoutParser } from "./layout-parser.js";
 
@@ -699,11 +707,15 @@ export class MarkdownParser {
       const sourceLineMatch = allAttrs.match(/data-source-line="(\d+)"/);
       const sourceAttr = sourceLineMatch ? ` data-source-line="${sourceLineMatch[1]}"` : "";
 
-      // For client-side, store Mermaid source in data-mermaid-source and add loading state
-      const safeContent = content.replace(/"/g, "&quot;");
+      // Store Mermaid source base64-encoded so DOMPurify does not strip it
+      // (raw Mermaid syntax like "A-->B" looks like an HTML comment end to sanitizers).
+      // The captured content may contain HTML entities from markdown-it, so decode first.
+      const source = unescapeHtml(content);
+      const encoded = base64Encode(source);
 
       // Create a div with a data attribute for client-side rendering
-      return `<div class="mermaid"${sourceAttr} data-mermaid-source="${safeContent}"></div>`;
+      const sourceValue = encoded === null ? escapeHtml(source) : `b64:${encoded}`;
+      return `<div class="mermaid"${sourceAttr} data-mermaid-source="${sourceValue}"></div>`;
     });
   }
 

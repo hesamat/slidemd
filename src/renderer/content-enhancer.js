@@ -2,9 +2,64 @@
  * ContentEnhancer
  * Provides static methods for enhancing slide content, including diagram rendering (Mermaid), syntax highlighting (Prism), and math typesetting (KaTeX).
  */
-import { normalizeCodeLanguage, escapeHtml } from "../core/utils.js";
+import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
+
+const EMOJI_SEQUENCE_RE =
+  /(?:[0-9#*]\uFE0F?\u20E3|\p{Regional_Indicator}{2}|(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?(?:\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?)*)/gu;
+
+function normalizeEmojiTextInRoot(rootEl) {
+  const doc = rootEl.ownerDocument || document;
+  const showText = doc.defaultView?.NodeFilter?.SHOW_TEXT || 4;
+  const walker = doc.createTreeWalker(rootEl, showText);
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    if (
+      node.parentElement?.closest("code, pre, script, style, svg, .mermaid, .katex, .slide-emoji")
+    ) {
+      continue;
+    }
+    if (EMOJI_SEQUENCE_RE.test(node.nodeValue)) {
+      textNodes.push(node);
+    }
+    EMOJI_SEQUENCE_RE.lastIndex = 0;
+  }
+
+  for (const textNode of textNodes) {
+    const fragment = doc.createDocumentFragment();
+    let lastIndex = 0;
+    EMOJI_SEQUENCE_RE.lastIndex = 0;
+    for (const match of textNode.nodeValue.matchAll(EMOJI_SEQUENCE_RE)) {
+      if (match.index > lastIndex) {
+        fragment.append(textNode.nodeValue.slice(lastIndex, match.index));
+      }
+      const emoji = doc.createElement("span");
+      emoji.className = "slide-emoji";
+      emoji.textContent = match[0];
+      fragment.append(emoji);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < textNode.nodeValue.length) {
+      fragment.append(textNode.nodeValue.slice(lastIndex));
+    }
+    textNode.replaceWith(fragment);
+  }
+}
+
+function normalizeEmojiText(rootEl) {
+  if (!rootEl) return;
+  const areaRoots = rootEl.matches?.(".slide__area")
+    ? [rootEl]
+    : [...(rootEl.querySelectorAll?.(".slide__area") || [])];
+  const roots = areaRoots.length > 0 ? areaRoots : [rootEl];
+  roots.forEach(normalizeEmojiTextInRoot);
+}
 
 export class ContentEnhancer {
+  static normalizeEmojiText(rootEl) {
+    normalizeEmojiText(rootEl);
+  }
+
   /**
    * Scans the deck to see what enhancers are needed.
    */
@@ -65,6 +120,28 @@ contain: layout paint style;
   }
 
   /**
+   * Reads a Mermaid source from a `data-mermaid-source` attribute.
+   * The parser base64-encodes the source to survive DOMPurify; older plain-text
+   * attributes are still supported.
+   */
+  static getMermaidSource(el) {
+    const raw = el.dataset.mermaidSource;
+    if (!raw) return raw;
+    if (raw.startsWith("b64:")) {
+      return base64Decode(raw.slice(4));
+    }
+    return raw;
+  }
+
+  /**
+   * Encodes Mermaid source for storage in a `data-mermaid-source` attribute.
+   */
+  static encodeMermaidSource(source) {
+    const encoded = base64Encode(source);
+    return encoded === null ? source : `b64:${encoded}`;
+  }
+
+  /**
    * Renders Mermaid diagrams.
    */
   static async renderMermaidDiagrams(rootEl, options = {}) {
@@ -72,14 +149,15 @@ contain: layout paint style;
     if (mermaidBlocks.length === 0) return true;
 
     const { renderAllSlides = false } = options;
-    const { mermaid } = await this.initializeMermaid();
-    if (!mermaid) return false;
+    const mermaidHandle = await this.initializeMermaid();
+    if (!mermaidHandle?.mermaid) return false;
+    const { mermaid } = mermaidHandle;
 
     for (const el of mermaidBlocks) {
       const slide = el.closest(".slide");
       if (slide && !renderAllSlides && !slide.classList.contains("active")) continue;
 
-      const source = el.dataset.mermaidSource;
+      const source = this.getMermaidSource(el);
       if (!source) {
         el.dataset.mermaidProcessed = "1";
         continue;
@@ -164,23 +242,16 @@ contain: layout paint style;
 
         const div = document.createElement("div");
         div.className = "mermaid";
-        div.dataset.mermaidSource = source;
+        // Base64-encode so DOMPurify-like sanitizers do not strip the arrow syntax.
+        div.dataset.mermaidSource = this.encodeMermaidSource(source);
         // Include source for runtime rendering (used in exports)
         div.textContent = source;
         pre.replaceWith(div);
       }
     }
 
-    // 2. Render Mermaid diagrams (skip if requested for runtime rendering)
-    const mermaidBlocks = rootEl.querySelectorAll(".mermaid");
-    if (mermaidBlocks.length > 0) {
-      mermaidBlocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
-      if (!skipMermaidRendering) {
-        await this.renderMermaidDiagrams(rootEl, { renderAllSlides });
-      }
-    }
-
-    // 3. Prism syntax highlighting
+    // 2. Prism syntax highlighting (run before Mermaid so code blocks are coloured
+    // immediately even if the diagram library is still loading).
     if (window.Prism) {
       const codeNodes = Array.from(rootEl.querySelectorAll("pre code"));
       for (const codeEl of codeNodes) {
@@ -196,7 +267,7 @@ contain: layout paint style;
       }
     }
 
-    // 4. KaTeX math
+    // 3. KaTeX math
     if (window.renderMathInElement) {
       try {
         window.renderMathInElement(rootEl, {
@@ -214,7 +285,23 @@ contain: layout paint style;
       }
     }
 
+    // 4. Render Mermaid diagrams (run last so syntax highlighting and math do not
+    //    wait for the diagram library).
+    const mermaidBlocks = rootEl.querySelectorAll(".mermaid");
+    if (mermaidBlocks.length > 0) {
+      mermaidBlocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
+      if (!skipMermaidRendering) {
+        await this.renderMermaidDiagrams(rootEl, { renderAllSlides });
+      }
+    }
+
+    normalizeEmojiText(rootEl);
     if (rootEl.dataset) rootEl.dataset.webdeckEnhanced = "1";
     return true;
   }
+}
+
+// Expose for non-module consumers (exported HTML bundle, PDF export, dist builds)
+if (typeof window !== "undefined") {
+  window.ContentEnhancer = ContentEnhancer;
 }

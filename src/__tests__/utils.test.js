@@ -12,6 +12,7 @@ import {
   simpleHash,
   yieldToMain,
   withTimeout,
+  unescapeHtml,
 } from "../core/utils.js";
 
 describe("DESIGN_SIZE", () => {
@@ -358,5 +359,19 @@ describe("EventEmitter", () => {
     emitter.addEventListener("test", "not a function");
     // Should not throw
     expect(() => emitter.dispatchEvent("test")).not.toThrow();
+  });
+});
+
+describe("unescapeHtml", () => {
+  it("decodes the standard named entities", () => {
+    expect(unescapeHtml("&lt;div&gt;")).toBe("<div>");
+    expect(unescapeHtml("&quot;hi&quot;")).toBe('"hi"');
+    expect(unescapeHtml("&#39;hi&#39;")).toBe("'hi'");
+  });
+
+  it("does not double-decode literal escape sequences like &amp;lt;", () => {
+    // markdown-it encodes a user-typed &lt; as &amp;lt;
+    expect(unescapeHtml("&amp;lt;")).toBe("&lt;");
+    expect(unescapeHtml("&amp;gt;")).toBe("&gt;");
   });
 });
