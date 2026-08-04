@@ -35,7 +35,11 @@ export function validateAiBaseUrl(baseUrl) {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return { ok: false, error: "Base URL must use http: or https: scheme" };
     }
-    if (parsed.protocol === "http:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+    if (
+      parsed.protocol === "http:" &&
+      parsed.hostname !== "localhost" &&
+      parsed.hostname !== "127.0.0.1"
+    ) {
       return { ok: false, error: "Non-local http: endpoints are not allowed" };
     }
     return { ok: true };

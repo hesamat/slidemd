@@ -13,7 +13,10 @@
 
 // SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
+import { validateAiBaseUrl } from "../data/ai/ai-provider-client.js";
+
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
+const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
 const STORAGE_KEY_PROVIDER = "webdeck_ai_provider";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-latest";
@@ -66,8 +69,9 @@ function providerEffortStorageKey(provider) {
  */
 function guessReasoningForModel(modelId) {
   const id = modelId.toLowerCase();
-  const openaiPattern = /(?:^|[-/_])(?:o\d+|gpt[-_]5)/; // o1, o3, gpt-5, etc.
-  const otherPatterns = [
+  const reasoningPatterns = [
+    /(?:^|[-/_])o\d+/, // o1, o3, o4, o1-preview, openai/o1-mini, etc.
+    /(?:^|[-/_])gpt[-_]5/, // gpt-5 family
     /deepseek[-_]r1/,
     /deepseek[-_]reasoner/,
     /claude[-_]3[-_]7[-_]sonnet/,
@@ -80,11 +84,10 @@ function guessReasoningForModel(modelId) {
     /r1/,
     /thinking/,
   ];
-  // OpenAI o-series and gpt-5 also support an extended "xhigh" effort level.
-  if (openaiPattern.test(id) || otherPatterns.some((p) => p.test(id))) {
-    const isOpenAI = openaiPattern.test(id);
-    const efforts = isOpenAI ? ["low", "medium", "high", "xhigh"] : ["low", "medium", "high"];
-    return { supported_efforts: efforts, mandatory: false };
+  // This is a best-effort fallback when the /models endpoint does not expose
+  // reasoning metadata. The provider's API still controls which values are valid.
+  if (reasoningPatterns.some((p) => p.test(id))) {
+    return { supported_efforts: ["low", "medium", "high"], mandatory: false };
   }
   return null;
 }
@@ -162,6 +165,26 @@ export class SettingsModal {
       return localStorage.getItem(STORAGE_KEY_BASE_URL) || DEFAULT_BASE_URL;
     } catch {
       return DEFAULT_BASE_URL;
+    }
+  }
+
+  static getBaseOverride() {
+    try {
+      return localStorage.getItem(STORAGE_KEY_BASE_OVERRIDE) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  static setBaseOverride(value) {
+    try {
+      if (value) {
+        localStorage.setItem(STORAGE_KEY_BASE_OVERRIDE, "true");
+      } else {
+        localStorage.removeItem(STORAGE_KEY_BASE_OVERRIDE);
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -290,7 +313,7 @@ export class SettingsModal {
       let selectedProvider = this.getProvider();
       let selectedModel = this.getModel(selectedProvider);
       let selectedBaseUrl = this.getBaseUrl();
-      let baseOverridden = false;
+      let baseOverridden = this.getBaseOverride();
 
       // --- Card fold/unfold ---
       const updateConnSummary = () => {
@@ -349,6 +372,7 @@ export class SettingsModal {
       baseUrlInput.value = selectedBaseUrl;
       modelInput.value = selectedModel;
       effortSelect.value = this.getEffort(selectedProvider);
+      baseOverrideCheckbox.checked = baseOverridden;
 
       let remembered = false;
       try {
@@ -484,6 +508,10 @@ export class SettingsModal {
         errorEl.hidden = true;
         try {
           const baseUrl = (selectedBaseUrl || "").replace(/\/+$/, "");
+          const validation = validateAiBaseUrl(baseUrl);
+          if (!validation.ok) {
+            throw new Error(validation.error || "Invalid base URL");
+          }
           const modelKey = apiKeyInput.value.trim();
           const headers = {};
           if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
@@ -675,6 +703,7 @@ export class SettingsModal {
 
           localStorage.setItem(STORAGE_KEY_BASE_URL, selectedBaseUrl);
           localStorage.setItem(STORAGE_KEY_PROVIDER, selectedProvider);
+          this.setBaseOverride(baseOverridden);
 
           if (remember) {
             localStorage.setItem(keyStorage, apiKey);
@@ -757,6 +786,10 @@ export class SettingsModal {
 
     try {
       const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
+      const validation = validateAiBaseUrl(baseUrl);
+      if (!validation.ok) {
+        throw new Error(validation.error || "Invalid base URL");
+      }
       const modelKey = this.getApiKey();
       const headers = {};
       if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
@@ -773,7 +806,10 @@ export class SettingsModal {
         const id = m.id || m.model || String(m);
         const name = m.name || id;
         this._allModels.push({ id, name });
-        const reasoning = m.reasoning || guessReasoningForModel(id);
+        // Prefer the API's own per-model reasoning metadata. If it is missing,
+        // fall back to the best-effort heuristic so known reasoning models still work.
+        const apiReasoning = m.reasoning?.supported_efforts ? m.reasoning : null;
+        const reasoning = apiReasoning || guessReasoningForModel(id);
         if (reasoning) {
           this._modelReasoningMap.set(id, reasoning);
         }

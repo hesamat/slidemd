@@ -345,7 +345,8 @@ export class ConversionModal {
               e.preventDefault();
               await SettingsModal.show();
               refreshAiState();
-              if (!SettingsModal.requiresApiKey(provider) || SettingsModal.getApiKey()) {
+              const newProvider = SettingsModal.getProvider();
+              if (!SettingsModal.requiresApiKey(newProvider) || SettingsModal.getApiKey()) {
                 fixInput.checked = true;
                 aiMode = "fix";
               }
@@ -365,7 +366,8 @@ export class ConversionModal {
             if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) {
               await SettingsModal.show();
               refreshAiState();
-              if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) return;
+              const newProvider = SettingsModal.getProvider();
+              if (SettingsModal.requiresApiKey(newProvider) && !SettingsModal.getApiKey()) return;
             }
             aiMode = "generate";
             saveBtn.click();

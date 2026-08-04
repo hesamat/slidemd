@@ -293,20 +293,35 @@ export class AiSidebar {
                 retryCount++;
                 queue.unshift(batch);
               } else {
-                const errs =
-                  batchResult.error.type === "validation" ? batchResult.error.errors : [];
-                if (errs.length > 0) {
+                const isValidation = batchResult.error.type === "validation";
+                const errs = isValidation ? batchResult.error.errors : [];
+                // Fix mode: accept the partial output after exhausting retries
+                // so one bad batch does not discard the whole deck.
+                if (isValidation && mode === "fix" && batchResult.error.slides) {
+                  results[batch.index] = batchResult.error.slides;
+                  const messages = errs.map((e) => e.message || e);
                   console.warn(
-                    `[AI Fix] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                    `[AI Fix] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
                   );
-                  for (const e of errs) {
-                    console.warn(`  - ${e.message || e}`);
+                  for (const m of messages) console.warn(`  - ${m}`);
+                  appendLog(
+                    `\u26A0 Batch ${batch.index + 1}: accepted with ${errs.length} validation issue${errs.length === 1 ? "" : "s"}`,
+                    "warn",
+                  );
+                } else {
+                  if (errs.length > 0) {
+                    console.warn(
+                      `[AI Fix] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                    );
+                    for (const e of errs) {
+                      console.warn(`  - ${e.message || e}`);
+                    }
                   }
+                  appendLog(
+                    `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
+                    "error",
+                  );
                 }
-                appendLog(
-                  `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
-                  "error",
-                );
                 completedSlides += batch.end - batch.start;
                 const nextBatch = queue.length > 0 ? queue[0] : null;
                 updateProgress(completedSlides, allSlides.length, nextBatch);
@@ -607,6 +622,9 @@ export class AiSidebar {
             type: "validation",
             errors: result.errors,
             repairMessages: nextRepairMessages,
+            // Keep the parsed slides so fix mode can accept partial output
+            // after exhausting retries instead of dropping the whole batch.
+            slides: parsed.slides,
           },
         };
       }
