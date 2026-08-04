@@ -315,9 +315,7 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 | Task                                                      | Details                                                                            |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | [x] Adjust width and alignment of main column (#152)      | Add UI controls for `header-content` and `focus` main column width and alignment.  |
-| [ ] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
-| [ ] Allow dragging Mermaid diagrams between areas (#123)  | Support drag-and-drop of Mermaid diagrams across `@area` boundaries.               |
-| [ ] Improve image properties style tab UI (#126)          | Improve the style tab in the image properties panel.                               |
+| [x] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
 
 ---
 
@@ -585,8 +583,8 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 7: PPTX Conversion                 | ✅ Complete |
 | Phase 7.5: CLI Dev Server                | ✅ Complete |
 | Phase 8: AI Post-Processing              | ✅ Complete |
-| Phase 9: Text Insertion & Editor UX      | In progress |
-| Phase 10: Markdown-First Foundation      | Planned     |
+| Phase 9: Text Insertion & Editor UX      | ✅ Complete |
+| Phase 10: Markdown-First Foundation      | In progress |
 | Phase 11: Content AST & Renderer         | Planned     |
 | Phase 12: AI Operations & Output Schema  | Planned     |
 | Phase 13: State, Patches & History       | Planned     |
@@ -597,7 +595,16 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) is the current active workstream and includes draggable text blocks, editor polish, and layout/media controls. Phase 10 (Markdown-First Foundation) transitions the platform to an extended-Markdown source of truth, frontmatter and `@area` directives, and slide-level AI patching. Phases 11-15 add an internal content AST, AI operations and output validation, state patches and history, a design system and theme registry, and presenter/print/AI command layers. Phase 16 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+
+## Backlog
+
+Items deferred from earlier phases; re-prioritize when the active phase is complete.
+
+| Task                                                     | Details                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------- |
+| [ ] Allow dragging Mermaid diagrams between areas (#123) | Support drag-and-drop of Mermaid diagrams across `@area` boundaries. |
+| [ ] Improve image properties style tab UI (#126)         | Improve the style tab in the image properties panel.                 |

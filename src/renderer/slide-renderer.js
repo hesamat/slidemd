@@ -132,6 +132,7 @@ export class SlideRenderer {
     }
 
     const areaStyle = safeString(slide?.areaStyle);
+    const perAreaStyles = slide?.areaStyles || {};
 
     // Auto-detect full-height areas: areas that appear in every row at the same column
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
@@ -174,6 +175,11 @@ export class SlideRenderer {
 
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
+      }
+
+      const perAreaStyle = perAreaStyles[name];
+      if (perAreaStyle && name !== "footer") {
+        this._applyAreaStyle(area, perAreaStyle);
       }
 
       // Custom focus grids set the main column width via grid tracks, so the

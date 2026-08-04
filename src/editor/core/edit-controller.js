@@ -30,6 +30,7 @@ import {
   makeAreaFullHeight,
   parseSingleColumnLayout,
   removeAreaFromLayout,
+  updateAreaStyleForAreaDirective,
   updateLayoutDirective,
 } from "./directive-utils.js";
 import { LayoutParser } from "../../data/layout-parser.js";
@@ -99,6 +100,13 @@ export class EditController {
       e.stopPropagation();
       TextBlockHandler.deselect();
       ImageInteractionHandler.select(img);
+    };
+
+    this._onSlidesContainerContextMenu = (e) => {
+      if (!this.isEditMode) return;
+      if (e.target.closest(".editor-area-label, .editor-slide-warning")) return;
+      e.preventDefault();
+      this.insertDropdown.openContextMenu(e.clientX, e.clientY);
     };
 
     this.thumbnails = new SlideThumbnails(deck, controller, elements, {
@@ -185,6 +193,7 @@ export class EditController {
       onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
       onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
+      onSetBackground: (name, color) => this._setAreaBackground(name, color),
       getWarnings: () => this.warnings,
       onFixAreaMismatch: (allowedAreas) => this._fixMismatchedAreas(allowedAreas),
     });
@@ -398,6 +407,10 @@ export class EditController {
 
     // slidesContainer click → image selection
     this.elements.slidesContainer?.removeEventListener("click", this._onSlidesContainerClick);
+    this.elements.slidesContainer?.removeEventListener(
+      "contextmenu",
+      this._onSlidesContainerContextMenu,
+    );
 
     // Sub-modules with their own listeners
     this.thumbnails?.destroy();
@@ -558,6 +571,7 @@ export class EditController {
     if (!slidesContainer) return;
 
     slidesContainer.addEventListener("click", this._onSlidesContainerClick);
+    slidesContainer.addEventListener("contextmenu", this._onSlidesContainerContextMenu);
 
     this.imageInserter.initDropAndPaste(slidesContainer);
   }
@@ -701,6 +715,16 @@ export class EditController {
 
     const updated = updateLayoutDirective(markdown, newLayout);
     if (updated === markdown) return;
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _setAreaBackground(areaName, color) {
+    if (!this.markdownEditor || !color || !areaName) return;
+    const markdown = this.markdownEditor.getValue();
+    const updated = updateAreaStyleForAreaDirective(markdown, areaName, `background: ${color}`);
+    if (updated === markdown) return;
+
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

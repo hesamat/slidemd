@@ -79,6 +79,25 @@ export function updateAreaStyleDirective(markdown, cssText) {
 }
 
 /**
+ * Replace (or insert) the `area-style-<areaName>:` directive in a slide's markdown.
+ * The value is a plain CSS string applied only to the named area.
+ *
+ * @param {string} markdown       - Slide markdown source.
+ * @param {string} areaName       - Target area name (e.g. "media").
+ * @param {string} cssText        - CSS declaration string (e.g. "background: #f1f5f9").
+ *                                  Empty string removes the directive entirely.
+ * @returns {string} Updated markdown.
+ */
+export function updateAreaStyleForAreaDirective(markdown, areaName, cssText) {
+  const parser = new MarkdownParser();
+  const directive = `area-style-${String(areaName || "").toLowerCase()}`;
+  const { markdown: stripped } = parser.extractDirective(markdown, directive);
+  const trimmed = String(cssText || "").trim();
+  if (!trimmed) return stripped;
+  return `${directive}: ${trimmed}\n${stripped}`;
+}
+
+/**
  * Replace (or insert) the `header-style:` directive in a slide's markdown.
  *
  * @param {string} markdown      - Slide markdown source.

@@ -23,6 +23,7 @@ export class InsertDropdownManager {
     this._btn = btn;
     this._content = content;
     this._actions = actions;
+    this._contentOriginParent = null;
     this._abortController = new AbortController();
   }
 
@@ -62,8 +63,54 @@ export class InsertDropdownManager {
     document.addEventListener("click", () => this.close(), { signal });
   }
 
+  /**
+   * Show the dropdown as a context menu at the given screen coordinates.
+   * Used for right-click on the slide preview.
+   * @param {number} clientX
+   * @param {number} clientY
+   */
+  openContextMenu(clientX, clientY) {
+    if (!this._content) return;
+    this.close();
+    const content = this._content;
+
+    // Re-parent to <body> for a top-level stacking context and bump the
+    // z-index above slide overlays and panels.
+    if (content.parentNode !== document.body) {
+      this._contentOriginParent = content.parentNode;
+      document.body.appendChild(content);
+    }
+
+    content.style.position = "fixed";
+    content.style.left = `${clientX}px`;
+    content.style.top = `${clientY}px`;
+    content.style.right = "auto";
+    content.style.bottom = "auto";
+    content.style.zIndex = "2000";
+    content.classList.remove("webdeck-hidden");
+
+    // Keep the menu within the viewport.
+    const rect = content.getBoundingClientRect();
+    const overflowX = rect.right - window.innerWidth;
+    const overflowY = rect.bottom - window.innerHeight;
+    if (overflowX > 0) content.style.left = `${Math.max(4, clientX - overflowX - 4)}px`;
+    if (overflowY > 0) content.style.top = `${Math.max(4, clientY - overflowY - 4)}px`;
+  }
+
   close() {
-    this._content?.classList.add("webdeck-hidden");
+    if (this._content) {
+      this._content.classList.add("webdeck-hidden");
+      this._content.style.position = "";
+      this._content.style.left = "";
+      this._content.style.top = "";
+      this._content.style.right = "";
+      this._content.style.bottom = "";
+      this._content.style.zIndex = "";
+      if (this._contentOriginParent) {
+        this._contentOriginParent.appendChild(this._content);
+        this._contentOriginParent = null;
+      }
+    }
     this._btn?.setAttribute("aria-expanded", "false");
   }
 

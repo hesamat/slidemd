@@ -12,12 +12,14 @@ export class AreaContextMenu {
    * @param {(areaName: string) => void} opts.onSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string, align: string) => void} opts.onAlignMain
+   * @param {(areaName: string, color: string) => void} opts.onSetBackground
    */
-  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain }) {
+  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain, onSetBackground }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._onAlignMain = onAlignMain;
+    this._onSetBackground = onSetBackground;
     this._menuEl = null;
     this._abortController = null;
   }
@@ -48,6 +50,7 @@ export class AreaContextMenu {
    * @param {boolean} [opts.canSwap=false]  — show swap option
    * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
+   * @param {boolean} [opts.canSetBackground=false]  — show background color picker
    * @param {string} [opts.activeAlign]  — currently active alignment for main
    */
   open(clientX, clientY, areaName, opts = {}) {
@@ -56,8 +59,9 @@ export class AreaContextMenu {
     const canSwap = opts.canSwap === true;
     const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
+    const canSetBackground = opts.canSetBackground === true;
     const activeAlign = opts.activeAlign;
-    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
+    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain && !canSetBackground) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -119,6 +123,33 @@ export class AreaContextMenu {
         this._onMakeFullHeight?.(areaName);
       });
       menu.appendChild(btn);
+    }
+
+    if (canSetBackground) {
+      const bgBtn = document.createElement("button");
+      bgBtn.type = "button";
+      bgBtn.className = "area-context-menu__item";
+      bgBtn.setAttribute("role", "menuitem");
+      bgBtn.innerHTML = `<span class="area-context-menu__label">Set background…</span>`;
+      bgBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const input = document.createElement("input");
+        input.type = "color";
+        input.value = "#ffffff";
+        input.setAttribute("aria-hidden", "true");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        input.style.pointerEvents = "none";
+        input.style.left = "-9999px";
+        input.addEventListener("change", (ev) => {
+          this.close();
+          this._onSetBackground?.(areaName, ev.target.value);
+          input.remove();
+        });
+        document.body.appendChild(input);
+        input.click();
+      });
+      menu.appendChild(bgBtn);
     }
 
     if (canDelete) {
