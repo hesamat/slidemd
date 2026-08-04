@@ -21,10 +21,15 @@ const P = "settings-modal__";
 
 const PROVIDER_DEFAULTS = {
   OpenRouter: "https://openrouter.ai/api/v1",
+  OpenAI: "https://api.openai.com/v1",
+  Anthropic: "https://api.anthropic.com",
+  Gemini: "https://generativelanguage.googleapis.com/v1beta",
   Ollama: "http://localhost:11434/v1",
   "LM Studio": "http://localhost:1234/v1",
   Custom: "",
 };
+
+const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
 
 export class SettingsModal {
   static _currentBackdrop = null;
@@ -112,6 +117,10 @@ export class SettingsModal {
 
   static isConfigured() {
     return !!this.getApiKey();
+  }
+
+  static requiresApiKey(provider) {
+    return KEY_REQUIRED_PROVIDERS.has(provider);
   }
 
   static clearKey() {
@@ -209,7 +218,8 @@ export class SettingsModal {
         updateBaseUrlEditability();
       };
 
-      const isOpenRouter = () => selectedProvider === "OpenRouter";
+      const isOpenAICompatibleProvider = () =>
+        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
 
       // --- Model search dropdown ---
       const filterModels = (query) => {
@@ -294,9 +304,12 @@ export class SettingsModal {
         errorEl.hidden = true;
         try {
           const baseUrl = (selectedBaseUrl || "").replace(/\/+$/, "");
+          const modelKey = apiKeyInput.value.trim();
+          const headers = {};
+          if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
-          const res = await fetch(`${baseUrl}/models`, { signal: controller.signal });
+          const res = await fetch(`${baseUrl}/models`, { headers, signal: controller.signal });
           clearTimeout(timeout);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
@@ -364,7 +377,7 @@ export class SettingsModal {
 
       // --- Model input interactions ---
       modelInput.addEventListener("focus", () => {
-        if (isOpenRouter()) {
+        if (isOpenAICompatibleProvider()) {
           modelInput.value = "";
           openDropdown();
           filterModels("");
@@ -372,7 +385,7 @@ export class SettingsModal {
       });
 
       modelInput.addEventListener("input", () => {
-        if (isOpenRouter()) {
+        if (isOpenAICompatibleProvider()) {
           openDropdown();
           filterModels(modelInput.value);
         } else {
@@ -404,7 +417,7 @@ export class SettingsModal {
       backdrop.addEventListener("click", handleOutsideClick);
 
       // --- Populate models for OpenRouter ---
-      if (isOpenRouter()) {
+      if (isOpenAICompatibleProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
           const savedReasoning = this.getReasoning();
@@ -429,8 +442,8 @@ export class SettingsModal {
         const reasoning = reasoningCheckbox.checked && this.modelSupportsReasoning(selectedModel);
         const effort = effortSelect.value || DEFAULT_EFFORT;
 
-        if (!apiKey && selectedProvider === "OpenRouter") {
-          showError("API key is required for OpenRouter");
+        if (!apiKey && this.requiresApiKey(selectedProvider)) {
+          showError(`API key is required for ${selectedProvider}`);
           return;
         }
 
@@ -502,9 +515,12 @@ export class SettingsModal {
 
     try {
       const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
+      const modelKey = this.getApiKey();
+      const headers = {};
+      if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(`${baseUrl}/models`, { signal: controller.signal });
+      const res = await fetch(`${baseUrl}/models`, { headers, signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) return;
       const data = await res.json();
@@ -558,11 +574,14 @@ export class SettingsModal {
           placeholder="sk-or-..."
           autocomplete="off"
         />
-        <span class="${P}hint">Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></span>
+        <span class="${P}hint" data-field="api-key-hint">API key for the selected provider</span>
 
         <label class="${P}label" for="${P}provider">Provider</label>
         <select id="${P}provider" class="${P}select" data-field="provider">
           <option>OpenRouter</option>
+          <option>OpenAI</option>
+          <option>Anthropic</option>
+          <option>Gemini</option>
           <option>Ollama</option>
           <option>LM Studio</option>
           <option>Custom</option>

@@ -7,7 +7,7 @@
  */
 
 import { SettingsModal } from "./settings-modal.js";
-import { AiProviderClient } from "../data/ai/ai-provider-client.js";
+import { createAiProviderClient } from "../data/ai/ai-provider-factory.js";
 import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 
@@ -150,18 +150,20 @@ export class AiSidebar {
     const { buildDeckSummary, splitSlides, slidesToMarkdown, BATCH_SIZE } =
       await import("../data/ai-enhancer.js");
 
-    const provider = new AiProviderClient({
-      getBaseUrl: () => SettingsModal.getBaseUrl(),
-      getApiKey: () => SettingsModal.getApiKey(),
-      getModel: () => SettingsModal.getModel(),
-    });
+    const providerLabel = SettingsModal.getProvider();
+
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
 
     const run = async () => {
       try {
         const apiKey = SettingsModal.getApiKey();
-        const providerLabel = SettingsModal.getProvider();
 
-        if (!apiKey && providerLabel === "OpenRouter") {
+        if (!apiKey && SettingsModal.requiresApiKey(providerLabel)) {
           showError("No API key \u2014 open Settings to configure");
           return null;
         }
