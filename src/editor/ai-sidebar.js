@@ -170,8 +170,9 @@ export class AiSidebar {
 
         const model = SettingsModal.getModel();
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        const useReasoning = SettingsModal.getReasoning() && mode === "generate";
+        const useReasoning = SettingsModal.getReasoning();
         const effort = useReasoning ? SettingsModal.getEffort() : null;
+        const reasoningEffort = useReasoning ? effort : "none";
 
         // Split into slides to decide single vs batch path
         const allSlides = splitSlides(markdown, mode);
@@ -183,6 +184,7 @@ export class AiSidebar {
             modelMaxOutput,
             useReasoning,
             effort,
+            reasoningEffort,
             statusEl,
             noticeEl,
             isCancelled: () => cancelled,
@@ -236,6 +238,7 @@ export class AiSidebar {
               modelMaxOutput,
               useReasoning,
               effort,
+              reasoningEffort,
               signal: this._abortControllers[0]?.signal,
               repairMessages: repairMessages.get(batch.batchKey) || [],
             });
@@ -288,8 +291,9 @@ export class AiSidebar {
                 }
                 queue.unshift(batch);
               } else if (attempts < 2) {
+                const errMsg = batchResult.error.message ? ` (${batchResult.error.message})` : "";
                 appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type} \u2014 retrying...`,
+                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type}${errMsg} \u2014 retrying...`,
                   "warn",
                 );
                 retryCount++;
@@ -431,8 +435,16 @@ export class AiSidebar {
    * For fix mode, validates output and retries with a focused repair message on failure.
    */
   static async #runSingleCall(markdown, mode, opts) {
-    const { provider, modelMaxOutput, useReasoning, effort, statusEl, noticeEl, isCancelled } =
-      opts;
+    const {
+      provider,
+      modelMaxOutput,
+      useReasoning,
+      effort,
+      reasoningEffort,
+      statusEl,
+      noticeEl,
+      isCancelled,
+    } = opts;
 
     const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown, splitSlides } =
       await import("../data/ai-enhancer.js");
@@ -451,7 +463,7 @@ export class AiSidebar {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const inputTokens = estimateMaxTokens(markdown, mode, {
         modelMaxOutput,
-        useReasoning,
+        reasoningEffort,
       });
       statusEl.textContent =
         attempt > 1
@@ -466,7 +478,7 @@ export class AiSidebar {
           {
             messages,
             maxTokens: inputTokens,
-            responseFormat: { type: "json_object" },
+            responseFormat: null,
             reasoning: useReasoning ? { effort } : null,
           },
           ctrl.signal,
@@ -557,6 +569,7 @@ export class AiSidebar {
       modelMaxOutput,
       useReasoning,
       effort,
+      reasoningEffort,
       signal,
       repairMessages = [],
     } = opts;
@@ -589,7 +602,7 @@ export class AiSidebar {
 
     const inputTokens = estimateMaxTokens(batchMarkdown, mode, {
       modelMaxOutput,
-      useReasoning,
+      reasoningEffort,
     });
 
     const startTime = performance.now();
@@ -599,7 +612,7 @@ export class AiSidebar {
         {
           messages,
           maxTokens: inputTokens,
-          responseFormat: { type: "json_object" },
+          responseFormat: null,
           reasoning: useReasoning ? { effort } : null,
         },
         signal,

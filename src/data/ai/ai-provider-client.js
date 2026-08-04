@@ -21,7 +21,7 @@
  */
 const PROVIDER_HOSTS = {
   OpenAI: new Set(["api.openai.com"]),
-  OpenRouter: new Set(["openrouter.ai", "www.openrouter.ai"]),
+  OpenRouter: new Set(["openrouter.ai", "www.openrouter.ai", "api.openrouter.ai"]),
   Anthropic: new Set(["api.anthropic.com"]),
   Gemini: new Set(["generativelanguage.googleapis.com"]),
 };
@@ -37,10 +37,6 @@ const PROVIDER_HOSTS = {
  */
 export function validateAiBaseUrl(baseUrl, provider) {
   if (!baseUrl) return { ok: false, error: "Base URL is not configured" };
-  const url = baseUrl.replace(/\/+$/, "").toLowerCase();
-  if (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1")) {
-    return { ok: true }; // local http is intentional for Ollama/LM Studio
-  }
   if (!/^https?:\/\//i.test(baseUrl)) {
     return { ok: false, error: "Base URL must use http: or https: scheme" };
   }
@@ -50,6 +46,7 @@ export function validateAiBaseUrl(baseUrl, provider) {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return { ok: false, error: "Base URL must use http: or https: scheme" };
     }
+    // Only exact `localhost` or `127.0.0.1` are trusted for cleartext HTTP.
     if (
       parsed.protocol === "http:" &&
       parsed.hostname !== "localhost" &&
@@ -104,6 +101,12 @@ export class AiProviderClient {
     }
     const url = `${baseUrl}/chat/completions`;
     const apiKey = this._getApiKey();
+    const rawModel = this._getModel();
+    const model =
+      provider === "OpenRouter" && !rawModel.includes(":nitro") ? `${rawModel}:nitro` : rawModel;
+    // OpenRouter's reasoning models default to "on" when the parameter is
+    // omitted; send "none" when the user hasn't asked for reasoning.
+    const effectiveReasoning = reasoning ?? (provider === "OpenRouter" ? { effort: "none" } : null);
 
     const headers = {
       "Content-Type": "application/json",
@@ -113,7 +116,7 @@ export class AiProviderClient {
     }
 
     const bodyBase = {
-      model: this._getModel(),
+      model,
       messages,
       max_tokens: maxTokens,
       stream: false,
@@ -122,8 +125,8 @@ export class AiProviderClient {
     if (responseFormat) {
       bodyBase.response_format = responseFormat;
     }
-    if (reasoning) {
-      bodyBase.reasoning = reasoning;
+    if (effectiveReasoning) {
+      bodyBase.reasoning = effectiveReasoning;
     }
 
     const tryFetch = async (includeResponseFormat) => {
@@ -150,7 +153,7 @@ export class AiProviderClient {
           res.status === 400 &&
           bodyText.toLowerCase().includes("response_format")
         ) {
-          return null;
+          throw new AiParseError("response_format not supported");
         }
         throw new AiHttpError(res.status, bodyText);
       }
@@ -168,22 +171,14 @@ export class AiProviderClient {
     };
 
     try {
-      const first = await tryFetch(true);
-      if (first) return first;
-
-      // Retry once without response_format if the provider rejected it.
-      const second = await tryFetch(false);
-      if (second) return second;
-
-      throw new AiParseError("Failed to get a valid response");
-    } catch (err) {
-      if (err instanceof AiHttpError || err instanceof AiParseError) {
-        throw err;
+      return await tryFetch(true);
+    } catch (firstErr) {
+      // Only retry if we actually sent a response_format that may have caused
+      // the parse problem (e.g. a provider that doesn't support it).
+      if (responseFormat && firstErr instanceof AiParseError) {
+        return await tryFetch(false);
       }
-      if (signal?.aborted || err.name === "AbortError") {
-        throw new AiAbortError();
-      }
-      throw new AiHttpError(0, String(err.message || err));
+      throw firstErr;
     }
   }
 }

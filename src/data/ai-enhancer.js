@@ -374,16 +374,20 @@ export function estimateTokens(text) {
  * @param {"fix"|"generate"} mode - Enhancement mode.
  * @param {object} [opts]
  * @param {number|null} [opts.modelMaxOutput] - Model's max completion tokens (from OpenRouter).
- * @param {boolean} [opts.useReasoning] - Whether extended thinking is enabled.
+ * @param {boolean} [opts.useReasoning] - Whether extended thinking is enabled (legacy).
+ * @param {string} [opts.reasoningEffort] - One of "none" | "low" | "medium" | "high".
  * @returns {number}
  */
 export function estimateMaxTokens(markdown, mode, opts) {
   const cleaned = stripFrontmatter(markdown, mode);
   const inputTokens = estimateTokens(cleaned);
   const multiplier = mode === "generate" ? 1.8 : 1.2;
-  const reasoningMultiplier = opts?.useReasoning ? 3 : 1;
+  const effort = opts?.reasoningEffort ?? (opts?.useReasoning ? "high" : "none");
+  const reasoningMultipliers = { none: 1, low: 1.5, medium: 2, high: 3 };
+  const reasoningMultiplier = reasoningMultipliers[effort] ?? 1;
   const estimated = Math.ceil(inputTokens * multiplier * reasoningMultiplier);
-  const floor = opts?.useReasoning ? 64000 : 16000;
+  // Reasoning takes budget; use a higher floor when more reasoning is requested.
+  const floor = effort === "none" || effort === "low" ? 16000 : 24000;
   return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
 
@@ -478,6 +482,40 @@ export function parseAiResponse(text) {
     }
     // Try the next occurrence further back
     searchPos = slidesIdx - 1;
+  }
+
+  // Final fallback: parse the response as SlideMD markdown.
+  // This is essential for reasoning models that do not reliably emit
+  // a JSON wrapper when `response_format: { type: "json_object" }` is not used.
+  try {
+    const parser = new MarkdownParser();
+    const slideTexts = parser.splitSlides(trimmed);
+    const first = slideTexts[0]?.trim() ?? "";
+    const hasMultipleSlides = slideTexts.length > 1;
+    const looksLikeSlide =
+      hasMultipleSlides ||
+      /^(layout|background|theme|header-style|area-style|hidden|hide|code-font-size):/i.test(
+        first,
+      ) ||
+      /^@\w+/m.test(first) ||
+      /^#/m.test(first);
+    if (slideTexts.length > 0 && looksLikeSlide) {
+      const slides = slideTexts.map((raw) => {
+        const { value: layout, markdown: withoutLayout } = parser.extractDirective(raw, "layout");
+        const { value: background, markdown: withoutBackground } = parser.extractDirective(
+          withoutLayout,
+          "background",
+        );
+        const { value: theme, markdown: withoutTheme } = parser.extractDirective(
+          withoutBackground,
+          "theme",
+        );
+        return { layout, background, theme, content: withoutTheme };
+      });
+      return { slides };
+    }
+  } catch {
+    /* not parseable as Markdown */
   }
 
   return null;

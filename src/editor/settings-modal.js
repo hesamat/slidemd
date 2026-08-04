@@ -391,24 +391,33 @@ export class SettingsModal {
 
       const applyProviderDefaults = () => {
         if (selectedProvider === "Custom") {
-          baseOverridden = true;
-          baseOverrideCheckbox.checked = true;
+          // Custom always uses the currently stored base URL and keeps the input editable.
           baseUrlInput.value = selectedBaseUrl;
-        } else if (!baseOverridden) {
-          baseUrlInput.value = PROVIDER_DEFAULTS[selectedProvider] || "";
+        } else {
+          // Hosted providers: keep a valid override, but reset a leftover/stale
+          // custom base URL (e.g. switching back from Custom) to the default.
+          const defaultUrl = PROVIDER_DEFAULTS[selectedProvider] || "";
+          if (
+            !baseOverridden ||
+            !validateAiBaseUrl(baseUrlInput.value.trim(), selectedProvider).ok
+          ) {
+            baseOverridden = false;
+            baseOverrideCheckbox.checked = false;
+            baseUrlInput.value = defaultUrl;
+          }
         }
         selectedBaseUrl = baseUrlInput.value;
+        baseOverrideCheckbox.checked = baseOverridden;
         updateBaseUrlEditability();
       };
 
       const isModelSearchProvider = () =>
-        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
-
-      const isFetchModelsSupported = () =>
         selectedProvider === "OpenRouter" ||
         selectedProvider === "OpenAI" ||
         selectedProvider === "Ollama" ||
         selectedProvider === "LM Studio";
+
+      const isFetchModelsSupported = isModelSearchProvider;
 
       // --- Model dropdown ---
       const filterModels = (query) => {

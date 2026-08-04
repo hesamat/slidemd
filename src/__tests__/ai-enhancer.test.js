@@ -255,10 +255,10 @@ describe("estimateMaxTokens", () => {
     expect(estimateMaxTokens(md, "fix")).toBeGreaterThanOrEqual(16000);
   });
 
-  it("returns at least 64000 with reasoning", () => {
+  it("returns at least 24000 with high reasoning", () => {
     const md = "a".repeat(1000);
     const result = estimateMaxTokens(md, "fix", { useReasoning: true });
-    expect(result).toBeGreaterThanOrEqual(64000);
+    expect(result).toBeGreaterThanOrEqual(24000);
   });
 
   it("scales with input size for fix mode", () => {
