@@ -241,8 +241,7 @@ export class ReloadManager extends EventEmitter {
     this.deck = newDeck;
 
     if (syncStore) {
-      const markdown =
-        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+      const markdown = DeckLoader.getSourceMarkdown();
       if (markdown) this.deckStore?.loadFromMarkdown(markdown, visibleIndex);
     }
 

@@ -3,6 +3,7 @@
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
@@ -63,6 +64,7 @@ export class EditController {
     this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
+    this._historyOperation = null;
 
     this.placeholderDialogEl = null;
 
@@ -315,7 +317,7 @@ export class EditController {
    * global (used for large converted decks that exceed quota).
    */
   _getSourceMarkdown() {
-    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+    return DeckLoader.getSourceMarkdown();
   }
 
   _cacheOriginalMarkdown() {
@@ -595,29 +597,19 @@ export class EditController {
     this._pendingStructuralOperations += 1;
   }
 
-  _persistStoreMarkdown(markdown) {
-    try {
-      localStorage.setItem("webdeck_local_file", markdown);
-      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-    } catch {
-      window.__WEBDECK_MARKDOWN__ = markdown;
-    }
-  }
-
   async _restoreStoreSnapshot() {
     if (!this.deckStore) return false;
     const markdown = this.deckStore.toMarkdown();
-    this._persistStoreMarkdown(markdown);
+    const restoredActiveIndex = this.deckStore.getActiveIndex();
     await AssetLoader.ensureMarkdownItLoaded();
-    const deck = await import("../../data/deck-loader.js").then(({ DeckLoader }) =>
-      DeckLoader.parseMarkdown(markdown),
-    );
+    const deck = await DeckLoader.parseMarkdown(markdown);
     await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
-    this.controller.slideNavigator.goTo(this.deckStore.getActiveIndex(), { broadcast: false });
+    this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
   }
 
   async undo() {
+    if (this._historyOperation) return false;
     if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
       if (!this.markdownEditor) return false;
       this.markdownEditor.undo?.();
@@ -628,33 +620,41 @@ export class EditController {
       this.markdownEditor.undo?.();
       return true;
     }
-    if (!this.deckStore.undo()) return false;
+    if (this._historyOperation || !this.deckStore.undo()) return false;
+    this._historyOperation = "undo";
     try {
-      const result = await this._restoreStoreSnapshot();
-      if (this._pendingStructuralOperations > 0) this._pendingStructuralOperations -= 1;
-      return result;
+      return await this._restoreStoreSnapshot();
     } catch (error) {
       this.deckStore.redo();
-      this._persistStoreMarkdown(this.deckStore.toMarkdown());
       Notification.error(`Undo failed: ${error.message || error}`);
       return false;
+    } finally {
+      this._historyOperation = null;
     }
   }
 
   async redo() {
+    if (this._historyOperation) return false;
+    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.redo?.();
+      return true;
+    }
     if (!this.deckStore || !this.deckStore.canRedo()) {
       if (!this.markdownEditor) return false;
       this.markdownEditor.redo?.();
       return true;
     }
     if (!this.deckStore.redo()) return false;
+    this._historyOperation = "redo";
     try {
       return await this._restoreStoreSnapshot();
     } catch (error) {
       this.deckStore.undo();
-      this._persistStoreMarkdown(this.deckStore.toMarkdown());
       Notification.error(`Redo failed: ${error.message || error}`);
       return false;
+    } finally {
+      this._historyOperation = null;
     }
   }
 

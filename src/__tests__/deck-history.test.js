@@ -25,6 +25,15 @@ describe("DeckHistory", () => {
     expect(history.canRedo()).toBe(false);
   });
 
+  it("clears redo history even when maxEntries is zero", () => {
+    const history = new DeckHistory({ maxEntries: 0 });
+    history.push(["a"], 0, patch);
+    expect(history.canUndo()).toBe(false);
+    history.popUndo(["b"], 0);
+    history.push(["b"], 0, patch);
+    expect(history.canRedo()).toBe(false);
+  });
+
   it("bounds the undo stack and clears both stacks", () => {
     const history = new DeckHistory({ maxEntries: 2 });
     history.push(["1"], 0, patch);

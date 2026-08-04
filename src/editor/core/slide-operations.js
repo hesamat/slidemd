@@ -214,7 +214,7 @@ export class SlideOperations {
     const currentIndex = this.currentSlideIndex;
     const targetIndex = currentIndex - 1;
 
-    this._swapSlides(currentIndex, targetIndex);
+    if (!this._swapSlides(currentIndex, targetIndex)) return;
 
     this.controller.slideNavigator.goTo(targetIndex);
     this.thumbnails.refresh();
@@ -230,7 +230,7 @@ export class SlideOperations {
     const currentIndex = this.currentSlideIndex;
     const targetIndex = currentIndex + 1;
 
-    this._swapSlides(currentIndex, targetIndex);
+    if (!this._swapSlides(currentIndex, targetIndex)) return;
 
     this.controller.slideNavigator.goTo(targetIndex);
     this.thumbnails.refresh();
@@ -247,7 +247,7 @@ export class SlideOperations {
         createInsertPatch(b, movedMarkdown, "user", "move"),
       ])
     )
-      return;
+      return false;
     [this.deck.slides[a], this.deck.slides[b]] = [this.deck.slides[b], this.deck.slides[a]];
     [this.originalMarkdown[a], this.originalMarkdown[b]] = [
       this.originalMarkdown[b],
@@ -275,6 +275,7 @@ export class SlideOperations {
     this.unsavedMarkdown = newMap;
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
+    return true;
   }
 
   async duplicateSlide() {

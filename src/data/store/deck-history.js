@@ -15,6 +15,7 @@ export class DeckHistory {
   }
 
   push(slides, activeIndex, patch) {
+    this._redoStack = [];
     if (this._maxEntries === 0) return;
     this._undoStack.push({ slides: [...slides], activeIndex, patch });
     if (this._undoStack.length > this._maxEntries) this._undoStack.shift();

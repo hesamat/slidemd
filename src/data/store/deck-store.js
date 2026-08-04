@@ -73,16 +73,16 @@ export class DeckStore {
       isInsert(validPatches[1]) &&
       validPatches[0].kind === "move" &&
       validPatches[1].kind === "move" &&
-      validPatches[0].before === validPatches[1].after &&
-      Math.abs(validPatches[0].index - validPatches[1].index) === 1
+      validPatches[0].before === validPatches[1].after
         ? validPatches
         : null;
-    let activeIndexAfterMove = null;
-    if (move) {
-      const [remove, insert] = move;
-      if (activeIndexBefore === remove.index) activeIndexAfterMove = insert.index;
-      else if (activeIndexBefore === insert.index) activeIndexAfterMove = remove.index;
-    }
+    const activeIndexAfterMove = move
+      ? this._remapActiveIndexForMove(
+          activeIndexBefore,
+          validPatches[0].index,
+          validPatches[1].index,
+        )
+      : null;
 
     for (const patch of validPatches) {
       if (!this._isValidPatchIndex(patch)) {
@@ -140,6 +140,12 @@ export class DeckStore {
     if (!this._listeners.has(event)) this._listeners.set(event, new Set());
     this._listeners.get(event).add(callback);
     return () => this._listeners.get(event)?.delete(callback);
+  }
+
+  _remapActiveIndexForMove(activeIndex, removeIndex, insertIndex) {
+    if (activeIndex === removeIndex) return insertIndex;
+    const afterRemoval = activeIndex > removeIndex ? activeIndex - 1 : activeIndex;
+    return afterRemoval >= insertIndex ? afterRemoval + 1 : afterRemoval;
   }
 
   _applyPatchState(patch) {
