@@ -66,9 +66,8 @@ function providerEffortStorageKey(provider) {
  */
 function guessReasoningForModel(modelId) {
   const id = modelId.toLowerCase();
-  const reasoningPatterns = [
-    /(?:^|[/\-_])o[134]-/,
-    /(?:^|[/\-_])o[134]$/,
+  const openaiPattern = /(?:^|[-/_])(?:o\d+|gpt[-_]5)/; // o1, o3, gpt-5, etc.
+  const otherPatterns = [
     /deepseek[-_]r1/,
     /deepseek[-_]reasoner/,
     /claude[-_]3[-_]7[-_]sonnet/,
@@ -77,9 +76,15 @@ function guessReasoningForModel(modelId) {
     /gemini[-_]2\.5[-_]pro/,
     /grok[-_]3/,
     /qwen3/,
+    /reasoning/,
+    /r1/,
+    /thinking/,
   ];
-  if (reasoningPatterns.some((p) => p.test(id))) {
-    return { supported_efforts: ["low", "medium", "high"], mandatory: false };
+  // OpenAI o-series and gpt-5 also support an extended "xhigh" effort level.
+  if (openaiPattern.test(id) || otherPatterns.some((p) => p.test(id))) {
+    const isOpenAI = openaiPattern.test(id);
+    const efforts = isOpenAI ? ["low", "medium", "high", "xhigh"] : ["low", "medium", "high"];
+    return { supported_efforts: efforts, mandatory: false };
   }
   return null;
 }
@@ -420,6 +425,15 @@ export class SettingsModal {
         }
         modelList.innerHTML = "";
         modelList.appendChild(fragment);
+        // Ensure the list is scrolled to the top and repainted so items
+        // are visible immediately (some browsers defer paint until scroll).
+        // Reset scroll on the dropdown (the actual overflow container) so the
+        // freshly populated items are visible from the top.
+        modelDropdown.scrollTop = 0;
+        requestAnimationFrame(() => {
+          modelDropdown.scrollTop = 0;
+          modelDropdown.offsetHeight; // force reflow
+        });
       };
 
       const openDropdown = () => {
@@ -431,6 +445,7 @@ export class SettingsModal {
         modelDropdown.style.left = `${rect.left}px`;
         modelDropdown.style.top = `${rect.bottom + 2}px`;
         modelDropdown.style.width = `${rect.width}px`;
+        modelDropdown.scrollTop = 0;
       };
 
       const closeDropdown = () => {
@@ -738,7 +753,7 @@ export class SettingsModal {
     this._modelMaxOutputMap.clear();
 
     const saved = this.getModel(provider);
-    this._allModels = [{ id: saved, name: saved }];
+    this._allModels = saved ? [{ id: saved, name: saved }] : [];
 
     try {
       const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -765,18 +780,18 @@ export class SettingsModal {
         this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
       }
 
-      if (!this._allModels.some((m) => m.id === saved)) {
+      if (saved && !this._allModels.some((m) => m.id === saved)) {
         this._allModels.unshift({ id: saved, name: saved });
       }
 
-      if (!this._modelReasoningMap.has(saved)) {
+      if (saved && !this._modelReasoningMap.has(saved)) {
         const guessed = guessReasoningForModel(saved);
         this._modelReasoningMap.set(
           saved,
           guessed || { supported_efforts: null, mandatory: false },
         );
       }
-      if (!this._modelMaxOutputMap.has(saved)) {
+      if (saved && !this._modelMaxOutputMap.has(saved)) {
         this._modelMaxOutputMap.set(saved, null);
       }
     } catch {
