@@ -104,7 +104,7 @@ Goal: Remove AI generation feature and unify prompt documentation.
 
 ---
 
-## Phase 6: Testing & Polish
+## Phase 6: Testing & Polish ✅
 
 Goal: Comprehensive testing and type safety improvements.
 
@@ -286,7 +286,7 @@ Goal: Add AI-powered post-processing for PPTX imports via OpenRouter.
 
 ---
 
-## Phase 9: Text Insertion & Editor UX
+## Phase 9: Text Insertion & Editor UX ✅
 
 Goal: Add draggable text blocks and polish the core editor experience. This is the current active workstream.
 
@@ -319,7 +319,7 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 
 ---
 
-## Phase 10: Renderer Hardening
+## Phase 10: Renderer Hardening ✅
 
 Goal: Improve the reliability and maintainability of the existing `markdown-it` → DOM rendering pipeline without replacing it.
 
@@ -339,50 +339,45 @@ Goal: Improve the reliability and maintainability of the existing `markdown-it` 
 
 ---
 
-## Phase 11: AI Operations & Output Schema
+## Phase 11: AI Operations Foundation
 
-Goal: Structure the AI layer with a registry of intents, validated output, and a clean operation contract.
+Goal: Build the stateless AI building blocks — provider client, output schema/validator, prompt composer, and content rules — and wire them into the existing whole-deck AI flow. No operation model, registry, or orchestrator yet (those need `DeckStore` from Phase 12 as their apply target and move to Phase 13). Ships #148 (local models) and #150 (content rules) before the state refactor lands.
 
-### AI Operation Model
+### Provider & Settings
 
-| Task                                     | Details                                                                                                     |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOperation`                    | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                   |
-| [ ] Add `AiIntentRegistry`               | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`). |
-| [ ] Add `AiOrchestrator`                 | Pick the right context window, call the LLM, validate and apply the result.                                 |
-| [ ] Support locally run AI models (#148) | Add OpenAI-compatible provider support for Ollama, LM Studio, and custom base URLs.                         |
+| Task                                     | Details                                                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiProviderClient` (#148)        | OpenAI-compatible `/chat/completions` client with configurable base URL — supports OpenRouter, Ollama, LM Studio, and custom endpoints. Empty API key allowed for local providers. |
+| [ ] Add base URL + provider label to settings | Default `https://openrouter.ai/api/v1`; free-text model field when base URL is not OpenRouter.        |
 
 ### Output Validation
 
 | Task                                | Details                                                                                                    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOutputSchema`            | Define the expected Markdown structure for each intent (one valid slide).                                  |
-| [ ] Add `AiOutputValidator`         | Parse returned Markdown and check layout, `@area` markers, and slot validity.                              |
-| [ ] Enforce AI content rules (#150) | Default headers to h1, avoid `header-content` for multi-image slides, and preserve multi-column-list HTML. |
-| [ ] Add repair loop                 | On validation failure, ask the LLM to fix the specific issue or fall back.                                 |
+| [ ] Add `AiOutputSchema`            | Define the expected Markdown structure for each intent (one valid slide, or N slides for whole-deck intents). |
+| [ ] Add `AiOutputValidator`         | Parse returned Markdown via `MarkdownParser` and check layout, `@area` markers, and slot validity. Reuses `LayoutData.hasLayout()` / `getAreaNames()`. |
+| [ ] Enforce AI content rules (#150) | Default headers to h1, avoid `header-content` for multi-image slides, and preserve `multi-column-list` HTML. |
+| [ ] Add repair message builder      | On validation failure, produce a focused repair message listing the specific `errors[]` for the LLM.     |
 
 ### Prompt Engineering
 
 | Task                           | Details                                                                |
 | ------------------------------ | ---------------------------------------------------------------------- |
-| [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments.               |
+| [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments with `{{markdown}}` / `{{layoutList}}` substitution. |
 | [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts. |
 
-### Single-Slide AI Editing
+### Wiring
 
-| Task                                            | Details                                                                                            |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [ ] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                          |
-| [ ] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
-| [ ] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
-| [ ] Patch by index                              | Swap the edited slide string back into the array and rejoin with `---`.                            |
-| [ ] Simplify `ai-sidebar.js`                    | Route single-slide requests to `enhanceSlide`; use whole-deck batching only for full-deck intents. |
+| Task                                  | Details                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [ ] Replace `ai-sidebar.js` internals | Swap `buildMessages`, inline `fetch(OPENROUTER_URL)`, and `validateFixOutput` for composer → provider → validator. Keep mode string and whole-deck apply via `ReloadManager`. |
+| [ ] Keep `ai-enhancer.js` as facade   | Re-export the new modules during transition; delete after Phase 13 cutover.                               |
 
 ---
 
-## Phase 12: State, Patches & History
+## Phase 12: Deck Store & Patches
 
-Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
+Goal: Make the slide array a canonical, patchable store with undo history — the apply target for AI and editor edits. Pulled ahead of the AI orchestrator (Phase 13) because single-slide AI edits need undoable patches to land cleanly.
 
 ### State Model
 
@@ -392,24 +387,77 @@ Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
 | [ ] Add `SlidePatch`  | `{ index, before, after, source }` object describing one slide change.  |
 | [ ] Add `DeckHistory` | Stack of full deck snapshots for undo/redo.                             |
 
+### Patch Operations
+
+| Task                  | Details                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| [ ] Add `applyPatch`  | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
+| [ ] Add `revertPatch` | Roll back to the snapshot before a specific patch.                 |
+
+### Editor Wiring
+
+| Task                                  | Details                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [ ] Wire `EditController` to `DeckStore` (boundary sync) | Sync at slide switch / save / AI apply boundaries rather than a deep rewire of every sub-module. Full rewire deferred to Phase 14. |
+
+---
+
+## Phase 13: AI Orchestrator & Single-Slide Editing
+
+Goal: One entry point owning context selection, the LLM call, validation, and repair; plus per-slide AI editing that writes back through `DeckStore`. Depends on Phase 11 (foundation blocks) and Phase 12 (`DeckStore` as apply target).
+
+### Operation Model
+
+| Task                                     | Details                                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiOperation`                    | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                   |
+| [ ] Add `AiIntentRegistry`               | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`). |
+| [ ] Add `AiOrchestrator`                 | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
+
+### Single-Slide AI Editing
+
+| Task                                            | Details                                                                                            |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [ ] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                          |
+| [ ] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
+| [ ] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
+| [ ] Patch by index via `DeckStore.applyPatch`   | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save.  |
+| [ ] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).  |
+
+### Wiring
+
+| Task                           | Details                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| [ ] Simplify `ai-sidebar.js`   | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
+| [ ] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                 |
+
+---
+
+## Phase 14: Conflict Resolution & Global Undo
+
+Goal: Reconcile overlapping edits and surface global undo/redo. Completes the state track started in Phase 12.
+
 ### Conflict & Merge
 
 | Task                       | Details                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
 | [ ] Add `ConflictResolver` | Reconcile overlapping user and AI edits before applying a patch.   |
-| [ ] Add `applyPatch`       | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
-| [ ] Add `revertPatch`      | Roll back to the snapshot before a specific patch.                 |
 
-### Editor Wiring
+### Undo & Redo
 
 | Task                           | Details                                                 |
 | ------------------------------ | ------------------------------------------------------- |
-| [ ] Wire `DeckStore` to editor | Make `EditController` read and write through the store. |
 | [ ] Add global undo/redo       | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`.          |
+
+### Editor Rewire
+
+| Task                                  | Details                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [ ] Full `EditController` rewire      | Replace the Phase 12 boundary-sync with direct `DeckStore` reads/writes across all sub-modules.            |
 
 ---
 
-## Phase 13: Design System & Theme Registry
+## Phase 15: Design System & Theme Registry
 
 Goal: Centralize tokens, themes, and layout governance for consistent and predictable decks.
 
@@ -439,7 +487,7 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 
 ---
 
-## Phase 14: Presenter, Print & AI Commands
+## Phase 16: Presenter, Print & AI Commands
 
 Goal: Build out the presenter experience, simplify print/PDF preparation, and expose contextual AI commands.
 
@@ -472,7 +520,7 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 
 ---
 
-## Phase 15: Cloud Mode
+## Phase 17: Cloud Mode
 
 Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/Save UX.
 
@@ -530,20 +578,24 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 7.5: CLI Dev Server                | ✅ Complete |
 | Phase 8: AI Post-Processing              | ✅ Complete |
 | Phase 9: Text Insertion & Editor UX      | ✅ Complete |
-| Phase 10: Renderer Hardening             | Planned     |
-| Phase 11: AI Operations & Output Schema  | Planned     |
-| Phase 12: State, Patches & History       | Planned     |
-| Phase 13: Design System & Theme Registry | Planned     |
-| Phase 14: Presenter, Print & AI Commands | Planned     |
-| Phase 15: Cloud Mode                     | Planned     |
+| Phase 10: Renderer Hardening             | ✅ Complete |
+| Phase 11: AI Operations Foundation       | Planned     |
+| Phase 12: Deck Store & Patches           | Planned     |
+| Phase 13: AI Orchestrator & Single-Slide | Planned     |
+| Phase 14: Conflict Resolution & Undo     | Planned     |
+| Phase 15: Design System & Theme Registry | Planned     |
+| Phase 16: Presenter, Print & AI Commands | Planned     |
+| Phase 17: Cloud Mode                     | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16 → Phase 17
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) is the current active workstream and includes draggable text blocks, editor polish, and layout/media controls. The Markdown-First Foundation phase was dropped; the existing Markdown-driven pipeline is sufficient, its targeted AI slide-patching work was absorbed into Phase 11, and its office-import/export work was moved to the Backlog. Phases 10-14 add renderer hardening, AI operations and output validation, state patches and history, a design system and theme registry, and presenter/print/AI command layers. Phase 15 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
+
+Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, `applyPatch`/`revertPatch`, `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds `ConflictResolver`, global `Ctrl+Z`/`Ctrl+Y`, and the full `EditController` rewire. Phases 15-17 (Design System, Presenter/Print/AI Commands, Cloud Mode) are independent of the AI/state track.
 
 ## Backlog
 

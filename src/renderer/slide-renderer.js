@@ -17,13 +17,21 @@ const URI_ATTRIBUTES = new Set([
   "action",
   "background",
   "cite",
+  "classid",
+  "codebase",
+  "data",
   "formaction",
   "href",
   "longdesc",
+  "manifest",
+  "ping",
   "poster",
+  "profile",
   "src",
+  "srcset",
   "usemap",
   "xlink:href",
+  "xml:base",
 ]);
 const PURIFY_CONFIG = {
   // SlideMD relies on inline styles, link targets, and data-attributes.
