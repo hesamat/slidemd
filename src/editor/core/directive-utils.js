@@ -88,13 +88,37 @@ export function updateAreaStyleDirective(markdown, cssText) {
  *                                  Empty string removes the directive entirely.
  * @returns {string} Updated markdown.
  */
+/**
+ * Merge CSS declarations, with later declarations overriding earlier ones
+ * by property name. Preserves the property name casing of the last write.
+ * @param {string} base
+ * @param {string} override
+ * @returns {string}
+ */
+function mergeCssDeclarations(base, override) {
+  const map = new Map();
+  for (const source of [base, override]) {
+    for (const decl of String(source || "").split(";")) {
+      const d = decl.trim();
+      if (!d) continue;
+      const idx = d.indexOf(":");
+      if (idx === -1) continue;
+      const prop = d.slice(0, idx).trim();
+      const value = d.slice(idx + 1).trim();
+      map.set(prop.toLowerCase(), { prop, value });
+    }
+  }
+  return [...map.values()].map(({ prop, value }) => `${prop}: ${value}`).join("; ");
+}
+
 export function updateAreaStyleForAreaDirective(markdown, areaName, cssText) {
   const parser = new MarkdownParser();
   const directive = `area-style-${String(areaName || "").toLowerCase()}`;
-  const { markdown: stripped } = parser.extractDirective(markdown, directive);
+  const { markdown: stripped, value: existing } = parser.extractDirective(markdown, directive);
   const trimmed = String(cssText || "").trim();
   if (!trimmed) return stripped;
-  return `${directive}: ${trimmed}\n${stripped}`;
+  const merged = mergeCssDeclarations(existing, trimmed);
+  return `${directive}: ${merged}\n${stripped}`;
 }
 
 /**

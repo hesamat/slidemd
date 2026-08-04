@@ -115,6 +115,7 @@ export class InsertDropdownManager {
   }
 
   destroy() {
+    this.close();
     this._abortController.abort();
   }
 }

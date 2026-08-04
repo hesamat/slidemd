@@ -104,7 +104,7 @@ export class EditController {
 
     this._onSlidesContainerContextMenu = (e) => {
       if (!this.isEditMode) return;
-      if (e.target.closest(".editor-area-label, .editor-slide-warning")) return;
+      if (e.target.closest(".editor-area-label, .editor-slide-warning, img, .text-block")) return;
       e.preventDefault();
       this.insertDropdown.openContextMenu(e.clientX, e.clientY);
     };
