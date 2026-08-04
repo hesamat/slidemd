@@ -145,7 +145,9 @@ export class HtmlExportManager {
 
     // 1. Get CSS (Vendor + App)
     report("Collecting styles...", 10);
-    const mainCss = HtmlExportManager.extractCssFromDocument();
+    const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
+    let mainCss = HtmlExportManager.extractCssFromDocument();
+    mainCss = HtmlExportManager.fixKatexFontUrls(mainCss, katexVersion);
     const vendorCss = await HtmlExportManager.fetchVendorCss(deck, signal);
     let allCss = vendorCss + "\n\n" + mainCss;
     if (minify) allCss = HtmlExportManager.minifyCss(allCss);
@@ -202,6 +204,16 @@ export class HtmlExportManager {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${HtmlExportManager.escapeHtml(title)}</title>
     <meta name="theme-color" content="#3b82f6" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
 ${presenterHideCss}
 ${allCss}
@@ -286,6 +298,35 @@ ${escapedInitScript}
       makefile: "makefile",
       cmake: "cmake",
       sql: "sql",
+      yaml: "yaml",
+      yml: "yaml",
+      toml: "toml",
+      ini: "ini",
+      rust: "rust",
+      rs: "rust",
+      go: "go",
+      golang: "go",
+      ruby: "ruby",
+      rb: "ruby",
+      php: "php",
+      swift: "swift",
+      kotlin: "kotlin",
+      kt: "kotlin",
+      scala: "scala",
+      r: "r",
+      perl: "perl",
+      pl: "perl",
+      lua: "lua",
+      graphql: "graphql",
+      docker: "docker",
+      dockerfile: "docker",
+      nginx: "nginx",
+      vim: "vim",
+      regex: "regex",
+      diff: "diff",
+      http: "http",
+      text: "none",
+      plain: "none",
     };
     return map[l] || null;
   }
@@ -305,6 +346,17 @@ ${escapedInitScript}
         return ["clike", "c"];
       case "cpp":
         return ["clike", "cpp"];
+      case "go":
+      case "ruby":
+      case "swift":
+      case "kotlin":
+        return ["clike", component];
+      case "php":
+        return ["clike", "markup", "php"];
+      case "scala":
+        return ["clike", "java", "scala"];
+      case "markdown":
+        return ["clike", "markup", "yaml", "markdown"];
       default:
         return [component];
     }
@@ -597,6 +649,19 @@ ${escapedInitScript}
         return !t.includes("import ") && !t.includes("/@vite/") && !t.includes("__vite__");
       })
       .join("\n");
+  }
+
+  /**
+   * Convert absolute or relative KaTeX font URLs from the dev bundle into
+   * CDN URLs so the exported HTML loads them without a local node_modules server.
+   */
+  static fixKatexFontUrls(cssText, version) {
+    if (!cssText || !version) return cssText;
+    const cdnBase = `https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`;
+    return cssText
+      .replace(/url\((['"]?)\/node_modules\/katex\/dist\/fonts\//g, `url($1${cdnBase}`)
+      .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`)
+      .replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`);
   }
 
   static minifyCss(cssText) {
