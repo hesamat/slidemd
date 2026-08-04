@@ -375,6 +375,7 @@ describe("HtmlExportManager", () => {
   describe("getInitScript", () => {
     it("reuses ContentEnhancer.enhanceRenderedContent for all slides", () => {
       const init = HtmlExportManager.getInitScript();
+      expect(init).toContain("ContentEnhancer.normalizeEmojiText");
       expect(init).toContain("ContentEnhancer.enhanceRenderedContent");
       expect(init).toContain("renderAllSlides: true");
       expect(init).toContain("force: true");

@@ -38,6 +38,19 @@ describe("ContentEnhancer", () => {
     delete window.renderMathInElement;
   });
 
+  it("normalizes emoji size without changing code content", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = `<h1>✅ Concatenating strings with non-strings ✅</h1><pre>✅</pre>`;
+
+    await ContentEnhancer.enhanceRenderedContent(container);
+
+    expect(container.querySelectorAll(".slide-emoji")).toHaveLength(2);
+    expect(container.querySelector("h1").textContent).toBe(
+      "✅ Concatenating strings with non-strings ✅",
+    );
+    expect(container.querySelector("pre").innerHTML).toBe("✅");
+  });
+
   it("converts mermaid code blocks to divs and renders them", async () => {
     const container = document.createElement("div");
     container.innerHTML = `<pre data-source-line="0"><code class="language-mermaid">graph TD\nA --> B</code></pre>`;

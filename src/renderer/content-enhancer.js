@@ -4,7 +4,62 @@
  */
 import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
 
+const EMOJI_SEQUENCE_RE =
+  /(?:[0-9#*]\uFE0F?\u20E3|\p{Regional_Indicator}{2}|(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?(?:\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?)*)/gu;
+
+function normalizeEmojiTextInRoot(rootEl) {
+  const doc = rootEl.ownerDocument || document;
+  const showText = doc.defaultView?.NodeFilter?.SHOW_TEXT || 4;
+  const walker = doc.createTreeWalker(rootEl, showText);
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    if (
+      node.parentElement?.closest("code, pre, script, style, svg, .mermaid, .katex, .slide-emoji")
+    ) {
+      continue;
+    }
+    if (EMOJI_SEQUENCE_RE.test(node.nodeValue)) {
+      textNodes.push(node);
+    }
+    EMOJI_SEQUENCE_RE.lastIndex = 0;
+  }
+
+  for (const textNode of textNodes) {
+    const fragment = doc.createDocumentFragment();
+    let lastIndex = 0;
+    EMOJI_SEQUENCE_RE.lastIndex = 0;
+    for (const match of textNode.nodeValue.matchAll(EMOJI_SEQUENCE_RE)) {
+      if (match.index > lastIndex) {
+        fragment.append(textNode.nodeValue.slice(lastIndex, match.index));
+      }
+      const emoji = doc.createElement("span");
+      emoji.className = "slide-emoji";
+      emoji.textContent = match[0];
+      fragment.append(emoji);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < textNode.nodeValue.length) {
+      fragment.append(textNode.nodeValue.slice(lastIndex));
+    }
+    textNode.replaceWith(fragment);
+  }
+}
+
+function normalizeEmojiText(rootEl) {
+  if (!rootEl) return;
+  const areaRoots = rootEl.matches?.(".slide__area")
+    ? [rootEl]
+    : [...(rootEl.querySelectorAll?.(".slide__area") || [])];
+  const roots = areaRoots.length > 0 ? areaRoots : [rootEl];
+  roots.forEach(normalizeEmojiTextInRoot);
+}
+
 export class ContentEnhancer {
+  static normalizeEmojiText(rootEl) {
+    normalizeEmojiText(rootEl);
+  }
+
   /**
    * Scans the deck to see what enhancers are needed.
    */
@@ -240,6 +295,7 @@ contain: layout paint style;
       }
     }
 
+    normalizeEmojiText(rootEl);
     if (rootEl.dataset) rootEl.dataset.webdeckEnhanced = "1";
     return true;
   }

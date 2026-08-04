@@ -187,7 +187,9 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     window.__WEBDECK_READY__ = true;
     window.dispatchEvent(new Event("webdeck:ready"));
 
-    // 9. Apply enhancers to the CURRENT view in background (non-blocking)
+    // 9. Normalize emoji sizing, then apply rich-text enhancers to the CURRENT view
+    // in background (non-blocking).
+    ContentEnhancer.normalizeEmojiText(elements.slidesContainer);
     if (features.hasMermaid || features.hasMath || features.hasCode) {
       ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch((e) =>
         console.warn(e),

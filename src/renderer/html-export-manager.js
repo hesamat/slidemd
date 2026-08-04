@@ -987,6 +987,9 @@ ${escapedInitScript}
         // load event has already fired (cached/inline scripts), run it now.
         (function runEnhancer() {
             if (document.readyState === "complete") {
+                if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.normalizeEmojiText) {
+                    ContentEnhancer.normalizeEmojiText(document.body);
+                }
                 if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
                     ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
                         .catch(e => console.warn('Enhancement error:', e));
