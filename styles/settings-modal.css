@@ -102,6 +102,10 @@
   color: #dc2626;
 }
 
+.settings-modal__card-body[hidden] {
+  display: none;
+}
+
 .settings-modal__card-body {
   display: flex;
   flex-direction: column;
