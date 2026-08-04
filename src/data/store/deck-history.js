@@ -19,7 +19,6 @@ export class DeckHistory {
     if (this._maxEntries === 0) return;
     this._undoStack.push({ slides: [...slides], activeIndex, patch });
     if (this._undoStack.length > this._maxEntries) this._undoStack.shift();
-    this._redoStack = [];
   }
 
   popUndo(currentSlides, currentActiveIndex) {
@@ -30,6 +29,7 @@ export class DeckHistory {
       activeIndex: currentActiveIndex,
       patch: entry.patch,
     });
+    if (this._redoStack.length > this._maxEntries) this._redoStack.shift();
     return entry;
   }
 

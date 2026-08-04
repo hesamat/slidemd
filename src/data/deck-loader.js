@@ -18,10 +18,6 @@ export class DeckLoader {
    * @param {import('../types.js').Deck} deck
    * @returns {string}
    */
-  static getSourceMarkdown() {
-    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
-  }
-
   static getDisplayTitle(deck) {
     // Prefer the deck's own title (from first slide's # heading)
     const metaTitle = safeString(deck?.meta?.title);
@@ -32,6 +28,15 @@ export class DeckLoader {
     if (localFileName) return localFileName;
 
     return "Slide Deck";
+  }
+
+  /**
+   * Resolve the source markdown from localStorage or the embedded build payload.
+   * @static
+   * @returns {string}
+   */
+  static getSourceMarkdown() {
+    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
   }
 
   /**
