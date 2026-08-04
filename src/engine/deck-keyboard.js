@@ -146,14 +146,18 @@ export function createKeyboardHandler({
     },
     undo: () => {
       try {
-        edit()?.undo?.();
+        Promise.resolve(edit()?.undo?.()).catch((e) => {
+          console.warn("Undo shortcut failed:", e);
+        });
       } catch (e) {
         console.warn("Undo shortcut failed:", e);
       }
     },
     redo: () => {
       try {
-        edit()?.redo?.();
+        Promise.resolve(edit()?.redo?.()).catch((e) => {
+          console.warn("Redo shortcut failed:", e);
+        });
       } catch (e) {
         console.warn("Redo shortcut failed:", e);
       }

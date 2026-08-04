@@ -78,8 +78,8 @@ export class SaveManager {
   }
 
   async _prepareSave() {
-    this._onBeforeSave?.();
     await waitForImageUpload();
+    this._onBeforeSave?.();
     const fullMarkdown = this.getFullMarkdown();
 
     this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));

@@ -62,6 +62,7 @@ export class EditController {
 
     this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
+    this._pendingStructuralOperations = 0;
 
     this.placeholderDialogEl = null;
 
@@ -80,11 +81,6 @@ export class EditController {
         data.syncStore === false && this.deckStore
           ? this.deckStore.getSlides()
           : this._cacheOriginalMarkdown();
-      const markdown =
-        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
-      if (data.syncStore !== false && markdown) {
-        this.deckStore?.loadFromMarkdown(markdown, this.controller.slideNavigator.currentIndex);
-      }
       this.unsavedMarkdown.clear();
       this.hasUnsavedChanges = false;
       this.saveManager.updateButton();
@@ -155,7 +151,10 @@ export class EditController {
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
-      onBeforeSave: () => this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown()),
+      onBeforeSave: () => {
+        this._captureCurrentEditorMarkdown();
+        this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown());
+      },
     });
 
     this.areaNav = new AreaNavigation({
@@ -184,6 +183,7 @@ export class EditController {
       },
       getSaveManager: () => this.saveManager,
       deckStore: this.deckStore,
+      prepareStoreOperation: () => this.prepareStoreOperation(),
     });
 
     this.imageInserter = new ImageInserter({
@@ -535,28 +535,65 @@ export class EditController {
    * Sync the current full markdown into the canonical store at a save boundary.
    * Keystrokes remain local to the editor until this method is called.
    */
-  syncStoreFromMarkdown(markdown, source = "user") {
+  syncStoreFromMarkdown(markdown, source = "user", { recordHistory = true } = {}) {
     if (!this.deckStore) return;
     const desired = new MarkdownParser().splitSlides(markdown);
-    const current = this.deckStore.getSlides();
-    const shared = Math.min(current.length, desired.length);
+    if (!recordHistory) {
+      this.deckStore.syncSlides(desired, this.currentSlideIndex);
+      return;
+    }
+
+    const working = this.deckStore.getSlides();
+    const patches = [];
+    const shared = Math.min(working.length, desired.length);
 
     for (let i = 0; i < shared; i += 1) {
-      if (current[i] !== desired[i]) {
-        this.deckStore.applyPatch(createEditPatch(i, current[i], desired[i], source));
+      if (working[i] !== desired[i]) {
+        patches.push(createEditPatch(i, working[i], desired[i], source));
+        working[i] = desired[i];
       }
     }
-    for (let i = current.length - 1; i >= desired.length; i -= 1) {
-      this.deckStore.applyPatch(createDeletePatch(i, this.deckStore.getSlides()[i], source));
+    for (let i = working.length - 1; i >= desired.length; i -= 1) {
+      patches.push(createDeletePatch(i, working[i], source));
+      working.splice(i, 1);
     }
-    for (let i = current.length; i < desired.length; i += 1) {
-      this.deckStore.applyPatch(createInsertPatch(i, desired[i], source));
+    for (let i = working.length; i < desired.length; i += 1) {
+      patches.push(createInsertPatch(i, desired[i], source));
+      working.splice(i, 0, desired[i]);
+    }
+    if (patches.length) this.deckStore.applyPatches(patches);
+  }
+
+  _captureCurrentEditorMarkdown() {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    if (markdown === this.unsavedMarkdown.get(this.currentSlideIndex)) return;
+    this.unsavedMarkdown.set(this.currentSlideIndex, markdown);
+    this.updateUnsavedChangesFlag();
+  }
+
+  prepareStoreOperation() {
+    if (!this.deckStore) return;
+    this._captureCurrentEditorMarkdown();
+    this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown(), "system", {
+      recordHistory: false,
+    });
+    this._pendingStructuralOperations += 1;
+  }
+
+  _persistStoreMarkdown(markdown) {
+    try {
+      localStorage.setItem("webdeck_local_file", markdown);
+      localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+    } catch {
+      window.__WEBDECK_MARKDOWN__ = markdown;
     }
   }
 
   async _restoreStoreSnapshot() {
     if (!this.deckStore) return false;
     const markdown = this.deckStore.toMarkdown();
+    this._persistStoreMarkdown(markdown);
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await import("../../data/deck-loader.js").then(({ DeckLoader }) =>
       DeckLoader.parseMarkdown(markdown),
@@ -567,13 +604,34 @@ export class EditController {
   }
 
   async undo() {
+    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.undo?.();
+      return true;
+    }
     if (!this.deckStore?.undo()) return false;
-    return this._restoreStoreSnapshot();
+    try {
+      const result = await this._restoreStoreSnapshot();
+      if (this._pendingStructuralOperations > 0) this._pendingStructuralOperations -= 1;
+      return result;
+    } catch (error) {
+      this.deckStore.redo();
+      this._persistStoreMarkdown(this.deckStore.toMarkdown());
+      Notification.error(`Undo failed: ${error.message || error}`);
+      return false;
+    }
   }
 
   async redo() {
     if (!this.deckStore?.redo()) return false;
-    return this._restoreStoreSnapshot();
+    try {
+      return await this._restoreStoreSnapshot();
+    } catch (error) {
+      this.deckStore.undo();
+      this._persistStoreMarkdown(this.deckStore.toMarkdown());
+      Notification.error(`Redo failed: ${error.message || error}`);
+      return false;
+    }
   }
 
   /**

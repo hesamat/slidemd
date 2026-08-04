@@ -98,10 +98,10 @@ import { DeckStore } from "./src/data/store/deck-store.js";
     // 2. Gather DOM Elements
     const elements = ElementGatherer.gatherElements();
 
-    const deckStore = new DeckStore({ maxHistory: 100 });
+    const deckStore = !isExported && !isViewer ? new DeckStore({ maxHistory: 100 }) : null;
     const initialMarkdown =
       localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
-    if (initialMarkdown) deckStore.loadFromMarkdown(initialMarkdown);
+    if (deckStore && initialMarkdown) deckStore.loadFromMarkdown(initialMarkdown);
 
     // 3. Setup Open Deck Modal (only in the live editor, not in exported HTML)
     if (!window.__WEBDECK_EXPORTED__) {

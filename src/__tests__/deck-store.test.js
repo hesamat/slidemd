@@ -39,6 +39,17 @@ describe("DeckStore", () => {
     expect(store.getSlides()).toEqual(["a", "new", "b", "c"]);
   });
 
+  it("groups adjacent move patches and updates the active index atomically", () => {
+    const store = new DeckStore();
+    store.loadFromMarkdown("a\n---\nb\n---\nc", 1);
+    expect(store.applyPatches([createDeletePatch(1, "b"), createInsertPatch(0, "b")])).toBe(true);
+    expect(store.getSlides()).toEqual(["b", "a", "c"]);
+    expect(store.getActiveIndex()).toBe(0);
+    expect(store.undo()).toBe(true);
+    expect(store.getSlides()).toEqual(["a", "b", "c"]);
+    expect(store.getActiveIndex()).toBe(1);
+  });
+
   it("rejects no-op and stale patches", () => {
     const store = new DeckStore();
     store.loadFromMarkdown("a");

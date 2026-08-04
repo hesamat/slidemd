@@ -46,6 +46,17 @@ export class DeckStore {
     this._emit("slide");
   }
 
+  /**
+   * Synchronize the current markdown without creating an undo entry.
+   * Used before structural operations so their snapshots include unsaved text.
+   */
+  syncSlides(slides, activeIndex = this._activeIndex) {
+    this._slides = [...slides];
+    this._activeIndex = this._clampIndex(activeIndex);
+    this._emit("change");
+    this._emit("slide");
+  }
+
   applyPatch(patch) {
     return this.applyPatches([patch]);
   }
@@ -56,6 +67,21 @@ export class DeckStore {
 
     const slidesBefore = [...this._slides];
     const activeIndexBefore = this._activeIndex;
+    const move =
+      validPatches.length === 2 &&
+      isDelete(validPatches[0]) &&
+      isInsert(validPatches[1]) &&
+      validPatches[0].before === validPatches[1].after &&
+      Math.abs(validPatches[0].index - validPatches[1].index) === 1
+        ? validPatches
+        : null;
+    let activeIndexAfterMove = null;
+    if (move) {
+      const [remove, insert] = move;
+      if (activeIndexBefore === remove.index) activeIndexAfterMove = insert.index;
+      else if (activeIndexBefore === insert.index) activeIndexAfterMove = remove.index;
+    }
+
     for (const patch of validPatches) {
       if (!this._isValidPatchIndex(patch)) {
         this._slides = slidesBefore;
@@ -63,6 +89,9 @@ export class DeckStore {
         return false;
       }
       this._applyPatchState(patch);
+    }
+    if (activeIndexAfterMove !== null) {
+      this._activeIndex = this._clampIndex(activeIndexAfterMove);
     }
 
     this._history.push(slidesBefore, activeIndexBefore, validPatches[0]);
