@@ -299,6 +299,15 @@ describe("HtmlExportManager", () => {
     });
   });
 
+  describe("escapeInlineScriptText", () => {
+    it("escapes literal </script to prevent premature script tag closing", () => {
+      const input = "const s = `<script>alert(1)</script>`;";
+      const escaped = HtmlExportManager.escapeInlineScriptText(input);
+      expect(escaped).toContain("<\\/script");
+      expect(escaped).not.toContain("</script>");
+    });
+  });
+
   describe("buildMermaidScriptTagIfNeeded", () => {
     const mermaidDeck = {
       slides: [{ areas: { main: "<pre><code>mermaid\ngraph TD;</code></pre>" } }],

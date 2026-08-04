@@ -473,4 +473,12 @@ describe("MarkdownParser.convertMermaidCodeBlocksToDiv", () => {
     const result = parser.convertMermaidCodeBlocksToDiv(html);
     expect(result).toContain('<div class="mermaid"');
   });
+
+  it("base64-encodes mermaid source to avoid sanitizer stripping", () => {
+    const html = '<pre><code class="language-mermaid">graph TD\nA --> B</code></pre>';
+    const result = parser.convertMermaidCodeBlocksToDiv(html);
+    expect(result).toMatch(/data-mermaid-source="b64:[A-Za-z0-9+/=]+"/);
+    const encoded = result.match(/data-mermaid-source="(b64:[A-Za-z0-9+/=]+)"/)[1];
+    expect(atob(encoded.slice(4))).toBe("graph TD\nA --> B");
+  });
 });

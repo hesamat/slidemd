@@ -47,7 +47,8 @@ describe("ContentEnhancer", () => {
 
     const div = container.querySelector(".mermaid");
     expect(div).toBeTruthy();
-    expect(div.dataset.mermaidSource).toBe("graph TD\nA --> B");
+    expect(ContentEnhancer.getMermaidSource(div)).toBe("graph TD\nA --> B");
+    expect(div.dataset.mermaidSource).toMatch(/^b64:/);
     expect(div.innerHTML).toContain('data-source="graph TD\nA --> B"');
     expect(mermaid.render).toHaveBeenCalledTimes(1);
     expect(div.dataset.mermaidProcessed).toBe("1");

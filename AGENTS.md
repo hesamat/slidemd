@@ -160,6 +160,7 @@ AI prompts live in [src/data/prompts/](src/data/prompts/):
 
 - All user-authored Markdown HTML assigned to `SlideRenderer` slide areas is sanitized with `DOMPurify` before `innerHTML` is set. Mermaid SVG output and hardcoded UI `innerHTML` strings are trusted library/output markup and are not sanitized.
 - `ContentEnhancer` is exposed on `window` so the runtime, exported HTML, and PDF paths can all call the same `ContentEnhancer.enhanceRenderedContent(...)` entry point.
+- Mermaid source is stored in `data-mermaid-source` base64-encoded (with `b64:` prefix) because DOMPurify strips attributes containing `-->` (HTML comment-end sequences). The parser decodes HTML entities before encoding, and `ContentEnhancer` decodes the attribute before passing it to Mermaid.
 
 ## Known Issues
 

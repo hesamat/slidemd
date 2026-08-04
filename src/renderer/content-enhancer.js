@@ -2,7 +2,7 @@
  * ContentEnhancer
  * Provides static methods for enhancing slide content, including diagram rendering (Mermaid), syntax highlighting (Prism), and math typesetting (KaTeX).
  */
-import { normalizeCodeLanguage, escapeHtml } from "../core/utils.js";
+import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
 
 export class ContentEnhancer {
   /**
@@ -65,6 +65,27 @@ contain: layout paint style;
   }
 
   /**
+   * Reads a Mermaid source from a `data-mermaid-source` attribute.
+   * The parser base64-encodes the source to survive DOMPurify; older plain-text
+   * attributes are still supported.
+   */
+  static getMermaidSource(el) {
+    const raw = el.dataset.mermaidSource;
+    if (!raw) return raw;
+    if (raw.startsWith("b64:")) {
+      return base64Decode(raw.slice(4));
+    }
+    return raw;
+  }
+
+  /**
+   * Encodes Mermaid source for storage in a `data-mermaid-source` attribute.
+   */
+  static encodeMermaidSource(source) {
+    return `b64:${base64Encode(source)}`;
+  }
+
+  /**
    * Renders Mermaid diagrams.
    */
   static async renderMermaidDiagrams(rootEl, options = {}) {
@@ -79,7 +100,7 @@ contain: layout paint style;
       const slide = el.closest(".slide");
       if (slide && !renderAllSlides && !slide.classList.contains("active")) continue;
 
-      const source = el.dataset.mermaidSource;
+      const source = this.getMermaidSource(el);
       if (!source) {
         el.dataset.mermaidProcessed = "1";
         continue;
@@ -164,7 +185,8 @@ contain: layout paint style;
 
         const div = document.createElement("div");
         div.className = "mermaid";
-        div.dataset.mermaidSource = source;
+        // Base64-encode so DOMPurify-like sanitizers do not strip the arrow syntax.
+        div.dataset.mermaidSource = this.encodeMermaidSource(source);
         // Include source for runtime rendering (used in exports)
         div.textContent = source;
         pre.replaceWith(div);

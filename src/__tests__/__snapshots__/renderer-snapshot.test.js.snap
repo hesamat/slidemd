@@ -7,7 +7,7 @@ exports[`SlideRenderer markdown → DOM snapshots > produces a stable math + mer
 <p data-source-line="5">$$E = mc^2$$</p>
 <p data-source-line="7"><a href="https://example.com">link</a></p>
 <p data-source-line="9">&lt;script&gt;alert('xss')&lt;/script&gt;</p>
-</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""><div class="mermaid" data-source-line="1"></div>
+</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""><div class="mermaid" data-source-line="1" data-mermaid-source="b64:Z3JhcGggVEQKICAgIEFbU3RhcnRdIC0tPiBCW0VuZF0K"></div>
 </div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div></div></div>"
 `;
 

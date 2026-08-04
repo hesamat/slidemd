@@ -141,6 +141,29 @@ export class AssetLoader {
       return;
     }
 
+    // In exported HTML, Mermaid is loaded by an inline module script that sets
+    // window.mermaid. Wait for it instead of trying to import a Vite-only path.
+    if (window.__WEBDECK_EXPORTED__) {
+      await new Promise((resolve) => {
+        if (window.mermaid && typeof window.mermaid.initialize === "function") return resolve();
+        const interval = setInterval(() => {
+          if (window.mermaid && typeof window.mermaid.initialize === "function") {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 50);
+        setTimeout(() => {
+          clearInterval(interval);
+          resolve();
+        }, 5000);
+      });
+      if (window.mermaid && typeof window.mermaid.initialize === "function") {
+        window.mermaid.initialize(mermaidInitOptions);
+        window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
+      }
+      return;
+    }
+
     await this.once("mermaid", async () => {
       const mermaidMod = await import("mermaid");
       const mermaid = mermaidMod?.default || mermaidMod;

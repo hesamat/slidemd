@@ -26,6 +26,7 @@ export class HtmlExportManager {
     // Core utilities and helpers
     "src/core/utils.js",
     "src/core/element-gatherer.js",
+    "src/core/mermaid-config.js",
     "src/core/asset-loader.js",
     // Data loading and parsing
     "src/data/layout-data.js",
@@ -160,6 +161,10 @@ export class HtmlExportManager {
       if (vendorJs) vendorJs = HtmlExportManager.minifyJs(vendorJs);
     }
 
+    // Prevent inline script text from closing the <script> tag prematurely.
+    bundledJs = HtmlExportManager.escapeInlineScriptText(bundledJs);
+    if (vendorJs) vendorJs = HtmlExportManager.escapeInlineScriptText(vendorJs);
+
     // 3. Escape Data
     // Inline images in deck JSON as data URIs
     report("Inlining deck images...", 55);
@@ -185,7 +190,9 @@ export class HtmlExportManager {
 .viewer { width: 100% !important; height: 100% !important; }
 `;
 
-    const initScript = HtmlExportManager.getInitScript();
+    const escapedInitScript = HtmlExportManager.escapeInlineScriptText(
+      HtmlExportManager.getInitScript(),
+    );
 
     report("Finalizing HTML...", 95);
     return `<!DOCTYPE html>
@@ -199,6 +206,7 @@ export class HtmlExportManager {
 ${presenterHideCss}
 ${allCss}
     </style>
+    <script>window.__WEBDECK_EXPORTED__ = true;</script>
 </head>
 <body>
     <div id="app" class="app">
@@ -241,7 +249,7 @@ ${vendorJs ? `    <script>\n${vendorJs}\n    </script>` : ""}
     <!-- App Logic -->
     <script>
 ${bundledJs}
-${initScript}
+${escapedInitScript}
     </script>
 </body>
 </html>`;
@@ -610,6 +618,15 @@ ${initScript}
       .map((line) => line.trimEnd())
       .join("\n");
     return trimmed.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  /**
+   * Escape </script sequences inside inline script text so the HTML parser does not
+   * close the script tag prematurely (e.g., from strings or regexes in the bundle).
+   */
+  static escapeInlineScriptText(jsText) {
+    if (!jsText) return jsText;
+    return jsText.replace(/<\/script/gi, "<\\/script");
   }
 
   /**

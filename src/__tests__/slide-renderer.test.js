@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
+import { base64Encode } from "../core/utils.js";
 
 describe("SlideRenderer", () => {
   it("sanitizes raw user HTML while preserving SlideMD structural attributes", () => {
@@ -26,5 +27,23 @@ describe("SlideRenderer", () => {
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("onclick");
+  });
+
+  it("preserves base64-encoded mermaid source through DOMPurify", () => {
+    const source = "graph TD\n    A[Start] --> B[End]";
+    const encoded = `b64:${base64Encode(source)}`;
+    const slide = {
+      id: "mermaid-check",
+      title: "Mermaid Check",
+      areas: {
+        main: `<div class="mermaid" data-mermaid-source="${encoded}"></div>`,
+      },
+    };
+    const deck = { slides: [slide] };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    const html = el.outerHTML;
+
+    expect(html).toContain(`data-mermaid-source="${encoded}"`);
+    expect(html).toContain('class="mermaid"');
   });
 });
