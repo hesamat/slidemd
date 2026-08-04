@@ -501,16 +501,27 @@ export class SettingsModal {
         apiKeyInput.value = this.getApiKey(selectedProvider);
         fetchModelsBtn.hidden = !isFetchModelsSupported();
 
+        // Reset model list and reasoning state for the new provider
+        this._allModels = [];
+        this._modelReasoningMap.clear();
+        this._modelMaxOutputMap.clear();
+        selectedModel = "";
+        modelInput.value = "";
+        updateModelSummary();
+
         if (selectedProvider === "OpenCode") {
           populateOpenCodeModels();
+          updateModelSummary();
           updateReasoningState();
-        } else if (isModelSearchProvider()) {
-          this.#populateOpenRouterModels(() => {
-            filterModels("");
-            const savedReasoning = this.getReasoning();
-            const supports = this.modelSupportsReasoning(selectedModel);
-            reasoningCheckbox.checked = savedReasoning && supports;
-            updateReasoningState();
+        } else if (isFetchModelsSupported()) {
+          // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio
+          fetchModels().then(() => {
+            if (this._allModels.length > 0) {
+              selectedModel = this._allModels[0].id;
+              modelInput.value = selectedModel;
+              updateModelSummary();
+              updateReasoningState();
+            }
           });
         } else {
           updateReasoningState();
