@@ -1,4 +1,9 @@
-import { AiAbortError, AiHttpError, AiParseError } from "./ai-provider-client.js";
+import {
+  AiAbortError,
+  AiHttpError,
+  AiParseError,
+  validateAiBaseUrl,
+} from "./ai-provider-client.js";
 
 /**
  * Anthropic Messages API client.
@@ -14,11 +19,13 @@ export class AnthropicProviderClient {
    * @param {() => string} opts.getBaseUrl
    * @param {() => string} opts.getApiKey
    * @param {() => string} opts.getModel
+   * @param {() => string} [opts.getProvider]
    */
-  constructor({ getBaseUrl, getApiKey, getModel }) {
+  constructor({ getBaseUrl, getApiKey, getModel, getProvider }) {
     this._getBaseUrl = getBaseUrl;
     this._getApiKey = getApiKey;
     this._getModel = getModel;
+    this._getProvider = getProvider;
   }
 
   /**
@@ -38,6 +45,11 @@ export class AnthropicProviderClient {
     }
 
     const baseUrl = (this._getBaseUrl() || "").replace(/\/+$/, "");
+    const provider = this._getProvider?.();
+    const validation = validateAiBaseUrl(baseUrl, provider);
+    if (!validation.ok) {
+      throw new AiHttpError(0, validation.error || "Invalid base URL");
+    }
     const url = `${baseUrl}/v1/messages`;
 
     const { system, anthropicMessages } = this._mapMessages(messages, responseFormat);

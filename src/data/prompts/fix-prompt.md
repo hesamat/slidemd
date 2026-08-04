@@ -8,7 +8,7 @@ What to fix:
 - Fix broken links, lists, and tables.
 - Remove duplicate blank lines and trailing whitespace.
 - Fix mismatched layouts: downgrade `media-span` or `two-column` when there is no image or an empty second column.
-- Do not change heading levels.
+- Make sure the headers for slides are correctly set and the heading level is consistent as much as possible.
 - Do not add or remove slides.
 
 Success criteria:
@@ -16,7 +16,7 @@ Success criteria:
 - Output is valid JSON with a `slides` array.
 - Each slide has a layout and non-empty content.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No raw `<div style="...">` blocks; use `::: text-block { ... }` for custom styling.
+- No raw `<div style="...">` blocks (unless it already exists); use `::: text-block { ... }` for custom styling.
 
 Input markdown:
 {{markdown}}

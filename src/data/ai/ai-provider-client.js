@@ -15,12 +15,27 @@
  */
 
 /**
+ * Known provider hosts. When an API key is present we must not send it to an
+ * unrelated host (e.g., a mistyped or attacker-suggested base URL).
+ * Custom providers are deliberately unrestricted.
+ */
+const PROVIDER_HOSTS = {
+  OpenAI: new Set(["api.openai.com"]),
+  OpenRouter: new Set(["openrouter.ai", "www.openrouter.ai"]),
+  Anthropic: new Set(["api.anthropic.com"]),
+  Gemini: new Set(["generativelanguage.googleapis.com"]),
+};
+
+/**
  * Validate an AI base URL before sending credentials or requests to it.
  * Only allows http: or https: schemes with a non-empty hostname.
+ * If `provider` is given and the provider has known hosts, the base URL host
+ * must match to prevent leaking an API key to an unrelated third party.
  * @param {string} baseUrl
+ * @param {string} [provider]
  * @returns {{ok: boolean, error?: string}}
  */
-export function validateAiBaseUrl(baseUrl) {
+export function validateAiBaseUrl(baseUrl, provider) {
   if (!baseUrl) return { ok: false, error: "Base URL is not configured" };
   const url = baseUrl.replace(/\/+$/, "").toLowerCase();
   if (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1")) {
@@ -42,6 +57,13 @@ export function validateAiBaseUrl(baseUrl) {
     ) {
       return { ok: false, error: "Non-local http: endpoints are not allowed" };
     }
+    const allowed = provider ? PROVIDER_HOSTS[provider] : null;
+    if (allowed && !allowed.has(parsed.hostname)) {
+      return {
+        ok: false,
+        error: `Base URL host must be one of: ${[...allowed].join(", ")} for ${provider}`,
+      };
+    }
     return { ok: true };
   } catch {
     return { ok: false, error: "Base URL is not a valid URL" };
@@ -54,11 +76,13 @@ export class AiProviderClient {
    * @param {() => string} opts.getBaseUrl
    * @param {() => string} opts.getApiKey
    * @param {() => string} opts.getModel
+   * @param {() => string} [opts.getProvider]
    */
-  constructor({ getBaseUrl, getApiKey, getModel }) {
+  constructor({ getBaseUrl, getApiKey, getModel, getProvider }) {
     this._getBaseUrl = getBaseUrl;
     this._getApiKey = getApiKey;
     this._getModel = getModel;
+    this._getProvider = getProvider;
   }
 
   /**
@@ -73,7 +97,8 @@ export class AiProviderClient {
     }
 
     const baseUrl = (this._getBaseUrl() || "").replace(/\/+$/, "");
-    const validation = validateAiBaseUrl(baseUrl);
+    const provider = this._getProvider?.();
+    const validation = validateAiBaseUrl(baseUrl, provider);
     if (!validation.ok) {
       throw new AiHttpError(0, validation.error || "Invalid base URL");
     }

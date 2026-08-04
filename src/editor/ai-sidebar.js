@@ -170,8 +170,8 @@ export class AiSidebar {
 
         const model = SettingsModal.getModel();
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        const useReasoning = SettingsModal.getReasoning();
-        const effort = SettingsModal.getEffort();
+        const useReasoning = SettingsModal.getReasoning() && mode === "generate";
+        const effort = useReasoning ? SettingsModal.getEffort() : null;
 
         // Split into slides to decide single vs batch path
         const allSlides = splitSlides(markdown, mode);
@@ -211,7 +211,9 @@ export class AiSidebar {
         );
 
         // 2-worker parallel batch loop
-        const results = new Array(batches.length);
+        // results is keyed by batch.batchKey so split sub-batches get their own slot
+        // and cannot overwrite each other. Values carry start/end for reassembly.
+        const results = new Map();
         let completedSlides = 0;
         let retryCount = 0;
         let splitCount = 0;
@@ -271,7 +273,7 @@ export class AiSidebar {
               } else if (batchResult.error.type === "validation" && attempts < 2) {
                 const errs = batchResult.error.errors;
                 console.warn(
-                  `[AI Fix] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
+                  `[AI] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
                 );
                 for (const e of errs) {
                   console.warn(`  - ${e.message || e}`);
@@ -295,13 +297,18 @@ export class AiSidebar {
               } else {
                 const isValidation = batchResult.error.type === "validation";
                 const errs = isValidation ? batchResult.error.errors : [];
-                // Fix mode: accept the partial output after exhausting retries
-                // so one bad batch does not discard the whole deck.
-                if (isValidation && mode === "fix" && batchResult.error.slides) {
-                  results[batch.index] = batchResult.error.slides;
+                // Accept the partial output after exhausting retries so one bad batch
+                // does not discard the whole deck in either fix or generate mode.
+                if (isValidation && batchResult.error.slides) {
+                  results.set(batch.batchKey, {
+                    start: batch.start,
+                    end: batch.end,
+                    slides: batchResult.error.slides,
+                  });
+                  completedSlides += batch.end - batch.start;
                   const messages = errs.map((e) => e.message || e);
                   console.warn(
-                    `[AI Fix] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                    `[AI] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
                   );
                   for (const m of messages) console.warn(`  - ${m}`);
                   appendLog(
@@ -311,7 +318,7 @@ export class AiSidebar {
                 } else {
                   if (errs.length > 0) {
                     console.warn(
-                      `[AI Fix] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                      `[AI] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
                     );
                     for (const e of errs) {
                       console.warn(`  - ${e.message || e}`);
@@ -322,12 +329,15 @@ export class AiSidebar {
                     "error",
                   );
                 }
-                completedSlides += batch.end - batch.start;
                 const nextBatch = queue.length > 0 ? queue[0] : null;
                 updateProgress(completedSlides, allSlides.length, nextBatch);
               }
             } else {
-              results[batch.index] = batchResult.slides;
+              results.set(batch.batchKey, {
+                start: batch.start,
+                end: batch.end,
+                slides: batchResult.slides,
+              });
               completedSlides += batch.end - batch.start;
               const nextBatch = queue.length > 0 ? queue[0] : null;
               updateProgress(completedSlides, allSlides.length, nextBatch);
@@ -351,9 +361,19 @@ export class AiSidebar {
           return null;
         }
 
-        // Check for partial results
-        const failedBatches = results.filter((r) => r === undefined).length;
-        if (failedBatches > 0) {
+        // Reassemble batches in order and check for any gaps
+        const completedRanges = [...results.values()].sort((a, b) => a.start - b.start);
+        const hasGap = (() => {
+          if (completedRanges.length === 0) return true;
+          let expectedStart = 0;
+          for (const r of completedRanges) {
+            if (r.start !== expectedStart) return true;
+            expectedStart = r.end;
+          }
+          return expectedStart !== allSlides.length;
+        })();
+
+        if (hasGap) {
           showError(
             `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
               `Try again or reduce deck size.`,
@@ -362,7 +382,7 @@ export class AiSidebar {
         }
 
         // Combine results in order
-        const allResultSlides = results.flat();
+        const allResultSlides = completedRanges.flatMap((r) => r.slides);
         const summaryParts = [`${allSlides.length} slides processed`];
         if (retryCount > 0)
           summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
@@ -418,7 +438,7 @@ export class AiSidebar {
       await import("../data/ai-enhancer.js");
 
     const validator = new AiOutputValidator({ inputMarkdown: markdown });
-    const maxAttempts = mode === "fix" ? 3 : 1;
+    const maxAttempts = mode === "fix" ? 3 : 2;
     const expectedSlideCount = mode === "fix" ? splitSlides(markdown, mode).length : null;
     let lastErrors = [];
 
@@ -506,14 +526,9 @@ export class AiSidebar {
           continue;
         }
 
-        if (mode === "fix") {
-          // Accept fix output after exhausting retries; the user can always re-run.
-          console.warn(`[AI fix] Accepting output after max attempts with validation issues`);
-          return enhancedMarkdown;
-        }
-
-        const errorMessages = result.errors.map((e) => e.message).join("; ");
-        throw new Error(`AI output failed validation: ${errorMessages}`);
+        // Accept output after exhausting retries so the user does not lose the entire result.
+        console.warn(`[AI ${mode}] Accepting output after max attempts with validation issues`);
+        return enhancedMarkdown;
       } catch (err) {
         if (err.name === "AiAbortError") {
           this.close();

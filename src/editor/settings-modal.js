@@ -508,7 +508,7 @@ export class SettingsModal {
         errorEl.hidden = true;
         try {
           const baseUrl = (selectedBaseUrl || "").replace(/\/+$/, "");
-          const validation = validateAiBaseUrl(baseUrl);
+          const validation = validateAiBaseUrl(baseUrl, selectedProvider);
           if (!validation.ok) {
             throw new Error(validation.error || "Invalid base URL");
           }
@@ -786,7 +786,7 @@ export class SettingsModal {
 
     try {
       const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
-      const validation = validateAiBaseUrl(baseUrl);
+      const validation = validateAiBaseUrl(baseUrl, provider);
       if (!validation.ok) {
         throw new Error(validation.error || "Invalid base URL");
       }

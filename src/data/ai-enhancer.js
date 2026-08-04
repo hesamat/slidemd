@@ -6,6 +6,7 @@
  */
 
 import { LayoutData } from "./layout-data.js";
+import { MarkdownParser } from "./markdown-parser.js";
 import { AiPromptComposer } from "./ai/ai-prompt-composer.js";
 import systemPrompt from "./prompts/system-prompt.md?raw";
 import fixPrompt from "./prompts/fix-prompt.md?raw";
@@ -352,7 +353,8 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
  */
 export function splitSlides(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
-  return cleaned.split(/\n---\n/);
+  // Use the fence-aware parser so code blocks containing `---` are not split.
+  return new MarkdownParser().splitSlides(cleaned);
 }
 
 export { BATCH_SIZE };

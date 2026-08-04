@@ -14,15 +14,30 @@ import { GeminiProviderClient } from "./gemini-provider-client.js";
 export function createAiProviderClient(providerLabel, getBaseUrl, getApiKey, getModel) {
   switch (providerLabel) {
     case "Anthropic":
-      return new AnthropicProviderClient({ getBaseUrl, getApiKey, getModel });
+      return new AnthropicProviderClient({
+        getBaseUrl,
+        getApiKey,
+        getModel,
+        getProvider: () => providerLabel,
+      });
     case "Gemini":
-      return new GeminiProviderClient({ getBaseUrl, getApiKey, getModel });
+      return new GeminiProviderClient({
+        getBaseUrl,
+        getApiKey,
+        getModel,
+        getProvider: () => providerLabel,
+      });
     case "OpenAI":
     case "OpenRouter":
     case "Ollama":
     case "LM Studio":
     case "Custom":
     default:
-      return new AiProviderClient({ getBaseUrl, getApiKey, getModel });
+      return new AiProviderClient({
+        getBaseUrl,
+        getApiKey,
+        getModel,
+        getProvider: () => providerLabel,
+      });
   }
 }
