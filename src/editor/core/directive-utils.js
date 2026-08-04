@@ -8,6 +8,7 @@
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { LayoutData } from "../../data/layout-data.js";
+import { splitCssDeclarations } from "../../core/utils.js";
 
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
@@ -98,7 +99,7 @@ export function updateAreaStyleDirective(markdown, cssText) {
 function mergeCssDeclarations(base, override) {
   const map = new Map();
   for (const source of [base, override]) {
-    for (const decl of String(source || "").split(";")) {
+    for (const decl of splitCssDeclarations(String(source || ""))) {
       const d = decl.trim();
       if (!d) continue;
       const idx = d.indexOf(":");

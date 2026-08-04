@@ -270,3 +270,50 @@ export function withTimeout(promise, ms) {
     new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms)),
   ]);
 }
+
+/**
+ * Split a CSS declaration string into individual declarations without breaking
+ * on semicolons that appear inside `url(...)` or quoted strings.
+ * @param {string} cssText
+ * @returns {string[]}
+ */
+export function splitCssDeclarations(cssText) {
+  const decls = [];
+  let current = "";
+  let parenDepth = 0;
+  let inString = false;
+  let stringChar = null;
+
+  for (let i = 0; i < cssText.length; i++) {
+    const ch = cssText[i];
+    if (inString) {
+      current += ch;
+      if (ch === "\\" && i + 1 < cssText.length) {
+        current += cssText[++i];
+      } else if (ch === stringChar) {
+        inString = false;
+        stringChar = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      stringChar = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === "(") {
+      parenDepth++;
+    } else if (ch === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+    }
+    if (ch === ";" && parenDepth === 0) {
+      decls.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) decls.push(current);
+  return decls;
+}

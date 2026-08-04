@@ -14,6 +14,7 @@ import { LayoutData } from "../../data/layout-data.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
+import { splitCssDeclarations } from "../../core/utils.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
@@ -217,7 +218,7 @@ export class SlidePreviewUpdater {
             const newGlobal = name !== "footer" ? globalAreaStyle : "";
             const newPerArea = name !== "footer" ? perAreaStyles[name] || "" : "";
 
-            for (const decl of prevStyle.split(";")) {
+            for (const decl of splitCssDeclarations(prevStyle)) {
               const d = decl.trim();
               if (!d) continue;
               const idx = d.indexOf(":");

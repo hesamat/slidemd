@@ -720,9 +720,10 @@ export class EditController {
   }
 
   _setAreaBackground(areaName, color) {
-    if (!this.markdownEditor || !color || !areaName) return;
+    if (!this.markdownEditor || !areaName) return;
     const markdown = this.markdownEditor.getValue();
-    const updated = updateAreaStyleForAreaDirective(markdown, areaName, `background: ${color}`);
+    const cssText = color ? `background: ${color}` : "";
+    const updated = updateAreaStyleForAreaDirective(markdown, areaName, cssText);
     if (updated === markdown) return;
 
     this.markdownEditor.setValue(updated, { suppressOnChange: false });

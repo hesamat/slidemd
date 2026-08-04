@@ -159,6 +159,15 @@ export class AreaGuideManager {
         const active = parseSingleColumnLayout(slideData?.layout);
         const canAlignMain = name === "main" && Boolean(active);
         const activeAlign = active?.align;
+
+        const areaStyle = slideData?.areaStyles?.[name] || "";
+        const bgMatch = areaStyle.match(/(?:^|;)\s*background\s*:\s*([^;]+)/i);
+        const rawBackground = bgMatch ? bgMatch[1].trim() : "";
+        const currentColor = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(rawBackground)
+          ? rawBackground
+          : "#ffffff";
+        const hasBackground = Boolean(rawBackground);
+
         this._contextMenu.open(e.clientX, e.clientY, name, {
           canDelete,
           canSwap,
@@ -166,6 +175,8 @@ export class AreaGuideManager {
           canAlignMain,
           canSetBackground: name !== "footer",
           activeAlign,
+          currentColor,
+          hasBackground,
         });
       });
     });
