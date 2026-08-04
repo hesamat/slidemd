@@ -13,9 +13,6 @@
 
 // SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
-const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
-const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
-const STORAGE_KEY_EFFORT = "webdeck_openrouter_effort";
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_PROVIDER = "webdeck_ai_provider";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
@@ -49,6 +46,44 @@ function providerKeyStorageKey(provider) {
   return `webdeck_ai_key_${provider.toLowerCase().replace(/\s+/g, "_")}`;
 }
 
+function providerModelStorageKey(provider) {
+  return `webdeck_ai_model_${provider.toLowerCase().replace(/\s+/g, "_")}`;
+}
+
+function providerReasoningStorageKey(provider) {
+  return `webdeck_ai_reasoning_${provider.toLowerCase().replace(/\s+/g, "_")}`;
+}
+
+function providerEffortStorageKey(provider) {
+  return `webdeck_ai_effort_${provider.toLowerCase().replace(/\s+/g, "_")}`;
+}
+
+/**
+ * Best-effort reasoning metadata for models that don't advertise it in the
+ * /models endpoint. Used for OpenAI's o-series and other reasoning models.
+ * @param {string} modelId
+ * @returns {{supported_efforts: string[], mandatory: boolean}|null}
+ */
+function guessReasoningForModel(modelId) {
+  const id = modelId.toLowerCase();
+  const reasoningPatterns = [
+    /(?:^|[/\-_])o[134]-/,
+    /(?:^|[/\-_])o[134]$/,
+    /deepseek[-_]r1/,
+    /deepseek[-_]reasoner/,
+    /claude[-_]3[-_]7[-_]sonnet/,
+    /claude[-_]4/,
+    /claude[-_]sonnet[-_]4/,
+    /gemini[-_]2\.5[-_]pro/,
+    /grok[-_]3/,
+    /qwen3/,
+  ];
+  if (reasoningPatterns.some((p) => p.test(id))) {
+    return { supported_efforts: ["low", "medium", "high"], mandatory: false };
+  }
+  return null;
+}
+
 export class SettingsModal {
   static _currentBackdrop = null;
   /** @type {Map<string, {supported_efforts: string[]|null, mandatory: boolean}>} */
@@ -80,36 +115,36 @@ export class SettingsModal {
     }
   }
 
-  static getModel() {
+  static getModel(provider) {
+    const prov = provider || this.getProvider();
+    const key = providerModelStorageKey(prov);
     try {
       return (
-        sessionStorage.getItem(STORAGE_KEY_MODEL) ||
-        localStorage.getItem(STORAGE_KEY_MODEL) ||
-        DEFAULT_MODEL
+        sessionStorage.getItem(key) ||
+        localStorage.getItem(key) ||
+        (prov === DEFAULT_PROVIDER ? DEFAULT_MODEL : "")
       );
     } catch {
-      return DEFAULT_MODEL;
+      return prov === DEFAULT_PROVIDER ? DEFAULT_MODEL : "";
     }
   }
 
-  static getReasoning() {
+  static getReasoning(provider) {
+    const prov = provider || this.getProvider();
+    const key = providerReasoningStorageKey(prov);
     try {
-      const val =
-        sessionStorage.getItem(STORAGE_KEY_REASONING) ||
-        localStorage.getItem(STORAGE_KEY_REASONING);
+      const val = sessionStorage.getItem(key) || localStorage.getItem(key);
       return val === "true";
     } catch {
       return false;
     }
   }
 
-  static getEffort() {
+  static getEffort(provider) {
+    const prov = provider || this.getProvider();
+    const key = providerEffortStorageKey(prov);
     try {
-      return (
-        sessionStorage.getItem(STORAGE_KEY_EFFORT) ||
-        localStorage.getItem(STORAGE_KEY_EFFORT) ||
-        DEFAULT_EFFORT
-      );
+      return sessionStorage.getItem(key) || localStorage.getItem(key) || DEFAULT_EFFORT;
     } catch {
       return DEFAULT_EFFORT;
     }
@@ -245,8 +280,8 @@ export class SettingsModal {
       dialog.addEventListener("click", (e) => e.stopPropagation());
 
       // State
-      let selectedModel = this.getModel();
       let selectedProvider = this.getProvider();
+      let selectedModel = this.getModel(selectedProvider);
       let selectedBaseUrl = this.getBaseUrl();
       let baseOverridden = false;
 
@@ -308,7 +343,7 @@ export class SettingsModal {
       providerSelect.value = selectedProvider;
       baseUrlInput.value = selectedBaseUrl;
       modelInput.value = selectedModel;
-      effortSelect.value = this.getEffort();
+      effortSelect.value = this.getEffort(selectedProvider);
 
       let remembered = false;
       try {
@@ -404,11 +439,12 @@ export class SettingsModal {
       };
 
       const updateReasoningState = () => {
+        if (selectedModel && !this._modelReasoningMap.has(selectedModel)) {
+          const guessed = guessReasoningForModel(selectedModel);
+          if (guessed) this._modelReasoningMap.set(selectedModel, guessed);
+        }
         const supports = this.modelSupportsReasoning(selectedModel);
         reasoningCheckbox.disabled = !supports;
-        if (!supports) {
-          reasoningCheckbox.checked = false;
-        }
         reasoningHint.hidden = supports;
 
         const efforts = this.getSupportedEfforts(selectedModel);
@@ -458,11 +494,9 @@ export class SettingsModal {
             const id = m.id || m.model || String(m);
             const name = m.name || id;
             this._allModels.push({ id, name });
-            if (m.reasoning) {
-              this._modelReasoningMap.set(id, {
-                supported_efforts: m.reasoning.supported_efforts || null,
-                mandatory: m.reasoning.mandatory || false,
-              });
+            const reasoning = m.reasoning || guessReasoningForModel(id);
+            if (reasoning) {
+              this._modelReasoningMap.set(id, reasoning);
             }
             this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
           }
@@ -471,7 +505,8 @@ export class SettingsModal {
             throw new Error("No models returned");
           }
 
-          openDropdown();
+          // Don't auto-open the dropdown on fetch — only populate it.
+          // The user can click/focus the input to open it.
           filterModels("");
         } catch (err) {
           errorEl.textContent = `Could not fetch models: ${err.message}`;
@@ -481,8 +516,6 @@ export class SettingsModal {
         }
       };
 
-      // OpenCode support removed due to CORS and endpoint issues.
-
       // --- Provider / base URL handlers ---
       providerSelect.addEventListener("change", () => {
         selectedProvider = providerSelect.value;
@@ -490,23 +523,24 @@ export class SettingsModal {
         apiKeyInput.value = this.getApiKey(selectedProvider);
         fetchModelsBtn.hidden = !isFetchModelsSupported();
 
-        // Reset model list and reasoning state for the new provider
+        // Restore the previously selected model for this provider, if any.
         this._allModels = [];
         this._modelReasoningMap.clear();
         this._modelMaxOutputMap.clear();
-        selectedModel = "";
-        modelInput.value = "";
+        selectedModel = this.getModel(selectedProvider);
+        modelInput.value = selectedModel;
         updateModelSummary();
 
         if (isFetchModelsSupported()) {
-          // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio
+          // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio.
+          // Keep the saved model unless the list comes back empty.
           fetchModels().then(() => {
-            if (this._allModels.length > 0) {
+            if (this._allModels.length > 0 && !selectedModel) {
               selectedModel = this._allModels[0].id;
               modelInput.value = selectedModel;
               updateModelSummary();
-              updateReasoningState();
             }
+            updateReasoningState();
           });
         } else {
           updateReasoningState();
@@ -583,7 +617,7 @@ export class SettingsModal {
       if (isModelSearchProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
-          const savedReasoning = this.getReasoning();
+          const savedReasoning = this.getReasoning(selectedProvider);
           const supports = this.modelSupportsReasoning(selectedModel);
           reasoningCheckbox.checked = savedReasoning && supports;
           updateReasoningState();
@@ -612,27 +646,30 @@ export class SettingsModal {
         }
 
         const keyStorage = providerKeyStorageKey(selectedProvider);
+        const modelStorage = providerModelStorageKey(selectedProvider);
+        const reasoningStorage = providerReasoningStorageKey(selectedProvider);
+        const effortStorage = providerEffortStorageKey(selectedProvider);
 
         try {
           sessionStorage.setItem(keyStorage, apiKey);
-          sessionStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
-          sessionStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
-          sessionStorage.setItem(STORAGE_KEY_EFFORT, effort);
+          sessionStorage.setItem(modelStorage, selectedModel);
+          sessionStorage.setItem(reasoningStorage, String(reasoning));
+          sessionStorage.setItem(effortStorage, effort);
 
           localStorage.setItem(STORAGE_KEY_BASE_URL, selectedBaseUrl);
           localStorage.setItem(STORAGE_KEY_PROVIDER, selectedProvider);
 
           if (remember) {
             localStorage.setItem(keyStorage, apiKey);
-            localStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
-            localStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
-            localStorage.setItem(STORAGE_KEY_EFFORT, effort);
+            localStorage.setItem(modelStorage, selectedModel);
+            localStorage.setItem(reasoningStorage, String(reasoning));
+            localStorage.setItem(effortStorage, effort);
             localStorage.setItem(REMEMBER_KEY, "true");
           } else {
             localStorage.removeItem(keyStorage);
-            localStorage.removeItem(STORAGE_KEY_MODEL);
-            localStorage.removeItem(STORAGE_KEY_REASONING);
-            localStorage.removeItem(STORAGE_KEY_EFFORT);
+            localStorage.removeItem(modelStorage);
+            localStorage.removeItem(reasoningStorage);
+            localStorage.removeItem(effortStorage);
             localStorage.removeItem(REMEMBER_KEY);
           }
 
@@ -689,7 +726,8 @@ export class SettingsModal {
       return;
     }
 
-    const saved = this.getModel();
+    const provider = this.getProvider();
+    const saved = this.getModel(provider);
     this._allModels = [{ id: saved, name: saved }];
 
     try {
@@ -710,11 +748,9 @@ export class SettingsModal {
         const id = m.id || m.model || String(m);
         const name = m.name || id;
         this._allModels.push({ id, name });
-        if (m.reasoning) {
-          this._modelReasoningMap.set(id, {
-            supported_efforts: m.reasoning.supported_efforts || null,
-            mandatory: m.reasoning.mandatory || false,
-          });
+        const reasoning = m.reasoning || guessReasoningForModel(id);
+        if (reasoning) {
+          this._modelReasoningMap.set(id, reasoning);
         }
         this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
       }
@@ -724,7 +760,11 @@ export class SettingsModal {
       }
 
       if (!this._modelReasoningMap.has(saved)) {
-        this._modelReasoningMap.set(saved, { supported_efforts: null, mandatory: false });
+        const guessed = guessReasoningForModel(saved);
+        this._modelReasoningMap.set(
+          saved,
+          guessed || { supported_efforts: null, mandatory: false },
+        );
       }
       if (!this._modelMaxOutputMap.has(saved)) {
         this._modelMaxOutputMap.set(saved, null);
