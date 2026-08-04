@@ -65,6 +65,28 @@ export function applyOpenInNewTabToLinks(md) {
   };
 }
 
+export function splitSlides(markdownText) {
+  const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+  const slides = [];
+  let buf = [];
+  const fence = new FenceTracker();
+
+  for (const line of lines) {
+    fence.toggle(line);
+    if (!fence.isInFence && /^\s*---\s*$/.test(line)) {
+      const text = buf.join("\n").trim();
+      if (text) slides.push(text);
+      buf = [];
+      continue;
+    }
+    buf.push(line);
+  }
+
+  const last = buf.join("\n").trim();
+  if (last) slides.push(last);
+  return slides;
+}
+
 export class MarkdownParser {
   constructor() {
     this.md = null;
@@ -193,25 +215,7 @@ export class MarkdownParser {
    * @returns {string[]} Non-empty slide text segments.
    */
   splitSlides(markdownText) {
-    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
-    const slides = [];
-    let buf = [];
-    const fence = new FenceTracker();
-
-    for (const line of lines) {
-      fence.toggle(line);
-      if (!fence.isInFence && /^\s*---\s*$/.test(line)) {
-        const text = buf.join("\n").trim();
-        if (text) slides.push(text);
-        buf = [];
-        continue;
-      }
-      buf.push(line);
-    }
-
-    const last = buf.join("\n").trim();
-    if (last) slides.push(last);
-    return slides;
+    return splitSlides(markdownText);
   }
 
   /**

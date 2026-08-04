@@ -19,6 +19,7 @@ export class SaveManager {
    * @param {(v: string[]) => void} opts.setOriginalMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
+   * @param {() => void} [opts.onBeforeSave]
    */
   constructor({
     getDeck,
@@ -27,6 +28,7 @@ export class SaveManager {
     setOriginalMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
+    onBeforeSave = null,
   }) {
     this._getDeck = getDeck;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
@@ -34,6 +36,7 @@ export class SaveManager {
     this._setOriginalMarkdown = setOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
+    this._onBeforeSave = onBeforeSave;
     this.needsSaveAs = false;
   }
 
@@ -75,6 +78,7 @@ export class SaveManager {
   }
 
   async _prepareSave() {
+    this._onBeforeSave?.();
     await waitForImageUpload();
     const fullMarkdown = this.getFullMarkdown();
 

@@ -146,14 +146,14 @@ export function createKeyboardHandler({
     },
     undo: () => {
       try {
-        edit()?.markdownEditor?.undo?.();
+        edit()?.undo?.();
       } catch (e) {
         console.warn("Undo shortcut failed:", e);
       }
     },
     redo: () => {
       try {
-        edit()?.markdownEditor?.redo?.();
+        edit()?.redo?.();
       } catch (e) {
         console.warn("Redo shortcut failed:", e);
       }

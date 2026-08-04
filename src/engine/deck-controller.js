@@ -34,7 +34,7 @@ export class DeckController extends EventEmitter {
     UiActions.updateSlideCount(elements, count);
   }
 
-  constructor(deck, elements) {
+  constructor(deck, elements, { deckStore = null } = {}) {
     super();
 
     if (elements.reloadDeckBtn && navigator.userAgent.includes("Firefox")) {
@@ -43,6 +43,7 @@ export class DeckController extends EventEmitter {
 
     this.deck = deck;
     this.elements = elements;
+    this.deckStore = deckStore;
     this._enhanceIdleId = null;
 
     this.initIds();
@@ -70,6 +71,7 @@ export class DeckController extends EventEmitter {
     });
     // Listen for slide changes to trigger render
     this.slideNavigator.addEventListener("slidechange", (e) => {
+      this.deckStore?.setActiveIndex(this.slideNavigator.currentIndex);
       this.render();
       this.enhanceActiveSlideNow();
       this.dispatchEvent("slidechange", e);
@@ -91,6 +93,7 @@ export class DeckController extends EventEmitter {
       breakManager: null, // Will be set after breakManager is initialized
       freezeManager: null, // Will be set after freezeManager is initialized
       getDeckId: getDeckId,
+      deckStore: this.deckStore,
     });
     // Listen for deck changes
     this.reloadManager.addEventListener("deckchange", (e) => {

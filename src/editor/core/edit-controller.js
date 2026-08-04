@@ -40,12 +40,19 @@ import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
+import {
+  createDeletePatch,
+  createEditPatch,
+  createInsertPatch,
+} from "../../data/store/slide-patch.js";
+import { AssetLoader } from "../../core/asset-loader.js";
 
 export class EditController {
-  constructor(deck, controller, elements) {
+  constructor(deck, controller, elements, { deckStore = null } = {}) {
     this.deck = deck;
     this.controller = controller;
     this.elements = elements;
+    this.deckStore = deckStore;
 
     this.isEditMode = false;
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
@@ -61,6 +68,7 @@ export class EditController {
     this._destroyed = false;
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
+      this.deckStore?.setActiveIndex(this.currentSlideIndex);
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       SlideStylePanel.hide();
@@ -68,7 +76,15 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      this.originalMarkdown = this._cacheOriginalMarkdown();
+      this.originalMarkdown =
+        data.syncStore === false && this.deckStore
+          ? this.deckStore.getSlides()
+          : this._cacheOriginalMarkdown();
+      const markdown =
+        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+      if (data.syncStore !== false && markdown) {
+        this.deckStore?.loadFromMarkdown(markdown, this.controller.slideNavigator.currentIndex);
+      }
       this.unsavedMarkdown.clear();
       this.hasUnsavedChanges = false;
       this.saveManager.updateButton();
@@ -139,6 +155,7 @@ export class EditController {
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
+      onBeforeSave: () => this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown()),
     });
 
     this.areaNav = new AreaNavigation({
@@ -166,6 +183,7 @@ export class EditController {
         this.hasUnsavedChanges = v;
       },
       getSaveManager: () => this.saveManager,
+      deckStore: this.deckStore,
     });
 
     this.imageInserter = new ImageInserter({
@@ -511,6 +529,51 @@ export class EditController {
       toggleBtn.setAttribute("aria-label", isCollapsed ? "Expand slides" : "Collapse slides");
       toggleBtn.setAttribute("title", isCollapsed ? "Expand slides" : "Collapse slides");
     }
+  }
+
+  /**
+   * Sync the current full markdown into the canonical store at a save boundary.
+   * Keystrokes remain local to the editor until this method is called.
+   */
+  syncStoreFromMarkdown(markdown, source = "user") {
+    if (!this.deckStore) return;
+    const desired = new MarkdownParser().splitSlides(markdown);
+    const current = this.deckStore.getSlides();
+    const shared = Math.min(current.length, desired.length);
+
+    for (let i = 0; i < shared; i += 1) {
+      if (current[i] !== desired[i]) {
+        this.deckStore.applyPatch(createEditPatch(i, current[i], desired[i], source));
+      }
+    }
+    for (let i = current.length - 1; i >= desired.length; i -= 1) {
+      this.deckStore.applyPatch(createDeletePatch(i, this.deckStore.getSlides()[i], source));
+    }
+    for (let i = current.length; i < desired.length; i += 1) {
+      this.deckStore.applyPatch(createInsertPatch(i, desired[i], source));
+    }
+  }
+
+  async _restoreStoreSnapshot() {
+    if (!this.deckStore) return false;
+    const markdown = this.deckStore.toMarkdown();
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deck = await import("../../data/deck-loader.js").then(({ DeckLoader }) =>
+      DeckLoader.parseMarkdown(markdown),
+    );
+    await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
+    this.controller.slideNavigator.goTo(this.deckStore.getActiveIndex(), { broadcast: false });
+    return true;
+  }
+
+  async undo() {
+    if (!this.deckStore?.undo()) return false;
+    return this._restoreStoreSnapshot();
+  }
+
+  async redo() {
+    if (!this.deckStore?.redo()) return false;
+    return this._restoreStoreSnapshot();
   }
 
   /**

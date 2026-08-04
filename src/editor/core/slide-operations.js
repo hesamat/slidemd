@@ -12,6 +12,7 @@ import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { Notification } from "../../renderer/notification.js";
 import { LayoutData } from "../../data/layout-data.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
+import { createDeletePatch, createInsertPatch } from "../../data/store/slide-patch.js";
 
 export class SlideOperations {
   /**
@@ -29,6 +30,7 @@ export class SlideOperations {
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => object} opts.getSaveManager
+   * @param {import('../../data/store/deck-store.js').DeckStore|null} opts.deckStore
    */
   constructor({
     getDeck,
@@ -44,6 +46,7 @@ export class SlideOperations {
     getHasUnsavedChanges,
     setHasUnsavedChanges,
     getSaveManager,
+    deckStore = null,
   }) {
     this._getDeck = getDeck;
     this._getElements = getElements;
@@ -58,6 +61,7 @@ export class SlideOperations {
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._getSaveManager = getSaveManager;
+    this._deckStore = deckStore;
   }
 
   get deck() {
@@ -114,8 +118,9 @@ export class SlideOperations {
 
     const insertIndex = this.currentSlideIndex + 1;
 
-    this.deck.slides.splice(insertIndex, 0, newSlide);
     const newSlideMarkdown = "## New Slide\n\nAdd your content here";
+    this._deckStore?.applyPatch(createInsertPatch(insertIndex, newSlideMarkdown, "user"));
+    this.deck.slides.splice(insertIndex, 0, newSlide);
     this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
 
     const visibleSlideCount = this.deck.slides.filter((s) => !s.hidden).length;
@@ -146,7 +151,10 @@ export class SlideOperations {
     if (!confirmed) return;
 
     const indexToDelete = this.currentSlideIndex;
+    const deletedMarkdown =
+      this.unsavedMarkdown.get(indexToDelete) ?? this.originalMarkdown[indexToDelete] ?? "";
 
+    this._deckStore?.applyPatch(createDeletePatch(indexToDelete, deletedMarkdown, "user"));
     this.deck.slides.splice(indexToDelete, 1);
     this.originalMarkdown.splice(indexToDelete, 1);
 
@@ -207,6 +215,11 @@ export class SlideOperations {
 
   /** Swap two adjacent slides in data, DOM, and unsaved-map. */
   _swapSlides(a, b) {
+    const movedMarkdown = this.unsavedMarkdown.get(a) ?? this.originalMarkdown[a] ?? "";
+    this._deckStore?.applyPatches([
+      createDeletePatch(a, movedMarkdown, "user"),
+      createInsertPatch(b, movedMarkdown, "user"),
+    ]);
     [this.deck.slides[a], this.deck.slides[b]] = [this.deck.slides[b], this.deck.slides[a]];
     [this.originalMarkdown[a], this.originalMarkdown[b]] = [
       this.originalMarkdown[b],
@@ -260,6 +273,7 @@ export class SlideOperations {
 
       const newSlide = { ...deckData.slides[0], id: Date.now() };
 
+      this._deckStore?.applyPatch(createInsertPatch(insertIndex, markdown, "user"));
       this.deck.slides.splice(insertIndex, 0, newSlide);
       this.originalMarkdown.splice(insertIndex, 0, markdown);
 
@@ -330,10 +344,12 @@ export class SlideOperations {
           layout: layoutName,
           areas: { main: "<h2>New Slide</h2>\n\nAdd your content here" },
         };
+        this._deckStore?.applyPatch(createInsertPatch(insertIndex, styledTemplate, "user"));
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       } else {
         const newSlide = deckData.slides[0];
+        this._deckStore?.applyPatch(createInsertPatch(insertIndex, styledTemplate, "user"));
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       }
