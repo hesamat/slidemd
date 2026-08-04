@@ -184,30 +184,7 @@ export class HtmlExportManager {
 .viewer { width: 100% !important; height: 100% !important; }
 `;
 
-    // We add a small init script to re-run the shared enhancer on load.
-    // ContentEnhancer is exposed to window by the bundled source, so the runtime,
-    // exported HTML, and PDF paths all use the same enhancement logic.
-    const initScript = `
-        // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
-        window.__WEBDECK_EXPORTED__ = true;
-
-        // Clear any stored slide state so we always start on slide 1
-        try {
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('webdeck:')) {
-                    localStorage.removeItem(key);
-                }
-            });
-        } catch (e) { /* ignore localStorage errors */ }
-
-        // Wait for window.load to ensure all vendor scripts are loaded
-        window.addEventListener('load', () => {
-            if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
-                ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
-                    .catch(e => console.warn('Enhancement error:', e));
-            }
-        });
-        `;
+    const initScript = HtmlExportManager.getInitScript();
 
     report("Finalizing HTML...", 95);
     return `<!DOCTYPE html>
@@ -887,6 +864,35 @@ ${initScript}
     );
   }
 
+  /**
+   * Returns the init script injected into exported HTML bundles.
+   * The script re-uses the same ContentEnhancer pipeline as the runtime and
+   * the PDF build path, so all three export/print surfaces stay in sync.
+   */
+  static getInitScript() {
+    return `
+        // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
+        window.__WEBDECK_EXPORTED__ = true;
+
+        // Clear any stored slide state so we always start on slide 1
+        try {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('webdeck:')) {
+                    localStorage.removeItem(key);
+                }
+            });
+        } catch (e) { /* ignore localStorage errors */ }
+
+        // Wait for window.load to ensure all vendor scripts are loaded
+        window.addEventListener('load', () => {
+            if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
+                ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
+                    .catch(e => console.warn('Enhancement error:', e));
+            }
+        });
+        `;
+  }
+
   static downloadHtml(html, filename) {
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -906,6 +912,8 @@ ${initScript}
   static escapeHtml(text) {
     const div = document.createElement("div");
     div.textContent = text;
+    // This is a safe read: textContent escapes the input, and innerHTML
+    // returns the escaped representation. No untrusted string is assigned.
     return div.innerHTML;
   }
 }

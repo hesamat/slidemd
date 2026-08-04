@@ -13,6 +13,17 @@ import createDOMPurify from "dompurify";
 
 const purify = typeof window !== "undefined" ? createDOMPurify(window) : null;
 
+const PURIFY_CONFIG = {
+  // SlideMD relies on inline styles, link targets, and data-attributes.
+  // DOMPurify's default tag set already covers the structural HTML produced
+  // by markdown-it; we just need to keep a few extra attributes it drops.
+  ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
+};
+
+function sanitizeAreaHtml(html) {
+  return purify ? purify.sanitize(html, PURIFY_CONFIG) : html;
+}
+
 function _getCustomSingleColumnStyle(layout) {
   const rows = String(layout?.gridTemplateAreas || "")
     .match(/"[^"]*"|'[^']*'/g)
@@ -201,7 +212,7 @@ export class SlideRenderer {
         area.style.paddingRight = "0";
       }
 
-      area.innerHTML = purify ? purify.sanitize(html) : html;
+      area.innerHTML = sanitizeAreaHtml(html);
       grid.appendChild(area);
     });
 
