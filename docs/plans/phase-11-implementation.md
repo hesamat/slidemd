@@ -100,12 +100,30 @@ export class AiProviderClient {
   }
 }
 
-export class AiAbortError extends Error { constructor() { super("Aborted"); this.name = "AiAbortError"; } }
-export class AiHttpError extends Error { constructor(status, body) { super(`HTTP ${status}`); this.name = "AiHttpError"; this.status = status; this.body = body; } }
-export class AiParseError extends Error { constructor(msg) { super(msg); this.name = "AiParseError"; } }
+export class AiAbortError extends Error {
+  constructor() {
+    super("Aborted");
+    this.name = "AiAbortError";
+  }
+}
+export class AiHttpError extends Error {
+  constructor(status, body) {
+    super(`HTTP ${status}`);
+    this.name = "AiHttpError";
+    this.status = status;
+    this.body = body;
+  }
+}
+export class AiParseError extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = "AiParseError";
+  }
+}
 ```
 
 Key implementation details:
+
 - Empty API key → omit `Authorization` header entirely (Ollama/LM Studio don't need auth)
 - `HTTP-Referer` header is OpenRouter-specific for usage ranking; harmless to send to other providers
 - `response_format: { type: "json_object" }` — some local providers may not support this; if the request fails with a 400 mentioning `response_format`, retry once without it (the existing JSON parsing in `parseAiResponse` handles non-JSON-wrapped output)
@@ -114,10 +132,12 @@ Key implementation details:
 ### 1.2 Modify `src/editor/settings-modal.js`
 
 Add two new storage keys and accessors:
+
 - `webdeck_ai_base_url` (localStorage) — default `https://openrouter.ai/api/v1`
 - `webdeck_ai_provider` (localStorage) — cosmetic label: "OpenRouter" | "Ollama" | "LM Studio" | "Custom"
 
 Add to the modal UI:
+
 - A "Provider" dropdown (OpenRouter / Ollama / LM Studio / Custom) that sets the base URL to known defaults:
   - OpenRouter: `https://openrouter.ai/api/v1`
   - Ollama: `http://localhost:11434/v1`
@@ -127,6 +147,7 @@ Add to the modal UI:
 - When base URL is NOT `https://openrouter.ai/api/v1`: replace the model dropdown with a free-text model input field (Ollama/LM Studio don't expose OpenRouter's `/models` shape). Add a "Fetch models" button that tries `GET ${baseUrl}/models` and populates a dropdown if it succeeds; falls back to free text on failure.
 
 Add accessors:
+
 ```javascript
 static getBaseUrl() {
   return localStorage.getItem("webdeck_ai_base_url") || "https://openrouter.ai/api/v1";
@@ -153,7 +174,10 @@ const provider = new AiProviderClient({
 });
 
 // At each call site:
-const response = await provider.chat({ messages, maxTokens, responseFormat, reasoning }, abortSignal);
+const response = await provider.chat(
+  { messages, maxTokens, responseFormat, reasoning },
+  abortSignal,
+);
 const contentText = response.content;
 ```
 
@@ -162,6 +186,7 @@ Keep the existing retry loop (3 attempts for fix mode) and escalation message lo
 ### 1.4 Tests
 
 Create `src/__tests__/ai-provider-client.test.js`:
+
 - Success: mocked `fetch` returns `{ choices: [{ message: { content: "..." } }] }` → assert `response.content` matches
 - Abort: pass an `AbortSignal` that's already aborted → assert `AiAbortError`
 - HTTP error: mocked `fetch` returns `{ ok: false, status: 400, text() }` → assert `AiHttpError` with status
@@ -215,6 +240,7 @@ export class AiPromptComposer {
 ### 2.2 Refactor prompt files
 
 Read the current `src/data/prompts/system-prompt.md`, `generate-prompt.md`, `fix-prompt.md` and refactor per the AGENTS.md prompt rules:
+
 - Combined system + user ≤ 150 lines
 - ≤ 5 strong negative directives ("NEVER", "Do NOT") per prompt
 - Layout list in sync with `src/data/layouts.json` allowed layouts: `title-slide`, `header-content`, `two-column`, `media-span`, `left-heavy`, `right-heavy`, `three-column`, `focus`, `full-image`
@@ -227,11 +253,13 @@ The system prompt stays shared across intents. The two user prompts (`fix-prompt
 ### 2.3 Migrate prompt building from `ai-enhancer.js`
 
 In `ai-enhancer.js`, `buildMessages(markdown, mode)` (line 197) currently:
+
 1. Calls `stripFrontmatter(markdown, mode)` to remove directives
 2. Substitutes `{{markdown}}` with cleaned markdown
 3. Returns `{ system: systemPrompt, user: promptWithMarkdown }`
 
 Replace with:
+
 ```javascript
 import { AiPromptComposer } from "./ai/ai-prompt-composer.js";
 
@@ -250,6 +278,7 @@ Keep `buildBatchMessages` working similarly — it adds context slides and pagin
 ### 2.4 Tests
 
 Update `src/__tests__/ai-enhancer.test.js`:
+
 - `buildMessages` tests: assert the composed output still contains the expected system prompt and the substituted markdown
 - Add a test that `{{layoutList}}` is replaced with the actual layout list (not left as a literal placeholder)
 - Add a test in a new `src/__tests__/ai-prompt-composer.test.js`:
@@ -286,14 +315,14 @@ export const SCHEMAS = {
   fix: {
     minSlides: 1,
     maxSlides: null,
-    requireLayout: false,    // fix mode preserves existing layouts
+    requireLayout: false, // fix mode preserves existing layouts
     checkAreaValidity: true,
     checkContentRules: true,
   },
   generate: {
     minSlides: 1,
     maxSlides: null,
-    requireLayout: true,     // generate mode assigns layouts
+    requireLayout: true, // generate mode assigns layouts
     checkAreaValidity: true,
     checkContentRules: true,
   },
@@ -323,7 +352,7 @@ export const SCHEMAS = {
     minSlides: 1,
     maxSlides: 1,
     requireLayout: false,
-    checkAreaValidity: false,  // notes don't change layout
+    checkAreaValidity: false, // notes don't change layout
     checkContentRules: false,
   },
 };
@@ -383,17 +412,30 @@ export class AiOutputValidator {
     try {
       deckData = this._parser.parseDeckMarkdown(outputMarkdown);
     } catch (e) {
-      return { ok: false, errors: [{ slide: -1, code: "PARSE_ERROR", message: e.message }], warnings, slides: [] };
+      return {
+        ok: false,
+        errors: [{ slide: -1, code: "PARSE_ERROR", message: e.message }],
+        warnings,
+        slides: [],
+      };
     }
 
     const slides = deckData.slides || [];
 
     // 2. Check slide count
     if (slides.length < schema.minSlides) {
-      errors.push({ slide: -1, code: "TOO_FEW_SLIDES", message: `Expected at least ${schema.minSlides} slide(s), got ${slides.length}` });
+      errors.push({
+        slide: -1,
+        code: "TOO_FEW_SLIDES",
+        message: `Expected at least ${schema.minSlides} slide(s), got ${slides.length}`,
+      });
     }
     if (schema.maxSlides !== null && slides.length > schema.maxSlides) {
-      errors.push({ slide: -1, code: "TOO_MANY_SLIDES", message: `Expected at most ${schema.maxSlides} slide(s), got ${slides.length}` });
+      errors.push({
+        slide: -1,
+        code: "TOO_MANY_SLIDES",
+        message: `Expected at most ${schema.maxSlides} slide(s), got ${slides.length}`,
+      });
     }
 
     // 3. Per-slide checks
@@ -402,10 +444,18 @@ export class AiOutputValidator {
 
       // 3a. Layout existence
       if (schema.requireLayout && !slide.layout) {
-        errors.push({ slide: i, code: "MISSING_LAYOUT", message: `Slide ${i + 1} has no layout directive` });
+        errors.push({
+          slide: i,
+          code: "MISSING_LAYOUT",
+          message: `Slide ${i + 1} has no layout directive`,
+        });
       }
       if (slide.layout && !LayoutData.hasLayout(slide.layout)) {
-        errors.push({ slide: i, code: "UNKNOWN_LAYOUT", message: `Slide ${i + 1} uses unknown layout "${slide.layout}"` });
+        errors.push({
+          slide: i,
+          code: "UNKNOWN_LAYOUT",
+          message: `Slide ${i + 1} uses unknown layout "${slide.layout}"`,
+        });
       }
 
       // 3b. Area validity — check each @area marker in the slide against the layout's allowed areas
@@ -443,11 +493,9 @@ export class AiOutputValidator {
     //   Check slide.areas.header — if it contains markdown headings, the first should be # (h1)
     //   Parse the header area markdown and look for heading lines (^#+)
     //   If first heading is ## or deeper, add a warning
-
     // no-header-on-multi-image:
     //   Count <img tags across all areas in the slide
     //   If count > 1 and slide.layout === "header-content", add error
-
     // preserve-multi-column-list:
     //   Search inputMarkdown for class="multi-column-list" or the multi-column-list directive
     //   If present in input, search outputMarkdown for the same
@@ -458,6 +506,7 @@ export class AiOutputValidator {
 ```
 
 Implementation notes:
+
 - `MarkdownParser.parseDeckMarkdown()` requires `window.markdownit` to be loaded. In the browser this is already set up. In Node tests, you'll need to mock `window.markdownit` or set up jsdom with the markdown-it library — check how existing tests in `src/__tests__/` handle this (look at `markdown-parser.test.js` or integration tests).
 - `LayoutData.getAreaNames()` for custom layouts (grid template strings) parses the grid template. For preset layouts, it reads from the preset definition. This already works — just call it.
 - The area validity check in `MarkdownParser` (line 813) already does this validation and emits warnings. The validator should surface the same checks as structured errors instead of console warnings. Read `markdown-parser.js` around line 813 to understand the existing logic and reuse it rather than duplicating.
@@ -523,6 +572,7 @@ Keep the existing 3-attempt retry loop structure in `ai-sidebar.js`. The only ch
 ### 3.6 Tests
 
 Create `src/__tests__/ai-output-validator.test.js`:
+
 - Valid output: well-formed single slide with correct layout and areas → `ok: true`
 - Unknown layout: slide with `layout: nonexistent` → error code `UNKNOWN_LAYOUT`
 - Invalid area: slide with `layout: header-content` and `@sidebar` marker → error code `INVALID_AREA`
@@ -534,10 +584,12 @@ Create `src/__tests__/ai-output-validator.test.js`:
 - Parse error: output is not valid markdown at all → error code `PARSE_ERROR`
 
 Create `src/__tests__/ai-repair-message.test.js`:
+
 - Multiple errors → message lists all of them with slide locations
 - Empty errors array → returns message with no bullet points (edge case — should not happen in practice)
 
 Update `src/__tests__/ai-enhancer.test.js`:
+
 - Remove or update `validateFixOutput` tests (function is deleted)
 - Keep tests for `extractDirectives`, `injectDirectives`, `parseAiResponse`, `estimateMaxTokens`, `slidesToMarkdown`, `stripFrontmatter` — these functions stay
 

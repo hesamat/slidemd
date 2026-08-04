@@ -345,33 +345,33 @@ Goal: Build the stateless AI building blocks — provider client, output schema/
 
 ### Provider & Settings
 
-| Task                                     | Details                                                                                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiProviderClient` (#148)        | OpenAI-compatible `/chat/completions` client with configurable base URL — supports OpenRouter, Ollama, LM Studio, and custom endpoints. Empty API key allowed for local providers. |
-| [ ] Add base URL + provider label to settings | Default `https://openrouter.ai/api/v1`; free-text model field when base URL is not OpenRouter.        |
+| Task                                          | Details                                                                                                                                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiProviderClient` (#148)             | OpenAI-compatible `/chat/completions` client with configurable base URL — supports OpenRouter, Ollama, LM Studio, and custom endpoints. Empty API key allowed for local providers. |
+| [ ] Add base URL + provider label to settings | Default `https://openrouter.ai/api/v1`; free-text model field when base URL is not OpenRouter.                                                                                     |
 
 ### Output Validation
 
-| Task                                | Details                                                                                                    |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOutputSchema`            | Define the expected Markdown structure for each intent (one valid slide, or N slides for whole-deck intents). |
+| Task                                | Details                                                                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Add `AiOutputSchema`            | Define the expected Markdown structure for each intent (one valid slide, or N slides for whole-deck intents).                                          |
 | [ ] Add `AiOutputValidator`         | Parse returned Markdown via `MarkdownParser` and check layout, `@area` markers, and slot validity. Reuses `LayoutData.hasLayout()` / `getAreaNames()`. |
-| [ ] Enforce AI content rules (#150) | Default headers to h1, avoid `header-content` for multi-image slides, and preserve `multi-column-list` HTML. |
-| [ ] Add repair message builder      | On validation failure, produce a focused repair message listing the specific `errors[]` for the LLM.     |
+| [ ] Enforce AI content rules (#150) | Default headers to h1, avoid `header-content` for multi-image slides, and preserve `multi-column-list` HTML.                                           |
+| [ ] Add repair message builder      | On validation failure, produce a focused repair message listing the specific `errors[]` for the LLM.                                                   |
 
 ### Prompt Engineering
 
-| Task                           | Details                                                                |
-| ------------------------------ | ---------------------------------------------------------------------- |
+| Task                           | Details                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments with `{{markdown}}` / `{{layoutList}}` substitution. |
-| [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts. |
+| [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts.                                       |
 
 ### Wiring
 
-| Task                                  | Details                                                                                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Task                                  | Details                                                                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Replace `ai-sidebar.js` internals | Swap `buildMessages`, inline `fetch(OPENROUTER_URL)`, and `validateFixOutput` for composer → provider → validator. Keep mode string and whole-deck apply via `ReloadManager`. |
-| [ ] Keep `ai-enhancer.js` as facade   | Re-export the new modules during transition; delete after Phase 13 cutover.                               |
+| [ ] Keep `ai-enhancer.js` as facade   | Re-export the new modules during transition; delete after Phase 13 cutover.                                                                                                   |
 
 ---
 
@@ -396,8 +396,8 @@ Goal: Make the slide array a canonical, patchable store with undo history — th
 
 ### Editor Wiring
 
-| Task                                  | Details                                                                                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Task                                                     | Details                                                                                                                            |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Wire `EditController` to `DeckStore` (boundary sync) | Sync at slide switch / save / AI apply boundaries rather than a deep rewire of every sub-module. Full rewire deferred to Phase 14. |
 
 ---
@@ -408,28 +408,28 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 ### Operation Model
 
-| Task                                     | Details                                                                                                     |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOperation`                    | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                   |
-| [ ] Add `AiIntentRegistry`               | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`). |
-| [ ] Add `AiOrchestrator`                 | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
+| Task                       | Details                                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
+| [ ] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`).                                                      |
+| [ ] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
 
 ### Single-Slide AI Editing
 
-| Task                                            | Details                                                                                            |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [ ] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                          |
-| [ ] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
-| [ ] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
-| [ ] Patch by index via `DeckStore.applyPatch`   | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save.  |
-| [ ] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).  |
+| Task                                                                   | Details                                                                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [ ] Add `enhanceSlide(slideMarkdown, intent)`                          | Build a prompt containing one slide Markdown string and an intent string.                         |
+| [ ] Instruct the LLM to output one slide                               | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
+| [ ] Validate the response with `MarkdownParser`                        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
+| [ ] Patch by index via `DeckStore.applyPatch`                          | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
+| [ ] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
 
 ### Wiring
 
-| Task                           | Details                                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| [ ] Simplify `ai-sidebar.js`   | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
-| [ ] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                 |
+| Task                               | Details                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Simplify `ai-sidebar.js`       | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
+| [ ] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                                  |
 
 ---
 
@@ -439,21 +439,21 @@ Goal: Reconcile overlapping edits and surface global undo/redo. Completes the st
 
 ### Conflict & Merge
 
-| Task                       | Details                                                            |
-| -------------------------- | ------------------------------------------------------------------ |
-| [ ] Add `ConflictResolver` | Reconcile overlapping user and AI edits before applying a patch.   |
+| Task                       | Details                                                          |
+| -------------------------- | ---------------------------------------------------------------- |
+| [ ] Add `ConflictResolver` | Reconcile overlapping user and AI edits before applying a patch. |
 
 ### Undo & Redo
 
-| Task                           | Details                                                 |
-| ------------------------------ | ------------------------------------------------------- |
-| [ ] Add global undo/redo       | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`.          |
+| Task                     | Details                                        |
+| ------------------------ | ---------------------------------------------- |
+| [ ] Add global undo/redo | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`. |
 
 ### Editor Rewire
 
-| Task                                  | Details                                                                                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [ ] Full `EditController` rewire      | Replace the Phase 12 boundary-sync with direct `DeckStore` reads/writes across all sub-modules.            |
+| Task                             | Details                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [ ] Full `EditController` rewire | Replace the Phase 12 boundary-sync with direct `DeckStore` reads/writes across all sub-modules. |
 
 ---
 

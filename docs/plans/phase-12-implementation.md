@@ -172,7 +172,11 @@ export class DeckHistory {
   popUndo(currentSlides, currentActiveIndex) {
     const entry = this._undoStack.pop();
     if (!entry) return null;
-    this._redoStack.push({ slides: [...currentSlides], activeIndex: currentActiveIndex, patch: entry.patch });
+    this._redoStack.push({
+      slides: [...currentSlides],
+      activeIndex: currentActiveIndex,
+      patch: entry.patch,
+    });
     return entry;
   }
 
@@ -186,12 +190,20 @@ export class DeckHistory {
   popRedo(currentSlides, currentActiveIndex) {
     const entry = this._redoStack.pop();
     if (!entry) return null;
-    this._undoStack.push({ slides: [...currentSlides], activeIndex: currentActiveIndex, patch: entry.patch });
+    this._undoStack.push({
+      slides: [...currentSlides],
+      activeIndex: currentActiveIndex,
+      patch: entry.patch,
+    });
     return entry;
   }
 
-  canUndo() { return this._undoStack.length > 0; }
-  canRedo() { return this._redoStack.length > 0; }
+  canUndo() {
+    return this._undoStack.length > 0;
+  }
+  canRedo() {
+    return this._redoStack.length > 0;
+  }
 
   clear() {
     this._undoStack = [];
@@ -202,7 +214,7 @@ export class DeckHistory {
 
 ### 1.3 Create `src/data/store/deck-store.js`
 
-```javascript
+````javascript
 import { DeckHistory } from "./deck-history.js";
 import { isInsert, isDelete, isNoOp, invertPatch } from "./slide-patch.js";
 
@@ -223,7 +235,7 @@ export class DeckStore {
    * @param {number} opts.maxHistory — max history entries (default 100)
    */
   constructor({ maxHistory = 100 } = {}) {
-    this._slides = [];         // string[] — one entry per slide (no --- separators)
+    this._slides = []; // string[] — one entry per slide (no --- separators)
     this._activeIndex = 0;
     this._history = new DeckHistory({ maxEntries: maxHistory });
     this._listeners = new Map(); // event name -> Set<callback>
@@ -232,22 +244,34 @@ export class DeckStore {
   // --- Read API ---
 
   /** @returns {string[]} — a copy of the slide array */
-  getSlides() { return [...this._slides]; }
+  getSlides() {
+    return [...this._slides];
+  }
 
   /** @returns {string} — the slide at the active index */
-  getActiveSlide() { return this._slides[this._activeIndex] ?? ""; }
+  getActiveSlide() {
+    return this._slides[this._activeIndex] ?? "";
+  }
 
   /** @returns {number} */
-  getActiveIndex() { return this._activeIndex; }
+  getActiveIndex() {
+    return this._activeIndex;
+  }
 
   /** @returns {number} */
-  getSlideCount() { return this._slides.length; }
+  getSlideCount() {
+    return this._slides.length;
+  }
 
   /** @returns {boolean} */
-  canUndo() { return this._history.canUndo(); }
+  canUndo() {
+    return this._history.canUndo();
+  }
 
   /** @returns {boolean} */
-  canRedo() { return this._history.canRedo(); }
+  canRedo() {
+    return this._history.canRedo();
+  }
 
   // --- Write API ---
 
@@ -370,13 +394,14 @@ function splitSlidesSimple(markdown) {
   // (Preferably: refactor markdown-parser.js to export splitSlides as a standalone
   // function that doesn't require window.markdownit, then import it here.)
 }
-```
+````
 
 Critical implementation note for `splitSlidesSimple`: The existing `splitSlides()` in `markdown-parser.js` (line 195) may depend on `window.markdownit` or other setup. Read it carefully. If it's a pure function that doesn't need markdown-it, export it and import it here. If it has dependencies, extract the pure splitting logic into a shared utility that both `markdown-parser.js` and `deck-store.js` can import. **Do not duplicate splitting logic** — that's a bug source.
 
 ### 1.4 Tests
 
 Create `src/__tests__/slide-patch.test.js`:
+
 - `createEditPatch` produces correct shape
 - `createInsertPatch` has `before: null`
 - `createDeletePatch` has `after: null`
@@ -385,6 +410,7 @@ Create `src/__tests__/slide-patch.test.js`:
 - Edge case: `isNoOp` on a patch where both are null (shouldn't happen but handle)
 
 Create `src/__tests__/deck-history.test.js`:
+
 - `push` adds to undo stack, clears redo
 - `popUndo` returns the entry, pushes to redo
 - `popRedo` returns the entry, pushes to undo
@@ -393,6 +419,7 @@ Create `src/__tests__/deck-history.test.js`:
 - `clear` empties both stacks
 
 Create `src/__tests__/deck-store.test.js`:
+
 - `loadFromMarkdown` splits correctly, resets history
 - `applyPatch` edit: replaces slide at index, pushes history
 - `applyPatch` insert: inserts at index, adjusts active index if needed
@@ -422,6 +449,7 @@ This is the riskiest workstream. Read `edit-controller.js` and all its sub-modul
 ### 2.1 Understand the current state flow
 
 Read these files and trace how slide state flows today:
+
 1. `src/editor/core/edit-controller.js` — how does it get the current slide array? From `DeckController`? From the markdown editor string? Both?
 2. `src/editor/core/markdown-editor.js` — the CodeMirror editor holds the full deck as a string. When the user types, what happens? Does it call `slide-preview-updater`? How does the slide array get updated?
 3. `src/editor/core/slide-operations.js` — when a slide is added/deleted/moved, how does it update the array? Does it edit the CodeMirror string directly, or manipulate a separate array?
@@ -472,11 +500,13 @@ The store runs **alongside** the existing state. It becomes the canonical source
 ### 2.5 Undo/redo wiring (minimal)
 
 Wire `Ctrl+Z` / `Ctrl+Y` to `deckStore.undo()` / `deckStore.redo()`. After undo/redo:
+
 - Update the markdown editor content from `deckStore.toMarkdown()`
 - Update the active slide from `deckStore.getActiveIndex()`
 - Re-render the current slide and thumbnails
 
 This is the user-visible feature of Phase 12. However, be careful: the markdown editor (CodeMirror) has its own undo stack. The global undo/redo via DeckStore should work at the slide level (undo the last slide-level operation), not at the keystroke level. Consider:
+
 - Should `Ctrl+Z` in the markdown editor do CodeMirror's native undo (keystroke-level), or DeckStore undo (slide-level)?
 - Recommendation: `Ctrl+Z` does DeckStore undo when the editor is not focused, and CodeMirror undo when the editor IS focused. Or: always DeckStore undo, and the editor content is replaced wholesale. Decide and document.
 
@@ -540,6 +570,7 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 ## Parallel Development Notes
 
 This phase can be developed in parallel with Phase 11 (AI Operations Foundation). The two phases have zero file overlap:
+
 - Phase 11 touches: `src/data/ai/`, `src/editor/ai-sidebar.js`, `src/editor/settings-modal.js`, `src/data/ai-enhancer.js`, `src/data/prompts/`, `src/__tests__/ai-*.test.js`
 - Phase 12 touches: `src/data/store/`, `src/editor/core/edit-controller.js`, `src/editor/core/slide-operations.js`, `src/engine/reload-manager.js`, `src/engine/deck-controller.js`, `deck.js`, `src/__tests__/deck-store.test.js`, `src/__tests__/slide-patch.test.js`, `src/__tests__/deck-history.test.js`
 

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.7.5 (2026-08-04)
+
+### Security
+
+- Harden slide and speaker-note HTML sanitization with DOMPurify and an explicit safe-URI allow-list.
+- Escape DOMPurify failures to plain text instead of inserting unsanitized HTML, with a one-time console warning.
+- Sanitize editor preview fast-path and exported HTML/JS bundles before writing to the DOM.
+
+### Renderer
+
+- Store Mermaid source as base64 in `data-mermaid-source` to survive DOMPurify's stripping of HTML comment-end sequences.
+- Wrap emoji grapheme clusters in `<span class="slide-emoji">` and size them to `0.8em` for consistent heading rendering.
+- Scope KaTeX font URL rewriting to KaTeX `@font-face` blocks.
+
+### Export
+
+- Make DOMPurify available in exported HTML bundles and throw if it cannot be fetched.
+- Fix Mermaid rendering in exported HTML, bundled dist builds, and PDF generation.
+- Fix Google Fonts, syntax highlighting, and KaTeX font loading in standalone HTML exports.
+- Make base64 encoding fallible; only add the `b64:` prefix when encoding succeeds.
+
+### Syntax Highlighting
+
+- Align Prism language maps and dependencies across runtime, HTML export, and build script.
+- Load `prism-markup-templating` before `prism-php` to resolve `tokenizePlaceholders` runtime error.
+
+### Testing
+
+- Add regression tests for emoji normalization and HTML export hardening.
+- Total tests now **612**.
+
 ## 0.7.4 (2026-08-03)
 
 ### Editor
