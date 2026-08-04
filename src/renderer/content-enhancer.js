@@ -82,7 +82,8 @@ contain: layout paint style;
    * Encodes Mermaid source for storage in a `data-mermaid-source` attribute.
    */
   static encodeMermaidSource(source) {
-    return `b64:${base64Encode(source)}`;
+    const encoded = base64Encode(source);
+    return encoded === null ? source : `b64:${encoded}`;
   }
 
   /**

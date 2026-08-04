@@ -5,7 +5,7 @@
  * for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
+import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
@@ -16,9 +16,14 @@ const PURIFY_CONFIG = {
   // DOMPurify's default tag set already covers the structural HTML produced
   // by markdown-it; we just need to keep a few extra attributes it drops.
   ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
+  // Allow local image paths (e.g. "images/image20-5708.jpeg"), blob URLs from
+  // imports, and data URLs, while still blocking known script schemes.
+  ALLOWED_URI_REGEXP:
+    /^(?!javascript:|vbscript:|data:text\/html|data:application\/xhtml)(?:[a-z][a-z0-9+.-]*:|[^:][\s\S]*)$/i,
 };
 
 let _purify;
+let _domPurifyWarned = false;
 
 function getDOMPurify() {
   // In the dev ESM build, the import is available and creates a sanitizer.
@@ -43,7 +48,14 @@ function getDOMPurify() {
 
 function sanitizeAreaHtml(html) {
   const purify = getDOMPurify();
-  return purify ? purify.sanitize(html, PURIFY_CONFIG) : html;
+  if (!purify) {
+    if (!_domPurifyWarned) {
+      _domPurifyWarned = true;
+      console.warn("DOMPurify not available; rendering slide HTML as text");
+    }
+    return escapeHtml(html);
+  }
+  return purify.sanitize(html, PURIFY_CONFIG);
 }
 
 function _getCustomSingleColumnStyle(layout) {
@@ -87,6 +99,10 @@ export class SlideRenderer {
         areaEl.style.setProperty(prop, val);
       }
     }
+  }
+
+  static sanitizeAreaHtml(html) {
+    return sanitizeAreaHtml(html);
   }
 
   static createSlideElement(deck, slide, index, isActive) {
@@ -234,7 +250,7 @@ export class SlideRenderer {
         area.style.paddingRight = "0";
       }
 
-      area.innerHTML = sanitizeAreaHtml(html);
+      area.innerHTML = this.sanitizeAreaHtml(html);
       grid.appendChild(area);
     });
 

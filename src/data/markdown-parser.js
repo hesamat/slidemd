@@ -11,6 +11,7 @@ import {
   slugifyTitle,
   DESIGN_SIZE,
   escapeBareHtmlTags,
+  escapeHtml,
   base64Encode,
   unescapeHtml,
 } from "../core/utils.js";
@@ -709,10 +710,12 @@ export class MarkdownParser {
       // Store Mermaid source base64-encoded so DOMPurify does not strip it
       // (raw Mermaid syntax like "A-->B" looks like an HTML comment end to sanitizers).
       // The captured content may contain HTML entities from markdown-it, so decode first.
-      const encoded = base64Encode(unescapeHtml(content));
+      const source = unescapeHtml(content);
+      const encoded = base64Encode(source);
 
       // Create a div with a data attribute for client-side rendering
-      return `<div class="mermaid"${sourceAttr} data-mermaid-source="b64:${encoded}"></div>`;
+      const sourceValue = encoded === null ? escapeHtml(source) : `b64:${encoded}`;
+      return `<div class="mermaid"${sourceAttr} data-mermaid-source="${sourceValue}"></div>`;
     });
   }
 

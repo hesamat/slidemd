@@ -113,7 +113,7 @@ try {
 // but PDF needs all slides to be highlighted.
 // Also need to render Mermaid diagrams and remove emojis for PDF.js compatibility.
 console.log("Enhancing all slides for PDF output...");
-await page.evaluate(async () => {
+const enhancementAvailable = await page.evaluate(async () => {
     const slides = Array.from(document.querySelectorAll('.slide'));
 
     // 1. Remove emojis for PDF.js compatibility (emojis become complex font patterns)
@@ -139,10 +139,17 @@ await page.evaluate(async () => {
         removeEmojisFromElement(slide);
     }
 
-    if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
+    const hasContentEnhancer =
+        typeof ContentEnhancer !== "undefined" &&
+        typeof ContentEnhancer.enhanceRenderedContent === "function";
+    if (hasContentEnhancer) {
         await ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true });
     }
+    return hasContentEnhancer;
 });
+if (!enhancementAvailable) {
+    console.warn("ContentEnhancer is not exposed in the loaded page; PDF will not include syntax highlighting or Mermaid diagrams");
+}
 console.log("All slides enhanced for PDF (Mermaid rendered, emojis removed)");
 
 // Ensure print sizing for code/blockquote matches dev theme (no change to print.css on disk).

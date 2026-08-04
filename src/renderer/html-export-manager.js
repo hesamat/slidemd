@@ -325,8 +325,6 @@ ${escapedInitScript}
       regex: "regex",
       diff: "diff",
       http: "http",
-      text: "none",
-      plain: "none",
     };
     return map[l] || null;
   }
@@ -658,10 +656,17 @@ ${escapedInitScript}
   static fixKatexFontUrls(cssText, version) {
     if (!cssText || !version) return cssText;
     const cdnBase = `https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`;
-    return cssText
+    let result = cssText
       .replace(/url\((['"]?)\/node_modules\/katex\/dist\/fonts\//g, `url($1${cdnBase}`)
-      .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`)
-      .replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`);
+      .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`);
+
+    // Only rewrite bare `url(fonts/...)` inside @font-face blocks that reference
+    // KaTeX fonts, so unrelated app CSS with its own `fonts/` dir is not affected.
+    const katexFontBlockRe = /@font-face\s*\{[^{}]*?\bKaTeX[^{}]*?\}/gi;
+    result = result.replace(katexFontBlockRe, (block) =>
+      block.replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`),
+    );
+    return result;
   }
 
   static minifyCss(cssText) {
@@ -829,8 +834,8 @@ ${escapedInitScript}
   static async inlineImagesInHtml(html, signal = null) {
     if (!html) return html;
     if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
-    // Match src="images/..." and src='images/...'
-    const imgRe = /src=(["'])(images\/[^"']+)\1/g;
+    // Match src="images/..." / src='images/...' and in-memory blob URLs from imports.
+    const imgRe = /src=(["'])((?:images\/|blob:)[^"']+)\1/g;
     const matches = [...html.matchAll(imgRe)];
     if (matches.length === 0) return html;
 
@@ -838,7 +843,8 @@ ${escapedInitScript}
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       const [fullMatch, quote, imagePath] = match;
       try {
-        const response = await fetch(`/${imagePath}`, { signal });
+        const fetchUrl = imagePath.startsWith("blob:") ? imagePath : `/${imagePath}`;
+        const response = await fetch(fetchUrl, { signal });
         if (!response.ok) return fullMatch;
         const blob = await response.blob();
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
@@ -880,14 +886,16 @@ ${escapedInitScript}
       if (slide.areas) {
         for (const area of Object.values(slide.areas)) {
           if (typeof area === "string") {
-            const matches = area.matchAll(/src=(["'])(images\/[^"']+)\1/g);
+            const matches = area.matchAll(/src=(["'])((?:images\/|blob:)[^"']+)\1/g);
             for (const m of matches) imageRefs.add(m[2]);
           }
         }
       }
-      // Also check background for url(images/...)
+      // Also check background for url(images/...) or url(blob:...)
       if (slide.background) {
-        const bgMatches = slide.background.matchAll(/url\((["']?)(images\/[^"')]+)\1?\)/g);
+        const bgMatches = slide.background.matchAll(
+          /url\((["']?)((?:images\/|blob:)[^"')]+)\1?\)/g,
+        );
         for (const m of bgMatches) imageRefs.add(m[2]);
       }
     }
@@ -899,7 +907,8 @@ ${escapedInitScript}
     for (const ref of imageRefs) {
       if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");
       try {
-        const response = await fetch(`/${ref}`, { signal });
+        const fetchUrl = ref.startsWith("blob:") ? ref : `/${ref}`;
+        const response = await fetch(fetchUrl, { signal });
         if (!response.ok) continue;
         const blob = await response.blob();
         if (signal?.aborted) throw new DOMException("HTML export cancelled", "AbortError");

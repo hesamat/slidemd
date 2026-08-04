@@ -335,13 +335,13 @@ export function unescapeHtml(html) {
 }
 
 /**
- * Base64-encode a (possibly Unicode) string. Falls back to the raw string if
- * the environment does not support btoa.
+ * Base64-encode a (possibly Unicode) string. Returns null if the environment
+ * does not support btoa or encoding fails.
  * @param {string} str
- * @returns {string}
+ * @returns {string|null}
  */
 export function base64Encode(str) {
-  if (typeof btoa !== "function") return str;
+  if (typeof btoa !== "function") return null;
   try {
     return btoa(
       encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, hex) =>
@@ -349,7 +349,7 @@ export function base64Encode(str) {
       ),
     );
   } catch {
-    return str;
+    return null;
   }
 }
 
