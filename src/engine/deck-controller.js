@@ -372,7 +372,9 @@ export class DeckController extends EventEmitter {
           });
           applyOpenInNewTabToLinks(this._md);
         }
-        return `<div class="notes-content">${this._md.render(notes)}</div>`;
+        return SlideRenderer.sanitizeAreaHtml(
+          `<div class="notes-content">${this._md.render(notes)}</div>`,
+        );
       } catch (e) {
         console.warn("Failed to render notes as markdown:", e);
       }

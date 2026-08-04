@@ -29,6 +29,26 @@ describe("SlideRenderer", () => {
     expect(html).not.toContain("onclick");
   });
 
+  it("keeps safe image data while rejecting active and unknown URI schemes", () => {
+    const slide = {
+      id: "uri-check",
+      title: "URI Check",
+      areas: {
+        main: `<img src="data:image/png;base64,ZmFrZQ==" />
+          <img src="data:image/svg+xml,<svg/onload=alert(1)>" />
+          <a href="filesystem:secret">filesystem</a>
+          <a href="custom:payload">custom</a>`,
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const html = el.outerHTML;
+
+    expect(html).toContain("data:image/png;base64,ZmFrZQ==");
+    expect(html).not.toContain("data:image/svg+xml");
+    expect(html).not.toContain("filesystem:secret");
+    expect(html).not.toContain("custom:payload");
+  });
+
   it("preserves base64-encoded mermaid source through DOMPurify", () => {
     const source = "graph TD\n    A[Start] --> B[End]";
     const encoded = `b64:${base64Encode(source)}`;

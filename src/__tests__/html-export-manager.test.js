@@ -372,10 +372,22 @@ describe("HtmlExportManager", () => {
     });
   });
 
+  describe("fetchVendorJs", () => {
+    it("fails the export when DOMPurify cannot be loaded", async () => {
+      vi.spyOn(HtmlExportManager, "_getVendorVersion").mockResolvedValue("3.4.12");
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+      await expect(HtmlExportManager.fetchVendorJs({ slides: [] })).rejects.toThrow(
+        "HTML export requires DOMPurify",
+      );
+    });
+  });
+
   describe("getInitScript", () => {
     it("reuses ContentEnhancer.enhanceRenderedContent for all slides", () => {
       const init = HtmlExportManager.getInitScript();
       expect(init).toContain("ContentEnhancer.normalizeEmojiText");
+      expect(init).toContain("webdeck:ready");
       expect(init).toContain("ContentEnhancer.enhanceRenderedContent");
       expect(init).toContain("renderAllSlides: true");
       expect(init).toContain("force: true");

@@ -11,25 +11,51 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
 
+const SAFE_URI_REGEXP =
+  /^(?:(?:https?|mailto|ftp|ftps|tel|callto|cid|xmpp):|blob:|data:image\/(?:avif|bmp|gif|jpeg|jpg|png|webp)(?:[;,]|$)|[^-a-z0-9+.]|[-a-z0-9+.]+(?:[^-a-z0-9+.:]|$))/i;
+const URI_ATTRIBUTES = new Set([
+  "action",
+  "background",
+  "cite",
+  "formaction",
+  "href",
+  "longdesc",
+  "poster",
+  "src",
+  "usemap",
+  "xlink:href",
+]);
 const PURIFY_CONFIG = {
   // SlideMD relies on inline styles, link targets, and data-attributes.
   // DOMPurify's default tag set already covers the structural HTML produced
   // by markdown-it; we just need to keep a few extra attributes it drops.
   ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
-  // Allow local image paths (e.g. "images/image20-5708.jpeg"), blob URLs from
-  // imports, and data URLs, while still blocking known script schemes.
-  ALLOWED_URI_REGEXP:
-    /^(?!javascript:|vbscript:|data:text\/html|data:application\/xhtml)(?:[a-z][a-z0-9+.-]*:|[^:][\s\S]*)$/i,
+  ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 };
 
 let _purify;
+let _configuredPurifiers = new WeakSet();
 let _domPurifyWarned = false;
+
+function configureDOMPurify(purify) {
+  if (!purify || _configuredPurifiers.has(purify)) return purify;
+  purify.addHook("uponSanitizeAttribute", (_node, data) => {
+    if (
+      URI_ATTRIBUTES.has(data.attrName.toLowerCase()) &&
+      !SAFE_URI_REGEXP.test(data.attrValue || "")
+    ) {
+      data.keepAttr = false;
+    }
+  });
+  _configuredPurifiers.add(purify);
+  return purify;
+}
 
 function getDOMPurify() {
   // In the dev ESM build, the import is available and creates a sanitizer.
   // In the self-contained HTML/PDF bundles the import is stripped, but the
   // same DOMPurify library is loaded as a vendor global (window.DOMPurify).
-  if (_purify !== undefined) return _purify;
+  if (_purify !== undefined) return configureDOMPurify(_purify);
 
   if (typeof createDOMPurify !== "undefined") {
     try {
@@ -43,7 +69,7 @@ function getDOMPurify() {
     _purify = window.DOMPurify;
   }
 
-  return _purify;
+  return configureDOMPurify(_purify);
 }
 
 function sanitizeAreaHtml(html) {

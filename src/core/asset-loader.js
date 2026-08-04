@@ -72,10 +72,30 @@ export class AssetLoader {
         () => import("prismjs/components/prism-java.js"),
         () => import("prismjs/components/prism-css.js"),
         () => import("prismjs/components/prism-markup.js"),
+        () => import("prismjs/components/prism-markup-templating.js"),
         () => import("prismjs/components/prism-yaml.js"),
+        () => import("prismjs/components/prism-toml.js"),
+        () => import("prismjs/components/prism-ini.js"),
         () => import("prismjs/components/prism-c.js"),
         () => import("prismjs/components/prism-cpp.js"),
         () => import("prismjs/components/prism-markdown.js"),
+        () => import("prismjs/components/prism-rust.js"),
+        () => import("prismjs/components/prism-go.js"),
+        () => import("prismjs/components/prism-ruby.js"),
+        () => import("prismjs/components/prism-php.js"),
+        () => import("prismjs/components/prism-swift.js"),
+        () => import("prismjs/components/prism-kotlin.js"),
+        () => import("prismjs/components/prism-scala.js"),
+        () => import("prismjs/components/prism-r.js"),
+        () => import("prismjs/components/prism-perl.js"),
+        () => import("prismjs/components/prism-lua.js"),
+        () => import("prismjs/components/prism-graphql.js"),
+        () => import("prismjs/components/prism-docker.js"),
+        () => import("prismjs/components/prism-nginx.js"),
+        () => import("prismjs/components/prism-vim.js"),
+        () => import("prismjs/components/prism-regex.js"),
+        () => import("prismjs/components/prism-diff.js"),
+        () => import("prismjs/components/prism-http.js"),
         () => import("prismjs/components/prism-makefile.js"),
         () => import("prismjs/components/prism-cmake.js"),
         () => import("prismjs/components/prism-sql.js"),
@@ -141,26 +161,25 @@ export class AssetLoader {
       return;
     }
 
-    // In exported HTML, a Mermaid script is only emitted when the deck actually
-    // contains diagrams. That script sets window.__WEBDECK_HAS_MERMAID__ before
-    // the async module runs, so we can avoid an unconditional multi-second wait
-    // on decks without diagrams.
-    if (window.__WEBDECK_EXPORTED__) {
+    // App-exported HTML uses a separately loaded Mermaid module and sets
+    // window.__WEBDECK_HAS_MERMAID__ before it starts. Bundled dist builds
+    // use the normal dynamic-import path instead.
+    if (window.__WEBDECK_EXPORTED__ && !window.__WEBDECK_BUNDLED_BUILD__) {
       if (!window.__WEBDECK_HAS_MERMAID__) return;
 
       await this.once("mermaid-export", async () => {
         return new Promise((resolve) => {
           if (window.__WEBDECK_MERMAID__) return resolve();
-          const interval = setInterval(() => {
-            if (window.__WEBDECK_MERMAID__) {
-              clearInterval(interval);
-              resolve();
-            }
-          }, 50);
-          setTimeout(() => {
+          let timeout;
+          const finish = () => {
             clearInterval(interval);
+            clearTimeout(timeout);
             resolve();
-          }, 5000);
+          };
+          const interval = setInterval(() => {
+            if (window.__WEBDECK_MERMAID__) finish();
+          }, 50);
+          timeout = setTimeout(finish, 5000);
         });
       });
 

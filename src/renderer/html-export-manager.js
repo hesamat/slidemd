@@ -346,15 +346,15 @@ ${escapedInitScript}
         return ["clike", "cpp"];
       case "go":
       case "ruby":
-      case "swift":
-      case "kotlin":
         return ["clike", component];
       case "php":
         return ["clike", "markup", "markup-templating", "php"];
       case "scala":
         return ["clike", "java", "scala"];
       case "markdown":
-        return ["clike", "markup", "yaml", "markdown"];
+        return ["markup", "markdown"];
+      case "nginx":
+        return ["clike", "nginx"];
       default:
         return [component];
     }
@@ -411,9 +411,12 @@ ${escapedInitScript}
       ? `https://cdnjs.cloudflare.com/ajax/libs/dompurify/${dompurifyVersion}/purify.min.js`
       : null;
     const dompurifyJs = await fetchJs("node_modules/dompurify/dist/purify.js", dompurifyCdn);
-    if (dompurifyJs) {
-      vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
+    if (!dompurifyJs) {
+      throw new Error(
+        "HTML export requires DOMPurify, but it could not be loaded from node_modules or the CDN.",
+      );
     }
+    vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
 
     // Check if we need Prism
     const needsPrism =
@@ -983,10 +986,12 @@ ${escapedInitScript}
             });
         } catch (e) { /* ignore localStorage errors */ }
 
-        // Re-run the shared enhancer once the page is fully loaded. If the
-        // load event has already fired (cached/inline scripts), run it now.
+        // Re-run the shared enhancer after deck.js has rendered the slides.
         (function runEnhancer() {
-            if (document.readyState === "complete") {
+            let done = false;
+            const enhance = () => {
+                if (done) return;
+                done = true;
                 if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.normalizeEmojiText) {
                     ContentEnhancer.normalizeEmojiText(document.body);
                 }
@@ -994,9 +999,9 @@ ${escapedInitScript}
                     ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
                         .catch(e => console.warn('Enhancement error:', e));
                 }
-                return;
-            }
-            window.addEventListener('load', runEnhancer);
+            };
+            window.addEventListener('webdeck:ready', enhance, { once: true });
+            if (window.__WEBDECK_READY__) enhance();
         })();
         `;
   }
