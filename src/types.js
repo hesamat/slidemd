@@ -14,6 +14,7 @@
  * @property {boolean} hidden - Whether the slide is hidden in presentation mode.
  * @property {Object<string, string>} areas - Map of area names to rendered HTML content.
  * @property {string} areaStyle - CSS applied to all areas uniformly.
+ * @property {Object<string, string>} areaStyles - CSS applied per area by name.
  * @property {Object<string, number>} [_areaOffsets] - 0-indexed editor line offsets per area (internal).
  */
 

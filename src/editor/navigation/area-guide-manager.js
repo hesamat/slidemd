@@ -26,6 +26,7 @@ export class AreaGuideManager {
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string) => boolean} opts.canMakeFullHeight
    * @param {(areaName: string, align: string) => void} [opts.onAlignMain]
+   * @param {(areaName: string, color: string) => void} [opts.onSetBackground]
    * @param {() => object} opts.getWarnings
    * @param {(allowedAreas: string[]) => void} [opts.onFixAreaMismatch]
    */
@@ -43,6 +44,7 @@ export class AreaGuideManager {
     onMakeFullHeight,
     canMakeFullHeight,
     onAlignMain,
+    onSetBackground,
     getWarnings,
     onFixAreaMismatch,
   }) {
@@ -59,6 +61,7 @@ export class AreaGuideManager {
     this._onMakeFullHeight = onMakeFullHeight;
     this._canMakeFullHeight = canMakeFullHeight;
     this._onAlignMain = onAlignMain;
+    this._onSetBackground = onSetBackground;
     this._getWarnings = getWarnings;
     this._onFixAreaMismatch = onFixAreaMismatch;
 
@@ -67,6 +70,7 @@ export class AreaGuideManager {
       onSwapArea: (areaName) => this._onSwapArea?.(areaName),
       onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
       onAlignMain: (areaName, align) => this._onAlignMain?.(areaName, align),
+      onSetBackground: (areaName, color) => this._onSetBackground?.(areaName, color),
     });
     this._contextMenu.init();
   }
@@ -155,12 +159,24 @@ export class AreaGuideManager {
         const active = parseSingleColumnLayout(slideData?.layout);
         const canAlignMain = name === "main" && Boolean(active);
         const activeAlign = active?.align;
+
+        const areaStyle = slideData?.areaStyles?.[name] || "";
+        const bgMatch = areaStyle.match(/(?:^|;)\s*background\s*:\s*([^;]+)/i);
+        const rawBackground = bgMatch ? bgMatch[1].trim() : "";
+        const currentColor = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(rawBackground)
+          ? rawBackground
+          : "#ffffff";
+        const hasBackground = Boolean(rawBackground);
+
         this._contextMenu.open(e.clientX, e.clientY, name, {
           canDelete,
           canSwap,
           canMakeFullHeight,
           canAlignMain,
+          canSetBackground: name !== "footer",
           activeAlign,
+          currentColor,
+          hasBackground,
         });
       });
     });

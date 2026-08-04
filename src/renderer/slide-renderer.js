@@ -5,7 +5,7 @@
  * for grid-based slide design.
  */
 // Slide DOM rendering
-import { safeString, DESIGN_SIZE } from "../core/utils.js";
+import { safeString, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
@@ -39,8 +39,7 @@ export class SlideRenderer {
    * @param {string} cssText - e.g. "border: 2px solid red; padding: 12px"
    */
   static _applyAreaStyle(areaEl, cssText) {
-    const decls = safeString(cssText)
-      .split(";")
+    const decls = splitCssDeclarations(safeString(cssText))
       .map((s) => s.trim())
       .filter(Boolean);
     for (const decl of decls) {
@@ -132,6 +131,7 @@ export class SlideRenderer {
     }
 
     const areaStyle = safeString(slide?.areaStyle);
+    const perAreaStyles = slide?.areaStyles || {};
 
     // Auto-detect full-height areas: areas that appear in every row at the same column
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
@@ -175,6 +175,13 @@ export class SlideRenderer {
       if (areaStyle && name !== "footer") {
         this._applyAreaStyle(area, areaStyle);
       }
+
+      const perAreaStyle = perAreaStyles[name];
+      if (perAreaStyle && name !== "footer") {
+        this._applyAreaStyle(area, perAreaStyle);
+      }
+
+      area.dataset.appliedAreaStyle = [areaStyle, perAreaStyle].filter(Boolean).join("; ");
 
       // Custom focus grids set the main column width via grid tracks, so the
       // per-element line-max cap must be disabled for the main area contents.

@@ -8,6 +8,7 @@
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { LayoutParser } from "../../data/layout-parser.js";
 import { LayoutData } from "../../data/layout-data.js";
+import { splitCssDeclarations } from "../../core/utils.js";
 
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
@@ -76,6 +77,49 @@ export function updateAreaStyleDirective(markdown, cssText) {
   const trimmed = String(cssText || "").trim();
   if (!trimmed) return stripped;
   return `area-style: ${trimmed}\n${stripped}`;
+}
+
+/**
+ * Merge CSS declarations, with later declarations overriding earlier ones
+ * by property name. Preserves the property name casing of the last write.
+ * @param {string} base
+ * @param {string} override
+ * @returns {string}
+ */
+function mergeCssDeclarations(base, override) {
+  const map = new Map();
+  for (const source of [base, override]) {
+    for (const decl of splitCssDeclarations(String(source || ""))) {
+      const d = decl.trim();
+      if (!d) continue;
+      const idx = d.indexOf(":");
+      if (idx === -1) continue;
+      const prop = d.slice(0, idx).trim();
+      const value = d.slice(idx + 1).trim();
+      map.set(prop.toLowerCase(), { prop, value });
+    }
+  }
+  return [...map.values()].map(({ prop, value }) => `${prop}: ${value}`).join("; ");
+}
+
+/**
+ * Replace (or insert) the `area-style-<areaName>:` directive in a slide's markdown.
+ * The value is a plain CSS string applied only to the named area.
+ *
+ * @param {string} markdown       - Slide markdown source.
+ * @param {string} areaName       - Target area name (e.g. "media").
+ * @param {string} cssText        - CSS declaration string (e.g. "background: #f1f5f9").
+ *                                  Empty string removes the directive entirely.
+ * @returns {string} Updated markdown.
+ */
+export function updateAreaStyleForAreaDirective(markdown, areaName, cssText) {
+  const parser = new MarkdownParser();
+  const directive = `area-style-${String(areaName || "").toLowerCase()}`;
+  const { markdown: stripped, value: existing } = parser.extractDirective(markdown, directive);
+  const trimmed = String(cssText || "").trim();
+  if (!trimmed) return stripped;
+  const merged = mergeCssDeclarations(existing, trimmed);
+  return `${directive}: ${merged}\n${stripped}`;
 }
 
 /**

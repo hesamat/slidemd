@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.4 (2026-08-03)
+
+### Editor
+
+- Add per-area `area-style-<name>` directive support.
+- Right-click an `@area` label to set a background color for that column only.
+- Right-click the slide preview to open the Format dropdown as a context menu.
+
+### Infrastructure
+
+- Update `MarkdownParser`, `DeckLoader`, `SlideRenderer`, and related types for per-area styles.
+
 ## 0.7.3 (2026-08-02)
 
 ### Command Palette

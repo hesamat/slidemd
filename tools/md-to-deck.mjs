@@ -327,6 +327,91 @@ function extractTitleAndStrip(markdownText) {
     return { title, markdown: out.join("\n").trim() };
 }
 
+function extractDirectiveAndStrip(markdownText, directiveName) {
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+
+    let inFence = false;
+    let fenceMarker = null;
+
+    function toggleFence(line) {
+        const m = line.match(/^\s*(```+|~~~+)\s*/);
+        if (!m) return false;
+        const marker = m[1][0];
+        if (!inFence) {
+            inFence = true;
+            fenceMarker = marker;
+            return true;
+        }
+        if (fenceMarker === marker) {
+            inFence = false;
+            fenceMarker = null;
+            return true;
+        }
+        return false;
+    }
+
+    const out = [];
+    let value = "";
+    let found = false;
+
+    for (const line of lines) {
+        toggleFence(line);
+        if (!found && !inFence) {
+            const pattern = new RegExp(`^\\s*${directiveName}\\s*:\\s*(.*)\\s*$`, "i");
+            const m = line.match(pattern);
+            if (m) {
+                value = safeString(m[1]).trim();
+                found = true;
+                continue;
+            }
+        }
+        out.push(line);
+    }
+
+    return { value, markdown: out.join("\n").trim() };
+}
+
+function extractAreaStylesAndStrip(markdownText) {
+    const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
+
+    let inFence = false;
+    let fenceMarker = null;
+
+    function toggleFence(line) {
+        const m = line.match(/^\s*(```+|~~~+)\s*/);
+        if (!m) return false;
+        const marker = m[1][0];
+        if (!inFence) {
+            inFence = true;
+            fenceMarker = marker;
+            return true;
+        }
+        if (fenceMarker === marker) {
+            inFence = false;
+            fenceMarker = null;
+            return true;
+        }
+        return false;
+    }
+
+    const out = [];
+    const areaStyles = {};
+
+    for (const line of lines) {
+        toggleFence(line);
+        if (!inFence) {
+            const match = line.match(/^\s*area-style-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+            if (match) {
+                areaStyles[match[1].toLowerCase()] = match[2].trim();
+                continue;
+            }
+        }
+        out.push(line);
+    }
+
+    return { areaStyles, markdown: out.join("\n").trim() };
+}
+
 function parseAreas(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
 
@@ -527,6 +612,27 @@ export function parseDeckMarkdown(markdownText) {
             const { title: explicitTitle, markdown: withoutTitle } = extractTitleAndStrip(cleaned);
             cleaned = withoutTitle;
 
+            const { value: headerStyle, markdown: withoutHeaderStyle } = extractDirectiveAndStrip(
+                cleaned,
+                "header-style",
+            );
+            cleaned = withoutHeaderStyle;
+
+            const { value: areaStyle, markdown: withoutAreaStyle } = extractDirectiveAndStrip(
+                cleaned,
+                "area-style",
+            );
+            cleaned = withoutAreaStyle;
+
+            const { areaStyles, markdown: withoutAreaStyles } = extractAreaStylesAndStrip(cleaned);
+            cleaned = withoutAreaStyles;
+
+            const { value: codeFontSize, markdown: withoutCodeFontSize } = extractDirectiveAndStrip(
+                cleaned,
+                "code-font-size",
+            );
+            cleaned = withoutCodeFontSize;
+
             cleaned = escapeKatexBracketDelimiters(cleaned);
 
             const areasMd = parseAreas(cleaned);
@@ -584,8 +690,12 @@ export function parseDeckMarkdown(markdownText) {
                 align: align || "",
                 background: background || "",
                 theme: themeNormalized,
+                headerStyle: safeString(headerStyle).toLowerCase() || "",
                 hidden,
                 areas: areasHtml,
+                areaStyle: areaStyle || "",
+                areaStyles,
+                codeFontSize: codeFontSize ? parseInt(codeFontSize, 10) : 0,
             };
         })
         .filter(Boolean);

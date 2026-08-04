@@ -315,6 +315,7 @@ export class DeckLoader {
         hidden: Boolean(s.hidden),
         areas: s.areas || {},
         areaStyle: safeString(s.areaStyle),
+        areaStyles: s.areaStyles || {},
         codeFontSize: Number(s.codeFontSize) || 0,
       };
     });

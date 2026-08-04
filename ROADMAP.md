@@ -315,97 +315,31 @@ Goal: Add draggable text blocks and polish the core editor experience. This is t
 | Task                                                      | Details                                                                            |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | [x] Adjust width and alignment of main column (#152)      | Add UI controls for `header-content` and `focus` main column width and alignment.  |
-| [ ] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
-| [ ] Allow dragging Mermaid diagrams between areas (#123)  | Support drag-and-drop of Mermaid diagrams across `@area` boundaries.               |
-| [ ] Improve image properties style tab UI (#126)          | Improve the style tab in the image properties panel.                               |
+| [x] Set column background via right-click on @area (#151) | Add a context menu option on area tags to inject the correct background directive. |
 
 ---
 
-## Phase 10: Markdown-First Foundation
+## Phase 10: Renderer Hardening
 
-Goal: Make the Markdown string the single source of truth for both the user and the AI, using YAML frontmatter and lightweight slot directives for layout and styling.
+Goal: Improve the reliability and maintainability of the existing `markdown-it` → DOM rendering pipeline without replacing it.
 
-### Data Model
+### Testing & Stability
 
-| Task                                           | Details                                                                                              |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [ ] Make `DeckStore` hold the Markdown array   | Source of truth: an array of slide strings joined by `---`.                                          |
-| [ ] Canonical split/rejoin API                 | `MarkdownParser.splitIntoSlides(markdown)` and `MarkdownParser.joinSlides(slides)`.                  |
-| [ ] Treat `Deck` as a read-only view           | Re-parse the Markdown string when it changes; keep the `Deck` object as a transient view only.       |
-| [ ] Use the Markdown string as the only schema | Render through the internal Markdown-it pipeline; keep the Markdown string as the user-facing model. |
+| Task                                             | Details                                                                                         |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [ ] Add HTML snapshot tests for known decks      | Capture stable output of the current markdown-it + renderer pipeline for representative slides. |
+| [ ] Add regression tests for Mermaid/Prism/KaTeX | Ensure diagrams, code blocks, and math render to expected markup after pipeline changes.        |
 
-### Frontmatter & Area Directives
+### Rendering Pipeline Cleanup
 
-| Task                                           | Details                                                                                 |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [ ] Expand `MarkdownParser.extractFrontmatter` | Parse `layout`, `theme`, `background`, `hidden`, etc. into a plain object per slide.    |
-| [ ] Document and enforce `@area` as canonical  | Use `@left`, `@right`, `@hero`, `@main` for slot boundaries in examples and AI prompts. |
-| [ ] Update AI prompts to emit `@area` markers  | Instruct the LLM to place `@area` directives when it needs multi-slot layouts.          |
-| [ ] Enforce `layout` against `LayoutData`      | Use the values defined in the `LayoutData` registry for frontmatter layouts and slots.  |
-
-### Targeted AI Slide Patching
-
-| Task                                                   | Details                                                                                            |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| [ ] Add `enhanceSlide(slideMarkdown, intent)`          | Build a prompt containing one slide Markdown string and an intent string.                          |
-| [ ] Instruct the LLM to output a slide Markdown string | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
-| [ ] Validate the response with `MarkdownParser`        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
-| [ ] Patch by index                                     | Swap the edited slide string back into the array and rejoin with `---`.                            |
-| [ ] Simplify `ai-sidebar.js`                           | Route single-slide requests to `enhanceSlide`; use whole-deck batching only for full-deck intents. |
-
-### Office Document Import & Export
-
-| Task                                             | Details                                                        |
-| ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Switch PPTX/ODP parser to `officeparser`     | Replace `pptxtojson` with `officeparser` for PPTX and ODP AST  |
-| [ ] Add `.odp` file type to import               | Update conversion modal to accept `.odp` uploads               |
-| [ ] Normalize `officeparser` AST                 | Adapt `PptxExtractor` to consume `officeparser` output         |
-| [ ] Preserve image extraction                    | Keep embedded image extraction for ODP like PPTX               |
-| [ ] Verify no PPTX import regressions            | Ensure existing PPTX import tests still pass                   |
-| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
-| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
+| Task                         | Details                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [ ] Audit raw HTML injection | Identify every `innerHTML` usage in `SlideRenderer`/`HTMLExportManager` and decide whether sanitization is needed. |
+| [ ] Unify `ContentEnhancer`  | Make runtime, HTML export, and PDF print paths call the same Mermaid/Prism/KaTeX enhancement code where possible.  |
 
 ---
 
-## Phase 11: Content AST & Renderer
-
-Goal: Add an internal, typed content model over `markdown-it` tokens to drive deterministic rendering, while keeping the user-facing model as Markdown.
-
-### Content Model
-
-| Task                        | Details                                                                  |
-| --------------------------- | ------------------------------------------------------------------------ |
-| [ ] Add `ContentNode` types | Heading, paragraph, list, code, image, table, mermaid, math, blockquote. |
-| [ ] Add `ContentCompiler`   | Convert `markdown-it` tokens to a typed `ContentNode[]`.                 |
-| [ ] Add node serializers    | Render each `ContentNode` to HTML/DOM.                                   |
-
-### Renderer
-
-| Task                          | Details                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| [ ] Add `AstRenderer`         | Walk the `ContentNode[]` tree and build the slide DOM.                    |
-| [ ] Replace `innerHTML` usage | Use the typed renderer in `SlideRenderer` instead of direct `innerHTML`.  |
-| [ ] Add SSR/print support     | Use the same renderer for exported HTML and the `tools/pdf.mjs` pipeline. |
-
-### Exports
-
-| Task                          | Details                                                             |
-| ----------------------------- | ------------------------------------------------------------------- |
-| [ ] Unify Mermaid/Prism/KaTeX | Single `ContentEnhancer` path across runtime, HTML export, and PDF. |
-| [ ] Add AST snapshot tests    | Verify that known decks render to a stable AST.                     |
-
-### Stepped Content & Motion
-
-| Task                                      | Details                                                               |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| [ ] Add click-step reveal directives      | `<!-- click -->` or `@click` to reveal bullets, code lines, diagrams. |
-| [ ] Evaluate Shiki for code highlighting  | Keep offline build; use AST renderer to pre-tokenize code blocks.     |
-| [ ] Add CSS-based slide transitions       | Per-deck default and per-slide override via frontmatter.              |
-| [ ] Add reduced-motion preference support | Respect `prefers-reduced-motion` for all transitions and reveals.     |
-
----
-
-## Phase 12: AI Operations & Output Schema
+## Phase 11: AI Operations & Output Schema
 
 Goal: Structure the AI layer with a registry of intents, validated output, and a clean operation contract.
 
@@ -434,9 +368,19 @@ Goal: Structure the AI layer with a registry of intents, validated output, and a
 | [ ] Add `AiPromptComposer`     | Compose system and user prompts from reusable fragments.               |
 | [ ] Update `src/data/prompts/` | Keep prompts under the length budget and in sync with allowed layouts. |
 
+### Single-Slide AI Editing
+
+| Task                                            | Details                                                                                            |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [ ] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                          |
+| [ ] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.               |
+| [ ] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.        |
+| [ ] Patch by index                              | Swap the edited slide string back into the array and rejoin with `---`.                            |
+| [ ] Simplify `ai-sidebar.js`                    | Route single-slide requests to `enhanceSlide`; use whole-deck batching only for full-deck intents. |
+
 ---
 
-## Phase 13: State, Patches & History
+## Phase 12: State, Patches & History
 
 Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
 
@@ -465,7 +409,7 @@ Goal: Make user edits and AI edits trackable, reversible, and safe to merge.
 
 ---
 
-## Phase 14: Design System & Theme Registry
+## Phase 13: Design System & Theme Registry
 
 Goal: Centralize tokens, themes, and layout governance for consistent and predictable decks.
 
@@ -495,7 +439,7 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 
 ---
 
-## Phase 15: Presenter, Print & AI Commands
+## Phase 14: Presenter, Print & AI Commands
 
 Goal: Build out the presenter experience, simplify print/PDF preparation, and expose contextual AI commands.
 
@@ -528,7 +472,7 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 
 ---
 
-## Phase 16: Cloud Mode
+## Phase 15: Cloud Mode
 
 Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/Save UX.
 
@@ -585,19 +529,48 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 7: PPTX Conversion                 | ✅ Complete |
 | Phase 7.5: CLI Dev Server                | ✅ Complete |
 | Phase 8: AI Post-Processing              | ✅ Complete |
-| Phase 9: Text Insertion & Editor UX      | In progress |
-| Phase 10: Markdown-First Foundation      | Planned     |
-| Phase 11: Content AST & Renderer         | Planned     |
-| Phase 12: AI Operations & Output Schema  | Planned     |
-| Phase 13: State, Patches & History       | Planned     |
-| Phase 14: Design System & Theme Registry | Planned     |
-| Phase 15: Presenter, Print & AI Commands | Planned     |
-| Phase 16: Cloud Mode                     | Planned     |
+| Phase 9: Text Insertion & Editor UX      | ✅ Complete |
+| Phase 10: Renderer Hardening             | Planned     |
+| Phase 11: AI Operations & Output Schema  | Planned     |
+| Phase 12: State, Patches & History       | Planned     |
+| Phase 13: Design System & Theme Registry | Planned     |
+| Phase 14: Presenter, Print & AI Commands | Planned     |
+| Phase 15: Cloud Mode                     | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15
 ```
 
-Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) is the current active workstream and includes draggable text blocks, editor polish, and layout/media controls. Phase 10 (Markdown-First Foundation) transitions the platform to an extended-Markdown source of truth, frontmatter and `@area` directives, and slide-level AI patching. Phases 11-15 add an internal content AST, AI operations and output validation, state patches and history, a design system and theme registry, and presenter/print/AI command layers. Phase 16 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) is the current active workstream and includes draggable text blocks, editor polish, and layout/media controls. The Markdown-First Foundation phase was dropped; the existing Markdown-driven pipeline is sufficient, its targeted AI slide-patching work was absorbed into Phase 11, and its office-import/export work was moved to the Backlog. Phases 10-14 add renderer hardening, AI operations and output validation, state patches and history, a design system and theme registry, and presenter/print/AI command layers. Phase 15 (Cloud Mode) adds pluggable storage drivers and cloud image uploads.
+
+## Backlog
+
+Items deferred from earlier phases; re-prioritize when the active phase is complete.
+
+| Task                                                     | Details                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------- |
+| [ ] Allow dragging Mermaid diagrams between areas (#123) | Support drag-and-drop of Mermaid diagrams across `@area` boundaries. |
+| [ ] Improve image properties style tab UI (#126)         | Improve the style tab in the image properties panel.                 |
+
+### Office Document Import & Export
+
+| Task                                             | Details                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| [ ] Switch PPTX/ODP parser to `officeparser`     | Replace `pptxtojson` with `officeparser` for PPTX and ODP AST  |
+| [ ] Add `.odp` file type to import               | Update conversion modal to accept `.odp` uploads               |
+| [ ] Normalize `officeparser` AST                 | Adapt `PptxExtractor` to consume `officeparser` output         |
+| [ ] Preserve image extraction                    | Keep embedded image extraction for ODP like PPTX               |
+| [ ] Verify no PPTX import regressions            | Ensure existing PPTX import tests still pass                   |
+| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
+| [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
+
+### Stepped Content & Motion
+
+| Task                                      | Details                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| [ ] Add click-step reveal directives      | `<!-- click -->` or `@click` to reveal bullets, code lines, diagrams. |
+| [ ] Evaluate Shiki for code highlighting  | Keep offline build; pre-tokenize code blocks with a new highlighter.  |
+| [ ] Add CSS-based slide transitions       | Per-deck default and per-slide override via frontmatter.              |
+| [ ] Add reduced-motion preference support | Respect `prefers-reduced-motion` for all transitions and reveals.     |

@@ -14,6 +14,7 @@ import { LayoutData } from "../../data/layout-data.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
+import { splitCssDeclarations } from "../../core/utils.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
@@ -205,9 +206,30 @@ export class SlidePreviewUpdater {
           // the fully enhanced result.  This avoids a flash of raw HTML
           // (un-styled code blocks, un-rendered math, etc.).
           const areas = slideData.areas || {};
+          const globalAreaStyle = slideData?.areaStyle || "";
+          const perAreaStyles = slideData?.areaStyles || {};
           for (const [name, html] of Object.entries(areas)) {
             const areaEl = slideEl.querySelector(`.slide__area[data-area-name="${name}"]`);
             if (!areaEl) continue;
+
+            // Re-apply area styles in the fast path: clear the previous props,
+            // then apply the current global and per-area directives.
+            const prevStyle = areaEl.dataset.appliedAreaStyle || "";
+            const newGlobal = name !== "footer" ? globalAreaStyle : "";
+            const newPerArea = name !== "footer" ? perAreaStyles[name] || "" : "";
+
+            for (const decl of splitCssDeclarations(prevStyle)) {
+              const d = decl.trim();
+              if (!d) continue;
+              const idx = d.indexOf(":");
+              if (idx === -1) continue;
+              const prop = d.slice(0, idx).trim();
+              if (prop) areaEl.style.removeProperty(prop);
+            }
+
+            if (newGlobal) SlideRenderer._applyAreaStyle(areaEl, newGlobal);
+            if (newPerArea) SlideRenderer._applyAreaStyle(areaEl, newPerArea);
+            areaEl.dataset.appliedAreaStyle = [newGlobal, newPerArea].filter(Boolean).join("; ");
 
             // Build a temporary off-screen container with the new HTML
             const temp = document.createElement("div");

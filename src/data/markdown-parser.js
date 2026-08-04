@@ -322,6 +322,35 @@ export class MarkdownParser {
   }
 
   /**
+   * Extract all `area-style-<name>:` directives and return a map of
+   * area names to their CSS declaration strings, along with the markdown
+   * stripped of those directives.
+   * @param {string} markdownText
+   * @returns {{ areaStyles: Record<string, string>, markdown: string }}
+   */
+  extractAreaStyleDirectives(markdownText) {
+    const text = safeString(markdownText).replace(/\r\n?/g, "\n");
+    const lines = text.split("\n");
+    const fence = new FenceTracker();
+    const out = [];
+    const areaStyles = {};
+
+    for (const line of lines) {
+      fence.toggle(line);
+      if (!fence.isInFence) {
+        const match = line.match(/^\s*area-style-([a-zA-Z0-9_-]+)\s*:\s*(.*)\s*$/i);
+        if (match) {
+          areaStyles[match[1].toLowerCase()] = match[2].trim();
+          continue;
+        }
+      }
+      out.push(line);
+    }
+
+    return { areaStyles, markdown: out.join("\n").trim() };
+  }
+
+  /**
    * Escape LaTeX bracket delimiters (`\[`, `\]`) and convert `$$` math blocks to single-line.
    * @param {string} src
    * @returns {string}
@@ -603,7 +632,9 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|area-style|code-font-size)\s*:/i.test(line);
+      /^\s*(layout|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+        line,
+      );
 
     let lineIdx = 0;
     let seenMarker = false;
@@ -724,6 +755,9 @@ export class MarkdownParser {
         "area-style",
       );
       cleaned = withoutAreaStyle;
+
+      const { areaStyles, markdown: withoutAreaStyles } = this.extractAreaStyleDirectives(cleaned);
+      cleaned = withoutAreaStyles;
 
       const { value: codeFontSize, markdown: withoutCodeFontSize } = this.extractDirective(
         cleaned,
@@ -853,6 +887,7 @@ export class MarkdownParser {
         hidden,
         areas,
         areaStyle: areaStyle || "",
+        areaStyles,
         codeFontSize: parsedCodeFontSize || 0,
         _areaOffsets: rawAreaOffsets,
         _markerNames: markerNames,

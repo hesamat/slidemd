@@ -12,13 +12,16 @@ export class AreaContextMenu {
    * @param {(areaName: string) => void} opts.onSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string, align: string) => void} opts.onAlignMain
+   * @param {(areaName: string, color: string) => void} opts.onSetBackground
    */
-  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain }) {
+  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain, onSetBackground }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._onAlignMain = onAlignMain;
+    this._onSetBackground = onSetBackground;
     this._menuEl = null;
+    this._colorInput = null;
     this._abortController = null;
   }
 
@@ -48,16 +51,21 @@ export class AreaContextMenu {
    * @param {boolean} [opts.canSwap=false]  — show swap option
    * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
+   * @param {boolean} [opts.canSetBackground=false]  — show background color picker
+   * @param {string} [opts.currentColor]  — seed value for the colour picker (#rrggbb)
+   * @param {boolean} [opts.hasBackground]  — whether the area already has a background
    * @param {string} [opts.activeAlign]  — currently active alignment for main
    */
   open(clientX, clientY, areaName, opts = {}) {
+    this._cleanupColorInput();
     this.close();
     const canDelete = opts.canDelete !== false;
     const canSwap = opts.canSwap === true;
     const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
+    const canSetBackground = opts.canSetBackground === true;
     const activeAlign = opts.activeAlign;
-    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain) return;
+    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain && !canSetBackground) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -121,6 +129,68 @@ export class AreaContextMenu {
       menu.appendChild(btn);
     }
 
+    if (canSetBackground) {
+      const currentColor = opts.currentColor || "#ffffff";
+      const hasBackground = opts.hasBackground;
+
+      if (hasBackground) {
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "area-context-menu__item";
+        removeBtn.setAttribute("role", "menuitem");
+        removeBtn.innerHTML = `<span class="area-context-menu__label">Remove background</span>`;
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.close();
+          this._onSetBackground?.(areaName, "");
+        });
+        menu.appendChild(removeBtn);
+      }
+
+      const bgBtn = document.createElement("button");
+      bgBtn.type = "button";
+      bgBtn.className = "area-context-menu__item";
+      bgBtn.setAttribute("role", "menuitem");
+      bgBtn.innerHTML = `<span class="area-context-menu__label">Set background…</span>`;
+      bgBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        const input = document.createElement("input");
+        input.type = "color";
+        input.value = currentColor;
+        input.setAttribute("aria-hidden", "true");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        input.style.pointerEvents = "none";
+        input.style.left = "-9999px";
+
+        this._colorInput = input;
+
+        let commitTimeout = null;
+        const commit = (finalValue) => {
+          if (this._colorInput !== input) return;
+          window.clearTimeout(commitTimeout);
+          this._colorInput = null;
+          this.close();
+          this._onSetBackground?.(areaName, finalValue);
+          input.remove();
+        };
+
+        input.addEventListener("blur", () => commit(input.value), { once: true });
+        input.addEventListener("click", (ev) => ev.stopPropagation(), { once: true });
+
+        const onWindowFocus = () => {
+          if (this._colorInput !== input) return;
+          commitTimeout = window.setTimeout(() => commit(input.value), 300);
+        };
+        window.addEventListener("focus", onWindowFocus, { once: true });
+
+        document.body.appendChild(input);
+        input.click();
+      });
+      menu.appendChild(bgBtn);
+    }
+
     if (canDelete) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -153,9 +223,17 @@ export class AreaContextMenu {
     }
   }
 
+  _cleanupColorInput() {
+    if (this._colorInput) {
+      this._colorInput.remove();
+      this._colorInput = null;
+    }
+  }
+
   destroy() {
     this._abortController?.abort();
     this._abortController = null;
+    this._cleanupColorInput();
     this.close();
   }
 }
