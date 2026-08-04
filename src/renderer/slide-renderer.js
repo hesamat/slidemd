@@ -18,21 +18,27 @@ const PURIFY_CONFIG = {
   ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
 };
 
+let _purify;
+
 function getDOMPurify() {
   // In the dev ESM build, the import is available and creates a sanitizer.
   // In the self-contained HTML/PDF bundles the import is stripped, but the
   // same DOMPurify library is loaded as a vendor global (window.DOMPurify).
+  if (_purify !== undefined) return _purify;
+
   if (typeof createDOMPurify !== "undefined") {
     try {
-      return createDOMPurify(window);
+      _purify = createDOMPurify(window);
     } catch {
-      return null;
+      _purify = null;
     }
   }
-  if (typeof window !== "undefined" && window.DOMPurify) {
-    return window.DOMPurify;
+
+  if (!_purify && typeof window !== "undefined" && window.DOMPurify) {
+    _purify = window.DOMPurify;
   }
-  return null;
+
+  return _purify;
 }
 
 function sanitizeAreaHtml(html) {

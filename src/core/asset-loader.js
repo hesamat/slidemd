@@ -134,29 +134,36 @@ export class AssetLoader {
 
     const mermaidInitOptions = MERMAID_INIT_OPTIONS;
 
-    // Use a preloaded global Mermaid if present (e.g., bundled in dist builds)
+    // Use a preloaded global Mermaid if present (e.g., bundled in dist builds).
     if (window.mermaid && typeof window.mermaid.initialize === "function") {
       window.mermaid.initialize(mermaidInitOptions);
       window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
       return;
     }
 
-    // In exported HTML, Mermaid is loaded by an inline module script that sets
-    // window.mermaid. Wait for it instead of trying to import a Vite-only path.
+    // In exported HTML, a Mermaid script is only emitted when the deck actually
+    // contains diagrams. That script sets window.__WEBDECK_HAS_MERMAID__ before
+    // the async module runs, so we can avoid an unconditional multi-second wait
+    // on decks without diagrams.
     if (window.__WEBDECK_EXPORTED__) {
-      await new Promise((resolve) => {
-        if (window.mermaid && typeof window.mermaid.initialize === "function") return resolve();
-        const interval = setInterval(() => {
-          if (window.mermaid && typeof window.mermaid.initialize === "function") {
+      if (!window.__WEBDECK_HAS_MERMAID__) return;
+
+      await this.once("mermaid-export", async () => {
+        return new Promise((resolve) => {
+          if (window.__WEBDECK_MERMAID__) return resolve();
+          const interval = setInterval(() => {
+            if (window.__WEBDECK_MERMAID__) {
+              clearInterval(interval);
+              resolve();
+            }
+          }, 50);
+          setTimeout(() => {
             clearInterval(interval);
             resolve();
-          }
-        }, 50);
-        setTimeout(() => {
-          clearInterval(interval);
-          resolve();
-        }, 5000);
+          }, 5000);
+        });
       });
+
       if (window.mermaid && typeof window.mermaid.initialize === "function") {
         window.mermaid.initialize(mermaidInitOptions);
         window.__WEBDECK_MERMAID__ = { mermaid: window.mermaid };
@@ -174,19 +181,17 @@ export class AssetLoader {
   }
 
   /**
-   * Preload all optional rich-text enhancers (Prism, KaTeX, Mermaid) in parallel.
+   * Preload optional rich-text enhancers (Prism, KaTeX) in parallel.
+   * Mermaid is loaded on-demand by ContentEnhancer so it does not block these.
    * Failures are silently ignored — the deck renders without them.
    * @static
    * @returns {Promise<void>}
    */
   static async ensureRichTextEnhancers() {
     // Never throw: the deck should still render without optional enhancers.
-    await Promise.allSettled([
-      this.ensurePrismLoaded(),
-      this.ensureKatexLoaded(),
-      // Mermaid is loaded lazily too, but preloading here keeps navigation snappy once you hit a Mermaid slide.
-      this.ensureMermaidLoaded(),
-    ]);
+    // Mermaid is loaded on-demand by ContentEnhancer so Prism/KaTeX do not
+    // block waiting for a diagram library that the deck may not even use.
+    await Promise.allSettled([this.ensurePrismLoaded(), this.ensureKatexLoaded()]);
   }
 }
 

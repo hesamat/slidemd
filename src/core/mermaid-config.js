@@ -48,5 +48,7 @@ export const MERMAID_INIT_OPTIONS = {
 export function buildMermaidScriptTag(version, indent = "") {
   const cdnUrl = `https://cdn.jsdelivr.net/npm/mermaid@${version}/dist/mermaid.esm.min.mjs`;
   const opts = JSON.stringify(MERMAID_INIT_OPTIONS);
-  return `${indent}<script type="module">import mermaid from "${cdnUrl}";window.mermaid=mermaid;mermaid.initialize(${opts});</script>`;
+  const flagScript = `${indent}<script>window.__WEBDECK_HAS_MERMAID__ = true;</script>`;
+  const moduleScript = `${indent}<script type="module">import mermaid from "${cdnUrl}";window.mermaid=mermaid;window.__WEBDECK_MERMAID__={mermaid};mermaid.initialize(${opts});</script>`;
+  return `${flagScript}\n${moduleScript}`;
 }

@@ -327,4 +327,15 @@ describe("HtmlExportManager", () => {
       expect(tag).toBe("");
     });
   });
+
+  describe("prismDependencies", () => {
+    it("includes markup-templating for php", () => {
+      expect(HtmlExportManager.prismDependencies("php")).toEqual([
+        "clike",
+        "markup",
+        "markup-templating",
+        "php",
+      ]);
+    });
+  });
 });

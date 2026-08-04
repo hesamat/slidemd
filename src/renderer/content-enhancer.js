@@ -93,8 +93,9 @@ contain: layout paint style;
     if (mermaidBlocks.length === 0) return true;
 
     const { renderAllSlides = false } = options;
-    const { mermaid } = await this.initializeMermaid();
-    if (!mermaid) return false;
+    const mermaidHandle = await this.initializeMermaid();
+    if (!mermaidHandle?.mermaid) return false;
+    const { mermaid } = mermaidHandle;
 
     for (const el of mermaidBlocks) {
       const slide = el.closest(".slide");
@@ -193,16 +194,8 @@ contain: layout paint style;
       }
     }
 
-    // 2. Render Mermaid diagrams (skip if requested for runtime rendering)
-    const mermaidBlocks = rootEl.querySelectorAll(".mermaid");
-    if (mermaidBlocks.length > 0) {
-      mermaidBlocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
-      if (!skipMermaidRendering) {
-        await this.renderMermaidDiagrams(rootEl, { renderAllSlides });
-      }
-    }
-
-    // 3. Prism syntax highlighting
+    // 2. Prism syntax highlighting (run before Mermaid so code blocks are coloured
+    // immediately even if the diagram library is still loading).
     if (window.Prism) {
       const codeNodes = Array.from(rootEl.querySelectorAll("pre code"));
       for (const codeEl of codeNodes) {
@@ -218,7 +211,7 @@ contain: layout paint style;
       }
     }
 
-    // 4. KaTeX math
+    // 3. KaTeX math
     if (window.renderMathInElement) {
       try {
         window.renderMathInElement(rootEl, {
@@ -233,6 +226,16 @@ contain: layout paint style;
         });
       } catch (e) {
         console.warn("KaTeX error:", e);
+      }
+    }
+
+    // 4. Render Mermaid diagrams (run last so syntax highlighting and math do not
+    //    wait for the diagram library).
+    const mermaidBlocks = rootEl.querySelectorAll(".mermaid");
+    if (mermaidBlocks.length > 0) {
+      mermaidBlocks.forEach((el) => el.closest(".slide__area")?.classList.add("media"));
+      if (!skipMermaidRendering) {
+        await this.renderMermaidDiagrams(rootEl, { renderAllSlides });
       }
     }
 

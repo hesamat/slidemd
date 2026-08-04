@@ -324,12 +324,14 @@ export function splitCssDeclarations(cssText) {
  * @returns {string}
  */
 export function unescapeHtml(html) {
+  // Decode &amp; last so literal sequences like &amp;lt; become &lt; (typed text)
+  // rather than < (a real bracket).
   return safeString(html)
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 /**

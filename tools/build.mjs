@@ -395,6 +395,7 @@ function prismComponentForLang(lang) {
         makefile: "makefile",
         cmake: "cmake",
         sql: "sql",
+        php: "php",
     };
     return map[l] || null;
 }
@@ -412,6 +413,8 @@ function prismDependencies(component) {
             return ["clike", "c"];
         case "cpp":
             return ["clike", "cpp"];
+        case "php":
+            return ["clike", "markup", "markup-templating", "php"];
         default:
             return [component];
     }

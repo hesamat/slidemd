@@ -352,7 +352,7 @@ ${escapedInitScript}
       case "kotlin":
         return ["clike", component];
       case "php":
-        return ["clike", "markup", "php"];
+        return ["clike", "markup", "markup-templating", "php"];
       case "scala":
         return ["clike", "java", "scala"];
       case "markdown":

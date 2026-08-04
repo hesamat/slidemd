@@ -133,4 +133,38 @@ describe("ContentEnhancer", () => {
     expect(link.target).toBe("_blank");
     expect(link.rel).toBe("noopener noreferrer");
   });
+
+  it("does not throw and still runs Prism/KaTeX when Mermaid fails to load", async () => {
+    // Simulate an export where the Mermaid CDN is unavailable.
+    const saved = window.__WEBDECK_MERMAID__;
+    const savedMermaid = window.mermaid;
+    delete window.__WEBDECK_MERMAID__;
+    delete window.mermaid;
+
+    window.AssetLoader = {
+      ensureRichTextEnhancers: vi.fn(async () => {}),
+      ensureMermaidLoaded: vi.fn(async () => {}),
+    };
+
+    const container = document.createElement("div");
+    container.innerHTML = `
+      <div class="slide active">
+        <pre><code class="language-py">x = 1</code></pre>
+        <p>$y = 2$</p>
+        <div class="mermaid" data-mermaid-source="A --> B">A --> B</div>
+      </div>
+    `;
+
+    await expect(ContentEnhancer.enhanceRenderedContent(container, { force: true })).resolves.toBe(
+      true,
+    );
+
+    const code = container.querySelector("pre code");
+    expect(code.className).toBe("language-python");
+    expect(window.Prism.highlightAllUnder).toHaveBeenCalled();
+    expect(window.renderMathInElement).toHaveBeenCalledWith(container, expect.any(Object));
+
+    window.__WEBDECK_MERMAID__ = saved;
+    window.mermaid = savedMermaid;
+  });
 });
