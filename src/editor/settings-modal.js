@@ -11,7 +11,7 @@
  * Keys live in sessionStorage by default; "Remember key" promotes to localStorage.
  */
 
-import { OPENCODE_MODELS, OPENCODE_BASE_URL } from "../data/ai/opencode-models.js";
+// SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
 const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
 const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
@@ -33,13 +33,12 @@ const PROVIDER_DEFAULTS = {
   OpenAI: "https://api.openai.com/v1",
   Anthropic: "https://api.anthropic.com",
   Gemini: "https://generativelanguage.googleapis.com/v1beta",
-  OpenCode: OPENCODE_BASE_URL,
   Ollama: "http://localhost:11434/v1",
   "LM Studio": "http://localhost:1234/v1",
   Custom: "",
 };
 
-const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini", "OpenCode"]);
+const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
 
 /**
  * Get the per-provider storage key for an API key.
@@ -339,9 +338,7 @@ export class SettingsModal {
       };
 
       const isModelSearchProvider = () =>
-        selectedProvider === "OpenRouter" ||
-        selectedProvider === "OpenAI" ||
-        selectedProvider === "OpenCode";
+        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
 
       const isFetchModelsSupported = () =>
         selectedProvider === "OpenRouter" ||
@@ -484,25 +481,7 @@ export class SettingsModal {
         }
       };
 
-      const populateOpenCodeModels = () => {
-        this._allModels = OPENCODE_MODELS.map((m) => ({ id: m.id, name: m.name }));
-        this._modelReasoningMap.clear();
-        this._modelMaxOutputMap.clear();
-        // Treat all OpenCode models as reasoning-capable. The API client uses the
-        // right format for each API style (chat-completions, responses, messages).
-        // If a specific model doesn't support it, the call will fail and the user
-        // can disable it; this is more useful than blanket-disabling all models.
-        for (const m of this._allModels) {
-          this._modelReasoningMap.set(m.id, {
-            supported_efforts: ["low", "medium", "high"],
-            mandatory: false,
-          });
-        }
-        if (!this._allModels.some((m) => m.id === selectedModel)) {
-          selectedModel = this._allModels[0]?.id || selectedModel;
-          modelInput.value = selectedModel;
-        }
-      };
+      // OpenCode support removed due to CORS and endpoint issues.
 
       // --- Provider / base URL handlers ---
       providerSelect.addEventListener("change", () => {
@@ -519,11 +498,7 @@ export class SettingsModal {
         modelInput.value = "";
         updateModelSummary();
 
-        if (selectedProvider === "OpenCode") {
-          populateOpenCodeModels();
-          updateModelSummary();
-          updateReasoningState();
-        } else if (isFetchModelsSupported()) {
+        if (isFetchModelsSupported()) {
           // Auto-fetch for OpenRouter, OpenAI, Ollama, LM Studio
           fetchModels().then(() => {
             if (this._allModels.length > 0) {
@@ -605,10 +580,7 @@ export class SettingsModal {
       // --- Initial population ---
       fetchModelsBtn.hidden = !isFetchModelsSupported();
 
-      if (selectedProvider === "OpenCode") {
-        populateOpenCodeModels();
-        updateReasoningState();
-      } else if (isModelSearchProvider()) {
+      if (isModelSearchProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
           const savedReasoning = this.getReasoning();
@@ -786,7 +758,6 @@ export class SettingsModal {
               <option>OpenAI</option>
               <option>Anthropic</option>
               <option>Gemini</option>
-              <option>OpenCode</option>
               <option>Ollama</option>
               <option>LM Studio</option>
               <option>Custom</option>
