@@ -366,7 +366,7 @@ background: #3e1d5f
 
 Define custom layouts with Grid. Add `minmax(0, 1fr)` to content Rows.
 
-```markdown
+```yaml
 layout: "header header" "main media" / 2fr 1fr
 ```
 
