@@ -105,7 +105,14 @@ export class EditController {
     this._onSlidesContainerContextMenu = (e) => {
       if (!this.isEditMode) return;
       if (e.target.closest(".editor-area-label, .editor-slide-warning, img, .text-block")) return;
-      if (window.getSelection().toString().trim()) return; // allow native copy/paste on selected text
+      const slidesContainer = this.elements.slidesContainer;
+      if (slidesContainer) {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) {
+          const range = selection.getRangeAt(0);
+          if (slidesContainer.contains(range.commonAncestorContainer)) return; // allow native copy/paste on selected slide text
+        }
+      }
       if (e.target.closest("a")) return; // allow native link context menu
       e.preventDefault();
       this.insertDropdown.openContextMenu(e.clientX, e.clientY);
