@@ -656,17 +656,15 @@ ${escapedInitScript}
   static fixKatexFontUrls(cssText, version) {
     if (!cssText || !version) return cssText;
     const cdnBase = `https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`;
-    let result = cssText
-      .replace(/url\((['"]?)\/node_modules\/katex\/dist\/fonts\//g, `url($1${cdnBase}`)
-      .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`);
-
-    // Only rewrite bare `url(fonts/...)` inside @font-face blocks that reference
-    // KaTeX fonts, so unrelated app CSS with its own `fonts/` dir is not affected.
+    // Restrict all URL rewrites to KaTeX @font-face rules so app CSS with its
+    // own relative fonts directory is not affected.
     const katexFontBlockRe = /@font-face\s*\{[^{}]*?\bKaTeX[^{}]*?\}/gi;
-    result = result.replace(katexFontBlockRe, (block) =>
-      block.replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`),
+    return cssText.replace(katexFontBlockRe, (block) =>
+      block
+        .replace(/url\((['"]?)\/node_modules\/katex\/dist\/fonts\//g, `url($1${cdnBase}`)
+        .replace(/url\((['"]?)\.\/fonts\//g, `url($1${cdnBase}`)
+        .replace(/url\((['"]?)fonts\//g, `url($1${cdnBase}`),
     );
-    return result;
   }
 
   static minifyCss(cssText) {
