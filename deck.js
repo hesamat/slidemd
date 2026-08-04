@@ -97,10 +97,12 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     // 2. Gather DOM Elements
     const elements = ElementGatherer.gatherElements();
 
-    // 3. Setup Open Deck Modal
-    OpenDeckModal.init();
-    if (elements.menuOpenFileBtn) {
-      elements.menuOpenFileBtn.addEventListener("click", () => OpenDeckModal.show());
+    // 3. Setup Open Deck Modal (only in the live editor, not in exported HTML)
+    if (!window.__WEBDECK_EXPORTED__) {
+      OpenDeckModal.init();
+      if (elements.menuOpenFileBtn) {
+        elements.menuOpenFileBtn.addEventListener("click", () => OpenDeckModal.show());
+      }
     }
 
     // 4. Update UI Initial State
@@ -148,18 +150,20 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     controller.addEventListener("slidechange", syncFooterThemeIcon);
     syncFooterThemeIcon();
 
-    // 6. Initialize Editor (Optional)
-    try {
-      const editController = new EditController(deck, controller, elements);
-      window.__WEBDECK_EDIT_CONTROLLER__ = editController;
-      // Tear down the editor (and all its sub-module listeners) on
-      // page navigation so we don't leak document/window listeners
-      // back into a fresh page load.
-      window.addEventListener("beforeunload", () => {
-        editController.destroy();
-      });
-    } catch (e) {
-      console.error("EditController initialization failed:", e);
+    // 6. Initialize Editor (Optional, only in the live editor)
+    if (!window.__WEBDECK_EXPORTED__) {
+      try {
+        const editController = new EditController(deck, controller, elements);
+        window.__WEBDECK_EDIT_CONTROLLER__ = editController;
+        // Tear down the editor (and all its sub-module listeners) on
+        // page navigation so we don't leak document/window listeners
+        // back into a fresh page load.
+        window.addEventListener("beforeunload", () => {
+          editController.destroy();
+        });
+      } catch (e) {
+        console.error("EditController initialization failed:", e);
+      }
     }
 
     // 7. PRELOAD / WARMUP ENHANCERS
