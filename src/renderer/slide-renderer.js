@@ -9,6 +9,9 @@ import { safeString, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js"
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
+import createDOMPurify from "dompurify";
+
+const purify = typeof window !== "undefined" ? createDOMPurify(window) : null;
 
 function _getCustomSingleColumnStyle(layout) {
   const rows = String(layout?.gridTemplateAreas || "")
@@ -198,7 +201,7 @@ export class SlideRenderer {
         area.style.paddingRight = "0";
       }
 
-      area.innerHTML = html;
+      area.innerHTML = purify ? purify.sanitize(html) : html;
       grid.appendChild(area);
     });
 

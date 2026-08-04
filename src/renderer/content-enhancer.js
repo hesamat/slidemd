@@ -218,3 +218,8 @@ contain: layout paint style;
     return true;
   }
 }
+
+// Expose for non-module consumers (exported HTML bundle, PDF export, dist builds)
+if (typeof window !== "undefined") {
+  window.ContentEnhancer = ContentEnhancer;
+}

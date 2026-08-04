@@ -156,6 +156,11 @@ AI prompts live in [src/data/prompts/](src/data/prompts/):
 5. Keep both layout lists in sync.
 6. Reflect changes in [docs/prompt-template.md](docs/prompt-template.md) and [docs/example/slides.md](docs/example/slides.md).
 
+## Renderer Hardening
+
+- All user-authored Markdown HTML assigned to `SlideRenderer` slide areas is sanitized with `DOMPurify` before `innerHTML` is set. Mermaid SVG output and hardcoded UI `innerHTML` strings are trusted library/output markup and are not sanitized.
+- `ContentEnhancer` is exposed on `window` so the runtime, exported HTML, and PDF paths can all call the same `ContentEnhancer.enhanceRenderedContent(...)` entry point.
+
 ## Known Issues
 
 - **`nul` file on Windows**: The `.gitignore` previously contained `nul` which created an untracked file that cannot be deleted via normal Windows commands (it's a reserved device name). This was removed from `.gitignore` but the file may still appear in `git status`. Ignore it.

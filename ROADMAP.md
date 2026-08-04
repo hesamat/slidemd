@@ -327,15 +327,15 @@ Goal: Improve the reliability and maintainability of the existing `markdown-it` 
 
 | Task                                             | Details                                                                                         |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [ ] Add HTML snapshot tests for known decks      | Capture stable output of the current markdown-it + renderer pipeline for representative slides. |
-| [ ] Add regression tests for Mermaid/Prism/KaTeX | Ensure diagrams, code blocks, and math render to expected markup after pipeline changes.        |
+| [x] Add HTML snapshot tests for known decks      | Capture stable output of the current markdown-it + renderer pipeline for representative slides. |
+| [x] Add regression tests for Mermaid/Prism/KaTeX | Ensure diagrams, code blocks, and math render to expected markup after pipeline changes.        |
 
 ### Rendering Pipeline Cleanup
 
 | Task                         | Details                                                                                                            |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [ ] Audit raw HTML injection | Identify every `innerHTML` usage in `SlideRenderer`/`HTMLExportManager` and decide whether sanitization is needed. |
-| [ ] Unify `ContentEnhancer`  | Make runtime, HTML export, and PDF print paths call the same Mermaid/Prism/KaTeX enhancement code where possible.  |
+| [x] Audit raw HTML injection | Identify every `innerHTML` usage in `SlideRenderer`/`HTMLExportManager` and decide whether sanitization is needed. |
+| [x] Unify `ContentEnhancer`  | Make runtime, HTML export, and PDF print paths call the same Mermaid/Prism/KaTeX enhancement code where possible.  |
 
 ---
 

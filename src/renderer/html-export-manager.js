@@ -184,8 +184,9 @@ export class HtmlExportManager {
 .viewer { width: 100% !important; height: 100% !important; }
 `;
 
-    // We add a small init script to trigger Prism and KaTeX on load
-    // Use 'load' instead of 'DOMContentLoaded' to ensure vendor scripts are loaded and the DOM is ready
+    // We add a small init script to re-run the shared enhancer on load.
+    // ContentEnhancer is exposed to window by the bundled source, so the runtime,
+    // exported HTML, and PDF paths all use the same enhancement logic.
     const initScript = `
         // Mark this as an exported HTML file (prevents auto-redirect to presenter mode)
         window.__WEBDECK_EXPORTED__ = true;
@@ -201,43 +202,9 @@ export class HtmlExportManager {
 
         // Wait for window.load to ensure all vendor scripts are loaded
         window.addEventListener('load', () => {
-            // Re-run Prism if it's available (fixes broken snapshots)
-            if (window.Prism) {
-                window.Prism.highlightAll();
-            }
-            // Render KaTeX math if it's available
-            if (window.renderMathInElement) {
-                window.renderMathInElement(document.body, {
-                    delimiters: [
-                        { left: "$$", right: "$$", display: true },
-                        { left: "$", right: "$", display: false },
-                        { left: "\\\\(", right: "\\\\)", display: false },
-                        { left: "\\\\[", right: "\\\\]", display: true }
-                    ],
-                    ignoredClasses: ["no-math", "katex-ignore", "mermaid"],
-                    throwOnError: false
-                });
-            }
-            // Render Mermaid diagrams
-            if (window.mermaid) {
-                const mermaidBlocks = document.querySelectorAll('.mermaid:not([data-mermaid-processed])');
-                if (mermaidBlocks.length > 0) {
-                    mermaidBlocks.forEach((el, i) => {
-                        const source = el.textContent || el.dataset.mermaidSource;
-                        if (source) {
-                            el.dataset.mermaidSource = source;
-                            el.dataset.mermaidProcessed = '1';
-                            try {
-                                const id = 'mermaid-export-' + i;
-                                mermaid.render(id, source).then(out => {
-                                    if (out && out.svg) el.innerHTML = out.svg;
-                                }).catch(e => {
-                                    console.warn('Mermaid render error:', e);
-                                });
-                            } catch(e) { console.warn('Mermaid error:', e); }
-                        }
-                    });
-                }
+            if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
+                ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
+                    .catch(e => console.warn('Enhancement error:', e));
             }
         });
         `;

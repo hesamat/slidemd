@@ -133,65 +133,14 @@ await page.evaluate(async () => {
         nodes.forEach(n => n.textContent = n.textContent.replace(emojiRegex, ''));
     };
 
-    // 2. Process each slide
+    // 2. Remove emojis from each slide; then use the shared ContentEnhancer for
+    // Mermaid/Prism/KaTeX so the PDF path uses the same pipeline as the runtime.
     for (const slide of slides) {
-        // Remove emojis
         removeEmojisFromElement(slide);
+    }
 
-        // Prism syntax highlighting (skip mermaid blocks — no grammar for them)
-        if (window.Prism) {
-            const codeBlocks = slide.querySelectorAll('pre code:not(.language-mermaid):not(.lang-mermaid)');
-            codeBlocks.forEach((codeEl) => {
-                const match = codeEl.className.match(/(?:lang|language)-(\S+)/);
-                if (match) {
-                    codeEl.className = `language-${match[1]}`;
-                }
-                Prism.highlightElement(codeEl);
-            });
-        }
-
-        // Mermaid diagram rendering (convert code blocks to divs, then render)
-        const mermaidCodeNodes = slide.querySelectorAll("pre code.language-mermaid, pre code.lang-mermaid");
-        for (const codeEl of mermaidCodeNodes) {
-            const pre = codeEl.parentElement;
-            if (pre?.tagName === "PRE") {
-                const source = codeEl.textContent?.trim();
-                if (!source) continue;
-
-                const div = document.createElement("div");
-                div.className = "mermaid";
-                div.dataset.mermaidSource = source;
-                div.textContent = source;
-                pre.replaceWith(div);
-            }
-        }
-
-        // Render any mermaid divs that the runtime hasn't rendered yet
-        const mermaidDivs = slide.querySelectorAll('.mermaid');
-        if (mermaidDivs.length > 0 && window.mermaid) {
-            for (const div of mermaidDivs) {
-                // Skip if already rendered by the runtime
-                if (div.querySelector('svg') || div.dataset.mermaidProcessed === '1') continue;
-
-                // Ensure source is available
-                if (!div.dataset.mermaidSource && div.textContent) {
-                    div.dataset.mermaidSource = div.textContent.trim();
-                }
-                const source = div.dataset.mermaidSource;
-                if (!source) continue;
-
-                try {
-                    const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    const out = await window.mermaid.render(id, source);
-                    const svg = typeof out === "string" ? out : out?.svg;
-                    if (svg) div.innerHTML = svg;
-                    if (out && typeof out !== "string") out.bindFunctions?.(div);
-                    div.dataset.mermaidProcessed = "1";
-                } catch (e) {
-                    console.warn("Mermaid render error:", e.message);
-                }
-            }
-        }
+    if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
+        await ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true });
     }
 });
 console.log("All slides enhanced for PDF (Mermaid rendered, emojis removed)");

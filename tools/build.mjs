@@ -636,11 +636,12 @@ html = html.replace(
     () => `${deckTag}\n${vendor}\n<script>\n${escapeInlineScriptText(bundle)}\n</script>`
 );
 
-// Initialize KaTeX auto-render for dist builds (needed since ensureKatexLoaded is stubbed out)
-if (usesKatex) {
-    const katexInitScript = '<script>window.addEventListener("DOMContentLoaded",function(){if(typeof renderMathInElement==="function"){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredClasses:["no-math","katex-ignore","mermaid"],throwOnError:!1});}});</script>';
-    html = html.replace(/<\/head>/i, `${katexInitScript}</head>`);
-    console.log(`Added KaTeX auto-render initialization`);
+// Trigger the shared enhancer for dist builds so all slides get Mermaid, Prism, and KaTeX.
+// ContentEnhancer is exposed to window by the bundled source (see src/renderer/content-enhancer.js).
+if (usesKatex || usesPrism || usesMermaid) {
+    const enhanceInitScript = '<script>window.addEventListener("DOMContentLoaded",function(){if(typeof ContentEnhancer!=="undefined"&&ContentEnhancer.enhanceRenderedContent){ContentEnhancer.enhanceRenderedContent(document.body,{renderAllSlides:!0,force:!0}).catch(function(e){console.warn("Enhancement error:",e)});}});</script>';
+    html = html.replace(/<\/head>/i, `${enhanceInitScript}</head>`);
+    console.log(`Added shared content enhancer initialization for ${[usesPrism && "Prism", usesKatex && "KaTeX", usesMermaid && "Mermaid"].filter(Boolean).join(", ")}`);
 }
 
 // Mark this as an exported build (for deck.js to skip broadcast-based loading)
