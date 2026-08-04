@@ -1,4 +1,4 @@
-import { Compartment, EditorSelection, EditorState, Transaction } from "@codemirror/state";
+import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -85,7 +85,6 @@ export class MarkdownEditor {
     this.view = null;
     this.editorRoot = null;
     this.suppressChange = false;
-    this._tableCompartment = new Compartment();
     this._completionSources = [];
 
     // Render immediately so DOM elements exist
@@ -131,14 +130,12 @@ export class MarkdownEditor {
 
     const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     const mod = isMac ? "Cmd" : "Ctrl";
-    const alt = isMac ? "Option" : "Alt";
     const rows = [
       ["Find", `${mod} + F`],
       ["Replace", `${mod} + H`],
       ["Find next / previous", `${mod} + G / Shift + G`],
       ["Undo / Redo", `${mod} + Z / Shift + Z`],
       ["Autocomplete", `${mod} + Space`],
-      ["Insert 2×2 table", `${mod} + ${alt} + T`],
       ["Indent / Outdent", "Tab / Shift + Tab"],
       ["Fold / Unfold (gutter)", "Click arrows"],
     ];
@@ -522,12 +519,10 @@ export class MarkdownEditor {
       foldGutter(),
       bracketMatching(),
       closeBrackets(),
-      this._tableCompartment.of(
-        autocompletion({
-          activateOnTyping: true,
-          override: completionSources,
-        }),
-      ),
+      autocompletion({
+        activateOnTyping: true,
+        override: completionSources,
+      }),
       ...editorThemeExtensions,
       markdown(),
       placeholder(this.options.placeholder),
@@ -550,34 +545,6 @@ export class MarkdownEditor {
         extensions,
       }),
       parent: this.editorRoot,
-    });
-
-    this.tableSupportReady = this._loadTableSupport().catch((err) => {
-      console.warn("Markdown table support unavailable:", err);
-    });
-  }
-
-  /**
-   * Load the browser-only markdown table helper and fold it into the editor.
-   * The autocompleter has to live in the `override` list because `override`
-   * makes @codemirror/autocomplete ignore language-data completion sources.
-   */
-  async _loadTableSupport() {
-    // The table helper touches browser globals; keep Node tests from loading it.
-    if (typeof navigator === "undefined") return;
-
-    const { markdownTableAutocompleter, insertEmptyMarkdownTable } =
-      await import("codemirror-markdown-tables");
-    if (!this.view) return;
-
-    this.view.dispatch({
-      effects: this._tableCompartment.reconfigure([
-        autocompletion({
-          activateOnTyping: true,
-          override: [...this._completionSources, markdownTableAutocompleter()],
-        }),
-        keymap.of([{ key: "Mod-Alt-t", run: insertEmptyMarkdownTable() }]),
-      ]),
     });
   }
 }
