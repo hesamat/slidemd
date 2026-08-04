@@ -82,6 +82,7 @@ export class EditController {
           ? this.deckStore.getSlides()
           : this._cacheOriginalMarkdown();
       this.unsavedMarkdown.clear();
+      this._pendingStructuralOperations = 0;
       this.hasUnsavedChanges = false;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
@@ -155,6 +156,9 @@ export class EditController {
         this._captureCurrentEditorMarkdown();
         this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown());
       },
+      onSaveStateReset: () => {
+        this._pendingStructuralOperations = 0;
+      },
     });
 
     this.areaNav = new AreaNavigation({
@@ -184,6 +188,7 @@ export class EditController {
       getSaveManager: () => this.saveManager,
       deckStore: this.deckStore,
       prepareStoreOperation: () => this.prepareStoreOperation(),
+      recordStoreOperation: () => this.recordStoreOperation(),
     });
 
     this.imageInserter = new ImageInserter({
@@ -567,6 +572,12 @@ export class EditController {
   _captureCurrentEditorMarkdown() {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
+    const original = this.originalMarkdown[this.currentSlideIndex] ?? "";
+    if (markdown === original) {
+      this.unsavedMarkdown.delete(this.currentSlideIndex);
+      this.updateUnsavedChangesFlag();
+      return;
+    }
     if (markdown === this.unsavedMarkdown.get(this.currentSlideIndex)) return;
     this.unsavedMarkdown.set(this.currentSlideIndex, markdown);
     this.updateUnsavedChangesFlag();
@@ -578,6 +589,9 @@ export class EditController {
     this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown(), "system", {
       recordHistory: false,
     });
+  }
+
+  recordStoreOperation() {
     this._pendingStructuralOperations += 1;
   }
 
@@ -609,7 +623,12 @@ export class EditController {
       this.markdownEditor.undo?.();
       return true;
     }
-    if (!this.deckStore?.undo()) return false;
+    if (!this.deckStore || !this.deckStore.canUndo()) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.undo?.();
+      return true;
+    }
+    if (!this.deckStore.undo()) return false;
     try {
       const result = await this._restoreStoreSnapshot();
       if (this._pendingStructuralOperations > 0) this._pendingStructuralOperations -= 1;
@@ -623,7 +642,12 @@ export class EditController {
   }
 
   async redo() {
-    if (!this.deckStore?.redo()) return false;
+    if (!this.deckStore || !this.deckStore.canRedo()) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.redo?.();
+      return true;
+    }
+    if (!this.deckStore.redo()) return false;
     try {
       return await this._restoreStoreSnapshot();
     } catch (error) {

@@ -42,7 +42,12 @@ describe("DeckStore", () => {
   it("groups adjacent move patches and updates the active index atomically", () => {
     const store = new DeckStore();
     store.loadFromMarkdown("a\n---\nb\n---\nc", 1);
-    expect(store.applyPatches([createDeletePatch(1, "b"), createInsertPatch(0, "b")])).toBe(true);
+    expect(
+      store.applyPatches([
+        createDeletePatch(1, "b", "user", "move"),
+        createInsertPatch(0, "b", "user", "move"),
+      ]),
+    ).toBe(true);
     expect(store.getSlides()).toEqual(["b", "a", "c"]);
     expect(store.getActiveIndex()).toBe(0);
     expect(store.undo()).toBe(true);
@@ -69,7 +74,7 @@ describe("DeckStore", () => {
     store.loadFromMarkdown("a\n---\nb");
     store.setActiveIndex(1);
     store.applyPatch(createEditPatch(1, "b", "c"));
-    expect(store.toMarkdown()).toBe("a\n---\nc");
+    expect(store.toMarkdown()).toBe("a\n\n---\n\nc");
     expect(change).toHaveBeenCalledTimes(2);
     expect(slide).toHaveBeenCalledTimes(2);
     expect(patch).toHaveBeenCalledWith(expect.objectContaining({ after: "c" }));

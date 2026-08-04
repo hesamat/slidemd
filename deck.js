@@ -118,6 +118,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
     // 5. Initialize Controller
     const controller = new DeckController(deck, elements, { deckStore });
     await controller.init();
+    deckStore?.setActiveIndex(controller.slideNavigator.currentIndex);
 
     // 5b. Wire up footer shortcut buttons
     document.querySelectorAll(".footer-shortcut").forEach((btn) => {

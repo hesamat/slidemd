@@ -71,6 +71,8 @@ export class DeckStore {
       validPatches.length === 2 &&
       isDelete(validPatches[0]) &&
       isInsert(validPatches[1]) &&
+      validPatches[0].kind === "move" &&
+      validPatches[1].kind === "move" &&
       validPatches[0].before === validPatches[1].after &&
       Math.abs(validPatches[0].index - validPatches[1].index) === 1
         ? validPatches
@@ -131,7 +133,7 @@ export class DeckStore {
   }
 
   toMarkdown() {
-    return this._slides.join("\n---\n");
+    return this._slides.join("\n\n---\n\n");
   }
 
   on(event, callback) {

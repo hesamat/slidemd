@@ -32,6 +32,7 @@ export class SlideOperations {
    * @param {() => object} opts.getSaveManager
    * @param {import('../../data/store/deck-store.js').DeckStore|null} opts.deckStore
    * @param {() => void} opts.prepareStoreOperation
+   * @param {() => void} opts.recordStoreOperation
    */
   constructor({
     getDeck,
@@ -49,6 +50,7 @@ export class SlideOperations {
     getSaveManager,
     deckStore = null,
     prepareStoreOperation = null,
+    recordStoreOperation = null,
   }) {
     this._getDeck = getDeck;
     this._getElements = getElements;
@@ -65,10 +67,21 @@ export class SlideOperations {
     this._getSaveManager = getSaveManager;
     this._deckStore = deckStore;
     this._prepareStoreOperation = prepareStoreOperation;
+    this._recordStoreOperation = recordStoreOperation;
   }
 
   _prepareStoreMutation() {
     this._prepareStoreOperation?.();
+  }
+
+  _applyStorePatches(patches) {
+    if (!this._deckStore) return true;
+    if (this._deckStore.applyPatches(patches)) {
+      this._recordStoreOperation?.();
+      return true;
+    }
+    Notification.error("Could not synchronize the slide operation with deck history.");
+    return false;
   }
 
   get deck() {
@@ -127,7 +140,8 @@ export class SlideOperations {
 
     const newSlideMarkdown = "## New Slide\n\nAdd your content here";
     this._prepareStoreMutation();
-    this._deckStore?.applyPatch(createInsertPatch(insertIndex, newSlideMarkdown, "user"));
+    if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
+      return;
     this.deck.slides.splice(insertIndex, 0, newSlide);
     this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
 
@@ -163,7 +177,8 @@ export class SlideOperations {
       this.unsavedMarkdown.get(indexToDelete) ?? this.originalMarkdown[indexToDelete] ?? "";
 
     this._prepareStoreMutation();
-    this._deckStore?.applyPatch(createDeletePatch(indexToDelete, deletedMarkdown, "user"));
+    if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
+      return;
     this.deck.slides.splice(indexToDelete, 1);
     this.originalMarkdown.splice(indexToDelete, 1);
 
@@ -226,10 +241,13 @@ export class SlideOperations {
   _swapSlides(a, b) {
     this._prepareStoreMutation();
     const movedMarkdown = this.unsavedMarkdown.get(a) ?? this.originalMarkdown[a] ?? "";
-    this._deckStore?.applyPatches([
-      createDeletePatch(a, movedMarkdown, "user"),
-      createInsertPatch(b, movedMarkdown, "user"),
-    ]);
+    if (
+      !this._applyStorePatches([
+        createDeletePatch(a, movedMarkdown, "user", "move"),
+        createInsertPatch(b, movedMarkdown, "user", "move"),
+      ])
+    )
+      return;
     [this.deck.slides[a], this.deck.slides[b]] = [this.deck.slides[b], this.deck.slides[a]];
     [this.originalMarkdown[a], this.originalMarkdown[b]] = [
       this.originalMarkdown[b],
@@ -284,7 +302,7 @@ export class SlideOperations {
       const newSlide = { ...deckData.slides[0], id: Date.now() };
 
       this._prepareStoreMutation();
-      this._deckStore?.applyPatch(createInsertPatch(insertIndex, markdown, "user"));
+      if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
       this.deck.slides.splice(insertIndex, 0, newSlide);
       this.originalMarkdown.splice(insertIndex, 0, markdown);
 
@@ -356,12 +374,14 @@ export class SlideOperations {
           layout: layoutName,
           areas: { main: "<h2>New Slide</h2>\n\nAdd your content here" },
         };
-        this._deckStore?.applyPatch(createInsertPatch(insertIndex, styledTemplate, "user"));
+        if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")]))
+          return;
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       } else {
         const newSlide = deckData.slides[0];
-        this._deckStore?.applyPatch(createInsertPatch(insertIndex, styledTemplate, "user"));
+        if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")]))
+          return;
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       }

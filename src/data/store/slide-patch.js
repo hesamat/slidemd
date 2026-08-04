@@ -5,18 +5,33 @@
  * @property {string|null} after - slide markdown after the change
  * @property {string} source - user | ai | import | system
  * @property {number} timestamp - Date.now() when the patch was created
+ * @property {string} [kind] - Optional compound-operation kind, such as "move"
  */
 
-export function createEditPatch(index, before, after, source = "user") {
-  return { index, before, after, source, timestamp: Date.now() };
+export function createEditPatch(index, before, after, source = "user", kind = undefined) {
+  return { index, before, after, source, timestamp: Date.now(), ...(kind ? { kind } : {}) };
 }
 
-export function createInsertPatch(index, after, source = "user") {
-  return { index, before: null, after, source, timestamp: Date.now() };
+export function createInsertPatch(index, after, source = "user", kind = undefined) {
+  return {
+    index,
+    before: null,
+    after,
+    source,
+    timestamp: Date.now(),
+    ...(kind ? { kind } : {}),
+  };
 }
 
-export function createDeletePatch(index, before, source = "user") {
-  return { index, before, after: null, source, timestamp: Date.now() };
+export function createDeletePatch(index, before, source = "user", kind = undefined) {
+  return {
+    index,
+    before,
+    after: null,
+    source,
+    timestamp: Date.now(),
+    ...(kind ? { kind } : {}),
+  };
 }
 
 export function isInsert(patch) {

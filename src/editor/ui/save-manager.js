@@ -20,6 +20,7 @@ export class SaveManager {
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => void} [opts.onBeforeSave]
+   * @param {() => void} [opts.onSaveStateReset]
    */
   constructor({
     getDeck,
@@ -29,6 +30,7 @@ export class SaveManager {
     getHasUnsavedChanges,
     setHasUnsavedChanges,
     onBeforeSave = null,
+    onSaveStateReset = null,
   }) {
     this._getDeck = getDeck;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
@@ -37,6 +39,7 @@ export class SaveManager {
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onBeforeSave = onBeforeSave;
+    this._onSaveStateReset = onSaveStateReset;
     this.needsSaveAs = false;
   }
 
@@ -85,6 +88,7 @@ export class SaveManager {
     this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
+    this._onSaveStateReset?.();
     this.updateButton();
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.
