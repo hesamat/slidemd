@@ -150,6 +150,7 @@ export class AreaContextMenu {
           this._onSetBackground?.(areaName, ev.target.value);
           input.remove();
         });
+        input.addEventListener("click", (ev) => ev.stopPropagation(), { once: true });
 
         const onFocus = () => {
           if (!this._colorInput) return;

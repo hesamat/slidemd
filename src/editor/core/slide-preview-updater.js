@@ -187,9 +187,7 @@ export class SlidePreviewUpdater {
           else slideEl.removeAttribute("data-header-style");
           if (slideData?.background) slideEl.style.background = slideData.background;
           else slideEl.style.removeProperty("background");
-          const hasAreaStyle =
-            slideData?.areaStyle || Object.keys(slideData?.areaStyles || {}).length;
-          if (hasAreaStyle) slideEl.setAttribute("data-has-borders", "");
+          if (slideData?.areaStyle) slideEl.setAttribute("data-has-borders", "");
           else slideEl.removeAttribute("data-has-borders");
 
           const grid = slideEl.querySelector(".slide__grid");
