@@ -639,7 +639,7 @@ html = html.replace(
 // Trigger the shared enhancer for dist builds so all slides get Mermaid, Prism, and KaTeX.
 // ContentEnhancer is exposed to window by the bundled source (see src/renderer/content-enhancer.js).
 if (usesKatex || usesPrism || usesMermaid) {
-    const enhanceInitScript = '<script>window.addEventListener("DOMContentLoaded",function(){if(typeof ContentEnhancer!=="undefined"&&ContentEnhancer.enhanceRenderedContent){ContentEnhancer.enhanceRenderedContent(document.body,{renderAllSlides:!0,force:!0}).catch(function(e){console.warn("Enhancement error:",e)});}});</script>';
+    const enhanceInitScript = '<script>(function e(){if(document.readyState!=="loading"){if(typeof ContentEnhancer!=="undefined"&&ContentEnhancer.enhanceRenderedContent){ContentEnhancer.enhanceRenderedContent(document.body,{renderAllSlides:!0,force:!0}).catch(function(e){console.warn("Enhancement error:",e)});}}else{document.addEventListener("DOMContentLoaded",e);}})();</script>';
     html = html.replace(/<\/head>/i, `${enhanceInitScript}</head>`);
     console.log(`Added shared content enhancer initialization for ${[usesPrism && "Prism", usesKatex && "KaTeX", usesMermaid && "Mermaid"].filter(Boolean).join(", ")}`);
 }
