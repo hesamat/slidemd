@@ -18,6 +18,7 @@ export class HtmlExportManager {
     prismjs: "1.30.0",
     katex: "0.16.27",
     mermaid: "11.14.0",
+    dompurify: "3.4.12",
   };
 
   // Order of JS source files (same as build.mjs)
@@ -328,6 +329,7 @@ ${initScript}
 
     const prismVersion = await HtmlExportManager._getVendorVersion("prismjs", signal);
     const katexVersion = await HtmlExportManager._getVendorVersion("katex", signal);
+    const dompurifyVersion = await HtmlExportManager._getVendorVersion("dompurify", signal);
 
     // Helper to fetch JS with fallback
     const fetchJs = async (localPath, cdnUrl) => {
@@ -345,6 +347,15 @@ ${initScript}
     };
 
     let vendorScripts = "";
+
+    // DOMPurify is always inlined because slide-renderer.js sanitizes user HTML.
+    const dompurifyCdn = dompurifyVersion
+      ? `https://cdnjs.cloudflare.com/ajax/libs/dompurify/${dompurifyVersion}/purify.min.js`
+      : null;
+    const dompurifyJs = await fetchJs("node_modules/dompurify/dist/purify.js", dompurifyCdn);
+    if (dompurifyJs) {
+      vendorScripts += `/* DOMPurify */\n${dompurifyJs}\n`;
+    }
 
     // Check if we need Prism
     const needsPrism =

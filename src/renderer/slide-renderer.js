@@ -11,8 +11,6 @@ import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
 
-const purify = typeof window !== "undefined" ? createDOMPurify(window) : null;
-
 const PURIFY_CONFIG = {
   // SlideMD relies on inline styles, link targets, and data-attributes.
   // DOMPurify's default tag set already covers the structural HTML produced
@@ -20,7 +18,25 @@ const PURIFY_CONFIG = {
   ADD_ATTR: ["style", "target", "rel", "data-mermaid-source", "data-source-line"],
 };
 
+function getDOMPurify() {
+  // In the dev ESM build, the import is available and creates a sanitizer.
+  // In the self-contained HTML/PDF bundles the import is stripped, but the
+  // same DOMPurify library is loaded as a vendor global (window.DOMPurify).
+  if (typeof createDOMPurify !== "undefined") {
+    try {
+      return createDOMPurify(window);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof window !== "undefined" && window.DOMPurify) {
+    return window.DOMPurify;
+  }
+  return null;
+}
+
 function sanitizeAreaHtml(html) {
+  const purify = getDOMPurify();
   return purify ? purify.sanitize(html, PURIFY_CONFIG) : html;
 }
 
