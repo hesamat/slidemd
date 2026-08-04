@@ -122,9 +122,9 @@ export class AnthropicProviderClient {
       }
     }
 
-    if (_responseFormat?.type === "json_object" && system) {
-      system += system
-        ? "\n\nReturn only valid JSON and nothing else."
+    if (_responseFormat?.type === "json_object") {
+      system = system
+        ? `${system}\n\nReturn only valid JSON and nothing else.`
         : "Return only valid JSON and nothing else.";
     }
 

@@ -86,6 +86,8 @@ function guessReasoningForModel(modelId) {
 
 export class SettingsModal {
   static _currentBackdrop = null;
+  /** @type {string|null} — which provider the current cache belongs to */
+  static _cachedProvider = null;
   /** @type {Map<string, {supported_efforts: string[]|null, mandatory: boolean}>} */
   static _modelReasoningMap = new Map();
   /** @type {Map<string, number|null>} */
@@ -307,10 +309,8 @@ export class SettingsModal {
           card.classList.toggle(`${P}card--open`, open);
           body.hidden = !open;
           summaryEl.hidden = open;
-          if (open) {
-            // Refresh summary for next collapse
-            updateSummary();
-          }
+          // Always refresh summary so it's populated whether open or collapsed
+          updateSummary();
         };
         header.addEventListener("click", () => {
           open = !open;
@@ -489,6 +489,7 @@ export class SettingsModal {
           this._allModels = [];
           this._modelReasoningMap.clear();
           this._modelMaxOutputMap.clear();
+          this._cachedProvider = selectedProvider;
 
           for (const m of models) {
             const id = m.id || m.model || String(m);
@@ -527,6 +528,7 @@ export class SettingsModal {
         this._allModels = [];
         this._modelReasoningMap.clear();
         this._modelMaxOutputMap.clear();
+        this._cachedProvider = selectedProvider;
         selectedModel = this.getModel(selectedProvider);
         modelInput.value = selectedModel;
         updateModelSummary();
@@ -721,12 +723,20 @@ export class SettingsModal {
   }
 
   static async #populateOpenRouterModels(onLoaded) {
-    if (this._allModels.length > 0) {
+    const provider = this.getProvider();
+
+    // Only reuse the cache if it belongs to the same provider
+    if (this._allModels.length > 0 && this._cachedProvider === provider) {
       onLoaded?.();
       return;
     }
 
-    const provider = this.getProvider();
+    // Reset cache for the new provider
+    this._cachedProvider = provider;
+    this._allModels = [];
+    this._modelReasoningMap.clear();
+    this._modelMaxOutputMap.clear();
+
     const saved = this.getModel(provider);
     this._allModels = [{ id: saved, name: saved }];
 

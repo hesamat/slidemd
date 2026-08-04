@@ -19,7 +19,7 @@ describe("GeminiProviderClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends the content to /v1beta/models/{model}:generateContent with the API key", async () => {
+  it("sends the content to /v1beta/models/{model}:generateContent with the API key in header", async () => {
     globalThis.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -48,11 +48,12 @@ describe("GeminiProviderClient", () => {
     expect(res.raw.finish_reason).toBe("stop");
     expect(res.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
 
-    const [url] = globalThis.fetch.mock.calls[0];
+    const [url, opts] = globalThis.fetch.mock.calls[0];
     expect(url).toContain("models/gemini-2.0-flash:generateContent");
-    expect(url).toContain("?key=AIzaGeminiKey");
+    expect(url).not.toContain("?key=");
+    expect(opts.headers["x-goog-api-key"]).toBe("AIzaGeminiKey");
 
-    const { body } = globalThis.fetch.mock.calls[0][1];
+    const { body } = opts;
     const parsed = JSON.parse(body);
     expect(parsed.systemInstruction).toEqual({ parts: [{ text: "You are helpful." }] });
     expect(parsed.contents).toEqual([{ role: "user", parts: [{ text: "hi" }] }]);

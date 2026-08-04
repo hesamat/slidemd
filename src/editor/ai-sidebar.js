@@ -399,11 +399,12 @@ export class AiSidebar {
     const { provider, modelMaxOutput, useReasoning, effort, statusEl, noticeEl, isCancelled } =
       opts;
 
-    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
+    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown, splitSlides } =
       await import("../data/ai-enhancer.js");
 
     const validator = new AiOutputValidator({ inputMarkdown: markdown });
     const maxAttempts = mode === "fix" ? 3 : 1;
+    const expectedSlideCount = mode === "fix" ? splitSlides(markdown, mode).length : null;
     let lastErrors = [];
 
     const { system, user } = buildMessages(markdown, mode);
@@ -444,7 +445,8 @@ export class AiSidebar {
           return null;
         }
 
-        const finishReason = response.raw?.choices?.[0]?.finish_reason;
+        const finishReason =
+          response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
         if (finishReason === "length") {
           const limitDisplay = modelMaxOutput
             ? `${modelMaxOutput.toLocaleString()} tokens`
@@ -463,7 +465,7 @@ export class AiSidebar {
         }
 
         const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-        const result = validator.validate(enhancedMarkdown, mode);
+        const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
 
         if (result.ok) {
           if (result.warnings.length > 0) {
@@ -574,7 +576,7 @@ export class AiSidebar {
       );
 
       const contentText = response.content;
-      const finishReason = response.raw?.choices?.[0]?.finish_reason;
+      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
       const duration = (performance.now() - startTime) / 1000;
 
       if (finishReason === "length") {
@@ -588,7 +590,10 @@ export class AiSidebar {
 
       const enhancedMarkdown = slidesToMarkdown(parsed.slides);
       const validator = new AiOutputValidator({ inputMarkdown: batchMarkdown });
-      const result = validator.validate(enhancedMarkdown, mode);
+      const expectedCount = mode === "fix" ? batch.end - batch.start : null;
+      const result = validator.validate(enhancedMarkdown, mode, {
+        expectedSlideCount: expectedCount,
+      });
 
       if (!result.ok) {
         const repairMsg = buildRepairMessage(result.errors);

@@ -39,7 +39,7 @@ export class GeminiProviderClient {
 
     const baseUrl = (this._getBaseUrl() || "").replace(/\/+$/, "");
     const model = this._getModel();
-    const url = `${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url = `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`;
 
     const { systemInstruction, contents } = this._mapMessages(messages);
     const generationConfig = { maxOutputTokens: maxTokens };
@@ -55,7 +55,10 @@ export class GeminiProviderClient {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify(body),
         signal,
       });

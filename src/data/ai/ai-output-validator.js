@@ -1,5 +1,6 @@
 import { MarkdownParser } from "../markdown-parser.js";
 import { LayoutData } from "../layout-data.js";
+import { LayoutParser } from "../layout-parser.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -31,9 +32,11 @@ export class AiOutputValidator {
   /**
    * @param {string} outputMarkdown
    * @param {string} intent
+   * @param {object} [opts]
+   * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
    * @returns {ValidationResult}
    */
-  validate(outputMarkdown, intent) {
+  validate(outputMarkdown, intent, opts = {}) {
     const schema = getSchema(intent);
     const errors = [];
     const warnings = [];
@@ -67,19 +70,28 @@ export class AiOutputValidator {
       }
     }
 
-    if (slides.length < schema.minSlides) {
+    // When an exact slide count is expected (fix mode batch), enforce it
+    if (opts.expectedSlideCount != null && slides.length !== opts.expectedSlideCount) {
       errors.push({
         slide: -1,
-        code: "TOO_FEW_SLIDES",
-        message: `Expected at least ${schema.minSlides} slide(s), got ${slides.length}`,
+        code: "SLIDE_COUNT_MISMATCH",
+        message: `Expected ${opts.expectedSlideCount} slide(s), got ${slides.length}`,
       });
-    }
-    if (schema.maxSlides !== null && slides.length > schema.maxSlides) {
-      errors.push({
-        slide: -1,
-        code: "TOO_MANY_SLIDES",
-        message: `Expected at most ${schema.maxSlides} slide(s), got ${slides.length}`,
-      });
+    } else {
+      if (slides.length < schema.minSlides) {
+        errors.push({
+          slide: -1,
+          code: "TOO_FEW_SLIDES",
+          message: `Expected at least ${schema.minSlides} slide(s), got ${slides.length}`,
+        });
+      }
+      if (schema.maxSlides !== null && slides.length > schema.maxSlides) {
+        errors.push({
+          slide: -1,
+          code: "TOO_MANY_SLIDES",
+          message: `Expected at most ${schema.maxSlides} slide(s), got ${slides.length}`,
+        });
+      }
     }
 
     for (let i = 0; i < slides.length; i++) {
@@ -92,7 +104,7 @@ export class AiOutputValidator {
           message: `Slide ${i + 1} has no layout directive`,
         });
       }
-      if (slide.layout && !LayoutData.hasLayout(slide.layout)) {
+      if (slide.layout && !this._isValidLayout(slide.layout)) {
         errors.push({
           slide: i,
           code: "UNKNOWN_LAYOUT",
@@ -101,7 +113,7 @@ export class AiOutputValidator {
       }
 
       if (schema.checkAreaValidity && slide.layout) {
-        const allowedAreas = LayoutData.getAreaNames(slide.layout);
+        const allowedAreas = this._getLayoutAreas(slide.layout);
         const usedAreas = slide._markerNames || Object.keys(slide.areas || {});
         for (const area of usedAreas) {
           if (!allowedAreas.includes(area)) {
@@ -120,6 +132,47 @@ export class AiOutputValidator {
     }
 
     return { ok: errors.length === 0, errors, warnings, slides };
+  }
+
+  /**
+   * Check if a layout is valid: either a known preset/custom name, or a
+   * parseable CSS grid template string (e.g. `"header header" "main media" / 1fr 1fr`).
+   * @param {string} layoutName
+   * @returns {boolean}
+   */
+  _isValidLayout(layoutName) {
+    if (LayoutData.hasLayout(layoutName)) return true;
+    // A grid template string contains quoted row definitions
+    if (/["'].*["']/.test(layoutName)) {
+      try {
+        const parsed = LayoutParser.parse(layoutName);
+        return parsed.orderedAreas.length > 0;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get the area names for a layout, handling both preset names and
+   * inline grid template strings.
+   * @param {string} layoutName
+   * @returns {string[]}
+   */
+  _getLayoutAreas(layoutName) {
+    if (LayoutData.hasLayout(layoutName)) {
+      return LayoutData.getAreaNames(layoutName);
+    }
+    if (/["'].*["']/.test(layoutName)) {
+      try {
+        const parsed = LayoutParser.parse(layoutName);
+        return parsed.orderedAreas;
+      } catch {
+        return ["main"];
+      }
+    }
+    return LayoutData.getAreaNames(layoutName);
   }
 
   /**

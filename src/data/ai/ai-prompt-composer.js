@@ -23,8 +23,12 @@ export class AiPromptComposer {
     let user = this._user;
     for (const [key, value] of Object.entries(substitutions)) {
       const placeholder = `{{${key}}}`;
-      system = system.replaceAll(placeholder, value);
-      user = user.replaceAll(placeholder, value);
+      // Use a function replacement to avoid String.replaceAll's special
+      // substitution patterns ($$, $&, $`, $') which corrupt dollar signs
+      // in deck content (e.g. $$...$$ math delimiters).
+      const replacement = () => value;
+      system = system.replaceAll(placeholder, replacement);
+      user = user.replaceAll(placeholder, replacement);
     }
     return { system, user };
   }
