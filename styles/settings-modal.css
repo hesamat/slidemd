@@ -30,10 +30,10 @@
 
 /* ── Cards ── */
 .settings-modal__card {
-  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.12));
   border-radius: 8px;
   margin-bottom: 8px;
-  background: var(--surface-hover, #f7f7f8);
+  background: var(--surface-bg, #fff);
   overflow: hidden;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .settings-modal__card-header:hover {
-  background: var(--border-light, rgba(0, 0, 0, 0.06));
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .settings-modal__chevron {
