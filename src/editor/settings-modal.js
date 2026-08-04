@@ -1,7 +1,7 @@
 /**
  * SettingsModal
  *
- * Modal for configuring AI settings (API key, model selection, reasoning).
+ * Modal for configuring AI settings (API key, model selection, reasoning, provider, base URL).
  * Settings are stored in sessionStorage by default (cleared when tab closes).
  * An optional "Remember key" checkbox promotes the key to localStorage.
  */
@@ -10,10 +10,21 @@ const STORAGE_KEY_API = "webdeck_openrouter_api_key";
 const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
 const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
 const STORAGE_KEY_EFFORT = "webdeck_openrouter_effort";
+const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
+const STORAGE_KEY_PROVIDER = "webdeck_ai_provider";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const DEFAULT_EFFORT = "high";
+const DEFAULT_PROVIDER = "OpenRouter";
+const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 const P = "settings-modal__";
+
+const PROVIDER_DEFAULTS = {
+  OpenRouter: "https://openrouter.ai/api/v1",
+  Ollama: "http://localhost:11434/v1",
+  "LM Studio": "http://localhost:1234/v1",
+  Custom: "",
+};
 
 export class SettingsModal {
   static _currentBackdrop = null;
@@ -67,6 +78,22 @@ export class SettingsModal {
     }
   }
 
+  static getBaseUrl() {
+    try {
+      return localStorage.getItem(STORAGE_KEY_BASE_URL) || DEFAULT_BASE_URL;
+    } catch {
+      return DEFAULT_BASE_URL;
+    }
+  }
+
+  static getProvider() {
+    try {
+      return localStorage.getItem(STORAGE_KEY_PROVIDER) || DEFAULT_PROVIDER;
+    } catch {
+      return DEFAULT_PROVIDER;
+    }
+  }
+
   static modelSupportsReasoning(modelId) {
     const info = this._modelReasoningMap.get(modelId);
     if (!info) return false;
@@ -108,7 +135,7 @@ export class SettingsModal {
   /**
    * Show the settings modal.
    * @static
-   * @returns {Promise<{ apiKey: string, model: string, reasoning: boolean, effort: string }|null>}
+   * @returns {Promise<{ apiKey: string, model: string, reasoning: boolean, effort: string, baseUrl: string, provider: string }|null>}
    */
   static async show() {
     return new Promise((resolve) => {
@@ -123,9 +150,13 @@ export class SettingsModal {
       };
 
       const apiKeyInput = backdrop.querySelector('[data-field="api-key"]');
+      const providerSelect = backdrop.querySelector('[data-field="provider"]');
+      const baseUrlInput = backdrop.querySelector('[data-field="base-url"]');
+      const baseOverrideCheckbox = backdrop.querySelector('[data-field="base-override"]');
       const modelInput = backdrop.querySelector(`.${P}model-input`);
       const modelDropdown = backdrop.querySelector(`.${P}model-dropdown`);
       const modelList = backdrop.querySelector(`.${P}model-list`);
+      const fetchModelsBtn = backdrop.querySelector('[data-action="fetch-models"]');
       const rememberCheckbox = backdrop.querySelector('[data-field="remember"]');
       const reasoningCheckbox = backdrop.querySelector('[data-field="reasoning"]');
       const reasoningHint = backdrop.querySelector(`.${P}reasoning-hint`);
@@ -140,9 +171,14 @@ export class SettingsModal {
 
       // State
       let selectedModel = this.getModel();
+      let selectedProvider = this.getProvider();
+      let selectedBaseUrl = this.getBaseUrl();
+      let baseOverridden = false;
 
       // Load saved values
       apiKeyInput.value = this.getApiKey();
+      providerSelect.value = selectedProvider;
+      baseUrlInput.value = selectedBaseUrl;
       modelInput.value = selectedModel;
       effortSelect.value = this.getEffort();
 
@@ -154,6 +190,26 @@ export class SettingsModal {
         // ignore
       }
       rememberCheckbox.checked = remembered;
+
+      const updateBaseUrlEditability = () => {
+        const editable = selectedProvider === "Custom" || baseOverridden;
+        baseUrlInput.readOnly = !editable;
+        baseUrlInput.classList.toggle(`${P}input--readonly`, !editable);
+      };
+
+      const applyProviderDefaults = () => {
+        if (selectedProvider === "Custom") {
+          baseOverridden = true;
+          baseOverrideCheckbox.checked = true;
+          baseUrlInput.value = selectedBaseUrl;
+        } else if (!baseOverridden) {
+          baseUrlInput.value = PROVIDER_DEFAULTS[selectedProvider] || "";
+        }
+        selectedBaseUrl = baseUrlInput.value;
+        updateBaseUrlEditability();
+      };
+
+      const isOpenRouter = () => selectedProvider === "OpenRouter";
 
       // --- Model search dropdown ---
       const filterModels = (query) => {
@@ -196,23 +252,10 @@ export class SettingsModal {
         modelList.appendChild(fragment);
       };
 
-      modelInput.addEventListener("focus", () => {
-        modelInput.value = "";
+      const openDropdown = () => {
         modelDropdown.hidden = false;
         dialog.style.overflowY = "hidden";
-        filterModels("");
-      });
-
-      modelInput.addEventListener("input", () => {
-        modelDropdown.hidden = false;
-        dialog.style.overflowY = "hidden";
-        filterModels(modelInput.value);
-      });
-
-      modelInput.addEventListener("blur", () => {
-        // Restore selected model name when not searching
-        modelInput.value = selectedModel;
-      });
+      };
 
       const closeDropdown = () => {
         modelDropdown.hidden = true;
@@ -220,20 +263,6 @@ export class SettingsModal {
         modelInput.value = selectedModel;
       };
 
-      // Prevent clicks and wheel inside dropdown from propagating to dialog/backdrop
-      modelDropdown.addEventListener("click", (e) => e.stopPropagation());
-      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
-
-      // Close dropdown on click anywhere (dialog or backdrop)
-      const handleOutsideClick = (e) => {
-        if (!modelInput.contains(e.target) && !modelDropdown.contains(e.target)) {
-          closeDropdown();
-        }
-      };
-      dialog.addEventListener("click", handleOutsideClick);
-      backdrop.addEventListener("click", handleOutsideClick);
-
-      // --- Reasoning state ---
       const updateReasoningState = () => {
         const supports = this.modelSupportsReasoning(selectedModel);
         reasoningCheckbox.disabled = !supports;
@@ -260,14 +289,134 @@ export class SettingsModal {
         }
       };
 
-      // --- Populate models ---
-      this.#populateModels(() => {
-        filterModels("");
-        const savedReasoning = this.getReasoning();
-        const supports = this.modelSupportsReasoning(selectedModel);
-        reasoningCheckbox.checked = savedReasoning && supports;
-        updateReasoningState();
+      const fetchModels = async () => {
+        fetchModelsBtn.disabled = true;
+        errorEl.hidden = true;
+        try {
+          const baseUrl = (selectedBaseUrl || "").replace(/\/+$/, "");
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(`${baseUrl}/models`, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const models = Array.isArray(data.data)
+            ? data.data
+            : Array.isArray(data.models)
+              ? data.models
+              : Array.isArray(data)
+                ? data
+                : [];
+
+          this._allModels = [];
+          this._modelReasoningMap.clear();
+          this._modelMaxOutputMap.clear();
+
+          for (const m of models) {
+            const id = m.id || m.model || String(m);
+            const name = m.name || id;
+            this._allModels.push({ id, name });
+            if (m.reasoning) {
+              this._modelReasoningMap.set(id, {
+                supported_efforts: m.reasoning.supported_efforts || null,
+                mandatory: m.reasoning.mandatory || false,
+              });
+            }
+            this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
+          }
+
+          if (this._allModels.length === 0) {
+            throw new Error("No models returned");
+          }
+
+          openDropdown();
+          filterModels("");
+        } catch (err) {
+          errorEl.textContent = `Could not fetch models: ${err.message}`;
+          errorEl.hidden = false;
+        } finally {
+          fetchModelsBtn.disabled = false;
+        }
+      };
+
+      // Provider / base URL handlers
+      providerSelect.addEventListener("change", () => {
+        selectedProvider = providerSelect.value;
+        applyProviderDefaults();
       });
+
+      baseOverrideCheckbox.addEventListener("change", () => {
+        baseOverridden = baseOverrideCheckbox.checked;
+        updateBaseUrlEditability();
+        if (!baseOverridden) {
+          baseUrlInput.value = PROVIDER_DEFAULTS[selectedProvider] || "";
+          selectedBaseUrl = baseUrlInput.value;
+        }
+      });
+
+      baseUrlInput.addEventListener("input", () => {
+        selectedBaseUrl = baseUrlInput.value.trim();
+      });
+
+      fetchModelsBtn.addEventListener("click", () => {
+        fetchModels();
+      });
+
+      // --- Model input interactions ---
+      modelInput.addEventListener("focus", () => {
+        if (isOpenRouter()) {
+          modelInput.value = "";
+          openDropdown();
+          filterModels("");
+        }
+      });
+
+      modelInput.addEventListener("input", () => {
+        if (isOpenRouter()) {
+          openDropdown();
+          filterModels(modelInput.value);
+        } else {
+          selectedModel = modelInput.value.trim();
+          updateReasoningState();
+        }
+      });
+
+      modelInput.addEventListener("blur", () => {
+        // Restore selected model name when not searching
+        modelInput.value = selectedModel;
+      });
+
+      // Prevent clicks and wheel inside dropdown from propagating to dialog/backdrop
+      modelDropdown.addEventListener("click", (e) => e.stopPropagation());
+      modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
+
+      // Close dropdown on click anywhere (dialog or backdrop)
+      const handleOutsideClick = (e) => {
+        if (
+          !modelInput.contains(e.target) &&
+          !modelDropdown.contains(e.target) &&
+          !fetchModelsBtn.contains(e.target)
+        ) {
+          closeDropdown();
+        }
+      };
+      dialog.addEventListener("click", handleOutsideClick);
+      backdrop.addEventListener("click", handleOutsideClick);
+
+      // --- Populate models for OpenRouter ---
+      if (isOpenRouter()) {
+        this.#populateOpenRouterModels(() => {
+          filterModels("");
+          const savedReasoning = this.getReasoning();
+          const supports = this.modelSupportsReasoning(selectedModel);
+          reasoningCheckbox.checked = savedReasoning && supports;
+          updateReasoningState();
+        });
+      } else {
+        updateReasoningState();
+      }
+
+      applyProviderDefaults();
 
       const showError = (msg) => {
         errorEl.textContent = msg;
@@ -280,8 +429,8 @@ export class SettingsModal {
         const reasoning = reasoningCheckbox.checked && this.modelSupportsReasoning(selectedModel);
         const effort = effortSelect.value || DEFAULT_EFFORT;
 
-        if (!apiKey) {
-          showError("API key is required");
+        if (!apiKey && selectedProvider === "OpenRouter") {
+          showError("API key is required for OpenRouter");
           return;
         }
 
@@ -290,6 +439,9 @@ export class SettingsModal {
           sessionStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
           sessionStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
           sessionStorage.setItem(STORAGE_KEY_EFFORT, effort);
+
+          localStorage.setItem(STORAGE_KEY_BASE_URL, selectedBaseUrl);
+          localStorage.setItem(STORAGE_KEY_PROVIDER, selectedProvider);
 
           if (remember) {
             localStorage.setItem(STORAGE_KEY_API, apiKey);
@@ -311,7 +463,14 @@ export class SettingsModal {
         restoreScroll();
         backdrop.remove();
         this._currentBackdrop = null;
-        resolve({ apiKey, model: selectedModel, reasoning, effort });
+        resolve({
+          apiKey,
+          model: selectedModel,
+          reasoning,
+          effort,
+          baseUrl: selectedBaseUrl,
+          provider: selectedProvider,
+        });
       });
 
       cancelBtn.addEventListener("click", () => {
@@ -332,7 +491,7 @@ export class SettingsModal {
     });
   }
 
-  static async #populateModels(onLoaded) {
+  static async #populateOpenRouterModels(onLoaded) {
     if (this._allModels.length > 0) {
       onLoaded?.();
       return;
@@ -342,24 +501,27 @@ export class SettingsModal {
     this._allModels = [{ id: saved, name: saved }];
 
     try {
+      const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch("https://openrouter.ai/api/v1/models", { signal: controller.signal });
+      const res = await fetch(`${baseUrl}/models`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) return;
       const data = await res.json();
-      const models = data.data || [];
+      const models = Array.isArray(data.data) ? data.data : [];
 
       this._allModels = [];
       for (const m of models) {
-        this._allModels.push({ id: m.id, name: m.name || m.id });
+        const id = m.id || m.model || String(m);
+        const name = m.name || id;
+        this._allModels.push({ id, name });
         if (m.reasoning) {
-          this._modelReasoningMap.set(m.id, {
+          this._modelReasoningMap.set(id, {
             supported_efforts: m.reasoning.supported_efforts || null,
             mandatory: m.reasoning.mandatory || false,
           });
         }
-        this._modelMaxOutputMap.set(m.id, m.top_provider?.max_completion_tokens ?? null);
+        this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
       }
 
       // Ensure saved model is in the list
@@ -398,6 +560,29 @@ export class SettingsModal {
         />
         <span class="${P}hint">Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></span>
 
+        <label class="${P}label" for="${P}provider">Provider</label>
+        <select id="${P}provider" class="${P}select" data-field="provider">
+          <option>OpenRouter</option>
+          <option>Ollama</option>
+          <option>LM Studio</option>
+          <option>Custom</option>
+        </select>
+
+        <div class="${P}base-row">
+          <label class="${P}label" for="${P}base-url">Base URL</label>
+          <input
+            id="${P}base-url"
+            class="${P}input"
+            type="text"
+            data-field="base-url"
+            placeholder="https://..."
+          />
+          <label class="${P}remember-row">
+            <input type="checkbox" data-field="base-override" />
+            <span>Override base URL</span>
+          </label>
+        </div>
+
         <label class="${P}label">Model</label>
         <div class="${P}model-wrapper">
           <input
@@ -406,6 +591,7 @@ export class SettingsModal {
             placeholder="Type to search models..."
             autocomplete="off"
           />
+          <button type="button" data-action="fetch-models" class="${P}btn ${P}btn--secondary">Fetch models</button>
           <div class="${P}model-dropdown" hidden>
             <div class="${P}model-list"></div>
           </div>

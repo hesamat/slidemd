@@ -1,13 +1,48 @@
 /**
  * AI Enhancer
  *
- * Post-processes PPTX-imported markdown using AI via OpenRouter.
- * Uses JSON-structured output for reliable parsing.
+ * Post-processes PPTX-imported markdown using AI.
+ * Composes prompts from fragments and exposes the new stateless AI modules.
  */
 
+import { LayoutData } from "./layout-data.js";
+import { AiPromptComposer } from "./ai/ai-prompt-composer.js";
 import systemPrompt from "./prompts/system-prompt.md?raw";
 import fixPrompt from "./prompts/fix-prompt.md?raw";
 import generatePrompt from "./prompts/generate-prompt.md?raw";
+
+export { AiProviderClient } from "./ai/ai-provider-client.js";
+export { AiOutputValidator } from "./ai/ai-output-validator.js";
+export { AiPromptComposer } from "./ai/ai-prompt-composer.js";
+export { buildRepairMessage } from "./ai/ai-repair-message.js";
+
+const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
+
+function areaStatus(layout, area, allowedAreas) {
+  if (!allowedAreas.includes(area)) return "no";
+  if (area === "title") return "yes";
+  if (area === "main") return "yes";
+  if (area === "media" || area === "secondary" || area === "sidebar") return "yes";
+  if (area === "header" || area === "footer") {
+    return layout === "title-slide" && area === "footer" ? "yes" : "optional";
+  }
+  return "yes";
+}
+
+export function getAllowedLayoutList() {
+  const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
+  const rows = ["| Layout | @title | @header | @main | @media | @secondary | @sidebar | @footer |"];
+  rows.push("|---|---|---|---|---|---|---|---|");
+  for (const layout of layouts) {
+    const allowedAreas = LayoutData.getAreaNames(layout);
+    const cells = [layout];
+    for (const area of ALLOWED_AREAS) {
+      cells.push(areaStatus(layout, area, allowedAreas));
+    }
+    rows.push(`| ${cells.join(" | ")} |`);
+  }
+  return rows.join("\n");
+}
 
 /**
  * Convert JSON slides back to SlideMD markdown.
@@ -196,13 +231,12 @@ function stripFrontmatter(markdown, mode) {
  */
 export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
-  return {
-    system: systemPrompt,
-    user:
-      mode === "fix"
-        ? fixPrompt.replace("{{markdown}}", cleaned)
-        : generatePrompt.replace("{{markdown}}", cleaned),
-  };
+  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fragment,
+  });
+  return composer.compose({ markdown: cleaned, layoutList: getAllowedLayoutList() });
 }
 
 /**
@@ -285,7 +319,16 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
     contentForPrompt = chunk;
   }
 
-  const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
+  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fragment,
+  });
+  const { system, user } = composer.compose({
+    markdown: contentForPrompt,
+    layoutList: getAllowedLayoutList(),
+  });
+
   const paginationInstruction =
     mode === "fix"
       ? `\n\nCRITICAL: You must return EXACTLY ${actualCount} slide(s) — one for each "SLIDE INDEX" comment in the input (indices ${startIdx} through ${endIdx - 1}). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.`
@@ -295,8 +338,8 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
     mode === "generate" && deckSummary ? `Deck Context:\n${deckSummary}\n\nInput markdown:\n` : "";
 
   return {
-    system: systemPrompt,
-    user: userPrefix + basePrompt.replace("{{markdown}}", contentForPrompt) + paginationInstruction,
+    system,
+    user: userPrefix + user + paginationInstruction,
     original: markdown,
   };
 }
@@ -449,25 +492,4 @@ export function extractHeadings(markdown) {
     const match = slide.match(/^##?\s+(.+)/m);
     return match?.[1]?.trim() || "";
   });
-}
-
-/**
- * Validate AI fix output against original slides.
- * Checks slide count only — layouts are restored post-AI by restoreDirectives.
- *
- * @param {{ layout: string, background?: string, theme?: string }[]} originalDirectives - Original per-slide directives
- * @param {{ layout: string, content: string }[]} fixedSlides - AI output slides (JSON)
- * @returns {{ valid: boolean, errors: string[] }}
- */
-export function validateFixOutput(originalDirectives, fixedSlides) {
-  const errors = [];
-
-  // Slide count
-  if (originalDirectives.length !== fixedSlides.length) {
-    errors.push(
-      `Slide count mismatch: ${originalDirectives.length} input → ${fixedSlides.length} output`,
-    );
-  }
-
-  return { valid: errors.length === 0, errors };
 }

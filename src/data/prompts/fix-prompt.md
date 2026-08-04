@@ -1,69 +1,16 @@
-Fix SlideMD markdown extracted from PPTX. Return the result as JSON.
+Fix the provided SlideMD markdown. Return the result as JSON.
 
-## Your Task
+What to fix:
 
-Clean up structural and formatting issues that occurred during extraction. Preserve the input layout when it's appropriate for the content, but fix layouts when they're clearly broken or mismatched.
-
-## What to Fix
-
-### Layouts
-
-Preserve the input layout unless it's broken. Fix layouts when:
-
-- `media-span` is used but there are no images — downgrade to `header-content`
-- `two-column` has an empty `@media` column — downgrade to `header-content`
-- Content clearly doesn't fit the layout (e.g., a table crammed into a single-column layout that should be two-column)
-- The layout contradicts the content structure
-
-When changing a layout, choose the simplest layout that fits the content.
-
-### Code Blocks
-
-- Rejoin code lines that were split across extraction boundaries
-- Restore blank lines between functions, classes, and logical sections
-- Add language tags where the code language is clear
-- Fix indentation lost during extraction
-- Remove extra backticks or stray fence markers
-
-### Text Formatting
-
-- Remove bold wrapping from headings (e.g. "**AGENDA**" → "AGENDA")
-- Fix broken links, lists, and tables
-- Remove duplicate blank lines and trailing whitespace
-
-### Diagrams
-
-- Convert [Diagram: ...] markers to Mermaid only when they represent true flowcharts or processes
-- Use bullet points for simple lists
-
-### Images
-
-- Preserve every `<img src="images/...">` and `background: url(images/...)` exactly as they appear.
-- Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or any other form.
-- Keep image filenames, dimensions, and alt text unchanged.
-
-### Text Blocks
-
-- Preserve `::: text-block { ... }` containers exactly as they appear.
-- Keep `column-count=N` and all other attributes unchanged.
-- Do NOT flatten the inner list into plain lines.
-
-## Output Format
-
-Return one JSON object per slide with:
-
-- "layout": the appropriate layout for the content
-- "content": the cleaned content
-
-## Self-Check
-
-Before outputting, verify:
-
-- Slide count matches the input
-- Each layout fits its content
-- Headings match the input
-- Code blocks have proper spacing
-- JSON is valid
+- Rejoin split code lines and add language tags where the language is clear.
+- Restore blank lines between functions, classes, and logical sections.
+- Remove bold wrapping from headings.
+- Fix broken links, lists, and tables.
+- Remove duplicate blank lines and trailing whitespace.
+- Convert `[Diagram: ...]` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Fix mismatched layouts: downgrade `media-span` or `two-column` when there is no image or an empty second column.
+- Do not change heading levels.
+- Do not add or remove slides.
 
 Input markdown:
 {{markdown}}

@@ -52,6 +52,15 @@
   outline-offset: -1px;
 }
 
+.settings-modal__input--readonly {
+  background: var(--surface-hover, #f0f0f0);
+  cursor: not-allowed;
+}
+
+.settings-modal__base-row {
+  margin: 8px 0 12px;
+}
+
 .settings-modal__hint {
   display: block;
   font-size: 12px;
