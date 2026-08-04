@@ -1,12 +1,18 @@
 /**
  * SettingsModal
  *
- * Modal for configuring AI settings (API key, model selection, reasoning, provider, base URL).
- * Settings are stored in sessionStorage by default (cleared when tab closes).
- * An optional "Remember key" checkbox promotes the key to localStorage.
+ * Two-card settings modal:
+ * - Connection card: provider, API key, base URL. Collapses to a status
+ *   summary when configured; click Edit to expand.
+ * - Model card: model selection, reasoning, effort. Always visible.
+ * - Advanced section: remember key. Collapsed by default.
+ *
+ * API keys are stored per-provider so switching providers doesn't lose keys.
+ * Keys live in sessionStorage by default; "Remember key" promotes to localStorage.
  */
 
-const STORAGE_KEY_API = "webdeck_openrouter_api_key";
+import { OPENCODE_MODELS, OPENCODE_BASE_URL } from "../data/ai/opencode-models.js";
+
 const STORAGE_KEY_MODEL = "webdeck_openrouter_model";
 const STORAGE_KEY_REASONING = "webdeck_openrouter_reasoning";
 const STORAGE_KEY_EFFORT = "webdeck_openrouter_effort";
@@ -19,17 +25,30 @@ const DEFAULT_PROVIDER = "OpenRouter";
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 const P = "settings-modal__";
 
+// Legacy key — used for one-time migration to per-provider storage
+const LEGACY_KEY_API = "webdeck_openrouter_api_key";
+
 const PROVIDER_DEFAULTS = {
   OpenRouter: "https://openrouter.ai/api/v1",
   OpenAI: "https://api.openai.com/v1",
   Anthropic: "https://api.anthropic.com",
   Gemini: "https://generativelanguage.googleapis.com/v1beta",
+  OpenCode: OPENCODE_BASE_URL,
   Ollama: "http://localhost:11434/v1",
   "LM Studio": "http://localhost:1234/v1",
   Custom: "",
 };
 
-const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
+const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini", "OpenCode"]);
+
+/**
+ * Get the per-provider storage key for an API key.
+ * @param {string} provider
+ * @returns {string}
+ */
+function providerKeyStorageKey(provider) {
+  return `webdeck_ai_key_${provider.toLowerCase().replace(/\s+/g, "_")}`;
+}
 
 export class SettingsModal {
   static _currentBackdrop = null;
@@ -40,9 +59,23 @@ export class SettingsModal {
   /** @type {Array<{id: string, name: string}>} */
   static _allModels = [];
 
-  static getApiKey() {
+  /**
+   * Get the API key for a specific provider (or the current provider).
+   * @param {string} [provider] — defaults to current provider
+   * @returns {string}
+   */
+  static getApiKey(provider) {
+    const prov = provider || this.getProvider();
+    const key = providerKeyStorageKey(prov);
     try {
-      return sessionStorage.getItem(STORAGE_KEY_API) || localStorage.getItem(STORAGE_KEY_API) || "";
+      return (
+        sessionStorage.getItem(key) ||
+        localStorage.getItem(key) ||
+        // Migrate from legacy key (only for the default/OpenRouter provider)
+        (prov === DEFAULT_PROVIDER
+          ? sessionStorage.getItem(LEGACY_KEY_API) || localStorage.getItem(LEGACY_KEY_API) || ""
+          : "")
+      );
     } catch {
       return "";
     }
@@ -125,9 +158,13 @@ export class SettingsModal {
 
   static clearKey() {
     try {
-      sessionStorage.removeItem(STORAGE_KEY_API);
-      localStorage.removeItem(STORAGE_KEY_API);
+      const prov = this.getProvider();
+      const key = providerKeyStorageKey(prov);
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
       localStorage.removeItem(REMEMBER_KEY);
+      sessionStorage.removeItem(LEGACY_KEY_API);
+      localStorage.removeItem(LEGACY_KEY_API);
     } catch {
       // ignore
     }
@@ -139,6 +176,17 @@ export class SettingsModal {
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
     }
+  }
+
+  /**
+   * Mask an API key for display, showing only the last 4 characters.
+   * @param {string} key
+   * @returns {string}
+   */
+  static #maskKey(key) {
+    if (!key) return "";
+    if (key.length <= 4) return "••••";
+    return "•".repeat(Math.min(20, key.length - 4)) + key.slice(-4);
   }
 
   /**
@@ -158,23 +206,42 @@ export class SettingsModal {
         document.body.style.overflow = prevOverflow;
       };
 
-      const apiKeyInput = backdrop.querySelector('[data-field="api-key"]');
-      const providerSelect = backdrop.querySelector('[data-field="provider"]');
-      const baseUrlInput = backdrop.querySelector('[data-field="base-url"]');
-      const baseOverrideCheckbox = backdrop.querySelector('[data-field="base-override"]');
-      const modelInput = backdrop.querySelector(`.${P}model-input`);
-      const modelDropdown = backdrop.querySelector(`.${P}model-dropdown`);
-      const modelList = backdrop.querySelector(`.${P}model-list`);
-      const fetchModelsBtn = backdrop.querySelector('[data-action="fetch-models"]');
-      const rememberCheckbox = backdrop.querySelector('[data-field="remember"]');
-      const reasoningCheckbox = backdrop.querySelector('[data-field="reasoning"]');
-      const reasoningHint = backdrop.querySelector(`.${P}reasoning-hint`);
-      const effortRow = backdrop.querySelector(`.${P}effort-row`);
-      const effortSelect = backdrop.querySelector('[data-field="effort"]');
-      const saveBtn = backdrop.querySelector('[data-action="save"]');
-      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
       const dialog = backdrop.querySelector(`.${P}dialog`);
       const errorEl = backdrop.querySelector(`.${P}error`);
+
+      // --- Connection card ---
+      const connCard = backdrop.querySelector(`.${P}card--connection`);
+      const connHeader = connCard.querySelector(`.${P}card-header`);
+      const connBody = connCard.querySelector(`.${P}card-body`);
+      const connSummary = connCard.querySelector(`.${P}card-summary-text`);
+      const connStatus = connCard.querySelector(`.${P}card-status`);
+
+      const providerSelect = connBody.querySelector('[data-field="provider"]');
+      const apiKeyInput = connBody.querySelector('[data-field="api-key"]');
+      const baseUrlInput = connBody.querySelector('[data-field="base-url"]');
+      const baseOverrideCheckbox = connBody.querySelector('[data-field="base-override"]');
+
+      // --- Model card ---
+      const modelCard = backdrop.querySelector(`.${P}card--model`);
+      const modelHeader = modelCard.querySelector(`.${P}card-header`);
+      const modelBody = modelCard.querySelector(`.${P}card-body`);
+      const modelSummary = modelCard.querySelector(`.${P}card-summary-text`);
+
+      const modelInput = modelBody.querySelector(`.${P}model-input`);
+      const modelDropdown = modelBody.querySelector(`.${P}model-dropdown`);
+      const modelList = modelBody.querySelector(`.${P}model-list`);
+      const fetchModelsBtn = modelBody.querySelector('[data-action="fetch-models"]');
+      const reasoningCheckbox = modelBody.querySelector('[data-field="reasoning"]');
+      const reasoningHint = modelBody.querySelector(`.${P}reasoning-hint`);
+      const effortRow = modelBody.querySelector(`.${P}effort-row`);
+      const effortSelect = modelBody.querySelector('[data-field="effort"]');
+
+      // --- Remember key (inside connection body) ---
+      const rememberCheckbox = connBody.querySelector('[data-field="remember"]');
+
+      // --- Actions ---
+      const saveBtn = backdrop.querySelector('[data-action="save"]');
+      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
 
       dialog.addEventListener("click", (e) => e.stopPropagation());
 
@@ -184,14 +251,66 @@ export class SettingsModal {
       let selectedBaseUrl = this.getBaseUrl();
       let baseOverridden = false;
 
-      // Load saved values
-      apiKeyInput.value = this.getApiKey();
+      // --- Card fold/unfold ---
+      const updateConnSummary = () => {
+        const provider = this.getProvider();
+        const key = this.getApiKey(provider);
+        connSummary.textContent = key
+          ? `${provider} · ${this.#maskKey(key)}`
+          : `${provider} · Not set`;
+        connStatus.classList.toggle(`${P}card-status--ok`, !!key);
+        connStatus.classList.toggle(`${P}card-status--off`, !key);
+        connStatus.textContent = key ? "Connected" : "Not configured";
+      };
+
+      const updateModelSummary = () => {
+        modelSummary.textContent = selectedModel || "Not set";
+      };
+
+      const toggleCard = (card, header, body, summaryEl, updateSummary, defaultOpen) => {
+        let open = defaultOpen;
+        const apply = () => {
+          card.classList.toggle(`${P}card--open`, open);
+          body.hidden = !open;
+          summaryEl.hidden = open;
+          if (open) {
+            // Refresh summary for next collapse
+            updateSummary();
+          }
+        };
+        header.addEventListener("click", () => {
+          open = !open;
+          apply();
+        });
+        apply();
+      };
+
+      const wasConfigured = this.isConfigured();
+
+      toggleCard(
+        connCard,
+        connHeader,
+        connBody,
+        connSummary,
+        updateConnSummary,
+        !wasConfigured, // open if not configured
+      );
+      toggleCard(
+        modelCard,
+        modelHeader,
+        modelBody,
+        modelSummary,
+        updateModelSummary,
+        true, // model card open by default
+      );
+
+      // --- Load form values ---
+      apiKeyInput.value = this.getApiKey(selectedProvider);
       providerSelect.value = selectedProvider;
       baseUrlInput.value = selectedBaseUrl;
       modelInput.value = selectedModel;
       effortSelect.value = this.getEffort();
 
-      // Restore "remember" state
       let remembered = false;
       try {
         remembered = localStorage.getItem(REMEMBER_KEY) === "true";
@@ -200,6 +319,7 @@ export class SettingsModal {
       }
       rememberCheckbox.checked = remembered;
 
+      // --- Helpers ---
       const updateBaseUrlEditability = () => {
         const editable = selectedProvider === "Custom" || baseOverridden;
         baseUrlInput.readOnly = !editable;
@@ -218,17 +338,24 @@ export class SettingsModal {
         updateBaseUrlEditability();
       };
 
-      const isOpenAICompatibleProvider = () =>
-        selectedProvider === "OpenRouter" || selectedProvider === "OpenAI";
+      const isModelSearchProvider = () =>
+        selectedProvider === "OpenRouter" ||
+        selectedProvider === "OpenAI" ||
+        selectedProvider === "OpenCode";
 
-      // --- Model search dropdown ---
+      const isFetchModelsSupported = () =>
+        selectedProvider === "OpenRouter" ||
+        selectedProvider === "OpenAI" ||
+        selectedProvider === "Ollama" ||
+        selectedProvider === "LM Studio";
+
+      // --- Model dropdown ---
       const filterModels = (query) => {
         const q = query.toLowerCase();
         const fragment = document.createDocumentFragment();
         const filtered = this._allModels.filter(
           (m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
         );
-        // Always show selected model first
         const selectedIdx = filtered.findIndex((m) => m.id === selectedModel);
         if (selectedIdx > 0) {
           const [sel] = filtered.splice(selectedIdx, 1);
@@ -243,9 +370,10 @@ export class SettingsModal {
           item.dataset.value = m.id;
           item.innerHTML = `<span class="${P}model-name">${this.#escHtml(m.name)}</span><span class="${P}model-id">${this.#escHtml(m.id)}</span>`;
           item.addEventListener("mousedown", (e) => {
-            e.preventDefault(); // Prevents blur from firing
+            e.preventDefault();
             e.stopPropagation();
             selectedModel = m.id;
+            updateModelSummary();
             closeDropdown();
             filterModels("");
             updateReasoningState();
@@ -264,12 +392,17 @@ export class SettingsModal {
 
       const openDropdown = () => {
         modelDropdown.hidden = false;
-        dialog.style.overflowY = "hidden";
+        // Position the dropdown with fixed coordinates so it escapes
+        // the dialog's overflow clipping.
+        const rect = modelInput.getBoundingClientRect();
+        modelDropdown.style.position = "fixed";
+        modelDropdown.style.left = `${rect.left}px`;
+        modelDropdown.style.top = `${rect.bottom + 2}px`;
+        modelDropdown.style.width = `${rect.width}px`;
       };
 
       const closeDropdown = () => {
         modelDropdown.hidden = true;
-        dialog.style.overflowY = "";
         modelInput.value = selectedModel;
       };
 
@@ -281,7 +414,6 @@ export class SettingsModal {
         }
         reasoningHint.hidden = supports;
 
-        // Populate effort dropdown
         const efforts = this.getSupportedEfforts(selectedModel);
         effortSelect.innerHTML = "";
         if (efforts.length > 0) {
@@ -352,10 +484,37 @@ export class SettingsModal {
         }
       };
 
-      // Provider / base URL handlers
+      const populateOpenCodeModels = () => {
+        this._allModels = OPENCODE_MODELS.map((m) => ({ id: m.id, name: m.name }));
+        this._modelReasoningMap.clear();
+        this._modelMaxOutputMap.clear();
+        if (!this._allModels.some((m) => m.id === selectedModel)) {
+          selectedModel = this._allModels[0]?.id || selectedModel;
+          modelInput.value = selectedModel;
+        }
+      };
+
+      // --- Provider / base URL handlers ---
       providerSelect.addEventListener("change", () => {
         selectedProvider = providerSelect.value;
         applyProviderDefaults();
+        apiKeyInput.value = this.getApiKey(selectedProvider);
+        fetchModelsBtn.hidden = !isFetchModelsSupported();
+
+        if (selectedProvider === "OpenCode") {
+          populateOpenCodeModels();
+          updateReasoningState();
+        } else if (isModelSearchProvider()) {
+          this.#populateOpenRouterModels(() => {
+            filterModels("");
+            const savedReasoning = this.getReasoning();
+            const supports = this.modelSupportsReasoning(selectedModel);
+            reasoningCheckbox.checked = savedReasoning && supports;
+            updateReasoningState();
+          });
+        } else {
+          updateReasoningState();
+        }
       });
 
       baseOverrideCheckbox.addEventListener("change", () => {
@@ -371,13 +530,11 @@ export class SettingsModal {
         selectedBaseUrl = baseUrlInput.value.trim();
       });
 
-      fetchModelsBtn.addEventListener("click", () => {
-        fetchModels();
-      });
+      fetchModelsBtn.addEventListener("click", fetchModels);
 
       // --- Model input interactions ---
       modelInput.addEventListener("focus", () => {
-        if (isOpenAICompatibleProvider()) {
+        if (isModelSearchProvider()) {
           modelInput.value = "";
           openDropdown();
           filterModels("");
@@ -385,7 +542,7 @@ export class SettingsModal {
       });
 
       modelInput.addEventListener("input", () => {
-        if (isOpenAICompatibleProvider()) {
+        if (isModelSearchProvider()) {
           openDropdown();
           filterModels(modelInput.value);
         } else {
@@ -395,15 +552,23 @@ export class SettingsModal {
       });
 
       modelInput.addEventListener("blur", () => {
-        // Restore selected model name when not searching
         modelInput.value = selectedModel;
       });
 
-      // Prevent clicks and wheel inside dropdown from propagating to dialog/backdrop
       modelDropdown.addEventListener("click", (e) => e.stopPropagation());
       modelDropdown.addEventListener("wheel", (e) => e.stopPropagation());
 
-      // Close dropdown on click anywhere (dialog or backdrop)
+      // Reposition dropdown on scroll/resize while open
+      const repositionDropdown = () => {
+        if (modelDropdown.hidden) return;
+        const rect = modelInput.getBoundingClientRect();
+        modelDropdown.style.left = `${rect.left}px`;
+        modelDropdown.style.top = `${rect.bottom + 2}px`;
+        modelDropdown.style.width = `${rect.width}px`;
+      };
+      window.addEventListener("scroll", repositionDropdown, true);
+      window.addEventListener("resize", repositionDropdown);
+
       const handleOutsideClick = (e) => {
         if (
           !modelInput.contains(e.target) &&
@@ -416,8 +581,13 @@ export class SettingsModal {
       dialog.addEventListener("click", handleOutsideClick);
       backdrop.addEventListener("click", handleOutsideClick);
 
-      // --- Populate models for OpenRouter ---
-      if (isOpenAICompatibleProvider()) {
+      // --- Initial population ---
+      fetchModelsBtn.hidden = !isFetchModelsSupported();
+
+      if (selectedProvider === "OpenCode") {
+        populateOpenCodeModels();
+        updateReasoningState();
+      } else if (isModelSearchProvider()) {
         this.#populateOpenRouterModels(() => {
           filterModels("");
           const savedReasoning = this.getReasoning();
@@ -431,6 +601,7 @@ export class SettingsModal {
 
       applyProviderDefaults();
 
+      // --- Save / Cancel ---
       const showError = (msg) => {
         errorEl.textContent = msg;
         errorEl.hidden = false;
@@ -447,8 +618,10 @@ export class SettingsModal {
           return;
         }
 
+        const keyStorage = providerKeyStorageKey(selectedProvider);
+
         try {
-          sessionStorage.setItem(STORAGE_KEY_API, apiKey);
+          sessionStorage.setItem(keyStorage, apiKey);
           sessionStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
           sessionStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
           sessionStorage.setItem(STORAGE_KEY_EFFORT, effort);
@@ -457,22 +630,28 @@ export class SettingsModal {
           localStorage.setItem(STORAGE_KEY_PROVIDER, selectedProvider);
 
           if (remember) {
-            localStorage.setItem(STORAGE_KEY_API, apiKey);
+            localStorage.setItem(keyStorage, apiKey);
             localStorage.setItem(STORAGE_KEY_MODEL, selectedModel);
             localStorage.setItem(STORAGE_KEY_REASONING, String(reasoning));
             localStorage.setItem(STORAGE_KEY_EFFORT, effort);
             localStorage.setItem(REMEMBER_KEY, "true");
           } else {
-            localStorage.removeItem(STORAGE_KEY_API);
+            localStorage.removeItem(keyStorage);
             localStorage.removeItem(STORAGE_KEY_MODEL);
             localStorage.removeItem(STORAGE_KEY_REASONING);
             localStorage.removeItem(STORAGE_KEY_EFFORT);
             localStorage.removeItem(REMEMBER_KEY);
           }
+
+          if (selectedProvider === DEFAULT_PROVIDER) {
+            sessionStorage.removeItem(LEGACY_KEY_API);
+            localStorage.removeItem(LEGACY_KEY_API);
+          }
         } catch {
           // ignore
         }
 
+        cleanup();
         restoreScroll();
         backdrop.remove();
         this._currentBackdrop = null;
@@ -486,7 +665,13 @@ export class SettingsModal {
         });
       });
 
+      const cleanup = () => {
+        window.removeEventListener("scroll", repositionDropdown, true);
+        window.removeEventListener("resize", repositionDropdown);
+      };
+
       cancelBtn.addEventListener("click", () => {
+        cleanup();
         restoreScroll();
         backdrop.remove();
         this._currentBackdrop = null;
@@ -495,6 +680,7 @@ export class SettingsModal {
 
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) {
+          cleanup();
           restoreScroll();
           backdrop.remove();
           this._currentBackdrop = null;
@@ -540,7 +726,6 @@ export class SettingsModal {
         this._modelMaxOutputMap.set(id, m.top_provider?.max_completion_tokens ?? null);
       }
 
-      // Ensure saved model is in the list
       if (!this._allModels.some((m) => m.id === saved)) {
         this._allModels.unshift({ id: saved, name: saved });
       }
@@ -565,73 +750,93 @@ export class SettingsModal {
       <div class="${P}dialog">
         <h2 class="${P}title">AI Settings</h2>
 
-        <label class="${P}label" for="${P}api-key">API Key</label>
-        <input
-          id="${P}api-key"
-          class="${P}input"
-          type="password"
-          data-field="api-key"
-          placeholder="sk-or-..."
-          autocomplete="off"
-        />
-        <span class="${P}hint" data-field="api-key-hint">API key for the selected provider</span>
+        <!-- Connection card -->
+        <div class="${P}card ${P}card--connection">
+          <div class="${P}card-header">
+            <span class="${P}chevron"></span>
+            <span class="${P}card-title">Connection</span>
+            <span class="${P}card-summary-text" hidden></span>
+            <span class="${P}card-status"></span>
+          </div>
+          <div class="${P}card-body" hidden>
+            <label class="${P}label" for="${P}provider">Provider</label>
+            <select id="${P}provider" class="${P}select" data-field="provider">
+              <option>OpenRouter</option>
+              <option>OpenAI</option>
+              <option>Anthropic</option>
+              <option>Gemini</option>
+              <option>OpenCode</option>
+              <option>Ollama</option>
+              <option>LM Studio</option>
+              <option>Custom</option>
+            </select>
 
-        <label class="${P}label" for="${P}provider">Provider</label>
-        <select id="${P}provider" class="${P}select" data-field="provider">
-          <option>OpenRouter</option>
-          <option>OpenAI</option>
-          <option>Anthropic</option>
-          <option>Gemini</option>
-          <option>Ollama</option>
-          <option>LM Studio</option>
-          <option>Custom</option>
-        </select>
+            <label class="${P}label" for="${P}api-key">API Key</label>
+            <input
+              id="${P}api-key"
+              class="${P}input"
+              type="password"
+              data-field="api-key"
+              placeholder="sk-..."
+              autocomplete="off"
+            />
 
-        <div class="${P}base-row">
-          <label class="${P}label" for="${P}base-url">Base URL</label>
-          <input
-            id="${P}base-url"
-            class="${P}input"
-            type="text"
-            data-field="base-url"
-            placeholder="https://..."
-          />
-          <label class="${P}remember-row">
-            <input type="checkbox" data-field="base-override" />
-            <span>Override base URL</span>
-          </label>
-        </div>
+            <div class="${P}base-row">
+              <label class="${P}label" for="${P}base-url">Base URL</label>
+              <input
+                id="${P}base-url"
+                class="${P}input"
+                type="text"
+                data-field="base-url"
+                placeholder="https://..."
+              />
+              <label class="${P}checkbox-row">
+                <input type="checkbox" data-field="base-override" />
+                <span>Use custom base URL instead of provider default</span>
+              </label>
+            </div>
 
-        <label class="${P}label">Model</label>
-        <div class="${P}model-wrapper">
-          <input
-            class="${P}input ${P}model-input"
-            type="text"
-            placeholder="Type to search models..."
-            autocomplete="off"
-          />
-          <button type="button" data-action="fetch-models" class="${P}btn ${P}btn--secondary">Fetch models</button>
-          <div class="${P}model-dropdown" hidden>
-            <div class="${P}model-list"></div>
+            <label class="${P}checkbox-row">
+              <input type="checkbox" data-field="remember" />
+              <span>Remember key across sessions</span>
+            </label>
+            <span class="${P}warning">Key is stored in this browser only.</span>
           </div>
         </div>
 
-        <label class="${P}reasoning-row">
-          <input type="checkbox" data-field="reasoning" disabled />
-          <span>Enable extended thinking (reasoning)</span>
-        </label>
-        <span class="${P}reasoning-hint">Selected model does not support reasoning</span>
+        <!-- Model card -->
+        <div class="${P}card ${P}card--model">
+          <div class="${P}card-header">
+            <span class="${P}chevron"></span>
+            <span class="${P}card-title">Model</span>
+            <span class="${P}card-summary-text" hidden></span>
+          </div>
+          <div class="${P}card-body" hidden>
+            <div class="${P}model-wrapper">
+              <input
+                class="${P}input ${P}model-input"
+                type="text"
+                placeholder="Type to search or enter model ID..."
+                autocomplete="off"
+              />
+              <button type="button" data-action="fetch-models" class="${P}btn ${P}btn--secondary ${P}fetch-btn">Fetch</button>
+              <div class="${P}model-dropdown" hidden>
+                <div class="${P}model-list"></div>
+              </div>
+            </div>
 
-        <div class="${P}effort-row" hidden>
-          <label class="${P}label">Reasoning Effort</label>
-          <select class="${P}select" data-field="effort"></select>
+            <label class="${P}checkbox-row">
+              <input type="checkbox" data-field="reasoning" disabled />
+              <span>Enable extended thinking (reasoning)</span>
+            </label>
+            <span class="${P}reasoning-hint">Selected model does not support reasoning</span>
+
+            <div class="${P}effort-row" hidden>
+              <label class="${P}label">Reasoning Effort</label>
+              <select class="${P}select" data-field="effort"></select>
+            </div>
+          </div>
         </div>
-
-        <label class="${P}remember-row">
-          <input type="checkbox" data-field="remember" />
-          <span>Remember key across sessions</span>
-        </label>
-        <span class="${P}warning">Key is stored in this browser only. Uncheck to clear on tab close.</span>
 
         <div class="${P}error" hidden></div>
 
