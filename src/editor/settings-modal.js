@@ -488,6 +488,16 @@ export class SettingsModal {
         this._allModels = OPENCODE_MODELS.map((m) => ({ id: m.id, name: m.name }));
         this._modelReasoningMap.clear();
         this._modelMaxOutputMap.clear();
+        // Treat all OpenCode models as reasoning-capable. The API client uses the
+        // right format for each API style (chat-completions, responses, messages).
+        // If a specific model doesn't support it, the call will fail and the user
+        // can disable it; this is more useful than blanket-disabling all models.
+        for (const m of this._allModels) {
+          this._modelReasoningMap.set(m.id, {
+            supported_efforts: ["low", "medium", "high"],
+            mandatory: false,
+          });
+        }
         if (!this._allModels.some((m) => m.id === selectedModel)) {
           selectedModel = this._allModels[0]?.id || selectedModel;
           modelInput.value = selectedModel;
