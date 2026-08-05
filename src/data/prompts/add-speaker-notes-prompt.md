@@ -8,6 +8,7 @@ What to do:
 - Keep notes to 2-4 sentences.
 - Do not change the slide's layout, areas, or visible content.
 - Do not add or remove slides.
+- Base notes only on facts already present in the slide. Do not invent data, examples, or claims.
 
 Success criteria:
 

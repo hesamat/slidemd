@@ -27,6 +27,22 @@ export class AiOutputValidator {
   constructor({ inputMarkdown }) {
     this._inputMarkdown = inputMarkdown;
     this._parser = new MarkdownParser();
+    this._inputSlides = null;
+  }
+
+  /**
+   * Lazily parse the input markdown into slides (needed for tests without window).
+   * @returns {object[]}
+   */
+  _getInputSlides() {
+    if (this._inputSlides === null && this._inputMarkdown) {
+      try {
+        this._inputSlides = this._parser.parseDeckMarkdown(this._inputMarkdown).slides || [];
+      } catch {
+        this._inputSlides = [];
+      }
+    }
+    return this._inputSlides || [];
   }
 
   /**
@@ -129,9 +145,88 @@ export class AiOutputValidator {
       if (schema.checkContentRules) {
         this._checkContentRules(slide, i, errors, warnings);
       }
+
+      // Intent-specific constraints (compare against input slide)
+      this._checkIntentSpecifics(slide, i, intent, errors, warnings);
     }
 
     return { ok: errors.length === 0, errors, warnings, slides };
+  }
+
+  /**
+   * Check intent-specific output constraints against the original input.
+   * @param {object} slide - output slide
+   * @param {number} index - output slide index
+   * @param {string} intent
+   * @param {ValidationError[]} errors
+   * @param {ValidationError[]} warnings
+   */
+  _checkIntentSpecifics(slide, index, intent, errors, warnings) {
+    const inputSlide = this._getInputSlides()[index];
+    if (!inputSlide) return;
+
+    if (intent === "summarize") {
+      // Summarize must preserve the original layout and area set
+      if (slide.layout && inputSlide.layout && slide.layout !== inputSlide.layout) {
+        errors.push({
+          slide: index,
+          code: "SUMMARIZE_PRESERVE_LAYOUT",
+          message: `Summarize must preserve the original layout "${inputSlide.layout}", got "${slide.layout}"`,
+        });
+      }
+
+      const inputAreas = Object.keys(inputSlide.areas || {}).sort();
+      const outputAreas = Object.keys(slide.areas || {}).sort();
+      if (JSON.stringify(inputAreas) !== JSON.stringify(outputAreas)) {
+        errors.push({
+          slide: index,
+          code: "SUMMARIZE_PRESERVE_AREAS",
+          message: `Summarize must preserve the original @area markers. Expected: ${inputAreas.join(", ")}, got: ${outputAreas.join(", ")}`,
+        });
+      }
+    }
+
+    if (intent === "addSpeakerNotes") {
+      // Add speaker notes must not change layout, areas, or visible content
+      if (slide.layout !== inputSlide.layout) {
+        errors.push({
+          slide: index,
+          code: "NOTES_PRESERVE_LAYOUT",
+          message: `Add speaker notes must not change the slide layout. Expected "${inputSlide.layout}", got "${slide.layout}"`,
+        });
+      }
+
+      const inputAreas = Object.keys(inputSlide.areas || {}).sort();
+      const outputAreas = Object.keys(slide.areas || {}).sort();
+      if (JSON.stringify(inputAreas) !== JSON.stringify(outputAreas)) {
+        errors.push({
+          slide: index,
+          code: "NOTES_PRESERVE_AREAS",
+          message: `Add speaker notes must not change @area markers. Expected: ${inputAreas.join(", ")}, got: ${outputAreas.join(", ")}`,
+        });
+      }
+
+      // Visible markdown (without notes) must be unchanged
+      const inputVisible = (this._parser.stripNotes(inputSlide.raw) || "").trim();
+      const outputVisible = (this._parser.stripNotes(slide.raw) || "").trim();
+      if (inputVisible !== outputVisible) {
+        errors.push({
+          slide: index,
+          code: "NOTES_PRESERVE_CONTENT",
+          message: "Add speaker notes must not change the slide's visible content",
+        });
+      }
+
+      // Output must contain a notes block
+      const outputNotes = this._parser.extractNotes(slide.raw);
+      if (!outputNotes) {
+        errors.push({
+          slide: index,
+          code: "NOTES_MISSING",
+          message: "Add speaker notes must produce a `<!-- notes: ... -->` block",
+        });
+      }
+    }
   }
 
   /**

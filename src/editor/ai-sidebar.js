@@ -498,9 +498,8 @@ export class AiSidebar {
     seeResultBtn.hidden = true;
 
     const intentLabels = {
-      enhanceSlide: "Enhancing slide",
+      enhanceSlide: "Cleaning up slide",
       summarize: "Summarizing",
-      toMetricCards: "Converting to metric cards",
       addSpeakerNotes: "Adding speaker notes",
     };
     statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;

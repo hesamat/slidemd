@@ -40,13 +40,6 @@ export const SCHEMAS = {
     checkAreaValidity: true,
     checkContentRules: true,
   },
-  toMetricCards: {
-    minSlides: 1,
-    maxSlides: 1,
-    requireLayout: false,
-    checkAreaValidity: true,
-    checkContentRules: true,
-  },
   addSpeakerNotes: {
     minSlides: 1,
     maxSlides: 1,

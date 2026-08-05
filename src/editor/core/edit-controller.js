@@ -681,7 +681,7 @@ export class EditController {
   }
 
   /**
-   * Run a single-slide AI operation (enhanceSlide, summarize, toMetricCards, addSpeakerNotes).
+   * Run a single-slide AI operation (enhanceSlide, summarize, addSpeakerNotes).
    * Builds an AiOperation, runs it through the orchestrator, and applies the resulting
    * patch via DeckStore so it's undoable.
    * @param {string} intent — one of the single-slide intents

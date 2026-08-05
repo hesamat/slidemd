@@ -3,10 +3,12 @@ Summarize the content of this single slide into 3-5 concise bullet points. Retur
 What to do:
 
 - Extract the key points and condense them into bullet items.
-- Preserve the slide's layout and area markers.
+- Keep the exact same `layout:` directive as the input.
+- Keep the exact same `@area` markers and their positions.
 - Remove redundant text, examples, and verbose explanations.
 - Keep headings concise — aim for 3-5 words per heading.
 - Do not add or remove slides.
+- Do not fabricate information.
 
 Success criteria:
 

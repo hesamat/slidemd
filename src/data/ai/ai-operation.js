@@ -5,7 +5,7 @@
  * (EditController or PptxImporter) and passed to AiOrchestrator.runOperation().
  *
  * @typedef {Object} AiOperation
- * @property {string} intent — "enhanceSlide" | "summarize" | "toMetricCards" | "addSpeakerNotes" | "generate"
+ * @property {string} intent — "enhanceSlide" | "summarize" | "addSpeakerNotes" | "generate"
  * @property {number|null} targetSlide — 0-based slide index for single-slide intents, null for whole-deck
  * @property {string} context — the markdown to send to the LLM
  * @property {object} [opts] — modelMaxOutput, reasoningEffort, etc.
