@@ -481,7 +481,7 @@ export class AiSidebar {
     statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
     headerEl.classList.add(`${P}header--active`);
 
-    const ctrl = new AbortController();
+    let ctrl = new AbortController();
     this._abortControllers = [ctrl];
 
     cancelBtn.addEventListener("click", () => {
@@ -497,6 +497,9 @@ export class AiSidebar {
 
     seeResultBtn.addEventListener("click", finish);
     closeBtn.addEventListener("click", finish);
+    retryBtn.addEventListener("click", () => {
+      this._retryResolve?.();
+    });
 
     try {
       const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
@@ -548,12 +551,15 @@ export class AiSidebar {
           this._retryResolve = resolve;
         });
         if (this._showId !== myShowId) break;
-        // Re-run on retry
+        // Re-run on retry with a fresh AbortController so a previous
+        // cancel/abort can't cause every subsequent retry to fail immediately.
         retryBtn.hidden = true;
         cancelBtn.hidden = false;
         statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
         statusEl.className = `${P}status`;
         headerEl.classList.add(`${P}header--active`);
+        ctrl = new AbortController();
+        this._abortControllers = [ctrl];
         try {
           const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
           if (retryPatches && retryPatches.length > 0) {
@@ -572,6 +578,10 @@ export class AiSidebar {
             return retryPatches;
           }
         } catch (retryErr) {
+          if (retryErr.name === "AbortError" || retryErr.name === "AiAbortError") {
+            this.close();
+            return null;
+          }
           statusEl.textContent = `Error: ${retryErr.message}`;
           statusEl.className = `${P}status ${P}status--error`;
           cancelBtn.hidden = true;

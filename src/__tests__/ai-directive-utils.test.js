@@ -124,4 +124,14 @@ describe("injectDirectives", () => {
     expect(result).toContain("@header\n## Title");
     expect(result).toContain("@main\n- Content");
   });
+
+  it("does not duplicate background/theme when the AI already echoed them back", () => {
+    const md = "layout: focus\nbackground: red\ntheme: dark\n\n@header\n## Title";
+    const orig = [{ layout: "focus", background: "red", theme: "dark" }];
+    const result = injectDirectives(md, orig);
+    expect(result.match(/^background:/gm)).toHaveLength(1);
+    expect(result.match(/^theme:/gm)).toHaveLength(1);
+    expect(result).toContain("background: red");
+    expect(result).toContain("theme: dark");
+  });
 });

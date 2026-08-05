@@ -11,7 +11,6 @@ Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/p
 | `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                    |
 | `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
 | `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
-| `summarize-prompt.md`         | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
 | `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                        |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
@@ -55,16 +54,6 @@ Creative reorganization that may restructure the deck:
 - `three-column` uses `@main`, `@media`, `@secondary`
 - Add speaker notes where helpful
 - Do not inflate slide count
-
-## summarize Intent (summarize-prompt.md)
-
-Summarizes a single slide into 3-5 concise bullet points:
-
-- Extract key points and condense into bullet items
-- Preserve the slide's layout and area markers
-- Remove redundant text, examples, and verbose explanations
-- Keep headings concise (3-5 words)
-- Does not add or remove slides
 
 ## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
 

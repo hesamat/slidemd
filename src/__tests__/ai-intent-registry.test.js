@@ -30,6 +30,11 @@ describe("AiIntentRegistry", () => {
     it("returns false for whole-deck generate", () => {
       expect(isSingleSlideIntent("generate")).toBe(false);
     });
+
+    it("returns false for unknown/unregistered intents", () => {
+      expect(isSingleSlideIntent("toMetricCards")).toBe(false);
+      expect(isSingleSlideIntent("unknown")).toBe(false);
+    });
   });
 
   describe("getBuilder", () => {

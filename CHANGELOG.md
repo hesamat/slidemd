@@ -6,18 +6,17 @@
 
 - Add `AiOrchestrator` — single entry point for all AI operations with built-in validation and repair loop.
 - Add `AiOperation` type and `AiIntentRegistry` for intent-to-prompt-builder mapping.
-- Add single-slide AI intents: `enhanceSlide`, `summarize`, `addSpeakerNotes`.
+- Add single-slide AI intents: `enhanceSlide`, `addSpeakerNotes`.
 - Drop `toMetricCards` intent — the referenced `metric-cards` layout doesn't exist and the fallback to `header-content` added no value.
 - Add AI dropdown in the editor toolbar with per-slide and whole-deck actions.
 - Single-slide AI operations return `SlidePatch[]` applied via `DeckStore.applyPatches()` — undoable from day one.
-- Add prompt files: `summarize-prompt.md`, `to-metric-cards-prompt.md`, `add-speaker-notes-prompt.md`.
+- Add prompt files: `add-speaker-notes-prompt.md`.
 - Reuse `fix-prompt.md` as the user fragment for `enhanceSlide` (same cleanup rules, scoped to one slide).
 
 ### Import Flow Simplification
 
 - **Drop whole-deck "Fix Issues" from PPTX import.** The "Fix Issues" checkbox is removed from the conversion modal.
-- Import is now instant when no AI is selected — users fix individual slides via the AI dropdown afterward.
-- Only "AI Inspiration" (generate) remains as a post-import AI option.
+- Import is now instant — no AI options remain in the conversion modal; users refine slides via the AI dropdown afterward.
 - Remove `extractDirectives`/`injectDirectives` from the import path (no longer needed without fix mode).
 
 ### Module Migration

@@ -200,8 +200,10 @@ export class AiProviderClient {
       }
       // Retry without the reasoning param when the model requires reasoning
       // but we tried to disable it (effort: "none"). Let the model use its
-      // default reasoning instead of failing.
-      if (firstErr instanceof AiReasoningError) {
+      // default reasoning instead of failing. Only worth retrying if we
+      // actually sent a `reasoning` field — otherwise this would just repeat
+      // the exact same request and waste an API call.
+      if (firstErr instanceof AiReasoningError && effectiveReasoning) {
         return await tryFetch(true, false);
       }
       throw firstErr;

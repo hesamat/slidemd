@@ -2,7 +2,6 @@ Add speaker notes to this single slide. Return the result as JSON.
 
 What to do:
 
-- Add speaker notes as an HTML comment at the end of the slide content: `<!-- notes: ... -->`.
 - Notes should expand on the slide's key points for a presenter.
 - Include context, transitions, and talking points that a presenter would say aloud.
 - Keep notes to 2-4 sentences.

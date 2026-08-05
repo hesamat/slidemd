@@ -60,7 +60,9 @@ export function injectDirectives(markdown, origDirectives) {
     const orig = origDirectives[i];
     if (!orig) return section;
 
-    const lines = section.split("\n");
+    // Drop any background:/theme: lines the AI echoed back on its own so we
+    // don't end up with duplicate directives once the originals are re-inserted.
+    const lines = section.split("\n").filter((l) => !/^(background|theme):\s/.test(l));
     const layoutIdx = lines.findIndex((l) => /^layout:\s/.test(l));
     if (layoutIdx === -1) return section;
 
@@ -68,7 +70,7 @@ export function injectDirectives(markdown, origDirectives) {
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
     if (orig.theme) insertAfter.push(`theme: ${orig.theme}`);
 
-    if (insertAfter.length === 0) return section;
+    if (insertAfter.length === 0) return lines.join("\n");
 
     lines.splice(layoutIdx + 1, 0, ...insertAfter);
     return lines.join("\n");

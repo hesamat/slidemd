@@ -37,7 +37,13 @@ export class AiGenerateModal {
       const inputTokens = estimateTokens(markdown);
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
       const estOutputTokens = Math.ceil(inputTokens * 1.8);
-      const totalEstTokens = (inputTokens + estOutputTokens) * batchCount;
+      // Each batch only sends its own slice of the deck, so the total input/output
+      // tokens across all batches are roughly the same as a single pass over the
+      // whole deck — not multiplied by the batch count. Batching does repeat the
+      // system prompt and deck summary per call, so add a small per-batch overhead.
+      const BATCH_OVERHEAD_TOKENS = 300;
+      const totalEstTokens =
+        inputTokens + estOutputTokens + (batchCount > 1 ? batchCount * BATCH_OVERHEAD_TOKENS : 0);
 
       const fidelityOptions = willBatch
         ? `<option value="polish">Tidy up — fix formatting and layouts only</option>

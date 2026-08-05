@@ -136,7 +136,6 @@ AI prompts live in [src/data/prompts/](src/data/prompts/):
 | `system-prompt.md`            | `system` | Global rules, structure, formatting                              |
 | `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
 | `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
-| `summarize-prompt.md`         | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
 | `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                        |
 
 ### AI Module Architecture (Phase 13)

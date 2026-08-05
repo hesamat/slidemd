@@ -86,7 +86,7 @@ export function buildMessagesForIntent(intent, ctx) {
  * @returns {boolean}
  */
 export function isSingleSlideIntent(intent) {
-  return intent !== "generate";
+  return intent in INTENT_BUILDERS && intent !== "generate";
 }
 
 /**
