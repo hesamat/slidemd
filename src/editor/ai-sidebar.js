@@ -127,9 +127,9 @@ export class AiSidebar {
     };
 
     const showDone = () => {
-      statusEl.textContent = 'Done! Click "See result" to apply.';
+      statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
       statusEl.className = `${P}status ${P}status--done`;
-      noticeEl.hidden = false;
+      noticeEl.hidden = true;
       cancelBtn.hidden = true;
       retryBtn.hidden = true;
       closeBtn.hidden = true;
@@ -486,6 +486,15 @@ export class AiSidebar {
       this.cancel();
     });
 
+    const finish = () => {
+      if (this._showId === myShowId) {
+        this._finishResolve?.();
+      }
+    };
+
+    seeResultBtn.addEventListener("click", finish);
+    closeBtn.addEventListener("click", finish);
+
     try {
       const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
       if (!patches || patches.length === 0) {
@@ -502,9 +511,9 @@ export class AiSidebar {
         return null;
       }
 
-      statusEl.textContent = 'Done! Click "See result" to apply.';
+      statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
       statusEl.className = `${P}status ${P}status--done`;
-      noticeEl.hidden = false;
+      noticeEl.hidden = true;
       cancelBtn.hidden = true;
       seeResultBtn.hidden = false;
       headerEl.classList.remove(`${P}header--active`);
@@ -545,9 +554,9 @@ export class AiSidebar {
         try {
           const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
           if (retryPatches && retryPatches.length > 0) {
-            statusEl.textContent = 'Done! Click "See result" to apply.';
+            statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
             statusEl.className = `${P}status ${P}status--done`;
-            noticeEl.hidden = false;
+            noticeEl.hidden = true;
             cancelBtn.hidden = true;
             seeResultBtn.hidden = false;
             headerEl.classList.remove(`${P}header--active`);
@@ -829,7 +838,7 @@ export class AiSidebar {
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
         <button type="button" data-action="retry" class="${P}btn" hidden>Try again</button>
-        <button type="button" data-action="see-result" class="${P}btn ${P}btn--primary" hidden>See result</button>
+        <button type="button" data-action="see-result" class="${P}btn ${P}btn--primary" hidden>Apply changes</button>
         <button type="button" data-action="close" class="${P}btn" hidden>Close</button>
       </div>
     `;
