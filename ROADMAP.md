@@ -411,18 +411,18 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 | Task                       | Details                                                                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [x] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
-| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`, `generate`).                                          |
+| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `addSpeakerNotes`, `generate`).                                                           |
 | [x] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
 
 ### Single-Slide AI Editing
 
-| Task                                                                   | Details                                                                                           |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [x] Add `enhanceSlide(slideMarkdown, intent)`                          | Build a prompt containing one slide Markdown string and an intent string.                         |
-| [x] Instruct the LLM to output one slide                               | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
-| [x] Validate the response with `MarkdownParser`                        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
-| [x] Patch by index via `DeckStore.applyPatch`                          | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
-| [x] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
+| Task                                                  | Details                                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [x] Add `enhanceSlide(slideMarkdown, intent)`         | Build a prompt containing one slide Markdown string and an intent string.                         |
+| [x] Instruct the LLM to output one slide              | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
+| [x] Validate the response with `MarkdownParser`       | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
+| [x] Patch by index via `DeckStore.applyPatch`         | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
+| [x] Implement intents: `summarize`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
 
 ### Wiring
 
@@ -433,9 +433,9 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 ### Import Flow Change
 
-| Task                              | Details                                                                                                                    |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [x] Drop whole-deck fix from import | Removed "Fix Issues" checkbox from conversion modal. Single-slide `enhanceSlide` replaces it. Import is now instant.     |
+| Task                                | Details                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [x] Drop whole-deck fix from import | Removed "Fix Issues" checkbox from conversion modal. Single-slide `enhanceSlide` replaces it. Import is now instant. |
 
 ---
 

@@ -12,7 +12,6 @@ import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
 import generatePrompt from "../prompts/generate-prompt.md?raw";
 import summarizePrompt from "../prompts/summarize-prompt.md?raw";
-import toMetricCardsPrompt from "../prompts/to-metric-cards-prompt.md?raw";
 import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
 
 /**
@@ -57,7 +56,6 @@ const INTENT_BUILDERS = {
   // Single-slide intents — return { system, user } for one slide
   enhanceSlide: (ctx) => buildSingleSlideMessages(fixPrompt, ctx.markdown),
   summarize: (ctx) => buildSingleSlideMessages(summarizePrompt, ctx.markdown),
-  toMetricCards: (ctx) => buildSingleSlideMessages(toMetricCardsPrompt, ctx.markdown),
   addSpeakerNotes: (ctx) => buildSingleSlideMessages(addSpeakerNotesPrompt, ctx.markdown),
   // Whole-deck intent — returns { system, user } for the full deck
   generate: (ctx) => buildGenerateMessages(ctx.markdown),

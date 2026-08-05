@@ -12,7 +12,6 @@ describe("AiIntentRegistry", () => {
       const intents = listIntents();
       expect(intents).toContain("enhanceSlide");
       expect(intents).toContain("summarize");
-      expect(intents).toContain("toMetricCards");
       expect(intents).toContain("addSpeakerNotes");
       expect(intents).toContain("generate");
     });
@@ -27,7 +26,6 @@ describe("AiIntentRegistry", () => {
     it("returns true for single-slide intents", () => {
       expect(isSingleSlideIntent("enhanceSlide")).toBe(true);
       expect(isSingleSlideIntent("summarize")).toBe(true);
-      expect(isSingleSlideIntent("toMetricCards")).toBe(true);
       expect(isSingleSlideIntent("addSpeakerNotes")).toBe(true);
     });
 
@@ -62,12 +60,6 @@ describe("AiIntentRegistry", () => {
       expect(system).toContain("You are a SlideMD editor");
       expect(user).toContain("@header");
       expect(user).toContain("3-5");
-    });
-
-    it("builds system + user messages for toMetricCards", () => {
-      const { system, user } = buildMessagesForIntent("toMetricCards", { markdown: slideMarkdown });
-      expect(system).toContain("You are a SlideMD editor");
-      expect(user).toContain("metric");
     });
 
     it("builds system + user messages for addSpeakerNotes", () => {

@@ -22,6 +22,35 @@ import { parseAiResponse, slidesToMarkdown } from "../data/ai/ai-response-parser
 
 const P = "ai-sidebar__";
 
+/**
+ * Build additional instructions suffix from user-provided generate options.
+ * Appended to the user prompt so the AI sees the user's preferences.
+ * @param {object} opts
+ * @param {string} [opts.agenda]
+ * @param {number|null} [opts.targetSlideCount]
+ * @param {string} [opts.tone]
+ * @returns {string}
+ */
+function buildOptionsSuffix(opts) {
+  if (!opts) return "";
+  const parts = [];
+  if (opts.agenda) {
+    parts.push(`\n\nAdditional guidance from the user:\n${opts.agenda}`);
+  }
+  if (opts.targetSlideCount) {
+    parts.push(`\nTarget approximately ${opts.targetSlideCount} slides.`);
+  }
+  if (opts.tone && opts.tone !== "default") {
+    const toneMap = {
+      formal: "Use a formal, professional tone.",
+      casual: "Use a casual, conversational tone.",
+      technical: "Use a technical, precise tone with domain-specific terminology.",
+    };
+    if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
+  }
+  return parts.join("");
+}
+
 export class AiSidebar {
   static _currentPanel = null;
   static _abortControllers = [];
@@ -53,13 +82,17 @@ export class AiSidebar {
    * Show the AI sidebar and stream the response.
    * @param {string} markdown - The markdown to enhance.
    * @param {"fix"|"generate"} mode - Enhancement mode.
+   * @param {object} [opts] - Generate options (agenda, targetSlideCount, tone).
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
-  static async show(markdown, mode) {
+  static async show(markdown, mode, opts = {}) {
     this.cancel();
     this.close();
     const myShowId = Symbol();
     this._showId = myShowId;
+
+    // Build additional instructions from user options (agenda, slide count, tone)
+    const optionsSuffix = buildOptionsSuffix(opts);
 
     const panel = this.#createPanel(mode);
     document.body.appendChild(panel);
@@ -127,7 +160,7 @@ export class AiSidebar {
     };
 
     const showDone = () => {
-      statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
+      statusEl.textContent = 'Done! Click "Apply changes" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
@@ -194,6 +227,7 @@ export class AiSidebar {
             statusEl,
             noticeEl,
             isCancelled: () => cancelled,
+            optionsSuffix,
           });
         }
 
@@ -247,6 +281,7 @@ export class AiSidebar {
               reasoningEffort,
               signal: this._abortControllers[0]?.signal,
               repairMessages: repairMessages.get(batch.batchKey) || [],
+              optionsSuffix,
             });
 
             if (batchResult === null) {
@@ -511,7 +546,7 @@ export class AiSidebar {
         return null;
       }
 
-      statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
+      statusEl.textContent = 'Done! Click "Apply changes" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
@@ -519,7 +554,10 @@ export class AiSidebar {
       headerEl.classList.remove(`${P}header--active`);
       panel.classList.add(`${P}panel--done`);
 
-      console.log("[AI sidebar] waiting for Apply changes, seeResultBtn hidden:", seeResultBtn.hidden);
+      console.log(
+        "[AI sidebar] waiting for Apply changes, seeResultBtn hidden:",
+        seeResultBtn.hidden,
+      );
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
@@ -556,7 +594,7 @@ export class AiSidebar {
         try {
           const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
           if (retryPatches && retryPatches.length > 0) {
-            statusEl.textContent = "Done! Click \"Apply changes\" to apply.";
+            statusEl.textContent = 'Done! Click "Apply changes" to apply.';
             statusEl.className = `${P}status ${P}status--done`;
             noticeEl.hidden = true;
             cancelBtn.hidden = true;
@@ -599,6 +637,7 @@ export class AiSidebar {
       statusEl,
       noticeEl,
       isCancelled,
+      optionsSuffix = "",
     } = opts;
 
     const validator = new AiOutputValidator({ inputMarkdown: markdown });
@@ -609,7 +648,7 @@ export class AiSidebar {
     const { system, user } = buildMessages(markdown, mode);
     const messages = [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: user + optionsSuffix },
     ];
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -724,6 +763,7 @@ export class AiSidebar {
       reasoningEffort,
       signal,
       repairMessages = [],
+      optionsSuffix = "",
     } = opts;
 
     const batchMarkdown = (() => {
@@ -745,7 +785,7 @@ export class AiSidebar {
 
     const messages = [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: user + optionsSuffix },
       ...repairMessages,
     ];
 

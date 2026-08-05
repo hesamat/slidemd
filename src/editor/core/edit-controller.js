@@ -266,7 +266,6 @@ export class EditController {
       actions: {
         enhanceSlide: () => this.runSingleSlideAi("enhanceSlide"),
         summarize: () => this.runSingleSlideAi("summarize"),
-        toMetricCards: () => this.runSingleSlideAi("toMetricCards"),
         addSpeakerNotes: () => this.runSingleSlideAi("addSpeakerNotes"),
         generate: () => this.runWholeDeckAi(),
       },
@@ -745,6 +744,7 @@ export class EditController {
   async runWholeDeckAi() {
     const { SettingsModal } = await import("../settings-modal.js");
     const { AiSidebar } = await import("../ai-sidebar.js");
+    const { AiGenerateModal } = await import("../ui/ai-generate-modal.js");
 
     const providerLabel = SettingsModal.getProvider();
     if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
@@ -759,8 +759,19 @@ export class EditController {
       ? this.deckStore.toMarkdown()
       : this.saveManager.getFullSlides().join("\n\n---\n\n");
 
+    // Show pre-flight modal so the user can set options and see cost estimate
+    const generateOpts = await AiGenerateModal.show(fullMarkdown, {
+      modelName: SettingsModal.getModel(),
+      useReasoning: SettingsModal.getReasoning(),
+    });
+    if (!generateOpts) return; // user cancelled — no API call made
+
     try {
-      const enhanced = await AiSidebar.show(fullMarkdown, "generate");
+      const enhanced = await AiSidebar.show(fullMarkdown, "generate", {
+        agenda: generateOpts.agenda,
+        targetSlideCount: generateOpts.targetSlideCount,
+        tone: generateOpts.tone,
+      });
       if (enhanced && this.controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
         const deck = await DeckLoader.parseMarkdown(enhanced);

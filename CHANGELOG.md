@@ -6,7 +6,8 @@
 
 - Add `AiOrchestrator` — single entry point for all AI operations with built-in validation and repair loop.
 - Add `AiOperation` type and `AiIntentRegistry` for intent-to-prompt-builder mapping.
-- Add single-slide AI intents: `enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`.
+- Add single-slide AI intents: `enhanceSlide`, `summarize`, `addSpeakerNotes`.
+- Drop `toMetricCards` intent — the referenced `metric-cards` layout doesn't exist and the fallback to `header-content` added no value.
 - Add AI dropdown in the editor toolbar with per-slide and whole-deck actions.
 - Single-slide AI operations return `SlidePatch[]` applied via `DeckStore.applyPatches()` — undoable from day one.
 - Add prompt files: `summarize-prompt.md`, `to-metric-cards-prompt.md`, `add-speaker-notes-prompt.md`.

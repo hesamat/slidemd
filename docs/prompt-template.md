@@ -6,14 +6,13 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                       | Role     | Purpose                                                          |
-| -------------------------- | -------- | ---------------------------------------------------------------- |
-| `system-prompt.md`         | `system` | Global rules, JSON output format, layout list                    |
-| `generate-prompt.md`       | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
-| `fix-prompt.md`            | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
-| `summarize-prompt.md`      | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
-| `to-metric-cards-prompt.md`| `user`   | Convert slide to metric-cards layout (single-slide)              |
-| `add-speaker-notes-prompt.md` | `user`| Add speaker notes to slide (single-slide)                        |
+| File                          | Role     | Purpose                                                          |
+| ----------------------------- | -------- | ---------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                    |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
+| `summarize-prompt.md`         | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                        |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
 
@@ -66,15 +65,6 @@ Summarizes a single slide into 3-5 concise bullet points:
 - Remove redundant text, examples, and verbose explanations
 - Keep headings concise (3-5 words)
 - Does not add or remove slides
-
-## toMetricCards Intent (to-metric-cards-prompt.md)
-
-Converts a single slide into a metric-cards layout:
-
-- Extract key numbers, statistics, or quantifiable data
-- Present each metric as a large number with a short label
-- Use `metric-cards` layout if available, otherwise `header-content`
-- If no quantifiable data, extract important concepts as labeled cards
 
 ## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
 

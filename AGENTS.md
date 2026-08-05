@@ -131,34 +131,33 @@ export class NewModule {
 
 AI prompts live in [src/data/prompts/](src/data/prompts/):
 
-| File                       | Role     | Purpose                                                          |
-| -------------------------- | -------- | ---------------------------------------------------------------- |
-| `system-prompt.md`         | `system` | Global rules, structure, formatting                              |
-| `generate-prompt.md`       | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
-| `fix-prompt.md`            | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
-| `summarize-prompt.md`      | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
-| `to-metric-cards-prompt.md`| `user`   | Convert slide to metric-cards layout (single-slide)              |
-| `add-speaker-notes-prompt.md` | `user`| Add speaker notes to slide (single-slide)                        |
+| File                          | Role     | Purpose                                                          |
+| ----------------------------- | -------- | ---------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, structure, formatting                              |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
+| `summarize-prompt.md`         | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                        |
 
 ### AI Module Architecture (Phase 13)
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under [src/data/ai/](src/data/ai/):
 
-| Module                     | Purpose                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair     |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory               |
-| `ai-intent-registry.js`    | Maps intent names to prompt builders                             |
-| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building       |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown              |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                      |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                            |
-| `ai-output-validator.js`   | Validate AI output against schema (layout, area, content rules)  |
-| `ai-output-schema.js`      | Per-intent schemas (min/max slides, layout requirements)         |
-| `ai-prompt-composer.js`    | Compose system + user prompts from fragments with {{placeholders}} |
-| `ai-repair-message.js`     | Build repair messages for validation failures                    |
-| `ai-provider-client.js`    | OpenAI-compatible API client                                     |
-| `ai-provider-factory.js`   | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)    |
+| Module                   | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `ai-orchestrator.js`     | Entry point: context selection, LLM call, validation, repair       |
+| `ai-operation.js`        | `AiOperation` type and `createOperation()` factory                 |
+| `ai-intent-registry.js`  | Maps intent names to prompt builders                               |
+| `ai-prompt-builder.js`   | Layout list, frontmatter stripping, message/batch building         |
+| `ai-response-parser.js`  | JSON parsing, slides-to-markdown, areas-to-markdown                |
+| `ai-directive-utils.js`  | Extract/restore/inject per-slide directives                        |
+| `ai-token-estimator.js`  | Token count and max_tokens estimation                              |
+| `ai-output-validator.js` | Validate AI output against schema (layout, area, content rules)    |
+| `ai-output-schema.js`    | Per-intent schemas (min/max slides, layout requirements)           |
+| `ai-prompt-composer.js`  | Compose system + user prompts from fragments with {{placeholders}} |
+| `ai-repair-message.js`   | Build repair messages for validation failures                      |
+| `ai-provider-client.js`  | OpenAI-compatible API client                                       |
+| `ai-provider-factory.js` | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)      |
 
 ### Prompt Rules
 
