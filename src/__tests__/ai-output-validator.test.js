@@ -1,0 +1,135 @@
+// @vitest-environment jsdom
+import { describe, it, expect, beforeAll } from "vitest";
+import markdownit from "markdown-it";
+import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
+
+beforeAll(() => {
+  window.markdownit = markdownit;
+});
+
+const validate = (inputMarkdown, outputMarkdown, intent = "fix") => {
+  const validator = new AiOutputValidator({ inputMarkdown });
+  return validator.validate(outputMarkdown, intent);
+};
+
+describe("AiOutputValidator", () => {
+  it("passes a well-formed single slide", () => {
+    const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- Item 1
+- Item 2`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.slides).toHaveLength(1);
+  });
+
+  it("reports an unknown layout", () => {
+    const output = `layout: nonexistent
+
+@main
+- Item`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("UNKNOWN_LAYOUT");
+  });
+
+  it("reports an invalid area", () => {
+    const output = `layout: header-content
+
+@sidebar
+- Item`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("INVALID_AREA");
+  });
+
+  it("reports a missing layout in generate mode", () => {
+    const output = `# Title
+
+- Item`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("MISSING_LAYOUT");
+  });
+
+  it("reports too many slides for a single-slide intent", () => {
+    const output = `layout: header-content
+
+@main
+- One
+
+---
+
+layout: header-content
+
+@main
+- Two`;
+    const result = validate("", output, "enhanceSlide");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("TOO_MANY_SLIDES");
+  });
+
+  it("warns when a header area does not start with h1", () => {
+    const output = `layout: header-content
+
+@header
+## Subtitle
+
+@main
+- Item`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].code).toBe("HEADER_DEFAULT_H1");
+  });
+
+  it("errors when a header-content slide has more than one image", () => {
+    const output = `layout: header-content
+
+@main
+<img src="a.png" alt="A">
+<img src="b.png" alt="B">`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("NO_HEADER_ON_MULTI_IMAGE");
+  });
+
+  it("errors when multi-column-list content from input is missing in output", () => {
+    const input = `layout: header-content
+
+@main
+<div class="multi-column-list">A B C</div>`;
+    const output = `layout: header-content
+
+@main
+- A
+- B
+- C`;
+    const result = validate(input, output, "fix");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("PRESERVE_MULTI_COLUMN_LIST");
+  });
+
+  it("returns a parse error when the parser cannot initialize", () => {
+    const original = window.markdownit;
+    window.markdownit = () => {
+      throw new Error("markdown-it unavailable");
+    };
+
+    const output = `layout: header-content
+
+@main
+- Item`;
+    const result = validate("", output, "fix");
+
+    window.markdownit = original;
+
+    expect(result.ok).toBe(false);
+    expect(result.errors[0].code).toBe("PARSE_ERROR");
+  });
+});

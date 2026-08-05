@@ -10,7 +10,6 @@ import {
   estimateMaxTokens,
   buildDeckSummary,
   buildBatchMessages,
-  validateFixOutput,
 } from "../data/ai-enhancer.js";
 
 describe("estimateTokens", () => {
@@ -197,12 +196,19 @@ describe("buildMessages", () => {
 
   it("returns system prompt for fix mode", () => {
     const { system } = buildMessages("# Test", "fix");
-    expect(system).toContain("You are a SlideMD markdown editor");
+    expect(system).toContain("You are a SlideMD editor");
   });
 
   it("returns system prompt for generate mode", () => {
     const { system } = buildMessages("# Test", "generate");
-    expect(system).toContain("You are a SlideMD markdown editor");
+    expect(system).toContain("You are a SlideMD editor");
+  });
+
+  it("replaces {{layoutList}} in the system prompt", () => {
+    const { system } = buildMessages("# Test", "fix");
+    expect(system).not.toContain("{{layoutList}}");
+    expect(system).toContain("header-content");
+    expect(system).toContain("title-slide");
   });
 });
 
@@ -249,10 +255,10 @@ describe("estimateMaxTokens", () => {
     expect(estimateMaxTokens(md, "fix")).toBeGreaterThanOrEqual(16000);
   });
 
-  it("returns at least 64000 with reasoning", () => {
+  it("returns at least 24000 with high reasoning", () => {
     const md = "a".repeat(1000);
     const result = estimateMaxTokens(md, "fix", { useReasoning: true });
-    expect(result).toBeGreaterThanOrEqual(64000);
+    expect(result).toBeGreaterThanOrEqual(24000);
   });
 
   it("scales with input size for fix mode", () => {
@@ -463,41 +469,5 @@ describe("injectDirectives", () => {
     const result = injectDirectives(md, orig);
     expect(result).toContain("@header\n## Title");
     expect(result).toContain("@main\n- Content");
-  });
-});
-
-describe("validateFixOutput", () => {
-  it("returns valid when slide count matches", () => {
-    const orig = [
-      { layout: "header-content", background: "", theme: "" },
-      { layout: "two-column", background: "", theme: "" },
-    ];
-    const fixed = [
-      { layout: "header-content", content: "@header\n## Title\n\n@main\n- Item" },
-      { layout: "two-column", content: "@header\n## Overview\n\n@main\n- Left\n\n@media\n- Right" },
-    ];
-    const result = validateFixOutput(orig, fixed);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
-  });
-
-  it("detects slide count mismatch", () => {
-    const orig = [
-      { layout: "header-content", background: "", theme: "" },
-      { layout: "two-column", background: "", theme: "" },
-    ];
-    const fixed = [{ layout: "header-content", content: "@header\n## Title" }];
-    const result = validateFixOutput(orig, fixed);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("Slide count mismatch");
-    expect(result.errors[0]).toContain("2 input → 1 output");
-  });
-
-  it("ignores layout changes (restored post-AI)", () => {
-    const orig = [{ layout: "media-span", background: "", theme: "" }];
-    const fixed = [{ layout: "two-column", content: "@header\n## Title\n\n@main\n- Item" }];
-    const result = validateFixOutput(orig, fixed);
-    expect(result.valid).toBe(true);
   });
 });

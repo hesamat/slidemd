@@ -7,9 +7,11 @@
  */
 
 import { SettingsModal } from "./settings-modal.js";
+import { createAiProviderClient } from "../data/ai/ai-provider-factory.js";
+import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
+import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 
 const P = "ai-sidebar__";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export class AiSidebar {
   static _currentPanel = null;
@@ -148,19 +150,29 @@ export class AiSidebar {
     const { buildDeckSummary, splitSlides, slidesToMarkdown, BATCH_SIZE } =
       await import("../data/ai-enhancer.js");
 
+    const providerLabel = SettingsModal.getProvider();
+
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
+
     const run = async () => {
       try {
         const apiKey = SettingsModal.getApiKey();
-        const model = SettingsModal.getModel();
 
-        if (!apiKey) {
+        if (!apiKey && SettingsModal.requiresApiKey(providerLabel)) {
           showError("No API key \u2014 open Settings to configure");
           return null;
         }
 
+        const model = SettingsModal.getModel();
         const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
         const useReasoning = SettingsModal.getReasoning();
-        const effort = SettingsModal.getEffort();
+        const effort = useReasoning ? SettingsModal.getEffort() : null;
+        const reasoningEffort = useReasoning ? effort : "none";
 
         // Split into slides to decide single vs batch path
         const allSlides = splitSlides(markdown, mode);
@@ -168,11 +180,11 @@ export class AiSidebar {
         // ── Single-call path (≤BATCH_SIZE slides) ──
         if (allSlides.length <= BATCH_SIZE) {
           return await this.#runSingleCall(markdown, mode, {
-            apiKey,
-            model,
+            provider,
             modelMaxOutput,
             useReasoning,
             effort,
+            reasoningEffort,
             statusEl,
             noticeEl,
             isCancelled: () => cancelled,
@@ -201,11 +213,14 @@ export class AiSidebar {
         );
 
         // 2-worker parallel batch loop
-        const results = new Array(batches.length);
+        // results is keyed by batch.batchKey so split sub-batches get their own slot
+        // and cannot overwrite each other. Values carry start/end for reassembly.
+        const results = new Map();
         let completedSlides = 0;
         let retryCount = 0;
         let splitCount = 0;
         const retryAttempts = new Map(); // batch key -> attempt count
+        const repairMessages = new Map(); // batch key -> messages for next attempt
         const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
         const worker = async (_workerName) => {
@@ -219,12 +234,13 @@ export class AiSidebar {
               batch,
               totalSlides: allSlides.length,
               deckSummary,
-              apiKey,
-              model,
+              provider,
               modelMaxOutput,
               useReasoning,
               effort,
+              reasoningEffort,
               signal: this._abortControllers[0]?.signal,
+              repairMessages: repairMessages.get(batch.batchKey) || [],
             });
 
             if (batchResult === null) {
@@ -260,45 +276,72 @@ export class AiSidebar {
               } else if (batchResult.error.type === "validation" && attempts < 2) {
                 const errs = batchResult.error.errors;
                 console.warn(
-                  `[AI Fix] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
+                  `[AI] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
                 );
                 for (const e of errs) {
-                  console.warn(`  - ${e}`);
+                  console.warn(`  - ${e.message || e}`);
                 }
                 appendLog(
                   `\u21BB Batch ${batch.index + 1}: ${errs.length} validation issue${errs.length === 1 ? "" : "s"} \u2014 retrying...`,
                   "warn",
                 );
                 retryCount++;
+                if (batchResult.error.repairMessages) {
+                  repairMessages.set(batch.batchKey, batchResult.error.repairMessages);
+                }
                 queue.unshift(batch);
               } else if (attempts < 2) {
+                const errMsg = batchResult.error.message ? ` (${batchResult.error.message})` : "";
                 appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type} \u2014 retrying...`,
+                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type}${errMsg} \u2014 retrying...`,
                   "warn",
                 );
                 retryCount++;
                 queue.unshift(batch);
               } else {
-                const errs =
-                  batchResult.error.type === "validation" ? batchResult.error.errors : [];
-                if (errs.length > 0) {
+                const isValidation = batchResult.error.type === "validation";
+                const errs = isValidation ? batchResult.error.errors : [];
+                // Accept the partial output after exhausting retries so one bad batch
+                // does not discard the whole deck in either fix or generate mode.
+                if (isValidation && batchResult.error.slides) {
+                  results.set(batch.batchKey, {
+                    start: batch.start,
+                    end: batch.end,
+                    slides: batchResult.error.slides,
+                  });
+                  completedSlides += batch.end - batch.start;
+                  const messages = errs.map((e) => e.message || e);
                   console.warn(
-                    `[AI Fix] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                    `[AI] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
                   );
-                  for (const e of errs) {
-                    console.warn(`  - ${e}`);
+                  for (const m of messages) console.warn(`  - ${m}`);
+                  appendLog(
+                    `\u26A0 Batch ${batch.index + 1}: accepted with ${errs.length} validation issue${errs.length === 1 ? "" : "s"}`,
+                    "warn",
+                  );
+                } else {
+                  if (errs.length > 0) {
+                    console.warn(
+                      `[AI] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
+                    );
+                    for (const e of errs) {
+                      console.warn(`  - ${e.message || e}`);
+                    }
                   }
+                  appendLog(
+                    `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
+                    "error",
+                  );
                 }
-                appendLog(
-                  `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
-                  "error",
-                );
-                completedSlides += batch.end - batch.start;
                 const nextBatch = queue.length > 0 ? queue[0] : null;
                 updateProgress(completedSlides, allSlides.length, nextBatch);
               }
             } else {
-              results[batch.index] = batchResult.slides;
+              results.set(batch.batchKey, {
+                start: batch.start,
+                end: batch.end,
+                slides: batchResult.slides,
+              });
               completedSlides += batch.end - batch.start;
               const nextBatch = queue.length > 0 ? queue[0] : null;
               updateProgress(completedSlides, allSlides.length, nextBatch);
@@ -309,7 +352,7 @@ export class AiSidebar {
           }
         };
 
-        // Create2 AbortControllers
+        // Create 2 AbortControllers
         const ctrl1 = new AbortController();
         const ctrl2 = new AbortController();
         this._abortControllers = [ctrl1, ctrl2];
@@ -322,9 +365,19 @@ export class AiSidebar {
           return null;
         }
 
-        // Check for partial results
-        const failedBatches = results.filter((r) => r === undefined).length;
-        if (failedBatches > 0) {
+        // Reassemble batches in order and check for any gaps
+        const completedRanges = [...results.values()].sort((a, b) => a.start - b.start);
+        const hasGap = (() => {
+          if (completedRanges.length === 0) return true;
+          let expectedStart = 0;
+          for (const r of completedRanges) {
+            if (r.start !== expectedStart) return true;
+            expectedStart = r.end;
+          }
+          return expectedStart !== allSlides.length;
+        })();
+
+        if (hasGap) {
           showError(
             `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
               `Try again or reduce deck size.`,
@@ -333,7 +386,7 @@ export class AiSidebar {
         }
 
         // Combine results in order
-        const allResultSlides = results.flat();
+        const allResultSlides = completedRanges.flatMap((r) => r.slides);
         const summaryParts = [`${allSlides.length} slides processed`];
         if (retryCount > 0)
           summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
@@ -342,7 +395,7 @@ export class AiSidebar {
         const combined = slidesToMarkdown(allResultSlides);
         return combined;
       } catch (err) {
-        if (err.name === "AbortError") {
+        if (err.name === "AbortError" || err.name === "AiAbortError") {
           this.close();
           return null;
         }
@@ -379,36 +432,38 @@ export class AiSidebar {
 
   /**
    * Single API call path (small decks).
-   * For fix mode, validates output and retries with escalation on failure.
+   * For fix mode, validates output and retries with a focused repair message on failure.
    */
   static async #runSingleCall(markdown, mode, opts) {
-    const { apiKey, model, modelMaxOutput, useReasoning, effort, statusEl, noticeEl, isCancelled } =
-      opts;
-
     const {
-      buildMessages,
-      estimateMaxTokens,
-      parseAiResponse,
-      slidesToMarkdown,
-      extractDirectives,
-      validateFixOutput,
-    } = await import("../data/ai-enhancer.js");
+      provider,
+      modelMaxOutput,
+      useReasoning,
+      effort,
+      reasoningEffort,
+      statusEl,
+      noticeEl,
+      isCancelled,
+    } = opts;
 
-    const originalDirectives = extractDirectives(markdown);
-    const maxAttempts = mode === "fix" ? 3 : 1;
+    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown, splitSlides } =
+      await import("../data/ai-enhancer.js");
+
+    const validator = new AiOutputValidator({ inputMarkdown: markdown });
+    const maxAttempts = mode === "fix" ? 3 : 2;
+    const expectedSlideCount = mode === "fix" ? splitSlides(markdown, mode).length : null;
     let lastErrors = [];
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const { system, user } = buildMessages(markdown, mode);
-      const escalatedUser =
-        attempt > 1
-          ? user +
-            `\n\nPREVIOUS ATTEMPT FAILED VALIDATION:\n${lastErrors.join("\n")}\n\nYou MUST preserve original layouts and heading levels exactly. Do NOT change layouts or heading levels.`
-          : user;
+    const { system, user } = buildMessages(markdown, mode);
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ];
 
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const inputTokens = estimateMaxTokens(markdown, mode, {
         modelMaxOutput,
-        useReasoning,
+        reasoningEffort,
       });
       statusEl.textContent =
         attempt > 1
@@ -418,87 +473,83 @@ export class AiSidebar {
       const ctrl = new AbortController();
       this._abortControllers = [ctrl];
 
-      const body = {
-        model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: escalatedUser },
-        ],
-        max_tokens: inputTokens,
-        stream: false,
-        response_format: { type: "json_object" },
-      };
-      if (useReasoning) {
-        body.reasoning = { effort };
-      }
-
-      const res = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
-        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
-      }
-
-      noticeEl.hidden = false;
-      statusEl.textContent = "AI is working\u2026";
-
-      const json = await res.json();
-      const contentText = json.choices?.[0]?.message?.content || "";
-      const finishReason = json.choices?.[0]?.finish_reason;
-
-      if (isCancelled()) {
-        this.close();
-        return null;
-      }
-
-      if (finishReason === "length") {
-        const limitDisplay = modelMaxOutput
-          ? `${modelMaxOutput.toLocaleString()} tokens`
-          : "unknown";
-        throw new Error(
-          `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${model}). ` +
-            `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
-            `or switch to a model with a higher output token limit.`,
+      try {
+        const response = await provider.chat(
+          {
+            messages,
+            maxTokens: inputTokens,
+            responseFormat: null,
+            reasoning: useReasoning ? { effort } : null,
+          },
+          ctrl.signal,
         );
-      }
 
-      const parsed = parseAiResponse(contentText);
-      if (!parsed) {
-        throw new Error("AI did not return valid JSON");
-      }
+        noticeEl.hidden = false;
+        statusEl.textContent = "AI is working\u2026";
 
-      // Validate fix mode output (slide count only — layout restored post-AI)
-      if (mode === "fix") {
-        const validation = validateFixOutput(originalDirectives, parsed.slides);
-        if (validation.valid) {
-          return slidesToMarkdown(parsed.slides);
+        if (isCancelled()) {
+          this.close();
+          return null;
         }
-        lastErrors = validation.errors;
+
+        const finishReason =
+          response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
+        if (finishReason === "length") {
+          const limitDisplay = modelMaxOutput
+            ? `${modelMaxOutput.toLocaleString()} tokens`
+            : "unknown";
+          throw new Error(
+            `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${SettingsModal.getModel()}). ` +
+              `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
+              `or switch to a model with a higher output token limit.`,
+          );
+        }
+
+        const contentText = response.content;
+        const parsed = parseAiResponse(contentText);
+        if (!parsed) {
+          throw new Error("AI did not return valid JSON");
+        }
+
+        const enhancedMarkdown = slidesToMarkdown(parsed.slides);
+        const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
+
+        if (result.ok) {
+          if (result.warnings.length > 0) {
+            for (const w of result.warnings) {
+              console.warn(`[AI ${mode}] ${w.message}`);
+            }
+          }
+          return enhancedMarkdown;
+        }
+
+        lastErrors = result.errors;
         console.warn(
-          `[AI Fix] Attempt ${attempt}: ${validation.errors.length} validation issue(s):`,
+          `[AI ${mode}] Attempt ${attempt}: ${result.errors.length} validation issue(s):`,
         );
-        for (const err of validation.errors) {
-          console.warn(`  - ${err}`);
+        for (const err of result.errors) {
+          console.warn(`  - ${err.message}`);
         }
-        if (attempt < maxAttempts) {
-          continue; // retry with escalation
-        }
-        // Last attempt failed — accept but log warnings
-        console.warn("[AI Fix] Accepting output after max attempts with validation issues");
-      }
 
-      return slidesToMarkdown(parsed.slides);
+        if (attempt < maxAttempts) {
+          const repairMsg = buildRepairMessage(result.errors);
+          messages.push({ role: "assistant", content: contentText });
+          messages.push({ role: "user", content: repairMsg });
+          continue;
+        }
+
+        // Accept output after exhausting retries so the user does not lose the entire result.
+        console.warn(`[AI ${mode}] Accepting output after max attempts with validation issues`);
+        return enhancedMarkdown;
+      } catch (err) {
+        if (err.name === "AiAbortError") {
+          this.close();
+          return null;
+        }
+        throw err;
+      }
     }
 
-    // Should not reach here, but handle gracefully
     return null;
   }
 
@@ -514,21 +565,17 @@ export class AiSidebar {
       batch,
       totalSlides,
       deckSummary,
-      apiKey,
-      model,
+      provider,
       modelMaxOutput,
       useReasoning,
       effort,
+      reasoningEffort,
       signal,
+      repairMessages = [],
     } = opts;
 
-    const {
-      buildBatchMessages,
-      estimateMaxTokens,
-      parseAiResponse,
-      extractDirectives,
-      validateFixOutput,
-    } = await import("../data/ai-enhancer.js");
+    const { buildBatchMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
+      await import("../data/ai-enhancer.js");
 
     const batchMarkdown = (() => {
       const cleaned = markdown
@@ -547,47 +594,32 @@ export class AiSidebar {
       deckSummary,
     );
 
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: user },
+      ...repairMessages,
+    ];
+
     const inputTokens = estimateMaxTokens(batchMarkdown, mode, {
       modelMaxOutput,
-      useReasoning,
+      reasoningEffort,
     });
-
-    const body = {
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      max_tokens: inputTokens,
-      stream: false,
-      response_format: { type: "json_object" },
-    };
-    if (useReasoning) {
-      body.reasoning = { effort };
-    }
 
     const startTime = performance.now();
 
     try {
-      const res = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+      const response = await provider.chat(
+        {
+          messages,
+          maxTokens: inputTokens,
+          responseFormat: null,
+          reasoning: useReasoning ? { effort } : null,
         },
-        body: JSON.stringify(body),
         signal,
-      });
+      );
 
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => "");
-        throw new Error(`API error ${res.status}: ${errorText.slice(0, 200)}`);
-      }
-
-      const json = await res.json();
-      const contentText = json.choices?.[0]?.message?.content || "";
-      const finishReason = json.choices?.[0]?.finish_reason;
-
+      const contentText = response.content;
+      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
       const duration = (performance.now() - startTime) / 1000;
 
       if (finishReason === "length") {
@@ -599,18 +631,41 @@ export class AiSidebar {
         return { error: { type: "parse-error" } };
       }
 
-      // Validate fix mode output (slide count only — layout restored post-AI)
-      if (mode === "fix") {
-        const origDirectives = extractDirectives(markdown).slice(batch.start, batch.end);
-        const validation = validateFixOutput(origDirectives, parsed.slides);
-        if (!validation.valid) {
-          return { error: { type: "validation", errors: validation.errors } };
+      const enhancedMarkdown = slidesToMarkdown(parsed.slides);
+      const validator = new AiOutputValidator({ inputMarkdown: batchMarkdown });
+      const expectedCount = mode === "fix" ? batch.end - batch.start : null;
+      const result = validator.validate(enhancedMarkdown, mode, {
+        expectedSlideCount: expectedCount,
+      });
+
+      if (!result.ok) {
+        const repairMsg = buildRepairMessage(result.errors);
+        const nextRepairMessages = [
+          ...repairMessages,
+          { role: "assistant", content: contentText },
+          { role: "user", content: repairMsg },
+        ];
+        return {
+          error: {
+            type: "validation",
+            errors: result.errors,
+            repairMessages: nextRepairMessages,
+            // Keep the parsed slides so fix mode can accept partial output
+            // after exhausting retries instead of dropping the whole batch.
+            slides: parsed.slides,
+          },
+        };
+      }
+
+      if (result.warnings.length > 0) {
+        for (const w of result.warnings) {
+          console.warn(`[AI batch] ${w.message}`);
         }
       }
 
       return { slides: parsed.slides, duration };
     } catch (err) {
-      if (err.name === "AbortError") return null;
+      if (err.name === "AbortError" || err.name === "AiAbortError") return null;
       return { error: { type: "network-error", message: err.message } };
     }
   }

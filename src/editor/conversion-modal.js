@@ -308,7 +308,7 @@ export class ConversionModal {
           const aiHint = document.createElement("span");
           aiHint.className = `${P}ai-hint`;
           aiHint.hidden = true;
-          aiHint.innerHTML = `No API key configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
+          aiHint.innerHTML = `AI not configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
           insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
           insertAfter = aiHint;
 
@@ -322,26 +322,31 @@ export class ConversionModal {
           // Helper to refresh AI button/checkbox state based on current API key
           // Must be defined AFTER aiBtn and aiHint are created
           const refreshAiState = () => {
+            const provider = SettingsModal.getProvider();
+            const needsKey = SettingsModal.requiresApiKey(provider);
             const hasKey = !!SettingsModal.getApiKey();
-            fixInput.disabled = !hasKey;
+            const aiReady = !needsKey || hasKey;
+            fixInput.disabled = !aiReady;
             if (aiBtn) {
-              aiBtn.disabled = !hasKey;
-              aiBtn.title = hasKey
+              aiBtn.disabled = !aiReady;
+              aiBtn.title = aiReady
                 ? "AI reorganizes and redesigns the entire presentation"
                 : "Configure API key in Settings first";
             }
             if (aiHint) {
-              aiHint.hidden = hasKey;
+              aiHint.hidden = aiReady;
             }
           };
 
           // Clicking the checkbox when no API key opens settings
           fixInput.addEventListener("click", async (e) => {
-            if (!SettingsModal.getApiKey()) {
+            const provider = SettingsModal.getProvider();
+            if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) {
               e.preventDefault();
               await SettingsModal.show();
               refreshAiState();
-              if (SettingsModal.getApiKey()) {
+              const newProvider = SettingsModal.getProvider();
+              if (!SettingsModal.requiresApiKey(newProvider) || SettingsModal.getApiKey()) {
                 fixInput.checked = true;
                 aiMode = "fix";
               }
@@ -357,10 +362,12 @@ export class ConversionModal {
           });
 
           aiBtn.addEventListener("click", async () => {
-            if (!SettingsModal.getApiKey()) {
+            const provider = SettingsModal.getProvider();
+            if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) {
               await SettingsModal.show();
               refreshAiState();
-              if (!SettingsModal.getApiKey()) return;
+              const newProvider = SettingsModal.getProvider();
+              if (SettingsModal.requiresApiKey(newProvider) && !SettingsModal.getApiKey()) return;
             }
             aiMode = "generate";
             saveBtn.click();
