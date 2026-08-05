@@ -13,7 +13,6 @@ Success criteria:
 
 - Output is valid JSON with a `slides` array containing exactly one slide.
 - The slide's visible content is unchanged.
-- Speaker notes are present as `<!-- notes: ... -->` at the end of the content.
 - Notes are relevant to the slide's topic and useful for a presenter.
 
 Input markdown:

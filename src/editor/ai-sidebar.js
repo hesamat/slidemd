@@ -253,6 +253,8 @@ export class AiSidebar {
     let ctrl = new AbortController();
     this._abortControllers = [ctrl];
 
+    let closed = false;
+
     cancelBtn.addEventListener("click", () => {
       ctrl.abort();
       this.cancel();
@@ -265,7 +267,14 @@ export class AiSidebar {
     };
 
     seeResultBtn.addEventListener("click", finish);
-    closeBtn.addEventListener("click", finish);
+    // Close must also break out of the error retry loop, which awaits
+    // _retryResolve rather than _finishResolve. Without this the panel would
+    // hang forever after an error when the user clicks Close.
+    closeBtn.addEventListener("click", () => {
+      closed = true;
+      this._retryResolve?.();
+      this._finishResolve?.();
+    });
     retryBtn.addEventListener("click", () => {
       this._retryResolve?.();
     });
@@ -319,7 +328,7 @@ export class AiSidebar {
         await new Promise((resolve) => {
           this._retryResolve = resolve;
         });
-        if (this._showId !== myShowId) break;
+        if (closed || this._showId !== myShowId) break;
         // Re-run on retry with a fresh AbortController so a previous
         // cancel/abort can't cause every subsequent retry to fail immediately.
         retryBtn.hidden = true;

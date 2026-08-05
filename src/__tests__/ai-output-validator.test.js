@@ -132,4 +132,60 @@ layout: header-content
     expect(result.ok).toBe(false);
     expect(result.errors[0].code).toBe("PARSE_ERROR");
   });
+
+  describe("addSpeakerNotes intent", () => {
+    const slideWithNotes = (notes) => `layout: header-content
+
+@header
+# Title
+
+@main
+- Item${notes ? `\n\n<!-- notes: ${notes} -->` : ""}`;
+
+    it("passes when only notes are added", () => {
+      const result = validate(
+        slideWithNotes(""),
+        slideWithNotes("Talk about items"),
+        "addSpeakerNotes",
+      );
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("fails when notes are missing", () => {
+      const result = validate(slideWithNotes(""), slideWithNotes(""), "addSpeakerNotes");
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.code === "NOTES_MISSING")).toBe(true);
+    });
+
+    it("fails when visible content changes", () => {
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+- Changed item
+
+<!-- notes: ... -->`;
+      const result = validate(slideWithNotes(""), output, "addSpeakerNotes");
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.code === "NOTES_PRESERVE_CONTENT")).toBe(true);
+    });
+
+    it("fails when the layout changes", () => {
+      const output = `layout: focus
+
+@header
+# Title
+
+@main
+- Item
+
+<!-- notes: ... -->`;
+      const result = validate(slideWithNotes(""), output, "addSpeakerNotes");
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.code === "NOTES_PRESERVE_LAYOUT")).toBe(true);
+    });
+  });
 });

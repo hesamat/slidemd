@@ -47,6 +47,28 @@ export class DeckStore {
   }
 
   /**
+   * Replace the entire deck with new slides, recording an undoable history
+   * entry. Used by whole-deck AI refine so the result is undoable (Ctrl+Z)
+   * unlike loadFromMarkdown which clears history.
+   * @param {string[]} slides
+   * @param {number} [activeIndex=0]
+   * @param {import("./slide-patch.js").SlidePatch} [patch] - metadata for the history entry
+   */
+  replaceDeck(slides, activeIndex = 0, patch) {
+    const slidesBefore = [...this._slides];
+    const activeIndexBefore = this._activeIndex;
+    this._slides = [...slides];
+    this._activeIndex = this._clampIndex(activeIndex);
+    this._history.push(
+      slidesBefore,
+      activeIndexBefore,
+      patch || { index: 0, before: null, after: null, source: "ai", timestamp: Date.now() },
+    );
+    this._emit("change");
+    this._emit("slide");
+  }
+
+  /**
    * Synchronize the current markdown without creating an undo entry.
    * Used before structural operations so their snapshots include unsaved text.
    */

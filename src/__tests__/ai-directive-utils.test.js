@@ -134,4 +134,47 @@ describe("injectDirectives", () => {
     expect(result).toContain("background: red");
     expect(result).toContain("theme: dark");
   });
+
+  describe("generate mode", () => {
+    it("preserves an AI-chosen background instead of overwriting with the original", () => {
+      const md = "layout: focus\nbackground: red\n\n@header\n## Title";
+      const orig = [{ layout: "focus", background: "blue", theme: "" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("background: red");
+      expect(result).not.toContain("background: blue");
+      expect(result.match(/^background:/gm)).toHaveLength(1);
+    });
+
+    it("fills in a background the AI dropped", () => {
+      const md = "layout: focus\n\n@header\n## Title";
+      const orig = [{ layout: "focus", background: "blue", theme: "" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("background: blue");
+    });
+
+    it("does not inject when neither AI nor original has bg/theme", () => {
+      const md = "layout: focus\n\n@header\n## Title";
+      const orig = [{ layout: "focus", background: "", theme: "" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toBe(md);
+    });
+
+    it("leaves a background: line inside a code block untouched", () => {
+      const md = "layout: focus\n\n@main\n```\nbackground: keep\n```";
+      const orig = [{ layout: "focus", background: "blue", theme: "" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("background: keep");
+      expect(result).toContain("background: blue");
+    });
+  });
+
+  describe("fix mode fence-awareness", () => {
+    it("leaves a background: line inside a code block untouched", () => {
+      const md = "layout: focus\n\n@main\n```\nbackground: keep\n```";
+      const orig = [{ layout: "focus", background: "red", theme: "" }];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result).toContain("background: keep");
+      expect(result).toContain("background: red");
+    });
+  });
 });

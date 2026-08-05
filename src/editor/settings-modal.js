@@ -415,6 +415,7 @@ export class SettingsModal {
 
       const isModelSearchProvider = () =>
         selectedProvider === "OpenRouter" ||
+        selectedProvider === "OpenAI" ||
         selectedProvider === "Ollama" ||
         selectedProvider === "LM Studio";
 
@@ -473,7 +474,7 @@ export class SettingsModal {
         requestAnimationFrame(() => {
           modelDropdown.scrollTop = 0;
           modelList.offsetHeight; // force reflow of the list itself
-  
+
           modelDropdown.offsetHeight; // force reflow of the overflow container
         });
       };
@@ -539,7 +540,8 @@ export class SettingsModal {
           }
           const modelKey = apiKeyInput.value.trim();
           const headers = {};
-          if (selectedProvider !== "OpenRouter" && modelKey) headers.Authorization = `Bearer ${modelKey}`;
+          if (selectedProvider !== "OpenRouter" && modelKey)
+            headers.Authorization = `Bearer ${modelKey}`;
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
           const res = await fetch(`${baseUrl}/models`, { headers, signal: controller.signal });

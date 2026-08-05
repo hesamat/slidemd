@@ -185,10 +185,13 @@ export class AiOutputValidator {
         });
       }
 
-      // Visible markdown (without notes) must be unchanged
-      const inputVisible = (this._parser.stripNotes(inputSlide.raw) || "").trim();
-      const outputVisible = (this._parser.stripNotes(slide.raw) || "").trim();
-      if (inputVisible !== outputVisible) {
+      // Visible content (rendered areas) must be unchanged. Parsed slides
+      // expose rendered area HTML rather than a `raw` field, so compare the
+      // areas objects directly — if the AI only added notes, the areas HTML
+      // is byte-identical.
+      const inputAreasJson = JSON.stringify(inputSlide.areas || {});
+      const outputAreasJson = JSON.stringify(slide.areas || {});
+      if (inputAreasJson !== outputAreasJson) {
         errors.push({
           slide: index,
           code: "NOTES_PRESERVE_CONTENT",
@@ -196,8 +199,9 @@ export class AiOutputValidator {
         });
       }
 
-      // Output must contain a notes block
-      const outputNotes = this._parser.extractNotes(slide.raw);
+      // Output must contain a notes block. Parsed slides expose `notes`
+      // directly (extracted from `<!-- notes: ... -->` during parsing).
+      const outputNotes = slide.notes || "";
       if (!outputNotes) {
         errors.push({
           slide: index,

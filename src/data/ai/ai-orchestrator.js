@@ -102,8 +102,9 @@ export class AiOrchestrator {
       }
 
       let afterMarkdown = slidesToMarkdown(parsed.slides);
-      // Re-inject background/theme if the AI dropped them
-      afterMarkdown = injectDirectives(afterMarkdown, origDirectives);
+      // Re-inject background/theme if the AI dropped them (fix mode: the AI
+      // never sees them, so originals are restored positionally).
+      afterMarkdown = injectDirectives(afterMarkdown, origDirectives, "fix");
 
       const result = validator.validate(afterMarkdown, intent, { expectedSlideCount: 1 });
 
@@ -159,18 +160,25 @@ export class AiOrchestrator {
 
     const optionsSuffix = buildGenerateOptionsSuffix(operation.opts);
 
-    // Capture original background/theme directives before sending. The AI
-    // sometimes drops these even though generate mode keeps them visible in
-    // the input; re-inject them into the final markdown either way.
+    // Capture original background/theme directives before sending. In generate
+    // mode the AI sees them and may keep or change them; we only gap-fill any it
+    // dropped (preserving AI-chosen styling) rather than overwriting positionally.
     const origDirectives = extractDirectives(context);
 
     // Single-call path for small decks
     const result =
       totalSlides <= BATCH_SIZE
         ? await this.#runWholeDeckSingleCall(operation, signal, optionsSuffix, callbacks)
-        : await this.#runWholeDeckBatched(operation, signal, optionsSuffix, totalSlides, callbacks);
+        : await this.#runWholeDeckBatched(
+            operation,
+            signal,
+            optionsSuffix,
+            totalSlides,
+            allSlides,
+            callbacks,
+          );
 
-    return result ? injectDirectives(result, origDirectives) : result;
+    return result ? injectDirectives(result, origDirectives, "generate") : result;
   }
 
   /**
@@ -273,7 +281,14 @@ export class AiOrchestrator {
    * @param {object} callbacks
    * @returns {Promise<string|null>}
    */
-  async #runWholeDeckBatched(operation, signal, optionsSuffix = "", totalSlides, callbacks = {}) {
+  async #runWholeDeckBatched(
+    operation,
+    signal,
+    optionsSuffix = "",
+    totalSlides,
+    allSlides,
+    callbacks = {},
+  ) {
     const { context } = operation;
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const deckSummary = buildDeckSummary(context);
@@ -303,6 +318,7 @@ export class AiOrchestrator {
 
         const batchResult = await this.#processBatch({
           markdown: context,
+          allSlides,
           batch,
           totalSlides,
           deckSummary,
@@ -427,6 +443,7 @@ export class AiOrchestrator {
    */
   async #processBatch({
     markdown,
+    allSlides,
     batch,
     totalSlides,
     deckSummary,
@@ -435,9 +452,7 @@ export class AiOrchestrator {
     signal,
     repairMessages = [],
   }) {
-    const batchMarkdown = splitSlidesForAi(markdown, "generate")
-      .slice(batch.start, batch.end)
-      .join("\n\n---\n\n");
+    const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
 
     const { system, user } = buildBatchMessages(
       markdown,

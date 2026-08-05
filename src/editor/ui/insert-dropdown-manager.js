@@ -13,6 +13,9 @@
  */
 
 export class InsertDropdownManager {
+  /** Dropdown managers register here so any trigger click can close the others. */
+  static _registry = new Set();
+
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.btn       — dropdown trigger button
@@ -29,6 +32,7 @@ export class InsertDropdownManager {
 
   init() {
     if (!this._btn || !this._content) return;
+    InsertDropdownManager._registry.add(this);
 
     const { signal } = this._abortController;
 
@@ -37,6 +41,10 @@ export class InsertDropdownManager {
       (e) => {
         e.stopPropagation();
         const wasOpen = !this._content.classList.contains("webdeck-hidden");
+        // Close every other registered dropdown so two panels can't overlap.
+        for (const mgr of InsertDropdownManager._registry) {
+          if (mgr !== this) mgr.close();
+        }
         this.close();
         if (!wasOpen) {
           this._content.classList.remove("webdeck-hidden");
@@ -116,6 +124,7 @@ export class InsertDropdownManager {
 
   destroy() {
     this.close();
+    InsertDropdownManager._registry.delete(this);
     this._abortController.abort();
   }
 }

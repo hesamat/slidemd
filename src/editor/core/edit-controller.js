@@ -697,6 +697,10 @@ export class EditController {
       Notification.error("No API key — open Settings to configure AI.");
       return;
     }
+    if (!this.deckStore) {
+      Notification.error("AI editing requires a loaded deck. Open or create a deck first.");
+      return;
+    }
 
     // Sync editor state into the store so the patch's `before` matches
     this.prepareStoreOperation();
@@ -806,17 +810,26 @@ export class EditController {
         // Keep the markdown editor and original cache in sync with the new AI markdown.
         // syncStore: false tells reloadManager not to overwrite the store from DeckLoader source.
         this.unsavedMarkdown.clear();
+        const parser = new MarkdownParser();
+        const newSlides = parser.splitSlides(enhanced);
         if (this.deckStore) {
-          this.deckStore.loadFromMarkdown(enhanced, 0);
+          // Route through replaceDeck so the refine is undoable (Ctrl+Z)
+          // instead of loadFromMarkdown which clears history.
+          this.deckStore.replaceDeck(newSlides, 0, {
+            index: 0,
+            before: null,
+            after: enhanced,
+            source: "ai",
+            timestamp: Date.now(),
+          });
           this.originalMarkdown = this.deckStore.getSlides();
         } else {
-          const parser = new MarkdownParser();
-          this.originalMarkdown = parser.splitSlides(enhanced);
+          this.originalMarkdown = newSlides;
         }
         this.currentSlideIndex = 0;
         this.loadSlideIntoEditor();
         this.saveManager?.updateButton();
-        Notification.success("AI Refine all slides applied.");
+        Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
     } catch (err) {
       console.error("AI generate failed:", err);

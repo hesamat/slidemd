@@ -44,16 +44,14 @@ Conservative cleanup of a single slide that preserves content and slide count:
 
 ## Generate Mode (generate-prompt.md)
 
-Creative reorganization that may restructure the deck:
+Refines the whole deck's wording, layouts, and structure:
 
-- Keep all substantive content but reorganize for clarity
-- Split overloaded slides, combine sparse ones
-- Use tables for comparisons, two-column for dense content
-- `media-span` only for actual images, `full-image` for full-bleed
-- `title-slide` only for the first slide (`@title`, `@footer`)
-- `three-column` uses `@main`, `@media`, `@secondary`
-- Add speaker notes where helpful
-- Do not inflate slide count
+- Improve wording: concise headers, tightened bullet points, specific statements
+- Pick the best layout per slide (two-column, focus, table) over defaulting to header-content
+- Use tables for 2-3 item comparisons; two-column for diagrams, code, or dense content
+- Add speaker notes where helpful: `<!-- notes: ... -->`
+- Preserve each slide's `background:` and `theme:` directives from the input
+- Follow the FIDELITY instruction (polish / enhance / rewrite) appended after the prompt for how much to change
 
 ## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
 

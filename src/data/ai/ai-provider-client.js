@@ -191,23 +191,32 @@ export class AiProviderClient {
       return { content, usage: json.usage || null, raw: json };
     };
 
-    try {
-      return await tryFetch(true);
-    } catch (firstErr) {
-      // Retry without response_format if the provider doesn't support it.
-      if (responseFormat && firstErr instanceof AiParseError) {
-        return await tryFetch(false);
+    // Retry loop: drop unsupported params one at a time. Each retry narrows
+    // the request shape so a subsequent "reasoning is mandatory" 400 from the
+    // response_format-less retry is also handled (and vice versa).
+    let includeResponseFormat = true;
+    let includeReasoning = true;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await tryFetch(includeResponseFormat, includeReasoning);
+      } catch (err) {
+        lastErr = err;
+        // Drop response_format when the provider rejects it.
+        if (err instanceof AiParseError && includeResponseFormat) {
+          includeResponseFormat = false;
+          continue;
+        }
+        // Drop the reasoning param when the model requires reasoning but we
+        // tried to disable it. Only retry if we actually sent `reasoning`.
+        if (err instanceof AiReasoningError && includeReasoning && effectiveReasoning) {
+          includeReasoning = false;
+          continue;
+        }
+        throw err;
       }
-      // Retry without the reasoning param when the model requires reasoning
-      // but we tried to disable it (effort: "none"). Let the model use its
-      // default reasoning instead of failing. Only worth retrying if we
-      // actually sent a `reasoning` field — otherwise this would just repeat
-      // the exact same request and waste an API call.
-      if (firstErr instanceof AiReasoningError && effectiveReasoning) {
-        return await tryFetch(true, false);
-      }
-      throw firstErr;
     }
+    throw lastErr;
   }
 }
 
@@ -220,8 +229,11 @@ export class AiAbortError extends Error {
 
 export class AiHttpError extends Error {
   constructor(status, body) {
-    const summary = body ? ` ${String(body).slice(0, 200)}` : "";
-    super(`HTTP ${status}${summary}`);
+    // Do not embed the raw response body in the message — it is surfaced to
+    // the UI and console, and provider/proxy error payloads can echo request
+    // metadata (e.g. a reflected Authorization header). Keep the body on the
+    // error object for programmatic inspection only.
+    super(`HTTP ${status}`);
     this.name = "AiHttpError";
     this.status = status;
     this.body = body;
@@ -230,8 +242,7 @@ export class AiHttpError extends Error {
 
 export class AiParseError extends Error {
   constructor(msg, body = "") {
-    const summary = body ? ` ${String(body).slice(0, 500)}` : "";
-    super(`${msg}${summary}`);
+    super(msg);
     this.name = "AiParseError";
     this.body = body;
   }

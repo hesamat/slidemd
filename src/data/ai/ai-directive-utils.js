@@ -47,22 +47,48 @@ export function restoreDirectives(slides, origDirectives) {
 
 /**
  * Re-inject background and theme directives into AI-produced markdown.
- * AI output lacks these directives (they were stripped before sending).
- * This patches the markdown string to include them, so saved state preserves bg/theme.
  *
- * @param {string} markdown - AI-produced markdown (with layout: but no background:/theme:)
+ * - `mode === "fix"` (default): the AI never sees background/theme, so any it
+ *   echoed back are stripped and the originals are restored positionally. This
+ *   is safe because fix mode is 1:1 per slide.
+ * - `mode === "generate"`: the AI sees background/theme and may keep or change
+ *   them. Originals are only injected when the AI dropped them (gap-fill), and
+ *   any directive the AI chose is preserved. Both modes are fence-aware so a
+ *   literal `background:` line inside a code block is left untouched.
+ *
+ * @param {string} markdown - AI-produced markdown
  * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @param {"fix"|"generate"} [mode="fix"]
  * @returns {string} Markdown with background/theme directives re-injected
  */
-export function injectDirectives(markdown, origDirectives) {
+export function injectDirectives(markdown, origDirectives, mode = "fix") {
   const sections = markdown.split(/\n\n---\n\n/);
   const patched = sections.map((section, i) => {
     const orig = origDirectives[i];
     if (!orig) return section;
 
-    // Drop any background:/theme: lines the AI echoed back on its own so we
-    // don't end up with duplicate directives once the originals are re-inserted.
-    const lines = section.split("\n").filter((l) => !/^(background|theme):\s/.test(l));
+    if (mode === "generate") {
+      // Only fill in directives the AI dropped; keep any it chose.
+      const lines = section.split("\n");
+      const layoutIdx = findTopLevelDirectiveIdx(lines, "layout");
+      if (layoutIdx === -1) return section;
+
+      const insertAfter = [];
+      if (orig.background && !hasTopLevelDirective(lines, "background")) {
+        insertAfter.push(`background: ${orig.background}`);
+      }
+      if (orig.theme && !hasTopLevelDirective(lines, "theme")) {
+        insertAfter.push(`theme: ${orig.theme}`);
+      }
+      if (insertAfter.length === 0) return section;
+
+      lines.splice(layoutIdx + 1, 0, ...insertAfter);
+      return lines.join("\n");
+    }
+
+    // fix mode: strip any background:/theme: the AI echoed back, then restore
+    // the originals. Fence-aware so code-block contents are preserved.
+    const lines = filterFenceAware(section.split("\n"), (l) => !/^(background|theme):\s/.test(l));
     const layoutIdx = lines.findIndex((l) => /^layout:\s/.test(l));
     if (layoutIdx === -1) return section;
 
@@ -76,4 +102,60 @@ export function injectDirectives(markdown, origDirectives) {
     return lines.join("\n");
   });
   return patched.join("\n\n---\n\n");
+}
+
+/**
+ * Find the line index of a top-level (non-fenced) `name:` directive.
+ * @param {string[]} lines
+ * @param {string} name
+ * @returns {number}
+ */
+function findTopLevelDirectiveIdx(lines, name) {
+  let inFence = false;
+  const re = new RegExp(`^${name}:\\s`);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    if (re.test(line)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Check whether a top-level (non-fenced) `name:` directive exists.
+ * @param {string[]} lines
+ * @param {string} name
+ * @returns {boolean}
+ */
+function hasTopLevelDirective(lines, name) {
+  return findTopLevelDirectiveIdx(lines, name) !== -1;
+}
+
+/**
+ * Filter lines, keeping fence (``` blocks) intact and only applying the
+ * predicate to lines outside fences.
+ * @param {string[]} lines
+ * @param {(line: string) => boolean} predicate — keep when true
+ * @returns {string[]}
+ */
+function filterFenceAware(lines, predicate) {
+  let inFence = false;
+  const out = [];
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
+    if (predicate(line)) out.push(line);
+  }
+  return out;
 }
