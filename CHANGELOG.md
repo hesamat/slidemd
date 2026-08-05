@@ -14,6 +14,34 @@
 - Add unit tests for `SlidePatch`, `DeckHistory`, `DeckStore`, and `SlideOperations`.
 - Total tests now **626**.
 
+## 0.7.6 (2026-08-04)
+
+### AI Provider & Settings
+
+- Add configurable AI providers: OpenRouter, OpenAI, Anthropic, Gemini, Ollama, LM Studio, Custom.
+- Validate base URL scheme and host before sending API keys; block non-local `http:` endpoints.
+- Persist custom base URL override state so saved endpoints survive reopening Settings.
+- Cross-reference OpenRouter reasoning metadata for OpenAI models.
+- Fix model list caching across provider switches and reset dropdown scroll position.
+- Re-read provider after settings dialog in conversion modal.
+
+### AI Output & Prompts
+
+- Add `AiOutputValidator` with layout, area, and content-rule checks.
+- Add `AiPromptComposer` for reusable system/user prompt fragments.
+- Update `fix-prompt.md` to remove duplicate diagram rule and add success criteria.
+- Accept partial fix output after exhausting batch validation retries.
+- Surface provider error body in failure messages.
+
+### Security
+
+- Remove `HTTP-Referer` header from AI requests.
+- Send Gemini API key via `x-goog-api-key` header instead of URL query string.
+
+### Testing
+
+- Total tests now **654**.
+
 ## 0.7.5 (2026-08-04)
 
 ### Security

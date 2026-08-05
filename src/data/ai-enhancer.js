@@ -1,13 +1,49 @@
 /**
  * AI Enhancer
  *
- * Post-processes PPTX-imported markdown using AI via OpenRouter.
- * Uses JSON-structured output for reliable parsing.
+ * Post-processes PPTX-imported markdown using AI.
+ * Composes prompts from fragments and exposes the new stateless AI modules.
  */
 
+import { LayoutData } from "./layout-data.js";
+import { MarkdownParser } from "./markdown-parser.js";
+import { AiPromptComposer } from "./ai/ai-prompt-composer.js";
 import systemPrompt from "./prompts/system-prompt.md?raw";
 import fixPrompt from "./prompts/fix-prompt.md?raw";
 import generatePrompt from "./prompts/generate-prompt.md?raw";
+
+export { AiProviderClient } from "./ai/ai-provider-client.js";
+export { AiOutputValidator } from "./ai/ai-output-validator.js";
+export { AiPromptComposer } from "./ai/ai-prompt-composer.js";
+export { buildRepairMessage } from "./ai/ai-repair-message.js";
+
+const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
+
+function areaStatus(layout, area, allowedAreas) {
+  if (!allowedAreas.includes(area)) return "no";
+  if (area === "title") return "yes";
+  if (area === "main") return "yes";
+  if (area === "media" || area === "secondary" || area === "sidebar") return "yes";
+  if (area === "header" || area === "footer") {
+    return layout === "title-slide" && area === "footer" ? "yes" : "optional";
+  }
+  return "yes";
+}
+
+export function getAllowedLayoutList() {
+  const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
+  const rows = ["| Layout | @title | @header | @main | @media | @secondary | @sidebar | @footer |"];
+  rows.push("|---|---|---|---|---|---|---|---|");
+  for (const layout of layouts) {
+    const allowedAreas = LayoutData.getAreaNames(layout);
+    const cells = [layout];
+    for (const area of ALLOWED_AREAS) {
+      cells.push(areaStatus(layout, area, allowedAreas));
+    }
+    rows.push(`| ${cells.join(" | ")} |`);
+  }
+  return rows.join("\n");
+}
 
 /**
  * Convert JSON slides back to SlideMD markdown.
@@ -196,13 +232,12 @@ function stripFrontmatter(markdown, mode) {
  */
 export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
-  return {
-    system: systemPrompt,
-    user:
-      mode === "fix"
-        ? fixPrompt.replace("{{markdown}}", cleaned)
-        : generatePrompt.replace("{{markdown}}", cleaned),
-  };
+  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fragment,
+  });
+  return composer.compose({ markdown: cleaned, layoutList: getAllowedLayoutList() });
 }
 
 /**
@@ -285,7 +320,16 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
     contentForPrompt = chunk;
   }
 
-  const basePrompt = mode === "fix" ? fixPrompt : generatePrompt;
+  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fragment,
+  });
+  const { system, user } = composer.compose({
+    markdown: contentForPrompt,
+    layoutList: getAllowedLayoutList(),
+  });
+
   const paginationInstruction =
     mode === "fix"
       ? `\n\nCRITICAL: You must return EXACTLY ${actualCount} slide(s) — one for each "SLIDE INDEX" comment in the input (indices ${startIdx} through ${endIdx - 1}). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.`
@@ -295,8 +339,8 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
     mode === "generate" && deckSummary ? `Deck Context:\n${deckSummary}\n\nInput markdown:\n` : "";
 
   return {
-    system: systemPrompt,
-    user: userPrefix + basePrompt.replace("{{markdown}}", contentForPrompt) + paginationInstruction,
+    system,
+    user: userPrefix + user + paginationInstruction,
     original: markdown,
   };
 }
@@ -309,7 +353,8 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
  */
 export function splitSlides(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
-  return cleaned.split(/\n---\n/);
+  // Use the fence-aware parser so code blocks containing `---` are not split.
+  return new MarkdownParser().splitSlides(cleaned);
 }
 
 export { BATCH_SIZE };
@@ -329,16 +374,20 @@ export function estimateTokens(text) {
  * @param {"fix"|"generate"} mode - Enhancement mode.
  * @param {object} [opts]
  * @param {number|null} [opts.modelMaxOutput] - Model's max completion tokens (from OpenRouter).
- * @param {boolean} [opts.useReasoning] - Whether extended thinking is enabled.
+ * @param {boolean} [opts.useReasoning] - Whether extended thinking is enabled (legacy).
+ * @param {string} [opts.reasoningEffort] - One of "none" | "low" | "medium" | "high".
  * @returns {number}
  */
 export function estimateMaxTokens(markdown, mode, opts) {
   const cleaned = stripFrontmatter(markdown, mode);
   const inputTokens = estimateTokens(cleaned);
   const multiplier = mode === "generate" ? 1.8 : 1.2;
-  const reasoningMultiplier = opts?.useReasoning ? 3 : 1;
+  const effort = opts?.reasoningEffort ?? (opts?.useReasoning ? "high" : "none");
+  const reasoningMultipliers = { none: 1, low: 1.5, medium: 2, high: 3 };
+  const reasoningMultiplier = reasoningMultipliers[effort] ?? 1;
   const estimated = Math.ceil(inputTokens * multiplier * reasoningMultiplier);
-  const floor = opts?.useReasoning ? 64000 : 16000;
+  // Reasoning takes budget; use a higher floor when more reasoning is requested.
+  const floor = effort === "none" || effort === "low" ? 16000 : 24000;
   return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
 
@@ -435,6 +484,44 @@ export function parseAiResponse(text) {
     searchPos = slidesIdx - 1;
   }
 
+  // Final fallback: parse the response as SlideMD markdown.
+  // This is essential for reasoning models that do not reliably emit
+  // a JSON wrapper when `response_format: { type: "json_object" }` is not used.
+  try {
+    const parser = new MarkdownParser();
+    const slideTexts = parser.splitSlides(trimmed);
+    // Require at least one fragment to actually look like a slide (frontmatter
+    // directive, @area marker, or heading). Plain prose with a stray `---` line
+    // should not become a deck.
+    const looksLikeSlide = slideTexts.some((text) => {
+      const t = text.trim();
+      return (
+        /^(layout|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
+          t,
+        ) ||
+        /^@\w+/m.test(t) ||
+        /^#/m.test(t)
+      );
+    });
+    if (slideTexts.length > 0 && looksLikeSlide) {
+      const slides = slideTexts.map((raw) => {
+        const { value: layout, markdown: withoutLayout } = parser.extractDirective(raw, "layout");
+        const { value: background, markdown: withoutBackground } = parser.extractDirective(
+          withoutLayout,
+          "background",
+        );
+        const { value: theme, markdown: withoutTheme } = parser.extractDirective(
+          withoutBackground,
+          "theme",
+        );
+        return { layout, background, theme, content: withoutTheme };
+      });
+      return { slides };
+    }
+  } catch {
+    /* not parseable as Markdown */
+  }
+
   return null;
 }
 
@@ -449,25 +536,4 @@ export function extractHeadings(markdown) {
     const match = slide.match(/^##?\s+(.+)/m);
     return match?.[1]?.trim() || "";
   });
-}
-
-/**
- * Validate AI fix output against original slides.
- * Checks slide count only — layouts are restored post-AI by restoreDirectives.
- *
- * @param {{ layout: string, background?: string, theme?: string }[]} originalDirectives - Original per-slide directives
- * @param {{ layout: string, content: string }[]} fixedSlides - AI output slides (JSON)
- * @returns {{ valid: boolean, errors: string[] }}
- */
-export function validateFixOutput(originalDirectives, fixedSlides) {
-  const errors = [];
-
-  // Slide count
-  if (originalDirectives.length !== fixedSlides.length) {
-    errors.push(
-      `Slide count mismatch: ${originalDirectives.length} input → ${fixedSlides.length} output`,
-    );
-  }
-
-  return { valid: errors.length === 0, errors };
 }
