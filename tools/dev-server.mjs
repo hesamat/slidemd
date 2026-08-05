@@ -506,18 +506,23 @@ function createHandler(format) {
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-          });
-          res.end(JSON.stringify({ images: [] }));
-          return;
+        const seen = new Set();
+        const entries = [];
+        // Enumerate the deck's images dir first (takes priority on dedup),
+        // then the PPTX import temp dir so imported images appear in the
+        // editor's image picker.
+        const dirs = [];
+        if (format?.imagesDir) dirs.push(format.imagesDir);
+        dirs.push(PPTX_IMPORT_IMAGES_DIR);
+        for (const dir of dirs) {
+          if (!fs.existsSync(dir)) continue;
+          for (const name of fs.readdirSync(dir)) {
+            if (!IMAGE_RE.test(path.extname(name))) continue;
+            if (seen.has(name)) continue;
+            seen.add(name);
+            entries.push({ name, path: `images/${name}` });
+          }
         }
-        const entries = fs
-          .readdirSync(format.imagesDir)
-          .filter((name) => IMAGE_RE.test(path.extname(name)))
-          .map((name) => ({ name, path: `images/${name}` }));
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Cache-Control": "no-store, no-cache, must-revalidate",
