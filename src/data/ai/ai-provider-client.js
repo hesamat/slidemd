@@ -17,13 +17,16 @@
 /**
  * Known provider hosts. When an API key is present we must not send it to an
  * unrelated host (e.g., a mistyped or attacker-suggested base URL).
- * Custom providers are deliberately unrestricted.
+ * Ollama/LM Studio are restricted to loopback; Custom providers are deliberately
+ * unrestricted.
  */
 const PROVIDER_HOSTS = {
   OpenAI: new Set(["api.openai.com"]),
   OpenRouter: new Set(["openrouter.ai", "www.openrouter.ai", "api.openrouter.ai"]),
   Anthropic: new Set(["api.anthropic.com"]),
   Gemini: new Set(["generativelanguage.googleapis.com"]),
+  Ollama: new Set(["localhost", "127.0.0.1"]),
+  "LM Studio": new Set(["localhost", "127.0.0.1"]),
 };
 
 /**
@@ -102,8 +105,12 @@ export class AiProviderClient {
     const url = `${baseUrl}/chat/completions`;
     const apiKey = this._getApiKey();
     const rawModel = this._getModel();
+    // OpenRouter model IDs can have at most one routing suffix. Only append
+    // the default :nitro suffix when the user hasn't already picked one.
     const model =
-      provider === "OpenRouter" && !rawModel.includes(":nitro") ? `${rawModel}:nitro` : rawModel;
+      provider === "OpenRouter" && rawModel && !rawModel.includes(":")
+        ? `${rawModel}:nitro`
+        : rawModel;
     // OpenRouter's reasoning models default to "on" when the parameter is
     // omitted; send "none" when the user hasn't asked for reasoning.
     const effectiveReasoning = reasoning ?? (provider === "OpenRouter" ? { effort: "none" } : null);

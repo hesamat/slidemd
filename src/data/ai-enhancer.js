@@ -490,15 +490,19 @@ export function parseAiResponse(text) {
   try {
     const parser = new MarkdownParser();
     const slideTexts = parser.splitSlides(trimmed);
-    const first = slideTexts[0]?.trim() ?? "";
-    const hasMultipleSlides = slideTexts.length > 1;
-    const looksLikeSlide =
-      hasMultipleSlides ||
-      /^(layout|background|theme|header-style|area-style|hidden|hide|code-font-size):/i.test(
-        first,
-      ) ||
-      /^@\w+/m.test(first) ||
-      /^#/m.test(first);
+    // Require at least one fragment to actually look like a slide (frontmatter
+    // directive, @area marker, or heading). Plain prose with a stray `---` line
+    // should not become a deck.
+    const looksLikeSlide = slideTexts.some((text) => {
+      const t = text.trim();
+      return (
+        /^(layout|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
+          t,
+        ) ||
+        /^@\w+/m.test(t) ||
+        /^#/m.test(t)
+      );
+    });
     if (slideTexts.length > 0 && looksLikeSlide) {
       const slides = slideTexts.map((raw) => {
         const { value: layout, markdown: withoutLayout } = parser.extractDirective(raw, "layout");

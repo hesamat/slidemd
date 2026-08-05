@@ -443,6 +443,7 @@ export class SettingsModal {
             e.preventDefault();
             e.stopPropagation();
             selectedModel = m.id;
+            modelInput.value = m.id;
             updateModelSummary();
             closeDropdown();
             filterModels("");
@@ -636,6 +637,12 @@ export class SettingsModal {
       });
 
       modelInput.addEventListener("blur", () => {
+        const typed = modelInput.value.trim();
+        if (typed) {
+          selectedModel = typed;
+          updateModelSummary();
+          updateReasoningState();
+        }
         modelInput.value = selectedModel;
       });
 
