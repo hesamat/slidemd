@@ -203,6 +203,12 @@ export class KeyboardHandler {
     if (isEditMode && isEditorWindow && (inCodeMirror || !isEditable)) {
       const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
+        // Undo/Redo are handled by CodeMirror's own keymap when focus is
+        // inside the editor.  Only fire from the document handler when
+        // focus is outside the editor (e.g. on the slide preview).
+        if ((modifierAction === "undo" || modifierAction === "redo") && inCodeMirror) {
+          return;
+        }
         e.preventDefault();
         this.actions[modifierAction]();
         return;
