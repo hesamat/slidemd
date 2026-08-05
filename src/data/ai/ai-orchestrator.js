@@ -22,6 +22,7 @@ import {
 } from "./ai-prompt-builder.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
+import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { createEditPatch } from "../store/slide-patch.js";
 
 const MAX_REPAIR_ATTEMPTS = 3;
@@ -62,6 +63,11 @@ export class AiOrchestrator {
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const validator = new AiOutputValidator({ inputMarkdown: context });
 
+    // Extract background/theme directives before sending to the AI.
+    // The AI often drops these even when they're in the input; we re-inject
+    // them after the response so the slide keeps its visual styling.
+    const origDirectives = extractDirectives(context);
+
     const { system, user } = buildMessagesForIntent(intent, { markdown: context });
     let messages = [
       { role: "system", content: system },
@@ -94,7 +100,10 @@ export class AiOrchestrator {
         throw new Error("AI returned no slides");
       }
 
-      const afterMarkdown = slidesToMarkdown(parsed.slides);
+      let afterMarkdown = slidesToMarkdown(parsed.slides);
+      // Re-inject background/theme if the AI dropped them
+      afterMarkdown = injectDirectives(afterMarkdown, origDirectives);
+
       const result = validator.validate(afterMarkdown, intent, { expectedSlideCount: 1 });
 
       if (result.ok) {

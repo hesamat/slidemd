@@ -103,6 +103,27 @@ describe("AiOrchestrator", () => {
       await orchestrator.runSingleSlideOperation(op, controller.signal);
       expect(provider.chat).toHaveBeenCalledWith(expect.any(Object), controller.signal);
     });
+
+    it("preserves background and theme directives that the AI dropped", async () => {
+      const slideWithBg =
+        "layout: header-content\nbackground: linear-gradient(135deg, #1a2a6c, #b21f1f)\ntheme: dark\n@header\n## Title\n\n@main\n- Item 1";
+      // AI response omits background and theme
+      const responseNoBg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Title\n\n@main\n- Cleaned up item",
+          },
+        ],
+      });
+      const provider = mockProvider(responseNoBg);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("enhanceSlide", 0, slideWithBg);
+      const patches = await orchestrator.runSingleSlideOperation(op);
+      expect(patches).toHaveLength(1);
+      expect(patches[0].after).toContain("background: linear-gradient(135deg, #1a2a6c, #b21f1f)");
+      expect(patches[0].after).toContain("theme: dark");
+    });
   });
 
   describe("runOperation (unified entry point)", () => {
