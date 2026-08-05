@@ -43,9 +43,8 @@ export class AiGenerateModal {
       const totalEstTokens = (inputTokens + estOutputTokens) * batchCount;
 
       // Proportionate slide count options based on current deck
-      const half = Math.max(1, Math.round(slideCount / 2));
-      const oneHalf = Math.round(slideCount * 1.5);
-      const double = slideCount * 2;
+      const lower = Math.max(1, Math.round(slideCount * 0.8));
+      const higher = Math.round(slideCount * 1.2);
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
@@ -67,9 +66,8 @@ export class AiGenerateModal {
             <select id="${P}slideCount" class="${P}select">
               <option value="">Let AI decide</option>
               <option value="${slideCount}">Same (~${slideCount})</option>
-              <option value="${half}">Fewer (~${half})</option>
-              <option value="${oneHalf}">More (~${oneHalf})</option>
-              <option value="${double}">Much more (~${double})</option>
+              <option value="${lower}">20% fewer (~${lower})</option>
+              <option value="${higher}">20% more (~${higher})</option>
             </select>
           </div>
           <div class="${P}field">
