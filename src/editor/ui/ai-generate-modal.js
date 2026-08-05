@@ -18,7 +18,7 @@ const P = "ai-generate-modal__";
  * @typedef {Object} GenerateOptions
  * @property {string} agenda — user-provided or AI-generated topic/agenda guidance
  * @property {number|null} targetSlideCount — desired number of slides, or null for "let AI decide"
- * @property {string} fidelity — "conservative" | "balanced" | "creative"
+ * @property {string} fidelity — "polish" | "enhance" | "rewrite"
  * @property {string} tone — "default" | "formal" | "casual" | "technical"
  */
 
@@ -82,11 +82,11 @@ export class AiGenerateModal {
         </div>
 
         <div class="${P}field">
-          <label class="${P}label" for="${P}fidelity">How close to the current deck?</label>
+          <label class="${P}label" for="${P}fidelity">How much should the AI change?</label>
           <select id="${P}fidelity" class="${P}select">
-            <option value="conservative">Conservative — keep structure, fix formatting</option>
-            <option value="balanced" selected>Balanced — reorganize for clarity</option>
-            <option value="creative">Creative — full redesign freedom</option>
+            <option value="polish">Polish — fix formatting and layouts only</option>
+            <option value="enhance" selected>Enhance — improve wording, layouts, add notes</option>
+            <option value="rewrite">Rewrite — full content overhaul</option>
           </select>
         </div>
 
@@ -155,7 +155,7 @@ export class AiGenerateModal {
         const slideCountVal = dialog.querySelector(`#${P}slideCount`).value;
         const tone = dialog.querySelector(`#${P}tone`).value;
         const fidelity =
-          dialog.querySelector(`#${P}fidelity`).value || "balanced";
+          dialog.querySelector(`#${P}fidelity`).value || "enhance";
         close({
           agenda,
           targetSlideCount: slideCountVal ? parseInt(slideCountVal, 10) : null,

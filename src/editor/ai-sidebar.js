@@ -49,12 +49,14 @@ function buildOptionsSuffix(opts) {
     };
     if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
   }
-  if (opts.fidelity && opts.fidelity !== "balanced") {
+  if (opts.fidelity) {
     const fidelityMap = {
-      conservative:
-        "\nFidelity: CONSERVATIVE. Keep the existing slide structure and order as much as possible. Only fix formatting, polish wording, and improve layout choices. Do not split or merge slides unless absolutely necessary.",
-      creative:
-        "\nFidelity: CREATIVE. You have full freedom to restructure, split, merge, and redesign slides as you see fit. Prioritize impact and narrative flow over preserving the original structure.",
+      polish:
+        "\nFidelity: POLISH. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides.",
+      enhance:
+        "\nFidelity: ENHANCE. Improve wording and clarity, pick better layouts for the content, add speaker notes where helpful, split overloaded slides, combine sparse ones. Keep all substantive content. Do not reorder slides or change the narrative flow.",
+      rewrite:
+        "\nFidelity: REWRITE. Full content overhaul — rework text for impact and conciseness, add or remove content as needed, choose optimal layouts, add speaker notes. You may split, merge, or reorder slides to improve the presentation.",
     };
     if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
   }
