@@ -26,6 +26,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
+// Dedicated temp directory for PPTX import images; cleaned on every server start.
+const PPTX_IMPORT_DIR = path.join(ROOT, ".webdeck-pptx-imports");
+const PPTX_IMPORT_IMAGES_DIR = path.join(PPTX_IMPORT_DIR, "images");
+
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -592,11 +596,14 @@ function createHandler(format) {
 
     // ── POST /api/upload-images ──
     if (pathname === "/api/upload-images" && req.method === "POST") {
-      if (!format) {
+      const isPptx = url.searchParams.get("pptx") === "true";
+      const imagesDir = isPptx ? PPTX_IMPORT_IMAGES_DIR : format?.imagesDir;
+      if (!imagesDir) {
         const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
         fs.mkdirSync(tmpImgDir, { recursive: true });
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
+      const targetDir = imagesDir || format.imagesDir;
       try {
         const boundary = getMultipartBoundary(req.headers["content-type"]);
         if (!boundary) {
@@ -608,8 +615,8 @@ function createHandler(format) {
         const body = await readBody(req, MAX_UPLOAD_BATCH_BYTES);
         const parts = parseMultipartAll(body, boundary);
 
-        if (!fs.existsSync(format.imagesDir)) {
-          fs.mkdirSync(format.imagesDir, { recursive: true });
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
         }
 
         const paths = [];
@@ -618,7 +625,7 @@ function createHandler(format) {
           if (!IMAGE_RE.test(ext)) continue;
 
           const safeName = generateUploadFilename(filename);
-          fs.writeFileSync(path.join(format.imagesDir, safeName), data);
+          fs.writeFileSync(path.join(targetDir, safeName), data);
           paths.push({ name: filename, path: `images/${safeName}` });
         }
 
@@ -642,8 +649,12 @@ function createHandler(format) {
         return;
       }
 
-      if (format && format.imagesDir) {
-        const filePath = path.join(format.imagesDir, fileName);
+      const candidateDirs = [];
+      if (format?.imagesDir) candidateDirs.push(format.imagesDir);
+      candidateDirs.push(PPTX_IMPORT_IMAGES_DIR);
+
+      for (const dir of candidateDirs) {
+        const filePath = path.join(dir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
           const mime = MIME[ext] || "application/octet-stream";
@@ -706,6 +717,11 @@ async function main() {
   if (fs.existsSync(rootImagesDir)) {
     fs.rmSync(rootImagesDir, { recursive: true, force: true });
   }
+  // Clean up and recreate PPTX import image temp directory
+  if (fs.existsSync(PPTX_IMPORT_DIR)) {
+    fs.rmSync(PPTX_IMPORT_DIR, { recursive: true, force: true });
+  }
+  fs.mkdirSync(PPTX_IMPORT_IMAGES_DIR, { recursive: true });
 
   let format = null;
 
