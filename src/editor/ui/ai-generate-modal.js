@@ -1,10 +1,9 @@
 /**
  * AiGenerateModal
  *
- * Pre-flight modal shown before running "Enhance all slides" (whole-deck).
- * Lets the user set options (agenda, target slide count, fidelity, tone) and
- * see an estimated cost before committing to the AI call. The user can cancel
- * to avoid any API charges.
+ * Pre-flight modal shown before running "Refine all slides" (whole-deck).
+ * Lets the user set fidelity and tone and see an estimated cost before
+ * committing to the AI call. The user can cancel to avoid any API charges.
  *
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
@@ -16,8 +15,6 @@ const P = "ai-generate-modal__";
 
 /**
  * @typedef {Object} GenerateOptions
- * @property {string} agenda — user-provided or AI-generated topic/agenda guidance
- * @property {number|null} targetSlideCount — desired number of slides, or null for "let AI decide"
  * @property {string} fidelity — "polish" | "enhance" | "rewrite"
  * @property {string} tone — "default" | "formal" | "casual" | "technical"
  */
@@ -28,7 +25,6 @@ export class AiGenerateModal {
    * @param {string} markdown — the current deck markdown (for cost estimation)
    * @param {object} [opts]
    * @param {() => Promise<void>} [opts.onOpenSettings] — callback to open Settings modal
-   * @param {() => Promise<string|null>} [opts.onGenerateAgenda] — callback to AI-generate agenda
    * @returns {Promise<GenerateOptions|null>}
    */
   static show(markdown, opts = {}) {
@@ -37,68 +33,39 @@ export class AiGenerateModal {
       backdrop.className = `${P}backdrop`;
 
       const slideCount = splitSlidesForAi(markdown, "generate").length;
+      const willBatch = slideCount > BATCH_SIZE;
       const inputTokens = estimateTokens(markdown);
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
       const estOutputTokens = Math.ceil(inputTokens * 1.8);
       const totalEstTokens = (inputTokens + estOutputTokens) * batchCount;
 
-      // For the current batch-based execution, the output slide count must equal
-      // the input count for each batch. Target count only meaningfully applies to
-      // single-call decks and the experimental Rewrite mode.
-      const willBatch = slideCount > BATCH_SIZE;
-      const lower = Math.max(1, Math.round(slideCount * 0.8));
-      const higher = Math.round(slideCount * 1.2);
-
-      const slideCountOptions = willBatch
-        ? `<option value="${slideCount}">Preserve current count (~${slideCount})</option>`
-        : `<option value="">Let AI decide</option>
-<option value="${slideCount}">Same (~${slideCount})</option>
-<option value="${lower}">20% fewer (~${lower})</option>
-<option value="${higher}">20% more (~${higher})</option>`;
-
-      const slideCountNote = willBatch
-        ? `<p class="${P}note">Large decks are processed in ${BATCH_SIZE}-slide batches, so the current slide count is preserved. Target count applies only to decks with &le;${BATCH_SIZE} slides.</p>`
-        : "";
+      const fidelityOptions = willBatch
+        ? `<option value="polish">Tidy up — fix formatting and layouts only</option>
+<option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>`
+        : `<option value="polish">Tidy up — fix formatting and layouts only</option>
+<option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>
+<option value="rewrite">Remix — full content overhaul (experimental)</option>`;
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">AI: Enhance all slides</h2>
-        <p class="${P}subtitle">The AI will improve formatting, wording, and layouts across your presentation. Adjust options below, then click Generate to start.</p>
+        <h2 class="${P}title">AI: Refine all slides</h2>
+        <p class="${P}subtitle">The AI will rework formatting, wording, and layouts across your presentation. Adjust options below, then click Generate to start.</p>
 
         <div class="${P}field">
-          <div class="${P}label-row">
-            <label class="${P}label" for="${P}agenda">Agenda / topic guidance <span class="${P}optional">(optional)</span></label>
-            <button type="button" class="${P}link-btn" data-action="generate-agenda" title="Use AI to draft an agenda from your deck content">Generate agenda</button>
-          </div>
-          <textarea id="${P}agenda" class="${P}textarea" rows="3" placeholder="e.g. Focus on Q3 results, customer growth, and the roadmap ahead"></textarea>
-        </div>
-
-        <div class="${P}row">
-          <div class="${P}field">
-            <label class="${P}label" for="${P}slideCount">Target slide count</label>
-            <select id="${P}slideCount" class="${P}select" ${willBatch ? "disabled" : ""}>
-              ${slideCountOptions}
-            </select>
-            ${slideCountNote}
-          </div>
-          <div class="${P}field">
-            <label class="${P}label" for="${P}tone">Tone</label>
-            <select id="${P}tone" class="${P}select">
-              <option value="default">Default</option>
-              <option value="formal">Formal</option>
-              <option value="casual">Casual</option>
-              <option value="technical">Technical</option>
-            </select>
-          </div>
+          <label class="${P}label" for="${P}tone">Tone</label>
+          <select id="${P}tone" class="${P}select">
+            <option value="default">Default</option>
+            <option value="formal">Formal</option>
+            <option value="casual">Casual</option>
+            <option value="technical">Technical</option>
+          </select>
         </div>
 
         <div class="${P}field">
           <label class="${P}label" for="${P}fidelity">How much should the AI change?</label>
           <select id="${P}fidelity" class="${P}select">
-            <option value="polish">Polish — fix formatting and layouts only</option>
-            <option value="enhance" selected>Enhance — improve wording, layouts, add notes</option>
-            <option value="rewrite">Rewrite — full content overhaul (experimental)</option>
+            ${fidelityOptions}
           </select>
         </div>
 
@@ -163,37 +130,13 @@ export class AiGenerateModal {
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
-        const agenda = dialog.querySelector(`#${P}agenda`).value.trim();
-        const slideCountVal = dialog.querySelector(`#${P}slideCount`).value;
         const tone = dialog.querySelector(`#${P}tone`).value;
         const fidelity = dialog.querySelector(`#${P}fidelity`).value || "enhance";
         close({
-          agenda,
-          targetSlideCount: slideCountVal ? parseInt(slideCountVal, 10) : null,
           tone,
           fidelity,
         });
       });
-
-      // Fidelity controls whether the target count can change
-      const fidelitySelect = dialog.querySelector(`#${P}fidelity`);
-      const slideCountSelect = dialog.querySelector(`#${P}slideCount`);
-      const updateTargetCountState = () => {
-        const fidelity = fidelitySelect.value;
-        if (willBatch) {
-          // Large decks are batched; count is always preserved per batch
-          slideCountSelect.value = String(slideCount);
-          return;
-        }
-        if (fidelity === "rewrite") {
-          slideCountSelect.disabled = false;
-        } else {
-          slideCountSelect.disabled = true;
-          slideCountSelect.value = String(slideCount);
-        }
-      };
-      fidelitySelect.addEventListener("change", updateTargetCountState);
-      updateTargetCountState();
 
       // Open Settings to change model
       const settingsBtn = dialog.querySelector('[data-action="open-settings"]');
@@ -213,31 +156,10 @@ export class AiGenerateModal {
         });
       }
 
-      // AI-generate agenda
-      const agendaBtn = dialog.querySelector('[data-action="generate-agenda"]');
-      if (agendaBtn && opts.onGenerateAgenda) {
-        agendaBtn.addEventListener("click", async () => {
-          const agendaEl = dialog.querySelector(`#${P}agenda`);
-          agendaBtn.disabled = true;
-          agendaBtn.textContent = "Generating\u2026";
-          try {
-            const result = await opts.onGenerateAgenda();
-            if (result) {
-              agendaEl.value = result;
-            }
-          } catch (err) {
-            console.error("Agenda generation failed:", err);
-          } finally {
-            agendaBtn.disabled = false;
-            agendaBtn.textContent = "Generate agenda";
-          }
-        });
-      }
-
       document.addEventListener("keydown", onKeydown);
 
-      // Focus the agenda field
-      dialog.querySelector(`#${P}agenda`).focus();
+      // Focus the tone field
+      dialog.querySelector(`#${P}tone`).focus();
     });
   }
 }

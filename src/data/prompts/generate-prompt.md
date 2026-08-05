@@ -1,17 +1,14 @@
-Create an inspired SlideMD presentation from this content. Return as JSON.
+Refine this SlideMD presentation. Return the result as JSON.
 
 Content strategy:
 
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
-- Split overloaded slides (>10 bullets or >15 code lines) into focused slides.
-- Combine sparse slides (1-2 bullets) into richer ones.
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
-- Use `theme: light` for consistent light mode.
-- Do not inflate the slide count.
-- Follow the FIDELITY instruction that follows this prompt for whether to preserve, enhance, or rewrite.
+- Preserve each slide's `background:` and `theme:` directives from the input.
+- Follow the FIDELITY instruction that follows this prompt for whether to polish, improve, or rewrite.
 
 Success criteria:
 

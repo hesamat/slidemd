@@ -265,7 +265,6 @@ export class EditController {
       content: this.elements.aiDropdownContent,
       actions: {
         enhanceSlide: () => this.runSingleSlideAi("enhanceSlide"),
-        summarize: () => this.runSingleSlideAi("summarize"),
         addSpeakerNotes: () => this.runSingleSlideAi("addSpeakerNotes"),
         generate: () => this.runWholeDeckAi(),
       },
@@ -738,7 +737,7 @@ export class EditController {
   }
 
   /**
-   * Run a whole-deck AI generate operation (Enhance all slides).
+   * Run a whole-deck AI generate operation (Refine all slides).
    * Delegates to AiSidebar.show() which handles the batch processing UI.
    */
   async runWholeDeckAi() {
@@ -768,78 +767,39 @@ export class EditController {
       onOpenSettings: async () => {
         await SettingsModal.show();
       },
-      onGenerateAgenda: async () => {
-        return this.#generateAgenda(fullMarkdown);
-      },
     });
     if (!generateOpts) return; // user cancelled — no API call made
 
     try {
       const enhanced = await AiSidebar.show(fullMarkdown, "generate", {
-        agenda: generateOpts.agenda,
-        targetSlideCount: generateOpts.targetSlideCount,
         tone: generateOpts.tone,
         fidelity: generateOpts.fidelity,
       });
       if (enhanced && this.controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
         const deck = await DeckLoader.parseMarkdown(enhanced);
-        await this.controller.reloadManager.replaceDeck(deck, { startAtFirstSlide: true });
-        Notification.success("AI Enhance all slides applied.");
+        await this.controller.reloadManager.replaceDeck(deck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+        // Keep the markdown editor and original cache in sync with the new AI markdown.
+        // syncStore: false tells reloadManager not to overwrite the store from DeckLoader source.
+        this.unsavedMarkdown.clear();
+        if (this.deckStore) {
+          this.deckStore.loadFromMarkdown(enhanced, 0);
+          this.originalMarkdown = this.deckStore.getSlides();
+        } else {
+          const parser = new MarkdownParser();
+          this.originalMarkdown = parser.splitSlides(enhanced);
+        }
+        this.currentSlideIndex = 0;
+        this.loadSlideIntoEditor();
+        this.saveManager?.updateButton();
+        Notification.success("AI Refine all slides applied.");
       }
     } catch (err) {
       console.error("AI generate failed:", err);
       Notification.error(`AI generate failed: ${err.message || err}`);
-    }
-  }
-
-  /**
-   * Use AI to generate a bullet-point agenda from the deck content.
-   * Lightweight call — sends a short prompt with deck summary, not the full markdown.
-   * @param {string} markdown
-   * @returns {Promise<string|null>}
-   */
-  async #generateAgenda(markdown) {
-    const { SettingsModal } = await import("../settings-modal.js");
-    const { createAiProviderClient } = await import("../../data/ai/ai-provider-factory.js");
-    const { buildDeckSummary } = await import("../../data/ai/ai-prompt-builder.js");
-
-    const providerLabel = SettingsModal.getProvider();
-    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
-      Notification.error("No API key — open Settings to configure AI.");
-      return null;
-    }
-
-    const provider = createAiProviderClient(
-      providerLabel,
-      () => SettingsModal.getBaseUrl(),
-      () => SettingsModal.getApiKey(),
-      () => SettingsModal.getModel(),
-    );
-
-    const summary = buildDeckSummary(markdown);
-    const systemMsg =
-      "You are a presentation assistant. Generate a concise agenda (3-6 bullet points) that describes what the presentation should cover, based on the deck summary. Output only the bullet points, no preamble.";
-    const userMsg = `Deck summary:\n${summary}\n\nGenerate a concise agenda for this presentation:`;
-
-    try {
-      const response = await provider.chat(
-        {
-          messages: [
-            { role: "system", content: systemMsg },
-            { role: "user", content: userMsg },
-          ],
-          maxTokens: 500,
-          responseFormat: null,
-          reasoning: null,
-        },
-        undefined,
-      );
-      return response.content.trim();
-    } catch (err) {
-      console.error("Agenda generation failed:", err);
-      Notification.error(`Agenda generation failed: ${err.message || err}`);
-      return null;
     }
   }
 

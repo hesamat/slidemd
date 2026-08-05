@@ -1,8 +1,8 @@
 /**
  * AiDropdownManager
  *
- * Manages the editor-header "AI" dropdown (Clean up slide, Summarize,
- * Add speaker notes, Enhance all slides).
+ * Manages the editor-header "AI" dropdown (Clean up slide,
+ * Add speaker notes, Refine all slides).
  * Follows the same pattern as InsertDropdownManager: action-to-callback
  * mapping via an `actions` object, event delegation, AbortController teardown.
  */

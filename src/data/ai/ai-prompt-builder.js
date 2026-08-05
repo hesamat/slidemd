@@ -19,8 +19,6 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * Build additional instructions suffix from user-provided generate options.
  * Appended to the user prompt so the AI sees the user's preferences.
  * @param {object} opts
- * @param {string} [opts.agenda]
- * @param {number|null} [opts.targetSlideCount]
  * @param {string} [opts.tone]
  * @param {string} [opts.fidelity] — "polish" | "enhance" | "rewrite"
  * @returns {string}
@@ -28,12 +26,6 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
 export function buildGenerateOptionsSuffix(opts = {}) {
   if (!opts) return "";
   const parts = [];
-  if (opts.agenda) {
-    parts.push(`\n\nAdditional guidance from the user:\n${opts.agenda}`);
-  }
-  if (opts.targetSlideCount) {
-    parts.push(`\nTarget approximately ${opts.targetSlideCount} slides.`);
-  }
   if (opts.tone && opts.tone !== "default") {
     const toneMap = {
       formal: "Use a formal, professional tone.",
@@ -45,11 +37,11 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   if (opts.fidelity) {
     const fidelityMap = {
       polish:
-        "\nFidelity: POLISH. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides. The output must have the same number of slides as the input.",
+        "\nFidelity: TIDY UP. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides. The output must have the same number of slides as the input.",
       enhance:
-        "\nFidelity: ENHANCE. Improve wording and clarity, pick better layouts for the content, add speaker notes where helpful. Keep all substantive content. Do not reorder slides or change the narrative flow. The output must have the same number of slides as the input.",
+        "\nFidelity: RESTYLE. Rework text for clarity and conciseness, tighten formatting, and choose better layouts for each slide's content. Add speaker notes where helpful. Keep every slide's core topic and key points, but rephrase and reorganize within the slide freely. Do not reorder slides or change the overall narrative flow. The output must have the same number of slides as the input.",
       rewrite:
-        "\nFidelity: REWRITE. Full content overhaul — rework text for impact and conciseness, add or remove content as needed, choose optimal layouts, add speaker notes. You may split, merge, or reorder slides to improve the presentation. Target slide count, if stated above, is a goal.",
+        "\nFidelity: REMIX. Full content overhaul — rework text for impact and conciseness, add or remove content as needed, choose optimal layouts, add speaker notes. You may split, merge, or reorder slides to improve the presentation.",
     };
     if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
   }

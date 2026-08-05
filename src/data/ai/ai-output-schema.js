@@ -25,15 +25,8 @@ export const SCHEMAS = {
     checkAreaValidity: true,
     checkContentRules: true,
   },
-  // Stubs for Phase 13 intents — not used yet but defined here:
+  // Single-slide intents
   enhanceSlide: {
-    minSlides: 1,
-    maxSlides: 1,
-    requireLayout: false,
-    checkAreaValidity: true,
-    checkContentRules: true,
-  },
-  summarize: {
     minSlides: 1,
     maxSlides: 1,
     requireLayout: false,

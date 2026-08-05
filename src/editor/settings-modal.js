@@ -102,6 +102,8 @@ export class SettingsModal {
   static _modelMaxOutputMap = new Map();
   /** @type {Array<{id: string, name: string}>} */
   static _allModels = [];
+  static _loadingModels = false;
+  static _lastModelError = "";
 
   /**
    * Get the API key for a specific provider (or the current provider).
@@ -413,7 +415,6 @@ export class SettingsModal {
 
       const isModelSearchProvider = () =>
         selectedProvider === "OpenRouter" ||
-        selectedProvider === "OpenAI" ||
         selectedProvider === "Ollama" ||
         selectedProvider === "LM Studio";
 
@@ -430,7 +431,7 @@ export class SettingsModal {
         if (selectedIdx > 0) {
           const [sel] = filtered.splice(selectedIdx, 1);
           filtered.unshift(sel);
-        } else if (selectedIdx < 0 && selectedModel) {
+        } else if (selectedIdx < 0 && selectedModel && this._allModels.length > 0) {
           filtered.unshift({ id: selectedModel, name: selectedModel });
         }
         for (const m of filtered) {
@@ -454,7 +455,9 @@ export class SettingsModal {
         if (filtered.length === 0) {
           const empty = document.createElement("div");
           empty.className = `${P}model-item ${P}model-item--empty`;
-          empty.textContent = "No models found";
+          empty.textContent = this._loadingModels
+            ? "Loading models…"
+            : this._lastModelError || "No models found";
           fragment.appendChild(empty);
         }
         modelList.innerHTML = "";
@@ -464,22 +467,32 @@ export class SettingsModal {
         // Reset scroll on the dropdown (the actual overflow container) so the
         // freshly populated items are visible from the top.
         modelDropdown.scrollTop = 0;
+        modelList.offsetHeight; // force reflow of the list itself
+
+        modelDropdown.offsetHeight; // force reflow of the overflow container
         requestAnimationFrame(() => {
           modelDropdown.scrollTop = 0;
-          modelDropdown.offsetHeight; // force reflow
+          modelList.offsetHeight; // force reflow of the list itself
+  
+          modelDropdown.offsetHeight; // force reflow of the overflow container
         });
       };
 
       const openDropdown = () => {
         modelDropdown.hidden = false;
         // Position the dropdown with fixed coordinates so it escapes
-        // the dialog's overflow clipping.
+        // the dialog's overflow clipping. Force a reflow so the input
+        // has a stable width before we size the dropdown; otherwise the
+        // dropdown can end up with a zero width and the item text is hidden.
         const rect = modelInput.getBoundingClientRect();
+        const width = Math.max(rect.width, modelInput.offsetWidth, 240);
         modelDropdown.style.position = "fixed";
         modelDropdown.style.left = `${rect.left}px`;
         modelDropdown.style.top = `${rect.bottom + 2}px`;
-        modelDropdown.style.width = `${rect.width}px`;
+        modelDropdown.style.width = `${width}px`;
         modelDropdown.scrollTop = 0;
+
+        modelDropdown.offsetHeight;
       };
 
       const closeDropdown = () => {
@@ -516,6 +529,8 @@ export class SettingsModal {
       const fetchModels = async () => {
         fetchModelsBtn.disabled = true;
         errorEl.hidden = true;
+        this._loadingModels = true;
+        this._lastModelError = "";
         try {
           const baseUrl = (selectedBaseUrl || "").replace(/\/+$/, "");
           const validation = validateAiBaseUrl(baseUrl, selectedProvider);
@@ -524,7 +539,7 @@ export class SettingsModal {
           }
           const modelKey = apiKeyInput.value.trim();
           const headers = {};
-          if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
+          if (selectedProvider !== "OpenRouter" && modelKey) headers.Authorization = `Bearer ${modelKey}`;
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
           const res = await fetch(`${baseUrl}/models`, { headers, signal: controller.signal });
@@ -561,12 +576,14 @@ export class SettingsModal {
 
           // Don't auto-open the dropdown on fetch — only populate it.
           // The user can click/focus the input to open it.
-          filterModels("");
         } catch (err) {
-          errorEl.textContent = `Could not fetch models: ${err.message}`;
+          this._lastModelError = `Could not fetch models: ${err.message}`;
+          errorEl.textContent = this._lastModelError;
           errorEl.hidden = false;
         } finally {
+          this._loadingModels = false;
           fetchModelsBtn.disabled = false;
+          filterModels(modelInput.value);
         }
       };
 
@@ -622,6 +639,9 @@ export class SettingsModal {
         if (isModelSearchProvider()) {
           modelInput.value = "";
           openDropdown();
+          if (this._allModels.length === 0 && !this._loadingModels) {
+            fetchModels();
+          }
           filterModels("");
         }
       });
@@ -784,9 +804,12 @@ export class SettingsModal {
 
   static async #populateOpenRouterModels(onLoaded) {
     const provider = this.getProvider();
+    this._loadingModels = true;
+    this._lastModelError = "";
 
     // Only reuse the cache if it belongs to the same provider
     if (this._allModels.length > 0 && this._cachedProvider === provider) {
+      this._loadingModels = false;
       onLoaded?.();
       return;
     }
@@ -798,7 +821,7 @@ export class SettingsModal {
     this._modelMaxOutputMap.clear();
 
     const saved = this.getModel(provider);
-    this._allModels = saved ? [{ id: saved, name: saved }] : [];
+    this._allModels = [];
 
     try {
       const baseUrl = (this.getBaseUrl() || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -808,12 +831,12 @@ export class SettingsModal {
       }
       const modelKey = this.getApiKey();
       const headers = {};
-      if (modelKey) headers.Authorization = `Bearer ${modelKey}`;
+      if (provider !== "OpenRouter" && modelKey) headers.Authorization = `Bearer ${modelKey}`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(`${baseUrl}/models`, { headers, signal: controller.signal });
       clearTimeout(timeout);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const models = Array.isArray(data.data) ? data.data : [];
 
@@ -853,10 +876,11 @@ export class SettingsModal {
       if (saved && !this._modelMaxOutputMap.has(saved)) {
         this._modelMaxOutputMap.set(saved, null);
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      this._lastModelError = `Could not load models: ${err.message}`;
     }
 
+    this._loadingModels = false;
     onLoaded?.();
   }
 

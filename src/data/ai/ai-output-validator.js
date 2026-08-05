@@ -165,27 +165,6 @@ export class AiOutputValidator {
     const inputSlide = this._getInputSlides()[index];
     if (!inputSlide) return;
 
-    if (intent === "summarize") {
-      // Summarize must preserve the original layout and area set
-      if (slide.layout && inputSlide.layout && slide.layout !== inputSlide.layout) {
-        errors.push({
-          slide: index,
-          code: "SUMMARIZE_PRESERVE_LAYOUT",
-          message: `Summarize must preserve the original layout "${inputSlide.layout}", got "${slide.layout}"`,
-        });
-      }
-
-      const inputAreas = Object.keys(inputSlide.areas || {}).sort();
-      const outputAreas = Object.keys(slide.areas || {}).sort();
-      if (JSON.stringify(inputAreas) !== JSON.stringify(outputAreas)) {
-        errors.push({
-          slide: index,
-          code: "SUMMARIZE_PRESERVE_AREAS",
-          message: `Summarize must preserve the original @area markers. Expected: ${inputAreas.join(", ")}, got: ${outputAreas.join(", ")}`,
-        });
-      }
-    }
-
     if (intent === "addSpeakerNotes") {
       // Add speaker notes must not change layout, areas, or visible content
       if (slide.layout !== inputSlide.layout) {

@@ -2,8 +2,7 @@
  * ConversionModal
  *
  * Modal for importing PPTX files into the app.
- * Two-step flow: Import (extract + convert) → Import.
- * Returns result with aiRequested flag for post-import AI processing.
+ * Two-step flow: select file → import.
  */
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
@@ -18,7 +17,6 @@ const STORAGE_KEY = "webdeck_import_defaults";
  * @property {import('../data/pptx-extractor.js').ExtractedImage[]} images - Extracted images.
  * @property {string} deckName - Deck name derived from filename (used for folder and .md filename).
  * @property {boolean} importImages - Whether the user chose to import images.
- * @property {string|null} aiMode - null, "fix", or "generate" if user requested AI post-processing.
  */
 
 export class ConversionModal {
@@ -60,7 +58,6 @@ export class ConversionModal {
       let importImages = true;
       let importBackgrounds = true;
       let importTheme = true;
-      let aiMode = null; // null, "fix", or "generate"
       let codeLanguage = "";
       let isConverting = false;
 
@@ -280,66 +277,8 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(themeRow, insertAfter.nextSibling);
           insertAfter = themeRow;
 
-          const { SettingsModal } = await import("../editor/settings-modal.js");
-
-          // AI hint when no API key (shown below the AI Inspiration button)
-          const aiHint = document.createElement("span");
-          aiHint.className = `${P}ai-hint`;
-          aiHint.hidden = true;
-          aiHint.innerHTML = `AI not configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
-
-          // Show Import button and AI Inspiration button
-          const actionsEl = backdrop.querySelector(`.${P}actions`);
-          const aiBtn = document.createElement("button");
-          aiBtn.type = "button";
-          aiBtn.className = `${P}btn ${P}btn--ai`;
-          aiBtn.textContent = "AI Inspiration";
-
-          // Helper to refresh AI button state based on current API key
-          // Must be defined AFTER aiBtn and aiHint are created
-          const refreshAiState = () => {
-            const provider = SettingsModal.getProvider();
-            const needsKey = SettingsModal.requiresApiKey(provider);
-            const hasKey = !!SettingsModal.getApiKey();
-            const aiReady = !needsKey || hasKey;
-            if (aiBtn) {
-              aiBtn.disabled = !aiReady;
-              aiBtn.title = aiReady
-                ? "AI reorganizes and redesigns the entire presentation"
-                : "Configure API key in Settings first";
-            }
-            if (aiHint) {
-              aiHint.hidden = aiReady;
-            }
-          };
-
-          aiHint.addEventListener("click", async (e) => {
-            if (e.target.dataset.action === "open-settings") {
-              e.preventDefault();
-              await SettingsModal.show();
-              refreshAiState();
-            }
-          });
-
-          aiBtn.addEventListener("click", async () => {
-            const provider = SettingsModal.getProvider();
-            if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) {
-              await SettingsModal.show();
-              refreshAiState();
-              const newProvider = SettingsModal.getProvider();
-              if (SettingsModal.requiresApiKey(newProvider) && !SettingsModal.getApiKey()) return;
-            }
-            aiMode = "generate";
-            saveBtn.click();
-          });
-          actionsEl.insertBefore(aiBtn, saveBtn);
-          actionsEl.insertBefore(aiHint, aiBtn.nextSibling);
-          saveBtn.textContent = "Import";
-
-          // Apply initial state
-          refreshAiState();
-
           // Show Import button
+          saveBtn.textContent = "Import";
           saveBtn.hidden = false;
           saveBtn.disabled = false;
           cancelBtn.disabled = false;
@@ -362,8 +301,7 @@ export class ConversionModal {
             .replace(/^\s*theme:.*$/gm, "")
             .replace(/\n{3,}/g, "\n\n");
         }
-        // If no AI mode, convert [Diagram: ...] markers to bullet lists.
-        // A second safety-net pass catches any markers that survived earlier processing.
+        // Convert [Diagram: ...] markers to bullet lists as a safety net.
         const diagramToBullets = (md) =>
           md.replace(/\[Diagram:\s*([^\]]+)\]/g, (_match, items) =>
             items
@@ -372,9 +310,7 @@ export class ConversionModal {
               .filter((line) => line.length > 2)
               .join("\n"),
           );
-        if (!aiMode) {
-          finalMarkdown = diagramToBullets(finalMarkdown);
-        }
+        finalMarkdown = diagramToBullets(finalMarkdown);
         // Add language tag to opening fences of fenced code blocks only.
         // Use a state machine to distinguish opening fences from closing fences.
         if (codeLanguage) {
@@ -404,7 +340,6 @@ export class ConversionModal {
           images: extractionResult.images || [],
           deckName,
           importImages,
-          aiMode,
         });
       });
       // Cancel

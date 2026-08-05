@@ -44,7 +44,7 @@ describe("AiOrchestrator", () => {
     it("returns a SlidePatch with source: 'ai'", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", 0, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 0, SINGLE_SLIDE_MD);
       const patches = await orchestrator.runSingleSlideOperation(op);
       expect(patches).toHaveLength(1);
       expect(patches[0].index).toBe(0);
@@ -65,14 +65,14 @@ describe("AiOrchestrator", () => {
     it("throws when AI returns no slides", async () => {
       const provider = mockProvider(JSON.stringify({ slides: [] }));
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", 0, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 0, SINGLE_SLIDE_MD);
       await expect(orchestrator.runSingleSlideOperation(op)).rejects.toThrow("no slides");
     });
 
     it("throws when AI returns invalid JSON", async () => {
       const provider = mockProvider("not json at all");
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", 0, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 0, SINGLE_SLIDE_MD);
       await expect(orchestrator.runSingleSlideOperation(op)).rejects.toThrow("valid JSON");
     });
 
@@ -88,7 +88,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProvider(badResponse);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", 0, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 0, SINGLE_SLIDE_MD);
       const patches = await orchestrator.runSingleSlideOperation(op);
       // Should still return a patch after accepting with validation issues
       expect(patches).toHaveLength(1);
@@ -99,7 +99,7 @@ describe("AiOrchestrator", () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
       const controller = new AbortController();
-      const op = createOperation("summarize", 0, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 0, SINGLE_SLIDE_MD);
       await orchestrator.runSingleSlideOperation(op, controller.signal);
       expect(provider.chat).toHaveBeenCalledWith(expect.any(Object), controller.signal);
     });
@@ -130,7 +130,7 @@ describe("AiOrchestrator", () => {
     it("returns { patches } for single-slide operations", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", 2, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", 2, SINGLE_SLIDE_MD);
       const result = await orchestrator.runOperation(op);
       expect(result.patches).toHaveLength(1);
       expect(result.patches[0].index).toBe(2);
@@ -152,7 +152,7 @@ describe("AiOrchestrator", () => {
     it("throws for non-generate intent", async () => {
       const provider = mockProvider("{}");
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("summarize", null, SINGLE_SLIDE_MD);
+      const op = createOperation("enhanceSlide", null, SINGLE_SLIDE_MD);
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
         'only supports "generate"',
       );

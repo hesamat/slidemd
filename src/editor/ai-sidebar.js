@@ -20,6 +20,7 @@ import {
 } from "../data/ai/ai-prompt-builder.js";
 import { estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "../data/ai/ai-response-parser.js";
+import { extractDirectives, injectDirectives } from "../data/ai/ai-directive-utils.js";
 
 const P = "ai-sidebar__";
 
@@ -73,8 +74,12 @@ export class AiSidebar {
     const myShowId = Symbol();
     this._showId = myShowId;
 
-    // Build additional instructions from user options (agenda, slide count, tone)
+    // Build additional instructions from user options (agenda, tone, fidelity)
     const optionsSuffix = buildGenerateOptionsSuffix(opts);
+
+    // Capture original background/theme directives before stripping. The AI often
+    // drops these even when instructed, so we re-inject them into the result.
+    const origDirectives = extractDirectives(markdown);
 
     const panel = this.#createPanel(mode);
     document.body.appendChild(panel);
@@ -210,6 +215,7 @@ export class AiSidebar {
             noticeEl,
             isCancelled: () => cancelled,
             optionsSuffix,
+            origDirectives,
           });
         }
 
@@ -396,7 +402,8 @@ export class AiSidebar {
           summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
         if (splitCount > 0) summaryParts.push(`${splitCount} split${splitCount === 1 ? "" : "s"}`);
         appendLog(`\u2714 ${summaryParts.join(", ")}`);
-        const combined = slidesToMarkdown(allResultSlides);
+        let combined = slidesToMarkdown(allResultSlides);
+        combined = injectDirectives(combined, origDirectives);
         return combined;
       } catch (err) {
         if (err.name === "AbortError" || err.name === "AiAbortError") {
@@ -469,7 +476,6 @@ export class AiSidebar {
 
     const intentLabels = {
       enhanceSlide: "Cleaning up slide",
-      summarize: "Summarizing",
       addSpeakerNotes: "Adding speaker notes",
     };
     statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
@@ -595,12 +601,14 @@ export class AiSidebar {
       noticeEl,
       isCancelled,
       optionsSuffix = "",
+      origDirectives = [],
     } = opts;
 
     const validator = new AiOutputValidator({ inputMarkdown: markdown });
     const maxAttempts = mode === "fix" ? 3 : 2;
     const expectedSlideCount = mode === "fix" ? splitSlidesForAi(markdown, mode).length : null;
     let lastErrors = [];
+    let contentText;
 
     const { system, user } = buildMessages(markdown, mode);
     const messages = [
@@ -653,7 +661,7 @@ export class AiSidebar {
           );
         }
 
-        const contentText = response.content;
+        contentText = response.content;
         const parsed = parseAiResponse(contentText);
         if (!parsed) {
           throw new Error("AI did not return valid JSON");
@@ -663,7 +671,7 @@ export class AiSidebar {
         const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
 
         if (result.ok) {
-          return enhancedMarkdown;
+          return injectDirectives(enhancedMarkdown, origDirectives);
         }
 
         lastErrors = result.errors;
@@ -676,7 +684,7 @@ export class AiSidebar {
         }
 
         // Accept output after exhausting retries so the user does not lose the entire result.
-        return enhancedMarkdown;
+        return injectDirectives(enhancedMarkdown, origDirectives);
       } catch (err) {
         if (err.name === "AiAbortError") {
           this.close();
@@ -740,6 +748,7 @@ export class AiSidebar {
     });
 
     const startTime = performance.now();
+    let contentText;
 
     try {
       const response = await provider.chat(
@@ -752,7 +761,7 @@ export class AiSidebar {
         signal,
       );
 
-      const contentText = response.content;
+      contentText = response.content;
       const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
       const duration = (performance.now() - startTime) / 1000;
 
@@ -805,7 +814,7 @@ export class AiSidebar {
       mode === "fix"
         ? "AI: Fix Issues"
         : mode === "generate"
-          ? "AI: Enhance all slides"
+          ? "AI: Refine all slides"
           : "AI: Slide";
     panel.innerHTML = `
       <div class="${P}header">

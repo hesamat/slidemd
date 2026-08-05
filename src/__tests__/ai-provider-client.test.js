@@ -27,10 +27,11 @@ describe("AiProviderClient", () => {
   it("returns parsed content on success", async () => {
     globalThis.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
-        usage: { total_tokens: 1 },
-      }),
+      text: async () =>
+        JSON.stringify({
+          choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
+          usage: { total_tokens: 1 },
+        }),
     });
 
     const client = makeClient();
@@ -75,7 +76,7 @@ describe("AiProviderClient", () => {
   it("throws AiParseError when content is missing", async () => {
     globalThis.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ choices: [] }),
+      text: async () => JSON.stringify({ choices: [] }),
     });
 
     const client = makeClient();
@@ -92,9 +93,7 @@ describe("AiProviderClient", () => {
 
     globalThis.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "ok" } }],
-      }),
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
     });
 
     await client.chat({
@@ -119,9 +118,7 @@ describe("AiProviderClient", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: "fallback ok" } }],
-        }),
+        text: async () => JSON.stringify({ choices: [{ message: { content: "fallback ok" } }] }),
       });
 
     const res = await client.chat({
@@ -154,9 +151,7 @@ describe("AiProviderClient", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: "reasoning ok" } }],
-        }),
+        text: async () => JSON.stringify({ choices: [{ message: { content: "reasoning ok" } }] }),
       });
 
     const res = await client.chat({

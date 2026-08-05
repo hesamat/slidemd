@@ -181,6 +181,7 @@
 }
 
 .settings-modal__model-dropdown {
+  min-width: 240px;
   max-height: 180px;
   overflow-y: auto;
   border: 1px solid var(--border-medium, #ccc);

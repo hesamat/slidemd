@@ -11,7 +11,6 @@ describe("AiIntentRegistry", () => {
     it("includes all Phase 13 intents", () => {
       const intents = listIntents();
       expect(intents).toContain("enhanceSlide");
-      expect(intents).toContain("summarize");
       expect(intents).toContain("addSpeakerNotes");
       expect(intents).toContain("generate");
     });
@@ -25,7 +24,6 @@ describe("AiIntentRegistry", () => {
   describe("isSingleSlideIntent", () => {
     it("returns true for single-slide intents", () => {
       expect(isSingleSlideIntent("enhanceSlide")).toBe(true);
-      expect(isSingleSlideIntent("summarize")).toBe(true);
       expect(isSingleSlideIntent("addSpeakerNotes")).toBe(true);
     });
 
@@ -55,13 +53,6 @@ describe("AiIntentRegistry", () => {
       expect(user).toContain("## Title");
     });
 
-    it("builds system + user messages for summarize", () => {
-      const { system, user } = buildMessagesForIntent("summarize", { markdown: slideMarkdown });
-      expect(system).toContain("You are a SlideMD editor");
-      expect(user).toContain("@header");
-      expect(user).toContain("3-5");
-    });
-
     it("builds system + user messages for addSpeakerNotes", () => {
       const { system, user } = buildMessagesForIntent("addSpeakerNotes", {
         markdown: slideMarkdown,
@@ -77,13 +68,13 @@ describe("AiIntentRegistry", () => {
     });
 
     it("replaces {{layoutList}} in system prompt", () => {
-      const { system } = buildMessagesForIntent("summarize", { markdown: slideMarkdown });
+      const { system } = buildMessagesForIntent("addSpeakerNotes", { markdown: slideMarkdown });
       expect(system).not.toContain("{{layoutList}}");
       expect(system).toContain("header-content");
     });
 
     it("replaces {{markdown}} in user prompt", () => {
-      const { user } = buildMessagesForIntent("summarize", { markdown: slideMarkdown });
+      const { user } = buildMessagesForIntent("addSpeakerNotes", { markdown: slideMarkdown });
       expect(user).not.toContain("{{markdown}}");
       expect(user).toContain("## Title");
     });

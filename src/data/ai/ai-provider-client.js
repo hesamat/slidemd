@@ -175,9 +175,13 @@ export class AiProviderClient {
         throw new AiHttpError(res.status, bodyText);
       }
 
-      const json = await res.json().catch(() => {
-        throw new AiParseError("Failed to parse response JSON");
-      });
+      const bodyText = await res.text().catch(() => "");
+      let json;
+      try {
+        json = JSON.parse(bodyText);
+      } catch {
+        throw new AiParseError("Failed to parse response JSON", bodyText);
+      }
 
       const content = json.choices?.[0]?.message?.content;
       if (typeof content !== "string") {
@@ -223,9 +227,11 @@ export class AiHttpError extends Error {
 }
 
 export class AiParseError extends Error {
-  constructor(msg) {
-    super(msg);
+  constructor(msg, body = "") {
+    const summary = body ? ` ${String(body).slice(0, 500)}` : "";
+    super(`${msg}${summary}`);
     this.name = "AiParseError";
+    this.body = body;
   }
 }
 
