@@ -8,7 +8,6 @@
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
 
-import { estimateTokens } from "../../data/ai/ai-token-estimator.js";
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 
 const P = "ai-generate-modal__";
@@ -34,16 +33,7 @@ export class AiGenerateModal {
 
       const slideCount = splitSlidesForAi(markdown, "generate").length;
       const willBatch = slideCount > BATCH_SIZE;
-      const inputTokens = estimateTokens(markdown);
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
-      const estOutputTokens = Math.ceil(inputTokens * 1.8);
-      // Each batch only sends its own slice of the deck, so the total input/output
-      // tokens across all batches are roughly the same as a single pass over the
-      // whole deck — not multiplied by the batch count. Batching does repeat the
-      // system prompt and deck summary per call, so add a small per-batch overhead.
-      const BATCH_OVERHEAD_TOKENS = 300;
-      const totalEstTokens =
-        inputTokens + estOutputTokens + (batchCount > 1 ? batchCount * BATCH_OVERHEAD_TOKENS : 0);
 
       const fidelityOptions = willBatch
         ? `<option value="polish">Tidy up — fix formatting and layouts only</option>
@@ -83,10 +73,6 @@ export class AiGenerateModal {
           <div class="${P}cost-row">
             <span>Estimated API calls</span>
             <span>${batchCount}</span>
-          </div>
-          <div class="${P}cost-row">
-            <span>Estimated tokens</span>
-            <span>~${totalEstTokens.toLocaleString()}</span>
           </div>
           <div class="${P}cost-row" id="${P}model-row">
             <span>Model</span>

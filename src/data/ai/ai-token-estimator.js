@@ -1,20 +1,11 @@
 /**
  * AI Token Estimator
  *
- * Rough token-count estimates for prompt sizing and max_tokens calculation.
+ * Rough token-count estimates for max_tokens calculation.
  * Uses the ~4 chars/token heuristic for English text.
  */
 
 import { stripFrontmatter } from "./ai-prompt-builder.js";
-
-/**
- * Estimate token count (rough: 1 token ≈ 4 chars for English).
- * @param {string} text
- * @returns {number}
- */
-export function estimateTokens(text) {
-  return Math.ceil(text.length / 4);
-}
 
 /**
  * Estimate appropriate max_tokens based on input size and mode.
@@ -28,7 +19,7 @@ export function estimateTokens(text) {
  */
 export function estimateMaxTokens(markdown, mode, opts) {
   const cleaned = stripFrontmatter(markdown, mode);
-  const inputTokens = estimateTokens(cleaned);
+  const inputTokens = Math.ceil(cleaned.length / 4);
   const multiplier = mode === "generate" ? 1.8 : 1.2;
   const effort = opts?.reasoningEffort ?? (opts?.useReasoning ? "high" : "none");
   const reasoningMultipliers = { none: 1, low: 1.5, medium: 2, high: 3 };

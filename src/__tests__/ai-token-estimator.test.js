@@ -1,17 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateTokens, estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
-
-describe("estimateTokens", () => {
-  it("estimates roughly 1 token per 4 chars", () => {
-    expect(estimateTokens("1234")).toBe(1);
-    expect(estimateTokens("12345678")).toBe(2);
-  });
-
-  it("rounds up", () => {
-    expect(estimateTokens("123")).toBe(1);
-    expect(estimateTokens("12345")).toBe(2);
-  });
-});
+import { estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
 
 describe("estimateMaxTokens", () => {
   it("returns at least 16000 without reasoning", () => {
