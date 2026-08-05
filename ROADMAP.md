@@ -632,3 +632,12 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 | [ ] Evaluate Shiki for code highlighting  | Keep offline build; pre-tokenize code blocks with a new highlighter.  |
 | [ ] Add CSS-based slide transitions       | Per-deck default and per-slide override via frontmatter.              |
 | [ ] Add reduced-motion preference support | Respect `prefers-reduced-motion` for all transitions and reveals.     |
+
+### Logging & Metrics
+
+| Task                                      | Details                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| [ ] Add client-side logging utility       | Replace ad-hoc `console.*` calls with a level-based logger.           |
+| [ ] Add error telemetry                   | Capture runtime errors and failed operations in the UI.               |
+| [ ] Add build/PDF runtime metrics         | Track build time, PDF render time, and asset sizes.                   |
+| [ ] Add optional log export               | Download logs for debugging without browser DevTools.                 |
