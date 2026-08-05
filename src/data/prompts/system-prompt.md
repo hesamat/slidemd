@@ -18,6 +18,7 @@ Rules:
 - Only use @area names that the chosen layout supports.
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
+- The first heading in `@header` must be `#` (h1), not `##` or lower.
 - Speaker notes go at the very end: `<!-- notes: ... -->`.
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`.
 - Preserve any existing `::: text-block` blocks exactly, including all attributes and inner text.

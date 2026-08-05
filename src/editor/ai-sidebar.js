@@ -195,7 +195,7 @@ export class AiSidebar {
     const updateProgress = (completedSlides, totalSlides, nextBatch) => {
       if (progressCount) progressCount.textContent = `${completedSlides}/${totalSlides}`;
       if (nextBatch) {
-        statusEl.textContent = `Processing slides ${nextBatch.start + 1}\u2013${nextBatch.end} of ${totalSlides}\u2026`;
+        statusEl.textContent = `Reading slides ${nextBatch.start + 1}\u2013${nextBatch.end} of ${totalSlides}\u2026`;
       }
     };
 
@@ -255,7 +255,7 @@ export class AiSidebar {
         noticeEl.hidden = true;
         progressInline.hidden = false;
         progressCount.textContent = `0/${allSlides.length}`;
-        statusEl.textContent = `Processing slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
+        statusEl.textContent = `Reading slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
         statusEl.className = `${P}status`;
         headerEl.classList.add(`${P}header--active`);
         appendLog(
@@ -326,12 +326,6 @@ export class AiSidebar {
                 );
               } else if (batchResult.error.type === "validation" && attempts < 2) {
                 const errs = batchResult.error.errors;
-                console.warn(
-                  `[AI] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
-                );
-                for (const e of errs) {
-                  console.warn(`  - ${e.message || e}`);
-                }
                 appendLog(
                   `\u21BB Batch ${batch.index + 1}: ${errs.length} validation issue${errs.length === 1 ? "" : "s"} \u2014 retrying...`,
                   "warn",
@@ -361,24 +355,11 @@ export class AiSidebar {
                     slides: batchResult.error.slides,
                   });
                   completedSlides += batch.end - batch.start;
-                  const messages = errs.map((e) => e.message || e);
-                  console.warn(
-                    `[AI] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
-                  );
-                  for (const m of messages) console.warn(`  - ${m}`);
                   appendLog(
                     `\u26A0 Batch ${batch.index + 1}: accepted with ${errs.length} validation issue${errs.length === 1 ? "" : "s"}`,
                     "warn",
                   );
                 } else {
-                  if (errs.length > 0) {
-                    console.warn(
-                      `[AI] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
-                    );
-                    for (const e of errs) {
-                      console.warn(`  - ${e.message || e}`);
-                    }
-                  }
                   appendLog(
                     `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
                     "error",
@@ -711,21 +692,10 @@ export class AiSidebar {
         const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
 
         if (result.ok) {
-          if (result.warnings.length > 0) {
-            for (const w of result.warnings) {
-              console.warn(`[AI ${mode}] ${w.message}`);
-            }
-          }
           return enhancedMarkdown;
         }
 
         lastErrors = result.errors;
-        console.warn(
-          `[AI ${mode}] Attempt ${attempt}: ${result.errors.length} validation issue(s):`,
-        );
-        for (const err of result.errors) {
-          console.warn(`  - ${err.message}`);
-        }
 
         if (attempt < maxAttempts) {
           const repairMsg = buildRepairMessage(result.errors);
@@ -735,7 +705,6 @@ export class AiSidebar {
         }
 
         // Accept output after exhausting retries so the user does not lose the entire result.
-        console.warn(`[AI ${mode}] Accepting output after max attempts with validation issues`);
         return enhancedMarkdown;
       } catch (err) {
         if (err.name === "AiAbortError") {
@@ -849,12 +818,6 @@ export class AiSidebar {
             slides: parsed.slides,
           },
         };
-      }
-
-      if (result.warnings.length > 0) {
-        for (const w of result.warnings) {
-          console.warn(`[AI batch] ${w.message}`);
-        }
       }
 
       return { slides: parsed.slides, duration };
