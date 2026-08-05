@@ -2,7 +2,7 @@
  * AiDropdownManager
  *
  * Manages the editor-header "AI" dropdown (Enhance slide, Summarize,
- * Metric cards, Add speaker notes, Inspired deck).
+ * Metric cards, Add speaker notes, Enhance all slides).
  * Follows the same pattern as InsertDropdownManager: action-to-callback
  * mapping via an `actions` object, event delegation, AbortController teardown.
  */

@@ -10,8 +10,8 @@ Content strategy:
 - Use two-column for diagrams, code, or dense content.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
 - Use `theme: light` for consistent light mode.
-- Do not reorder slides or change the narrative flow unless the fidelity level explicitly allows it.
 - Do not inflate the slide count.
+- Follow the FIDELITY instruction that follows this prompt for whether to preserve, enhance, or rewrite.
 
 Success criteria:
 

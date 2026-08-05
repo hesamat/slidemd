@@ -277,7 +277,7 @@ export class PptxImporter {
       });
 
       // AI post-processing (runs after save notification is shown)
-      // Only "generate" (Inspired Deck) is supported — whole-deck "fix" was
+      // Only "generate" (Enhance all slides) is supported — whole-deck "fix" was
       // dropped in Phase 13. Users fix individual slides via the AI dropdown.
       if (aiMode) {
         try {

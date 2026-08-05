@@ -1,4 +1,4 @@
-/* ── AI Generate Modal (Inspired Deck pre-flight) ───────────── */
+/* ── AI Generate Modal (Enhance all slides pre-flight) ───────────── */
 .ai-generate-modal__backdrop {
   position: fixed;
   inset: 0;
@@ -96,6 +96,19 @@
   outline: none;
   border-color: var(--accent, #6366f1);
   box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.1));
+}
+
+.ai-generate-modal__select:disabled {
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.05));
+  color: var(--text-medium, #666);
+  cursor: not-allowed;
+}
+
+.ai-generate-modal__note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-medium, #666);
+  line-height: 1.4;
 }
 
 .ai-generate-modal__cost {

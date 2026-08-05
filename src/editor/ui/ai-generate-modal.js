@@ -1,7 +1,7 @@
 /**
  * AiGenerateModal
  *
- * Pre-flight modal shown before running "Inspired Deck" (whole-deck generate).
+ * Pre-flight modal shown before running "Enhance all slides" (whole-deck).
  * Lets the user set options (agenda, target slide count, fidelity, tone) and
  * see an estimated cost before committing to the AI call. The user can cancel
  * to avoid any API charges.
@@ -42,15 +42,29 @@ export class AiGenerateModal {
       const estOutputTokens = Math.ceil(inputTokens * 1.8);
       const totalEstTokens = (inputTokens + estOutputTokens) * batchCount;
 
-      // Proportionate slide count options based on current deck
+      // For the current batch-based execution, the output slide count must equal
+      // the input count for each batch. Target count only meaningfully applies to
+      // single-call decks and the experimental Rewrite mode.
+      const willBatch = slideCount > BATCH_SIZE;
       const lower = Math.max(1, Math.round(slideCount * 0.8));
       const higher = Math.round(slideCount * 1.2);
+
+      const slideCountOptions = willBatch
+        ? `<option value="${slideCount}">Preserve current count (~${slideCount})</option>`
+        : `<option value="">Let AI decide</option>
+<option value="${slideCount}">Same (~${slideCount})</option>
+<option value="${lower}">20% fewer (~${lower})</option>
+<option value="${higher}">20% more (~${higher})</option>`;
+
+      const slideCountNote = willBatch
+        ? `<p class="${P}note">Large decks are processed in ${BATCH_SIZE}-slide batches, so the current slide count is preserved. Target count applies only to decks with &le;${BATCH_SIZE} slides.</p>`
+        : "";
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">AI Inspired Deck</h2>
-        <p class="${P}subtitle">The AI will reorganize and redesign your entire presentation. Adjust options below, then click Generate to start.</p>
+        <h2 class="${P}title">AI: Enhance all slides</h2>
+        <p class="${P}subtitle">The AI will improve formatting, wording, and layouts across your presentation. Adjust options below, then click Generate to start.</p>
 
         <div class="${P}field">
           <div class="${P}label-row">
@@ -63,12 +77,10 @@ export class AiGenerateModal {
         <div class="${P}row">
           <div class="${P}field">
             <label class="${P}label" for="${P}slideCount">Target slide count</label>
-            <select id="${P}slideCount" class="${P}select">
-              <option value="">Let AI decide</option>
-              <option value="${slideCount}">Same (~${slideCount})</option>
-              <option value="${lower}">20% fewer (~${lower})</option>
-              <option value="${higher}">20% more (~${higher})</option>
+            <select id="${P}slideCount" class="${P}select" ${willBatch ? "disabled" : ""}>
+              ${slideCountOptions}
             </select>
+            ${slideCountNote}
           </div>
           <div class="${P}field">
             <label class="${P}label" for="${P}tone">Tone</label>
@@ -86,7 +98,7 @@ export class AiGenerateModal {
           <select id="${P}fidelity" class="${P}select">
             <option value="polish">Polish — fix formatting and layouts only</option>
             <option value="enhance" selected>Enhance — improve wording, layouts, add notes</option>
-            <option value="rewrite">Rewrite — full content overhaul</option>
+            <option value="rewrite">Rewrite — full content overhaul (experimental)</option>
           </select>
         </div>
 
@@ -162,6 +174,26 @@ export class AiGenerateModal {
           fidelity,
         });
       });
+
+      // Fidelity controls whether the target count can change
+      const fidelitySelect = dialog.querySelector(`#${P}fidelity`);
+      const slideCountSelect = dialog.querySelector(`#${P}slideCount`);
+      const updateTargetCountState = () => {
+        const fidelity = fidelitySelect.value;
+        if (willBatch) {
+          // Large decks are batched; count is always preserved per batch
+          slideCountSelect.value = String(slideCount);
+          return;
+        }
+        if (fidelity === "rewrite") {
+          slideCountSelect.disabled = false;
+        } else {
+          slideCountSelect.disabled = true;
+          slideCountSelect.value = String(slideCount);
+        }
+      };
+      fidelitySelect.addEventListener("change", updateTargetCountState);
+      updateTargetCountState();
 
       // Open Settings to change model
       const settingsBtn = dialog.querySelector('[data-action="open-settings"]');

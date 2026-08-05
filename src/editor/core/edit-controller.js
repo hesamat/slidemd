@@ -738,7 +738,7 @@ export class EditController {
   }
 
   /**
-   * Run a whole-deck AI generate operation (Inspired Deck).
+   * Run a whole-deck AI generate operation (Enhance all slides).
    * Delegates to AiSidebar.show() which handles the batch processing UI.
    */
   async runWholeDeckAi() {
@@ -785,7 +785,7 @@ export class EditController {
         await AssetLoader.ensureMarkdownItLoaded();
         const deck = await DeckLoader.parseMarkdown(enhanced);
         await this.controller.reloadManager.replaceDeck(deck, { startAtFirstSlide: true });
-        Notification.success("AI Inspired Deck applied.");
+        Notification.success("AI Enhance all slides applied.");
       }
     } catch (err) {
       console.error("AI generate failed:", err);
