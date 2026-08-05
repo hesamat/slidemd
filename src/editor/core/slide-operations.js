@@ -191,10 +191,10 @@ export class SlideOperations {
     if (!confirmed) return;
 
     const indexToDelete = this.currentSlideIndex;
-    const deletedMarkdown =
-      this.unsavedMarkdown.get(indexToDelete) ?? this.originalMarkdown[indexToDelete] ?? "";
 
     this._prepareStoreMutation();
+    const deletedMarkdown =
+      this.unsavedMarkdown.get(indexToDelete) ?? this.originalMarkdown[indexToDelete] ?? "";
     if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
       return;
     this.deck.slides.splice(indexToDelete, 1);

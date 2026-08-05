@@ -84,24 +84,12 @@ export class AiGenerateModal {
         </div>
 
         <div class="${P}field">
-          <label class="${P}label">How close should the result be to your current deck?</label>
-          <div class="${P}radio-group">
-            <label class="${P}radio">
-              <input type="radio" name="${P}fidelity" value="conservative" />
-              <span class="${P}radio-label">Conservative</span>
-              <span class="${P}radio-desc">Keep structure, fix formatting and polish</span>
-            </label>
-            <label class="${P}radio">
-              <input type="radio" name="${P}fidelity" value="balanced" checked />
-              <span class="${P}radio-label">Balanced</span>
-              <span class="${P}radio-desc">Reorganize for clarity, keep all content</span>
-            </label>
-            <label class="${P}radio">
-              <input type="radio" name="${P}fidelity" value="creative" />
-              <span class="${P}radio-label">Creative</span>
-              <span class="${P}radio-desc">Full redesign, may restructure significantly</span>
-            </label>
-          </div>
+          <label class="${P}label" for="${P}fidelity">How close to the current deck?</label>
+          <select id="${P}fidelity" class="${P}select">
+            <option value="conservative">Conservative — keep structure, fix formatting</option>
+            <option value="balanced" selected>Balanced — reorganize for clarity</option>
+            <option value="creative">Creative — full redesign freedom</option>
+          </select>
         </div>
 
         <div class="${P}cost">
@@ -151,9 +139,16 @@ export class AiGenerateModal {
         }
       };
 
+      // Prevent wheel scroll from reaching the slide deck behind the modal
+      const onWheel = (e) => {
+        e.stopPropagation();
+      };
+
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) close(null);
       });
+
+      backdrop.addEventListener("wheel", onWheel, { passive: true });
 
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 
@@ -162,7 +157,7 @@ export class AiGenerateModal {
         const slideCountVal = dialog.querySelector(`#${P}slideCount`).value;
         const tone = dialog.querySelector(`#${P}tone`).value;
         const fidelity =
-          dialog.querySelector(`input[name="${P}fidelity"]:checked`)?.value || "balanced";
+          dialog.querySelector(`#${P}fidelity`).value || "balanced";
         close({
           agenda,
           targetSlideCount: slideCountVal ? parseInt(slideCountVal, 10) : null,
