@@ -4,6 +4,7 @@ import {
   AiAbortError,
   AiHttpError,
   AiParseError,
+  AiReasoningError,
 } from "../data/ai/ai-provider-client.js";
 
 describe("AiProviderClient", () => {
@@ -137,5 +138,40 @@ describe("AiProviderClient", () => {
     const secondBody = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
     expect(firstBody.response_format).toEqual({ type: "json_object" });
     expect(secondBody.response_format).toBeUndefined();
+  });
+
+  it("retries without reasoning when the model requires it (effort:none rejected)", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://openrouter.ai/api/v1",
+      getProvider: () => "OpenRouter",
+    });
+    globalThis.fetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          '{"error":{"message":"Reasoning is mandatory for this endpoint and cannot be disabled.","code":400}}',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "reasoning ok" } }],
+        }),
+      });
+
+    const res = await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null, // → effectiveReasoning { effort: "none" } for OpenRouter
+    });
+
+    expect(res.content).toBe("reasoning ok");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    const firstBody = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+    const secondBody = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
+    expect(firstBody.reasoning).toEqual({ effort: "none" });
+    expect(secondBody.reasoning).toBeUndefined();
   });
 });

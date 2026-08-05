@@ -136,7 +136,7 @@ export class AiProviderClient {
       bodyBase.reasoning = effectiveReasoning;
     }
 
-    const tryFetch = async (includeResponseFormat) => {
+    const tryFetch = async (includeResponseFormat, includeReasoning = true) => {
       if (signal?.aborted) {
         throw new AiAbortError();
       }
@@ -144,6 +144,9 @@ export class AiProviderClient {
       const body = { ...bodyBase };
       if (!includeResponseFormat) {
         delete body.response_format;
+      }
+      if (!includeReasoning) {
+        delete body.reasoning;
       }
 
       const res = await fetch(url, {
@@ -161,6 +164,13 @@ export class AiProviderClient {
           bodyText.toLowerCase().includes("response_format")
         ) {
           throw new AiParseError("response_format not supported");
+        }
+        if (
+          includeReasoning &&
+          res.status === 400 &&
+          bodyText.toLowerCase().includes("reasoning is mandatory")
+        ) {
+          throw new AiReasoningError("Reasoning is mandatory for this model");
         }
         throw new AiHttpError(res.status, bodyText);
       }
@@ -180,10 +190,15 @@ export class AiProviderClient {
     try {
       return await tryFetch(true);
     } catch (firstErr) {
-      // Only retry if we actually sent a response_format that may have caused
-      // the parse problem (e.g. a provider that doesn't support it).
+      // Retry without response_format if the provider doesn't support it.
       if (responseFormat && firstErr instanceof AiParseError) {
         return await tryFetch(false);
+      }
+      // Retry without the reasoning param when the model requires reasoning
+      // but we tried to disable it (effort: "none"). Let the model use its
+      // default reasoning instead of failing.
+      if (firstErr instanceof AiReasoningError) {
+        return await tryFetch(true, false);
       }
       throw firstErr;
     }
@@ -211,5 +226,12 @@ export class AiParseError extends Error {
   constructor(msg) {
     super(msg);
     this.name = "AiParseError";
+  }
+}
+
+export class AiReasoningError extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = "AiReasoningError";
   }
 }
