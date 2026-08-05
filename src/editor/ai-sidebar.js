@@ -1,39 +1,13 @@
 /**
  * AiSidebar
  *
- * Non-blocking sidebar panel for AI processing.
- * For small decks (≤8 slides): single API call.
- * For larger decks: 2-worker parallel batch processing with per-batch retry.
+ * Thin, non-blocking UI shell for AI processing. All LLM calls, batching,
+ * validation, and repair live in AiOrchestrator — this class only owns the
+ * panel UI (progress, retry, cancel) and drives it via orchestrator callbacks.
  */
-
-import { SettingsModal } from "./settings-modal.js";
-import { createAiProviderClient } from "../data/ai/ai-provider-factory.js";
-import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
-import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
-import {
-  buildDeckSummary,
-  buildGenerateOptionsSuffix,
-  buildMessages,
-  buildBatchMessages,
-  BATCH_SIZE,
-  splitSlidesForAi,
-} from "../data/ai/ai-prompt-builder.js";
-import { estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
-import { parseAiResponse, slidesToMarkdown } from "../data/ai/ai-response-parser.js";
-import { extractDirectives, injectDirectives } from "../data/ai/ai-directive-utils.js";
 
 const P = "ai-sidebar__";
 
-/**
- * Build additional instructions suffix from user-provided generate options.
- * Appended to the user prompt so the AI sees the user's preferences.
- * @param {object} opts
- * @param {string} [opts.agenda]
- * @param {number|null} [opts.targetSlideCount]
- * @param {string} [opts.tone]
- * @param {string} [opts.fidelity] — "conservative" | "balanced" | "creative"
- * @returns {string}
- */
 export class AiSidebar {
   static _currentPanel = null;
   static _abortControllers = [];
@@ -62,26 +36,19 @@ export class AiSidebar {
   }
 
   /**
-   * Show the AI sidebar and stream the response.
-   * @param {string} markdown - The markdown to enhance.
-   * @param {"fix"|"generate"} mode - Enhancement mode.
-   * @param {object} [opts] - Generate options (agenda, targetSlideCount, tone).
+   * Show the AI sidebar and run a whole-deck "generate" operation through
+   * the orchestrator.
+   * @param {import("../data/ai/ai-operation.js").AiOperation} operation
+   * @param {import("../data/ai/ai-orchestrator.js").AiOrchestrator} orchestrator
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
-  static async show(markdown, mode, opts = {}) {
+  static async show(operation, orchestrator) {
     this.cancel();
     this.close();
     const myShowId = Symbol();
     this._showId = myShowId;
 
-    // Build additional instructions from user options (agenda, tone, fidelity)
-    const optionsSuffix = buildGenerateOptionsSuffix(opts);
-
-    // Capture original background/theme directives before stripping. The AI often
-    // drops these even when instructed, so we re-inject them into the result.
-    const origDirectives = extractDirectives(markdown);
-
-    const panel = this.#createPanel(mode);
+    const panel = this.#createPanel("generate");
     document.body.appendChild(panel);
     this._currentPanel = panel;
 
@@ -176,235 +143,37 @@ export class AiSidebar {
       }
     };
 
-    const providerLabel = SettingsModal.getProvider();
-
-    const provider = createAiProviderClient(
-      providerLabel,
-      () => SettingsModal.getBaseUrl(),
-      () => SettingsModal.getApiKey(),
-      () => SettingsModal.getModel(),
-    );
-
     const run = async () => {
+      outputEl.textContent = "";
+      outputEl.hidden = false;
+      noticeEl.hidden = true;
+      statusEl.textContent = "Preparing\u2026";
+      statusEl.className = `${P}status`;
+      headerEl.classList.add(`${P}header--active`);
+
+      const ctrl = new AbortController();
+      this._abortControllers = [ctrl];
+
       try {
-        const apiKey = SettingsModal.getApiKey();
+        const enhancedMarkdown = await orchestrator.runWholeDeckOperation(operation, ctrl.signal, {
+          onProgress: (completedSlides, totalSlides, nextBatch) => {
+            progressInline.hidden = false;
+            updateProgress(completedSlides, totalSlides, nextBatch);
+          },
+          onLog: (message, level) => appendLog(message, level || "info"),
+        });
 
-        if (!apiKey && SettingsModal.requiresApiKey(providerLabel)) {
-          showError("No API key \u2014 open Settings to configure");
-          return null;
-        }
-
-        const model = SettingsModal.getModel();
-        const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        const useReasoning = SettingsModal.getReasoning();
-        const effort = useReasoning ? SettingsModal.getEffort() : null;
-        const reasoningEffort = useReasoning ? effort : "none";
-
-        // Split into slides to decide single vs batch path
-        const allSlides = splitSlidesForAi(markdown, mode);
-
-        // ── Single-call path (≤BATCH_SIZE slides) ──
-        if (allSlides.length <= BATCH_SIZE) {
-          return await this.#runSingleCall(markdown, mode, {
-            provider,
-            modelMaxOutput,
-            useReasoning,
-            effort,
-            reasoningEffort,
-            statusEl,
-            noticeEl,
-            isCancelled: () => cancelled,
-            optionsSuffix,
-            origDirectives,
-          });
-        }
-
-        // ── Batch path (>BATCH_SIZE slides) ──
-        const batches = [];
-        for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
-          batches.push({ start: i, end: Math.min(i + BATCH_SIZE, allSlides.length) });
-        }
-
-        const deckSummary = mode === "generate" ? buildDeckSummary(markdown) : null;
-
-        // Show progress UI
-        outputEl.textContent = "";
-        outputEl.hidden = false;
-        noticeEl.hidden = true;
-        progressInline.hidden = false;
-        progressCount.textContent = `0/${allSlides.length}`;
-        statusEl.textContent = `Reading slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
-        statusEl.className = `${P}status`;
-        headerEl.classList.add(`${P}header--active`);
-        appendLog(
-          `Split ${allSlides.length} slides into ${batches.length} batches of ${batches.length > 1 ? BATCH_SIZE : allSlides.length}`,
-        );
-
-        // 2-worker parallel batch loop
-        // results is keyed by batch.batchKey so split sub-batches get their own slot
-        // and cannot overwrite each other. Values carry start/end for reassembly.
-        const results = new Map();
-        let completedSlides = 0;
-        let retryCount = 0;
-        let splitCount = 0;
-        const retryAttempts = new Map(); // batch key -> attempt count
-        const repairMessages = new Map(); // batch key -> messages for next attempt
-        const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
-
-        const worker = async (_workerName) => {
-          while (queue.length > 0) {
-            if (cancelled) break;
-            const batch = queue.shift();
-
-            const batchResult = await this.#streamBatch({
-              markdown,
-              mode,
-              batch,
-              totalSlides: allSlides.length,
-              deckSummary,
-              provider,
-              modelMaxOutput,
-              useReasoning,
-              effort,
-              reasoningEffort,
-              signal: this._abortControllers[0]?.signal,
-              repairMessages: repairMessages.get(batch.batchKey) || [],
-              optionsSuffix,
-            });
-
-            if (batchResult === null) {
-              // Cancelled
-              break;
-            }
-
-            if (batchResult.error) {
-              const attempts = (retryAttempts.get(batch.batchKey) || 0) + 1;
-              retryAttempts.set(batch.batchKey, attempts);
-
-              if (batchResult.error.type === "truncation") {
-                appendLog(
-                  `\u26A0 Batch ${batch.index + 1}: response truncated \u2014 splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)} slides`,
-                  "warn",
-                );
-                splitCount++;
-                const mid = batch.start + Math.ceil((batch.end - batch.start) / 2);
-                queue.unshift(
-                  {
-                    start: batch.start,
-                    end: mid,
-                    index: batch.index,
-                    batchKey: `${batch.start}-${mid}`,
-                  },
-                  {
-                    start: mid,
-                    end: batch.end,
-                    index: batch.index,
-                    batchKey: `${mid}-${batch.end}`,
-                  },
-                );
-              } else if (batchResult.error.type === "validation" && attempts < 2) {
-                const errs = batchResult.error.errors;
-                appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${errs.length} validation issue${errs.length === 1 ? "" : "s"} \u2014 retrying...`,
-                  "warn",
-                );
-                retryCount++;
-                if (batchResult.error.repairMessages) {
-                  repairMessages.set(batch.batchKey, batchResult.error.repairMessages);
-                }
-                queue.unshift(batch);
-              } else if (attempts < 2) {
-                const errMsg = batchResult.error.message ? ` (${batchResult.error.message})` : "";
-                appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type}${errMsg} \u2014 retrying...`,
-                  "warn",
-                );
-                retryCount++;
-                queue.unshift(batch);
-              } else {
-                const isValidation = batchResult.error.type === "validation";
-                const errs = isValidation ? batchResult.error.errors : [];
-                // Accept the partial output after exhausting retries so one bad batch
-                // does not discard the whole deck in either fix or generate mode.
-                if (isValidation && batchResult.error.slides) {
-                  results.set(batch.batchKey, {
-                    start: batch.start,
-                    end: batch.end,
-                    slides: batchResult.error.slides,
-                  });
-                  completedSlides += batch.end - batch.start;
-                  appendLog(
-                    `\u26A0 Batch ${batch.index + 1}: accepted with ${errs.length} validation issue${errs.length === 1 ? "" : "s"}`,
-                    "warn",
-                  );
-                } else {
-                  appendLog(
-                    `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
-                    "error",
-                  );
-                }
-                const nextBatch = queue.length > 0 ? queue[0] : null;
-                updateProgress(completedSlides, allSlides.length, nextBatch);
-              }
-            } else {
-              results.set(batch.batchKey, {
-                start: batch.start,
-                end: batch.end,
-                slides: batchResult.slides,
-              });
-              completedSlides += batch.end - batch.start;
-              const nextBatch = queue.length > 0 ? queue[0] : null;
-              updateProgress(completedSlides, allSlides.length, nextBatch);
-              appendLog(
-                `\u2713 Batch ${batch.index + 1}: slides ${batch.start + 1}\u2013${batch.end} done (${batchResult.duration.toFixed(1)}s)`,
-              );
-            }
-          }
-        };
-
-        // Create 2 AbortControllers
-        const ctrl1 = new AbortController();
-        const ctrl2 = new AbortController();
-        this._abortControllers = [ctrl1, ctrl2];
-
-        await Promise.all([worker("A"), worker("B")]);
-
-        // All done
         if (cancelled) {
           this.close();
           return null;
         }
 
-        // Reassemble batches in order and check for any gaps
-        const completedRanges = [...results.values()].sort((a, b) => a.start - b.start);
-        const hasGap = (() => {
-          if (completedRanges.length === 0) return true;
-          let expectedStart = 0;
-          for (const r of completedRanges) {
-            if (r.start !== expectedStart) return true;
-            expectedStart = r.end;
-          }
-          return expectedStart !== allSlides.length;
-        })();
-
-        if (hasGap) {
-          showError(
-            `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
-              `Try again or reduce deck size.`,
-          );
+        if (!enhancedMarkdown) {
+          showError("AI returned no content \u2014 try again");
           return null;
         }
 
-        // Combine results in order
-        const allResultSlides = completedRanges.flatMap((r) => r.slides);
-        const summaryParts = [`${allSlides.length} slides processed`];
-        if (retryCount > 0)
-          summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
-        if (splitCount > 0) summaryParts.push(`${splitCount} split${splitCount === 1 ? "" : "s"}`);
-        appendLog(`\u2714 ${summaryParts.join(", ")}`);
-        let combined = slidesToMarkdown(allResultSlides);
-        combined = injectDirectives(combined, origDirectives);
-        return combined;
+        return enhancedMarkdown;
       } catch (err) {
         if (err.name === "AbortError" || err.name === "AiAbortError") {
           this.close();
@@ -596,236 +365,10 @@ export class AiSidebar {
     }
   }
 
-  /**
-   * Single API call path (small decks).
-   * For fix mode, validates output and retries with a focused repair message on failure.
-   */
-  static async #runSingleCall(markdown, mode, opts) {
-    const {
-      provider,
-      modelMaxOutput,
-      useReasoning,
-      effort,
-      reasoningEffort,
-      statusEl,
-      noticeEl,
-      isCancelled,
-      optionsSuffix = "",
-      origDirectives = [],
-    } = opts;
-
-    const validator = new AiOutputValidator({ inputMarkdown: markdown });
-    const maxAttempts = mode === "fix" ? 3 : 2;
-    const expectedSlideCount = mode === "fix" ? splitSlidesForAi(markdown, mode).length : null;
-    let lastErrors = [];
-    let contentText;
-
-    const { system, user } = buildMessages(markdown, mode);
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user + optionsSuffix },
-    ];
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const inputTokens = estimateMaxTokens(markdown, mode, {
-        modelMaxOutput,
-        reasoningEffort,
-      });
-      statusEl.textContent =
-        attempt > 1
-          ? `Retry ${attempt}/${maxAttempts} (${lastErrors.length} issue${lastErrors.length === 1 ? "" : "s"})\u2026`
-          : `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
-
-      const ctrl = new AbortController();
-      this._abortControllers = [ctrl];
-
-      try {
-        const response = await provider.chat(
-          {
-            messages,
-            maxTokens: inputTokens,
-            responseFormat: null,
-            reasoning: useReasoning ? { effort } : null,
-          },
-          ctrl.signal,
-        );
-
-        noticeEl.hidden = false;
-        statusEl.textContent = "AI is working\u2026";
-
-        if (isCancelled()) {
-          this.close();
-          return null;
-        }
-
-        const finishReason =
-          response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
-        if (finishReason === "length") {
-          const limitDisplay = modelMaxOutput
-            ? `${modelMaxOutput.toLocaleString()} tokens`
-            : "unknown";
-          throw new Error(
-            `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${SettingsModal.getModel()}). ` +
-              `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
-              `or switch to a model with a higher output token limit.`,
-          );
-        }
-
-        contentText = response.content;
-        const parsed = parseAiResponse(contentText);
-        if (!parsed) {
-          throw new Error("AI did not return valid JSON");
-        }
-
-        const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-        const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
-
-        if (result.ok) {
-          return injectDirectives(enhancedMarkdown, origDirectives);
-        }
-
-        lastErrors = result.errors;
-
-        if (attempt < maxAttempts) {
-          const repairMsg = buildRepairMessage(result.errors);
-          messages.push({ role: "assistant", content: contentText });
-          messages.push({ role: "user", content: repairMsg });
-          continue;
-        }
-
-        // Accept output after exhausting retries so the user does not lose the entire result.
-        return injectDirectives(enhancedMarkdown, origDirectives);
-      } catch (err) {
-        if (err.name === "AiAbortError") {
-          this.close();
-          return null;
-        }
-        throw err;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Stream a single batch and return parsed slides.
-   * For fix mode, validates output before returning.
-   * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
-   */
-  static async #streamBatch(opts) {
-    const {
-      markdown,
-      mode,
-      batch,
-      totalSlides,
-      deckSummary,
-      provider,
-      modelMaxOutput,
-      useReasoning,
-      effort,
-      reasoningEffort,
-      signal,
-      repairMessages = [],
-      optionsSuffix = "",
-    } = opts;
-
-    const batchMarkdown = (() => {
-      const cleaned = markdown
-        .split(/\n---\n/)
-        .slice(batch.start, batch.end)
-        .join("\n\n---\n\n");
-      return cleaned;
-    })();
-
-    const { system, user } = buildBatchMessages(
-      markdown,
-      mode,
-      batch.start,
-      batch.end,
-      totalSlides,
-      deckSummary,
-    );
-
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user + optionsSuffix },
-      ...repairMessages,
-    ];
-
-    const inputTokens = estimateMaxTokens(batchMarkdown, mode, {
-      modelMaxOutput,
-      reasoningEffort,
-    });
-
-    const startTime = performance.now();
-    let contentText;
-
-    try {
-      const response = await provider.chat(
-        {
-          messages,
-          maxTokens: inputTokens,
-          responseFormat: null,
-          reasoning: useReasoning ? { effort } : null,
-        },
-        signal,
-      );
-
-      contentText = response.content;
-      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
-      const duration = (performance.now() - startTime) / 1000;
-
-      if (finishReason === "length") {
-        return { error: { type: "truncation" } };
-      }
-
-      const parsed = parseAiResponse(contentText);
-      if (!parsed) {
-        return { error: { type: "parse-error" } };
-      }
-
-      const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-      const validator = new AiOutputValidator({ inputMarkdown: batchMarkdown });
-      const expectedCount = mode === "fix" ? batch.end - batch.start : null;
-      const result = validator.validate(enhancedMarkdown, mode, {
-        expectedSlideCount: expectedCount,
-      });
-
-      if (!result.ok) {
-        const repairMsg = buildRepairMessage(result.errors);
-        const nextRepairMessages = [
-          ...repairMessages,
-          { role: "assistant", content: contentText },
-          { role: "user", content: repairMsg },
-        ];
-        return {
-          error: {
-            type: "validation",
-            errors: result.errors,
-            repairMessages: nextRepairMessages,
-            // Keep the parsed slides so fix mode can accept partial output
-            // after exhausting retries instead of dropping the whole batch.
-            slides: parsed.slides,
-          },
-        };
-      }
-
-      return { slides: parsed.slides, duration };
-    } catch (err) {
-      if (err.name === "AbortError" || err.name === "AiAbortError") return null;
-      return { error: { type: "network-error", message: err.message } };
-    }
-  }
-
   static #createPanel(mode) {
     const panel = document.createElement("div");
     panel.className = P + "panel";
-    const title =
-      mode === "fix"
-        ? "AI: Fix Issues"
-        : mode === "generate"
-          ? "AI: Refine all slides"
-          : "AI: Slide";
+    const title = mode === "generate" ? "AI: Refine all slides" : "AI: Slide";
     panel.innerHTML = `
       <div class="${P}header">
         <span class="${P}title">${title}</span>

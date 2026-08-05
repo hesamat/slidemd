@@ -738,10 +738,14 @@ export class EditController {
 
   /**
    * Run a whole-deck AI generate operation (Refine all slides).
-   * Delegates to AiSidebar.show() which handles the batch processing UI.
+   * Builds an AiOperation, runs it through the orchestrator, and delegates to
+   * AiSidebar.show() for the progress/retry UI — same pattern as runSingleSlideAi.
    */
   async runWholeDeckAi() {
     const { SettingsModal } = await import("../settings-modal.js");
+    const { createAiProviderClient } = await import("../../data/ai/ai-provider-factory.js");
+    const { AiOrchestrator } = await import("../../data/ai/ai-orchestrator.js");
+    const { createOperation } = await import("../../data/ai/ai-operation.js");
     const { AiSidebar } = await import("../ai-sidebar.js");
     const { AiGenerateModal } = await import("../ui/ai-generate-modal.js");
 
@@ -770,11 +774,28 @@ export class EditController {
     });
     if (!generateOpts) return; // user cancelled — no API call made
 
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
+
+    const model = SettingsModal.getModel();
+    const orchestrator = new AiOrchestrator({
+      provider,
+      modelMaxOutput: SettingsModal.getModelMaxTokens(model),
+      useReasoning: SettingsModal.getReasoning(),
+      effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+    });
+
+    const op = createOperation("generate", null, fullMarkdown, {
+      tone: generateOpts.tone,
+      fidelity: generateOpts.fidelity,
+    });
+
     try {
-      const enhanced = await AiSidebar.show(fullMarkdown, "generate", {
-        tone: generateOpts.tone,
-        fidelity: generateOpts.fidelity,
-      });
+      const enhanced = await AiSidebar.show(op, orchestrator);
       if (enhanced && this.controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
         const deck = await DeckLoader.parseMarkdown(enhanced);

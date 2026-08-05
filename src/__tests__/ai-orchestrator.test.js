@@ -168,6 +168,17 @@ describe("AiOrchestrator", () => {
       expect(provider.chat).toHaveBeenCalled();
     });
 
+    it("re-injects background/theme directives the AI dropped", async () => {
+      const deckWithBg =
+        "layout: header-content\nbackground: red\ntheme: dark\n@header\n## Title\n\n@main\n- Item 1";
+      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithBg);
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(result).toContain("background: red");
+      expect(result).toContain("theme: dark");
+    });
+
     it("uses batched path for large decks (>8 slides)", async () => {
       // Build a 12-slide deck
       const slides = Array.from(
@@ -194,11 +205,14 @@ describe("AiOrchestrator", () => {
         (completed, total, batch) => progressCalls.push({ completed, total, batch }),
       );
       expect(result).toContain("@header");
-      // 12 slides / 8 per batch = 2 batches; progress is reported in slide count
-      expect(progressCalls).toHaveLength(2);
+      // First call reports 0/12 immediately so the UI can show progress before
+      // the first batch completes; then one call per completed batch (2 batches).
+      expect(progressCalls).toHaveLength(3);
+      expect(progressCalls[0].completed).toBe(0);
       expect(progressCalls[0].total).toBe(12);
-      expect(progressCalls[0].completed).toBe(8);
-      expect(progressCalls[1].completed).toBe(12);
+      expect(progressCalls[1].total).toBe(12);
+      expect(progressCalls[1].completed).toBe(8);
+      expect(progressCalls[2].completed).toBe(12);
     });
   });
 });

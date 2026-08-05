@@ -159,19 +159,18 @@ export class AiOrchestrator {
 
     const optionsSuffix = buildGenerateOptionsSuffix(operation.opts);
 
-    // Single-call path for small decks
-    if (totalSlides <= BATCH_SIZE) {
-      const result = await this.#runWholeDeckSingleCall(
-        operation,
-        signal,
-        optionsSuffix,
-        callbacks,
-      );
-      return result;
-    }
+    // Capture original background/theme directives before sending. The AI
+    // sometimes drops these even though generate mode keeps them visible in
+    // the input; re-inject them into the final markdown either way.
+    const origDirectives = extractDirectives(context);
 
-    // Batched path for larger decks
-    return this.#runWholeDeckBatched(operation, signal, optionsSuffix, totalSlides, callbacks);
+    // Single-call path for small decks
+    const result =
+      totalSlides <= BATCH_SIZE
+        ? await this.#runWholeDeckSingleCall(operation, signal, optionsSuffix, callbacks)
+        : await this.#runWholeDeckBatched(operation, signal, optionsSuffix, totalSlides, callbacks);
+
+    return result ? injectDirectives(result, origDirectives) : result;
   }
 
   /**
@@ -295,6 +294,7 @@ export class AiOrchestrator {
     const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
     onLog?.(`Split ${totalSlides} slides into ${batches.length} batch(es)`);
+    onProgress?.(0, totalSlides, queue[0]);
 
     const worker = async () => {
       while (queue.length > 0) {
