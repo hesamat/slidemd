@@ -6,14 +6,7 @@ import {
   highlightActiveLineGutter,
   placeholder,
 } from "@codemirror/view";
-import {
-  history,
-  historyKeymap,
-  indentWithTab,
-  defaultKeymap,
-  undo,
-  redo,
-} from "@codemirror/commands";
+import { history, historyKeymap, indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
   autocompletion,
@@ -373,20 +366,6 @@ export class MarkdownEditor {
     this.view?.focus();
   }
 
-  /**
-   * Undo the last edit
-   */
-  undo() {
-    if (this.view) undo(this.view);
-  }
-
-  /**
-   * Redo the last undone edit
-   */
-  redo() {
-    if (this.view) redo(this.view);
-  }
-
   // ── Line highlight (click-to-jump) ───────────────────────────────────────
 
   /**
@@ -509,7 +488,14 @@ export class MarkdownEditor {
       keymap.of([
         indentWithTab,
         ...defaultKeymap,
-        ...historyKeymap,
+        // Undo/redo are handled by the app-level keyboard handler (EditController)
+        // which routes through the DeckStore for unified undo across text and
+        // structural operations.  Filter out CodeMirror's own undo/redo keymap
+        // entries so they don't intercept Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y.
+        ...historyKeymap.filter(
+          (binding) =>
+            binding.key !== "Mod-z" && binding.key !== "Mod-y" && binding.key !== "Mod-Shift-z",
+        ),
         ...searchKeymap,
         ...completionKeymap,
         ...closeBracketsKeymap,

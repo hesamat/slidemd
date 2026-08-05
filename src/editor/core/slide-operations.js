@@ -74,14 +74,32 @@ export class SlideOperations {
     this._prepareStoreOperation?.();
   }
 
+  /**
+   * Apply structural patches to the store, with a fallback for drift.
+   * If the patches are rejected (e.g. the store and editor arrays diverged),
+   * re-sync the store from the editor's current state and retry once.
+   * If the retry also fails, proceed with the operation anyway — the user's
+   * action should not be blocked by a store sync issue.  The store will be
+   * re-synced on the next save.
+   * @param {object[]} patches
+   * @returns {boolean} always true (the operation should proceed)
+   */
   _applyStorePatches(patches) {
     if (!this._deckStore) return true;
     if (this._deckStore.applyPatches(patches)) {
       this._recordStoreOperation?.();
       return true;
     }
-    Notification.error("Could not synchronize the slide operation with deck history.");
-    return false;
+    // Drift detected — re-sync the store from the editor and retry
+    const fullSlides = this._getSaveManager().getFullSlides();
+    this._deckStore.syncSlides(fullSlides, this._getCurrentSlideIndex());
+    if (this._deckStore.applyPatches(patches)) {
+      this._recordStoreOperation?.();
+      return true;
+    }
+    // Still failing — proceed anyway; store will be corrected on next save
+    console.warn("Store patch rejected after re-sync; proceeding with operation.");
+    return true;
   }
 
   get deck() {

@@ -63,15 +63,13 @@ export class EditController {
 
     this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
-    this._pendingStructuralOperations = 0;
-    this._historyOperation = null;
+    this._historyOperation = false;
 
     this.placeholderDialogEl = null;
 
     this._destroyed = false;
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      this.deckStore?.setActiveIndex(this.currentSlideIndex);
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       SlideStylePanel.hide();
@@ -90,7 +88,6 @@ export class EditController {
         ? this.deckStore.getSlides()
         : this._cacheOriginalMarkdown();
       this.unsavedMarkdown.clear();
-      this._pendingStructuralOperations = 0;
       this.hasUnsavedChanges = isStoreRestore;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
@@ -164,9 +161,7 @@ export class EditController {
         this._captureCurrentEditorMarkdown();
         this.syncStoreFromSlides(this.saveManager.getFullSlides());
       },
-      onSaveStateReset: () => {
-        this._pendingStructuralOperations = 0;
-      },
+      onSaveStateReset: () => {},
     });
 
     this.areaNav = new AreaNavigation({
@@ -602,8 +597,25 @@ export class EditController {
     });
   }
 
-  recordStoreOperation() {
-    this._pendingStructuralOperations += 1;
+  recordStoreOperation() {}
+
+  /**
+   * Flush the current editor text into the store as an edit patch with history.
+   * Called before undo/redo so the store captures the latest text state and
+   * the undo stack is continuous.  Only creates a patch if the current slide's
+   * text differs from what the store already has.
+   */
+  _flushTextToStore() {
+    if (!this.deckStore || !this.markdownEditor) return;
+    this._captureCurrentEditorMarkdown();
+    const fullSlides = this.saveManager.getFullSlides();
+    const storeSlides = this.deckStore.getSlides();
+    const idx = this.currentSlideIndex;
+    if (idx >= 0 && idx < fullSlides.length && idx < storeSlides.length) {
+      if (fullSlides[idx] !== storeSlides[idx]) {
+        this.syncStoreFromSlides(fullSlides, "user");
+      }
+    }
   }
 
   async _restoreStoreSnapshot() {
@@ -619,18 +631,14 @@ export class EditController {
 
   async undo() {
     if (this._historyOperation) return false;
-    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.undo?.();
-      return true;
-    }
-    if (!this.deckStore || !this.deckStore.canUndo()) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.undo?.();
-      return true;
-    }
-    if (this._historyOperation || !this.deckStore.undo()) return false;
-    this._historyOperation = "undo";
+    if (!this.deckStore) return false;
+    // Flush current editor text to the store first — this creates a history
+    // entry for unsaved text edits, making canUndo() true when it would
+    // otherwise be false.  Must happen before the canUndo() check.
+    this._flushTextToStore();
+    if (!this.deckStore.canUndo()) return false;
+    if (!this.deckStore.undo()) return false;
+    this._historyOperation = true;
     try {
       return await this._restoreStoreSnapshot();
     } catch (error) {
@@ -638,24 +646,17 @@ export class EditController {
       Notification.error(`Undo failed: ${error.message || error}`);
       return false;
     } finally {
-      this._historyOperation = null;
+      this._historyOperation = false;
     }
   }
 
   async redo() {
     if (this._historyOperation) return false;
-    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.redo?.();
-      return true;
-    }
-    if (!this.deckStore || !this.deckStore.canRedo()) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.redo?.();
-      return true;
-    }
+    if (!this.deckStore) return false;
+    this._flushTextToStore();
+    if (!this.deckStore.canRedo()) return false;
     if (!this.deckStore.redo()) return false;
-    this._historyOperation = "redo";
+    this._historyOperation = true;
     try {
       return await this._restoreStoreSnapshot();
     } catch (error) {
@@ -663,7 +664,7 @@ export class EditController {
       Notification.error(`Redo failed: ${error.message || error}`);
       return false;
     } finally {
-      this._historyOperation = null;
+      this._historyOperation = false;
     }
   }
 
