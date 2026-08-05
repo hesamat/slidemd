@@ -3,6 +3,7 @@
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
@@ -40,12 +41,19 @@ import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
+import {
+  createDeletePatch,
+  createEditPatch,
+  createInsertPatch,
+} from "../../data/store/slide-patch.js";
+import { AssetLoader } from "../../core/asset-loader.js";
 
 export class EditController {
-  constructor(deck, controller, elements) {
+  constructor(deck, controller, elements, { deckStore = null } = {}) {
     this.deck = deck;
     this.controller = controller;
     this.elements = elements;
+    this.deckStore = deckStore;
 
     this.isEditMode = false;
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
@@ -55,6 +63,8 @@ export class EditController {
 
     this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
+    this._pendingStructuralOperations = 0;
+    this._historyOperation = null;
 
     this.placeholderDialogEl = null;
 
@@ -68,9 +78,19 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      this.originalMarkdown = this._cacheOriginalMarkdown();
+      // A store-history restore (undo/redo) arrives with syncStore === false.
+      // It brings the in-memory deck back in line with the store but does NOT
+      // write to disk or localStorage, so the restored state diverges from what
+      // is persisted.  Keep originalMarkdown in sync with the restored slides
+      // (so the editor displays them) but mark the deck as having unsaved
+      // changes so the reload guard prompts before discarding the undone state.
+      const isStoreRestore = data.syncStore === false && this.deckStore;
+      this.originalMarkdown = isStoreRestore
+        ? this.deckStore.getSlides()
+        : this._cacheOriginalMarkdown();
       this.unsavedMarkdown.clear();
-      this.hasUnsavedChanges = false;
+      this._pendingStructuralOperations = 0;
+      this.hasUnsavedChanges = isStoreRestore;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
@@ -139,6 +159,13 @@ export class EditController {
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
+      onBeforeSave: () => {
+        this._captureCurrentEditorMarkdown();
+        this.syncStoreFromSlides(this.saveManager.getFullSlides());
+      },
+      onSaveStateReset: () => {
+        this._pendingStructuralOperations = 0;
+      },
     });
 
     this.areaNav = new AreaNavigation({
@@ -166,6 +193,9 @@ export class EditController {
         this.hasUnsavedChanges = v;
       },
       getSaveManager: () => this.saveManager,
+      deckStore: this.deckStore,
+      prepareStoreOperation: () => this.prepareStoreOperation(),
+      recordStoreOperation: () => this.recordStoreOperation(),
     });
 
     this.imageInserter = new ImageInserter({
@@ -292,7 +322,7 @@ export class EditController {
    * global (used for large converted decks that exceed quota).
    */
   _getSourceMarkdown() {
-    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+    return DeckLoader.getSourceMarkdown();
   }
 
   _cacheOriginalMarkdown() {
@@ -510,6 +540,129 @@ export class EditController {
       const isCollapsed = thumbnailsContainer.classList.toggle("collapsed");
       toggleBtn.setAttribute("aria-label", isCollapsed ? "Expand slides" : "Collapse slides");
       toggleBtn.setAttribute("title", isCollapsed ? "Expand slides" : "Collapse slides");
+    }
+  }
+
+  /**
+   * Sync the current slide array into the canonical store at a save boundary.
+   * Keystrokes remain local to the editor until this method is called.
+   * @param {string[]} slides
+   * @param {string} source
+   * @param {object} opts
+   */
+  syncStoreFromSlides(slides, source = "user", { recordHistory = true } = {}) {
+    if (!this.deckStore) return;
+    const desired = [...slides];
+    if (!recordHistory) {
+      this.deckStore.syncSlides(desired, this.currentSlideIndex);
+      return;
+    }
+
+    const working = this.deckStore.getSlides();
+    const patches = [];
+    const shared = Math.min(working.length, desired.length);
+
+    for (let i = 0; i < shared; i += 1) {
+      if (working[i] !== desired[i]) {
+        patches.push(createEditPatch(i, working[i], desired[i], source));
+        working[i] = desired[i];
+      }
+    }
+    for (let i = working.length - 1; i >= desired.length; i -= 1) {
+      patches.push(createDeletePatch(i, working[i], source));
+      working.splice(i, 1);
+    }
+    for (let i = working.length; i < desired.length; i += 1) {
+      patches.push(createInsertPatch(i, desired[i], source));
+      working.splice(i, 0, desired[i]);
+    }
+    if (patches.length) this.deckStore.applyPatches(patches);
+  }
+
+  _captureCurrentEditorMarkdown() {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const original = this.originalMarkdown[this.currentSlideIndex] ?? "";
+    if (markdown === original) {
+      this.unsavedMarkdown.delete(this.currentSlideIndex);
+      this.updateUnsavedChangesFlag();
+      return;
+    }
+    if (markdown === this.unsavedMarkdown.get(this.currentSlideIndex)) return;
+    this.unsavedMarkdown.set(this.currentSlideIndex, markdown);
+    this.updateUnsavedChangesFlag();
+  }
+
+  prepareStoreOperation() {
+    if (!this.deckStore) return;
+    this._captureCurrentEditorMarkdown();
+    this.syncStoreFromSlides(this.saveManager.getFullSlides(), "system", {
+      recordHistory: false,
+    });
+  }
+
+  recordStoreOperation() {
+    this._pendingStructuralOperations += 1;
+  }
+
+  async _restoreStoreSnapshot() {
+    if (!this.deckStore) return false;
+    const markdown = this.deckStore.toMarkdown();
+    const restoredActiveIndex = this.deckStore.getActiveIndex();
+    await AssetLoader.ensureMarkdownItLoaded();
+    const deck = await DeckLoader.parseMarkdown(markdown);
+    await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
+    this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
+    return true;
+  }
+
+  async undo() {
+    if (this._historyOperation) return false;
+    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.undo?.();
+      return true;
+    }
+    if (!this.deckStore || !this.deckStore.canUndo()) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.undo?.();
+      return true;
+    }
+    if (this._historyOperation || !this.deckStore.undo()) return false;
+    this._historyOperation = "undo";
+    try {
+      return await this._restoreStoreSnapshot();
+    } catch (error) {
+      this.deckStore.redo();
+      Notification.error(`Undo failed: ${error.message || error}`);
+      return false;
+    } finally {
+      this._historyOperation = null;
+    }
+  }
+
+  async redo() {
+    if (this._historyOperation) return false;
+    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.redo?.();
+      return true;
+    }
+    if (!this.deckStore || !this.deckStore.canRedo()) {
+      if (!this.markdownEditor) return false;
+      this.markdownEditor.redo?.();
+      return true;
+    }
+    if (!this.deckStore.redo()) return false;
+    this._historyOperation = "redo";
+    try {
+      return await this._restoreStoreSnapshot();
+    } catch (error) {
+      this.deckStore.undo();
+      Notification.error(`Redo failed: ${error.message || error}`);
+      return false;
+    } finally {
+      this._historyOperation = null;
     }
   }
 

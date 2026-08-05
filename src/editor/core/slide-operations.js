@@ -12,6 +12,7 @@ import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { Notification } from "../../renderer/notification.js";
 import { LayoutData } from "../../data/layout-data.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
+import { createDeletePatch, createInsertPatch } from "../../data/store/slide-patch.js";
 
 export class SlideOperations {
   /**
@@ -29,6 +30,9 @@ export class SlideOperations {
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => object} opts.getSaveManager
+   * @param {import('../../data/store/deck-store.js').DeckStore|null} opts.deckStore
+   * @param {() => void} opts.prepareStoreOperation
+   * @param {() => void} opts.recordStoreOperation
    */
   constructor({
     getDeck,
@@ -44,6 +48,9 @@ export class SlideOperations {
     getHasUnsavedChanges,
     setHasUnsavedChanges,
     getSaveManager,
+    deckStore = null,
+    prepareStoreOperation = null,
+    recordStoreOperation = null,
   }) {
     this._getDeck = getDeck;
     this._getElements = getElements;
@@ -58,6 +65,41 @@ export class SlideOperations {
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._getSaveManager = getSaveManager;
+    this._deckStore = deckStore;
+    this._prepareStoreOperation = prepareStoreOperation;
+    this._recordStoreOperation = recordStoreOperation;
+  }
+
+  _prepareStoreMutation() {
+    this._prepareStoreOperation?.();
+  }
+
+  /**
+   * Apply structural patches to the store, with a fallback for drift.
+   * If the patches are rejected (e.g. the store and editor arrays diverged),
+   * re-sync the store from the editor's current state and retry once.
+   * If the retry also fails, proceed with the operation anyway — the user's
+   * action should not be blocked by a store sync issue.  The store will be
+   * re-synced on the next save.
+   * @param {object[]} patches
+   * @returns {boolean} always true (the operation should proceed)
+   */
+  _applyStorePatches(patches) {
+    if (!this._deckStore) return true;
+    if (this._deckStore.applyPatches(patches)) {
+      this._recordStoreOperation?.();
+      return true;
+    }
+    // Drift detected — re-sync the store from the editor and retry
+    const fullSlides = this._getSaveManager().getFullSlides();
+    this._deckStore.syncSlides(fullSlides, this._getCurrentSlideIndex());
+    if (this._deckStore.applyPatches(patches)) {
+      this._recordStoreOperation?.();
+      return true;
+    }
+    // Still failing — proceed anyway; store will be corrected on next save
+    console.warn("Store patch rejected after re-sync; proceeding with operation.");
+    return true;
   }
 
   get deck() {
@@ -114,8 +156,11 @@ export class SlideOperations {
 
     const insertIndex = this.currentSlideIndex + 1;
 
-    this.deck.slides.splice(insertIndex, 0, newSlide);
     const newSlideMarkdown = "## New Slide\n\nAdd your content here";
+    this._prepareStoreMutation();
+    if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
+      return;
+    this.deck.slides.splice(insertIndex, 0, newSlide);
     this.originalMarkdown.splice(insertIndex, 0, newSlideMarkdown);
 
     const visibleSlideCount = this.deck.slides.filter((s) => !s.hidden).length;
@@ -146,7 +191,12 @@ export class SlideOperations {
     if (!confirmed) return;
 
     const indexToDelete = this.currentSlideIndex;
+    const deletedMarkdown =
+      this.unsavedMarkdown.get(indexToDelete) ?? this.originalMarkdown[indexToDelete] ?? "";
 
+    this._prepareStoreMutation();
+    if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
+      return;
     this.deck.slides.splice(indexToDelete, 1);
     this.originalMarkdown.splice(indexToDelete, 1);
 
@@ -182,7 +232,7 @@ export class SlideOperations {
     const currentIndex = this.currentSlideIndex;
     const targetIndex = currentIndex - 1;
 
-    this._swapSlides(currentIndex, targetIndex);
+    if (!this._swapSlides(currentIndex, targetIndex)) return;
 
     this.controller.slideNavigator.goTo(targetIndex);
     this.thumbnails.refresh();
@@ -198,7 +248,7 @@ export class SlideOperations {
     const currentIndex = this.currentSlideIndex;
     const targetIndex = currentIndex + 1;
 
-    this._swapSlides(currentIndex, targetIndex);
+    if (!this._swapSlides(currentIndex, targetIndex)) return;
 
     this.controller.slideNavigator.goTo(targetIndex);
     this.thumbnails.refresh();
@@ -207,6 +257,15 @@ export class SlideOperations {
 
   /** Swap two adjacent slides in data, DOM, and unsaved-map. */
   _swapSlides(a, b) {
+    this._prepareStoreMutation();
+    const movedMarkdown = this.unsavedMarkdown.get(a) ?? this.originalMarkdown[a] ?? "";
+    if (
+      !this._applyStorePatches([
+        createDeletePatch(a, movedMarkdown, "user", "move"),
+        createInsertPatch(b, movedMarkdown, "user", "move"),
+      ])
+    )
+      return false;
     [this.deck.slides[a], this.deck.slides[b]] = [this.deck.slides[b], this.deck.slides[a]];
     [this.originalMarkdown[a], this.originalMarkdown[b]] = [
       this.originalMarkdown[b],
@@ -234,6 +293,7 @@ export class SlideOperations {
     this.unsavedMarkdown = newMap;
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
+    return true;
   }
 
   async duplicateSlide() {
@@ -260,6 +320,8 @@ export class SlideOperations {
 
       const newSlide = { ...deckData.slides[0], id: Date.now() };
 
+      this._prepareStoreMutation();
+      if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
       this.deck.slides.splice(insertIndex, 0, newSlide);
       this.originalMarkdown.splice(insertIndex, 0, markdown);
 
@@ -322,6 +384,7 @@ export class SlideOperations {
       const parser = new MarkdownParser();
       const deckData = parser.parseDeckMarkdown(styledTemplate);
 
+      this._prepareStoreMutation();
       if (!deckData.slides || deckData.slides.length === 0) {
         const newSlide = {
           id: Date.now(),
@@ -330,10 +393,14 @@ export class SlideOperations {
           layout: layoutName,
           areas: { main: "<h2>New Slide</h2>\n\nAdd your content here" },
         };
+        if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")]))
+          return;
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       } else {
         const newSlide = deckData.slides[0];
+        if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")]))
+          return;
         this.deck.slides.splice(insertIndex, 0, newSlide);
         this.originalMarkdown.splice(insertIndex, 0, styledTemplate);
       }

@@ -7,7 +7,6 @@
 import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
-import { MarkdownParser } from "../../data/markdown-parser.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
 export class SaveManager {
@@ -19,6 +18,8 @@ export class SaveManager {
    * @param {(v: string[]) => void} opts.setOriginalMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
+   * @param {() => void} [opts.onBeforeSave]
+   * @param {() => void} [opts.onSaveStateReset]
    */
   constructor({
     getDeck,
@@ -27,6 +28,8 @@ export class SaveManager {
     setOriginalMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
+    onBeforeSave = null,
+    onSaveStateReset = null,
   }) {
     this._getDeck = getDeck;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
@@ -34,6 +37,8 @@ export class SaveManager {
     this._setOriginalMarkdown = setOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
+    this._onBeforeSave = onBeforeSave;
+    this._onSaveStateReset = onSaveStateReset;
     this.needsSaveAs = false;
   }
 
@@ -61,26 +66,37 @@ export class SaveManager {
   }
 
   /**
-   * Return the current full markdown, merging saved original and any unsaved edits.
-   * @returns {string}
+   * Return the current slide markdown strings, merging saved original and any unsaved edits.
+   * @returns {string[]}
    */
-  getFullMarkdown() {
+  getFullSlides() {
     const merged = [...this.originalMarkdown];
     for (let i = 0; i < this.deck.slides.length; i++) {
       if (this.unsavedMarkdown.has(i)) {
         merged[i] = this.unsavedMarkdown.get(i);
       }
     }
-    return merged.join("\n\n---\n\n");
+    return merged;
+  }
+
+  /**
+   * Return the current full markdown, joining the merged slide strings.
+   * @returns {string}
+   */
+  getFullMarkdown() {
+    return this.getFullSlides().join("\n\n---\n\n");
   }
 
   async _prepareSave() {
     await waitForImageUpload();
+    this._onBeforeSave?.();
     const fullMarkdown = this.getFullMarkdown();
+    const fullSlides = this.getFullSlides();
 
-    this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));
+    this._setOriginalMarkdown(fullSlides);
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
+    this._onSaveStateReset?.();
     this.updateButton();
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.

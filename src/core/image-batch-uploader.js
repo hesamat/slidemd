@@ -27,9 +27,10 @@ export const UPLOAD_BATCH_MAX_BYTES = 15 * 1024 * 1024;
  * @param {AbortSignal} [options.signal]
  * @param {(uploaded: number, total: number) => void} [options.onProgress] Called
  *   after each batch with the number of images processed so far.
+ * @param {boolean} [options.pptx] — whether these uploads are from a PPTX import
  * @returns {Promise<Map<string, string>>}
  */
-export async function uploadImagesInBatches(entries, { signal, onProgress } = {}) {
+export async function uploadImagesInBatches(entries, { signal, onProgress, pptx = false } = {}) {
   /** @type {Map<string, string>} */
   const pathMap = new Map();
   if (!entries?.length) return pathMap;
@@ -52,8 +53,9 @@ export async function uploadImagesInBatches(entries, { signal, onProgress } = {}
     const formData = new FormData();
     for (const { file } of sending) formData.append("image", file);
 
+    const uploadUrl = pptx ? "/api/upload-images?pptx=true" : "/api/upload-images";
     try {
-      const res = await fetch("/api/upload-images", {
+      const res = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
         signal,

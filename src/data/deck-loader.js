@@ -31,6 +31,15 @@ export class DeckLoader {
   }
 
   /**
+   * Resolve the source markdown from localStorage or the embedded build payload.
+   * @static
+   * @returns {string}
+   */
+  static getSourceMarkdown() {
+    return localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || "";
+  }
+
+  /**
    * Registry of file handles keyed by file name (for reload without re-pick).
    * @static
    * @type {Map<string, FileSystemFileHandle>}

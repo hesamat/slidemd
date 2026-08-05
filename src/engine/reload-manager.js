@@ -35,6 +35,7 @@ export class ReloadManager extends EventEmitter {
     this.breakManager = options.breakManager;
     this.freezeManager = options.freezeManager;
     this.getDeckId = options.getDeckId || (() => "webdeck");
+    this.deckStore = options.deckStore || null;
     this.bc = null;
     this.deckChannel = null;
   }
@@ -231,13 +232,18 @@ export class ReloadManager extends EventEmitter {
    * @param {boolean} options.startAtFirstSlide - If true, start at slide 0 instead of preserving current position
    * @returns {Promise<void>}
    */
-  async replaceDeck(newDeck, { startAtFirstSlide = false } = {}) {
+  async replaceDeck(newDeck, { startAtFirstSlide = false, syncStore = true } = {}) {
     const preservedIndex = startAtFirstSlide
       ? 0
       : Math.min(this.slideNavigator.currentIndex, newDeck.slides.length - 1);
     // Ensure we land on a visible slide (unless in edit mode)
     const visibleIndex = this.slideNavigator.getVisibleIndex(preservedIndex);
     this.deck = newDeck;
+
+    if (syncStore) {
+      const markdown = DeckLoader.getSourceMarkdown();
+      if (markdown) this.deckStore?.loadFromMarkdown(markdown, visibleIndex);
+    }
 
     // Update the navigator's deck reference
     this.slideNavigator.setDeck(newDeck);
@@ -272,7 +278,7 @@ export class ReloadManager extends EventEmitter {
 
     this.initBroadcastChannel();
     this.slideNavigator.goTo(visibleIndex, { broadcast: false });
-    this.dispatchEvent("deckchange", { deck: newDeck });
+    this.dispatchEvent("deckchange", { deck: newDeck, syncStore });
 
     // Broadcast deck data to viewer windows
     if (RoleManager.isEditorMode()) {

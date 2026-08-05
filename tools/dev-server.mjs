@@ -26,6 +26,14 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
+// Persistent temp directory for PPTX import images.  Images live here during
+// the session so they don't pollute the currently-loaded deck's images/ folder.
+// When the user saves the deck as .md, the client downloads these images and
+// writes them next to the .md file.  The directory is NOT wiped on server
+// restart — that would break decks saved as .md with images/ references.
+const PPTX_IMPORT_DIR = path.join(ROOT, ".webdeck-pptx-imports");
+const PPTX_IMPORT_IMAGES_DIR = path.join(PPTX_IMPORT_DIR, "images");
+
 // ── Args ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -498,18 +506,23 @@ function createHandler(format) {
     // ── GET /api/images ──
     if (pathname === "/api/images" && req.method === "GET") {
       try {
-        if (!format || !format.imagesDir || !fs.existsSync(format.imagesDir)) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-          });
-          res.end(JSON.stringify({ images: [] }));
-          return;
+        const seen = new Set();
+        const entries = [];
+        // Enumerate the deck's images dir first (takes priority on dedup),
+        // then the PPTX import temp dir so imported images appear in the
+        // editor's image picker.
+        const dirs = [];
+        if (format?.imagesDir) dirs.push(format.imagesDir);
+        dirs.push(PPTX_IMPORT_IMAGES_DIR);
+        for (const dir of dirs) {
+          if (!fs.existsSync(dir)) continue;
+          for (const name of fs.readdirSync(dir)) {
+            if (!IMAGE_RE.test(path.extname(name))) continue;
+            if (seen.has(name)) continue;
+            seen.add(name);
+            entries.push({ name, path: `images/${name}` });
+          }
         }
-        const entries = fs
-          .readdirSync(format.imagesDir)
-          .filter((name) => IMAGE_RE.test(path.extname(name)))
-          .map((name) => ({ name, path: `images/${name}` }));
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -525,13 +538,18 @@ function createHandler(format) {
     // ── POST /api/images/clear ──
     if (pathname === "/api/images/clear" && req.method === "POST") {
       try {
-        // Only clear the temp uploads directory — never touch deck image folders
-        const uploadsDir = path.join(ROOT, ".webdeck-uploads", "images");
-        if (fs.existsSync(uploadsDir)) {
-          for (const file of fs.readdirSync(uploadsDir)) {
-            const filePath = path.join(uploadsDir, file);
-            if (fs.statSync(filePath).isFile()) {
-              fs.unlinkSync(filePath);
+        // Clear both temp upload directories — never touch deck image folders
+        const dirsToClear = [
+          path.join(ROOT, ".webdeck-uploads", "images"),
+          PPTX_IMPORT_IMAGES_DIR,
+        ];
+        for (const dir of dirsToClear) {
+          if (fs.existsSync(dir)) {
+            for (const file of fs.readdirSync(dir)) {
+              const filePath = path.join(dir, file);
+              if (fs.statSync(filePath).isFile()) {
+                fs.unlinkSync(filePath);
+              }
             }
           }
         }
@@ -592,11 +610,17 @@ function createHandler(format) {
 
     // ── POST /api/upload-images ──
     if (pathname === "/api/upload-images" && req.method === "POST") {
-      if (!format) {
+      const isPptx = url.searchParams.get("pptx") === "true";
+      // PPTX import images go to a dedicated temp directory so they don't
+      // pollute the currently-loaded deck's images/ folder.  The client
+      // downloads them and writes them next to the .md file on save-as.
+      const targetDir = isPptx ? PPTX_IMPORT_IMAGES_DIR : format?.imagesDir;
+      if (!targetDir) {
         const tmpImgDir = path.join(ROOT, ".webdeck-uploads", "images");
         fs.mkdirSync(tmpImgDir, { recursive: true });
         format = { mdFile: "", imagesDir: tmpImgDir, label: "temp" };
       }
+      const writeDir = targetDir || format.imagesDir;
       try {
         const boundary = getMultipartBoundary(req.headers["content-type"]);
         if (!boundary) {
@@ -608,8 +632,8 @@ function createHandler(format) {
         const body = await readBody(req, MAX_UPLOAD_BATCH_BYTES);
         const parts = parseMultipartAll(body, boundary);
 
-        if (!fs.existsSync(format.imagesDir)) {
-          fs.mkdirSync(format.imagesDir, { recursive: true });
+        if (!fs.existsSync(writeDir)) {
+          fs.mkdirSync(writeDir, { recursive: true });
         }
 
         const paths = [];
@@ -618,7 +642,7 @@ function createHandler(format) {
           if (!IMAGE_RE.test(ext)) continue;
 
           const safeName = generateUploadFilename(filename);
-          fs.writeFileSync(path.join(format.imagesDir, safeName), data);
+          fs.writeFileSync(path.join(writeDir, safeName), data);
           paths.push({ name: filename, path: `images/${safeName}` });
         }
 
@@ -642,8 +666,12 @@ function createHandler(format) {
         return;
       }
 
-      if (format && format.imagesDir) {
-        const filePath = path.join(format.imagesDir, fileName);
+      const candidateDirs = [];
+      if (format?.imagesDir) candidateDirs.push(format.imagesDir);
+      candidateDirs.push(PPTX_IMPORT_IMAGES_DIR);
+
+      for (const dir of candidateDirs) {
+        const filePath = path.join(dir, fileName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath).toLowerCase();
           const mime = MIME[ext] || "application/octet-stream";
@@ -706,6 +734,10 @@ async function main() {
   if (fs.existsSync(rootImagesDir)) {
     fs.rmSync(rootImagesDir, { recursive: true, force: true });
   }
+  // Ensure the PPTX import temp directory exists.  Unlike .webdeck-uploads,
+  // this directory is NOT wiped on restart — images here belong to decks the
+  // user saved as .md and would be lost if deleted.
+  fs.mkdirSync(PPTX_IMPORT_IMAGES_DIR, { recursive: true });
 
   let format = null;
 

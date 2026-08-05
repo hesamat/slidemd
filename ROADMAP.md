@@ -383,22 +383,22 @@ Goal: Make the slide array a canonical, patchable store with undo history — th
 
 | Task                  | Details                                                                 |
 | --------------------- | ----------------------------------------------------------------------- |
-| [ ] Add `DeckStore`   | Single source of truth for the slide-string array and the active index. |
-| [ ] Add `SlidePatch`  | `{ index, before, after, source }` object describing one slide change.  |
-| [ ] Add `DeckHistory` | Stack of full deck snapshots for undo/redo.                             |
+| [x] Add `DeckStore`   | Single source of truth for the slide-string array and the active index. |
+| [x] Add `SlidePatch`  | `{ index, before, after, source }` object describing one slide change.  |
+| [x] Add `DeckHistory` | Stack of full deck snapshots for undo/redo.                             |
 
 ### Patch Operations
 
 | Task                  | Details                                                            |
 | --------------------- | ------------------------------------------------------------------ |
-| [ ] Add `applyPatch`  | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
-| [ ] Add `revertPatch` | Roll back to the snapshot before a specific patch.                 |
+| [x] Add `applyPatch`  | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
+| [x] Add `revertPatch` | Roll back to the snapshot before a specific patch.                 |
 
 ### Editor Wiring
 
 | Task                                                     | Details                                                                                                                            |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Wire `EditController` to `DeckStore` (boundary sync) | Sync at slide switch / save / AI apply boundaries rather than a deep rewire of every sub-module. Full rewire deferred to Phase 14. |
+| [x] Wire `EditController` to `DeckStore` (boundary sync) | Sync at slide switch / save / AI apply boundaries rather than a deep rewire of every sub-module. Full rewire deferred to Phase 14. |
 
 ---
 
@@ -579,8 +579,8 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 8: AI Post-Processing              | ✅ Complete |
 | Phase 9: Text Insertion & Editor UX      | ✅ Complete |
 | Phase 10: Renderer Hardening             | ✅ Complete |
-| Phase 11: AI Operations Foundation       | Planned     |
-| Phase 12: Deck Store & Patches           | Planned     |
+| Phase 11: AI Operations Foundation       | Deferred    |
+| Phase 12: Deck Store & Patches           | ✅ Complete |
 | Phase 13: AI Orchestrator & Single-Slide | Planned     |
 | Phase 14: Conflict Resolution & Undo     | Planned     |
 | Phase 15: Design System & Theme Registry | Planned     |

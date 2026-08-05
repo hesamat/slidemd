@@ -183,6 +183,7 @@ export class PptxImporter {
             }
             const uploadedPaths = await uploadImagesInBatches(entries, {
               signal: controller.signal,
+              pptx: true,
             });
             let serverMarkdown = markdown;
             for (const [rawName, serverPath] of uploadedPaths) {

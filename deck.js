@@ -13,6 +13,7 @@ import { ReloadManager } from "./src/engine/reload-manager.js";
 import { ElementGatherer } from "./src/core/element-gatherer.js";
 import { UiActions } from "./src/ui/ui-actions.js";
 import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
+import { DeckStore } from "./src/data/store/deck-store.js";
 (() => {
   "use strict";
 
@@ -97,6 +98,10 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     // 2. Gather DOM Elements
     const elements = ElementGatherer.gatherElements();
 
+    const deckStore = !isExported && !isViewer ? new DeckStore({ maxHistory: 100 }) : null;
+    const initialMarkdown = DeckLoader.getSourceMarkdown();
+    if (deckStore && initialMarkdown) deckStore.loadFromMarkdown(initialMarkdown);
+
     // 3. Setup Open Deck Modal (only in the live editor, not in exported HTML)
     if (!window.__WEBDECK_EXPORTED__) {
       OpenDeckModal.init();
@@ -110,8 +115,9 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     UiActions.renderShortcutHints();
 
     // 5. Initialize Controller
-    const controller = new DeckController(deck, elements);
+    const controller = new DeckController(deck, elements, { deckStore });
     await controller.init();
+    deckStore?.setActiveIndex(controller.slideNavigator.currentIndex);
 
     // 5b. Wire up footer shortcut buttons
     document.querySelectorAll(".footer-shortcut").forEach((btn) => {
@@ -153,7 +159,7 @@ import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
     // 6. Initialize Editor (Optional, only in the live editor)
     if (!window.__WEBDECK_EXPORTED__) {
       try {
-        const editController = new EditController(deck, controller, elements);
+        const editController = new EditController(deck, controller, elements, { deckStore });
         window.__WEBDECK_EDIT_CONTROLLER__ = editController;
         // Tear down the editor (and all its sub-module listeners) on
         // page navigation so we don't leak document/window listeners
