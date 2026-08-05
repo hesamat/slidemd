@@ -156,3 +156,92 @@
 .ai-generate-modal__btn--primary:hover {
   background: var(--accent-hover, #5558e0);
 }
+
+/* ── Label row (label + inline action) ── */
+.ai-generate-modal__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ai-generate-modal__label-row .ai-generate-modal__label {
+  margin-bottom: 0;
+}
+
+/* ── Link button (inline action) ── */
+.ai-generate-modal__link-btn {
+  background: none;
+  border: none;
+  color: var(--accent, #6366f1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.ai-generate-modal__link-btn:hover {
+  background: var(--accent-bg, rgba(99, 102, 241, 0.08));
+}
+
+.ai-generate-modal__link-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* ── Radio group (fidelity) ── */
+.ai-generate-modal__radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-generate-modal__radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.ai-generate-modal__radio:hover {
+  border-color: var(--accent, #6366f1);
+  background: var(--accent-bg, rgba(99, 102, 241, 0.03));
+}
+
+.ai-generate-modal__radio input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--accent, #6366f1);
+}
+
+.ai-generate-modal__radio-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-high, #111);
+}
+
+.ai-generate-modal__radio-desc {
+  display: block;
+  font-size: 12px;
+  color: var(--text-medium, #666);
+  margin-top: 2px;
+}
+
+/* ── Model display with Change button ── */
+.ai-generate-modal__model-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-generate-modal__cost-warn {
+  color: var(--warning, #d97706);
+  font-weight: 500;
+}

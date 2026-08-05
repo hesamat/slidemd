@@ -2,9 +2,9 @@
  * AiGenerateModal
  *
  * Pre-flight modal shown before running "Inspired Deck" (whole-deck generate).
- * Lets the user set options (agenda, target slide count, tone) and see an
- * estimated cost before committing to the AI call. The user can cancel to
- * avoid any API charges.
+ * Lets the user set options (agenda, target slide count, fidelity, tone) and
+ * see an estimated cost before committing to the AI call. The user can cancel
+ * to avoid any API charges.
  *
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
@@ -16,8 +16,9 @@ const P = "ai-generate-modal__";
 
 /**
  * @typedef {Object} GenerateOptions
- * @property {string} agenda — user-provided topic/agenda guidance
+ * @property {string} agenda — user-provided or AI-generated topic/agenda guidance
  * @property {number|null} targetSlideCount — desired number of slides, or null for "let AI decide"
+ * @property {string} fidelity — "conservative" | "balanced" | "creative"
  * @property {string} tone — "default" | "formal" | "casual" | "technical"
  */
 
@@ -26,8 +27,8 @@ export class AiGenerateModal {
    * Show the modal and wait for the user's response.
    * @param {string} markdown — the current deck markdown (for cost estimation)
    * @param {object} [opts]
-   * @param {string} [opts.modelName] — for display
-   * @param {boolean} [opts.useReasoning] — for cost estimation
+   * @param {() => Promise<void>} [opts.onOpenSettings] — callback to open Settings modal
+   * @param {() => Promise<string|null>} [opts.onGenerateAgenda] — callback to AI-generate agenda
    * @returns {Promise<GenerateOptions|null>}
    */
   static show(markdown, opts = {}) {
@@ -41,6 +42,11 @@ export class AiGenerateModal {
       const estOutputTokens = Math.ceil(inputTokens * 1.8);
       const totalEstTokens = (inputTokens + estOutputTokens) * batchCount;
 
+      // Proportionate slide count options based on current deck
+      const half = Math.max(1, Math.round(slideCount / 2));
+      const oneHalf = Math.round(slideCount * 1.5);
+      const double = slideCount * 2;
+
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
@@ -48,7 +54,10 @@ export class AiGenerateModal {
         <p class="${P}subtitle">The AI will reorganize and redesign your entire presentation. Adjust options below, then click Generate to start.</p>
 
         <div class="${P}field">
-          <label class="${P}label" for="${P}agenda">Agenda / topic guidance <span class="${P}optional">(optional)</span></label>
+          <div class="${P}label-row">
+            <label class="${P}label" for="${P}agenda">Agenda / topic guidance <span class="${P}optional">(optional)</span></label>
+            <button type="button" class="${P}link-btn" data-action="generate-agenda" title="Use AI to draft an agenda from your deck content">Generate agenda</button>
+          </div>
           <textarea id="${P}agenda" class="${P}textarea" rows="3" placeholder="e.g. Focus on Q3 results, customer growth, and the roadmap ahead"></textarea>
         </div>
 
@@ -57,10 +66,10 @@ export class AiGenerateModal {
             <label class="${P}label" for="${P}slideCount">Target slide count</label>
             <select id="${P}slideCount" class="${P}select">
               <option value="">Let AI decide</option>
-              <option value="5">~5 slides</option>
-              <option value="10">~10 slides</option>
-              <option value="15">~15 slides</option>
-              <option value="20">~20 slides</option>
+              <option value="${slideCount}">Same (~${slideCount})</option>
+              <option value="${half}">Fewer (~${half})</option>
+              <option value="${oneHalf}">More (~${oneHalf})</option>
+              <option value="${double}">Much more (~${double})</option>
             </select>
           </div>
           <div class="${P}field">
@@ -71,6 +80,27 @@ export class AiGenerateModal {
               <option value="casual">Casual</option>
               <option value="technical">Technical</option>
             </select>
+          </div>
+        </div>
+
+        <div class="${P}field">
+          <label class="${P}label">How close should the result be to your current deck?</label>
+          <div class="${P}radio-group">
+            <label class="${P}radio">
+              <input type="radio" name="${P}fidelity" value="conservative" />
+              <span class="${P}radio-label">Conservative</span>
+              <span class="${P}radio-desc">Keep structure, fix formatting and polish</span>
+            </label>
+            <label class="${P}radio">
+              <input type="radio" name="${P}fidelity" value="balanced" checked />
+              <span class="${P}radio-label">Balanced</span>
+              <span class="${P}radio-desc">Reorganize for clarity, keep all content</span>
+            </label>
+            <label class="${P}radio">
+              <input type="radio" name="${P}fidelity" value="creative" />
+              <span class="${P}radio-label">Creative</span>
+              <span class="${P}radio-desc">Full redesign, may restructure significantly</span>
+            </label>
           </div>
         </div>
 
@@ -87,8 +117,17 @@ export class AiGenerateModal {
             <span>Estimated tokens</span>
             <span>~${totalEstTokens.toLocaleString()}</span>
           </div>
-          ${opts.modelName ? `<div class="${P}cost-row"><span>Model</span><span>${opts.modelName}</span></div>` : ""}
-          ${opts.useReasoning ? `<div class="${P}cost-row ${P}cost-row--warn"><span>Reasoning</span><span>Enabled (higher cost)</span></div>` : ""}
+          <div class="${P}cost-row" id="${P}model-row">
+            <span>Model</span>
+            <span class="${P}model-display">
+              <span id="${P}model-name">${opts.modelName || "Not configured"}</span>
+              ${opts.onOpenSettings ? `<button type="button" class="${P}link-btn" data-action="open-settings">Change</button>` : ""}
+            </span>
+          </div>
+          <div class="${P}cost-row" id="${P}reasoning-row" ${!opts.useReasoning ? 'style="display:none"' : ""}>
+            <span>Reasoning</span>
+            <span class="${P}cost-warn">Enabled (higher cost)</span>
+          </div>
         </div>
 
         <div class="${P}actions">
@@ -122,12 +161,54 @@ export class AiGenerateModal {
         const agenda = dialog.querySelector(`#${P}agenda`).value.trim();
         const slideCountVal = dialog.querySelector(`#${P}slideCount`).value;
         const tone = dialog.querySelector(`#${P}tone`).value;
+        const fidelity =
+          dialog.querySelector(`input[name="${P}fidelity"]:checked`)?.value || "balanced";
         close({
           agenda,
           targetSlideCount: slideCountVal ? parseInt(slideCountVal, 10) : null,
           tone,
+          fidelity,
         });
       });
+
+      // Open Settings to change model
+      const settingsBtn = dialog.querySelector('[data-action="open-settings"]');
+      if (settingsBtn && opts.onOpenSettings) {
+        settingsBtn.addEventListener("click", async () => {
+          await opts.onOpenSettings();
+          // Update model display after settings change
+          if (opts.getModelName) {
+            const newName = opts.getModelName();
+            dialog.querySelector(`#${P}model-name`).textContent = newName;
+            // Update reasoning display
+            const reasoningRow = dialog.querySelector(`#${P}reasoning-row`);
+            if (opts.getReasoning) {
+              reasoningRow.style.display = opts.getReasoning() ? "" : "none";
+            }
+          }
+        });
+      }
+
+      // AI-generate agenda
+      const agendaBtn = dialog.querySelector('[data-action="generate-agenda"]');
+      if (agendaBtn && opts.onGenerateAgenda) {
+        agendaBtn.addEventListener("click", async () => {
+          const agendaEl = dialog.querySelector(`#${P}agenda`);
+          agendaBtn.disabled = true;
+          agendaBtn.textContent = "Generating\u2026";
+          try {
+            const result = await opts.onGenerateAgenda();
+            if (result) {
+              agendaEl.value = result;
+            }
+          } catch (err) {
+            console.error("Agenda generation failed:", err);
+          } finally {
+            agendaBtn.disabled = false;
+            agendaBtn.textContent = "Generate agenda";
+          }
+        });
+      }
 
       document.addEventListener("keydown", onKeydown);
 

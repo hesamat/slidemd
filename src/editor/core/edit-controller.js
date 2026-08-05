@@ -763,6 +763,14 @@ export class EditController {
     const generateOpts = await AiGenerateModal.show(fullMarkdown, {
       modelName: SettingsModal.getModel(),
       useReasoning: SettingsModal.getReasoning(),
+      getModelName: () => SettingsModal.getModel(),
+      getReasoning: () => SettingsModal.getReasoning(),
+      onOpenSettings: async () => {
+        await SettingsModal.show();
+      },
+      onGenerateAgenda: async () => {
+        return this.#generateAgenda(fullMarkdown);
+      },
     });
     if (!generateOpts) return; // user cancelled — no API call made
 
@@ -771,6 +779,7 @@ export class EditController {
         agenda: generateOpts.agenda,
         targetSlideCount: generateOpts.targetSlideCount,
         tone: generateOpts.tone,
+        fidelity: generateOpts.fidelity,
       });
       if (enhanced && this.controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
@@ -781,6 +790,56 @@ export class EditController {
     } catch (err) {
       console.error("AI generate failed:", err);
       Notification.error(`AI generate failed: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Use AI to generate a bullet-point agenda from the deck content.
+   * Lightweight call — sends a short prompt with deck summary, not the full markdown.
+   * @param {string} markdown
+   * @returns {Promise<string|null>}
+   */
+  async #generateAgenda(markdown) {
+    const { SettingsModal } = await import("../settings-modal.js");
+    const { createAiProviderClient } = await import("../../data/ai/ai-provider-factory.js");
+    const { buildDeckSummary } = await import("../../data/ai/ai-prompt-builder.js");
+
+    const providerLabel = SettingsModal.getProvider();
+    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
+      Notification.error("No API key — open Settings to configure AI.");
+      return null;
+    }
+
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
+
+    const summary = buildDeckSummary(markdown);
+    const systemMsg =
+      "You are a presentation assistant. Generate a concise agenda (3-6 bullet points) that describes what the presentation should cover, based on the deck summary. Output only the bullet points, no preamble.";
+    const userMsg = `Deck summary:\n${summary}\n\nGenerate a concise agenda for this presentation:`;
+
+    try {
+      const response = await provider.chat(
+        {
+          messages: [
+            { role: "system", content: systemMsg },
+            { role: "user", content: userMsg },
+          ],
+          maxTokens: 500,
+          responseFormat: null,
+          reasoning: null,
+        },
+        undefined,
+      );
+      return response.content.trim();
+    } catch (err) {
+      console.error("Agenda generation failed:", err);
+      Notification.error(`Agenda generation failed: ${err.message || err}`);
+      return null;
     }
   }
 

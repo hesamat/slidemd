@@ -29,6 +29,7 @@ const P = "ai-sidebar__";
  * @param {string} [opts.agenda]
  * @param {number|null} [opts.targetSlideCount]
  * @param {string} [opts.tone]
+ * @param {string} [opts.fidelity] — "conservative" | "balanced" | "creative"
  * @returns {string}
  */
 function buildOptionsSuffix(opts) {
@@ -47,6 +48,15 @@ function buildOptionsSuffix(opts) {
       technical: "Use a technical, precise tone with domain-specific terminology.",
     };
     if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
+  }
+  if (opts.fidelity && opts.fidelity !== "balanced") {
+    const fidelityMap = {
+      conservative:
+        "\nFidelity: CONSERVATIVE. Keep the existing slide structure and order as much as possible. Only fix formatting, polish wording, and improve layout choices. Do not split or merge slides unless absolutely necessary.",
+      creative:
+        "\nFidelity: CREATIVE. You have full freedom to restructure, split, merge, and redesign slides as you see fit. Prioritize impact and narrative flow over preserving the original structure.",
+    };
+    if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
   }
   return parts.join("");
 }
@@ -554,14 +564,9 @@ export class AiSidebar {
       headerEl.classList.remove(`${P}header--active`);
       panel.classList.add(`${P}panel--done`);
 
-      console.log(
-        "[AI sidebar] waiting for Apply changes, seeResultBtn hidden:",
-        seeResultBtn.hidden,
-      );
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
-      console.log("[AI sidebar] promise resolved, returning patches");
 
       if (this._showId === myShowId) this._currentPanel = null;
       panel.remove();
