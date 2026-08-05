@@ -154,8 +154,7 @@ export class AiGenerateModal {
         const agenda = dialog.querySelector(`#${P}agenda`).value.trim();
         const slideCountVal = dialog.querySelector(`#${P}slideCount`).value;
         const tone = dialog.querySelector(`#${P}tone`).value;
-        const fidelity =
-          dialog.querySelector(`#${P}fidelity`).value || "enhance";
+        const fidelity = dialog.querySelector(`#${P}fidelity`).value || "enhance";
         close({
           agenda,
           targetSlideCount: slideCountVal ? parseInt(slideCountVal, 10) : null,
