@@ -33,6 +33,8 @@ export class ElementGatherer {
       markdownEditor: $("markdownEditor"),
       insertDropdownBtn: $("insertDropdownBtn"),
       insertDropdownContent: $("insertDropdownContent"),
+      aiDropdownBtn: $("aiDropdownBtn"),
+      aiDropdownContent: $("aiDropdownContent"),
       addSlideFooterBtn: $("addSlideFooterBtn"),
       toggleThumbnailsBtn: $("toggleThumbnailsBtn"),
       adjustColumnsMenuItem: $("adjustColumnsMenuItem"),

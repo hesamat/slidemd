@@ -10,6 +10,15 @@ import { SettingsModal } from "./settings-modal.js";
 import { createAiProviderClient } from "../data/ai/ai-provider-factory.js";
 import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
+import {
+  buildDeckSummary,
+  buildMessages,
+  buildBatchMessages,
+  BATCH_SIZE,
+  splitSlidesForAi,
+} from "../data/ai/ai-prompt-builder.js";
+import { estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
+import { parseAiResponse, slidesToMarkdown } from "../data/ai/ai-response-parser.js";
 
 const P = "ai-sidebar__";
 
@@ -147,9 +156,6 @@ export class AiSidebar {
       }
     };
 
-    const { buildDeckSummary, splitSlides, slidesToMarkdown, BATCH_SIZE } =
-      await import("../data/ai-enhancer.js");
-
     const providerLabel = SettingsModal.getProvider();
 
     const provider = createAiProviderClient(
@@ -175,7 +181,7 @@ export class AiSidebar {
         const reasoningEffort = useReasoning ? effort : "none";
 
         // Split into slides to decide single vs batch path
-        const allSlides = splitSlides(markdown, mode);
+        const allSlides = splitSlidesForAi(markdown, mode);
 
         // ── Single-call path (≤BATCH_SIZE slides) ──
         if (allSlides.length <= BATCH_SIZE) {
@@ -431,6 +437,144 @@ export class AiSidebar {
   }
 
   /**
+   * Show a lightweight panel for a single-slide AI operation.
+   * Runs the operation through the orchestrator and returns the patches.
+   * @param {import("../data/ai/ai-operation.js").AiOperation} operation
+   * @param {import("../data/ai/ai-orchestrator.js").AiOrchestrator} orchestrator
+   * @param {string} intent — for display purposes
+   * @returns {Promise<import("../data/store/slide-patch.js").SlidePatch[]|null>}
+   */
+  static async showSingleSlideOperation(operation, orchestrator, intent) {
+    this.cancel();
+    this.close();
+    const myShowId = Symbol();
+    this._showId = myShowId;
+
+    const panel = this.#createPanel("single");
+    document.body.appendChild(panel);
+    this._currentPanel = panel;
+
+    const statusEl = panel.querySelector(`.${P}status`);
+    const cancelBtn = panel.querySelector('[data-action="cancel"]');
+    const closeBtn = panel.querySelector('[data-action="close"]');
+    const retryBtn = panel.querySelector('[data-action="retry"]');
+    const seeResultBtn = panel.querySelector('[data-action="see-result"]');
+    const noticeEl = panel.querySelector(`.${P}notice`);
+    const progressInline = panel.querySelector(`.${P}progress-inline`);
+    const headerEl = panel.querySelector(`.${P}header`);
+
+    progressInline.hidden = true;
+    noticeEl.hidden = true;
+    retryBtn.hidden = true;
+    closeBtn.hidden = true;
+    seeResultBtn.hidden = true;
+
+    const intentLabels = {
+      enhanceSlide: "Enhancing slide",
+      summarize: "Summarizing",
+      toMetricCards: "Converting to metric cards",
+      addSpeakerNotes: "Adding speaker notes",
+    };
+    statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
+    headerEl.classList.add(`${P}header--active`);
+
+    const ctrl = new AbortController();
+    this._abortControllers = [ctrl];
+
+    cancelBtn.addEventListener("click", () => {
+      ctrl.abort();
+      this.cancel();
+    });
+
+    try {
+      const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
+      if (!patches || patches.length === 0) {
+        statusEl.textContent = "No changes.";
+        statusEl.className = `${P}status`;
+        closeBtn.hidden = false;
+        closeBtn.textContent = "Close";
+        cancelBtn.hidden = true;
+        await new Promise((resolve) => {
+          this._finishResolve = resolve;
+        });
+        if (this._showId === myShowId) this._currentPanel = null;
+        panel.remove();
+        return null;
+      }
+
+      statusEl.textContent = 'Done! Click "See result" to apply.';
+      statusEl.className = `${P}status ${P}status--done`;
+      noticeEl.hidden = false;
+      cancelBtn.hidden = true;
+      seeResultBtn.hidden = false;
+      headerEl.classList.remove(`${P}header--active`);
+      panel.classList.add(`${P}panel--done`);
+
+      await new Promise((resolve) => {
+        this._finishResolve = resolve;
+      });
+
+      if (this._showId === myShowId) this._currentPanel = null;
+      panel.remove();
+      return patches;
+    } catch (err) {
+      if (err.name === "AbortError" || err.name === "AiAbortError") {
+        this.close();
+        return null;
+      }
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = `${P}status ${P}status--error`;
+      cancelBtn.hidden = true;
+      retryBtn.hidden = false;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Close";
+      headerEl.classList.remove(`${P}header--active`);
+
+      // Retry loop
+      while (retryBtn.hidden === false) {
+        await new Promise((resolve) => {
+          this._retryResolve = resolve;
+        });
+        if (this._showId !== myShowId) break;
+        // Re-run on retry
+        retryBtn.hidden = true;
+        cancelBtn.hidden = false;
+        statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
+        statusEl.className = `${P}status`;
+        headerEl.classList.add(`${P}header--active`);
+        try {
+          const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
+          if (retryPatches && retryPatches.length > 0) {
+            statusEl.textContent = 'Done! Click "See result" to apply.';
+            statusEl.className = `${P}status ${P}status--done`;
+            noticeEl.hidden = false;
+            cancelBtn.hidden = true;
+            seeResultBtn.hidden = false;
+            headerEl.classList.remove(`${P}header--active`);
+            panel.classList.add(`${P}panel--done`);
+            await new Promise((resolve) => {
+              this._finishResolve = resolve;
+            });
+            if (this._showId === myShowId) this._currentPanel = null;
+            panel.remove();
+            return retryPatches;
+          }
+        } catch (retryErr) {
+          statusEl.textContent = `Error: ${retryErr.message}`;
+          statusEl.className = `${P}status ${P}status--error`;
+          cancelBtn.hidden = true;
+          retryBtn.hidden = false;
+          headerEl.classList.remove(`${P}header--active`);
+        }
+      }
+
+      if (this._showId === myShowId) this._currentPanel = null;
+      panel.remove();
+      return null;
+    }
+  }
+
+  /**
    * Single API call path (small decks).
    * For fix mode, validates output and retries with a focused repair message on failure.
    */
@@ -446,12 +590,9 @@ export class AiSidebar {
       isCancelled,
     } = opts;
 
-    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown, splitSlides } =
-      await import("../data/ai-enhancer.js");
-
     const validator = new AiOutputValidator({ inputMarkdown: markdown });
     const maxAttempts = mode === "fix" ? 3 : 2;
-    const expectedSlideCount = mode === "fix" ? splitSlides(markdown, mode).length : null;
+    const expectedSlideCount = mode === "fix" ? splitSlidesForAi(markdown, mode).length : null;
     let lastErrors = [];
 
     const { system, user } = buildMessages(markdown, mode);
@@ -574,9 +715,6 @@ export class AiSidebar {
       repairMessages = [],
     } = opts;
 
-    const { buildBatchMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
-      await import("../data/ai-enhancer.js");
-
     const batchMarkdown = (() => {
       const cleaned = markdown
         .split(/\n---\n/)
@@ -673,7 +811,8 @@ export class AiSidebar {
   static #createPanel(mode) {
     const panel = document.createElement("div");
     panel.className = P + "panel";
-    const title = mode === "fix" ? "AI: Fix Issues" : "AI: Inspired Deck";
+    const title =
+      mode === "fix" ? "AI: Fix Issues" : mode === "generate" ? "AI: Inspired Deck" : "AI: Slide";
     panel.innerHTML = `
       <div class="${P}header">
         <span class="${P}title">${title}</span>

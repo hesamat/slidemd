@@ -1,6 +1,35 @@
 # Changelog
 
-## 0.8.0 (Unreleased)
+## 0.9.0 (Unreleased)
+
+### AI Orchestrator & Single-Slide Editing
+
+- Add `AiOrchestrator` — single entry point for all AI operations with built-in validation and repair loop.
+- Add `AiOperation` type and `AiIntentRegistry` for intent-to-prompt-builder mapping.
+- Add single-slide AI intents: `enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`.
+- Add AI dropdown in the editor toolbar with per-slide and whole-deck actions.
+- Single-slide AI operations return `SlidePatch[]` applied via `DeckStore.applyPatches()` — undoable from day one.
+- Add prompt files: `summarize-prompt.md`, `to-metric-cards-prompt.md`, `add-speaker-notes-prompt.md`.
+- Reuse `fix-prompt.md` as the user fragment for `enhanceSlide` (same cleanup rules, scoped to one slide).
+
+### Import Flow Simplification
+
+- **Drop whole-deck "Fix Issues" from PPTX import.** The "Fix Issues" checkbox is removed from the conversion modal.
+- Import is now instant when no AI is selected — users fix individual slides via the AI dropdown afterward.
+- Only "AI Inspiration" (generate) remains as a post-import AI option.
+- Remove `extractDirectives`/`injectDirectives` from the import path (no longer needed without fix mode).
+
+### Module Migration
+
+- Delete `ai-enhancer.js` transition facade — all functions migrated to focused modules.
+- Add `ai-prompt-builder.js` (layout list, frontmatter stripping, message building, batch messages).
+- Add `ai-response-parser.js` (JSON parsing, slides-to-markdown, areas-to-markdown, heading extraction).
+- Add `ai-directive-utils.js` (extract/restore/inject per-slide directives).
+- Add `ai-token-estimator.js` (token count and max_tokens estimation).
+- Split `ai-enhancer.test.js` into per-module test files.
+- Total tests now **706**.
+
+## 0.8.0 (2026-08-05)
 
 ### Deck Store & Patches
 

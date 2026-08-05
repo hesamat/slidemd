@@ -1,18 +1,23 @@
 # AI Prompt Template
 
-This document describes the prompt architecture used by the AI enhancement features (fix and generate modes).
+This document describes the prompt architecture used by the AI enhancement features.
 
 ## Prompt Architecture
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                 | Role     | Purpose                                             |
-| -------------------- | -------- | --------------------------------------------------- |
-| `system-prompt.md`   | `system` | Global rules, JSON output format, layout list       |
-| `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
-| `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
+| File                       | Role     | Purpose                                                          |
+| -------------------------- | -------- | ---------------------------------------------------------------- |
+| `system-prompt.md`         | `system` | Global rules, JSON output format, layout list                    |
+| `generate-prompt.md`       | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
+| `fix-prompt.md`            | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
+| `summarize-prompt.md`      | `user`   | Summarize slide into 3-5 bullets (single-slide)                  |
+| `to-metric-cards-prompt.md`| `user`   | Convert slide to metric-cards layout (single-slide)              |
+| `add-speaker-notes-prompt.md` | `user`| Add speaker notes to slide (single-slide)                        |
 
-Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck content.
+Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
+
+Intents are mapped to prompt builders by [`AiIntentRegistry`](../src/data/ai/ai-intent-registry.js), and the [`AiOrchestrator`](../src/data/ai/ai-orchestrator.js) coordinates the LLM call, validation, and repair loop.
 
 ## System Prompt Rules
 
@@ -26,9 +31,9 @@ The system prompt (`system-prompt.md`) defines:
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
 - **Allowed layouts**: injected via `{{layoutList}}`
 
-## Fix Mode (fix-prompt.md)
+## enhanceSlide Intent (fix-prompt.md)
 
-Conservative cleanup that preserves content and slide count:
+Conservative cleanup of a single slide that preserves content and slide count:
 
 - Rejoin split code lines, add language tags
 - Restore blank lines between sections
@@ -51,6 +56,34 @@ Creative reorganization that may restructure the deck:
 - `three-column` uses `@main`, `@media`, `@secondary`
 - Add speaker notes where helpful
 - Do not inflate slide count
+
+## summarize Intent (summarize-prompt.md)
+
+Summarizes a single slide into 3-5 concise bullet points:
+
+- Extract key points and condense into bullet items
+- Preserve the slide's layout and area markers
+- Remove redundant text, examples, and verbose explanations
+- Keep headings concise (3-5 words)
+- Does not add or remove slides
+
+## toMetricCards Intent (to-metric-cards-prompt.md)
+
+Converts a single slide into a metric-cards layout:
+
+- Extract key numbers, statistics, or quantifiable data
+- Present each metric as a large number with a short label
+- Use `metric-cards` layout if available, otherwise `header-content`
+- If no quantifiable data, extract important concepts as labeled cards
+
+## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
+
+Adds speaker notes to a single slide:
+
+- Add `<!-- notes: ... -->` at the end of the slide content
+- Notes expand on key points for a presenter (2-4 sentences)
+- Include context, transitions, and talking points
+- Does not change the slide's layout or visible content
 
 ## SlideMD Syntax Reference
 
@@ -137,8 +170,8 @@ If content exceeds these limits, split across multiple slides or use two-column 
 
 When modifying prompts:
 
-1. Check all three prompt files for consistency
-2. Run `npm test` — AI enhancer tests verify prompt processing
+1. Check all prompt files for consistency
+2. Run `npm test` — AI module tests verify prompt processing
 3. Keep combined system + user prompt length under ~150 lines
 4. Count strong negative directives (NEVER, Do NOT) — aim for <=5 per prompt
 5. Keep both layout lists in sync (system prompt `{{layoutList}}` and this doc)

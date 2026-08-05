@@ -410,26 +410,32 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 | Task                       | Details                                                                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
-| [ ] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`).                                                      |
-| [ ] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
+| [x] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
+| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`, `generate`).                                          |
+| [x] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
 
 ### Single-Slide AI Editing
 
 | Task                                                                   | Details                                                                                           |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [ ] Add `enhanceSlide(slideMarkdown, intent)`                          | Build a prompt containing one slide Markdown string and an intent string.                         |
-| [ ] Instruct the LLM to output one slide                               | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
-| [ ] Validate the response with `MarkdownParser`                        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
-| [ ] Patch by index via `DeckStore.applyPatch`                          | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
-| [ ] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
+| [x] Add `enhanceSlide(slideMarkdown, intent)`                          | Build a prompt containing one slide Markdown string and an intent string.                         |
+| [x] Instruct the LLM to output one slide                               | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
+| [x] Validate the response with `MarkdownParser`                        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
+| [x] Patch by index via `DeckStore.applyPatch`                          | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
+| [x] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
 
 ### Wiring
 
 | Task                               | Details                                                                                                             |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Simplify `ai-sidebar.js`       | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
-| [ ] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                                  |
+| [x] Simplify `ai-sidebar.js`       | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
+| [x] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                                  |
+
+### Import Flow Change
+
+| Task                              | Details                                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [x] Drop whole-deck fix from import | Removed "Fix Issues" checkbox from conversion modal. Single-slide `enhanceSlide` replaces it. Import is now instant.     |
 
 ---
 
@@ -581,7 +587,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 10: Renderer Hardening             | ✅ Complete |
 | Phase 11: AI Operations Foundation       | Deferred    |
 | Phase 12: Deck Store & Patches           | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide | Planned     |
+| Phase 13: AI Orchestrator & Single-Slide | In Progress |
 | Phase 14: Conflict Resolution & Undo     | Planned     |
 | Phase 15: Design System & Theme Registry | Planned     |
 | Phase 16: Presenter, Print & AI Commands | Planned     |

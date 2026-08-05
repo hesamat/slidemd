@@ -119,13 +119,7 @@ export class PptxImporter {
       }
 
       // Shared helper to apply AI result to the deck
-      const applyAiResult = async (enhanced, origDirectives) => {
-        // In fix mode, re-inject background/theme directives into the markdown
-        if (origDirectives && aiMode === "fix") {
-          const { injectDirectives } = await import("../data/ai-enhancer.js");
-          enhanced = injectDirectives(enhanced, origDirectives);
-        }
-
+      const applyAiResult = async (enhanced) => {
         let newDeckData;
         try {
           newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
@@ -283,6 +277,8 @@ export class PptxImporter {
       });
 
       // AI post-processing (runs after save notification is shown)
+      // Only "generate" (Inspired Deck) is supported — whole-deck "fix" was
+      // dropped in Phase 13. Users fix individual slides via the AI dropdown.
       if (aiMode) {
         try {
           // Wait for background image uploads to finish so the AI works with
@@ -290,11 +286,9 @@ export class PptxImporter {
           await waitForImageUpload();
           const aiMarkdown = getLatestMarkdown();
           const { AiSidebar } = await import("../editor/ai-sidebar.js");
-          const { extractDirectives } = await import("../data/ai-enhancer.js");
-          const origDirectives = extractDirectives(aiMarkdown);
           const enhanced = await AiSidebar.show(aiMarkdown, aiMode);
           if (enhanced) {
-            await applyAiResult(enhanced, origDirectives);
+            await applyAiResult(enhanced);
           }
         } catch (err) {
           console.error("AI post-processing failed:", err);

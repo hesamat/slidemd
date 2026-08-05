@@ -280,37 +280,13 @@ export class ConversionModal {
           insertAfter.parentNode.insertBefore(themeRow, insertAfter.nextSibling);
           insertAfter = themeRow;
 
-          // AI mode section
-          const aiDivider = document.createElement("div");
-          aiDivider.className = `${P}checkbox-row ${P}ai-divider`;
-          aiDivider.innerHTML = `<span class="${P}checkbox-label ${P}ai-label">AI Post-Processing (optional)</span>`;
-          insertAfter.parentNode.insertBefore(aiDivider, insertAfter.nextSibling);
-          insertAfter = aiDivider;
-
           const { SettingsModal } = await import("../editor/settings-modal.js");
 
-          // AI: Fix issues checkbox with description
-          const fixRow = document.createElement("label");
-          fixRow.className = `${P}checkbox-row ${P}checkbox-row--column`;
-          fixRow.innerHTML = `<div class="${P}checkbox-content"><input type="checkbox" class="${P}checkbox" /><span class="${P}checkbox-label">Fix Issues</span></div><span class="${P}checkbox-desc">AI cleans up formatting, headers, and code blocks from the import</span>`;
-          const fixInput = fixRow.querySelector(`.${P}checkbox`);
-          fixInput.addEventListener("change", () => {
-            if (fixInput.checked) {
-              aiMode = "fix";
-            } else if (aiMode === "fix") {
-              aiMode = null;
-            }
-          });
-          insertAfter.parentNode.insertBefore(fixRow, insertAfter.nextSibling);
-          insertAfter = fixRow;
-
-          // AI hint when no API key
+          // AI hint when no API key (shown below the AI Inspiration button)
           const aiHint = document.createElement("span");
           aiHint.className = `${P}ai-hint`;
           aiHint.hidden = true;
           aiHint.innerHTML = `AI not configured. <a href="#" data-action="open-settings" style="color:var(--accent,#6366f1)">Open Settings</a> to enable AI features.`;
-          insertAfter.parentNode.insertBefore(aiHint, insertAfter.nextSibling);
-          insertAfter = aiHint;
 
           // Show Import button and AI Inspiration button
           const actionsEl = backdrop.querySelector(`.${P}actions`);
@@ -319,14 +295,13 @@ export class ConversionModal {
           aiBtn.className = `${P}btn ${P}btn--ai`;
           aiBtn.textContent = "AI Inspiration";
 
-          // Helper to refresh AI button/checkbox state based on current API key
+          // Helper to refresh AI button state based on current API key
           // Must be defined AFTER aiBtn and aiHint are created
           const refreshAiState = () => {
             const provider = SettingsModal.getProvider();
             const needsKey = SettingsModal.requiresApiKey(provider);
             const hasKey = !!SettingsModal.getApiKey();
             const aiReady = !needsKey || hasKey;
-            fixInput.disabled = !aiReady;
             if (aiBtn) {
               aiBtn.disabled = !aiReady;
               aiBtn.title = aiReady
@@ -337,21 +312,6 @@ export class ConversionModal {
               aiHint.hidden = aiReady;
             }
           };
-
-          // Clicking the checkbox when no API key opens settings
-          fixInput.addEventListener("click", async (e) => {
-            const provider = SettingsModal.getProvider();
-            if (SettingsModal.requiresApiKey(provider) && !SettingsModal.getApiKey()) {
-              e.preventDefault();
-              await SettingsModal.show();
-              refreshAiState();
-              const newProvider = SettingsModal.getProvider();
-              if (!SettingsModal.requiresApiKey(newProvider) || SettingsModal.getApiKey()) {
-                fixInput.checked = true;
-                aiMode = "fix";
-              }
-            }
-          });
 
           aiHint.addEventListener("click", async (e) => {
             if (e.target.dataset.action === "open-settings") {
@@ -373,6 +333,7 @@ export class ConversionModal {
             saveBtn.click();
           });
           actionsEl.insertBefore(aiBtn, saveBtn);
+          actionsEl.insertBefore(aiHint, aiBtn.nextSibling);
           saveBtn.textContent = "Import";
 
           // Apply initial state
