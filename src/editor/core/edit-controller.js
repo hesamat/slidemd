@@ -79,13 +79,19 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      this.originalMarkdown =
-        data.syncStore === false && this.deckStore
-          ? this.deckStore.getSlides()
-          : this._cacheOriginalMarkdown();
+      // A store-history restore (undo/redo) arrives with syncStore === false.
+      // It brings the in-memory deck back in line with the store but does NOT
+      // write to disk or localStorage, so the restored state diverges from what
+      // is persisted.  Keep originalMarkdown in sync with the restored slides
+      // (so the editor displays them) but mark the deck as having unsaved
+      // changes so the reload guard prompts before discarding the undone state.
+      const isStoreRestore = data.syncStore === false && this.deckStore;
+      this.originalMarkdown = isStoreRestore
+        ? this.deckStore.getSlides()
+        : this._cacheOriginalMarkdown();
       this.unsavedMarkdown.clear();
       this._pendingStructuralOperations = 0;
-      this.hasUnsavedChanges = false;
+      this.hasUnsavedChanges = isStoreRestore;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
