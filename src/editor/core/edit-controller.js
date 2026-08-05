@@ -725,7 +725,7 @@ export class EditController {
     const op = createOperation(intent, this.currentSlideIndex, slideMarkdown);
 
     try {
-      const { patches } = await AiSidebar.showSingleSlideOperation(op, orchestrator, intent);
+      const patches = await AiSidebar.showSingleSlideOperation(op, orchestrator, intent);
       if (patches && patches.length > 0 && this.deckStore) {
         this.deckStore.applyPatches(patches);
         // Restore the snapshot to reflect the applied patch in the editor

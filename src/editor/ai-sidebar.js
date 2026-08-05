@@ -519,9 +519,11 @@ export class AiSidebar {
       headerEl.classList.remove(`${P}header--active`);
       panel.classList.add(`${P}panel--done`);
 
+      console.log("[AI sidebar] waiting for Apply changes, seeResultBtn hidden:", seeResultBtn.hidden);
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
+      console.log("[AI sidebar] promise resolved, returning patches");
 
       if (this._showId === myShowId) this._currentPanel = null;
       panel.remove();
