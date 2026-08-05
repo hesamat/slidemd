@@ -156,7 +156,7 @@ export class EditController {
       },
       onBeforeSave: () => {
         this._captureCurrentEditorMarkdown();
-        this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown());
+        this.syncStoreFromSlides(this.saveManager.getFullSlides());
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -539,12 +539,15 @@ export class EditController {
   }
 
   /**
-   * Sync the current full markdown into the canonical store at a save boundary.
+   * Sync the current slide array into the canonical store at a save boundary.
    * Keystrokes remain local to the editor until this method is called.
+   * @param {string[]} slides
+   * @param {string} source
+   * @param {object} opts
    */
-  syncStoreFromMarkdown(markdown, source = "user", { recordHistory = true } = {}) {
+  syncStoreFromSlides(slides, source = "user", { recordHistory = true } = {}) {
     if (!this.deckStore) return;
-    const desired = new MarkdownParser().splitSlides(markdown);
+    const desired = [...slides];
     if (!recordHistory) {
       this.deckStore.syncSlides(desired, this.currentSlideIndex);
       return;
@@ -588,7 +591,7 @@ export class EditController {
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
-    this.syncStoreFromMarkdown(this.saveManager.getFullMarkdown(), "system", {
+    this.syncStoreFromSlides(this.saveManager.getFullSlides(), "system", {
       recordHistory: false,
     });
   }

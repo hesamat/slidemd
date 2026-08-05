@@ -12,7 +12,7 @@
 - Extract `splitSlides()` as a fence-aware shared utility for `MarkdownParser` and `DeckStore`.
 - Route undo/redo keyboard shortcuts through `EditController`.
 - Add unit tests for `SlidePatch`, `DeckHistory`, `DeckStore`, and `SlideOperations`.
-- Total tests now **626**.
+- Total tests now **668**.
 
 ## 0.7.6 (2026-08-04)
 

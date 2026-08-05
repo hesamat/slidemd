@@ -7,7 +7,6 @@
 import { Notification } from "../../renderer/notification.js";
 import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
 import { DeckLoader } from "../../data/deck-loader.js";
-import { MarkdownParser } from "../../data/markdown-parser.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
 export class SaveManager {
@@ -67,25 +66,34 @@ export class SaveManager {
   }
 
   /**
-   * Return the current full markdown, merging saved original and any unsaved edits.
-   * @returns {string}
+   * Return the current slide markdown strings, merging saved original and any unsaved edits.
+   * @returns {string[]}
    */
-  getFullMarkdown() {
+  getFullSlides() {
     const merged = [...this.originalMarkdown];
     for (let i = 0; i < this.deck.slides.length; i++) {
       if (this.unsavedMarkdown.has(i)) {
         merged[i] = this.unsavedMarkdown.get(i);
       }
     }
-    return merged.join("\n\n---\n\n");
+    return merged;
+  }
+
+  /**
+   * Return the current full markdown, joining the merged slide strings.
+   * @returns {string}
+   */
+  getFullMarkdown() {
+    return this.getFullSlides().join("\n\n---\n\n");
   }
 
   async _prepareSave() {
     await waitForImageUpload();
     this._onBeforeSave?.();
     const fullMarkdown = this.getFullMarkdown();
+    const fullSlides = this.getFullSlides();
 
-    this._setOriginalMarkdown(new MarkdownParser().splitSlides(fullMarkdown));
+    this._setOriginalMarkdown(fullSlides);
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this._onSaveStateReset?.();
