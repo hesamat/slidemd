@@ -194,9 +194,11 @@ describe("AiOrchestrator", () => {
         (completed, total, batch) => progressCalls.push({ completed, total, batch }),
       );
       expect(result).toContain("@header");
-      // 12 slides / 8 per batch = 2 batches
+      // 12 slides / 8 per batch = 2 batches; progress is reported in slide count
       expect(progressCalls).toHaveLength(2);
-      expect(progressCalls[0].total).toBe(2);
+      expect(progressCalls[0].total).toBe(12);
+      expect(progressCalls[0].completed).toBe(8);
+      expect(progressCalls[1].completed).toBe(12);
     });
   });
 });

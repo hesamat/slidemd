@@ -17,6 +17,7 @@ import { isSingleSlide } from "./ai-operation.js";
 import {
   buildDeckSummary,
   buildBatchMessages,
+  buildGenerateOptionsSuffix,
   BATCH_SIZE,
   splitSlidesForAi,
 } from "./ai-prompt-builder.js";
@@ -140,10 +141,14 @@ export class AiOrchestrator {
    * Returns the enhanced markdown string.
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
-   * @param {(completed: number, total: number, batch?: {start: number, end: number}) => void} [onProgress]
+   * @param {object} [callbacks]
+   * @param {(completed: number, total: number, batch?: {start: number, end: number}) => void} [callbacks.onProgress]
+   * @param {(message: string, level?: "info"|"warn"|"error") => void} [callbacks.onLog]
    * @returns {Promise<string|null>}
    */
-  async runWholeDeckOperation(operation, signal, onProgress) {
+  async runWholeDeckOperation(operation, signal, callbacksArg = {}) {
+    const callbacks =
+      typeof callbacksArg === "function" ? { onProgress: callbacksArg } : callbacksArg || {};
     const { intent, context } = operation;
     if (intent !== "generate") {
       throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
@@ -152,29 +157,40 @@ export class AiOrchestrator {
     const allSlides = splitSlidesForAi(context, "generate");
     const totalSlides = allSlides.length;
 
+    const optionsSuffix = buildGenerateOptionsSuffix(operation.opts);
+
     // Single-call path for small decks
     if (totalSlides <= BATCH_SIZE) {
-      const result = await this.#runWholeDeckSingleCall(operation, signal);
+      const result = await this.#runWholeDeckSingleCall(
+        operation,
+        signal,
+        optionsSuffix,
+        callbacks,
+      );
       return result;
     }
 
     // Batched path for larger decks
-    return this.#runWholeDeckBatched(operation, signal, onProgress, totalSlides);
+    return this.#runWholeDeckBatched(operation, signal, optionsSuffix, totalSlides, callbacks);
   }
 
   /**
    * Unified entry point.
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
-   * @param {(completed: number, total: number, batch?: {start: number, end: number}) => void} [onProgress]
+   * @param {object} [callbacks]
+   * @param {(completed: number, total: number, batch?: {start: number, end: number}) => void} [callbacks.onProgress]
+   * @param {(message: string, level?: "info"|"warn"|"error") => void} [callbacks.onLog]
    * @returns {Promise<{patches?: import("../store/slide-patch.js").SlidePatch[], markdown?: string|null}>}
    */
-  async runOperation(operation, signal, onProgress) {
+  async runOperation(operation, signal, callbacksArg = {}) {
+    const callbacks =
+      typeof callbacksArg === "function" ? { onProgress: callbacksArg } : callbacksArg || {};
     if (isSingleSlide(operation)) {
       const patches = await this.runSingleSlideOperation(operation, signal);
       return { patches };
     }
-    const markdown = await this.runWholeDeckOperation(operation, signal, onProgress);
+    const markdown = await this.runWholeDeckOperation(operation, signal, callbacks);
     return { markdown };
   }
 
@@ -182,17 +198,20 @@ export class AiOrchestrator {
    * Single-call path for whole-deck generate (≤8 slides).
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
+   * @param {string} optionsSuffix
+   * @param {object} callbacks
    * @returns {Promise<string|null>}
    */
-  async #runWholeDeckSingleCall(operation, signal) {
+  async #runWholeDeckSingleCall(operation, signal, optionsSuffix = "", callbacks = {}) {
     const { intent, context } = operation;
+    const { onLog } = callbacks;
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const validator = new AiOutputValidator({ inputMarkdown: context });
 
     const { system, user } = buildMessagesForIntent(intent, { markdown: context });
     let messages = [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: user + optionsSuffix },
     ];
 
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -221,10 +240,11 @@ export class AiOrchestrator {
       const result = validator.validate(enhancedMarkdown, "generate");
 
       if (result.ok) {
+        onLog?.("Generated full deck");
         return enhancedMarkdown;
       }
 
-      console.warn(`[AI generate] Attempt ${attempt}: ${result.errors.length} validation issue(s)`);
+      onLog?.(`Validation attempt ${attempt}: ${result.errors.length} issue(s)`, "warn");
 
       if (attempt < 2) {
         const repairMsg = buildRepairMessage(result.errors);
@@ -237,7 +257,7 @@ export class AiOrchestrator {
       }
 
       // Accept after max attempts
-      console.warn("[AI generate] Accepting output after max attempts with validation issues");
+      onLog?.("Accepting output after max validation attempts", "warn");
       return enhancedMarkdown;
     }
 
@@ -246,78 +266,176 @@ export class AiOrchestrator {
 
   /**
    * Batched path for whole-deck generate (>8 slides).
-   * Uses 2-worker parallel processing with per-batch retry.
+   * Uses a 2-worker queue with per-batch retry, truncation split, and ordered reassembly.
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
-   * @param {Function} [onProgress]
+   * @param {string} optionsSuffix
    * @param {number} totalSlides
+   * @param {object} callbacks
    * @returns {Promise<string|null>}
    */
-  async #runWholeDeckBatched(operation, signal, onProgress, totalSlides) {
+  async #runWholeDeckBatched(operation, signal, optionsSuffix = "", totalSlides, callbacks = {}) {
     const { context } = operation;
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const deckSummary = buildDeckSummary(context);
+    const { onProgress, onLog } = callbacks;
 
-    // Build batch ranges
+    // Build initial batches
     const batches = [];
-    for (let start = 0; start < totalSlides; start += BATCH_SIZE) {
-      batches.push({ start, end: Math.min(start + BATCH_SIZE, totalSlides) });
+    for (let i = 0; i < totalSlides; i += BATCH_SIZE) {
+      batches.push({ start: i, end: Math.min(i + BATCH_SIZE, totalSlides) });
     }
 
-    const results = new Array(batches.length).fill(null);
-    let completedCount = 0;
+    const results = new Map();
+    let completedSlides = 0;
+    let retryCount = 0;
+    let splitCount = 0;
+    const retryAttempts = new Map();
+    const repairMessages = new Map();
+    const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
-    // 2-worker parallel processing
+    onLog?.(`Split ${totalSlides} slides into ${batches.length} batch(es)`);
+
     const worker = async () => {
-      while (true) {
-        const batchIdx = batches.findIndex((_, i) => results[i] === null && !batches[i]._claimed);
-        if (batchIdx === -1) break;
-        batches[batchIdx]._claimed = true;
+      while (queue.length > 0) {
+        if (signal?.aborted) return;
+        const batch = queue.shift();
 
-        const batch = batches[batchIdx];
-        try {
-          const slides = await this.#processBatch(
-            context,
-            batch,
-            totalSlides,
-            deckSummary,
-            reasoningEffort,
-            signal,
-          );
-          results[batchIdx] = slides;
-          completedCount++;
-          onProgress?.(completedCount, batches.length, batch);
-        } catch (err) {
-          if (err.name === "AbortError" || err.name === "AiAbortError") return;
-          console.error(`[AI generate] Batch ${batchIdx} failed:`, err);
-          results[batchIdx] = [];
-          completedCount++;
-          onProgress?.(completedCount, batches.length, batch);
+        const batchResult = await this.#processBatch({
+          markdown: context,
+          batch,
+          totalSlides,
+          deckSummary,
+          optionsSuffix,
+          reasoningEffort,
+          signal,
+          repairMessages: repairMessages.get(batch.batchKey) || [],
+        });
+
+        if (batchResult === null) {
+          // Cancelled
+          return;
+        }
+
+        if (batchResult.error) {
+          const attempts = (retryAttempts.get(batch.batchKey) || 0) + 1;
+          retryAttempts.set(batch.batchKey, attempts);
+
+          if (batchResult.error.type === "truncation") {
+            onLog?.(
+              `Batch ${batch.index + 1}: response truncated — splitting into 2×${Math.ceil((batch.end - batch.start) / 2)} slides`,
+              "warn",
+            );
+            splitCount++;
+            const mid = batch.start + Math.ceil((batch.end - batch.start) / 2);
+            queue.unshift(
+              {
+                start: batch.start,
+                end: mid,
+                index: batch.index,
+                batchKey: `${batch.start}-${mid}`,
+              },
+              { start: mid, end: batch.end, index: batch.index, batchKey: `${mid}-${batch.end}` },
+            );
+          } else if (batchResult.error.type === "validation" && attempts < 2) {
+            const errs = batchResult.error.errors;
+            onLog?.(
+              `Batch ${batch.index + 1}: ${errs.length} validation issue(s) — retrying`,
+              "warn",
+            );
+            retryCount++;
+            if (batchResult.error.repairMessages) {
+              repairMessages.set(batch.batchKey, batchResult.error.repairMessages);
+            }
+            queue.unshift(batch);
+          } else if (attempts < 2) {
+            onLog?.(`Batch ${batch.index + 1}: ${batchResult.error.type} — retrying`, "warn");
+            retryCount++;
+            queue.unshift(batch);
+          } else {
+            const isValidation = batchResult.error.type === "validation";
+            const errs = isValidation ? batchResult.error.errors : [];
+            if (isValidation && batchResult.error.slides) {
+              results.set(batch.batchKey, {
+                start: batch.start,
+                end: batch.end,
+                slides: batchResult.error.slides,
+              });
+              completedSlides += batch.end - batch.start;
+              onLog?.(
+                `Batch ${batch.index + 1}: accepted with ${errs.length} validation issue(s)`,
+                "warn",
+              );
+            } else {
+              onLog?.(`Batch ${batch.index + 1}: failed (${batchResult.error.type})`, "error");
+            }
+            const nextBatch = queue.length > 0 ? queue[0] : null;
+            onProgress?.(completedSlides, totalSlides, nextBatch);
+          }
+        } else {
+          results.set(batch.batchKey, {
+            start: batch.start,
+            end: batch.end,
+            slides: batchResult.slides,
+          });
+          completedSlides += batch.end - batch.start;
+          const nextBatch = queue.length > 0 ? queue[0] : null;
+          onProgress?.(completedSlides, totalSlides, nextBatch);
+          onLog?.(`Batch ${batch.index + 1}: slides ${batch.start + 1}–${batch.end} done`);
         }
       }
     };
 
     await Promise.all([worker(), worker()]);
 
-    // Flatten results in order
-    const allSlides = results.flat().filter(Boolean);
-    if (allSlides.length === 0) return null;
-    return slidesToMarkdown(allSlides);
+    if (signal?.aborted) return null;
+
+    // Reassemble in order and check for gaps
+    const completedRanges = [...results.values()].sort((a, b) => a.start - b.start);
+    const hasGap = (() => {
+      if (completedRanges.length === 0) return true;
+      let expectedStart = 0;
+      for (const r of completedRanges) {
+        if (r.start !== expectedStart) return true;
+        expectedStart = r.end;
+      }
+      return expectedStart !== totalSlides;
+    })();
+
+    if (hasGap) {
+      onLog?.(
+        `Batch processing failed — ${completedSlides}/${totalSlides} slides completed`,
+        "error",
+      );
+      throw new Error(
+        `Batch processing failed — ${completedSlides}/${totalSlides} slides completed`,
+      );
+    }
+
+    const allResultSlides = completedRanges.flatMap((r) => r.slides);
+    const summaryParts = [`${totalSlides} slides processed`];
+    if (retryCount > 0) summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
+    if (splitCount > 0) summaryParts.push(`${splitCount} split${splitCount === 1 ? "" : "s"}`);
+    onLog?.(`${summaryParts.join(", ")}`);
+    return slidesToMarkdown(allResultSlides);
   }
 
   /**
-   * Process a single batch with retry on validation failure.
-   * @param {string} markdown
-   * @param {{start: number, end: number}} batch
-   * @param {number} totalSlides
-   * @param {string} deckSummary
-   * @param {string} reasoningEffort
-   * @param {AbortSignal} [signal]
-   * @returns {Promise<Array>}
+   * Process one batch. Returns parsed slides, an error descriptor, or null on abort.
+   * @param {object} params
+   * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
    */
-  async #processBatch(markdown, batch, totalSlides, deckSummary, reasoningEffort, signal) {
-    const batchMarkdown = markdown
-      .split(/\n---\n/)
+  async #processBatch({
+    markdown,
+    batch,
+    totalSlides,
+    deckSummary,
+    optionsSuffix,
+    reasoningEffort,
+    signal,
+    repairMessages = [],
+  }) {
+    const batchMarkdown = splitSlidesForAi(markdown, "generate")
       .slice(batch.start, batch.end)
       .join("\n\n---\n\n");
 
@@ -330,21 +448,22 @@ export class AiOrchestrator {
       deckSummary,
     );
 
-    let messages = [
+    const messages = [
       { role: "system", content: system },
-      { role: "user", content: user },
+      { role: "user", content: user + optionsSuffix },
+      ...repairMessages,
     ];
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const maxTokens = estimateMaxTokens(batchMarkdown, "generate", {
-        modelMaxOutput: this._modelMaxOutput,
-        reasoningEffort,
-      });
+    const startTime = performance.now();
 
+    try {
       const response = await this._provider.chat(
         {
           messages,
-          maxTokens,
+          maxTokens: estimateMaxTokens(batchMarkdown, "generate", {
+            modelMaxOutput: this._modelMaxOutput,
+            reasoningEffort,
+          }),
           responseFormat: null,
           reasoning: this._useReasoning ? { effort: this._effort } : null,
         },
@@ -352,36 +471,46 @@ export class AiOrchestrator {
       );
 
       const contentText = response.content;
+      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
+      const duration = (performance.now() - startTime) / 1000;
+
+      if (finishReason === "length") {
+        return { error: { type: "truncation" } };
+      }
+
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
-        if (attempt < 2) continue;
-        throw new Error(`Batch parse error (slides ${batch.start + 1}-${batch.end})`);
+        return { error: { type: "parse-error" } };
       }
 
       const enhancedMarkdown = slidesToMarkdown(parsed.slides);
       const validator = new AiOutputValidator({ inputMarkdown: batchMarkdown });
-      const result = validator.validate(enhancedMarkdown, "generate");
+      const expectedCount = batch.end - batch.start;
+      const result = validator.validate(enhancedMarkdown, "generate", {
+        expectedSlideCount: expectedCount,
+      });
 
-      if (result.ok) {
-        return parsed.slides;
-      }
-
-      console.warn(`[AI generate batch] Attempt ${attempt}: ${result.errors.length} issue(s)`);
-
-      if (attempt < 2) {
+      if (!result.ok) {
         const repairMsg = buildRepairMessage(result.errors);
-        messages = [
-          ...messages,
+        const nextRepairMessages = [
+          ...repairMessages,
           { role: "assistant", content: contentText },
           { role: "user", content: repairMsg },
         ];
-        continue;
+        return {
+          error: {
+            type: "validation",
+            errors: result.errors,
+            repairMessages: nextRepairMessages,
+            slides: parsed.slides,
+          },
+        };
       }
 
-      // Accept partial output after max attempts
-      return parsed.slides;
+      return { slides: parsed.slides, duration };
+    } catch (err) {
+      if (err.name === "AbortError" || err.name === "AiAbortError") return null;
+      return { error: { type: "network-error", message: err.message } };
     }
-
-    return [];
   }
 }

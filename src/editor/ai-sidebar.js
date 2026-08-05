@@ -12,6 +12,7 @@ import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
 import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 import {
   buildDeckSummary,
+  buildGenerateOptionsSuffix,
   buildMessages,
   buildBatchMessages,
   BATCH_SIZE,
@@ -32,37 +33,6 @@ const P = "ai-sidebar__";
  * @param {string} [opts.fidelity] — "conservative" | "balanced" | "creative"
  * @returns {string}
  */
-function buildOptionsSuffix(opts) {
-  if (!opts) return "";
-  const parts = [];
-  if (opts.agenda) {
-    parts.push(`\n\nAdditional guidance from the user:\n${opts.agenda}`);
-  }
-  if (opts.targetSlideCount) {
-    parts.push(`\nTarget approximately ${opts.targetSlideCount} slides.`);
-  }
-  if (opts.tone && opts.tone !== "default") {
-    const toneMap = {
-      formal: "Use a formal, professional tone.",
-      casual: "Use a casual, conversational tone.",
-      technical: "Use a technical, precise tone with domain-specific terminology.",
-    };
-    if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
-  }
-  if (opts.fidelity) {
-    const fidelityMap = {
-      polish:
-        "\nFidelity: POLISH. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides. The output must have the same number of slides as the input.",
-      enhance:
-        "\nFidelity: ENHANCE. Improve wording and clarity, pick better layouts for the content, add speaker notes where helpful. Keep all substantive content. Do not reorder slides or change the narrative flow. The output must have the same number of slides as the input.",
-      rewrite:
-        "\nFidelity: REWRITE. Full content overhaul — rework text for impact and conciseness, add or remove content as needed, choose optimal layouts, add speaker notes. You may split, merge, or reorder slides to improve the presentation. Target slide count, if stated above, is a goal.",
-    };
-    if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
-  }
-  return parts.join("");
-}
-
 export class AiSidebar {
   static _currentPanel = null;
   static _abortControllers = [];
@@ -104,7 +74,7 @@ export class AiSidebar {
     this._showId = myShowId;
 
     // Build additional instructions from user options (agenda, slide count, tone)
-    const optionsSuffix = buildOptionsSuffix(opts);
+    const optionsSuffix = buildGenerateOptionsSuffix(opts);
 
     const panel = this.#createPanel(mode);
     document.body.appendChild(panel);
