@@ -2,6 +2,20 @@
 
 ## 0.9.0 (Unreleased)
 
+### Vision-Augmented Remix
+
+- **Vision toggle in generate modal** — when fidelity=Remix and the deck has content images, a "Send slide images to AI (vision)" checkbox appears with an estimated image token count. Off by default.
+- **Multi-modal plan phase** — when the user opts in, the Remix plan phase sends raw content images (compressed to <40KB JPEG each) alongside the deck summary so the AI can visually assess layout quality, image content, and placement.
+- **`keepImages` plan schema** — plan entries can now include `keepImages: [0, 1]` to specify which images to keep per output slide. `[]` drops all, omit keeps all. The virtual deck filters images per `keepImages` before the execute phase.
+- **Provider multi-modal support** — Anthropic and Gemini provider clients now handle array content (vision blocks) in addition to plain strings. OpenAI-compatible clients pass arrays natively.
+- **Text-only fallback** — if the provider rejects images (e.g. model doesn't support vision), the plan phase retries with text-only automatically.
+- **Background image filtering** — background images (from `background: url(...)` directives) are excluded from vision; only content images (inline `<img>` and `![alt](src)`) are sent.
+- **Image compression** — canvas-based: max 768px width, JPEG quality loop (0.85 → 0.7 → 0.5 → 0.3), halve width if still >40KB. No new dependencies.
+- Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
+- Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
+- Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
+- Total tests now **795**.
+
 ### AI Orchestrator & Single-Slide Editing
 
 - Add `AiOrchestrator` — single entry point for all AI operations with built-in validation and repair loop.

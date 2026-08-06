@@ -133,7 +133,9 @@ export class GeminiProviderClient {
         // User/assistant content can be a string or a content array (vision).
         // Gemini uses parts with { text } and { inline_data } blocks.
         const msgParts =
-          typeof msg.content === "string" ? [{ text: msg.content }] : mapContentForGemini(msg.content);
+          typeof msg.content === "string"
+            ? [{ text: msg.content }]
+            : mapContentForGemini(msg.content);
         contents.push({ role, parts: msgParts });
       }
     }

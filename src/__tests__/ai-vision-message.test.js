@@ -114,9 +114,7 @@ describe("mapContentForGemini", () => {
   });
 
   it("maps image_url blocks to inline_data", () => {
-    const result = mapContentForGemini([
-      { type: "image_url", image_url: { url: JPEG_DATA_URI } },
-    ]);
+    const result = mapContentForGemini([{ type: "image_url", image_url: { url: JPEG_DATA_URI } }]);
     expect(result).toEqual([
       { inline_data: { mime_type: "image/jpeg", data: "/9j/4AAQSkZJRg==" } },
     ]);

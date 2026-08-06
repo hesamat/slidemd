@@ -193,7 +193,7 @@ export class AiSidebar {
           this.close();
           return null;
         }
-        showError(`Error: ${err.message}`);
+        showError(err.userMessage || err.message);
         return null;
       }
     };
@@ -344,7 +344,7 @@ export class AiSidebar {
         this.close();
         return null;
       }
-      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.textContent = err.userMessage || err.message;
       statusEl.className = `${P}status ${P}status--error`;
       cancelBtn.hidden = true;
       retryBtn.hidden = false;

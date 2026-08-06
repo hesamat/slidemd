@@ -10,6 +10,7 @@
 
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 import { estimateTokenCounts } from "../../data/ai/ai-token-estimator.js";
+import { countContentImages } from "../../data/ai/slide-image-extractor.js";
 import { escapeHtml } from "../../core/utils.js";
 
 const P = "ai-generate-modal__";
@@ -18,6 +19,8 @@ const P = "ai-generate-modal__";
  * @typedef {Object} GenerateOptions
  * @property {string} fidelity — "polish" | "enhance" | "rewrite"
  * @property {string} tone — "default" | "formal" | "casual" | "technical"
+ * @property {boolean} [includeImages] — true if the user opted in to vision
+ *   (only set when fidelity=rewrite and images are present)
  */
 
 export class AiGenerateModal {
@@ -39,6 +42,8 @@ export class AiGenerateModal {
         markdown,
         "generate",
       );
+      const { count: imageCount, estimatedTokens: imageTokens } = countContentImages(markdown);
+      const hasImages = imageCount > 0;
 
       const fidelityOptions = `<option value="polish">Tidy up — fix formatting and layouts only</option>
 <option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>
@@ -91,6 +96,13 @@ export class AiGenerateModal {
             <span>Reasoning</span>
             <span class="${P}cost-warn">Enabled (higher cost)</span>
           </div>
+          <div class="${P}cost-row ${P}vision-row" id="${P}vision-row" style="display:none">
+            <label class="${P}checkbox-label">
+              <input type="checkbox" id="${P}vision-toggle" />
+              Send slide images to AI (vision)
+            </label>
+            <span class="${P}cost-warn">~${imageTokens.toLocaleString()} image tokens (${imageCount} images)</span>
+          </div>
         </div>
 
         <div class="${P}actions">
@@ -129,12 +141,26 @@ export class AiGenerateModal {
 
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 
+      // Show/hide the vision toggle row based on fidelity selection.
+      // Only visible when fidelity=rewrite AND the deck has content images.
+      const visionRow = dialog.querySelector(`#${P}vision-row`);
+      const fidelitySelect = dialog.querySelector(`#${P}fidelity`);
+      const updateVisionVisibility = () => {
+        const fidelity = fidelitySelect.value;
+        visionRow.style.display = fidelity === "rewrite" && hasImages ? "" : "none";
+      };
+      fidelitySelect.addEventListener("change", updateVisionVisibility);
+      updateVisionVisibility();
+
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
         const tone = dialog.querySelector(`#${P}tone`).value;
         const fidelity = dialog.querySelector(`#${P}fidelity`).value || "enhance";
+        const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
+        const includeImages = fidelity === "rewrite" && hasImages && visionToggle?.checked;
         close({
           tone,
           fidelity,
+          includeImages,
         });
       });
 

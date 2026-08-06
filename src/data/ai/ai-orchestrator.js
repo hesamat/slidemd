@@ -32,6 +32,9 @@ import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { splitSlides } from "../markdown-parser.js";
 import { createEditPatch } from "../store/slide-patch.js";
 import { AiPromptComposer } from "./ai-prompt-composer.js";
+import { buildVisionMessage, stripImages, estimateTotalImageTokens } from "./ai-vision-message.js";
+import { extractAll } from "./slide-image-extractor.js";
+import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 
@@ -132,13 +135,6 @@ export class AiOrchestrator {
         return [createEditPatch(targetSlide, context, afterMarkdown, "ai")];
       }
 
-      console.warn(
-        `[AI ${intent}] Attempt ${attempt}: ${result.errors.length} validation issue(s):`,
-      );
-      for (const err of result.errors) {
-        console.warn(`  - ${err.message}`);
-      }
-
       if (attempt < MAX_REPAIR_ATTEMPTS) {
         const repairMsg = buildRepairMessage(result.errors);
         messages = [
@@ -150,7 +146,6 @@ export class AiOrchestrator {
       }
 
       // Accept output after exhausting retries so the user doesn't lose the result
-      console.warn(`[AI ${intent}] Accepting output after max attempts with validation issues`);
       return [createEditPatch(targetSlide, context, afterMarkdown, "ai")];
     }
 
@@ -648,8 +643,27 @@ export class AiOrchestrator {
     const { onLog } = callbacks;
 
     // ── Phase 1: Plan ──
+    // If the user opted in to vision, extract + compress content images
+    // from each slide so the plan AI can visually assess layout quality.
+    let slideImages = null;
+    if (operation.opts?.includeImages) {
+      onLog?.("Extracting slide images for vision\u2026");
+      try {
+        slideImages = await extractAll(context);
+        const imageCount = slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0);
+        if (imageCount > 0) {
+          onLog?.(`Sending ${imageCount} image(s) to AI for visual assessment\u2026`);
+        } else {
+          slideImages = null; // no images — fall back to text-only
+        }
+      } catch {
+        onLog?.("Image extraction failed — continuing with text-only plan\u2026");
+        slideImages = null;
+      }
+    }
+
     onLog?.("Planning deck restructure\u2026");
-    const plan = await this.#runRemixPlan(operation, signal, callbacks);
+    const plan = await this.#runRemixPlan(operation, signal, callbacks, slideImages);
 
     // "keep" entries must never be sent to the execute call — the generate
     // prompt has no way to distinguish "leave this slide untouched" from a
@@ -724,12 +738,17 @@ export class AiOrchestrator {
 
   /**
    * Run the plan phase: call the LLM with the deck summary and parse the plan.
+   * When slideImages is provided, sends a multi-modal message with image blocks
+   * so the AI can visually assess layout quality. Falls back to text-only on
+   * provider error (e.g. model doesn't support vision).
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
    * @param {object} callbacks
+   * @param {Array<string[]|null>} [slideImages] — per-slide compressed image
+   *   data URLs, or null for text-only plan.
    * @returns {Promise<Array<object>>} validated plan entries
    */
-  async #runRemixPlan(operation, signal, callbacks = {}) {
+  async #runRemixPlan(operation, signal, callbacks = {}, slideImages = null) {
     const { context } = operation;
     const { onLog } = callbacks;
 
@@ -749,18 +768,76 @@ export class AiOrchestrator {
       reasoningEffort,
     });
 
-    const response = await this._provider.chat(
-      {
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        maxTokens,
-        responseFormat: null,
-        reasoning: this._useReasoning ? { effort: this._effort } : null,
-      },
-      signal,
+    // Build the user content — either a multi-modal array (vision) or plain text.
+    const userContent = slideImages ? buildVisionMessage(user, slideImages) : user;
+
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: userContent },
+    ];
+
+    // Log the estimated input size before sending, so the actual request cost
+    // (text + image tokens) is visible in the AI sidebar log, not just the
+    // pre-flight modal estimate.
+    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    const imageCount = slideImages
+      ? slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0)
+      : 0;
+    const imageTokenEstimate = imageCount > 0 ? estimateTotalImageTokens(imageCount) : 0;
+    onLog?.(
+      `[Tokens] Plan request — estimated input: ~${textTokenEstimate.toLocaleString()} text` +
+        (imageCount > 0
+          ? ` + ~${imageTokenEstimate.toLocaleString()} image (${imageCount} image${imageCount === 1 ? "" : "s"})`
+          : "") +
+        ` \u2248 ~${(textTokenEstimate + imageTokenEstimate).toLocaleString()} total. Output cap (estimated): ${maxTokens.toLocaleString()}.`,
     );
+
+    let response;
+    try {
+      response = await this._provider.chat(
+        {
+          messages,
+          maxTokens,
+          responseFormat: null,
+          reasoning: this._useReasoning ? { effort: this._effort } : null,
+        },
+        signal,
+      );
+    } catch (err) {
+      // If we sent images and the provider rejected them, retry once with
+      // text-only. Only do this for errors that are likely vision-related
+      // (HTTP 400/422 with image/vision keywords in the message). Other
+      // errors (auth, rate limit, network) should propagate so the user
+      // sees the real problem instead of a misleading "vision not supported".
+      if (slideImages && isVisionError(err)) {
+        onLog?.("Vision not supported — retrying with text-only plan\u2026");
+        const textUser = stripImages(userContent);
+        response = await this._provider.chat(
+          {
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: textUser },
+            ],
+            maxTokens,
+            responseFormat: null,
+            reasoning: this._useReasoning ? { effort: this._effort } : null,
+          },
+          signal,
+        );
+      } else {
+        throw err;
+      }
+    }
+
+    // Log the actual token usage the provider reports (ground truth, unlike
+    // the pre-request estimate above — providers count image tokens using
+    // their own tiling/resolution formula, which can differ from ours).
+    if (response.usage) {
+      const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+      onLog?.(
+        `[Tokens] Plan response — provider usage: ${prompt_tokens ?? "?"} prompt (input billed) + ${completion_tokens ?? "?"} completion (output billed) = ${total_tokens ?? "?"} total.`,
+      );
+    }
 
     const plan = this.#parsePlanResponse(response.content);
     const sourceCount = splitSlidesForAi(context, "generate").length;
@@ -877,6 +954,20 @@ export class AiOrchestrator {
       if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {
         errors.push(`${prefix}: brief is required for action "${entry.action}"`);
       }
+
+      // keepImages is optional. If present, must be an array of non-negative
+      // integers (0-based indices into the source slide's extracted images).
+      if (entry.keepImages !== undefined) {
+        if (!Array.isArray(entry.keepImages)) {
+          errors.push(`${prefix}: keepImages must be an array if present`);
+        } else {
+          for (const imgIdx of entry.keepImages) {
+            if (typeof imgIdx !== "number" || imgIdx < 0 || !Number.isInteger(imgIdx)) {
+              errors.push(`${prefix}: keepImages contains invalid index ${imgIdx}`);
+            }
+          }
+        }
+      }
     }
 
     // Check that every source slide is covered
@@ -898,6 +989,10 @@ export class AiOrchestrator {
    * `splitSlidesForAi` treats them as one virtual slide. A `<!-- merge source -->`
    * marker separates the original slides for the LLM to see.
    *
+   * When an entry has `keepImages`, images not in the keep list are stripped
+   * from the source slide content before building the virtual slide. This
+   * tells the execute phase which images to drop.
+   *
    * @param {Array<object>} plan
    * @param {string} sourceMarkdown
    * @returns {string}
@@ -912,14 +1007,85 @@ export class AiOrchestrator {
         return sourceSlides[entry.source[0]];
       }
 
+      // Apply keepImages filtering: strip images not in the keep list from
+      // each source slide before joining.
+      const processedSources = entry.source.map((idx) => {
+        const slide = sourceSlides[idx];
+        if (!entry.keepImages || !Array.isArray(entry.keepImages)) return slide;
+        return filterImagesByKeepIndices(slide, entry.keepImages);
+      });
+
       // Join source slides with a merge marker (not ---) so splitSlidesForAi
       // treats the whole entry as one virtual slide.
-      const sourceContent = entry.source
-        .map((idx) => sourceSlides[idx])
-        .join("\n\n<!-- merge source -->\n\n");
+      const sourceContent = processedSources.join("\n\n<!-- merge source -->\n\n");
       return `<!-- brief: ${entry.brief} -->\n${sourceContent}`;
     });
 
     return virtualSlides.join("\n\n---\n\n");
   }
+}
+
+/**
+ * Remove images from a slide markdown that are not in the keepIndices list.
+ * Images are indexed by appearance order (matching parseAllImages order).
+ * @param {string} slideMarkdown
+ * @param {number[]} keepIndices — 0-based indices of images to keep
+ * @returns {string} slide markdown with non-kept images removed
+ */
+function filterImagesByKeepIndices(slideMarkdown, keepIndices) {
+  const keepSet = new Set(keepIndices);
+  const images = parseAllImages(slideMarkdown);
+  if (images.length === 0) return slideMarkdown;
+
+  // Build the result by removing non-kept images. Work backwards so indices
+  // don't shift as we remove content.
+  let result = slideMarkdown;
+  for (let i = images.length - 1; i >= 0; i--) {
+    if (keepSet.has(i)) continue;
+    const img = images[i];
+    // Remove the image tag and any surrounding empty line that would be left
+    // behind. Replace the fullMatch with nothing, then clean up double blank lines.
+    result = result.slice(0, img.start) + result.slice(img.end);
+  }
+  // Clean up any double blank lines left by removals
+  return result.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Check if an error is likely a vision-not-supported error from the provider.
+ * Used to decide whether to retry with text-only content.
+ *
+ * Matches:
+ * - HTTP 400/422 with "image", "vision", "multimodal", or "content" in the message
+ * - Errors whose message explicitly mentions vision/image not supported
+ *
+ * Does NOT match:
+ * - Auth errors (401/403)
+ * - Rate limits (429)
+ * - Network errors (status 0)
+ * - Abort errors
+ *
+ * @param {Error} err
+ * @returns {boolean}
+ */
+function isVisionError(err) {
+  if (err.name === "AbortError" || err.name === "AiAbortError") return false;
+
+  // AiHttpError has a status property
+  const status = err.status;
+  if (status === 401 || status === 403 || status === 429 || !status) return false;
+
+  // Check the error message for vision/image-related keywords
+  const msg = (err.message || "").toLowerCase();
+  const visionKeywords = [
+    "image",
+    "vision",
+    "multimodal",
+    "multi-modal",
+    "visual",
+    "content type",
+    "unsupported content",
+    "invalid content",
+  ];
+  return visionKeywords.some((kw) => msg.includes(kw));
 }

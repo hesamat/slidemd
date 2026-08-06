@@ -40,12 +40,14 @@ function extractBackgroundUrls(slideMarkdown) {
 export function extractSlideImageSrcs(slideMarkdown) {
   const bgUrls = extractBackgroundUrls(slideMarkdown);
   const allImages = parseAllImages(slideMarkdown);
-  return allImages.map((img) => img.src).filter((src) => {
-    // Drop background images and data: URIs that are SVG placeholders
-    if (bgUrls.has(src)) return false;
-    if (src.startsWith("data:image/svg+xml")) return false;
-    return true;
-  });
+  return allImages
+    .map((img) => img.src)
+    .filter((src) => {
+      // Drop background images and data: URIs that are SVG placeholders
+      if (bgUrls.has(src)) return false;
+      if (src.startsWith("data:image/svg+xml")) return false;
+      return true;
+    });
 }
 
 /**
@@ -91,11 +93,12 @@ export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
     if (!img || !img.width || !img.height) return null;
 
     let width = Math.min(img.naturalWidth || img.width, maxWidth);
-    let height = Math.round((width / (img.naturalWidth || img.width)) * (img.naturalHeight || img.height));
+    let height = Math.round(
+      (width / (img.naturalWidth || img.width)) * (img.naturalHeight || img.height),
+    );
 
     const qualities = [0.85, 0.7, 0.5, 0.3];
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       for (const quality of qualities) {
         const dataUrl = drawToDataUrl(img, width, height, quality);
@@ -104,7 +107,9 @@ export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
       // Reduce width and retry
       if (width <= 256) return drawToDataUrl(img, width, height, 0.3); // last resort
       width = Math.round(width / 2);
-      height = Math.round((width / (img.naturalWidth || img.width)) * (img.naturalHeight || img.height));
+      height = Math.round(
+        (width / (img.naturalWidth || img.width)) * (img.naturalHeight || img.height),
+      );
     }
   } catch {
     return null;

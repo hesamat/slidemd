@@ -816,6 +816,7 @@ export class EditController {
     const op = createOperation("generate", null, fullMarkdown, {
       tone: generateOpts.tone,
       fidelity: generateOpts.fidelity,
+      includeImages: generateOpts.includeImages || false,
     });
 
     try {

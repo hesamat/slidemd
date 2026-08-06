@@ -6,13 +6,13 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                          | Role     | Purpose                                                             |
-| ----------------------------- | -------- | ------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                       |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)    |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)     |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                           |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON |
+| File                          | Role     | Purpose                                                                                                                      |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                                                |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)                                                             |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                                              |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                                    |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision-augmented planning) |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
 
@@ -66,6 +66,19 @@ Refines the whole deck's wording, layouts, and structure:
 | `polish` (Tidy up)  | `fix-prompt.md`                                                | Same specific cleanup rules as single-slide "Clean up slide": rejoin split code, fix bold wrapping, broken links, mismatched layouts. No wording changes. Slide count unchanged. |
 | `enhance` (Restyle) | `generate-prompt.md` + RESTYLE suffix                          | Rework text, pick better layouts, add notes. Slide count unchanged.                                                                                                              |
 | `rewrite` (Remix)   | `remix-plan-prompt.md` (plan) → `generate-prompt.md` (execute) | Two-phase plan→execute. Can merge, reorder, restructure. Slide count may change.                                                                                                 |
+
+### Vision-Augmented Remix
+
+When the user enables "Send slide images to AI" in the generate modal (visible only for Remix fidelity), the plan phase sends raw content images alongside the deck summary:
+
+- Content images (inline `<img>` and `![alt](src)`) are extracted per slide, excluding background images
+- Each image is compressed to <40KB JPEG (max 768px width) via canvas
+- The plan message uses multi-modal content blocks (text + image_url)
+- Provider-specific mapping: OpenAI (image_url), Anthropic (image source), Gemini (inline_data)
+- The plan AI can use `keepImages` field to specify which images to keep per output slide
+- `keepImages: [0]` keeps the first image, `[]` drops all, omit keeps all
+- Falls back to text-only if the provider rejects images (e.g. model doesn't support vision)
+- The execute phase is text-only — only the plan phase receives images
 
 ## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
 

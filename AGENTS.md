@@ -143,21 +143,23 @@ AI prompts live in [src/data/prompts/](src/data/prompts/):
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under [src/data/ai/](src/data/ai/):
 
-| Module                   | Purpose                                                            |
-| ------------------------ | ------------------------------------------------------------------ |
-| `ai-orchestrator.js`     | Entry point: context selection, LLM call, validation, repair       |
-| `ai-operation.js`        | `AiOperation` type and `createOperation()` factory                 |
-| `ai-intent-registry.js`  | Maps intent names to prompt builders                               |
-| `ai-prompt-builder.js`   | Layout list, frontmatter stripping, message/batch building         |
-| `ai-response-parser.js`  | JSON parsing, slides-to-markdown, areas-to-markdown                |
-| `ai-directive-utils.js`  | Extract/restore/inject per-slide directives                        |
-| `ai-token-estimator.js`  | Token count and max_tokens estimation                              |
-| `ai-output-validator.js` | Validate AI output against schema (layout, area, content rules)    |
-| `ai-output-schema.js`    | Per-intent schemas (min/max slides, layout requirements)           |
-| `ai-prompt-composer.js`  | Compose system + user prompts from fragments with {{placeholders}} |
-| `ai-repair-message.js`   | Build repair messages for validation failures                      |
-| `ai-provider-client.js`  | OpenAI-compatible API client with retry and error sanitization     |
-| `ai-provider-factory.js` | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)      |
+| Module                     | Purpose                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair       |
+| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                 |
+| `ai-intent-registry.js`    | Maps intent names to prompt builders                               |
+| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building         |
+| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                |
+| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                        |
+| `ai-token-estimator.js`    | Token count and max_tokens estimation                              |
+| `ai-output-validator.js`   | Validate AI output against schema (layout, area, content rules)    |
+| `ai-output-schema.js`      | Per-intent schemas (min/max slides, layout requirements)           |
+| `ai-prompt-composer.js`    | Compose system + user prompts from fragments with {{placeholders}} |
+| `ai-repair-message.js`     | Build repair messages for validation failures                      |
+| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization     |
+| `ai-provider-factory.js`   | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)      |
+| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation   |
+| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB      |
 
 ### Editor UI Modules
 

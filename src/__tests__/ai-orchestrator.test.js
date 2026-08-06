@@ -2,6 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import { AiOrchestrator } from "../data/ai/ai-orchestrator.js";
 import { createOperation } from "../data/ai/ai-operation.js";
 
+// Mock slide-image-extractor so we don't need canvas/Image in orchestrator tests.
+// The actual extractAll is async and fetches images; here we return fake data URLs.
+vi.mock("../data/ai/slide-image-extractor.js", (importOriginal) => {
+  const actual = importOriginal();
+  return {
+    ...actual,
+    extractAll: vi.fn(async () => [[null], [null]]), // overridden per-test
+  };
+});
+
 /**
  * Create a mock provider that returns the given content.
  */
@@ -280,6 +290,41 @@ describe("AiOrchestrator", () => {
       ],
     });
 
+    it("logs estimated input tokens before the plan request and actual usage after", async () => {
+      const provider = {
+        chat: vi
+          .fn()
+          .mockResolvedValueOnce({
+            content: REMIX_PLAN_RESPONSE,
+            usage: { prompt_tokens: 512, completion_tokens: 128, total_tokens: 640 },
+            raw: { finish_reason: "stop" },
+          })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const logs = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // Pre-request estimate log
+      expect(
+        logs.some((l) => l.includes("[Tokens] Plan request") && l.includes("estimated input")),
+      ).toBe(true);
+      // Post-response actual usage log, using the provider's reported numbers
+      expect(
+        logs.some(
+          (l) =>
+            l.includes("[Tokens] Plan response") &&
+            l.includes("512 prompt") &&
+            l.includes("128 completion") &&
+            l.includes("640 total"),
+        ),
+      ).toBe(true);
+    });
+
     it("runs plan phase then execute phase for fidelity=rewrite", async () => {
       // Provide enough execute responses for validation retries
       const provider = mockProviderSequence([
@@ -377,6 +422,197 @@ describe("AiOrchestrator", () => {
 
       expect(result).toContain("Combined");
       expect(logs.some((l) => l.includes("[Plan] Merge"))).toBe(true);
+    });
+  });
+
+  describe("runWholeDeckOperation (remix with vision)", () => {
+    const TWO_SLIDE_WITH_IMAGES =
+      'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- No images';
+
+    const REMIX_PLAN_RESPONSE = JSON.stringify({
+      plan: [
+        {
+          action: "rewrite",
+          source: [0],
+          brief: "Reposition image",
+          title: "Slide 1",
+          keepImages: [0],
+        },
+        { action: "keep", source: [1], brief: "", title: "Slide 2" },
+      ],
+    });
+
+    const EXECUTE_RESPONSE = JSON.stringify({
+      slides: [
+        {
+          layout: "header-content",
+          content: "@header\n## Slide 1\n\n@main\n- Repositioned",
+        },
+      ],
+    });
+
+    it("sends multi-modal content when includeImages is true", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        fidelity: "rewrite",
+        includeImages: true,
+      });
+      const logs = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // The plan call (first chat call) should have array content for the user message
+      const planCall = provider.chat.mock.calls[0][0];
+      const userMsg = planCall.messages.find((m) => m.role === "user");
+      expect(Array.isArray(userMsg.content)).toBe(true);
+      // Should contain at least one image_url block
+      const imageBlocks = userMsg.content.filter((b) => b.type === "image_url");
+      expect(imageBlocks.length).toBeGreaterThan(0);
+      expect(logs.some((l) => l.includes("image"))).toBe(true);
+    });
+
+    it("falls back to text-only when provider rejects images with vision error", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+
+      // First call (with images) throws a vision-related HTTP 400, second call (text-only) succeeds
+      const visionError = new Error("HTTP 400: model does not support image content");
+      visionError.name = "AiHttpError";
+      visionError.status = 400;
+      const provider = {
+        chat: vi
+          .fn()
+          .mockRejectedValueOnce(visionError)
+          .mockResolvedValueOnce({ content: REMIX_PLAN_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        fidelity: "rewrite",
+        includeImages: true,
+      });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // Should have logged the fallback
+      expect(logs.some((l) => l.includes("text-only"))).toBe(true);
+      // The retry call should have string content (not array)
+      const retryCall = provider.chat.mock.calls[1][0];
+      const retryUserMsg = retryCall.messages.find((m) => m.role === "user");
+      expect(typeof retryUserMsg.content).toBe("string");
+      expect(result).toContain("@header");
+    });
+
+    it("does NOT fall back to text-only for non-vision errors (e.g. auth)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+
+      // Auth error (401) — should NOT trigger vision fallback
+      const authError = new Error("HTTP 401: Invalid API key");
+      authError.name = "AiHttpError";
+      authError.status = 401;
+      const provider = {
+        chat: vi.fn().mockRejectedValueOnce(authError),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        fidelity: "rewrite",
+        includeImages: true,
+      });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("401");
+    });
+
+    it("does not send images when includeImages is false", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        fidelity: "rewrite",
+        includeImages: false,
+      });
+      await orchestrator.runWholeDeckOperation(op);
+
+      // The plan call should have string content (no images)
+      const planCall = provider.chat.mock.calls[0][0];
+      const userMsg = planCall.messages.find((m) => m.role === "user");
+      expect(typeof userMsg.content).toBe("string");
+    });
+
+    it("validates keepImages field", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Test",
+            title: "S1",
+            keepImages: "not-an-array",
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        fidelity: "rewrite",
+      });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
+        "keepImages must be an array",
+      );
+    });
+
+    it("filters images in virtual deck per keepImages", async () => {
+      const deckWithTwoImages =
+        'layout: header-content\n@main\n<img src="images/a.png">\n\n<img src="images/b.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
+
+      const plan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Keep only first image",
+            title: "S1",
+            keepImages: [0], // keep only a.png, drop b.png
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@main\n- Result with image a.png",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithTwoImages, {
+        fidelity: "rewrite",
+      });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // The execute call's context (virtual deck) should contain a.png but not b.png
+      const executeCall = provider.chat.mock.calls[1][0];
+      const executeUserMsg = executeCall.messages.find((m) => m.role === "user");
+      expect(executeUserMsg.content).toContain("a.png");
+      expect(executeUserMsg.content).not.toContain("b.png");
+      expect(result).toContain("@main");
     });
   });
 

@@ -249,7 +249,10 @@ describe("AnthropicProviderClient", () => {
       messages: [
         {
           role: "system",
-          content: [{ type: "text", text: "Rule 1" }, { type: "text", text: "Rule 2" }],
+          content: [
+            { type: "text", text: "Rule 1" },
+            { type: "text", text: "Rule 2" },
+          ],
         },
         { role: "user", content: "go" },
       ],
