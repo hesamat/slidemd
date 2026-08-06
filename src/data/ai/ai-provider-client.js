@@ -263,12 +263,17 @@ function sanitizeErrorBody(body) {
     // would blank out the actual error message the user needs to see. The
     // inline redaction patterns below still catch credentials embedded in
     // JSON error bodies.
-    .filter((line) => !/^\s*(authorization|x-api-key)\s*:/i.test(line))
+    .filter((line) => !/^\s*(authorization|x-api-key|api-key)\s*:/i.test(line))
     .join(" ")
     // Redact inline credential patterns that survived the line filter
     // (e.g. {"error":"invalid key sk-abc123"} on a single JSON line).
-    .replace(/sk-[A-Za-z0-9]{20,}/g, "sk-[redacted]")
-    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_.+/=-]{20,}/g, "sk-[redacted]")
+    .replace(/AIza[0-9A-Za-z_-]{35,}/g, "[google-api-key]")
+    .replace(/Bearer\s+[A-Za-z0-9_.+/=-]{15,}/gi, "Bearer [redacted]")
+    .replace(/Basic\s+[A-Za-z0-9+/=]{20,}/gi, "Basic [redacted]")
+    // Redact JSON values for common credential field names when the value
+    // is long enough to plausibly be a secret.
+    .replace(/"(api[_-]?key|key|token)"\s*:\s*"[^"]{10,}"/gi, '"$1": "[redacted]"')
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned) return "";

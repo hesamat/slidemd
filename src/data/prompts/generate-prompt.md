@@ -8,7 +8,6 @@ Content strategy:
 - Use two-column for diagrams, code, or dense content.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
 - Preserve each slide's `theme:` directive. Keep `background:` directives unless they don't fit the restructured content — you may change or drop backgrounds that are decorative overlays or don't match the slide's purpose.
-- Preserve `<img>` tags from the input. You may reposition images using `style="position: relative; left: ...; top: ...; width: ...;"` on the `<img>` tag for custom placement that doesn't fit the standard area layout.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
