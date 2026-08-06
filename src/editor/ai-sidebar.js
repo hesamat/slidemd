@@ -65,6 +65,8 @@ export class AiSidebar {
     const headerEl = panel.querySelector(`.${P}header`);
 
     let cancelled = false;
+    let closed = false;
+    let discarded = false;
 
     cancelBtn.addEventListener("click", () => {
       cancelled = true;
@@ -77,8 +79,19 @@ export class AiSidebar {
       }
     };
 
-    closeBtn.addEventListener("click", finish);
     seeResultBtn.addEventListener("click", finish);
+    // Close serves two purposes depending on panel state:
+    // - After an error, it must break out of the retry loop below, which
+    //   awaits _retryResolve rather than _finishResolve. Without this the
+    //   panel would hang forever after an error when the user clicks Close.
+    // - After a successful run, it is relabeled "Discard" so the user can
+    //   abandon the AI result instead of applying it.
+    closeBtn.addEventListener("click", () => {
+      closed = true;
+      discarded = true;
+      this._retryResolve?.();
+      finish();
+    });
 
     retryBtn.addEventListener("click", () => {
       retryBtn.hidden = true;
@@ -119,7 +132,8 @@ export class AiSidebar {
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       retryBtn.hidden = true;
-      closeBtn.hidden = true;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Discard";
       seeResultBtn.hidden = false;
       progressInline.hidden = true;
       outputEl.hidden = false;
@@ -188,11 +202,11 @@ export class AiSidebar {
     let runResult = await run();
 
     // Retry loop
-    while (!runResult && retryBtn.hidden === false && !cancelled) {
+    while (!runResult && retryBtn.hidden === false && !cancelled && !closed) {
       await new Promise((resolve) => {
         this._retryResolve = resolve;
       });
-      if (cancelled || this._showId !== myShowId) break;
+      if (cancelled || closed || this._showId !== myShowId) break;
       runResult = await run();
     }
 
@@ -201,6 +215,7 @@ export class AiSidebar {
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
+      if (discarded) runResult = null;
     }
 
     if (this._showId === myShowId) {
@@ -261,6 +276,7 @@ export class AiSidebar {
     this._abortControllers = [ctrl];
 
     let closed = false;
+    let discarded = false;
 
     cancelBtn.addEventListener("click", () => {
       ctrl.abort();
@@ -274,11 +290,15 @@ export class AiSidebar {
     };
 
     seeResultBtn.addEventListener("click", finish);
-    // Close must also break out of the error retry loop, which awaits
-    // _retryResolve rather than _finishResolve. Without this the panel would
-    // hang forever after an error when the user clicks Close.
+    // Close serves two purposes depending on panel state:
+    // - After an error, it must break out of the retry loop, which awaits
+    //   _retryResolve rather than _finishResolve. Without this the panel
+    //   would hang forever after an error when the user clicks Close.
+    // - After a successful run, it is relabeled "Discard" so the user can
+    //   abandon the AI result instead of applying it.
     closeBtn.addEventListener("click", () => {
       closed = true;
+      discarded = true;
       this._retryResolve?.();
       this._finishResolve?.();
     });
@@ -307,6 +327,8 @@ export class AiSidebar {
       noticeEl.hidden = true;
       cancelBtn.hidden = true;
       seeResultBtn.hidden = false;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Discard";
       headerEl.classList.remove(`${P}header--active`);
       panel.classList.add(`${P}panel--done`);
 
@@ -316,7 +338,7 @@ export class AiSidebar {
 
       if (this._showId === myShowId) this._currentPanel = null;
       panel.remove();
-      return patches;
+      return discarded ? null : patches;
     } catch (err) {
       if (err.name === "AbortError" || err.name === "AiAbortError") {
         this.close();
@@ -353,6 +375,8 @@ export class AiSidebar {
             noticeEl.hidden = true;
             cancelBtn.hidden = true;
             seeResultBtn.hidden = false;
+            closeBtn.hidden = false;
+            closeBtn.textContent = "Discard";
             headerEl.classList.remove(`${P}header--active`);
             panel.classList.add(`${P}panel--done`);
             await new Promise((resolve) => {
@@ -360,7 +384,7 @@ export class AiSidebar {
             });
             if (this._showId === myShowId) this._currentPanel = null;
             panel.remove();
-            return retryPatches;
+            return discarded ? null : retryPatches;
           }
         } catch (retryErr) {
           if (retryErr.name === "AbortError" || retryErr.name === "AiAbortError") {

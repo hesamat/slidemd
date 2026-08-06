@@ -729,9 +729,29 @@ export class EditController {
     try {
       const patches = await AiSidebar.showSingleSlideOperation(op, orchestrator, intent);
       if (patches && patches.length > 0 && this.deckStore) {
-        this.deckStore.applyPatches(patches);
+        // The AI panel is non-blocking, so the user may have kept typing on
+        // other slides while it was open. _restoreStoreSnapshot() below
+        // reloads the deck from the store and clears unsavedMarkdown, which
+        // would silently discard those edits. Snapshot everything except the
+        // AI-patched slide (whose content is superseded by the patch) and
+        // restore it afterwards.
+        const preservedEdits = new Map(this.unsavedMarkdown);
+        preservedEdits.delete(op.targetSlide);
+
+        const applied = this.deckStore.applyPatches(patches);
+        if (!applied) {
+          Notification.error(
+            `AI ${intent} could not be applied — the slide changed since the request started.`,
+          );
+          return;
+        }
         // Restore the snapshot to reflect the applied patch in the editor
         await this._restoreStoreSnapshot();
+        for (const [index, markdown] of preservedEdits) {
+          this.unsavedMarkdown.set(index, markdown);
+        }
+        this.updateUnsavedChangesFlag();
+        this.loadSlideIntoEditor();
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {

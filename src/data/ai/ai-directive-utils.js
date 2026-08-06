@@ -71,7 +71,10 @@ export function restoreDirectives(slides, origDirectives) {
  * @returns {string} Markdown with background/theme directives re-injected
  */
 export function injectDirectives(markdown, origDirectives, mode = "fix") {
-  const sections = markdown.split(/\n\n---\n\n/);
+  // Fence-aware split so a `\n\n---\n\n` sequence inside a code block does not
+  // shift every subsequent slide's directives — must match the split used to
+  // compute slide counts elsewhere (splitSlidesForAi / extractDirectives).
+  const sections = splitSlides(markdown);
   const patched = sections.map((section, i) => {
     const orig = origDirectives[i];
     if (!orig) return section;
@@ -95,10 +98,11 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
       return lines.join("\n");
     }
 
-    // fix mode: strip any background:/theme: the AI echoed back, then restore
-    // the originals. Fence-aware so code-block contents are preserved.
-    const lines = filterFenceAware(section.split("\n"), (l) => !/^(background|theme):\s/.test(l));
-    const layoutIdx = lines.findIndex((l) => /^layout:\s/.test(l));
+    // fix mode: strip any background:/theme: the AI echoed back from the
+    // leading directive block, then restore the originals. Fence-aware so
+    // code-block contents are preserved.
+    const lines = stripLeadingDirectives(section.split("\n"), ["background", "theme"]);
+    const layoutIdx = lines.findIndex((l) => /^layout:\s*/.test(l));
 
     const insertAfter = [];
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
@@ -151,26 +155,41 @@ function hasTopLevelDirective(lines, name) {
 }
 
 /**
- * Filter lines, keeping fence (``` blocks) intact and only applying the
- * predicate to lines outside fences.
+ * Strip named `directive: value` lines, but only from the slide's leading
+ * directive block (the run of blank/directive lines before the first body
+ * line — a heading, `@area` marker, prose, or fenced code block).
+ *
+ * Restricting the strip to the leading block prevents removing lines that
+ * merely *look* like a directive further down in the slide body (e.g. a
+ * line of prose or an unfenced example reading `theme: dark`).
+ *
  * @param {string[]} lines
- * @param {(line: string) => boolean} predicate — keep when true
+ * @param {string[]} names — directive names to strip (e.g. ["background", "theme"])
  * @returns {string[]}
  */
-function filterFenceAware(lines, predicate) {
-  let inFence = false;
+function stripLeadingDirectives(lines, names) {
+  const namesSet = new Set(names);
+  // No space required before/after the colon so `theme:dark` is recognized
+  // the same as `theme: dark`.
+  const directiveLine = /^([a-zA-Z][\w-]*):\s*(.*)$/;
   const out = [];
+  let inLeadingBlock = true;
   for (const line of lines) {
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
-      out.push(line);
-      continue;
+    if (inLeadingBlock) {
+      if (line.trim() === "") {
+        out.push(line);
+        continue;
+      }
+      const match = line.match(directiveLine);
+      if (match) {
+        if (namesSet.has(match[1])) continue; // strip
+        out.push(line);
+        continue;
+      }
+      // First non-blank, non-directive line ends the leading directive block.
+      inLeadingBlock = false;
     }
-    if (inFence) {
-      out.push(line);
-      continue;
-    }
-    if (predicate(line)) out.push(line);
+    out.push(line);
   }
   return out;
 }

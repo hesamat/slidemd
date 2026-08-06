@@ -4,7 +4,6 @@ import {
   AiAbortError,
   AiHttpError,
   AiParseError,
-  AiReasoningError,
 } from "../data/ai/ai-provider-client.js";
 
 describe("AiProviderClient", () => {
@@ -217,7 +216,7 @@ describe("AiProviderClient", () => {
       ok: false,
       status: 401,
       text: async () =>
-        'Authorization: Bearer sk-secret-key\napi-key: sk-leaked\n{"error":"unauthorized"}',
+        'Authorization: Bearer sk-secret-key\nx-api-key: sk-leaked\n{"error":"unauthorized"}',
     });
 
     try {
@@ -233,6 +232,7 @@ describe("AiProviderClient", () => {
       expect(err.message).not.toContain("sk-secret-key");
       expect(err.message).not.toContain("sk-leaked");
       expect(err.message).not.toContain("Bearer");
+      expect(err.message).not.toContain("x-api-key");
       expect(err.message).toContain("unauthorized");
     }
   });

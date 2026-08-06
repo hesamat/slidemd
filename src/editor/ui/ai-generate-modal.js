@@ -9,6 +9,7 @@
  */
 
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
+import { escapeHtml } from "../../core/utils.js";
 
 const P = "ai-generate-modal__";
 
@@ -73,7 +74,7 @@ export class AiGenerateModal {
           <div class="${P}cost-row" id="${P}model-row">
             <span>Model</span>
             <span class="${P}model-display">
-              <span id="${P}model-name">${opts.modelName || "Not configured"}</span>
+              <span id="${P}model-name">${escapeHtml(opts.modelName || "Not configured")}</span>
               ${opts.onOpenSettings ? `<button type="button" class="${P}link-btn" data-action="open-settings">Change</button>` : ""}
             </span>
           </div>
@@ -92,6 +93,8 @@ export class AiGenerateModal {
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
 
+      let settingsOpen = false;
+
       const close = (result) => {
         backdrop.remove();
         document.removeEventListener("keydown", onKeydown);
@@ -99,7 +102,7 @@ export class AiGenerateModal {
       };
 
       const onKeydown = (e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && !settingsOpen) {
           close(null);
         }
       };
@@ -130,7 +133,12 @@ export class AiGenerateModal {
       const settingsBtn = dialog.querySelector('[data-action="open-settings"]');
       if (settingsBtn && opts.onOpenSettings) {
         settingsBtn.addEventListener("click", async () => {
+          settingsOpen = true;
           await opts.onOpenSettings();
+          settingsOpen = false;
+          // The generate modal may have been closed (e.g. by an unrelated
+          // action) while Settings was open — bail before touching the DOM.
+          if (!dialog.isConnected) return;
           // Update model display after settings change
           if (opts.getModelName) {
             const newName = opts.getModelName();

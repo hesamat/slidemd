@@ -25,6 +25,7 @@ import {
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
+import { splitSlides } from "../markdown-parser.js";
 import { createEditPatch } from "../store/slide-patch.js";
 import { AiPromptComposer } from "./ai-prompt-composer.js";
 import systemPrompt from "../prompts/system-prompt.md?raw";
@@ -98,6 +99,14 @@ export class AiOrchestrator {
       );
 
       const contentText = response.content;
+      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new Error(
+          `Response truncated \u2014 the AI hit its output token limit (${maxTokens} tokens). ` +
+            "Try switching to a model with a higher output token limit.",
+        );
+      }
+
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
         throw new Error("AI did not return valid JSON");
@@ -181,10 +190,20 @@ export class AiOrchestrator {
     // directives onto the wrong slides.
     const origDirectives = extractDirectives(context, allSlides);
 
-    // Single-call path for small decks
+    // Single-call path for small decks. Outside remix, generate mode always
+    // preserves the slide count (the prompt promises this for polish/enhance,
+    // and there's no other whole-deck fidelity that legitimately changes it),
+    // so enforce it here — otherwise a truncated/lazy response could silently
+    // collapse the deck to a single slide.
     const result =
       totalSlides <= BATCH_SIZE
-        ? await this.#runWholeDeckSingleCall(operation, signal, optionsSuffix, callbacks)
+        ? await this.#runWholeDeckSingleCall(
+            operation,
+            signal,
+            optionsSuffix,
+            callbacks,
+            totalSlides,
+          )
         : await this.#runWholeDeckBatched(
             operation,
             signal,
@@ -231,9 +250,16 @@ export class AiOrchestrator {
    * @param {AbortSignal} [signal]
    * @param {string} optionsSuffix
    * @param {object} callbacks
+   * @param {number} [expectedSlideCount] — when set, the output must have exactly this many slides
    * @returns {Promise<string|null>}
    */
-  async #runWholeDeckSingleCall(operation, signal, optionsSuffix = "", callbacks = {}) {
+  async #runWholeDeckSingleCall(
+    operation,
+    signal,
+    optionsSuffix = "",
+    callbacks = {},
+    expectedSlideCount = null,
+  ) {
     const { intent, context } = operation;
     const { onLog } = callbacks;
     const reasoningEffort = this._useReasoning ? this._effort : "none";
@@ -262,13 +288,23 @@ export class AiOrchestrator {
       );
 
       const contentText = response.content;
+      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new Error(
+          `Response truncated \u2014 the AI hit its output token limit (${maxTokens} tokens). ` +
+            "Try reducing the number of slides or switch to a model with a higher output token limit.",
+        );
+      }
+
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
         throw new Error("AI did not return valid JSON");
       }
 
       const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-      const result = validator.validate(enhancedMarkdown, "generate");
+      const result = validator.validate(enhancedMarkdown, "generate", {
+        expectedSlideCount: expectedSlideCount ?? undefined,
+      });
 
       if (result.ok) {
         onLog?.("Generated full deck");
@@ -603,13 +639,36 @@ export class AiOrchestrator {
     onLog?.("Planning deck restructure\u2026");
     const plan = await this.#runRemixPlan(operation, signal, callbacks);
 
-    // ── Phase 2: Build virtual deck from plan ──
-    const virtualDeck = this.#planToVirtualDeck(plan, context);
+    // "keep" entries must never be sent to the execute call — the generate
+    // prompt has no way to distinguish "leave this slide untouched" from a
+    // normal slide, so a `keep` entry would still get reworded/re-laid-out.
+    // Instead, splice the original slide (full directives intact) back into
+    // its planned position after the execute call runs on everything else.
+    // Raw (non-frontmatter-stripped) split so layout/background/theme survive.
+    const rawSourceSlides = splitSlides(context);
+    const keptByPlanIndex = new Map();
+    const rewriteEntries = [];
+    plan.forEach((entry, i) => {
+      if (entry.action === "keep") {
+        keptByPlanIndex.set(i, rawSourceSlides[entry.source[0]]);
+      } else {
+        rewriteEntries.push(entry);
+      }
+    });
+
+    onLog?.(
+      `Plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides (${keptByPlanIndex.size} kept as-is)`,
+    );
+
+    if (rewriteEntries.length === 0) {
+      // Every entry is "keep" — nothing to send to the AI.
+      return plan.map((_, i) => keptByPlanIndex.get(i)).join("\n\n---\n\n");
+    }
+
+    // ── Phase 2: Build virtual deck from the non-"keep" plan entries ──
+    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, context);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
-    onLog?.(
-      `Plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides`,
-    );
 
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
@@ -621,10 +680,10 @@ export class AiOrchestrator {
     };
     const execSuffix = buildGenerateOptionsSuffix({ ...operation.opts, fidelity: undefined });
 
-    onLog?.(`Generating ${virtualCount} slides\u2026`);
+    onLog?.(`Generating ${virtualCount} slide(s)\u2026`);
     const result =
       virtualCount <= BATCH_SIZE
-        ? await this.#runWholeDeckSingleCall(execOp, signal, execSuffix, callbacks)
+        ? await this.#runWholeDeckSingleCall(execOp, signal, execSuffix, callbacks, virtualCount)
         : await this.#runWholeDeckBatched(
             execOp,
             signal,
@@ -634,12 +693,21 @@ export class AiOrchestrator {
             callbacks,
           );
 
+    if (!result) return result;
+
     // Remix intentionally reorders/splits/merges slides, so positional
     // directive injection would attach backgrounds/themes to the wrong
     // slides. The virtual deck already carries the original directives in
-    // its source slides, and the AI sees them in generate mode — return the
-    // result as-is so any styling the AI kept or chose is preserved.
-    return result;
+    // its source slides, and the AI sees them in generate mode — the
+    // rewritten slides are used as-is so any styling the AI kept or chose
+    // is preserved. Raw (non-stripped) split so the AI's own layout/theme
+    // choices survive re-splicing.
+    const rewrittenSlides = splitSlides(result);
+    let rewriteIdx = 0;
+    const finalSlides = plan.map((_, i) =>
+      keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
+    );
+    return finalSlides.join("\n\n---\n\n");
   }
 
   /**
@@ -772,7 +840,7 @@ export class AiOrchestrator {
         continue;
       }
 
-      if (entry.source.length === 0 && entry.action !== "keep") {
+      if (entry.source.length === 0) {
         errors.push(`${prefix}: source must not be empty for action "${entry.action}"`);
       }
 
@@ -784,8 +852,10 @@ export class AiOrchestrator {
         }
       }
 
-      if (entry.action === "rewrite" && entry.source.length !== 1) {
-        errors.push(`${prefix}: rewrite must have exactly 1 source, got ${entry.source.length}`);
+      if ((entry.action === "rewrite" || entry.action === "keep") && entry.source.length !== 1) {
+        errors.push(
+          `${prefix}: ${entry.action} must have exactly 1 source, got ${entry.source.length}`,
+        );
       }
 
       if (entry.action === "merge" && entry.source.length < 2) {

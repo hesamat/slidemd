@@ -232,12 +232,10 @@ describe("AiOrchestrator", () => {
       ],
     });
 
+    // With the keep short-circuit, only the non-keep (rewrite) plan entry is
+    // sent to the execute call, so the mock response contains 1 slide.
     const EXECUTE_RESPONSE = JSON.stringify({
       slides: [
-        {
-          layout: "header-content",
-          content: "@header\n## Slide 1\n\n@main\n- Item 1",
-        },
         {
           layout: "header-content",
           content: "@header\n## Slide 2\n\n@main\n- Concise point",

@@ -161,57 +161,60 @@ export class AiOutputValidator {
    * @param {ValidationError[]} errors
    * @param {ValidationError[]} warnings
    */
-  _checkIntentSpecifics(slide, index, intent, errors, warnings) {
+  _checkIntentSpecifics(slide, index, intent, errors, _warnings) {
+    // Only addSpeakerNotes compares against the input slide. Parsing the
+    // input is a full markdown+HTML render — skip it entirely for other
+    // intents (fix/generate/enhanceSlide), which is most call sites.
+    if (intent !== "addSpeakerNotes") return;
+
     const inputSlide = this._getInputSlides()[index];
     if (!inputSlide) return;
 
-    if (intent === "addSpeakerNotes") {
-      // Add speaker notes must not change layout, areas, or visible content
-      if (slide.layout !== inputSlide.layout) {
-        errors.push({
-          slide: index,
-          code: "NOTES_PRESERVE_LAYOUT",
-          message: `Add speaker notes must not change the slide layout. Expected "${inputSlide.layout}", got "${slide.layout}"`,
-        });
-      }
+    // Add speaker notes must not change layout, areas, or visible content
+    if (slide.layout !== inputSlide.layout) {
+      errors.push({
+        slide: index,
+        code: "NOTES_PRESERVE_LAYOUT",
+        message: `Add speaker notes must not change the slide layout. Expected "${inputSlide.layout}", got "${slide.layout}"`,
+      });
+    }
 
-      const inputAreas = Object.keys(inputSlide.areas || {}).sort();
-      const outputAreas = Object.keys(slide.areas || {}).sort();
-      if (JSON.stringify(inputAreas) !== JSON.stringify(outputAreas)) {
-        errors.push({
-          slide: index,
-          code: "NOTES_PRESERVE_AREAS",
-          message: `Add speaker notes must not change @area markers. Expected: ${inputAreas.join(", ")}, got: ${outputAreas.join(", ")}`,
-        });
-      }
+    const inputAreas = Object.keys(inputSlide.areas || {}).sort();
+    const outputAreas = Object.keys(slide.areas || {}).sort();
+    if (JSON.stringify(inputAreas) !== JSON.stringify(outputAreas)) {
+      errors.push({
+        slide: index,
+        code: "NOTES_PRESERVE_AREAS",
+        message: `Add speaker notes must not change @area markers. Expected: ${inputAreas.join(", ")}, got: ${outputAreas.join(", ")}`,
+      });
+    }
 
-      // Visible content (rendered areas) must be unchanged. Parsed slides
-      // expose rendered area HTML rather than a `raw` field, so compare the
-      // areas objects directly. The rendered HTML carries `data-source-line`
-      // attributes (editor source-map offsets) that shift when blank-line
-      // placement changes — the AI normalises blank lines around @area
-      // markers, so strip those attributes and collapse whitespace before
-      // comparing to avoid false positives that waste repair attempts.
-      const inputAreasJson = JSON.stringify(normalizeAreasForCompare(inputSlide.areas));
-      const outputAreasJson = JSON.stringify(normalizeAreasForCompare(slide.areas));
-      if (inputAreasJson !== outputAreasJson) {
-        errors.push({
-          slide: index,
-          code: "NOTES_PRESERVE_CONTENT",
-          message: "Add speaker notes must not change the slide's visible content",
-        });
-      }
+    // Visible content (rendered areas) must be unchanged. Parsed slides
+    // expose rendered area HTML rather than a `raw` field, so compare the
+    // areas objects directly. The rendered HTML carries `data-source-line`
+    // attributes (editor source-map offsets) that shift when blank-line
+    // placement changes — the AI normalises blank lines around @area
+    // markers, so strip those attributes and collapse whitespace before
+    // comparing to avoid false positives that waste repair attempts.
+    const inputAreasJson = JSON.stringify(normalizeAreasForCompare(inputSlide.areas));
+    const outputAreasJson = JSON.stringify(normalizeAreasForCompare(slide.areas));
+    if (inputAreasJson !== outputAreasJson) {
+      errors.push({
+        slide: index,
+        code: "NOTES_PRESERVE_CONTENT",
+        message: "Add speaker notes must not change the slide's visible content",
+      });
+    }
 
-      // Output must contain a notes block. Parsed slides expose `notes`
-      // directly (extracted from `<!-- notes: ... -->` during parsing).
-      const outputNotes = slide.notes || "";
-      if (!outputNotes) {
-        errors.push({
-          slide: index,
-          code: "NOTES_MISSING",
-          message: "Add speaker notes must produce a `<!-- notes: ... -->` block",
-        });
-      }
+    // Output must contain a notes block. Parsed slides expose `notes`
+    // directly (extracted from `<!-- notes: ... -->` during parsing).
+    const outputNotes = slide.notes || "";
+    if (!outputNotes) {
+      errors.push({
+        slide: index,
+        code: "NOTES_MISSING",
+        message: "Add speaker notes must produce a `<!-- notes: ... -->` block",
+      });
     }
   }
 

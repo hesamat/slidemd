@@ -257,7 +257,13 @@ function sanitizeErrorBody(body) {
   // Drop lines that look like headers or credential echoes.
   const cleaned = text
     .split("\n")
-    .filter((line) => !/authorization|bearer|api[-_]?key|x-api-key/i.test(line))
+    // Only drop header-style lines that echo the request's auth header —
+    // most provider errors are a single-line JSON body (e.g.
+    // {"error":"Invalid api_key provided"}) and a broader keyword filter
+    // would blank out the actual error message the user needs to see. The
+    // inline redaction patterns below still catch credentials embedded in
+    // JSON error bodies.
+    .filter((line) => !/^\s*(authorization|x-api-key)\s*:/i.test(line))
     .join(" ")
     // Redact inline credential patterns that survived the line filter
     // (e.g. {"error":"invalid key sk-abc123"} on a single JSON line).
