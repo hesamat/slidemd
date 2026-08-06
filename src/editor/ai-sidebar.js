@@ -162,10 +162,25 @@ export class AiSidebar {
       if (keepCount) parts.push(`${keepCount} keep`);
       if (rewriteCount) parts.push(`${rewriteCount} rewrite`);
       if (mergeCount) parts.push(`${mergeCount} merge`);
-      const header = document.createElement("div");
+      const summary = `${plan.length} slides from ${sourceCount} source (${parts.join(", ")})`;
+
+      // Foldable header — click to toggle the plan body
+      const header = document.createElement("button");
+      header.type = "button";
       header.className = `${P}plan-header`;
-      header.textContent = `Remix plan \u2014 ${plan.length} slides from ${sourceCount} source (${parts.join(", ")})`;
-      planEl.appendChild(header);
+      header.setAttribute("aria-expanded", "true");
+      const headerIcon = document.createElement("span");
+      headerIcon.className = `${P}plan-chevron`;
+      headerIcon.textContent = "\u25BC";
+      const headerText = document.createElement("span");
+      headerText.className = `${P}plan-header-text`;
+      headerText.textContent = `Remix plan \u2014 ${summary}`;
+      header.appendChild(headerIcon);
+      header.appendChild(headerText);
+
+      // Collapsible body
+      const body = document.createElement("div");
+      body.className = `${P}plan-body`;
       for (const entry of plan) {
         const sourceLabel = entry.source.map((s) => s + 1).join("+");
         const row = document.createElement("div");
@@ -184,8 +199,18 @@ export class AiSidebar {
         }
         row.appendChild(badge);
         row.appendChild(label);
-        planEl.appendChild(row);
+        body.appendChild(row);
       }
+
+      header.addEventListener("click", () => {
+        const expanded = header.getAttribute("aria-expanded") === "true";
+        header.setAttribute("aria-expanded", String(!expanded));
+        body.hidden = expanded;
+        headerIcon.textContent = expanded ? "\u25B6" : "\u25BC";
+      });
+
+      planEl.appendChild(header);
+      planEl.appendChild(body);
       planEl.hidden = false;
     };
 
@@ -466,7 +491,10 @@ export class AiSidebar {
       <div class="${P}status">Starting\u2026</div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
       <div class="${P}plan" hidden></div>
-      <div class="${P}output"></div>
+      <details class="${P}log-section" open>
+        <summary class="${P}log-summary">Log</summary>
+        <div class="${P}output"></div>
+      </details>
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
         <button type="button" data-action="retry" class="${P}btn" hidden>Try again</button>
