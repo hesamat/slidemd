@@ -5,8 +5,6 @@
  * with fallback to File System Access API or Blob download.
  */
 import { Notification } from "../../renderer/notification.js";
-import { TextpackExportManager } from "../../renderer/textpack-export-manager.js";
-import { DeckLoader } from "../../data/deck-loader.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
 export class SaveManager {
@@ -113,7 +111,15 @@ export class SaveManager {
   }
 
   async _doMarkdownSave(fullMarkdown, skipServer = false) {
-    if (!skipServer) {
+    // Only use the server save endpoint when the deck was actually loaded
+    // from the server (source_url === "/api/deck"). Otherwise the server's
+    // "current deck" is still the originally-served file (e.g.
+    // docs/example/slides.md) and POST /api/deck would overwrite it instead
+    // of saving the imported/refined deck.
+    const sourceUrl = localStorage.getItem("webdeck_source_url");
+    const canUseServer = !skipServer && sourceUrl === "/api/deck";
+
+    if (canUseServer) {
       try {
         const res = await fetch("/api/deck", {
           method: "POST",
@@ -132,35 +138,16 @@ export class SaveManager {
 
     // Fallback: save via file picker / download
     const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
-    await this._saveBlob(mdBlob, "deck.md");
+    const suggestedName = localStorage.getItem("webdeck_local_file_name") || "deck";
+    await this._saveBlob(mdBlob, `${suggestedName}.md`);
     this.needsSaveAs = false;
     Notification.success("Deck saved!");
-  }
-
-  async _doTextpackExport(fullMarkdown) {
-    const { ok, cancelled } = await TextpackExportManager.handleTextpackExport(
-      fullMarkdown,
-      this.deck,
-      { filename: DeckLoader.getDisplayTitle(this.deck) },
-    );
-    if (ok) {
-      Notification.success("Deck exported as .textpack!");
-      this.needsSaveAs = false;
-      return;
-    }
-    if (cancelled) return;
-    Notification.warning("Could not export as .textpack. Saving as .md only.");
-    await this._doMarkdownSave(fullMarkdown, this.needsSaveAs);
   }
 
   async save() {
     const fullMarkdown = await this._prepareSave();
     try {
-      if (this.needsSaveAs) {
-        await this._doTextpackExport(fullMarkdown);
-      } else {
-        await this._doMarkdownSave(fullMarkdown);
-      }
+      await this._doMarkdownSave(fullMarkdown);
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);
