@@ -3,6 +3,8 @@ Fix the provided SlideMD markdown. Return the result as JSON.
 What to fix:
 
 - Rejoin split code lines and add language tags where the language is clear.
+- Fix code blocks that have been collapsed to a single line — restore proper newlines and indentation.
+- Remove stray backtick markers inside code blocks (e.g. `` `43` `` wrapping numbers or identifiers that should be plain code).
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.

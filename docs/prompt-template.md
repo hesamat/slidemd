@@ -37,6 +37,8 @@ The system prompt (`system-prompt.md`) defines:
 Conservative cleanup of a single slide that preserves content and slide count:
 
 - Rejoin split code lines, add language tags
+- Fix code blocks collapsed to a single line — restore proper newlines and indentation
+- Remove stray backtick markers inside code blocks (e.g. `` `43` `` wrapping numbers/identifiers)
 - Restore blank lines between sections
 - Remove bold wrapping from headings
 - Fix broken links, lists, and tables

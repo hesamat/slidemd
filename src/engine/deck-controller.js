@@ -449,6 +449,9 @@ export class DeckController extends EventEmitter {
   async handleTextpackExport({ filename = null } = {}) {
     await waitForImageUpload();
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+    // Capture any in-flight editor edits before reading the full markdown,
+    // otherwise unsaved text changes are missed by the export.
+    editController?._captureCurrentEditorMarkdown?.();
     const markdown =
       editController?.saveManager?.getFullMarkdown() ??
       localStorage.getItem("webdeck_local_file") ??

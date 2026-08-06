@@ -18,7 +18,7 @@ Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
 - Headers use the correct hierarchy.
-- Code blocks have proper spacing.
+- Code blocks have proper formatting: correct indentation, line breaks, and no stray inline code markers.
 - All `[Diagram:]` markers are addressed.
 - The JSON is valid and parseable.
 

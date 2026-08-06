@@ -121,8 +121,18 @@ export class PptxImporter {
       loading.updateProgress(100);
       loading.dismiss();
 
-      const getLatestMarkdown = () =>
-        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || markdown;
+      const getLatestMarkdown = () => {
+        // Prefer the edit controller's live markdown (which reflects AI
+        // refines, unsaved edits, etc.) over the stale localStorage snapshot.
+        const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (editCtrl?.saveManager?.getFullMarkdown) {
+          const live = editCtrl.saveManager.getFullMarkdown();
+          if (live) return live;
+        }
+        return (
+          localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || markdown
+        );
+      };
 
       if (imageFiles.size > 0) {
         // Upload images to the server in the background and then swap blob URLs for server paths
