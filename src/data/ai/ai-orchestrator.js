@@ -204,10 +204,10 @@ export class AiOrchestrator {
       throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
     }
 
-    // Remix (fidelity: "rewrite") uses a two-phase plan→execute flow.
-    // The plan phase produces a restructuring plan, which is converted to a
-    // virtual deck and fed through the existing single-call/batched path.
-    if (operation.opts?.fidelity === "rewrite") {
+    // Remix and reimagine use a two-phase plan→execute flow. The plan phase
+    // produces a restructuring plan, which is converted to a virtual deck and
+    // fed through the existing single-call/batched path.
+    if (operation.opts?.mode === "remix" || operation.opts?.mode === "reimagine") {
       return this.#runRemix(operation, signal, callbacks);
     }
 
@@ -223,11 +223,9 @@ export class AiOrchestrator {
     // directives onto the wrong slides.
     const origDirectives = extractDirectives(context, allSlides);
 
-    // Single-call path for small decks. Outside remix, generate mode always
-    // preserves the slide count (the prompt promises this for polish/enhance,
-    // and there's no other whole-deck fidelity that legitimately changes it),
-    // so enforce it here — otherwise a truncated/lazy response could silently
-    // collapse the deck to a single slide.
+    // Single-call path for small decks. Polish and simple generate both
+    // preserve the slide count (the prompts promise this), so enforce it here —
+    // otherwise a truncated/lazy response could silently collapse the deck.
     const result =
       totalSlides <= BATCH_SIZE
         ? await this.#runWholeDeckSingleCall(
@@ -248,7 +246,7 @@ export class AiOrchestrator {
 
     // Only gap-fill positionally when the slide count is unchanged — otherwise
     // index-based injection attaches a slide's original styling to an unrelated
-    // slide (e.g. when "rewrite" fidelity reorders/splits/merges outside remix).
+    // slide (e.g. when remix or reimagine reorders/splits/merges).
     if (!result) return result;
     const resultSlides = splitSlidesForAi(result, "generate");
     if (resultSlides.length === totalSlides) {
@@ -298,10 +296,10 @@ export class AiOrchestrator {
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const validator = new AiOutputValidator({ inputMarkdown: context });
 
-    // Polish fidelity uses fix-prompt.md (specific PPTX cleanup rules) as the
-    // user fragment instead of generate-prompt.md with a vague suffix.
+    // Polish uses polish-prompt.md (specific cleanup + layout improvement rules)
+    // instead of generate-prompt.md with a vague suffix.
     const { system, user } =
-      operation.opts?.fidelity === "polish"
+      operation.opts?.mode === "polish"
         ? buildPolishMessages(context)
         : buildMessagesForIntent(intent, { markdown: context });
     let messages = [
@@ -424,7 +422,7 @@ export class AiOrchestrator {
           reasoningEffort,
           signal,
           repairMessages: repairMessages.get(batch.batchKey) || [],
-          fidelity: operation.opts?.fidelity,
+          mode: operation.opts?.mode,
         });
 
         if (batchResult === null) {
@@ -575,7 +573,7 @@ export class AiOrchestrator {
     reasoningEffort,
     signal,
     repairMessages = [],
-    fidelity,
+    mode,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
 
@@ -586,7 +584,7 @@ export class AiOrchestrator {
       batch.end,
       totalSlides,
       deckSummary,
-      fidelity,
+      mode,
     );
 
     const messages = [
@@ -735,13 +733,13 @@ export class AiOrchestrator {
 
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
-    // Clear fidelity so the inner call doesn't recurse into remix.
+    // Clear mode so the inner call doesn't recurse into the remix flow.
     const execOp = {
       ...operation,
       context: virtualDeck,
-      opts: { ...operation.opts, fidelity: undefined },
+      opts: { ...operation.opts, mode: undefined },
     };
-    const execSuffix = buildGenerateOptionsSuffix({ ...operation.opts, fidelity: undefined });
+    const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
 
     onLog?.(`Generating ${virtualCount} slide(s)\u2026`);
     const result =
@@ -794,9 +792,23 @@ export class AiOrchestrator {
       systemFragment: systemPrompt,
       userFragment: remixPlanPrompt,
     });
+
+    const mode = operation.opts?.mode || "remix";
+    const creativeGuidance =
+      mode === "reimagine"
+        ? "Take a bold editorial approach. You may substantially change the narrative progression, grouping, slide count, and visual direction when that creates a clearer presentation. Preserve factual meaning and important user intent, but do not preserve the original structure merely for the sake of the original."
+        : "Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.";
+
+    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? mode === "remix";
+    const visualIdentityGuidance = preserveVisualIdentity
+      ? "Preserve the original theme, colors, backgrounds, and visual language whenever possible."
+      : "You may change the theme, colors, backgrounds, and visual language when doing so supports the new direction.";
+
     const composeArgs = {
       markdown: deckSummary,
       layoutList: getAllowedLayoutList(),
+      creativeGuidance,
+      visualIdentityGuidance,
     };
     const { system, user } = composer.compose({
       ...composeArgs,

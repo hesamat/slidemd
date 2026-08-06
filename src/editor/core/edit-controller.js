@@ -820,8 +820,10 @@ export class EditController {
 
     const op = createOperation("generate", null, fullMarkdown, {
       tone: generateOpts.tone,
-      fidelity: generateOpts.fidelity,
+      mode: generateOpts.mode,
+      addSpeakerNotes: generateOpts.addSpeakerNotes || false,
       includeImages: generateOpts.includeImages || false,
+      preserveVisualIdentity: generateOpts.preserveVisualIdentity ?? true,
     });
 
     try {

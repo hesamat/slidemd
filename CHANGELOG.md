@@ -2,10 +2,24 @@
 
 ## 0.9.1 (Unreleased)
 
+### Whole-Deck Modes (Polish, Remix, Reimagine)
+
+- **New mode selector** — the "Refine all slides" modal now offers three modes:
+  - **Polish** — fix formatting, improve wording, pick better layouts; keeps slide count and order.
+  - **Remix** — two-phase plan→execute flow with moderate creative freedom; preserves visual identity by default.
+  - **Reimagine** — same two-phase flow with bold creative freedom; visual identity off by default.
+- **Add speaker notes** — now an explicit checkbox for all three modes instead of being bundled into "Restyle".
+- **Preserve visual identity** — new checkbox for Remix/Reimagine; controls whether the AI keeps the original theme, colors, and backgrounds.
+- **Vision checkbox** — now available for both Remix and Reimagine, and only appears when the deck has content images.
+- Replace the old `fidelity` (`polish`/`enhance`/`rewrite`) option with a single `mode` (`polish`/`remix`/`reimagine`) and explicit boolean options.
+- Add `polish-prompt.md` — focused whole-deck prompt that combines formatting cleanup with layout and wording improvement while preserving structure.
+- Update `remix-plan-prompt.md` with mode-aware `{{creativeGuidance}}` and `{{visualIdentityGuidance}}` placeholders and relaxed structural rules (reordering allowed; no arbitrary slide-count cap).
+- Update `generate-prompt.md` and `ai-prompt-builder.js#buildGenerateOptionsSuffix` to use the new `mode`, `addSpeakerNotes`, and `preserveVisualIdentity` options.
+
 ### Vision-Augmented Remix
 
-- **Vision toggle in generate modal** — when fidelity=Remix and the deck has content images, a "Send slide images to AI (vision)" checkbox appears with an estimated image token count. Off by default.
-- **Multi-modal plan phase** — when the user opts in, the Remix plan phase sends raw content images (compressed to <40KB JPEG each) alongside the deck summary so the AI can visually assess layout quality, image content, and placement.
+- **Vision toggle in generate modal** — when the mode is Remix/Reimagine and the deck has content images, a "Send slide images to AI (vision)" checkbox appears with an estimated image token count. Off by default.
+- **Multi-modal plan phase** — when the user opts in, the plan phase sends raw content images (compressed to <40KB JPEG each) alongside the deck summary so the AI can visually assess layout quality, image content, and placement.
 - **`keepImages` plan schema** — plan entries can now include `keepImages: [0, 1]` to specify which images to keep per output slide. `[]` drops all, omit keeps all. The virtual deck filters images per `keepImages` before the execute phase.
 - **Provider multi-modal support** — Anthropic and Gemini provider clients now handle array content (vision blocks) in addition to plain strings. OpenAI-compatible clients pass arrays natively.
 - **Text-only fallback** — if the provider rejects images (e.g. model doesn't support vision), the plan phase retries with text-only automatically.
@@ -14,7 +28,7 @@
 - Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
 - Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
 - Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
-- Total tests now **815**.
+- Total tests now **828**.
 
 ## 0.9.0 (2026-08-06)
 

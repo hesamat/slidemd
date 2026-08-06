@@ -2,8 +2,9 @@
  * AiGenerateModal
  *
  * Pre-flight modal shown before running "Refine all slides" (whole-deck).
- * Lets the user set fidelity and tone and see an estimated cost before
- * committing to the AI call. The user can cancel to avoid any API charges.
+ * Lets the user set the generation mode, tone, and creative options, and see
+ * an estimated cost before committing to the AI call. The user can cancel to
+ * avoid any API charges.
  *
  * Returns a promise that resolves to the user's options, or null if cancelled.
  */
@@ -16,10 +17,11 @@ const P = "ai-generate-modal__";
 
 /**
  * @typedef {Object} GenerateOptions
- * @property {string} fidelity — "polish" | "enhance" | "rewrite"
+ * @property {string} mode — "polish" | "remix" | "reimagine"
  * @property {string} tone — "default" | "formal" | "casual" | "technical"
- * @property {boolean} [includeImages] — true if the user opted in to vision
- *   (only set when fidelity=rewrite and images are present)
+ * @property {boolean} addSpeakerNotes — add speaker notes where helpful
+ * @property {boolean} includeImages — send slide images to the AI (vision)
+ * @property {boolean} preserveVisualIdentity — keep theme/colors/backgrounds
  */
 
 export class AiGenerateModal {
@@ -40,15 +42,23 @@ export class AiGenerateModal {
       const { count: imageCount, estimatedTokens: imageTokens } = countContentImages(markdown);
       const hasImages = imageCount > 0;
 
-      const fidelityOptions = `<option value="polish">Tidy up — fix formatting and layouts only</option>
-<option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>
-<option value="rewrite">Remix — plan then restructure (two-phase)</option>`;
+      const modeOptions = `<option value="polish" selected>Polish</option>
+<option value="remix">Remix</option>
+<option value="reimagine">Reimagine</option>`;
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
         <h2 class="${P}title">AI: Refine all slides</h2>
-        <p class="${P}subtitle">The AI will rework formatting, wording, and layouts across your presentation. Adjust options below, then click Generate to start.</p>
+        <p class="${P}subtitle">Choose how much the AI should change the deck, set the tone, and pick optional creative controls.</p>
+
+        <div class="${P}field">
+          <label class="${P}label" for="${P}mode">Mode</label>
+          <select id="${P}mode" class="${P}select">
+            ${modeOptions}
+          </select>
+          <p id="${P}mode-desc" class="${P}note"></p>
+        </div>
 
         <div class="${P}field">
           <label class="${P}label" for="${P}tone">Tone</label>
@@ -57,13 +67,6 @@ export class AiGenerateModal {
             <option value="formal">Formal</option>
             <option value="casual">Casual</option>
             <option value="technical">Technical</option>
-          </select>
-        </div>
-
-        <div class="${P}field">
-          <label class="${P}label" for="${P}fidelity">How much should the AI change?</label>
-          <select id="${P}fidelity" class="${P}select">
-            ${fidelityOptions}
           </select>
         </div>
 
@@ -93,6 +96,20 @@ export class AiGenerateModal {
               Send slide images to AI (vision)
             </label>
             <span class="${P}cost-warn">~${imageTokens.toLocaleString()} image tokens (${imageCount} images)</span>
+          </div>
+          <div class="${P}cost-row" id="${P}notes-row">
+            <label class="${P}checkbox-label">
+              <input type="checkbox" id="${P}notes-toggle" />
+              Add speaker notes
+            </label>
+            <span class="${P}note">Generate notes for slides that don't have them</span>
+          </div>
+          <div class="${P}cost-row" id="${P}identity-row" style="display:none">
+            <label class="${P}checkbox-label">
+              <input type="checkbox" id="${P}identity-toggle" />
+              Preserve visual identity
+            </label>
+            <span class="${P}note">Keep theme, colors, and backgrounds</span>
           </div>
         </div>
 
@@ -132,26 +149,58 @@ export class AiGenerateModal {
 
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 
-      // Show/hide the vision toggle row based on fidelity selection.
-      // Only visible when fidelity=rewrite AND the deck has content images.
+      const modeSelect = dialog.querySelector(`#${P}mode`);
+      const modeDesc = dialog.querySelector(`#${P}mode-desc`);
       const visionRow = dialog.querySelector(`#${P}vision-row`);
-      const fidelitySelect = dialog.querySelector(`#${P}fidelity`);
-      const updateVisionVisibility = () => {
-        const fidelity = fidelitySelect.value;
-        visionRow.style.display = fidelity === "rewrite" && hasImages ? "" : "none";
+      const identityRow = dialog.querySelector(`#${P}identity-row`);
+      const identityToggle = dialog.querySelector(`#${P}identity-toggle`);
+
+      const MODE_DESCRIPTIONS = {
+        polish:
+          "Fix formatting and layouts, improve wording, and pick better layouts. Slide count and order stay the same.",
+        remix:
+          "Reorganize the story: reorder, merge, or rewrite slides. The AI proposes a plan, then you preview and apply it.",
+        reimagine:
+          "Take a bold new direction. The AI can change the narrative structure, slide count, and visual approach.",
       };
-      fidelitySelect.addEventListener("change", updateVisionVisibility);
-      updateVisionVisibility();
+
+      const updateModeUI = () => {
+        const mode = modeSelect.value;
+        modeDesc.textContent = MODE_DESCRIPTIONS[mode];
+
+        const isRemixOrReimagine = mode === "remix" || mode === "reimagine";
+
+        // Vision: only for remix/reimagine, and only when the deck has images.
+        visionRow.style.display = isRemixOrReimagine && hasImages ? "" : "none";
+
+        // Visual identity: only for remix/reimagine. Default on for remix,
+        // off for reimagine — but remember the user's explicit choice.
+        identityRow.style.display = isRemixOrReimagine ? "" : "none";
+        if (isRemixOrReimagine) {
+          identityToggle.checked = mode === "remix";
+        }
+      };
+      modeSelect.addEventListener("change", updateModeUI);
+      updateModeUI();
 
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
+        const mode = modeSelect.value || "polish";
         const tone = dialog.querySelector(`#${P}tone`).value;
-        const fidelity = dialog.querySelector(`#${P}fidelity`).value || "enhance";
         const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
-        const includeImages = fidelity === "rewrite" && hasImages && visionToggle?.checked;
+        const notesToggle = dialog.querySelector(`#${P}notes-toggle`);
+        const includeImages =
+          (mode === "remix" || mode === "reimagine") && hasImages && visionToggle?.checked;
+        const addSpeakerNotes = notesToggle?.checked || false;
+        const preserveVisualIdentity =
+          mode === "polish" ||
+          ((mode === "remix" || mode === "reimagine") && identityToggle?.checked);
+
         close({
+          mode,
           tone,
-          fidelity,
+          addSpeakerNotes,
           includeImages,
+          preserveVisualIdentity,
         });
       });
 
@@ -180,8 +229,8 @@ export class AiGenerateModal {
 
       document.addEventListener("keydown", onKeydown);
 
-      // Focus the tone field
-      dialog.querySelector(`#${P}tone`).focus();
+      // Focus the mode field
+      modeSelect.focus();
     });
   }
 }

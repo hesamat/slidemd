@@ -225,12 +225,12 @@ describe("AiOrchestrator", () => {
       expect(progressCalls[2].completed).toBe(12);
     });
 
-    it("polish fidelity uses fix-prompt rules (not generate-prompt)", async () => {
-      // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
-      // Verify the message sent to the provider includes fix-prompt text.
+    it("polish mode uses polish-prompt rules (not generate-prompt)", async () => {
+      // polish-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+      // Verify the message sent to the provider includes polish-prompt text.
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       const userMsg = provider.chat.mock.calls[0][0].messages.find(
         (m) => m.role === "user",
@@ -238,28 +238,16 @@ describe("AiOrchestrator", () => {
       expect(userMsg).toContain("Rejoin split code lines");
     });
 
-    it("polish fidelity does not append a TIDY UP suffix", async () => {
-      // After removing the polish case from buildGenerateOptionsSuffix, the
-      // message should not contain the old "Fidelity: TIDY UP" suffix.
+    it("polish mode does not append a stale Fidelity suffix", async () => {
+      // The mode-aware suffix should not contain the old "Fidelity:" text.
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       const userMsg = provider.chat.mock.calls[0][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(userMsg).not.toContain("Fidelity: TIDY UP");
-    });
-
-    it("enhance fidelity still appends RESTYLE suffix", async () => {
-      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
-      const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
-      await orchestrator.runWholeDeckOperation(op);
-      const userMsg = provider.chat.mock.calls[0][0].messages.find(
-        (m) => m.role === "user",
-      ).content;
-      expect(userMsg).toContain("Fidelity: RESTYLE");
+      expect(userMsg).not.toContain("Fidelity:");
     });
   });
 
@@ -303,7 +291,7 @@ describe("AiOrchestrator", () => {
           .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }),
       };
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       const logs = [];
       await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
@@ -325,7 +313,7 @@ describe("AiOrchestrator", () => {
       ).toBe(true);
     });
 
-    it("runs plan phase then execute phase for fidelity=rewrite", async () => {
+    it("runs plan phase then execute phase for mode=remix", async () => {
       // Provide enough execute responses for validation retries
       const provider = mockProviderSequence([
         REMIX_PLAN_RESPONSE,
@@ -333,7 +321,7 @@ describe("AiOrchestrator", () => {
         EXECUTE_RESPONSE,
       ]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       const logs = [];
       const result = await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
@@ -350,14 +338,54 @@ describe("AiOrchestrator", () => {
       expect(logs.some((l) => l.includes("[Plan] Rewrite"))).toBe(true);
     });
 
-    it("does not route to remix for fidelity=enhance", async () => {
+    it("does not route to remix for mode=polish", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       // No plan phase — the call count matches the normal generate path
       // (1 or 2 depending on validation retry), not the remix 2-phase flow.
       expect(provider.chat).toHaveBeenCalled();
+    });
+
+    it("remix plan prompt uses moderate guidance and preserves visual identity", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).toContain("Preserve the deck's core message");
+      expect(planUser).toContain("Preserve the original theme");
+    });
+
+    it("routes to remix for mode=reimagine", async () => {
+      const provider = mockProviderSequence([
+        JSON.stringify({
+          plan: [
+            { action: "keep", source: [0], brief: "", title: "Slide 1" },
+            { action: "rewrite", source: [1], brief: "Bold rewrite", title: "Slide 2" },
+          ],
+        }),
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+      // The plan prompt should mention bold approach and allow visual changes
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).toContain("Take a bold editorial approach");
+      expect(planUser).toContain("You may change the theme");
     });
 
     it("throws on invalid plan action", async () => {
@@ -366,7 +394,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -379,7 +407,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -389,7 +417,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -414,7 +442,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([mergePlan, mergeResponse, mergeResponse]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       const logs = [];
       const result = await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
@@ -465,7 +493,7 @@ describe("AiOrchestrator", () => {
       ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
-        fidelity: "rewrite",
+        mode: "remix",
         includeImages: true,
       });
       const logs = [];
@@ -504,7 +532,7 @@ describe("AiOrchestrator", () => {
       };
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
-        fidelity: "rewrite",
+        mode: "remix",
         includeImages: true,
       });
       const logs = [];
@@ -537,7 +565,7 @@ describe("AiOrchestrator", () => {
       };
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
-        fidelity: "rewrite",
+        mode: "remix",
         includeImages: true,
       });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("401");
@@ -551,7 +579,7 @@ describe("AiOrchestrator", () => {
       ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
-        fidelity: "rewrite",
+        mode: "remix",
         includeImages: false,
       });
       await orchestrator.runWholeDeckOperation(op);
@@ -578,7 +606,7 @@ describe("AiOrchestrator", () => {
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
-        fidelity: "rewrite",
+        mode: "remix",
       });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
         "keepImages must be an array",
@@ -621,7 +649,7 @@ describe("AiOrchestrator", () => {
       const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, deckWithTwoImages, {
-        fidelity: "rewrite",
+        mode: "remix",
         includeImages: true,
       });
       const result = await orchestrator.runWholeDeckOperation(op);
@@ -664,7 +692,7 @@ describe("AiOrchestrator", () => {
       const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, deckWithTwoImages, {
-        fidelity: "rewrite",
+        mode: "remix",
       });
       await orchestrator.runWholeDeckOperation(op);
 

@@ -40,11 +40,14 @@ Rules:
 - `brief` is a one-sentence description of what the output slide should contain. Required for `rewrite` and `merge`; empty for `keep`.
 - `title` is a short label for the slide (used for display, not sent to the generator).
 - `keepImages` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit `keepImages` entirely — do not guess it.
-- Keep the total slide count reasonable. Do not expand a 10-slide deck into 25 slides.
-- Use `keep` for slides that are already clear and well-structured.
-- Prefer `keep` or `rewrite` over `merge`; only `merge` slides that are genuinely thin, overlapping, or redundant.
-- Every output slide must have a clear purpose — do not create slides with vague or duplicate content.
-- Preserve the overall narrative flow of the presentation.
+- Cover every source slide. Reorder freely if a different order tells the story better.
+- Use `keep` for slides that are already clear, well-structured, and in the right place.
+- Use `rewrite` when the topic is right but the content or layout could be improved.
+- Use `merge` when adjacent slides are thin, overlapping, or redundant.
+
+{{creativeGuidance}}
+
+{{visualIdentityGuidance}}
 
 {{imagesSection}}
 
@@ -53,6 +56,7 @@ Success criteria:
 - The plan covers every original slide (every source index appears in at least one entry).
 - The JSON is valid and parseable.
 - No source index is out of range.
+- Each output slide has a clear purpose.
 
 Input deck summary and outline:
 {{markdown}}

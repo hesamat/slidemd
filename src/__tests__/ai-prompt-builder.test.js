@@ -4,6 +4,7 @@ import {
   buildMessages,
   buildDeckSummary,
   buildBatchMessages,
+  buildGenerateOptionsSuffix,
   splitSlidesForAi,
   BATCH_SIZE,
   stripFrontmatter,
@@ -175,18 +176,49 @@ describe("buildBatchMessages", () => {
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
-  it("polish fidelity uses fix-prompt fragment in generate mode", () => {
-    // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+  it("polish mode uses polish-prompt fragment in generate mode", () => {
+    // polish-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "polish");
     expect(user).toContain("Rejoin split code lines");
     // Still uses generate-mode pagination (not fix-mode CRITICAL instruction)
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
-  it("enhance fidelity uses generate-prompt fragment", () => {
-    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "enhance");
+  it("non-polish mode uses generate-prompt fragment", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.");
     expect(user).toContain("Refine this SlideMD presentation");
     expect(user).not.toContain("Rejoin split code lines");
+  });
+});
+
+describe("buildGenerateOptionsSuffix", () => {
+  it("returns empty by default", () => {
+    expect(buildGenerateOptionsSuffix({})).toBe("");
+  });
+
+  it("adds tone instruction", () => {
+    const suffix = buildGenerateOptionsSuffix({ tone: "formal" });
+    expect(suffix).toContain("formal, professional tone");
+  });
+
+  it("adds speaker notes instruction when requested", () => {
+    const suffix = buildGenerateOptionsSuffix({ addSpeakerNotes: true });
+    expect(suffix).toContain("Add useful speaker notes");
+  });
+
+  it("asks to preserve existing notes when not adding new ones", () => {
+    const suffix = buildGenerateOptionsSuffix({ mode: "polish" });
+    expect(suffix).toContain("Do not add new speaker notes");
+  });
+
+  it("preserves visual identity when requested", () => {
+    const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
+    expect(suffix).toContain("Preserve the original theme");
+  });
+
+  it("allows visual changes for reimagine", () => {
+    const suffix = buildGenerateOptionsSuffix({ mode: "reimagine", preserveVisualIdentity: false });
+    expect(suffix).toContain("may change the theme");
   });
 });
 

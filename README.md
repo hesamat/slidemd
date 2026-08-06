@@ -86,9 +86,10 @@ Both are undoable via `Ctrl+Z`.
 
 **Whole-deck AI** ("Refine all slides" in the AI dropdown):
 
-- **Tidy up** — fix formatting and layouts only across all slides.
-- **Restyle** — reword and rework layouts, add speaker notes.
-- **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (keep/rewrite/merge), then the execute phase generates the new deck. Available for decks of any size.
+- **Polish** — fix formatting and layouts, improve wording, and pick better layouts. Keeps the slide count and order.
+- **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (keep/rewrite/merge), then the execute phase generates the new deck. Moderate creative freedom; preserves visual identity by default.
+- **Reimagine** — same two-phase flow, with more freedom to change the narrative, slide count, and visual direction.
+- Options include tone, adding speaker notes, sending slide images to the AI for visual decisions, and preserving visual identity (theme, colors, backgrounds).
 - Whole-deck refine is undoable via `Ctrl+Z` (uses `DeckStore.replaceDeck`).
 
 The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — see [docs/prompt-template.md](docs/prompt-template.md) for the prompt structure.

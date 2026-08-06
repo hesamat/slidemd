@@ -6,13 +6,14 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                          | Role     | Purpose                                                                                                                      |
-| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                                                |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)                                                             |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                                              |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                                    |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision-augmented planning) |
+| File                          | Role     | Purpose                                                                                                             |
+| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                                       |
+| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                                  |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                                      |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                                     |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                           |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix/Reimagine: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
 
@@ -29,7 +30,7 @@ The system prompt (`system-prompt.md`) defines:
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
 - **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
-- **Image handling**: preserve `<img>` tags unless FIDELITY says to drop; use `position: relative` with `left`/`top`/`width` for custom placement
+- **Image handling**: preserve `<img>` tags unless the prompt says to drop; use `position: relative` with `left`/`top`/`width` for custom placement
 - **Allowed layouts**: injected via `{{layoutList}}` as a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`)
 
 ## enhanceSlide Intent (fix-prompt.md)
@@ -47,31 +48,47 @@ Conservative cleanup of a single slide that preserves content and slide count:
 - Fix mismatched layouts (downgrade `media-span`/`two-column` when no image/empty column)
 - Does **not** change heading levels or add/remove slides
 
-## Generate Mode (generate-prompt.md)
+## Whole-Deck Modes
 
-Refines the whole deck's wording, layouts, and structure:
+The whole-deck AI flow is selected in the pre-flight modal and passed to the orchestrator as `mode`:
 
+### Polish (`polish-prompt.md`)
+
+Refines the whole deck while preserving structure and visual identity:
+
+- Fix formatting, links, lists, tables, code blocks, and layout mismatches
 - Improve wording: concise headers, tightened bullet points, specific statements
 - Pick the best layout per slide (two-column, focus, table) over defaulting to header-content
 - Use tables for 2-3 item comparisons; two-column for diagrams, code, or dense content
-- Add speaker notes where helpful: `<!-- notes: ... -->`
-- Preserve `theme:` directives; keep `background:` unless it doesn't fit the restructured content (decorative overlays may be dropped)
+- Preserve `theme:` directives and keep `background:` unless it no longer fits
 - Preserve `<img>` tags; reposition with `position: relative` + `left`/`top`/`width` for custom placement
-- Drop images that are low quality, redundant, or don't add value
+- Drop low-quality, redundant, or misplaced images
 - PPTX imports: fix mismatched layouts, reposition misplaced images, tighten verbose text
-- Follow the FIDELITY instruction appended after the prompt for how much to change
+- Keep the same slide count and order
+- Speaker notes are preserved; new notes are only added when the user opts in
 
-### Fidelity Levels
+### Remix and Reimagine (plan → execute)
 
-| Fidelity            | User fragment                                                  | What it does                                                                                                                                                                     |
-| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `polish` (Tidy up)  | `fix-prompt.md`                                                | Same specific cleanup rules as single-slide "Clean up slide": rejoin split code, fix bold wrapping, broken links, mismatched layouts. No wording changes. Slide count unchanged. |
-| `enhance` (Restyle) | `generate-prompt.md` + RESTYLE suffix                          | Rework text, pick better layouts, add notes. Slide count unchanged.                                                                                                              |
-| `rewrite` (Remix)   | `remix-plan-prompt.md` (plan) → `generate-prompt.md` (execute) | Two-phase plan→execute. Can merge, reorder, restructure. Slide count may change.                                                                                                 |
+Both use `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) that is converted to a virtual deck and sent through the generate path.
 
-### Vision-Augmented Remix
+| Mode        | Creative freedom | Visual identity | Slide count | Plan guidance                                                                                   |
+| ----------- | ---------------- | --------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `remix`     | Moderate         | Preserved       | May change  | Reorganize for clarity; keep good slides; use `merge` thoughtfully.                             |
+| `reimagine` | Bold             | Optional        | May change  | Take a bold editorial approach; change narrative progression, grouping, and visual when useful. |
 
-When the user enables "Send slide images to AI" in the generate modal (visible only for Remix fidelity), the plan phase sends raw content images alongside the deck summary:
+### Modal Options
+
+The pre-flight modal returns:
+
+- `mode` — `polish`, `remix`, or `reimagine`
+- `tone` — `default`, `formal`, `casual`, `technical`
+- `addSpeakerNotes` — add notes to slides that don't have them
+- `includeImages` — send content images to the plan AI (Remix/Reimagine only, only when images exist)
+- `preserveVisualIdentity` — keep theme, colors, backgrounds (default on for Remix, off for Reimagine)
+
+### Vision-Augmented Planning
+
+When the user enables "Send slide images to AI" in the generate modal (visible only for Remix/Reimagine), the plan phase sends raw content images alongside the deck summary:
 
 - Content images (inline `<img>` and `![alt](src)`) are extracted per slide, excluding background images
 - Each image is compressed to <40KB JPEG (max 768px width) via canvas

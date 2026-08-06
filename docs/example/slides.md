@@ -335,10 +335,10 @@ Let the AI handle the busywork so you can focus on the message.
 
 ### Whole Deck
 
-- **Tidy up** — clean up formatting and layouts while keeping your wording and slide count
-- **Restyle** — reword and rework layouts, add notes; keeps the same slide count
-- **Remix** — reimagine the deck: split, merge, reorder, or rewrite; AI proposes an outline, you preview and apply
-- *Vision* — during Remix, send content images so the AI decides which to keep per slide
+- **Polish** — fix formatting and layouts, improve wording, pick better layouts. Keeps the same slide count and order.
+- **Remix** — reorganize the story: reorder, merge, or rewrite slides. AI proposes an outline, you preview and apply.
+- **Reimagine** — take a bold new direction: change the narrative, slide count, and visual approach.
+- **Options** — choose tone, add speaker notes, send content images to the AI (Remix/Reimagine), or preserve the visual identity.
 
 Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 

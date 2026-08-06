@@ -12,6 +12,7 @@ import { AiPromptComposer } from "./ai-prompt-composer.js";
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
 import generatePrompt from "../prompts/generate-prompt.md?raw";
+import polishPrompt from "../prompts/polish-prompt.md?raw";
 
 const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
 
@@ -19,8 +20,10 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * Build additional instructions suffix from user-provided generate options.
  * Appended to the user prompt so the AI sees the user's preferences.
  * @param {object} opts
- * @param {string} [opts.tone]
- * @param {string} [opts.fidelity] — "polish" | "enhance" | "rewrite"
+ * @param {string} [opts.tone] — "default" | "formal" | "casual" | "technical"
+ * @param {string} [opts.mode] — "polish" | "remix" | "reimagine"
+ * @param {boolean} [opts.addSpeakerNotes]
+ * @param {boolean} [opts.preserveVisualIdentity]
  * @returns {string}
  */
 export function buildGenerateOptionsSuffix(opts = {}) {
@@ -34,19 +37,25 @@ export function buildGenerateOptionsSuffix(opts = {}) {
     };
     if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
   }
-  if (opts.fidelity) {
-    const fidelityMap = {
-      // "polish" is handled by using fix-prompt.md as the user fragment
-      // (buildPolishMessages / buildBatchMessages with fidelity="polish"),
-      // not as a suffix — the fix-prompt already contains the specific
-      // formatting/layout cleanup rules.
-      enhance:
-        "\nFidelity: RESTYLE. Rework text for clarity and conciseness, tighten formatting, and choose better layouts for each slide's content. Add speaker notes where helpful. Keep every slide's core topic and key points, but rephrase and reorganize within the slide freely. Do not reorder slides or change the overall narrative flow. The output must have the same number of slides as the input.",
-      // "rewrite" is handled by the remix two-phase flow in AiOrchestrator,
-      // not as a suffix — it must not reach this function. If it does, return
-      // no suffix so the generate path doesn't append stale instructions.
-    };
-    if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
+  if (opts.addSpeakerNotes) {
+    parts.push(
+      "\nAdd useful speaker notes at the end of each slide that does not already have them.",
+    );
+  } else if (opts.mode === "polish") {
+    // The polish prompt asks to preserve notes unless asked to add them;
+    // this suffix makes the default explicit when the checkbox is off.
+    parts.push(
+      "\nDo not add new speaker notes. Preserve existing notes, but do not create new ones.",
+    );
+  }
+  if (opts.preserveVisualIdentity) {
+    parts.push(
+      "\nPreserve the original theme, colors, backgrounds, and visual language whenever possible.",
+    );
+  } else if (opts.mode === "reimagine") {
+    parts.push(
+      "\nYou may change the theme, colors, backgrounds, and visual language when doing so supports the new direction.",
+    );
   }
   return parts.join("");
 }
@@ -188,9 +197,8 @@ export const BATCH_SIZE = 8;
  * @param {number} endIdx - 0-based index of the last slide (exclusive).
  * @param {number} totalSlides - Total number of slides in the deck.
  * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
- * @param {string} [fidelity] - "polish" | "enhance" | undefined. When "polish",
- *   uses fix-prompt.md as the user fragment (same specific cleanup rules as
- *   single-slide "Clean up slide") instead of generate-prompt.md.
+ * @param {string} [batchMode] - "polish" | undefined. When "polish",
+ *   uses polish-prompt.md (specific cleanup rules) instead of generate-prompt.md.
  * @returns {{ system: string, user: string, original: string }}
  */
 export function buildBatchMessages(
@@ -200,7 +208,7 @@ export function buildBatchMessages(
   endIdx,
   totalSlides,
   deckSummary,
-  fidelity,
+  batchMode,
 ) {
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
@@ -233,10 +241,10 @@ export function buildBatchMessages(
     contentForPrompt = chunk;
   }
 
-  // Polish fidelity uses fix-prompt.md (specific PPTX cleanup rules) even
+  // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
   // prompt fragment.
-  const fragment = mode === "fix" || fidelity === "polish" ? fixPrompt : generatePrompt;
+  const fragment = mode === "fix" || batchMode === "polish" ? polishPrompt : generatePrompt;
   const composer = new AiPromptComposer({
     systemFragment: systemPrompt,
     userFragment: fragment,

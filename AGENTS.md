@@ -131,13 +131,14 @@ export class NewModule {
 
 AI prompts live in [src/data/prompts/](src/data/prompts/):
 
-| File                          | Role     | Purpose                                                             |
-| ----------------------------- | -------- | ------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, structure, formatting                                 |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)    |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)     |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                           |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON |
+| File                          | Role     | Purpose                                                                            |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, structure, formatting                                                |
+| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (execute phase)                |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                    |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                          |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix/Reimagine: analyze deck → output restructuring plan JSON      |
 
 ### AI Module Architecture (Phase 13)
 
@@ -166,7 +167,7 @@ The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused m
 | Module                       | Purpose                                                            |
 | ---------------------------- | ------------------------------------------------------------------ |
 | `ai-dropdown-manager.js`     | AI dropdown in the editor toolbar (Enhance, Add notes, Refine all) |
-| `ai-generate-modal.js`       | Pre-flight modal for whole-deck Refine (fidelity, tone, cost)      |
+| `ai-generate-modal.js`       | Pre-flight modal for whole-deck Refine (mode, tone, options, cost) |
 | `insert-dropdown-manager.js` | Format dropdown in the editor toolbar (Layout, Appearance, Insert) |
 | `dropdown-registry.js`       | Shared registry so Format and AI dropdowns can't overlap           |
 
