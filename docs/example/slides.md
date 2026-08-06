@@ -325,28 +325,29 @@ layout: two-column
 
 Enhance slides individually or across the whole deck using AI.
 
+### Getting Started
+
+1. Set up your AI provider in **Settings** (main menu)
+2. Use the **AI dropdown** in the editor toolbar to **Enhance slide** or **Add speaker notes**
+3. Use **Refine all slides** to tidy up, restyle, or remix the whole deck
+
 ### Single-Slide AI
 
 - **Enhance slide** — cleans up formatting, headers, code blocks, and layout
 - **Add speaker notes** — generates notes without modifying visible content
 - Both are undoable via `Ctrl+Z`
 
-### Refine All Slides
-
-- **Tidy up** — fix formatting and layouts only
-- **Restyle** — reword and rework layouts, add notes
-- **Remix** — two-phase plan→execute restructuring
-- Undoable via `Ctrl+Z`
-
 @media
 
-### Getting Started
+### Refine All Slides
 
-1. Open **Settings** from the main menu
-2. Enter your API key (OpenRouter, OpenAI, Anthropic, Gemini, or local)
-3. Select a model
-4. Use the **AI dropdown** in the editor toolbar for single-slide actions
-5. Use **Refine all slides** for whole-deck processing
+- **Tidy up** — fix formatting and layouts only; preserves wording and slide count
+- **Restyle** — reword and rework layouts, add notes; preserves slide count
+- **Remix** — rebuild the deck with a fresh structure (split, merge, reorder, or rewrite slides):
+  1. AI reviews your deck and proposes a new outline — shown in the sidebar
+  2. Slides the AI leaves alone stay as-is; the rest are rewritten to fit the new outline
+  3. Preview the result, then apply or discard
+- Whole-deck operations are undoable via `Ctrl+Z`
 
 ---
 

@@ -55,6 +55,7 @@ export class AiSidebar {
     const outputEl = panel.querySelector(`.${P}output`);
     const statusEl = panel.querySelector(`.${P}status`);
     const noticeEl = panel.querySelector(`.${P}notice`);
+    const planEl = panel.querySelector(`.${P}plan`);
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
     const closeBtn = panel.querySelector('[data-action="close"]');
     const retryBtn = panel.querySelector('[data-action="retry"]');
@@ -100,6 +101,7 @@ export class AiSidebar {
       noticeEl.hidden = true;
       outputEl.textContent = "";
       outputEl.hidden = false;
+      if (planEl) planEl.hidden = true;
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
       progressInline.hidden = true;
@@ -150,6 +152,43 @@ export class AiSidebar {
       outputEl.scrollTop = outputEl.scrollHeight;
     };
 
+    const renderPlan = (plan, sourceCount) => {
+      if (!planEl) return;
+      planEl.innerHTML = "";
+      const keepCount = plan.filter((e) => e.action === "keep").length;
+      const rewriteCount = plan.filter((e) => e.action === "rewrite").length;
+      const mergeCount = plan.filter((e) => e.action === "merge").length;
+      const parts = [];
+      if (keepCount) parts.push(`${keepCount} keep`);
+      if (rewriteCount) parts.push(`${rewriteCount} rewrite`);
+      if (mergeCount) parts.push(`${mergeCount} merge`);
+      const header = document.createElement("div");
+      header.className = `${P}plan-header`;
+      header.textContent = `Remix plan \u2014 ${plan.length} slides from ${sourceCount} source (${parts.join(", ")})`;
+      planEl.appendChild(header);
+      for (const entry of plan) {
+        const sourceLabel = entry.source.map((s) => s + 1).join("+");
+        const row = document.createElement("div");
+        row.className = `${P}plan-row ${P}plan-row--${entry.action}`;
+        const badge = document.createElement("span");
+        badge.className = `${P}plan-badge ${P}plan-badge--${entry.action}`;
+        badge.textContent = entry.action;
+        const label = document.createElement("span");
+        label.className = `${P}plan-label`;
+        if (entry.action === "keep") {
+          label.textContent = `Slide ${sourceLabel}: ${entry.title}`;
+        } else if (entry.action === "merge") {
+          label.textContent = `Slides ${sourceLabel} \u2192 ${entry.title} \u2014 ${entry.brief || ""}`;
+        } else {
+          label.textContent = `Slide ${sourceLabel}: ${entry.title} \u2014 ${entry.brief || ""}`;
+        }
+        row.appendChild(badge);
+        row.appendChild(label);
+        planEl.appendChild(row);
+      }
+      planEl.hidden = false;
+    };
+
     const updateProgress = (completedSlides, totalSlides, nextBatch) => {
       if (progressCount) progressCount.textContent = `${completedSlides}/${totalSlides}`;
       if (nextBatch) {
@@ -161,6 +200,10 @@ export class AiSidebar {
       outputEl.textContent = "";
       outputEl.hidden = false;
       noticeEl.hidden = true;
+      if (planEl) {
+        planEl.innerHTML = "";
+        planEl.hidden = true;
+      }
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
       headerEl.classList.add(`${P}header--active`);
@@ -175,6 +218,7 @@ export class AiSidebar {
             updateProgress(completedSlides, totalSlides, nextBatch);
           },
           onLog: (message, level) => appendLog(message, level || "info"),
+          onPlan: (plan, sourceCount) => renderPlan(plan, sourceCount),
         });
 
         if (cancelled) {
@@ -421,6 +465,7 @@ export class AiSidebar {
       </div>
       <div class="${P}status">Starting\u2026</div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
+      <div class="${P}plan" hidden></div>
       <div class="${P}output"></div>
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>

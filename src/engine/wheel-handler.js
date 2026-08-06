@@ -53,6 +53,11 @@ export class WheelHandler {
     const markdownEditorArea = e.target.closest("#markdownEditor");
     if (markdownEditorArea) return true;
 
+    // Check if the wheel event is over the AI sidebar panel (it has its own
+    // scrollable output area and should not trigger slide navigation).
+    const aiSidebarPanel = e.target.closest(".ai-sidebar__panel");
+    if (aiSidebarPanel) return true;
+
     return false;
   }
 

@@ -846,6 +846,9 @@ export class AiOrchestrator {
       throw new Error(`Invalid remix plan: ${validation.errors.join("; ")}`);
     }
 
+    // Send the structured plan to the sidebar for a readable summary section.
+    callbacks.onPlan?.(plan, sourceCount);
+
     // Log each plan entry
     for (const entry of plan) {
       const sourceLabel = entry.source.map((s) => s + 1).join("+");
