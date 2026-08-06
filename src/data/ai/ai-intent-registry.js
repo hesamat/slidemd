@@ -51,6 +51,27 @@ function buildGenerateMessages(markdown) {
   });
 }
 
+/**
+ * Build messages for the whole-deck polish (Tidy up) intent.
+ * Uses fix-prompt.md (the same specific PPTX-cleanup rules as single-slide
+ * "Clean up slide") instead of a vague suffix on generate-prompt.md.
+ * Generate-mode frontmatter stripping so the AI can fix layout choices
+ * (layout stripped) while seeing background/theme to preserve them.
+ * @param {string} markdown
+ * @returns {{ system: string, user: string }}
+ */
+export function buildPolishMessages(markdown) {
+  const cleaned = stripFrontmatter(markdown, "generate");
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fixPrompt,
+  });
+  return composer.compose({
+    markdown: cleaned,
+    layoutList: getAllowedLayoutList(),
+  });
+}
+
 const INTENT_BUILDERS = {
   // Single-slide intents — return { system, user } for one slide
   enhanceSlide: (ctx) => buildSingleSlideMessages(fixPrompt, ctx.markdown),

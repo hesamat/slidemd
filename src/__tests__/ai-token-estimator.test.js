@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateMaxTokens } from "../data/ai/ai-token-estimator.js";
+import { estimateMaxTokens, estimateTokenCounts } from "../data/ai/ai-token-estimator.js";
 
 describe("estimateMaxTokens", () => {
   it("returns at least 16000 without reasoning", () => {
@@ -73,5 +73,36 @@ describe("estimateMaxTokens", () => {
     });
     expect(result).toBeGreaterThan(64000);
     expect(result).toBeLessThanOrEqual(384000);
+  });
+});
+
+describe("estimateTokenCounts", () => {
+  it("returns input and output estimates for generate mode", () => {
+    const md = "a".repeat(4000);
+    const { input, output } = estimateTokenCounts(md, "generate");
+    expect(input).toBe(1000); // 4000 chars / 4
+    expect(output).toBe(1800); // 1000 * 1.8
+  });
+
+  it("returns input and output estimates for fix mode", () => {
+    const md = "a".repeat(4000);
+    const { input, output } = estimateTokenCounts(md, "fix");
+    expect(input).toBe(1000);
+    expect(output).toBe(1200); // 1000 * 1.2
+  });
+
+  it("strips frontmatter before counting", () => {
+    const md = "layout: header-content\nbackground: #fff\n@main\n" + "a".repeat(4000);
+    const { input } = estimateTokenCounts(md, "generate");
+    // layout is stripped in generate mode, so input < 4000/4 + overhead
+    expect(input).toBeLessThan(1100);
+    expect(input).toBeGreaterThan(900);
+  });
+
+  it("defaults to generate mode", () => {
+    const md = "a".repeat(4000);
+    const gen = estimateTokenCounts(md, "generate");
+    const def = estimateTokenCounts(md);
+    expect(def).toEqual(gen);
   });
 });

@@ -214,6 +214,43 @@ describe("AiOrchestrator", () => {
       expect(progressCalls[1].completed).toBe(8);
       expect(progressCalls[2].completed).toBe(12);
     });
+
+    it("polish fidelity uses fix-prompt rules (not generate-prompt)", async () => {
+      // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+      // Verify the message sent to the provider includes fix-prompt text.
+      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      await orchestrator.runWholeDeckOperation(op);
+      const userMsg = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(userMsg).toContain("Rejoin split code lines");
+    });
+
+    it("polish fidelity does not append a TIDY UP suffix", async () => {
+      // After removing the polish case from buildGenerateOptionsSuffix, the
+      // message should not contain the old "Fidelity: TIDY UP" suffix.
+      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      await orchestrator.runWholeDeckOperation(op);
+      const userMsg = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(userMsg).not.toContain("Fidelity: TIDY UP");
+    });
+
+    it("enhance fidelity still appends RESTYLE suffix", async () => {
+      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
+      await orchestrator.runWholeDeckOperation(op);
+      const userMsg = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(userMsg).toContain("Fidelity: RESTYLE");
+    });
   });
 
   describe("runWholeDeckOperation (remix)", () => {

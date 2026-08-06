@@ -29,7 +29,8 @@ The system prompt (`system-prompt.md`) defines:
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
 - **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
-- **Allowed layouts**: injected via `{{layoutList}}`
+- **Image handling**: preserve `<img>` tags unless FIDELITY says to drop; use `position: relative` with `left`/`top`/`width` for custom placement
+- **Allowed layouts**: injected via `{{layoutList}}` as a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`)
 
 ## enhanceSlide Intent (fix-prompt.md)
 
@@ -52,8 +53,19 @@ Refines the whole deck's wording, layouts, and structure:
 - Pick the best layout per slide (two-column, focus, table) over defaulting to header-content
 - Use tables for 2-3 item comparisons; two-column for diagrams, code, or dense content
 - Add speaker notes where helpful: `<!-- notes: ... -->`
-- Preserve each slide's `background:` and `theme:` directives from the input
-- Follow the FIDELITY instruction (polish / enhance / rewrite) appended after the prompt for how much to change
+- Preserve `theme:` directives; keep `background:` unless it doesn't fit the restructured content (decorative overlays may be dropped)
+- Preserve `<img>` tags; reposition with `position: relative` + `left`/`top`/`width` for custom placement
+- Drop images that are low quality, redundant, or don't add value
+- PPTX imports: fix mismatched layouts, reposition misplaced images, tighten verbose text
+- Follow the FIDELITY instruction appended after the prompt for how much to change
+
+### Fidelity Levels
+
+| Fidelity            | User fragment                                                  | What it does                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `polish` (Tidy up)  | `fix-prompt.md`                                                | Same specific cleanup rules as single-slide "Clean up slide": rejoin split code, fix bold wrapping, broken links, mismatched layouts. No wording changes. Slide count unchanged. |
+| `enhance` (Restyle) | `generate-prompt.md` + RESTYLE suffix                          | Rework text, pick better layouts, add notes. Slide count unchanged.                                                                                                              |
+| `rewrite` (Remix)   | `remix-plan-prompt.md` (plan) → `generate-prompt.md` (execute) | Two-phase plan→execute. Can merge, reorder, restructure. Slide count may change.                                                                                                 |
 
 ## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
 
@@ -144,6 +156,9 @@ If content exceeds these limits, split across multiple slides or use two-column 
 - Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or other forms
 - Keep image filenames, dimensions, and alt text unchanged
 - Use `src="images/filename.png"` and place in `@media` or `@main` area
+- For custom placement, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag
+- The AI may drop images that are low quality, redundant, or don't add value (per the generate-prompt rules)
+- The AI may change or drop `background:` directives that are decorative overlays and don't fit the restructured content
 
 ## Modification Checklist
 

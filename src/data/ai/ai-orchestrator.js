@@ -12,7 +12,11 @@
 
 import { AiOutputValidator } from "./ai-output-validator.js";
 import { buildRepairMessage } from "./ai-repair-message.js";
-import { buildMessagesForIntent, isSingleSlideIntent } from "./ai-intent-registry.js";
+import {
+  buildMessagesForIntent,
+  buildPolishMessages,
+  isSingleSlideIntent,
+} from "./ai-intent-registry.js";
 import { isSingleSlide } from "./ai-operation.js";
 import {
   buildDeckSummary,
@@ -265,7 +269,12 @@ export class AiOrchestrator {
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const validator = new AiOutputValidator({ inputMarkdown: context });
 
-    const { system, user } = buildMessagesForIntent(intent, { markdown: context });
+    // Polish fidelity uses fix-prompt.md (specific PPTX cleanup rules) as the
+    // user fragment instead of generate-prompt.md with a vague suffix.
+    const { system, user } =
+      operation.opts?.fidelity === "polish"
+        ? buildPolishMessages(context)
+        : buildMessagesForIntent(intent, { markdown: context });
     let messages = [
       { role: "system", content: system },
       { role: "user", content: user + optionsSuffix },
@@ -386,6 +395,7 @@ export class AiOrchestrator {
           reasoningEffort,
           signal,
           repairMessages: repairMessages.get(batch.batchKey) || [],
+          fidelity: operation.opts?.fidelity,
         });
 
         if (batchResult === null) {
@@ -536,6 +546,7 @@ export class AiOrchestrator {
     reasoningEffort,
     signal,
     repairMessages = [],
+    fidelity,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
 
@@ -546,6 +557,7 @@ export class AiOrchestrator {
       batch.end,
       totalSlides,
       deckSummary,
+      fidelity,
     );
 
     const messages = [

@@ -95,6 +95,15 @@ describe("buildDeckSummary", () => {
     expect(summary).toContain("Deck: 1 slides");
     expect(summary).toContain("1. [title-slide] Welcome");
   });
+
+  it("does not split on `---` inside code blocks", () => {
+    const md =
+      "layout: header-content\n@header\n## Slide 1\n\n@main\n```\n---\n```\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item";
+    const summary = buildDeckSummary(md);
+    expect(summary).toContain("Deck: 2 slides");
+    expect(summary).toContain("1. [header-content] Slide 1");
+    expect(summary).toContain("2. [header-content] Slide 2");
+  });
 });
 
 describe("buildBatchMessages", () => {
@@ -165,6 +174,20 @@ describe("buildBatchMessages", () => {
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12);
     expect(user).toContain("Return exactly 4 slide(s)");
   });
+
+  it("polish fidelity uses fix-prompt fragment in generate mode", () => {
+    // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "polish");
+    expect(user).toContain("Rejoin split code lines");
+    // Still uses generate-mode pagination (not fix-mode CRITICAL instruction)
+    expect(user).toContain("Return exactly 4 slide(s)");
+  });
+
+  it("enhance fidelity uses generate-prompt fragment", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "enhance");
+    expect(user).toContain("Refine this SlideMD presentation");
+    expect(user).not.toContain("Rejoin split code lines");
+  });
 });
 
 describe("getAllowedLayoutList", () => {
@@ -174,10 +197,16 @@ describe("getAllowedLayoutList", () => {
     expect(list).toContain("title-slide");
   });
 
-  it("contains a markdown table header", () => {
+  it("lists allowed areas per layout in a compact format", () => {
     const list = getAllowedLayoutList();
-    expect(list).toContain("| Layout |");
     expect(list).toContain("@main");
+    // two-column should list @media but NOT @secondary
+    expect(list).toMatch(/two-column:.*@media/);
+    expect(list).not.toMatch(/two-column:.*@secondary/);
+    // three-column should list @secondary
+    expect(list).toMatch(/three-column:.*@secondary/);
+    // full-image should only have @main
+    expect(list).toMatch(/full-image: @main$/);
   });
 });
 

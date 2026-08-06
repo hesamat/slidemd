@@ -54,6 +54,17 @@
 - **OpenAI model discovery** — restored to `isModelSearchProvider` so Fetch models and reasoning cross-reference work again.
 - **Remix directive injection** — remix path no longer calls `injectDirectives` positionally (it intentionally reorders/splits/merges); non-remix generate only gap-fills when the output slide count matches the input.
 
+### Prompt & Modal Improvements (PPTX-focused)
+
+- **Polish fidelity uses fix-prompt.md** — "Tidy up" now applies the same specific PPTX cleanup rules as single-slide "Clean up slide" (rejoin split code lines, remove bold wrapping, fix broken links/lists/tables, downgrade mismatched layouts) instead of a vague "fix formatting" suffix on `generate-prompt.md`.
+- **Image handling guidance** — system and generate prompts now instruct the AI to preserve `<img>` tags, reposition images with `position: relative` + `left`/`top`/`width` for custom placement, and drop low-quality or redundant images.
+- **PPTX-aware guidance** — `generate-prompt.md` now tells the AI to fix mismatched layouts, reposition misplaced images, and tighten verbose text when the input appears to be from a PPTX import.
+- **Conditional background preservation** — the AI may now change or drop `background:` directives that are decorative overlays or don't fit the restructured content (previously unconditional). `theme:` is still preserved.
+- **Token estimate in modal** — the pre-flight "Refine all slides" modal now shows a rough input/output token estimate alongside slide count and API call count.
+- **`buildDeckSummary` fence-aware** — uses `MarkdownParser.splitSlides` instead of naive `split(/\n---\n/)` so `---` inside code blocks doesn't create phantom slides in the deck outline.
+- **Layout list format** — replaced the wide 8-column cross-reference table with a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`). The table format was hard for the AI to scan accurately — it frequently used `@secondary` for `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
+- Total tests now **744**.
+
 ## 0.8.0 (2026-08-05)
 
 ### Deck Store & Patches

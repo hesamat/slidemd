@@ -36,8 +36,10 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   }
   if (opts.fidelity) {
     const fidelityMap = {
-      polish:
-        "\nFidelity: TIDY UP. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides. The output must have the same number of slides as the input.",
+      // "polish" is handled by using fix-prompt.md as the user fragment
+      // (buildPolishMessages / buildBatchMessages with fidelity="polish"),
+      // not as a suffix — the fix-prompt already contains the specific
+      // formatting/layout cleanup rules.
       enhance:
         "\nFidelity: RESTYLE. Rework text for clarity and conciseness, tighten formatting, and choose better layouts for each slide's content. Add speaker notes where helpful. Keep every slide's core topic and key points, but rephrase and reorganize within the slide freely. Do not reorder slides or change the overall narrative flow. The output must have the same number of slides as the input.",
       // "rewrite" is handled by the remix two-phase flow in AiOrchestrator,
@@ -49,30 +51,26 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   return parts.join("");
 }
 
-function areaStatus(layout, area, allowedAreas) {
-  if (!allowedAreas.includes(area)) return "no";
-  if (area === "title") return "yes";
-  if (area === "main") return "yes";
-  if (area === "media" || area === "secondary" || area === "sidebar") return "yes";
-  if (area === "header" || area === "footer") {
-    return layout === "title-slide" && area === "footer" ? "yes" : "optional";
-  }
-  return "yes";
-}
-
+/**
+ * Build the layout list injected into the system prompt.
+ *
+ * Uses a per-layout line format (`layout: @area1, @area2, ...`) rather than a
+ * wide cross-reference table. The table format (8 columns × 12 rows) was hard
+ * for the AI to scan accurately — it frequently used `@secondary` for
+ * `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
+ * The per-layout format makes each layout's allowed areas unambiguous.
+ *
+ * @returns {string}
+ */
 export function getAllowedLayoutList() {
   const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
-  const rows = ["| Layout | @title | @header | @main | @media | @secondary | @sidebar | @footer |"];
-  rows.push("|---|---|---|---|---|---|---|---|");
+  const lines = [];
   for (const layout of layouts) {
     const allowedAreas = LayoutData.getAreaNames(layout);
-    const cells = [layout];
-    for (const area of ALLOWED_AREAS) {
-      cells.push(areaStatus(layout, area, allowedAreas));
-    }
-    rows.push(`| ${cells.join(" | ")} |`);
+    const areaTags = ALLOWED_AREAS.filter((a) => allowedAreas.includes(a)).map((a) => `@${a}`);
+    lines.push(`${layout}: ${areaTags.join(", ")}`);
   }
-  return rows.join("\n");
+  return lines.join("\n");
 }
 
 /**
@@ -145,7 +143,10 @@ export function buildMessages(markdown, mode) {
  * @returns {string}
  */
 export function buildDeckSummary(markdown) {
-  const slides = markdown.split(/\n---\n/);
+  // Fence-aware split so `---` inside code blocks doesn't create phantom
+  // slides and misalign the outline (same fix as buildBatchMessages /
+  // extractDirectives / injectDirectives).
+  const slides = new MarkdownParser().splitSlides(markdown);
   const titles = slides.map((slide, i) => {
     const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
     const layout = layoutMatch?.[1]?.trim() || "header-content";
@@ -187,9 +188,20 @@ export const BATCH_SIZE = 8;
  * @param {number} endIdx - 0-based index of the last slide (exclusive).
  * @param {number} totalSlides - Total number of slides in the deck.
  * @param {string} [deckSummary] - Pre-generated deck summary (generate mode only).
+ * @param {string} [fidelity] - "polish" | "enhance" | undefined. When "polish",
+ *   uses fix-prompt.md as the user fragment (same specific cleanup rules as
+ *   single-slide "Clean up slide") instead of generate-prompt.md.
  * @returns {{ system: string, user: string, original: string }}
  */
-export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides, deckSummary) {
+export function buildBatchMessages(
+  markdown,
+  mode,
+  startIdx,
+  endIdx,
+  totalSlides,
+  deckSummary,
+  fidelity,
+) {
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
   // phantom slides and misalign indices with the orchestrator's slide list.
@@ -221,7 +233,10 @@ export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides
     contentForPrompt = chunk;
   }
 
-  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
+  // Polish fidelity uses fix-prompt.md (specific PPTX cleanup rules) even
+  // in generate mode — the mode controls frontmatter stripping, not the
+  // prompt fragment.
+  const fragment = mode === "fix" || fidelity === "polish" ? fixPrompt : generatePrompt;
   const composer = new AiPromptComposer({
     systemFragment: systemPrompt,
     userFragment: fragment,

@@ -29,3 +29,18 @@ export function estimateMaxTokens(markdown, mode, opts) {
   const floor = effort === "none" || effort === "low" ? 16000 : 24000;
   return Math.min(Math.max(floor, estimated), opts?.modelMaxOutput || 128000);
 }
+
+/**
+ * Rough input/output token estimate for the pre-flight cost display.
+ * Uses the same ~4 chars/token heuristic as estimateMaxTokens.
+ * @param {string} markdown - The original markdown.
+ * @param {"fix"|"generate"} mode - Enhancement mode.
+ * @returns {{ input: number, output: number }}
+ */
+export function estimateTokenCounts(markdown, mode = "generate") {
+  const cleaned = stripFrontmatter(markdown, mode);
+  const input = Math.ceil(cleaned.length / 4);
+  const multiplier = mode === "generate" ? 1.8 : 1.2;
+  const output = Math.ceil(input * multiplier);
+  return { input, output };
+}

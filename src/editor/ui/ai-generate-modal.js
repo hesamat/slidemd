@@ -9,6 +9,7 @@
  */
 
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
+import { estimateTokenCounts } from "../../data/ai/ai-token-estimator.js";
 import { escapeHtml } from "../../core/utils.js";
 
 const P = "ai-generate-modal__";
@@ -34,6 +35,10 @@ export class AiGenerateModal {
 
       const slideCount = splitSlidesForAi(markdown, "generate").length;
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
+      const { input: inputTokens, output: outputTokens } = estimateTokenCounts(
+        markdown,
+        "generate",
+      );
 
       const fidelityOptions = `<option value="polish">Tidy up — fix formatting and layouts only</option>
 <option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>
@@ -70,6 +75,10 @@ export class AiGenerateModal {
           <div class="${P}cost-row">
             <span>Estimated API calls</span>
             <span>${batchCount}</span>
+          </div>
+          <div class="${P}cost-row">
+            <span>Estimated tokens</span>
+            <span>~${inputTokens.toLocaleString()} in / ~${outputTokens.toLocaleString()} out</span>
           </div>
           <div class="${P}cost-row" id="${P}model-row">
             <span>Model</span>
