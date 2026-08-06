@@ -161,7 +161,7 @@ export class AiGenerateModal {
         remix:
           "Reorganize the story: reorder, merge, or rewrite slides. The AI proposes a plan, then you preview and apply it.",
         reimagine:
-          "Take a bold new direction. The AI can change the narrative structure, slide count, and visual approach.",
+          "Take a bold new direction. The AI can rethink the topic, examples, notes, and visuals, producing a fresh deck while preserving only the core message.",
       };
 
       const updateModeUI = () => {
@@ -173,11 +173,10 @@ export class AiGenerateModal {
         // Vision: only for remix/reimagine, and only when the deck has images.
         visionRow.style.display = isRemixOrReimagine && hasImages ? "" : "none";
 
-        // Visual identity: only for remix/reimagine. Default on for remix,
-        // off for reimagine — but remember the user's explicit choice.
-        identityRow.style.display = isRemixOrReimagine ? "" : "none";
-        if (isRemixOrReimagine) {
-          identityToggle.checked = mode === "remix";
+        // Visual identity: only for remix. Reimagine always discards it.
+        identityRow.style.display = mode === "remix" ? "" : "none";
+        if (mode === "remix") {
+          identityToggle.checked = true;
         }
       };
       modeSelect.addEventListener("change", updateModeUI);
@@ -192,8 +191,7 @@ export class AiGenerateModal {
           (mode === "remix" || mode === "reimagine") && hasImages && visionToggle?.checked;
         const addSpeakerNotes = notesToggle?.checked || false;
         const preserveVisualIdentity =
-          mode === "polish" ||
-          ((mode === "remix" || mode === "reimagine") && identityToggle?.checked);
+          mode === "polish" || (mode === "remix" && identityToggle?.checked);
 
         close({
           mode,

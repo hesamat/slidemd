@@ -25,6 +25,7 @@ import {
   BATCH_SIZE,
   splitSlidesForAi,
   getAllowedLayoutList,
+  stripThemeAndBackground,
 } from "./ai-prompt-builder.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
@@ -694,16 +695,21 @@ export class AiOrchestrator {
       }
     }
 
-    onLog?.("Planning deck restructure\u2026");
+    const mode = operation.opts?.mode || "remix";
+    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? mode === "remix";
+    const planContext = preserveVisualIdentity ? context : stripThemeAndBackground(context);
+
+    onLog?.(`Planning ${mode} restructure\u2026`);
     const plan = await this.#runRemixPlan(operation, signal, callbacks, slideImages);
 
     // "keep" entries must never be sent to the execute call — the generate
     // prompt has no way to distinguish "leave this slide untouched" from a
     // normal slide, so a `keep` entry would still get reworded/re-laid-out.
-    // Instead, splice the original slide (full directives intact) back into
-    // its planned position after the execute call runs on everything else.
-    // Raw (non-frontmatter-stripped) split so layout/background/theme survive.
-    const rawSourceSlides = splitSlides(context);
+    // Instead, splice the original slide back into its planned position after
+    // the execute call runs on everything else. For reimagine (or when visual
+    // identity is off), strip the original theme/background so the result is
+    // not anchored to the old visual style.
+    const rawSourceSlides = splitSlides(planContext);
     const keptByPlanIndex = new Map();
     const rewriteEntries = [];
     plan.forEach((entry, i) => {
@@ -715,7 +721,7 @@ export class AiOrchestrator {
     });
 
     onLog?.(
-      `Plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides (${keptByPlanIndex.size} kept as-is)`,
+      `${mode} plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides (${keptByPlanIndex.size} kept as-is)`,
     );
 
     if (rewriteEntries.length === 0) {
@@ -727,7 +733,7 @@ export class AiOrchestrator {
     // Only honour keepImages when images were actually sent to the plan AI —
     // in a text-only remix the model never saw any pictures, so a
     // hallucinated keepImages array must not be allowed to delete images.
-    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, context, slideImages);
+    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, planContext, slideImages);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
 
@@ -741,7 +747,7 @@ export class AiOrchestrator {
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
 
-    onLog?.(`Generating ${virtualCount} slide(s)\u2026`);
+    onLog?.(`Generating ${virtualCount} slide(s) for ${mode}\u2026`);
     const result =
       virtualCount <= BATCH_SIZE
         ? await this.#runWholeDeckSingleCall(execOp, signal, execSuffix, callbacks, virtualCount)
@@ -756,13 +762,12 @@ export class AiOrchestrator {
 
     if (!result) return result;
 
-    // Remix intentionally reorders/splits/merges slides, so positional
+    // Remix/reimagine intentionally reorders/splits/merges slides, so positional
     // directive injection would attach backgrounds/themes to the wrong
-    // slides. The virtual deck already carries the original directives in
-    // its source slides, and the AI sees them in generate mode — the
-    // rewritten slides are used as-is so any styling the AI kept or chose
-    // is preserved. Raw (non-stripped) split so the AI's own layout/theme
-    // choices survive re-splicing.
+    // slides. The virtual deck and kept source slides already carry the
+    // appropriate directives (preserved for remix, stripped for reimagine), and
+    // the AI sees them in generate mode — the rewritten slides are used as-is
+    // so any styling the AI kept or chose survives re-splicing.
     const rewrittenSlides = splitSlides(result);
     let rewriteIdx = 0;
     const finalSlides = plan.map((_, i) =>
@@ -788,6 +793,7 @@ export class AiOrchestrator {
     const { onLog } = callbacks;
 
     const deckSummary = buildDeckSummary(context);
+    const sourceCount = splitSlidesForAi(context, "generate").length;
     const composer = new AiPromptComposer({
       systemFragment: systemPrompt,
       userFragment: remixPlanPrompt,
@@ -796,19 +802,21 @@ export class AiOrchestrator {
     const mode = operation.opts?.mode || "remix";
     const creativeGuidance =
       mode === "reimagine"
-        ? "Take a bold editorial approach. You may substantially change the narrative progression, grouping, slide count, and visual direction when that creates a clearer presentation. Preserve factual meaning and important user intent, but do not preserve the original structure merely for the sake of the original."
+        ? "Take a bold editorial approach. You may rethink the topic, examples, notes, and visuals. Substantially change the narrative progression, grouping, slide count, and visual direction when that creates a clearer, more compelling presentation. Preserve the user's core intent and factual accuracy, but do not preserve the original structure, topics, examples, or speaker notes merely for the sake of the original."
         : "Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.";
 
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? mode === "remix";
     const visualIdentityGuidance = preserveVisualIdentity
       ? "Preserve the original theme, colors, backgrounds, and visual language whenever possible."
-      : "You may change the theme, colors, backgrounds, and visual language when doing so supports the new direction.";
+      : "Do not preserve the original theme, colors, backgrounds, or visual language. You may introduce a new visual direction that supports the restructured deck.";
 
     const composeArgs = {
       markdown: deckSummary,
       layoutList: getAllowedLayoutList(),
       creativeGuidance,
       visualIdentityGuidance,
+      sourceCount: sourceCount.toString(),
+      maxSourceIndex: (sourceCount - 1).toString(),
     };
     const { system, user } = composer.compose({
       ...composeArgs,
@@ -901,14 +909,14 @@ export class AiOrchestrator {
     }
 
     const plan = this.#parsePlanResponse(response.content);
-    const sourceCount = splitSlidesForAi(context, "generate").length;
     const validation = this.#validatePlan(plan, sourceCount);
     if (!validation.ok) {
-      throw new Error(`Invalid remix plan: ${validation.errors.join("; ")}`);
+      const label = mode ? `${mode} plan` : "remix plan";
+      throw new Error(`Invalid ${label}: ${validation.errors.join("; ")}`);
     }
 
     // Send the structured plan to the sidebar for a readable summary section.
-    callbacks.onPlan?.(plan, sourceCount);
+    callbacks.onPlan?.(plan, sourceCount, mode);
 
     // Log each plan entry
     for (const entry of plan) {

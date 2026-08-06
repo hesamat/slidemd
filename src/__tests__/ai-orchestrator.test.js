@@ -362,6 +362,7 @@ describe("AiOrchestrator", () => {
       ).content;
       expect(planUser).toContain("Preserve the deck's core message");
       expect(planUser).toContain("Preserve the original theme");
+      expect(planUser).toContain("valid source indices are 0 through 1");
     });
 
     it("routes to remix for mode=reimagine", async () => {
@@ -380,12 +381,12 @@ describe("AiOrchestrator", () => {
       const result = await orchestrator.runWholeDeckOperation(op);
       expect(result).toContain("Slide 1");
       expect(result).toContain("Slide 2");
-      // The plan prompt should mention bold approach and allow visual changes
+      // The plan prompt should explicitly allow rethinking content and visuals
       const planUser = provider.chat.mock.calls[0][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(planUser).toContain("Take a bold editorial approach");
-      expect(planUser).toContain("You may change the theme");
+      expect(planUser).toContain("rethink the topic, examples, notes, and visuals");
+      expect(planUser).toContain("Do not preserve the original theme");
     });
 
     it("throws on invalid plan action", async () => {

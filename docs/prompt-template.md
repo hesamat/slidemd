@@ -71,10 +71,10 @@ Refines the whole deck while preserving structure and visual identity:
 
 Both use `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) that is converted to a virtual deck and sent through the generate path.
 
-| Mode        | Creative freedom | Visual identity | Slide count | Plan guidance                                                                                   |
-| ----------- | ---------------- | --------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `remix`     | Moderate         | Preserved       | May change  | Reorganize for clarity; keep good slides; use `merge` thoughtfully.                             |
-| `reimagine` | Bold             | Optional        | May change  | Take a bold editorial approach; change narrative progression, grouping, and visual when useful. |
+| Mode        | Creative freedom | Visual identity | Slide count | Plan guidance                                                                                                    |
+| ----------- | ---------------- | --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `remix`     | Moderate         | Preserved       | May change  | Reorganize for clarity; keep good slides; use `merge` thoughtfully.                                              |
+| `reimagine` | Bold             | Not preserved   | May change  | Take a bold editorial approach; rethink topic, examples, notes, and visuals while keeping core intent and facts. |
 
 ### Modal Options
 
@@ -84,7 +84,7 @@ The pre-flight modal returns:
 - `tone` — `default`, `formal`, `casual`, `technical`
 - `addSpeakerNotes` — add notes to slides that don't have them
 - `includeImages` — send content images to the plan AI (Remix/Reimagine only, only when images exist)
-- `preserveVisualIdentity` — keep theme, colors, backgrounds (default on for Remix, off for Reimagine)
+- `preserveVisualIdentity` — keep theme, colors, backgrounds (Remix only; hidden for Reimagine, which always discards visual identity)
 
 ### Vision-Augmented Planning
 

@@ -152,9 +152,12 @@ export class AiSidebar {
       outputEl.scrollTop = outputEl.scrollHeight;
     };
 
-    const renderPlan = (plan, sourceCount) => {
+    const renderPlan = (plan, sourceCount, mode) => {
       if (!planEl) return;
       planEl.innerHTML = "";
+      const planLabel = mode
+        ? `${mode.charAt(0).toUpperCase() + mode.slice(1)} plan`
+        : "Remix plan";
       const keepCount = plan.filter((e) => e.action === "keep").length;
       const rewriteCount = plan.filter((e) => e.action === "rewrite").length;
       const mergeCount = plan.filter((e) => e.action === "merge").length;
@@ -174,7 +177,7 @@ export class AiSidebar {
       headerIcon.textContent = "\u25BC";
       const headerText = document.createElement("span");
       headerText.className = `${P}plan-header-text`;
-      headerText.textContent = `Remix plan \u2014 ${summary}`;
+      headerText.textContent = `${planLabel} \u2014 ${summary}`;
       header.appendChild(headerIcon);
       header.appendChild(headerText);
 
@@ -243,7 +246,7 @@ export class AiSidebar {
             updateProgress(completedSlides, totalSlides, nextBatch);
           },
           onLog: (message, level) => appendLog(message, level || "info"),
-          onPlan: (plan, sourceCount) => renderPlan(plan, sourceCount),
+          onPlan: (plan, sourceCount, mode) => renderPlan(plan, sourceCount, mode),
         });
 
         if (cancelled) {

@@ -88,8 +88,8 @@ Both are undoable via `Ctrl+Z`.
 
 - **Polish** — fix formatting and layouts, improve wording, and pick better layouts. Keeps the slide count and order.
 - **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (keep/rewrite/merge), then the execute phase generates the new deck. Moderate creative freedom; preserves visual identity by default.
-- **Reimagine** — same two-phase flow, with more freedom to change the narrative, slide count, and visual direction.
-- Options include tone, adding speaker notes, sending slide images to the AI for visual decisions, and preserving visual identity (theme, colors, backgrounds).
+- **Reimagine** — same two-phase flow, with the freedom to rethink the topic, examples, notes, and visuals for a fresh deck.
+- Options include tone, adding speaker notes, sending slide images to the AI for visual decisions, and preserving visual identity for Remix (Reimagine always discards it).
 - Whole-deck refine is undoable via `Ctrl+Z` (uses `DeckStore.replaceDeck`).
 
 The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — see [docs/prompt-template.md](docs/prompt-template.md) for the prompt structure.

@@ -8,6 +8,7 @@ import {
   splitSlidesForAi,
   BATCH_SIZE,
   stripFrontmatter,
+  stripThemeAndBackground,
 } from "../data/ai/ai-prompt-builder.js";
 
 describe("buildMessages", () => {
@@ -216,9 +217,28 @@ describe("buildGenerateOptionsSuffix", () => {
     expect(suffix).toContain("Preserve the original theme");
   });
 
-  it("allows visual changes for reimagine", () => {
+  it("tells reimagine to discard visual identity", () => {
     const suffix = buildGenerateOptionsSuffix({ mode: "reimagine", preserveVisualIdentity: false });
-    expect(suffix).toContain("may change the theme");
+    expect(suffix).toContain("Do not preserve the original theme");
+    expect(suffix).toContain("You may introduce new `theme:`");
+  });
+});
+
+describe("stripThemeAndBackground", () => {
+  it("removes theme and background but keeps layout", () => {
+    const md = "layout: header-content\nbackground: #fff\ntheme: dark\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("layout: header-content");
+    expect(result).not.toContain("background: #fff");
+    expect(result).not.toContain("theme: dark");
+    expect(result).toContain("@main");
+  });
+
+  it("leaves code fences untouched", () => {
+    const md = "```yaml\ntheme: dark\n```\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("@main");
   });
 });
 

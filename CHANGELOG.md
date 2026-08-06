@@ -7,14 +7,18 @@
 - **New mode selector** — the "Refine all slides" modal now offers three modes:
   - **Polish** — fix formatting, improve wording, pick better layouts; keeps slide count and order.
   - **Remix** — two-phase plan→execute flow with moderate creative freedom; preserves visual identity by default.
-  - **Reimagine** — same two-phase flow with bold creative freedom; visual identity off by default.
+  - **Reimagine** — same two-phase flow with bold creative freedom; can rethink topic, examples, notes, and visuals. Visual identity is not preserved and the checkbox is hidden.
 - **Add speaker notes** — now an explicit checkbox for all three modes instead of being bundled into "Restyle".
-- **Preserve visual identity** — new checkbox for Remix/Reimagine; controls whether the AI keeps the original theme, colors, and backgrounds.
+- **Preserve visual identity** — checkbox for Remix only; controls whether the AI keeps the original theme, colors, and backgrounds. Reimagine always discards visual identity.
 - **Vision checkbox** — now available for both Remix and Reimagine, and only appears when the deck has content images.
 - Replace the old `fidelity` (`polish`/`enhance`/`rewrite`) option with a single `mode` (`polish`/`remix`/`reimagine`) and explicit boolean options.
 - Add `polish-prompt.md` — focused whole-deck prompt that combines formatting cleanup with layout and wording improvement while preserving structure.
 - Update `remix-plan-prompt.md` with mode-aware `{{creativeGuidance}}` and `{{visualIdentityGuidance}}` placeholders and relaxed structural rules (reordering allowed; no arbitrary slide-count cap).
 - Update `generate-prompt.md` and `ai-prompt-builder.js#buildGenerateOptionsSuffix` to use the new `mode`, `addSpeakerNotes`, and `preserveVisualIdentity` options.
+- Add `{{sourceCount}}` and `{{maxSourceIndex}}` placeholders to `remix-plan-prompt.md` so the plan AI knows the exact valid 0-based source range and is less likely to emit out-of-range indices.
+- Remove unconditional theme/background preservation from `generate-prompt.md`. Visual identity is now controlled by the mode-aware options suffix.
+- Add `stripThemeAndBackground()` helper and strip original `theme:`/`background:` directives from the Reimagine virtual deck and kept slides so the result is not anchored to the old visual style.
+- Make sidebar plan header and orchestrator logs mode-aware (`Remix plan`, `Reimagine plan`, etc.).
 
 ### Vision-Augmented Remix
 
@@ -28,7 +32,7 @@
 - Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
 - Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
 - Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
-- Total tests now **828**.
+- Total tests now **830**.
 
 ## 0.9.0 (2026-08-06)
 

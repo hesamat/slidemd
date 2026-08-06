@@ -36,7 +36,7 @@ Rules:
   - `keep` — the slide is already good; copy it as-is. `brief` should be empty.
   - `rewrite` — rework one slide's content. `source` must have exactly 1 index.
   - `merge` — combine multiple slides into one. `source` must have 2 or more indices.
-- `source` indices are 0-based into the original deck.
+- `source` indices are 0-based into the original deck. The deck has {{sourceCount}} source slides, so valid source indices are 0 through {{maxSourceIndex}} inclusive. The outline above is numbered from 1 for readability, but the index for the first source slide is 0 and the last source slide is {{maxSourceIndex}}.
 - `brief` is a one-sentence description of what the output slide should contain. Required for `rewrite` and `merge`; empty for `keep`.
 - `title` is a short label for the slide (used for display, not sent to the generator).
 - `keepImages` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit `keepImages` entirely — do not guess it.

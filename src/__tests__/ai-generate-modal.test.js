@@ -84,14 +84,14 @@ describe("AiGenerateModal", () => {
     expect(result.preserveVisualIdentity).toBe(true);
   });
 
-  it("unchecks preserve visual identity by default for reimagine", async () => {
+  it("hides visual identity for reimagine and forces it off", async () => {
     const promise = AiGenerateModal.show(BASIC_MD);
     const dialog = document.querySelector(".ai-generate-modal__dialog");
     const modeSelect = dialog.querySelector("#ai-generate-modal__mode");
     modeSelect.value = "reimagine";
     modeSelect.dispatchEvent(new Event("change"));
-    const identityToggle = dialog.querySelector("#ai-generate-modal__identity-toggle");
-    expect(identityToggle.checked).toBe(false);
+    const identityRow = dialog.querySelector("#ai-generate-modal__identity-row");
+    expect(identityRow.style.display).toBe("none");
     const generateBtn = dialog.querySelector('[data-action="generate"]');
     generateBtn.click();
     const result = await promise;

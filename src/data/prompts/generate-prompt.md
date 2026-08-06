@@ -7,11 +7,10 @@ Content strategy:
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
-- Preserve each slide's `theme:` directive. Keep `background:` directives unless they don't fit the restructured content — you may change or drop backgrounds that are decorative overlays or don't match the slide's purpose.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
-- Follow the FIDELITY instruction that follows this prompt for whether to polish, improve, or rewrite.
+- Follow the mode and visual-identity instructions that follow this prompt.
 
 Success criteria:
 

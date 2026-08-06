@@ -50,11 +50,11 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   }
   if (opts.preserveVisualIdentity) {
     parts.push(
-      "\nPreserve the original theme, colors, backgrounds, and visual language whenever possible.",
+      "\nPreserve the original theme, colors, backgrounds, and visual language whenever possible. Keep each slide's existing `theme:` and `background:` directives unless they clearly do not fit the restructured content.",
     );
-  } else if (opts.mode === "reimagine") {
+  } else if (opts.preserveVisualIdentity === false) {
     parts.push(
-      "\nYou may change the theme, colors, backgrounds, and visual language when doing so supports the new direction.",
+      "\nDo not preserve the original theme, colors, backgrounds, or visual language. You may introduce new `theme:` and `background:` directives that support the new direction, or omit them entirely.",
     );
   }
   return parts.join("");
@@ -71,6 +71,39 @@ export function buildGenerateOptionsSuffix(opts = {}) {
  *
  * @returns {string}
  */
+/**
+ * Strip `theme:` and `background:` directives from markdown.
+ * Only replaces directives outside fenced code blocks.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function stripThemeAndBackground(markdown) {
+  const lines = markdown.split("\n");
+  const result = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^```/.test(line.trim())) {
+      inFence = !inFence;
+      result.push(line);
+      continue;
+    }
+    if (inFence) {
+      result.push(line);
+      continue;
+    }
+    if (/^(theme|background):\s*.*$/.test(line)) {
+      result.push("");
+      continue;
+    }
+    result.push(line);
+  }
+  return result
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function getAllowedLayoutList() {
   const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
   const lines = [];
