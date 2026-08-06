@@ -156,8 +156,17 @@ The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused m
 | `ai-output-schema.js`    | Per-intent schemas (min/max slides, layout requirements)           |
 | `ai-prompt-composer.js`  | Compose system + user prompts from fragments with {{placeholders}} |
 | `ai-repair-message.js`   | Build repair messages for validation failures                      |
-| `ai-provider-client.js`  | OpenAI-compatible API client                                       |
+| `ai-provider-client.js`  | OpenAI-compatible API client with retry and error sanitization     |
 | `ai-provider-factory.js` | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)      |
+
+### Editor UI Modules
+
+| Module                       | Purpose                                                            |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `ai-dropdown-manager.js`     | AI dropdown in the editor toolbar (Enhance, Add notes, Refine all) |
+| `ai-generate-modal.js`       | Pre-flight modal for whole-deck Refine (fidelity, tone, cost)      |
+| `insert-dropdown-manager.js` | Format dropdown in the editor toolbar (Layout, Appearance, Insert) |
+| `dropdown-registry.js`       | Shared registry so Format and AI dropdowns can't overlap           |
 
 ### Prompt Rules
 

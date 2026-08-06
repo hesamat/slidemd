@@ -69,16 +69,29 @@ node tools/dev-server.mjs slides.md  # open the deck
 # Then use the export menu to create a .textpack
 ```
 
-### PPTX Import with AI Post-Processing
+### PPTX Import
 
-Import PowerPoint files via **Menu → Import PPTX**. The import extracts text, images, and layouts from `.pptx` files and converts them to SlideMD format.
+Import PowerPoint files via **Menu → Import PPTX**. The import extracts text, images, and layouts from `.pptx` files and converts them to SlideMD format. Import is instant — no AI processing is done during import. Use the AI editing features (below) to refine slides afterward.
 
-After import, you can optionally post-process with AI:
+### AI Editing
 
-- **Fix Issues** — AI cleans up formatting, headers, code blocks, and common extraction problems
-- **AI Inspiration** — AI reorganizes and redesigns the entire presentation with better flow, layouts, and Mermaid diagrams
+SlideMD includes built-in AI editing features for refining slides individually or across the whole deck. To use them, configure an API key in **Settings** (supports OpenRouter, OpenAI, Anthropic, Gemini, Ollama, LM Studio, and custom endpoints).
 
-To use AI features, configure an API key in **Settings** (OpenRouter). The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — three separate prompt files for system rules, fix mode, and generate mode.
+**Single-slide AI** (AI dropdown in the editor toolbar):
+
+- **Enhance slide** — cleans up formatting, headers, code blocks, and layout without changing content.
+- **Add speaker notes** — generates speaker notes for the current slide without modifying visible content.
+
+Both are undoable via `Ctrl+Z`.
+
+**Whole-deck AI** ("Refine all slides" in the AI dropdown):
+
+- **Tidy up** — fix formatting and layouts only across all slides.
+- **Restyle** — reword and rework layouts, add speaker notes.
+- **Remix** — two-phase plan→execute flow: a planning call produces a restructuring plan (keep/rewrite/merge), then the execute phase generates the new deck. Available for decks of any size.
+- Whole-deck refine is undoable via `Ctrl+Z` (uses `DeckStore.replaceDeck`).
+
+The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — see [docs/prompt-template.md](docs/prompt-template.md) for the prompt structure.
 
 ## Repository Layout
 
@@ -86,8 +99,9 @@ To use AI features, configure an API key in **Settings** (OpenRouter). The AI be
 - `deck.js` - deck runtime (rendering, navigation, presenter UI)
 - `docs/example/slides.md` - example deck (diffable in git)
 - `docs/example/images/` - example images
-- `docs/prompt-template.md` - SlideMD syntax and layout guide
-- `src/data/prompts/` - AI prompt files (system, fix, generate)
+- `docs/prompt-template.md` - SlideMD syntax, layout guide, and AI prompt structure
+- `src/data/prompts/` - AI prompt files (system, fix, generate, add-speaker-notes, remix-plan)
+- `src/data/ai/` - AI orchestrator and focused modules (provider client, validator, directive utils, etc.)
 - `tools/` - build and export scripts
 - `tools/dev-server.mjs` - CLI dev server
 - `dist/slides.html` - generated single-file deck (build output)

@@ -411,18 +411,18 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 | Task                       | Details                                                                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [x] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
-| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `addSpeakerNotes`, `generate`).                                                           |
+| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `addSpeakerNotes`, `generate`).                                                                        |
 | [x] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
 
 ### Single-Slide AI Editing
 
-| Task                                                  | Details                                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [x] Add `enhanceSlide(slideMarkdown, intent)`         | Build a prompt containing one slide Markdown string and an intent string.                         |
-| [x] Instruct the LLM to output one slide              | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
-| [x] Validate the response with `MarkdownParser`       | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
-| [x] Patch by index via `DeckStore.applyPatch`         | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
-| [x] Implement intents: `summarize`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
+| Task                                            | Details                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [x] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                         |
+| [x] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
+| [x] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
+| [x] Patch by index via `DeckStore.applyPatch`   | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
+| [x] Implement intents: `addSpeakerNotes`        | Full prompt builder and schema (stubs from Phase 11 promoted to working intents).                 |
 
 ### Wiring
 
@@ -602,7 +602,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 10: Renderer Hardening             | ✅ Complete |
 | Phase 11: AI Operations Foundation       | Deferred    |
 | Phase 12: Deck Store & Patches           | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide | In Progress |
+| Phase 13: AI Orchestrator & Single-Slide | ✅ Complete |
 | Phase 14: Conflict Resolution & Undo     | Planned     |
 | Phase 15: Design System & Theme Registry | Planned     |
 | Phase 16: Presenter, Print & AI Commands | Planned     |
@@ -611,7 +611,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 14 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.

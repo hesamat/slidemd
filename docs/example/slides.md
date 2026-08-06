@@ -311,7 +311,7 @@ layout: two-column
 - Extracts images into an `images/` folder
 - Converts slide content to Markdown with layout hints
 - Original `.pptx` is not modified
-- Optionally post-process with AI to fix formatting or redesign the deck
+- Import is instant — refine slides with AI editing afterward
 
 ---
 
@@ -319,36 +319,34 @@ layout: two-column
 
 @header
 
-# AI Post-Processing
+# AI Editing
 
 @main
 
-Optionally, enhance the result with AI when importing a PPTX.
+Enhance slides individually or across the whole deck using AI.
 
-### Fix Issues
+### Single-Slide AI
 
-- Cleans up formatting, headers, and code blocks
-- Fixes broken links and list formatting
-- Normalizes header levels across slides
-- Conservative — preserves working slides as-is
+- **Enhance slide** — cleans up formatting, headers, code blocks, and layout
+- **Add speaker notes** — generates notes without modifying visible content
+- Both are undoable via `Ctrl+Z`
 
-### AI Inspiration
+### Refine All Slides
 
-- Redesigns layout and visual structure
-- Reorganizes for better flow and pacing
-- Converts diagrams to Mermaid code blocks (selective — only where they represent true flowcharts/processes)
-- Adds speaker notes to key slides
-- Splits dense slides into focused ones
+- **Tidy up** — fix formatting and layouts only
+- **Restyle** — reword and rework layouts, add notes
+- **Remix** — two-phase plan→execute restructuring
+- Undoable via `Ctrl+Z`
 
 @media
 
 ### Getting Started
 
 1. Open **Settings** from the main menu
-2. Enter your OpenRouter API key
-3. Select a model (DeepSeek V4 Flash is the default)
-4. Import a PPTX file
-5. Choose **Fix Issues** or click **AI Inspiration**
+2. Enter your API key (OpenRouter, OpenAI, Anthropic, Gemini, or local)
+3. Select a model
+4. Use the **AI dropdown** in the editor toolbar for single-slide actions
+5. Use **Refine all slides** for whole-deck processing
 
 ---
 

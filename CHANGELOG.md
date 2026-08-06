@@ -31,10 +31,28 @@
 - Delete `ai-enhancer.js` transition facade — all functions migrated to focused modules.
 - Add `ai-prompt-builder.js` (layout list, frontmatter stripping, message building, batch messages).
 - Add `ai-response-parser.js` (JSON parsing, slides-to-markdown, areas-to-markdown, heading extraction).
-- Add `ai-directive-utils.js` (extract/restore/inject per-slide directives).
+- Add `ai-directive-utils.js` (extract/restore/inject per-slide directives, fence-aware).
 - Add `ai-token-estimator.js` (token count and max_tokens estimation).
+- Add `ai-output-validator.js`, `ai-output-schema.js`, `ai-prompt-composer.js`, `ai-repair-message.js`.
+- Add `ai-provider-client.js` (OpenAI-compatible client with retry logic) and `ai-provider-factory.js`.
+- Add `dropdown-registry.js` — shared registry so Format and AI dropdowns can't overlap.
 - Split `ai-enhancer.test.js` into per-module test files.
-- Total tests now **724**.
+- Total tests now **734**.
+
+### Robustness & Hardening
+
+- **Truncation loop fix** — cap truncation splits per batch so a single oversized slide can't loop forever re-queuing itself; partial output is accepted when the batch can't split further.
+- **Speaker-notes validation** — strip `data-source-line` attributes before comparing rendered areas so blank-line normalisation by the AI no longer triggers false positives (previously wasted 2 extra repair calls per "Add speaker notes").
+- **Directive preservation** — `extractDirectives` and `buildBatchMessages` now use fence-aware `MarkdownParser.splitSlides` so `---` inside code blocks doesn't shift backgrounds/themes onto wrong slides.
+- **Directive injection without layout** — fix mode now prepends `background:`/`theme:` at the top of the section when the AI omits the `layout:` line, instead of dropping the slide's styling entirely.
+- **Reasoning guard** — `AiReasoningError` only thrown when reasoning was actually sent, so non-OpenRouter providers with `reasoning: null` get the full `AiHttpError` with status/body.
+- **Error sanitization** — `AiHttpError` includes a short sanitized excerpt (credential-like lines and inline `sk-`/`Bearer` patterns stripped) so users get actionable detail without leaking secrets.
+- **Retry guard** — `response_format` retry only fires when it was actually sent, avoiding a wasted duplicate request on every parse error.
+- **Whole-deck undo** — `DeckStore.replaceDeck` enables Ctrl+Z for whole-deck refine instead of clearing history.
+- **Whole-deck refine ordering** — deckStore updated before `reloadManager.replaceDeck` so the `deckchange` handler reads the correct post-refine state.
+- **Minimize button** — wired in both single-slide and whole-deck AI panels.
+- **OpenAI model discovery** — restored to `isModelSearchProvider` so Fetch models and reasoning cross-reference work again.
+- **Remix directive injection** — remix path no longer calls `injectDirectives` positionally (it intentionally reorders/splits/merges); non-remix generate only gap-fills when the output slide count matches the input.
 
 ## 0.8.0 (2026-08-05)
 
