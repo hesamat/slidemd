@@ -755,7 +755,6 @@ export class EditController {
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {
-      console.error(`AI ${intent} failed:`, err);
       Notification.error(`AI ${intent} failed: ${err.message || err}`);
     }
   }
@@ -855,7 +854,6 @@ export class EditController {
         Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
     } catch (err) {
-      console.error("AI generate failed:", err);
       Notification.error(`AI generate failed: ${err.message || err}`);
     }
   }
