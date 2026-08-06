@@ -102,10 +102,17 @@ export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
     while (true) {
       for (const quality of qualities) {
         const dataUrl = drawToDataUrl(img, width, height, quality);
+        // A tainted canvas (cross-origin image loaded without CORS) throws
+        // on every draw, not just this one — bail out immediately instead
+        // of burning through every quality/width combination.
+        if (dataUrl === TAINTED) return null;
         if (dataUrl && dataUrl.length <= maxBytes) return dataUrl;
       }
       // Reduce width and retry
-      if (width <= 256) return drawToDataUrl(img, width, height, 0.3); // last resort
+      if (width <= 256) {
+        const last = drawToDataUrl(img, width, height, 0.3); // last resort
+        return last === TAINTED ? null : last;
+      }
       width = Math.round(width / 2);
       height = Math.round(
         (width / (img.naturalWidth || img.width)) * (img.naturalHeight || img.height),
@@ -118,18 +125,27 @@ export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
 
 /**
  * Load an Image from a URL or data URI.
+ * Sets `crossOrigin = "anonymous"` for http(s) sources so CORS-enabled hosts
+ * can be drawn to canvas and read back via `toDataURL`. Without this, any
+ * cross-origin image taints the canvas and `toDataURL` throws, silently
+ * dropping the image from vision remix even though it was fetched fine.
  * @param {string} src
  * @returns {Promise<HTMLImageElement|null>}
  */
 function loadImage(src) {
   return new Promise((resolve) => {
     const img = new Image();
+    if (/^https?:\/\//i.test(src)) img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    // For data URIs, set src directly. For other URLs, the browser handles CORS.
     img.src = src;
   });
 }
+
+// Sentinel returned by drawToDataUrl when the canvas is tainted (cross-origin
+// image without CORS headers) — every subsequent draw of the same image will
+// fail the same way, so callers can stop retrying immediately.
+const TAINTED = Symbol("tainted-canvas");
 
 /**
  * Draw an image to a canvas and return a JPEG data URL.
@@ -137,7 +153,7 @@ function loadImage(src) {
  * @param {number} width
  * @param {number} height
  * @param {number} quality
- * @returns {string|null}
+ * @returns {string|typeof TAINTED|null}
  */
 function drawToDataUrl(img, width, height, quality) {
   try {
@@ -148,18 +164,26 @@ function drawToDataUrl(img, width, height, quality) {
     if (!ctx) return null;
     ctx.drawImage(img, 0, 0, width, height);
     return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return null;
+  } catch (e) {
+    return e.name === "SecurityError" ? TAINTED : null;
   }
 }
 
 /**
  * Extract, fetch, and compress all content images from a deck.
- * Returns per-slide arrays of compressed JPEG data URLs (or null for slides
- * with no images or failed fetches).
+ * Returns per-slide arrays of `{ src, dataUrl }` pairs (or null for slides
+ * with no images or failed fetches/compressions).
+ *
+ * The original (pre-resolution) markdown `src` is carried alongside each
+ * compressed `dataUrl` so downstream consumers can map an AI-reported image
+ * index back to the exact `<img>`/`![]()` entry in the slide markdown by
+ * identity rather than by ordinal position — images that were excluded from
+ * extraction (backgrounds, SVG placeholders) or that failed to compress
+ * never appear here, so ordinal indices would otherwise drift out of sync
+ * with what the model actually saw.
  *
  * @param {string} markdown — full deck markdown
- * @returns {Promise<Array<string[]|null>>} per-slide image data URLs
+ * @returns {Promise<Array<Array<{src: string, dataUrl: string}>|null>>} per-slide image entries
  */
 export async function extractAll(markdown) {
   const perSlideSrcs = extractAllImageSrcs(markdown);
@@ -170,10 +194,11 @@ export async function extractAll(markdown) {
         srcs.map(async (src) => {
           // Resolve images/ paths to URLs the browser can fetch
           const resolved = await DeckImagesResolver.resolvePreviewSrc(src);
-          return compressImage(resolved);
+          const dataUrl = await compressImage(resolved);
+          return dataUrl ? { src, dataUrl } : null;
         }),
       );
-      const valid = compressed.filter((url) => url !== null);
+      const valid = compressed.filter((entry) => entry !== null);
       return valid.length > 0 ? valid : null;
     }),
   );

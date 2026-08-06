@@ -32,13 +32,36 @@ import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { splitSlides } from "../markdown-parser.js";
 import { createEditPatch } from "../store/slide-patch.js";
 import { AiPromptComposer } from "./ai-prompt-composer.js";
-import { buildVisionMessage, stripImages, estimateTotalImageTokens } from "./ai-vision-message.js";
+import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { extractAll } from "./slide-image-extractor.js";
 import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 
 const MAX_REPAIR_ATTEMPTS = 3;
+
+/**
+ * Build the `{{imagesSection}}` fragment for the remix plan prompt. The
+ * keepImages / image-assessment guidance is only relevant (and only
+ * truthful) when images are actually attached to the request — omitting it
+ * for text-only plans stops the model from hallucinating keepImages against
+ * pictures it never saw.
+ * @param {boolean} imagesSent
+ * @returns {string}
+ */
+function buildImagesSectionForPrompt(imagesSent) {
+  if (!imagesSent) {
+    return "No images were sent with this request — omit `keepImages` from every plan entry.";
+  }
+  return (
+    "When images are provided:\n\n" +
+    "- You will also receive the raw images from each slide (background images are excluded). Use these images to assess their content and quality when deciding whether to keep, rewrite, or merge slides.\n" +
+    "- In the plan, each entry can specify `keepImages`: an array of 0-based indices into that source slide's extracted images (in order of appearance). Omit to keep all images; use `[]` to drop all images from a slide.\n" +
+    "- When merging slides, `keepImages` indices are still per-source-slide, not indices into a combined set — the same array is applied independently to each slide listed in `source`.\n" +
+    "- You are not limited to placing images in a `@media` area. Images can be freely positioned using `position: relative` with `left`, `top`, `width`, and `height` style attributes on the `<img>` tag. Use this when an image needs custom placement that doesn't fit the standard area layout.\n" +
+    "- If an image is low quality, redundant, or doesn't add value, drop it (don't include it in `keepImages`)."
+  );
+}
 
 /**
  * @typedef {Object} OrchestratorDeps
@@ -65,9 +88,12 @@ export class AiOrchestrator {
    * Returns a SlidePatch[] with one patch (before → after) for the target slide.
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
+   * @param {object} [callbacks]
+   * @param {(message: string, level?: "info"|"warn"|"error") => void} [callbacks.onLog]
    * @returns {Promise<import("../store/slide-patch.js").SlidePatch[]>}
    */
-  async runSingleSlideOperation(operation, signal) {
+  async runSingleSlideOperation(operation, signal, callbacks = {}) {
+    const { onLog } = callbacks;
     const { intent, targetSlide, context } = operation;
     if (!isSingleSlideIntent(intent)) {
       throw new Error(`Intent "${intent}" is not a single-slide intent`);
@@ -136,6 +162,10 @@ export class AiOrchestrator {
       }
 
       if (attempt < MAX_REPAIR_ATTEMPTS) {
+        onLog?.(
+          `Validation attempt ${attempt}/${MAX_REPAIR_ATTEMPTS} failed: ${result.errors.join("; ")}`,
+          "warn",
+        );
         const repairMsg = buildRepairMessage(result.errors);
         messages = [
           ...messages,
@@ -146,6 +176,10 @@ export class AiOrchestrator {
       }
 
       // Accept output after exhausting retries so the user doesn't lose the result
+      onLog?.(
+        `Accepting output after ${MAX_REPAIR_ATTEMPTS} attempts despite validation errors: ${result.errors.join("; ")}`,
+        "warn",
+      );
       return [createEditPatch(targetSlide, context, afterMarkdown, "ai")];
     }
 
@@ -236,7 +270,7 @@ export class AiOrchestrator {
     const callbacks =
       typeof callbacksArg === "function" ? { onProgress: callbacksArg } : callbacksArg || {};
     if (isSingleSlide(operation)) {
-      const patches = await this.runSingleSlideOperation(operation, signal);
+      const patches = await this.runSingleSlideOperation(operation, signal, callbacks);
       return { patches };
     }
     const markdown = await this.runWholeDeckOperation(operation, signal, callbacks);
@@ -692,7 +726,10 @@ export class AiOrchestrator {
     }
 
     // ── Phase 2: Build virtual deck from the non-"keep" plan entries ──
-    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, context);
+    // Only honour keepImages when images were actually sent to the plan AI —
+    // in a text-only remix the model never saw any pictures, so a
+    // hallucinated keepImages array must not be allowed to delete images.
+    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, context, slideImages);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
 
@@ -757,9 +794,13 @@ export class AiOrchestrator {
       systemFragment: systemPrompt,
       userFragment: remixPlanPrompt,
     });
-    const { system, user } = composer.compose({
+    const composeArgs = {
       markdown: deckSummary,
       layoutList: getAllowedLayoutList(),
+    };
+    const { system, user } = composer.compose({
+      ...composeArgs,
+      imagesSection: buildImagesSectionForPrompt(Boolean(slideImages)),
     });
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";
@@ -811,12 +852,20 @@ export class AiOrchestrator {
       // sees the real problem instead of a misleading "vision not supported".
       if (slideImages && isVisionError(err)) {
         onLog?.("Vision not supported — retrying with text-only plan\u2026");
-        const textUser = stripImages(userContent);
+        // Recompose the user prompt with the text-only imagesSection rather
+        // than stripping images out of the vision message: the vision
+        // message's "Slide N images:" labels reference pictures that are no
+        // longer attached, and leaving them in would push the model to emit
+        // keepImages entries it can't justify.
+        const { user: textOnlyUser } = composer.compose({
+          ...composeArgs,
+          imagesSection: buildImagesSectionForPrompt(false),
+        });
         response = await this._provider.chat(
           {
             messages: [
               { role: "system", content: system },
-              { role: "user", content: textUser },
+              { role: "user", content: textOnlyUser },
             ],
             maxTokens,
             responseFormat: null,
@@ -998,9 +1047,18 @@ export class AiOrchestrator {
    *
    * @param {Array<object>} plan
    * @param {string} sourceMarkdown
+   * @param {Array<Array<{src: string, dataUrl: string}>|null>|null} [slideImages] —
+   *   per-source-slide arrays of the images actually sent to the plan AI (see
+   *   `slide-image-extractor.js#extractAll`), or null if no images were sent.
+   *   keepImages is only honoured when this is provided — in a text-only
+   *   remix the model never saw any pictures, so a hallucinated keepImages
+   *   array must not be allowed to delete images. Filtering also matches
+   *   images by src identity (not ordinal position) so that images excluded
+   *   from extraction (backgrounds, SVG placeholders) or that failed to
+   *   compress — which never reached the model — are never touched.
    * @returns {string}
    */
-  #planToVirtualDeck(plan, sourceMarkdown) {
+  #planToVirtualDeck(plan, sourceMarkdown, slideImages = null) {
     // Use the fence-aware split so `---` inside code blocks doesn't create
     // phantom slides and misalign source indices with the plan.
     const sourceSlides = splitSlidesForAi(sourceMarkdown, "generate");
@@ -1014,8 +1072,9 @@ export class AiOrchestrator {
       // each source slide before joining.
       const processedSources = entry.source.map((idx) => {
         const slide = sourceSlides[idx];
-        if (!entry.keepImages || !Array.isArray(entry.keepImages)) return slide;
-        return filterImagesByKeepIndices(slide, entry.keepImages);
+        const sentImages = slideImages?.[idx];
+        if (!sentImages || !entry.keepImages || !Array.isArray(entry.keepImages)) return slide;
+        return filterImagesByKeepIndices(slide, entry.keepImages, sentImages);
       });
 
       // Join source slides with a merge marker (not ---) so splitSlidesForAi
@@ -1030,13 +1089,23 @@ export class AiOrchestrator {
 
 /**
  * Remove images from a slide markdown that are not in the keepIndices list.
- * Images are indexed by appearance order (matching parseAllImages order).
+ * `keepIndices` are 0-based positions into `sentImages` — the images that
+ * were actually sent to the model for this slide (in the same order as
+ * `buildVisionMessage`) — not ordinal positions in the raw markdown. Images
+ * in the markdown whose src was never sent to the model (e.g. backgrounds,
+ * SVG placeholders, or images that failed to compress) are left untouched,
+ * since the model never had a chance to judge them.
  * @param {string} slideMarkdown
- * @param {number[]} keepIndices — 0-based indices of images to keep
+ * @param {number[]} keepIndices — 0-based indices into `sentImages`
+ * @param {Array<{src: string, dataUrl: string}>} sentImages — images sent to
+ *   the model for this slide, in order
  * @returns {string} slide markdown with non-kept images removed
  */
-function filterImagesByKeepIndices(slideMarkdown, keepIndices) {
-  const keepSet = new Set(keepIndices);
+function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
+  const sentSrcs = new Set(sentImages.map((entry) => entry.src));
+  const keepSrcs = new Set(
+    keepIndices.map((i) => sentImages[i]?.src).filter((src) => src !== undefined),
+  );
   const images = parseAllImages(slideMarkdown);
   if (images.length === 0) return slideMarkdown;
 
@@ -1044,8 +1113,12 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices) {
   // don't shift as we remove content.
   let result = slideMarkdown;
   for (let i = images.length - 1; i >= 0; i--) {
-    if (keepSet.has(i)) continue;
     const img = images[i];
+    // Only touch images that were actually sent to the model — anything else
+    // (backgrounds, SVG placeholders, failed compressions) was never judged
+    // and must be left in place.
+    if (!sentSrcs.has(img.src)) continue;
+    if (keepSrcs.has(img.src)) continue;
     // Remove the image tag and any surrounding empty line that would be left
     // behind. Replace the fullMatch with nothing, then clean up double blank lines.
     result = result.slice(0, img.start) + result.slice(img.end);
@@ -1058,9 +1131,12 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices) {
  * Check if an error is likely a vision-not-supported error from the provider.
  * Used to decide whether to retry with text-only content.
  *
- * Matches:
- * - HTTP 400/422 with "image", "vision", "multimodal", or "content" in the message
- * - Errors whose message explicitly mentions vision/image not supported
+ * Requires BOTH an image/vision-related keyword AND a rejection phrase in
+ * the message — a bare mention of "image" (e.g. because the sanitized
+ * provider error quotes deck markdown, or the deck genuinely discusses
+ * images) is not enough to conclude the model rejected vision input, and a
+ * false positive here would trigger an unnecessary duplicate text-only plan
+ * request and report a misleading "doesn't support image input" message.
  *
  * Does NOT match:
  * - Auth errors (401/403)
@@ -1078,17 +1154,18 @@ function isVisionError(err) {
   const status = err.status;
   if (status === 401 || status === 403 || status === 429 || !status) return false;
 
-  // Check the error message for vision/image-related keywords
   const msg = (err.message || "").toLowerCase();
-  const visionKeywords = [
-    "image",
-    "vision",
-    "multimodal",
-    "multi-modal",
-    "visual",
-    "content type",
-    "unsupported content",
+  const visionKeywords = ["image", "vision", "multimodal", "multi-modal", "visual", "content type"];
+  const rejectionPhrases = [
+    "not support",
+    "unsupported",
+    "not supported",
     "invalid content",
+    "not allowed",
+    "cannot process",
+    "can't process",
   ];
-  return visionKeywords.some((kw) => msg.includes(kw));
+  return (
+    visionKeywords.some((kw) => msg.includes(kw)) && rejectionPhrases.some((kw) => msg.includes(kw))
+  );
 }

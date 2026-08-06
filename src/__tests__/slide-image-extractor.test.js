@@ -9,7 +9,7 @@ import {
 } from "../data/ai/slide-image-extractor.js";
 
 // Mock DeckImagesResolver to avoid localStorage access in jsdom
-vi.mock("../../editor/image/deck-images-resolver.js", () => ({
+vi.mock("../editor/image/deck-images-resolver.js", () => ({
   DeckImagesResolver: {
     resolvePreviewSrc: vi.fn(async (src) => {
       if (src.startsWith("images/")) return `/${src}`;
@@ -206,7 +206,9 @@ describe("extractAll", () => {
     const md =
       'layout: header-content\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
     const result = await extractAll(md);
-    expect(result[0]).toEqual(["data:image/jpeg;base64,/9j/compressed="]);
+    expect(result[0]).toEqual([
+      { src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/compressed=" },
+    ]);
     expect(result[1]).toBeNull();
   });
 

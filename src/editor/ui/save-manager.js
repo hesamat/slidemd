@@ -154,11 +154,15 @@ export class SaveManager {
       }
     }
 
-    // Fallback: save via file picker / download
-    const suggestedName = localStorage.getItem("webdeck_local_file_name") || "deck";
-    await this._saveMarkdownWithImages(fullMarkdown, `${suggestedName}.md`);
+    // Fallback: save via file picker / download. Strip any existing
+    // .md/.markdown extension before appending .md — the stored name
+    // already includes it for decks opened from a markdown file (PPTX
+    // imports and textpack opens don't have an extension).
+    const rawName = localStorage.getItem("webdeck_local_file_name") || "deck";
+    const suggestedName = rawName.replace(/\.(md|markdown)$/i, "");
+    const saved = await this._saveMarkdownWithImages(fullMarkdown, `${suggestedName}.md`);
     this.needsSaveAs = false;
-    Notification.success("Deck saved!");
+    if (saved) Notification.success("Deck saved!");
   }
 
   /**
@@ -167,6 +171,10 @@ export class SaveManager {
    * an `images/` folder next to the .md file.
    * @param {string} markdown
    * @param {string} fileName — suggested .md filename
+   * @returns {Promise<boolean>} true if a file was actually written and the
+   *   caller should report success; false if nothing was written (e.g. the
+   *   user exported to .textpack instead — which reports its own success —
+   *   or that export failed).
    */
   async _saveMarkdownWithImages(markdown, fileName) {
     // When the File System Access API is available, use a directory picker
@@ -220,7 +228,7 @@ export class SaveManager {
             );
           }
         }
-        return;
+        return true;
       } catch (e) {
         if (e.name === "AbortError") throw e;
         // Fall through to simple blob download
@@ -256,8 +264,15 @@ export class SaveManager {
         const { ok } = await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
           filename: DeckLoader.getDisplayTitle(this.deck),
         });
-        if (ok) Notification.success("Deck exported as .textpack!");
-        return;
+        if (ok) {
+          Notification.success("Deck exported as .textpack!");
+        } else {
+          Notification.error("Textpack export failed or was cancelled. Nothing was saved.");
+        }
+        // This path reports its own success/failure — the caller must not
+        // also announce "Deck saved!" (that would be wrong on failure, and
+        // a duplicate/confusing toast on success).
+        return false;
       }
       // choice === "md" — fall through to blob download below
     }
@@ -271,6 +286,7 @@ export class SaveManager {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    return true;
   }
 
   async save() {

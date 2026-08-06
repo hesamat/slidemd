@@ -21,10 +21,11 @@
  * per-slide image collections.
  *
  * @param {string} text — the text prompt (deck summary / outline)
- * @param {Array<Array<string>|null>} slideImages — for each slide, an array
- *   of compressed image data URLs, or null/empty if the slide has no images.
- *   Images are inserted in order with a "Slide N images:" label before each
- *   slide's image blocks.
+ * @param {Array<Array<{src: string, dataUrl: string}>|null>} slideImages —
+ *   for each slide, an array of `{ src, dataUrl }` entries (see
+ *   `slide-image-extractor.js#extractAll`), or null/empty if the slide has
+ *   no images. Images are inserted in order with a "Slide N images:" label
+ *   before each slide's image blocks.
  * @returns {Array<{type: string, text?: string, image_url?: {url: string}}>}
  *   OpenAI-format content array.
  */
@@ -35,8 +36,8 @@ export function buildVisionMessage(text, slideImages) {
     const images = slideImages[i];
     if (!images || images.length === 0) continue;
     content.push({ type: "text", text: `Slide ${i + 1} images:` });
-    for (const dataUrl of images) {
-      content.push({ type: "image_url", image_url: { url: dataUrl } });
+    for (const entry of images) {
+      content.push({ type: "image_url", image_url: { url: entry.dataUrl } });
     }
   }
 

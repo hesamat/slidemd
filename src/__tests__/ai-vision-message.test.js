@@ -15,9 +15,12 @@ const PNG_DATA_URI = "data:image/png;base64,iVBORw0KGgo=";
 describe("buildVisionMessage", () => {
   it("builds a content array with text + image blocks per slide", () => {
     const content = buildVisionMessage("Analyze this deck", [
-      [JPEG_DATA_URI],
+      [{ src: "images/a.png", dataUrl: JPEG_DATA_URI }],
       null,
-      [PNG_DATA_URI, JPEG_DATA_URI],
+      [
+        { src: "images/b.png", dataUrl: PNG_DATA_URI },
+        { src: "images/c.png", dataUrl: JPEG_DATA_URI },
+      ],
     ]);
     expect(content[0]).toEqual({ type: "text", text: "Analyze this deck" });
     // Slide 1 has 1 image

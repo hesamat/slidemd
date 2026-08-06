@@ -261,6 +261,63 @@ describe("AiProviderClient", () => {
     }
   });
 
+  it("AiHttpError redacts sk- keys echoed inside a JSON error.message field", async () => {
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () =>
+        JSON.stringify({
+          error: {
+            code: "invalid_api_key",
+            message: "Incorrect API key provided: sk-abcdefghijklmnopqrstuvwxyz1234567890",
+          },
+        }),
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.message).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
+      expect(err.message).toContain("sk-[redacted]");
+    }
+  });
+
+  it("AiHttpError redacts a Bearer token echoed inside a JSON error.message field", async () => {
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () =>
+        JSON.stringify({
+          error: {
+            message: "Rejected credential Bearer abcdefghijklmnopqrstuvwxyz123456",
+          },
+        }),
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.message).not.toContain("Bearer abcdefghijklmnopqrstuvwxyz");
+      expect(err.message).toContain("Bearer [redacted]");
+    }
+  });
+
   it("throws AiHttpError (not AiReasoningError) when reasoning was not sent", async () => {
     // Non-OpenRouter provider with reasoning: null — effectiveReasoning is null,
     // so a 400 mentioning "reasoning is mandatory" should NOT be converted to

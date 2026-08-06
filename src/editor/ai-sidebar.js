@@ -375,8 +375,16 @@ export class AiSidebar {
       this._retryResolve?.();
     });
 
+    // No dedicated log panel for single-slide operations — route validation
+    // warnings to the console so they remain visible for diagnosis instead
+    // of being silently swallowed.
+    const onLog = (message, level = "info") => {
+      if (level === "warn") console.warn(`[AI] ${message}`);
+      else if (level === "error") console.error(`[AI] ${message}`);
+    };
+
     try {
-      const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
+      const { patches } = await orchestrator.runOperation(operation, ctrl.signal, { onLog });
       if (!patches || patches.length === 0) {
         statusEl.textContent = "No changes.";
         statusEl.className = `${P}status`;
@@ -437,7 +445,13 @@ export class AiSidebar {
         ctrl = new AbortController();
         this._abortControllers = [ctrl];
         try {
-          const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
+          const { patches: retryPatches } = await orchestrator.runOperation(
+            operation,
+            ctrl.signal,
+            {
+              onLog,
+            },
+          );
           if (retryPatches && retryPatches.length > 0) {
             statusEl.textContent = 'Done! Click "Apply changes" to apply.';
             statusEl.className = `${P}status ${P}status--done`;
@@ -460,7 +474,7 @@ export class AiSidebar {
             this.close();
             return null;
           }
-          statusEl.textContent = `Error: ${retryErr.message}`;
+          statusEl.textContent = retryErr.userMessage || retryErr.message;
           statusEl.className = `${P}status ${P}status--error`;
           cancelBtn.hidden = true;
           retryBtn.hidden = false;

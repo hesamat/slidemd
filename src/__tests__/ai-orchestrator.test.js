@@ -4,11 +4,11 @@ import { createOperation } from "../data/ai/ai-operation.js";
 
 // Mock slide-image-extractor so we don't need canvas/Image in orchestrator tests.
 // The actual extractAll is async and fetches images; here we return fake data URLs.
-vi.mock("../data/ai/slide-image-extractor.js", (importOriginal) => {
-  const actual = importOriginal();
+vi.mock("../data/ai/slide-image-extractor.js", async (importOriginal) => {
+  const actual = await importOriginal();
   return {
     ...actual,
-    extractAll: vi.fn(async () => [[null], [null]]), // overridden per-test
+    extractAll: vi.fn(async () => [null, null]), // overridden per-test
   };
 });
 
@@ -453,7 +453,10 @@ describe("AiOrchestrator", () => {
 
     it("sends multi-modal content when includeImages is true", async () => {
       const { extractAll } = await import("../data/ai/slide-image-extractor.js");
-      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
 
       const provider = mockProviderSequence([
         REMIX_PLAN_RESPONSE,
@@ -482,7 +485,10 @@ describe("AiOrchestrator", () => {
 
     it("falls back to text-only when provider rejects images with vision error", async () => {
       const { extractAll } = await import("../data/ai/slide-image-extractor.js");
-      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
 
       // First call (with images) throws a vision-related HTTP 400, second call (text-only) succeeds
       const visionError = new Error("HTTP 400: model does not support image content");
@@ -517,7 +523,10 @@ describe("AiOrchestrator", () => {
 
     it("does NOT fall back to text-only for non-vision errors (e.g. auth)", async () => {
       const { extractAll } = await import("../data/ai/slide-image-extractor.js");
-      extractAll.mockResolvedValue([["data:image/jpeg;base64,/9j/fake="], null]);
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
 
       // Auth error (401) — should NOT trigger vision fallback
       const authError = new Error("HTTP 401: Invalid API key");
@@ -576,7 +585,16 @@ describe("AiOrchestrator", () => {
       );
     });
 
-    it("filters images in virtual deck per keepImages", async () => {
+    it("filters images in virtual deck per keepImages when images were sent", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [
+          { src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" },
+          { src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" },
+        ],
+        null,
+      ]);
+
       const deckWithTwoImages =
         'layout: header-content\n@main\n<img src="images/a.png">\n\n<img src="images/b.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
 
@@ -604,6 +622,7 @@ describe("AiOrchestrator", () => {
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, deckWithTwoImages, {
         fidelity: "rewrite",
+        includeImages: true,
       });
       const result = await orchestrator.runWholeDeckOperation(op);
 
@@ -613,6 +632,48 @@ describe("AiOrchestrator", () => {
       expect(executeUserMsg.content).toContain("a.png");
       expect(executeUserMsg.content).not.toContain("b.png");
       expect(result).toContain("@main");
+    });
+
+    it("ignores keepImages when no images were sent to the plan AI (text-only remix)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([null, null]);
+
+      const deckWithTwoImages =
+        'layout: header-content\n@main\n<img src="images/a.png">\n\n<img src="images/b.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
+
+      const plan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Keep only first image",
+            title: "S1",
+            keepImages: [0], // hallucinated — no images were ever sent
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@main\n- Result",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithTwoImages, {
+        fidelity: "rewrite",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+
+      // Both images must survive into the execute call's virtual deck since
+      // the plan AI never saw any pictures.
+      const executeCall = provider.chat.mock.calls[1][0];
+      const executeUserMsg = executeCall.messages.find((m) => m.role === "user");
+      expect(executeUserMsg.content).toContain("a.png");
+      expect(executeUserMsg.content).toContain("b.png");
     });
   });
 

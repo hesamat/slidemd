@@ -39,20 +39,14 @@ Rules:
 - `source` indices are 0-based into the original deck.
 - `brief` is a one-sentence description of what the output slide should contain. Required for `rewrite` and `merge`; empty for `keep`.
 - `title` is a short label for the slide (used for display, not sent to the generator).
-- `keepImages` is an optional array of 0-based indices into the source slide's extracted images (in order of appearance). Use it to specify which images to keep in the output. Omit to keep all images. Use `[]` to drop all images from a slide.
+- `keepImages` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit `keepImages` entirely — do not guess it.
 - Keep the total slide count reasonable. Do not expand a 10-slide deck into 25 slides.
 - Use `keep` for slides that are already clear and well-structured.
 - Prefer `keep` or `rewrite` over `merge`; only `merge` slides that are genuinely thin, overlapping, or redundant.
 - Every output slide must have a clear purpose — do not create slides with vague or duplicate content.
 - Preserve the overall narrative flow of the presentation.
 
-When images are provided:
-
-- You will also receive the raw images from each slide (background images are excluded). Use these images to assess their content and quality when deciding whether to keep, rewrite, or merge slides.
-- In the plan, each entry can reference which images to keep via the `keepImages` field (array of 0-based image indices from the source slide).
-- When merging slides, choose which images from each source slide to keep in the merged output.
-- You are not limited to placing images in a `@media` area. Images can be freely positioned using `position: relative` with `left`, `top`, `width`, and `height` style attributes on the `<img>` tag. Use this when an image needs custom placement that doesn't fit the standard area layout.
-- If an image is low quality, redundant, or doesn't add value, drop it (don't include it in `keepImages`).
+{{imagesSection}}
 
 Success criteria:
 
