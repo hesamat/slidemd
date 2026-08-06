@@ -3,7 +3,7 @@
  * Works with OpenRouter, Ollama, LM Studio, and any OpenAI-compatible endpoint.
  *
  * @typedef {Object} ChatRequest
- * @property {Array<{role: string, content: string}>} messages
+ * @property {Array<{role: string, content: string|Array}>} messages
  * @property {number} maxTokens
  * @property {{ type: string }|null} responseFormat
  * @property {{ effort: string }|null} reasoning

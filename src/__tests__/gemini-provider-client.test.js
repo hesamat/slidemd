@@ -170,4 +170,39 @@ describe("GeminiProviderClient", () => {
       ),
     ).rejects.toThrow(AiAbortError);
   });
+
+  it("maps array content (vision) to Gemini inline_data parts", async () => {
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "ok" }] }, finishReason: "STOP" }],
+      }),
+    });
+
+    const client = makeClient();
+    await client.chat({
+      messages: [
+        { role: "system", content: "You are helpful." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analyze this image:" },
+            {
+              type: "image_url",
+              image_url: { url: "data:image/jpeg;base64,/9j/4AAQ=" },
+            },
+          ],
+        },
+      ],
+      maxTokens: 1000,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+    expect(body.contents[0].parts).toEqual([
+      { text: "Analyze this image:" },
+      { inline_data: { mime_type: "image/jpeg", data: "/9j/4AAQ=" } },
+    ]);
+  });
 });

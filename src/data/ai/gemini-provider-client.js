@@ -4,6 +4,7 @@ import {
   AiParseError,
   validateAiBaseUrl,
 } from "./ai-provider-client.js";
+import { mapContentForGemini } from "./ai-vision-message.js";
 
 /**
  * Google Gemini generateContent client.
@@ -116,12 +117,24 @@ export class GeminiProviderClient {
 
     for (const msg of messages) {
       if (msg.role === "system") {
-        const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        // System messages are text-only — collapse arrays to string.
+        const text =
+          typeof msg.content === "string"
+            ? msg.content
+            : Array.isArray(msg.content)
+              ? msg.content
+                  .filter((b) => b.type === "text" && typeof b.text === "string")
+                  .map((b) => b.text)
+                  .join("\n")
+              : String(msg.content);
         parts.push({ text });
       } else if (msg.role === "user" || msg.role === "assistant") {
         const role = msg.role === "user" ? "user" : "model";
-        const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-        contents.push({ role, parts: [{ text }] });
+        // User/assistant content can be a string or a content array (vision).
+        // Gemini uses parts with { text } and { inline_data } blocks.
+        const msgParts =
+          typeof msg.content === "string" ? [{ text: msg.content }] : mapContentForGemini(msg.content);
+        contents.push({ role, parts: msgParts });
       }
     }
 

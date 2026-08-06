@@ -4,6 +4,7 @@ import {
   AiParseError,
   validateAiBaseUrl,
 } from "./ai-provider-client.js";
+import { mapContentForAnthropic } from "./ai-vision-message.js";
 
 /**
  * Anthropic Messages API client.
@@ -125,12 +126,14 @@ export class AnthropicProviderClient {
 
     for (const msg of messages) {
       if (msg.role === "system") {
+        // System messages are always text — collapse arrays to string.
         system = this._concatText(system ? `${system}\n\n` : "", msg.content);
       } else if (msg.role === "user" || msg.role === "assistant") {
-        anthropicMessages.push({
-          role: msg.role,
-          content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-        });
+        // User/assistant content can be a string or a content array (vision).
+        // Anthropic accepts an array of content blocks natively.
+        const content =
+          typeof msg.content === "string" ? msg.content : mapContentForAnthropic(msg.content);
+        anthropicMessages.push({ role: msg.role, content });
       }
     }
 
@@ -144,7 +147,17 @@ export class AnthropicProviderClient {
   }
 
   _concatText(prefix, content) {
-    const text = typeof content === "string" ? content : JSON.stringify(content);
+    // System messages should never contain images — if an array is passed,
+    // extract only the text blocks.
+    const text =
+      typeof content === "string"
+        ? content
+        : Array.isArray(content)
+          ? content
+              .filter((b) => b.type === "text" && typeof b.text === "string")
+              .map((b) => b.text)
+              .join("\n")
+          : String(content);
     return prefix ? `${prefix}${text}` : text;
   }
 
