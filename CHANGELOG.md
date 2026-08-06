@@ -10,8 +10,15 @@
 - Drop `toMetricCards` intent — the referenced `metric-cards` layout doesn't exist and the fallback to `header-content` added no value.
 - Add AI dropdown in the editor toolbar with per-slide and whole-deck actions.
 - Single-slide AI operations return `SlidePatch[]` applied via `DeckStore.applyPatches()` — undoable from day one.
-- Add prompt files: `add-speaker-notes-prompt.md`.
+- Add prompt files: `add-speaker-notes-prompt.md`, `remix-plan-prompt.md`.
 - Reuse `fix-prompt.md` as the user fragment for `enhanceSlide` (same cleanup rules, scoped to one slide).
+
+### Remix Two-Phase Flow
+
+- **Remix ("rewrite" fidelity) now uses a two-phase plan→execute flow.** A cheap planning call produces a structured restructuring plan (keep/rewrite/merge actions), logged in the AI sidebar. The plan is converted to a virtual deck and fed through the existing batched generate path.
+- **Remix is available for decks of any size** (was limited to ≤8 slides). The execute phase batches through the existing 2-worker queue for large decks.
+- The plan phase uses `remix-plan-prompt.md` and returns a JSON plan with 3 action types: `keep`, `rewrite`, `merge`.
+- `generate-prompt.md` now instructs the LLM to follow `<!-- brief: ... -->` comments in the virtual deck.
 
 ### Import Flow Simplification
 
@@ -27,7 +34,7 @@
 - Add `ai-directive-utils.js` (extract/restore/inject per-slide directives).
 - Add `ai-token-estimator.js` (token count and max_tokens estimation).
 - Split `ai-enhancer.test.js` into per-module test files.
-- Total tests now **706**.
+- Total tests now **724**.
 
 ## 0.8.0 (2026-08-05)
 

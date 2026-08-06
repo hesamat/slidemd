@@ -20,11 +20,15 @@ import {
   buildGenerateOptionsSuffix,
   BATCH_SIZE,
   splitSlidesForAi,
+  getAllowedLayoutList,
 } from "./ai-prompt-builder.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { createEditPatch } from "../store/slide-patch.js";
+import { AiPromptComposer } from "./ai-prompt-composer.js";
+import systemPrompt from "../prompts/system-prompt.md?raw";
+import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 
 const MAX_REPAIR_ATTEMPTS = 3;
 
@@ -67,7 +71,9 @@ export class AiOrchestrator {
     // Extract background/theme directives before sending to the AI.
     // The AI often drops these even when they're in the input; we re-inject
     // them after the response so the slide keeps its visual styling.
-    const origDirectives = extractDirectives(context);
+    // Pass the single-slide context as a one-element array so extractDirectives
+    // uses the fence-aware split consistently.
+    const origDirectives = extractDirectives(context, [context]);
 
     const { system, user } = buildMessagesForIntent(intent, { markdown: context });
     let messages = [
@@ -155,6 +161,13 @@ export class AiOrchestrator {
       throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
     }
 
+    // Remix (fidelity: "rewrite") uses a two-phase plan→execute flow.
+    // The plan phase produces a restructuring plan, which is converted to a
+    // virtual deck and fed through the existing single-call/batched path.
+    if (operation.opts?.fidelity === "rewrite") {
+      return this.#runRemix(operation, signal, callbacks);
+    }
+
     const allSlides = splitSlidesForAi(context, "generate");
     const totalSlides = allSlides.length;
 
@@ -163,7 +176,9 @@ export class AiOrchestrator {
     // Capture original background/theme directives before sending. In generate
     // mode the AI sees them and may keep or change them; we only gap-fill any it
     // dropped (preserving AI-chosen styling) rather than overwriting positionally.
-    const origDirectives = extractDirectives(context);
+    // Use the fence-aware slide list so `---` inside code blocks doesn't shift
+    // directives onto the wrong slides.
+    const origDirectives = extractDirectives(context, allSlides);
 
     // Single-call path for small decks
     const result =
@@ -178,7 +193,15 @@ export class AiOrchestrator {
             callbacks,
           );
 
-    return result ? injectDirectives(result, origDirectives, "generate") : result;
+    // Only gap-fill positionally when the slide count is unchanged — otherwise
+    // index-based injection attaches a slide's original styling to an unrelated
+    // slide (e.g. when "rewrite" fidelity reorders/splits/merges outside remix).
+    if (!result) return result;
+    const resultSlides = splitSlidesForAi(result, "generate");
+    if (resultSlides.length === totalSlides) {
+      return injectDirectives(result, origDirectives, "generate");
+    }
+    return result;
   }
 
   /**
@@ -527,5 +550,260 @@ export class AiOrchestrator {
       if (err.name === "AbortError" || err.name === "AiAbortError") return null;
       return { error: { type: "network-error", message: err.message } };
     }
+  }
+
+  // ── Remix (two-phase plan→execute) ──
+
+  /**
+   * Run the full remix flow: plan phase → virtual deck → execute phase.
+   * @param {import("./ai-operation.js").AiOperation} operation
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @returns {Promise<string|null>}
+   */
+  async #runRemix(operation, signal, callbacks = {}) {
+    const { context } = operation;
+    const { onLog } = callbacks;
+
+    // ── Phase 1: Plan ──
+    onLog?.("Planning deck restructure\u2026");
+    const plan = await this.#runRemixPlan(operation, signal, callbacks);
+
+    // ── Phase 2: Build virtual deck from plan ──
+    const virtualDeck = this.#planToVirtualDeck(plan, context);
+    const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
+    const virtualCount = virtualSlides.length;
+    onLog?.(
+      `Plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides`,
+    );
+
+    // ── Phase 3: Execute via existing single-call/batched path ──
+    // Build a synthetic operation with the virtual deck as context.
+    // Clear fidelity so the inner call doesn't recurse into remix.
+    const execOp = {
+      ...operation,
+      context: virtualDeck,
+      opts: { ...operation.opts, fidelity: undefined },
+    };
+    const execSuffix = buildGenerateOptionsSuffix({ ...operation.opts, fidelity: undefined });
+
+    onLog?.(`Generating ${virtualCount} slides\u2026`);
+    const result =
+      virtualCount <= BATCH_SIZE
+        ? await this.#runWholeDeckSingleCall(execOp, signal, execSuffix, callbacks)
+        : await this.#runWholeDeckBatched(
+            execOp,
+            signal,
+            execSuffix,
+            virtualCount,
+            virtualSlides,
+            callbacks,
+          );
+
+    // Remix intentionally reorders/splits/merges slides, so positional
+    // directive injection would attach backgrounds/themes to the wrong
+    // slides. The virtual deck already carries the original directives in
+    // its source slides, and the AI sees them in generate mode — return the
+    // result as-is so any styling the AI kept or chose is preserved.
+    return result;
+  }
+
+  /**
+   * Run the plan phase: call the LLM with the deck summary and parse the plan.
+   * @param {import("./ai-operation.js").AiOperation} operation
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @returns {Promise<Array<object>>} validated plan entries
+   */
+  async #runRemixPlan(operation, signal, callbacks = {}) {
+    const { context } = operation;
+    const { onLog } = callbacks;
+
+    const deckSummary = buildDeckSummary(context);
+    const composer = new AiPromptComposer({
+      systemFragment: systemPrompt,
+      userFragment: remixPlanPrompt,
+    });
+    const { system, user } = composer.compose({
+      markdown: deckSummary,
+      layoutList: getAllowedLayoutList(),
+    });
+
+    const reasoningEffort = this._useReasoning ? this._effort : "none";
+    const maxTokens = estimateMaxTokens(deckSummary, "generate", {
+      modelMaxOutput: this._modelMaxOutput,
+      reasoningEffort,
+    });
+
+    const response = await this._provider.chat(
+      {
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        maxTokens,
+        responseFormat: null,
+        reasoning: this._useReasoning ? { effort: this._effort } : null,
+      },
+      signal,
+    );
+
+    const plan = this.#parsePlanResponse(response.content);
+    const sourceCount = splitSlidesForAi(context, "generate").length;
+    const validation = this.#validatePlan(plan, sourceCount);
+    if (!validation.ok) {
+      throw new Error(`Invalid remix plan: ${validation.errors.join("; ")}`);
+    }
+
+    // Log each plan entry
+    for (const entry of plan) {
+      const sourceLabel = entry.source.map((s) => s + 1).join("+");
+      if (entry.action === "keep") {
+        onLog?.(`[Plan] Keep slide ${sourceLabel}: ${entry.title}`);
+      } else if (entry.action === "merge") {
+        onLog?.(`[Plan] Merge slides ${sourceLabel} \u2192 ${entry.title}: ${entry.brief}`);
+      } else {
+        onLog?.(`[Plan] Rewrite slide ${sourceLabel}: ${entry.title} \u2014 ${entry.brief}`);
+      }
+    }
+
+    return plan;
+  }
+
+  /**
+   * Parse the plan JSON from an LLM response.
+   * Robust to code fences and prose wrappers (same patterns as parseAiResponse).
+   * @param {string} text
+   * @returns {Array<object>}
+   */
+  #parsePlanResponse(text) {
+    if (!text || typeof text !== "string") return [];
+
+    // Strip code fences if present
+    let cleaned = text.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+
+    // Find the first { and last } to extract JSON from prose
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("Plan response did not contain JSON");
+    }
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error("Plan response was not valid JSON");
+    }
+
+    if (!parsed.plan || !Array.isArray(parsed.plan)) {
+      throw new Error("Plan response missing 'plan' array");
+    }
+
+    return parsed.plan;
+  }
+
+  /**
+   * Validate a remix plan against the source deck.
+   * @param {Array<object>} plan
+   * @param {number} sourceCount
+   * @returns {{ok: boolean, errors: string[]}}
+   */
+  #validatePlan(plan, sourceCount) {
+    const errors = [];
+    const validActions = new Set(["keep", "rewrite", "merge"]);
+    const coveredSources = new Set();
+
+    if (plan.length === 0) {
+      errors.push("plan is empty");
+      return { ok: false, errors };
+    }
+
+    for (let i = 0; i < plan.length; i++) {
+      const entry = plan[i];
+      const prefix = `entry ${i}`;
+
+      if (!validActions.has(entry.action)) {
+        errors.push(`${prefix}: invalid action "${entry.action}"`);
+        continue;
+      }
+
+      if (!Array.isArray(entry.source)) {
+        errors.push(`${prefix}: source must be an array`);
+        continue;
+      }
+
+      if (entry.source.length === 0 && entry.action !== "keep") {
+        errors.push(`${prefix}: source must not be empty for action "${entry.action}"`);
+      }
+
+      for (const idx of entry.source) {
+        if (typeof idx !== "number" || idx < 0 || idx >= sourceCount) {
+          errors.push(`${prefix}: source index ${idx} out of range (0-${sourceCount - 1})`);
+        } else {
+          coveredSources.add(idx);
+        }
+      }
+
+      if (entry.action === "rewrite" && entry.source.length !== 1) {
+        errors.push(`${prefix}: rewrite must have exactly 1 source, got ${entry.source.length}`);
+      }
+
+      if (entry.action === "merge" && entry.source.length < 2) {
+        errors.push(`${prefix}: merge must have 2+ sources, got ${entry.source.length}`);
+      }
+
+      if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {
+        errors.push(`${prefix}: brief is required for action "${entry.action}"`);
+      }
+    }
+
+    // Check that every source slide is covered
+    for (let i = 0; i < sourceCount; i++) {
+      if (!coveredSources.has(i)) {
+        errors.push(`source slide ${i} is not covered by any plan entry`);
+      }
+    }
+
+    return { ok: errors.length === 0, errors };
+  }
+
+  /**
+   * Convert a remix plan into a virtual deck markdown string.
+   * Each non-keep entry gets its brief embedded as an HTML comment.
+   * The virtual deck is fed through the existing generate path.
+   *
+   * For merge entries, source slides are joined with `\n\n` (not `---`) so
+   * `splitSlidesForAi` treats them as one virtual slide. A `<!-- merge source -->`
+   * marker separates the original slides for the LLM to see.
+   *
+   * @param {Array<object>} plan
+   * @param {string} sourceMarkdown
+   * @returns {string}
+   */
+  #planToVirtualDeck(plan, sourceMarkdown) {
+    // Use the fence-aware split so `---` inside code blocks doesn't create
+    // phantom slides and misalign source indices with the plan.
+    const sourceSlides = splitSlidesForAi(sourceMarkdown, "generate");
+
+    const virtualSlides = plan.map((entry) => {
+      if (entry.action === "keep") {
+        return sourceSlides[entry.source[0]];
+      }
+
+      // Join source slides with a merge marker (not ---) so splitSlidesForAi
+      // treats the whole entry as one virtual slide.
+      const sourceContent = entry.source
+        .map((idx) => sourceSlides[idx])
+        .join("\n\n<!-- merge source -->\n\n");
+      return `<!-- brief: ${entry.brief} -->\n${sourceContent}`;
+    });
+
+    return virtualSlides.join("\n\n---\n\n");
   }
 }

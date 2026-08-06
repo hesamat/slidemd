@@ -169,4 +169,71 @@ describe("AiProviderClient", () => {
     expect(firstBody.reasoning).toEqual({ effort: "none" });
     expect(secondBody.reasoning).toBeUndefined();
   });
+
+  it("does not retry on parse error when responseFormat is null", async () => {
+    // When responseFormat is null (the common orchestrator case), a parse
+    // error (malformed JSON or missing content) must NOT trigger a retry —
+    // the retry would be a byte-identical request and waste an API call.
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => "not json at all",
+    });
+
+    await expect(
+      client.chat({ messages: [], maxTokens: 100, responseFormat: null, reasoning: null }),
+    ).rejects.toThrow(AiParseError);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("AiHttpError message includes a sanitized body summary", async () => {
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":{"message":"model not found"}}',
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.message).toContain("HTTP 400");
+      expect(err.message).toContain("model not found");
+      // Full body preserved for DevTools
+      expect(err.body).toContain("model not found");
+    }
+  });
+
+  it("AiHttpError message strips credential-like lines from the body", async () => {
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () =>
+        'Authorization: Bearer sk-secret-key\napi-key: sk-leaked\n{"error":"unauthorized"}',
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.message).not.toContain("sk-secret-key");
+      expect(err.message).not.toContain("sk-leaked");
+      expect(err.message).not.toContain("Bearer");
+      expect(err.message).toContain("unauthorized");
+    }
+  });
 });

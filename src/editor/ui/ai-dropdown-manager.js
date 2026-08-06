@@ -7,10 +7,9 @@
  * mapping via an `actions` object, event delegation, AbortController teardown.
  */
 
-export class AiDropdownManager {
-  /** Shared with InsertDropdownManager so the two can't be open at once. */
-  static _registry = new Set();
+import { dropdownRegistry } from "./dropdown-registry.js";
 
+export class AiDropdownManager {
   /**
    * @param {object} opts
    * @param {HTMLElement} opts.btn       — dropdown trigger button
@@ -26,7 +25,7 @@ export class AiDropdownManager {
 
   init() {
     if (!this._btn || !this._content) return;
-    AiDropdownManager._registry.add(this);
+    dropdownRegistry.add(this);
 
     const { signal } = this._abortController;
 
@@ -36,7 +35,7 @@ export class AiDropdownManager {
         e.stopPropagation();
         const wasOpen = !this._content.classList.contains("webdeck-hidden");
         // Close every other registered dropdown so two panels can't overlap.
-        for (const mgr of AiDropdownManager._registry) {
+        for (const mgr of dropdownRegistry) {
           if (mgr !== this) mgr.close();
         }
         this.close();
@@ -73,7 +72,7 @@ export class AiDropdownManager {
 
   destroy() {
     this.close();
-    AiDropdownManager._registry.delete(this);
+    dropdownRegistry.delete(this);
     this._abortController.abort();
   }
 }

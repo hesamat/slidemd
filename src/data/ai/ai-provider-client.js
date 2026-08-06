@@ -194,7 +194,7 @@ export class AiProviderClient {
     // Retry loop: drop unsupported params one at a time. Each retry narrows
     // the request shape so a subsequent "reasoning is mandatory" 400 from the
     // response_format-less retry is also handled (and vice versa).
-    let includeResponseFormat = true;
+    let includeResponseFormat = Boolean(responseFormat);
     let includeReasoning = true;
     let lastErr = null;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -202,8 +202,10 @@ export class AiProviderClient {
         return await tryFetch(includeResponseFormat, includeReasoning);
       } catch (err) {
         lastErr = err;
-        // Drop response_format when the provider rejects it.
-        if (err instanceof AiParseError && includeResponseFormat) {
+        // Drop response_format only when it was actually sent and the provider
+        // rejected it. Without the `responseFormat` guard we'd re-send a
+        // byte-identical request on every parse/content error (wasted call).
+        if (err instanceof AiParseError && responseFormat && includeResponseFormat) {
           includeResponseFormat = false;
           continue;
         }
@@ -229,15 +231,37 @@ export class AiAbortError extends Error {
 
 export class AiHttpError extends Error {
   constructor(status, body) {
-    // Do not embed the raw response body in the message — it is surfaced to
-    // the UI and console, and provider/proxy error payloads can echo request
-    // metadata (e.g. a reflected Authorization header). Keep the body on the
-    // error object for programmatic inspection only.
-    super(`HTTP ${status}`);
+    // Append a short, sanitized excerpt of the response body so the user gets
+    // actionable detail (bad model id, quota, rejected param) without leaking
+    // credentials. Header-like lines and bearer tokens are stripped; the full
+    // body remains on `.body` for DevTools inspection.
+    const summary = sanitizeErrorBody(body);
+    super(`HTTP ${status}${summary ? `: ${summary}` : ""}`);
     this.name = "AiHttpError";
     this.status = status;
     this.body = body;
   }
+}
+
+/**
+ * Extract a short, sanitized excerpt from a provider error body for display.
+ * Strips lines that look like echoed request headers / credentials, collapses
+ * whitespace, and caps the length.
+ * @param {string} body
+ * @returns {string}
+ */
+function sanitizeErrorBody(body) {
+  if (!body) return "";
+  const text = String(body);
+  // Drop lines that look like headers or credential echoes.
+  const cleaned = text
+    .split("\n")
+    .filter((line) => !/authorization|bearer|api[-_]?key|x-api-key/i.test(line))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  return cleaned.slice(0, 150);
 }
 
 export class AiParseError extends Error {

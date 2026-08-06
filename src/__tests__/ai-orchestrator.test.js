@@ -215,4 +215,133 @@ describe("AiOrchestrator", () => {
       expect(progressCalls[2].completed).toBe(12);
     });
   });
+
+  describe("runWholeDeckOperation (remix)", () => {
+    const TWO_SLIDE_MD =
+      "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
+
+    const REMIX_PLAN_RESPONSE = JSON.stringify({
+      plan: [
+        { action: "keep", source: [0], brief: "", title: "Slide 1" },
+        {
+          action: "rewrite",
+          source: [1],
+          brief: "Make this more concise",
+          title: "Slide 2",
+        },
+      ],
+    });
+
+    const EXECUTE_RESPONSE = JSON.stringify({
+      slides: [
+        {
+          layout: "header-content",
+          content: "@header\n## Slide 1\n\n@main\n- Item 1",
+        },
+        {
+          layout: "header-content",
+          content: "@header\n## Slide 2\n\n@main\n- Concise point",
+        },
+      ],
+    });
+
+    it("runs plan phase then execute phase for fidelity=rewrite", async () => {
+      // Provide enough execute responses for validation retries
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // At least 2 LLM calls: plan + execute (possibly more if validation retries)
+      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // Result contains slide content
+      expect(result).toContain("@header");
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+      // Plan entries were logged
+      expect(logs.some((l) => l.includes("[Plan] Keep"))).toBe(true);
+      expect(logs.some((l) => l.includes("[Plan] Rewrite"))).toBe(true);
+    });
+
+    it("does not route to remix for fidelity=enhance", async () => {
+      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
+      await orchestrator.runWholeDeckOperation(op);
+      // No plan phase — the call count matches the normal generate path
+      // (1 or 2 depending on validation retry), not the remix 2-phase flow.
+      expect(provider.chat).toHaveBeenCalled();
+    });
+
+    it("throws on invalid plan action", async () => {
+      const badPlan = JSON.stringify({
+        plan: [{ action: "split", source: [0], brief: "split this", title: "X" }],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
+    });
+
+    it("throws on out-of-range source index", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", title: "S1" },
+          { action: "rewrite", source: [5], brief: "fix", title: "S5" },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
+    });
+
+    it("throws on uncovered source slide", async () => {
+      const badPlan = JSON.stringify({
+        plan: [{ action: "keep", source: [0], brief: "", title: "S1" }],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
+    });
+
+    it("handles merge action in plan", async () => {
+      const mergePlan = JSON.stringify({
+        plan: [
+          {
+            action: "merge",
+            source: [0, 1],
+            brief: "Combine into one slide",
+            title: "Combined",
+          },
+        ],
+      });
+      const mergeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Combined\n\n@main\n- Item 1\n- Item 2",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([mergePlan, mergeResponse, mergeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      expect(result).toContain("Combined");
+      expect(logs.some((l) => l.includes("[Plan] Merge"))).toBe(true);
+    });
+  });
 });

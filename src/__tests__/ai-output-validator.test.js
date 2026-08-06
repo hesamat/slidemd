@@ -187,5 +187,35 @@ layout: header-content
       expect(result.ok).toBe(false);
       expect(result.errors.some((e) => e.code === "NOTES_PRESERVE_LAYOUT")).toBe(true);
     });
+
+    it("does not flag content change when only data-source-line offsets differ", () => {
+      // The rendered HTML carries data-source-line attributes that shift when
+      // blank-line placement changes. The validator should strip them before
+      // comparing so a harmless blank-line normalisation doesn't trigger a
+      // false positive (which would waste 2 extra AI repair calls).
+      // We simulate this by parsing the same content with slightly different
+      // blank-line placement — both parse to the same visible content.
+      const input = `layout: header-content
+
+@header
+# Title
+
+@main
+- Item`;
+      const output = `layout: header-content
+
+@header
+# Title
+
+
+@main
+- Item
+
+<!-- notes: talk about the item -->`;
+      const result = validate(input, output, "addSpeakerNotes");
+      // Should pass — only notes were added, visible content is the same
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
   });
 });

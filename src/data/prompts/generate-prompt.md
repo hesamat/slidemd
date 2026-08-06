@@ -8,6 +8,7 @@ Content strategy:
 - Use two-column for diagrams, code, or dense content.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
 - Preserve each slide's `background:` and `theme:` directives from the input.
+- If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - Follow the FIDELITY instruction that follows this prompt for whether to polish, improve, or rewrite.
 
 Success criteria:

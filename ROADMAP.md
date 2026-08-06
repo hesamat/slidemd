@@ -439,6 +439,21 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 ---
 
+## Phase D: Remix Planner (Two-Phase Restructuring)
+
+Goal: Replace the experimental single-shot Remix with a reliable two-phase plan→execute flow. A cheap planning call produces a structured restructuring plan, which is converted to a virtual deck and fed through the existing batched generate path. Unlocks Remix for decks of any size.
+
+### Plan→Execute Flow
+
+| Task                           | Details                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add plan phase             | One LLM call with deck summary → returns JSON plan (keep/rewrite/merge actions with briefs). Logged in AI sidebar.         |
+| [x] Add virtual deck trick     | Plan entries converted to a virtual deck markdown with `<!-- brief: ... -->` comments. Fed through existing generate path. |
+| [x] Unlock Remix for all sizes | Removed ≤8-slide limit. Execute phase batches through existing 2-worker queue for large decks.                             |
+| [x] Add `remix-plan-prompt.md` | User fragment for the plan phase: analyze deck → output restructuring plan JSON.                                           |
+
+---
+
 ## Phase 14: Conflict Resolution & Global Undo
 
 Goal: Reconcile overlapping edits and surface global undo/redo. Completes the state track started in Phase 12.
@@ -635,9 +650,9 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 ### Logging & Metrics
 
-| Task                                      | Details                                                               |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| [ ] Add client-side logging utility       | Replace ad-hoc `console.*` calls with a level-based logger.           |
-| [ ] Add error telemetry                   | Capture runtime errors and failed operations in the UI.               |
-| [ ] Add build/PDF runtime metrics         | Track build time, PDF render time, and asset sizes.                   |
-| [ ] Add optional log export               | Download logs for debugging without browser DevTools.                 |
+| Task                                | Details                                                     |
+| ----------------------------------- | ----------------------------------------------------------- |
+| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. |
+| [ ] Add error telemetry             | Capture runtime errors and failed operations in the UI.     |
+| [ ] Add build/PDF runtime metrics   | Track build time, PDF render time, and asset sizes.         |
+| [ ] Add optional log export         | Download logs for debugging without browser DevTools.       |

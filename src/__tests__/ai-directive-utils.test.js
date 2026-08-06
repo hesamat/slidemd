@@ -14,6 +14,26 @@ describe("extractDirectives", () => {
     expect(result[0]).toEqual({ layout: "header-content", background: "#fff", theme: "" });
     expect(result[1]).toEqual({ layout: "two-column", background: "", theme: "dark" });
   });
+
+  it("is fence-aware — a --- inside a code block does not create a phantom slide", () => {
+    const md =
+      "layout: header-content\nbackground: #fff\n@main\n```yaml\n---\n```\n\n---\n\nlayout: two-column\ntheme: dark\n@main\n- Item";
+    const result = extractDirectives(md);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ layout: "header-content", background: "#fff", theme: "" });
+    expect(result[1]).toEqual({ layout: "two-column", background: "", theme: "dark" });
+  });
+
+  it("accepts a pre-split slides array", () => {
+    const slides = [
+      "layout: focus\nbackground: red\n@main\n- A",
+      "layout: header-content\ntheme: light\n@main\n- B",
+    ];
+    const result = extractDirectives("", slides);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ layout: "focus", background: "red", theme: "" });
+    expect(result[1]).toEqual({ layout: "header-content", background: "", theme: "light" });
+  });
 });
 
 describe("restoreDirectives", () => {

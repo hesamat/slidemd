@@ -7,14 +7,23 @@
  * post-AI deck keeps its visual styling.
  */
 
+import { splitSlides } from "../markdown-parser.js";
+
 /**
  * Extract per-slide directives (layout, background, theme) from original markdown.
+ *
+ * Splitting is fence-aware (via `MarkdownParser.splitSlides`) so a `---` line
+ * inside a code block does not create a phantom slide and shift every
+ * directive after it. Callers that already have a fence-aware slide array
+ * (e.g. `splitSlidesForAi`) can pass it via `slides` to avoid re-splitting.
+ *
  * @param {string} markdown
+ * @param {string[]} [slides] — pre-split fence-aware slide texts
  * @returns {Array<{layout: string, background: string, theme: string}>}
  */
-export function extractDirectives(markdown) {
-  const slides = markdown.split(/\n---\n/);
-  return slides.map((slide) => {
+export function extractDirectives(markdown, slides) {
+  const sections = slides || splitSlides(markdown);
+  return sections.map((slide) => {
     const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
     const bgMatch = slide.match(/^background:\s*(.+)$/m);
     const themeMatch = slide.match(/^theme:\s*(.+)$/m);

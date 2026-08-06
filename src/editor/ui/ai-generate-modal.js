@@ -32,15 +32,11 @@ export class AiGenerateModal {
       backdrop.className = `${P}backdrop`;
 
       const slideCount = splitSlidesForAi(markdown, "generate").length;
-      const willBatch = slideCount > BATCH_SIZE;
       const batchCount = Math.max(1, Math.ceil(slideCount / BATCH_SIZE));
 
-      const fidelityOptions = willBatch
-        ? `<option value="polish">Tidy up — fix formatting and layouts only</option>
-<option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>`
-        : `<option value="polish">Tidy up — fix formatting and layouts only</option>
+      const fidelityOptions = `<option value="polish">Tidy up — fix formatting and layouts only</option>
 <option value="enhance" selected>Restyle — reword and rework layouts, add notes</option>
-<option value="rewrite">Remix — full content overhaul (experimental)</option>`;
+<option value="rewrite">Remix — plan then restructure (two-phase)</option>`;
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;

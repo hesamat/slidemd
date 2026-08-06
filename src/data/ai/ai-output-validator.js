@@ -187,10 +187,13 @@ export class AiOutputValidator {
 
       // Visible content (rendered areas) must be unchanged. Parsed slides
       // expose rendered area HTML rather than a `raw` field, so compare the
-      // areas objects directly — if the AI only added notes, the areas HTML
-      // is byte-identical.
-      const inputAreasJson = JSON.stringify(inputSlide.areas || {});
-      const outputAreasJson = JSON.stringify(slide.areas || {});
+      // areas objects directly. The rendered HTML carries `data-source-line`
+      // attributes (editor source-map offsets) that shift when blank-line
+      // placement changes — the AI normalises blank lines around @area
+      // markers, so strip those attributes and collapse whitespace before
+      // comparing to avoid false positives that waste repair attempts.
+      const inputAreasJson = JSON.stringify(normalizeAreasForCompare(inputSlide.areas));
+      const outputAreasJson = JSON.stringify(normalizeAreasForCompare(slide.areas));
       if (inputAreasJson !== outputAreasJson) {
         errors.push({
           slide: index,
@@ -288,4 +291,24 @@ export class AiOutputValidator {
       });
     }
   }
+}
+
+/**
+ * Normalize rendered area HTML for comparison by stripping `data-source-line`
+ * attributes (editor source-map offsets that shift with blank-line changes)
+ * and collapsing whitespace. This lets the addSpeakerNotes content-preservation
+ * check compare visible content without false positives from line-number drift.
+ * @param {Object<string, string>} areas
+ * @returns {Object<string, string>}
+ */
+function normalizeAreasForCompare(areas) {
+  if (!areas) return {};
+  const out = {};
+  for (const [name, html] of Object.entries(areas)) {
+    out[name] = String(html)
+      .replace(/\s*data-source-line="\d*"\s*/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  return out;
 }

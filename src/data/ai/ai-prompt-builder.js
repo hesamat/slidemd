@@ -40,8 +40,9 @@ export function buildGenerateOptionsSuffix(opts = {}) {
         "\nFidelity: TIDY UP. Fix formatting and layout choices only. Correct heading hierarchy, fix area markers, clean up spacing. Do not change wording, split, merge, or reorder slides. The output must have the same number of slides as the input.",
       enhance:
         "\nFidelity: RESTYLE. Rework text for clarity and conciseness, tighten formatting, and choose better layouts for each slide's content. Add speaker notes where helpful. Keep every slide's core topic and key points, but rephrase and reorganize within the slide freely. Do not reorder slides or change the overall narrative flow. The output must have the same number of slides as the input.",
-      rewrite:
-        "\nFidelity: REMIX. Full content overhaul — rework text for impact and conciseness, add or remove content as needed, choose optimal layouts, add speaker notes. You may split, merge, or reorder slides to improve the presentation.",
+      // "rewrite" is handled by the remix two-phase flow in AiOrchestrator,
+      // not as a suffix — it must not reach this function. If it does, return
+      // no suffix so the generate path doesn't append stale instructions.
     };
     if (fidelityMap[opts.fidelity]) parts.push(fidelityMap[opts.fidelity]);
   }

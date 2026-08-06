@@ -131,12 +131,13 @@ export class NewModule {
 
 AI prompts live in [src/data/prompts/](src/data/prompts/):
 
-| File                          | Role     | Purpose                                                          |
-| ----------------------------- | -------- | ---------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, structure, formatting                              |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck) |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)  |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                        |
+| File                          | Role     | Purpose                                                             |
+| ----------------------------- | -------- | ------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, structure, formatting                                 |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)    |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)     |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                           |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON |
 
 ### AI Module Architecture (Phase 13)
 
