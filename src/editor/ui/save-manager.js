@@ -7,6 +7,24 @@
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
+/**
+ * Extract relative image paths (images/...) from markdown.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+function extractImagePaths(markdown) {
+  if (!markdown) return [];
+  const paths = new Set();
+  const mdRe = /!\[.*?\]\((images\/[^)\s]+)\)/gi;
+  let m;
+  while ((m = mdRe.exec(markdown))) paths.add(m[1]);
+  const htmlRe = /<img[^>]*\s+src=["'](images\/[^"']+)["'][^>]*>/gi;
+  while ((m = htmlRe.exec(markdown))) paths.add(m[1]);
+  const cssRe = /url\(\s*['"]?(images\/[^'")\s]+)['"]?\s*\)/gi;
+  while ((m = cssRe.exec(markdown))) paths.add(m[1]);
+  return Array.from(paths);
+}
+
 export class SaveManager {
   /**
    * @param {object} opts
@@ -137,11 +155,122 @@ export class SaveManager {
     }
 
     // Fallback: save via file picker / download
-    const mdBlob = new Blob([fullMarkdown], { type: "text/markdown" });
     const suggestedName = localStorage.getItem("webdeck_local_file_name") || "deck";
-    await this._saveBlob(mdBlob, `${suggestedName}.md`);
+    await this._saveMarkdownWithImages(fullMarkdown, `${suggestedName}.md`);
     this.needsSaveAs = false;
     Notification.success("Deck saved!");
+  }
+
+  /**
+   * Save the markdown file via the browser's save dialog, and when the
+   * File System Access API is available, also save referenced images to
+   * an `images/` folder next to the .md file.
+   * @param {string} markdown
+   * @param {string} fileName — suggested .md filename
+   */
+  async _saveMarkdownWithImages(markdown, fileName) {
+    // When the File System Access API is available, use a directory picker
+    // so we can write both the .md file and its images/ folder.
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({
+          mode: "readwrite",
+          id: "webdeck-save",
+          startIn: "documents",
+        });
+
+        // Write the .md file
+        const mdHandle = await dirHandle.getFileHandle(fileName, { create: true });
+        const mdWritable = await mdHandle.createWritable();
+        await mdWritable.write(markdown);
+        await mdWritable.close();
+
+        // Write images to an images/ subfolder
+        const imagePaths = extractImagePaths(markdown);
+        if (imagePaths.length > 0) {
+          let imagesDir = dirHandle;
+          // Navigate/create the images/ subfolder
+          for (const part of "images".split("/")) {
+            imagesDir = await imagesDir.getDirectoryHandle(part, { create: true });
+          }
+          let saved = 0;
+          let failed = 0;
+          for (const relPath of imagePaths) {
+            try {
+              const res = await fetch(`/${relPath}`);
+              if (!res.ok) {
+                failed++;
+                continue;
+              }
+              const blob = await res.blob();
+              const imgName = relPath.split("/").pop();
+              const imgHandle = await imagesDir.getFileHandle(imgName, { create: true });
+              const imgWritable = await imgHandle.createWritable();
+              await imgWritable.write(blob);
+              await imgWritable.close();
+              saved++;
+            } catch {
+              failed++;
+            }
+          }
+          if (failed > 0) {
+            Notification.warning(
+              `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+              6000,
+            );
+          }
+        }
+        return;
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Fall through to simple blob download
+      }
+    }
+
+    // Fallback: no File System Access API — show a modal so the user
+    // understands images won't be saved and can choose .textpack instead.
+    const imagePaths = extractImagePaths(markdown);
+    if (imagePaths.length > 0) {
+      const choice = await Notification.showModal({
+        title: "Images will not be saved",
+        message:
+          `This browser cannot save images alongside the .md file. ` +
+          `${imagePaths.length} image(s) will be lost.\n\n` +
+          `Export as .textpack to keep everything in a single archive, ` +
+          `or continue to save .md only.`,
+        type: "warning",
+        blockBackdrop: true,
+        buttons: [
+          { label: "Cancel", resolvesTo: "cancel" },
+          { label: "Save .md only", resolvesTo: "md" },
+          { label: "Export as .textpack", isPrimary: true, resolvesTo: "textpack" },
+        ],
+      });
+
+      if (choice === "cancel" || !choice) {
+        throw new DOMException("Save cancelled", "AbortError");
+      }
+      if (choice === "textpack") {
+        const { TextpackExportManager } = await import("../../renderer/textpack-export-manager.js");
+        const { DeckLoader } = await import("../../data/deck-loader.js");
+        const { ok } = await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
+          filename: DeckLoader.getDisplayTitle(this.deck),
+        });
+        if (ok) Notification.success("Deck exported as .textpack!");
+        return;
+      }
+      // choice === "md" — fall through to blob download below
+    }
+
+    const mdBlob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(mdBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async save() {
@@ -153,35 +282,6 @@ export class SaveManager {
         console.error("Failed to save file:", error);
         Notification.error("Failed to save file: " + (error.message || error));
       }
-    }
-  }
-
-  async _saveBlob(blob, fileName) {
-    if (window.showSaveFilePicker) {
-      const fileHandle = await window.showSaveFilePicker({
-        suggestedName: fileName,
-        types: [
-          {
-            description: "Markdown file",
-            accept: { "text/markdown": [".md"] },
-          },
-        ],
-      });
-
-      if (!fileHandle) return;
-
-      const writable = await fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     }
   }
 }

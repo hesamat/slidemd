@@ -84,12 +84,17 @@ export class PptxImporter {
 
       loading.updateProgress(70);
 
-      // Store markdown info in localStorage so edit mode can find it
+      // Store markdown info in localStorage so edit mode can find it.
+      // Clear webdeck_source_url so the save manager knows this deck did NOT
+      // come from the server's /api/deck endpoint — otherwise Save would
+      // POST to the server and overwrite whatever file the server is serving
+      // (e.g. docs/example/slides.md) instead of using the file picker.
       try {
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
         localStorage.setItem("webdeck_local_file_name", "pptx-import");
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        localStorage.removeItem("webdeck_source_url");
       } catch {
         window.__WEBDECK_MARKDOWN__ = markdown;
       }
