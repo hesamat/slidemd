@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 (Unreleased)
+## 0.9.1 (Unreleased)
 
 ### Vision-Augmented Remix
 
@@ -14,7 +14,9 @@
 - Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
 - Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
 - Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
-- Total tests now **795**.
+- Total tests now **815**.
+
+## 0.9.0 (2026-08-06)
 
 ### AI Orchestrator & Single-Slide Editing
 

@@ -323,31 +323,24 @@ layout: two-column
 
 @main
 
-Enhance slides individually or across the whole deck using AI.
+Let the AI handle the busywork so you can focus on the message.
 
-### Getting Started
+### Single Slide
 
-1. Set up your AI provider in **Settings** (main menu)
-2. Use the **AI dropdown** in the editor toolbar to **Enhance slide** or **Add speaker notes**
-3. Use **Refine all slides** to tidy up, restyle, or remix the whole deck
+- **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
+- **Add speaker notes** — generate speaker notes without touching the slide
 
-### Single-Slide AI
-
-- **Enhance slide** — cleans up formatting, headers, code blocks, and layout
-- **Add speaker notes** — generates notes without modifying visible content
-- Both are undoable via `Ctrl+Z`
-
+<img src="images/image-3e14.png" alt="image-3e14" style="position: relative; left: 138px; top: 19px; width: 543px; height: 365px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 @media
 
-### Refine All Slides
+### Whole Deck
 
-- **Tidy up** — fix formatting and layouts only; preserves wording and slide count
-- **Restyle** — reword and rework layouts, add notes; preserves slide count
-- **Remix** — rebuild the deck with a fresh structure (split, merge, reorder, or rewrite slides):
-  1. AI reviews your deck and proposes a new outline — shown in the sidebar
-  2. Slides the AI leaves alone stay as-is; the rest are rewritten to fit the new outline
-  3. Preview the result, then apply or discard
-- Whole-deck operations are undoable via `Ctrl+Z`
+- **Tidy up** — clean up formatting and layouts while keeping your wording and slide count
+- **Restyle** — reword and rework layouts, add notes; keeps the same slide count
+- **Remix** — reimagine the deck: split, merge, reorder, or rewrite; AI proposes an outline, you preview and apply
+- *Vision* — during Remix, send content images so the AI decides which to keep per slide
+
+Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 
 ---
 
