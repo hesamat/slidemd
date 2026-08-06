@@ -378,6 +378,62 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Combined");
       expect(logs.some((l) => l.includes("[Plan] Merge"))).toBe(true);
     });
+
+    it("falls back to original slides when execute returns a mismatched slide count", async () => {
+      const THREE_SLIDE_MD = [
+        "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1",
+        "layout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2",
+        "layout: header-content\n@header\n## Slide 3\n\n@main\n- Item 3",
+      ].join("\n\n---\n\n");
+
+      const planWithTwoRewrites = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", title: "Slide 1" },
+          { action: "rewrite", source: [1], brief: "Make concise", title: "Slide 2" },
+          { action: "rewrite", source: [2], brief: "Make concise", title: "Slide 3" },
+        ],
+      });
+
+      // Execute is expected to produce 2 slides (one per rewrite entry) but
+      // only ever returns 1 — even after validation retries are exhausted —
+      // simulating the AI under/over-shooting the expected slide count.
+      const shortExecuteResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Concise point",
+          },
+        ],
+      });
+
+      const provider = mockProviderSequence([
+        planWithTwoRewrites,
+        shortExecuteResponse,
+        shortExecuteResponse,
+        shortExecuteResponse,
+        shortExecuteResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, THREE_SLIDE_MD, { fidelity: "rewrite" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // Original slide 1 (kept) and the original, unrewritten content for
+      // both rewrite entries must all be present — nothing dropped or blank.
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Item 1");
+      expect(result).toContain("Item 2");
+      expect(result).toContain("Item 3");
+      // Splitting into slides should never produce an empty section.
+      const slides = result.split(/\n\n---\n\n/);
+      expect(slides.length).toBe(3);
+      expect(slides.every((s) => s.trim().length > 0)).toBe(true);
+      expect(logs.some((l) => l.includes("but expected") && l.includes("keeping original"))).toBe(
+        true,
+      );
+    });
   });
 
   describe("truncation handling (batched path)", () => {

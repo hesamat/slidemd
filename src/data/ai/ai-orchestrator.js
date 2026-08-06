@@ -715,10 +715,29 @@ export class AiOrchestrator {
     // is preserved. Raw (non-stripped) split so the AI's own layout/theme
     // choices survive re-splicing.
     const rewrittenSlides = splitSlides(result);
+
+    // The execute call can return a slide count that doesn't match
+    // rewriteEntries (single-call/batched retries are exhausted and the
+    // mismatched output is accepted anyway — see #runWholeDeckSingleCall and
+    // #runWholeDeckBatched). A naive positional zip would then either drop
+    // surplus AI slides or splice in `undefined` (rendered as blank slides)
+    // for the shortfall. Fall back to each entry's original (pre-rewrite)
+    // source slide instead, so a mismatch degrades to "some slides didn't
+    // get rewritten" rather than silently losing or blanking content.
+    const countMismatch = rewrittenSlides.length !== rewriteEntries.length;
+    if (countMismatch) {
+      onLog?.(
+        `AI returned ${rewrittenSlides.length} slide(s) but expected ${rewriteEntries.length} — keeping original content for slides that could not be safely matched.`,
+        "warn",
+      );
+    }
     let rewriteIdx = 0;
-    const finalSlides = plan.map((_, i) =>
-      keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
-    );
+    const finalSlides = plan.map((_, i) => {
+      if (keptByPlanIndex.has(i)) return keptByPlanIndex.get(i);
+      const entry = rewriteEntries[rewriteIdx++];
+      if (countMismatch) return rawSourceSlides[entry.source[0]];
+      return rewrittenSlides[rewriteIdx - 1];
+    });
     return finalSlides.join("\n\n---\n\n");
   }
 
