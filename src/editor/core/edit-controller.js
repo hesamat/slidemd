@@ -803,12 +803,10 @@ export class EditController {
       if (enhanced && this.controller.reloadManager?.replaceDeck) {
         await AssetLoader.ensureMarkdownItLoaded();
         const deck = await DeckLoader.parseMarkdown(enhanced);
-        await this.controller.reloadManager.replaceDeck(deck, {
-          startAtFirstSlide: true,
-          syncStore: false,
-        });
-        // Keep the markdown editor and original cache in sync with the new AI markdown.
-        // syncStore: false tells reloadManager not to overwrite the store from DeckLoader source.
+        // Update the deck store BEFORE firing deckchange via reloadManager so
+        // the _onDeckChange handler reads the correct (post-refine) store
+        // state. This makes the ordering explicit rather than relying on the
+        // handler running synchronously during the awaited replaceDeck.
         this.unsavedMarkdown.clear();
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
@@ -826,6 +824,10 @@ export class EditController {
         } else {
           this.originalMarkdown = newSlides;
         }
+        await this.controller.reloadManager.replaceDeck(deck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
         this.currentSlideIndex = 0;
         this.loadSlideIntoEditor();
         this.saveManager?.updateButton();

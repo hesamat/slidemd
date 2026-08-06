@@ -167,6 +167,7 @@ export class AiProviderClient {
         }
         if (
           includeReasoning &&
+          effectiveReasoning &&
           res.status === 400 &&
           bodyText.toLowerCase().includes("reasoning is mandatory")
         ) {
@@ -258,6 +259,10 @@ function sanitizeErrorBody(body) {
     .split("\n")
     .filter((line) => !/authorization|bearer|api[-_]?key|x-api-key/i.test(line))
     .join(" ")
+    // Redact inline credential patterns that survived the line filter
+    // (e.g. {"error":"invalid key sk-abc123"} on a single JSON line).
+    .replace(/sk-[A-Za-z0-9]{20,}/g, "sk-[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned) return "";

@@ -233,6 +233,7 @@ export class AiSidebar {
     const closeBtn = panel.querySelector('[data-action="close"]');
     const retryBtn = panel.querySelector('[data-action="retry"]');
     const seeResultBtn = panel.querySelector('[data-action="see-result"]');
+    const minimizeBtn = panel.querySelector('[data-action="minimize"]');
     const noticeEl = panel.querySelector(`.${P}notice`);
     const progressInline = panel.querySelector(`.${P}progress-inline`);
     const headerEl = panel.querySelector(`.${P}header`);
@@ -242,6 +243,12 @@ export class AiSidebar {
     retryBtn.hidden = true;
     closeBtn.hidden = true;
     seeResultBtn.hidden = true;
+
+    minimizeBtn.addEventListener("click", () => {
+      this._minimized = !this._minimized;
+      panel.classList.toggle(`${P}panel--minimized`, this._minimized);
+      minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
+    });
 
     const intentLabels = {
       enhanceSlide: "Cleaning up slide",

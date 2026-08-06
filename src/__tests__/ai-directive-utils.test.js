@@ -196,5 +196,16 @@ describe("injectDirectives", () => {
       expect(result).toContain("background: keep");
       expect(result).toContain("background: red");
     });
+
+    it("injects bg/theme at the top when the AI omits the layout line", () => {
+      // The AI response has no `layout:` directive — fix mode should still
+      // restore the original background/theme by prepending them.
+      const md = "@header\n## Title\n\n@main\n- Content";
+      const orig = [{ layout: "header-content", background: "red", theme: "dark" }];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result).toContain("background: red");
+      expect(result).toContain("theme: dark");
+      expect(result).toContain("@header\n## Title");
+    });
   });
 });

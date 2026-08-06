@@ -236,4 +236,56 @@ describe("AiProviderClient", () => {
       expect(err.message).toContain("unauthorized");
     }
   });
+
+  it("AiHttpError redacts inline sk- keys in JSON body lines", async () => {
+    const client = makeClient();
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => '{"error":"invalid key sk-abcdefghijklmnopqrstuvwxyz1234567890"}',
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.message).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
+      expect(err.message).toContain("sk-[redacted]");
+    }
+  });
+
+  it("throws AiHttpError (not AiReasoningError) when reasoning was not sent", async () => {
+    // Non-OpenRouter provider with reasoning: null — effectiveReasoning is null,
+    // so a 400 mentioning "reasoning is mandatory" should NOT be converted to
+    // AiReasoningError (which would lose the HTTP status/body detail).
+    const client = makeClient({
+      getBaseUrl: () => "https://api.openai.com/v1",
+      getProvider: () => "OpenAI",
+    });
+    globalThis.fetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":{"message":"reasoning is mandatory for this model"}}',
+    });
+
+    try {
+      await client.chat({
+        messages: [],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      });
+      expect.fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AiHttpError);
+      expect(err.status).toBe(400);
+      expect(err.message).toContain("HTTP 400");
+    }
+  });
 });

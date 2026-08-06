@@ -344,4 +344,33 @@ describe("AiOrchestrator", () => {
       expect(logs.some((l) => l.includes("[Plan] Merge"))).toBe(true);
     });
   });
+
+  describe("truncation handling (batched path)", () => {
+    // Build a deck with >BATCH_SIZE slides so the batched path is used.
+    // BATCH_SIZE is 8; we use 10 slides.
+    const BIG_DECK = Array.from(
+      { length: 10 },
+      (_, i) => `layout: header-content\n@header\n## Slide ${i + 1}\n\n@main\n- Item ${i + 1}`,
+    ).join("\n\n---\n\n");
+
+    it("terminates when a single-slide batch keeps truncating (no infinite loop)", async () => {
+      // Every call returns finish_reason: "length" (truncation) so the
+      // batch keeps trying to split. With a 1-slide batch it can't split,
+      // so it must bail instead of looping forever.
+      const provider = {
+        chat: vi.fn().mockResolvedValue({
+          content: '{"slides":[]}',
+          raw: { finish_reason: "length" },
+        }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, BIG_DECK);
+      // Should resolve (not hang) — the truncation cap prevents infinite looping.
+      const result = await orchestrator.runWholeDeckOperation(op);
+      // Provider was called a finite number of times (not infinite)
+      expect(provider.chat.mock.calls.length).toBeLessThan(50);
+      // Result may be null or partial, but must not hang
+      expect(result).toBeDefined();
+    });
+  });
 });

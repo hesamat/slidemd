@@ -28,6 +28,7 @@ The system prompt (`system-prompt.md`) defines:
 - **Text blocks**: `::: text-block { ... }` for styled/multi-column text
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
+- **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
 - **Allowed layouts**: injected via `{{layoutList}}`
 
 ## enhanceSlide Intent (fix-prompt.md)

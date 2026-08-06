@@ -108,8 +108,9 @@ export class AiOrchestrator {
       }
 
       let afterMarkdown = slidesToMarkdown(parsed.slides);
-      // Re-inject background/theme if the AI dropped them (fix mode: the AI
-      // never sees them, so originals are restored positionally).
+      // Re-inject background/theme: single-slide intents send the slide as-is
+      // (the AI sees background:/theme:), but fix mode strips whatever the
+      // model echoes back and restores the originals positionally.
       afterMarkdown = injectDirectives(afterMarkdown, origDirectives, "fix");
 
       const result = validator.validate(afterMarkdown, intent, { expectedSlideCount: 1 });
@@ -361,6 +362,31 @@ export class AiOrchestrator {
           retryAttempts.set(batch.batchKey, attempts);
 
           if (batchResult.error.type === "truncation") {
+            // Cap truncation splits per batch so a single oversized slide
+            // can't loop forever (each split re-queues the same content).
+            // Also skip empty ranges: halving a 1-slide batch produces
+            // {s, s+1} (identical) and {s+1, s+1} (empty), so we must bail.
+            const canSplit = batch.end - batch.start > 1 && attempts < 3;
+            if (!canSplit) {
+              onLog?.(
+                `Batch ${batch.index + 1}: response truncated and cannot split further — accepting partial or failing`,
+                "warn",
+              );
+              if (batchResult.error.slides) {
+                // Accept partial output if available
+                results.set(batch.batchKey, {
+                  start: batch.start,
+                  end: batch.end,
+                  slides: batchResult.error.slides,
+                });
+                completedSlides += batch.end - batch.start;
+              } else {
+                onLog?.(`Batch ${batch.index + 1}: failed (truncation)`, "error");
+              }
+              const nextBatch = queue.length > 0 ? queue[0] : null;
+              onProgress?.(completedSlides, totalSlides, nextBatch);
+              continue;
+            }
             onLog?.(
               `Batch ${batch.index + 1}: response truncated — splitting into 2×${Math.ceil((batch.end - batch.start) / 2)} slides`,
               "warn",
@@ -513,7 +539,15 @@ export class AiOrchestrator {
       const duration = (performance.now() - startTime) / 1000;
 
       if (finishReason === "length") {
-        return { error: { type: "truncation" } };
+        // Include any partial slides parsed from the truncated response so
+        // the caller can accept them when the batch can't be split further.
+        const partialParsed = parseAiResponse(contentText);
+        return {
+          error: {
+            type: "truncation",
+            slides: partialParsed?.slides || null,
+          },
+        };
       }
 
       const parsed = parseAiResponse(contentText);

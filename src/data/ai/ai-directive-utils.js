@@ -99,13 +99,19 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
     // the originals. Fence-aware so code-block contents are preserved.
     const lines = filterFenceAware(section.split("\n"), (l) => !/^(background|theme):\s/.test(l));
     const layoutIdx = lines.findIndex((l) => /^layout:\s/.test(l));
-    if (layoutIdx === -1) return section;
 
     const insertAfter = [];
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
     if (orig.theme) insertAfter.push(`theme: ${orig.theme}`);
 
     if (insertAfter.length === 0) return lines.join("\n");
+
+    if (layoutIdx === -1) {
+      // No layout line — prepend directives at the top of the section so the
+      // slide keeps its styling even when the AI omitted the layout directive.
+      lines.unshift(...insertAfter);
+      return lines.join("\n");
+    }
 
     lines.splice(layoutIdx + 1, 0, ...insertAfter);
     return lines.join("\n");

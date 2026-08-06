@@ -191,7 +191,9 @@ export const BATCH_SIZE = 8;
  */
 export function buildBatchMessages(markdown, mode, startIdx, endIdx, totalSlides, deckSummary) {
   const cleaned = stripFrontmatter(markdown, mode);
-  const allSlides = cleaned.split(/\n---\n/);
+  // Use the fence-aware split so `---` inside code blocks doesn't create
+  // phantom slides and misalign indices with the orchestrator's slide list.
+  const allSlides = new MarkdownParser().splitSlides(cleaned);
   const chunk = allSlides.slice(startIdx, endIdx).join("\n\n---\n\n");
   const actualCount = allSlides.slice(startIdx, endIdx).length;
 
