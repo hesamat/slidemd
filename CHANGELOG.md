@@ -79,7 +79,7 @@
 - **Layout list format** — replaced the wide 8-column cross-reference table with a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`). The table format was hard for the AI to scan accurately — it frequently used `@secondary` for `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
 - Total tests now **744**.
 
-## 0.8.0 (2026-08-05)
+## 0.8.0 (2026-08-06)
 
 ### Deck Store & Patches
 
