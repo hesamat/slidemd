@@ -26,5 +26,6 @@
 @import "./styles/slide-search.css";
 @import "./styles/command-palette.css";
 @import "./styles/ai-sidebar.css";
+@import "./styles/ai-generate-modal.css";
 @import "./styles/settings-modal.css";
 @import "./styles/conversion-modal.css";

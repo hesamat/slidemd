@@ -1,20 +1,17 @@
-Create an inspired SlideMD presentation from this content. Return as JSON.
+Refine this SlideMD presentation. Return the result as JSON.
 
 Content strategy:
 
-- Keep all substantive content but reorganize for clarity and flow.
-- Split overloaded slides (>10 bullets or >15 code lines) into focused slides.
-- Combine sparse slides into richer ones.
+- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
-- Use `media-span` only for actual `<img>` tags.
-- Use `full-image` only for a full-bleed image with no text.
-- `title-slide` is only for the first slide: it uses `@title` and `@footer`, no `@main`.
-- `three-column` uses `@main`, `@media`, `@secondary`. Never use `@column1`, `@column2`, or `@column3`.
-- Use `header-content` or `focus` for simple text. Use `focus` only for centered content with at most 3 element types.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
-- Use `theme: light` for consistent light mode.
-- Do not inflate the slide count.
+- Preserve each slide's `theme:` directive. Keep `background:` directives unless they don't fit the restructured content — you may change or drop backgrounds that are decorative overlays or don't match the slide's purpose.
+- Drop images that are low quality, redundant, or don't add value to the slide.
+- If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
+- If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- Follow the FIDELITY instruction that follows this prompt for whether to polish, improve, or rewrite.
 
 Success criteria:
 

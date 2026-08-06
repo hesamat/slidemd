@@ -1,0 +1,217 @@
+/* ── AI Generate Modal (Enhance all slides pre-flight) ───────────── */
+.ai-generate-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.ai-generate-modal__dialog {
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  border-radius: 12px;
+  padding: 24px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.ai-generate-modal__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ai-generate-modal__subtitle {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-medium, #666);
+  line-height: 1.5;
+}
+
+.ai-generate-modal__field {
+  margin-bottom: 16px;
+}
+
+.ai-generate-modal__row {
+  display: flex;
+  gap: 16px;
+}
+
+.ai-generate-modal__row .ai-generate-modal__field {
+  flex: 1;
+}
+
+.ai-generate-modal__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-high, #111);
+}
+
+.ai-generate-modal__optional {
+  font-weight: 400;
+  color: var(--text-medium, #999);
+}
+
+.ai-generate-modal__textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ai-generate-modal__textarea:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.1));
+}
+
+.ai-generate-modal__select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.ai-generate-modal__select:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.1));
+}
+
+.ai-generate-modal__select:disabled {
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.05));
+  color: var(--text-medium, #666);
+  cursor: not-allowed;
+}
+
+.ai-generate-modal__note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-medium, #666);
+  line-height: 1.4;
+}
+
+.ai-generate-modal__cost {
+  margin: 20px 0;
+  padding: 12px 16px;
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.03));
+  border-radius: 8px;
+  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.06));
+}
+
+.ai-generate-modal__cost-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 3px 0;
+  color: var(--text-medium, #666);
+}
+
+.ai-generate-modal__cost-row span:last-child {
+  font-weight: 500;
+  color: var(--text-high, #111);
+}
+
+.ai-generate-modal__cost-row--warn span:last-child {
+  color: var(--warning, #d97706);
+}
+
+.ai-generate-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.ai-generate-modal__btn {
+  padding: 8px 20px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.ai-generate-modal__btn:hover {
+  background: var(--surface-2-bg, rgba(0, 0, 0, 0.04));
+}
+
+.ai-generate-modal__btn--primary {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
+}
+
+.ai-generate-modal__btn--primary:hover {
+  background: var(--accent-hover, #5558e0);
+}
+
+/* ── Label row (label + inline action) ── */
+.ai-generate-modal__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ai-generate-modal__label-row .ai-generate-modal__label {
+  margin-bottom: 0;
+}
+
+/* ── Link button (inline action) ── */
+.ai-generate-modal__link-btn {
+  background: none;
+  border: none;
+  color: var(--accent, #6366f1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.ai-generate-modal__link-btn:hover {
+  background: var(--accent-bg, rgba(99, 102, 241, 0.08));
+}
+
+.ai-generate-modal__link-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* ── Model display with Change button ── */
+.ai-generate-modal__model-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-generate-modal__cost-warn {
+  color: var(--warning, #d97706);
+  font-weight: 500;
+}

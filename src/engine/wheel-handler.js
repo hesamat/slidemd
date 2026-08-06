@@ -32,6 +32,10 @@ export class WheelHandler {
     const notificationModal = document.querySelector(".notification-modal-backdrop");
     if (notificationModal) return true;
 
+    // Check for AI generate modal and other backdrop-based modals
+    const backdrop = document.querySelector('[class*="modal__backdrop"]');
+    if (backdrop) return true;
+
     return false;
   }
 

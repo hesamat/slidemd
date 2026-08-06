@@ -136,7 +136,7 @@ export class AiProviderClient {
       bodyBase.reasoning = effectiveReasoning;
     }
 
-    const tryFetch = async (includeResponseFormat) => {
+    const tryFetch = async (includeResponseFormat, includeReasoning = true) => {
       if (signal?.aborted) {
         throw new AiAbortError();
       }
@@ -144,6 +144,9 @@ export class AiProviderClient {
       const body = { ...bodyBase };
       if (!includeResponseFormat) {
         delete body.response_format;
+      }
+      if (!includeReasoning) {
+        delete body.reasoning;
       }
 
       const res = await fetch(url, {
@@ -162,12 +165,24 @@ export class AiProviderClient {
         ) {
           throw new AiParseError("response_format not supported");
         }
+        if (
+          includeReasoning &&
+          effectiveReasoning &&
+          res.status === 400 &&
+          bodyText.toLowerCase().includes("reasoning is mandatory")
+        ) {
+          throw new AiReasoningError("Reasoning is mandatory for this model");
+        }
         throw new AiHttpError(res.status, bodyText);
       }
 
-      const json = await res.json().catch(() => {
-        throw new AiParseError("Failed to parse response JSON");
-      });
+      const bodyText = await res.text().catch(() => "");
+      let json;
+      try {
+        json = JSON.parse(bodyText);
+      } catch {
+        throw new AiParseError("Failed to parse response JSON", bodyText);
+      }
 
       const content = json.choices?.[0]?.message?.content;
       if (typeof content !== "string") {
@@ -177,16 +192,34 @@ export class AiProviderClient {
       return { content, usage: json.usage || null, raw: json };
     };
 
-    try {
-      return await tryFetch(true);
-    } catch (firstErr) {
-      // Only retry if we actually sent a response_format that may have caused
-      // the parse problem (e.g. a provider that doesn't support it).
-      if (responseFormat && firstErr instanceof AiParseError) {
-        return await tryFetch(false);
+    // Retry loop: drop unsupported params one at a time. Each retry narrows
+    // the request shape so a subsequent "reasoning is mandatory" 400 from the
+    // response_format-less retry is also handled (and vice versa).
+    let includeResponseFormat = Boolean(responseFormat);
+    let includeReasoning = true;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await tryFetch(includeResponseFormat, includeReasoning);
+      } catch (err) {
+        lastErr = err;
+        // Drop response_format only when it was actually sent and the provider
+        // rejected it. Without the `responseFormat` guard we'd re-send a
+        // byte-identical request on every parse/content error (wasted call).
+        if (err instanceof AiParseError && responseFormat && includeResponseFormat) {
+          includeResponseFormat = false;
+          continue;
+        }
+        // Drop the reasoning param when the model requires reasoning but we
+        // tried to disable it. Only retry if we actually sent `reasoning`.
+        if (err instanceof AiReasoningError && includeReasoning && effectiveReasoning) {
+          includeReasoning = false;
+          continue;
+        }
+        throw err;
       }
-      throw firstErr;
     }
+    throw lastErr;
   }
 }
 
@@ -199,17 +232,65 @@ export class AiAbortError extends Error {
 
 export class AiHttpError extends Error {
   constructor(status, body) {
-    const summary = body ? ` ${String(body).slice(0, 200)}` : "";
-    super(`HTTP ${status}${summary}`);
+    // Append a short, sanitized excerpt of the response body so the user gets
+    // actionable detail (bad model id, quota, rejected param) without leaking
+    // credentials. Header-like lines and bearer tokens are stripped; the full
+    // body remains on `.body` for DevTools inspection.
+    const summary = sanitizeErrorBody(body);
+    super(`HTTP ${status}${summary ? `: ${summary}` : ""}`);
     this.name = "AiHttpError";
     this.status = status;
     this.body = body;
   }
 }
 
+/**
+ * Extract a short, sanitized excerpt from a provider error body for display.
+ * Strips lines that look like echoed request headers / credentials, collapses
+ * whitespace, and caps the length.
+ * @param {string} body
+ * @returns {string}
+ */
+function sanitizeErrorBody(body) {
+  if (!body) return "";
+  const text = String(body);
+  // Drop lines that look like headers or credential echoes.
+  const cleaned = text
+    .split("\n")
+    // Only drop header-style lines that echo the request's auth header —
+    // most provider errors are a single-line JSON body (e.g.
+    // {"error":"Invalid api_key provided"}) and a broader keyword filter
+    // would blank out the actual error message the user needs to see. The
+    // inline redaction patterns below still catch credentials embedded in
+    // JSON error bodies.
+    .filter((line) => !/^\s*(authorization|x-api-key|api-key)\s*:/i.test(line))
+    .join(" ")
+    // Redact inline credential patterns that survived the line filter
+    // (e.g. {"error":"invalid key sk-abc123"} on a single JSON line).
+    .replace(/sk-[A-Za-z0-9_.+/=-]{20,}/g, "sk-[redacted]")
+    .replace(/AIza[0-9A-Za-z_-]{35,}/g, "[google-api-key]")
+    .replace(/Bearer\s+[A-Za-z0-9_.+/=-]{15,}/gi, "Bearer [redacted]")
+    .replace(/Basic\s+[A-Za-z0-9+/=]{20,}/gi, "Basic [redacted]")
+    // Redact JSON values for common credential field names when the value
+    // is long enough to plausibly be a secret.
+    .replace(/"(api[_-]?key|key|token)"\s*:\s*"[^"]{10,}"/gi, '"$1": "[redacted]"')
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  return cleaned.slice(0, 150);
+}
+
 export class AiParseError extends Error {
-  constructor(msg) {
+  constructor(msg, body = "") {
     super(msg);
     this.name = "AiParseError";
+    this.body = body;
+  }
+}
+
+export class AiReasoningError extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = "AiReasoningError";
   }
 }

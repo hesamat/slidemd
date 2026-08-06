@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.9.0 (2026-08-06)
+
+### AI Orchestrator & Single-Slide Editing
+
+- Add `AiOrchestrator` — single entry point for all AI operations with built-in validation and repair loop.
+- Add `AiOperation` type and `AiIntentRegistry` for intent-to-prompt-builder mapping.
+- Add single-slide AI intents: `enhanceSlide`, `addSpeakerNotes`.
+- Drop `toMetricCards` intent — the referenced `metric-cards` layout doesn't exist and the fallback to `header-content` added no value.
+- Add AI dropdown in the editor toolbar with per-slide and whole-deck actions.
+- Single-slide AI operations return `SlidePatch[]` applied via `DeckStore.applyPatches()` — undoable from day one.
+- Add prompt files: `add-speaker-notes-prompt.md`, `remix-plan-prompt.md`.
+- Reuse `fix-prompt.md` as the user fragment for `enhanceSlide` (same cleanup rules, scoped to one slide).
+
+### Remix Two-Phase Flow
+
+- **Remix ("rewrite" fidelity) now uses a two-phase plan→execute flow.** A cheap planning call produces a structured restructuring plan (keep/rewrite/merge actions), logged in the AI sidebar. The plan is converted to a virtual deck and fed through the existing batched generate path.
+- **Remix is available for decks of any size** (was limited to ≤8 slides). The execute phase batches through the existing 2-worker queue for large decks.
+- The plan phase uses `remix-plan-prompt.md` and returns a JSON plan with 3 action types: `keep`, `rewrite`, `merge`.
+- `generate-prompt.md` now instructs the LLM to follow `<!-- brief: ... -->` comments in the virtual deck.
+
+### Import Flow Simplification
+
+- **Drop whole-deck "Fix Issues" from PPTX import.** The "Fix Issues" checkbox is removed from the conversion modal.
+- Import is now instant — no AI options remain in the conversion modal; users refine slides via the AI dropdown afterward.
+- Remove `extractDirectives`/`injectDirectives` from the import path (no longer needed without fix mode).
+
+### Module Migration
+
+- Delete `ai-enhancer.js` transition facade — all functions migrated to focused modules.
+- Add `ai-prompt-builder.js` (layout list, frontmatter stripping, message building, batch messages).
+- Add `ai-response-parser.js` (JSON parsing, slides-to-markdown, areas-to-markdown, heading extraction).
+- Add `ai-directive-utils.js` (extract/restore/inject per-slide directives, fence-aware).
+- Add `ai-token-estimator.js` (token count and max_tokens estimation).
+- Add `ai-output-validator.js`, `ai-output-schema.js`, `ai-prompt-composer.js`, `ai-repair-message.js`.
+- Add `ai-provider-client.js` (OpenAI-compatible client with retry logic) and `ai-provider-factory.js`.
+- Add `dropdown-registry.js` — shared registry so Format and AI dropdowns can't overlap.
+- Split `ai-enhancer.test.js` into per-module test files.
+- Total tests now **734**.
+
+### Robustness & Hardening
+
+- **Truncation loop fix** — cap truncation splits per batch so a single oversized slide can't loop forever re-queuing itself; partial output is accepted when the batch can't split further.
+- **Speaker-notes validation** — strip `data-source-line` attributes before comparing rendered areas so blank-line normalisation by the AI no longer triggers false positives (previously wasted 2 extra repair calls per "Add speaker notes").
+- **Directive preservation** — `extractDirectives` and `buildBatchMessages` now use fence-aware `MarkdownParser.splitSlides` so `---` inside code blocks doesn't shift backgrounds/themes onto wrong slides.
+- **Directive injection without layout** — fix mode now prepends `background:`/`theme:` at the top of the section when the AI omits the `layout:` line, instead of dropping the slide's styling entirely.
+- **Reasoning guard** — `AiReasoningError` only thrown when reasoning was actually sent, so non-OpenRouter providers with `reasoning: null` get the full `AiHttpError` with status/body.
+- **Error sanitization** — `AiHttpError` includes a short sanitized excerpt (credential-like lines and inline `sk-`/`Bearer` patterns stripped) so users get actionable detail without leaking secrets.
+- **Retry guard** — `response_format` retry only fires when it was actually sent, avoiding a wasted duplicate request on every parse error.
+- **Whole-deck undo** — `DeckStore.replaceDeck` enables Ctrl+Z for whole-deck refine instead of clearing history.
+- **Whole-deck refine ordering** — deckStore updated before `reloadManager.replaceDeck` so the `deckchange` handler reads the correct post-refine state.
+- **Minimize button** — wired in both single-slide and whole-deck AI panels.
+- **OpenAI model discovery** — restored to `isModelSearchProvider` so Fetch models and reasoning cross-reference work again.
+- **Remix directive injection** — remix path no longer calls `injectDirectives` positionally (it intentionally reorders/splits/merges); non-remix generate only gap-fills when the output slide count matches the input.
+
+### Prompt & Modal Improvements (PPTX-focused)
+
+- **Polish fidelity uses fix-prompt.md** — "Tidy up" now applies the same specific PPTX cleanup rules as single-slide "Clean up slide" (rejoin split code lines, remove bold wrapping, fix broken links/lists/tables, downgrade mismatched layouts) instead of a vague "fix formatting" suffix on `generate-prompt.md`.
+- **Image handling guidance** — system and generate prompts now instruct the AI to preserve `<img>` tags, reposition images with `position: relative` + `left`/`top`/`width` for custom placement, and drop low-quality or redundant images.
+- **PPTX-aware guidance** — `generate-prompt.md` now tells the AI to fix mismatched layouts, reposition misplaced images, and tighten verbose text when the input appears to be from a PPTX import.
+- **Conditional background preservation** — the AI may now change or drop `background:` directives that are decorative overlays or don't fit the restructured content (previously unconditional). `theme:` is still preserved.
+- **Token estimate in modal** — the pre-flight "Refine all slides" modal now shows a rough input/output token estimate alongside slide count and API call count.
+- **`buildDeckSummary` fence-aware** — uses `MarkdownParser.splitSlides` instead of naive `split(/\n---\n/)` so `---` inside code blocks doesn't create phantom slides in the deck outline.
+- **Layout list format** — replaced the wide 8-column cross-reference table with a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`). The table format was hard for the AI to scan accurately — it frequently used `@secondary` for `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
+- Total tests now **744**.
+
 ## 0.8.0 (2026-08-06)
 
 ### Deck Store & Patches

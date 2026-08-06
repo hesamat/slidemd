@@ -32,7 +32,7 @@ export class PptxImporter {
     // Close the conversion modal
     ConversionModal.close();
 
-    let { markdown, images, deckName, aiMode } = result;
+    let { markdown, images, deckName } = result;
 
     // Convert PPTX-extracted images to in-memory blob URLs so the deck renders immediately
     const imageBlobs = new Map();
@@ -117,55 +117,6 @@ export class PptxImporter {
       if (editCtrl?.saveManager) {
         editCtrl.saveManager.needsSaveAs = true;
       }
-
-      // Shared helper to apply AI result to the deck
-      const applyAiResult = async (enhanced, origDirectives) => {
-        // In fix mode, re-inject background/theme directives into the markdown
-        if (origDirectives && aiMode === "fix") {
-          const { injectDirectives } = await import("../data/ai-enhancer.js");
-          enhanced = injectDirectives(enhanced, origDirectives);
-        }
-
-        let newDeckData;
-        try {
-          newDeckData = new MarkdownParser().parseDeckMarkdown(enhanced);
-        } catch (err) {
-          console.warn("parseDeckMarkdown failed:", err);
-          Notification.error("Failed to parse AI result. The output may be malformed.");
-          return;
-        }
-
-        // Fallback: if parser returned only 1 slide but content has ---, split manually
-        if (newDeckData && newDeckData.slides.length <= 1 && enhanced.includes("\n---\n")) {
-          const parts = enhanced.split(/\n---\n/);
-          if (parts.length > 1) {
-            const md = new MarkdownParser();
-            newDeckData.slides = parts.map((part) => {
-              const parsed = md.parseDeckMarkdown(part.trim());
-              return parsed.slides[0];
-            });
-            newDeckData.meta = newDeckData.meta || {};
-          }
-        }
-
-        if (newDeckData && this._reloadManager?.replaceDeck) {
-          try {
-            try {
-              localStorage.setItem("webdeck_local_file", enhanced);
-              localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-            } catch {
-              window.__WEBDECK_MARKDOWN__ = enhanced;
-            }
-            await DraftManager.saveDraft(enhanced);
-
-            await this._reloadManager.replaceDeck(newDeckData, { startAtFirstSlide: true });
-            markdown = enhanced;
-          } catch (err) {
-            console.error("Failed to replace deck with AI result:", err);
-            Notification.error("AI enhancement could not be applied.");
-          }
-        }
-      };
 
       loading.updateProgress(100);
       loading.dismiss();
@@ -281,26 +232,6 @@ export class PptxImporter {
           },
         ],
       });
-
-      // AI post-processing (runs after save notification is shown)
-      if (aiMode) {
-        try {
-          // Wait for background image uploads to finish so the AI works with
-          // server `images/...` paths instead of in-memory blob URLs.
-          await waitForImageUpload();
-          const aiMarkdown = getLatestMarkdown();
-          const { AiSidebar } = await import("../editor/ai-sidebar.js");
-          const { extractDirectives } = await import("../data/ai-enhancer.js");
-          const origDirectives = extractDirectives(aiMarkdown);
-          const enhanced = await AiSidebar.show(aiMarkdown, aiMode);
-          if (enhanced) {
-            await applyAiResult(enhanced, origDirectives);
-          }
-        } catch (err) {
-          console.error("AI post-processing failed:", err);
-          Notification.error("AI post-processing failed. You can still save the imported deck.");
-        }
-      }
     } catch (err) {
       loading.dismiss();
       if (err.name === "AbortError") {

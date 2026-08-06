@@ -346,19 +346,25 @@ describe("EventEmitter", () => {
   });
 
   it("handles errors in listeners gracefully", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const emitter = new EventEmitter();
     emitter.addEventListener("test", () => {
       throw new Error("boom");
     });
-    // Should not throw
+    // Should not throw, but should log the error.
     expect(() => emitter.dispatchEvent("test")).not.toThrow();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("ignores non-function callbacks", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const emitter = new EventEmitter();
     emitter.addEventListener("test", "not a function");
-    // Should not throw
+    // Should not throw, but should warn about the bad callback.
     expect(() => emitter.dispatchEvent("test")).not.toThrow();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 

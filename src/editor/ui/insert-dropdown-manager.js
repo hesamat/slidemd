@@ -12,6 +12,8 @@
  * Extracted from EditController.
  */
 
+import { dropdownRegistry } from "./dropdown-registry.js";
+
 export class InsertDropdownManager {
   /**
    * @param {object} opts
@@ -29,6 +31,7 @@ export class InsertDropdownManager {
 
   init() {
     if (!this._btn || !this._content) return;
+    dropdownRegistry.add(this);
 
     const { signal } = this._abortController;
 
@@ -37,6 +40,10 @@ export class InsertDropdownManager {
       (e) => {
         e.stopPropagation();
         const wasOpen = !this._content.classList.contains("webdeck-hidden");
+        // Close every other registered dropdown so two panels can't overlap.
+        for (const mgr of dropdownRegistry) {
+          if (mgr !== this) mgr.close();
+        }
         this.close();
         if (!wasOpen) {
           this._content.classList.remove("webdeck-hidden");
@@ -116,6 +123,7 @@ export class InsertDropdownManager {
 
   destroy() {
     this.close();
+    dropdownRegistry.delete(this);
     this._abortController.abort();
   }
 }

@@ -1,18 +1,22 @@
 # AI Prompt Template
 
-This document describes the prompt architecture used by the AI enhancement features (fix and generate modes).
+This document describes the prompt architecture used by the AI enhancement features.
 
 ## Prompt Architecture
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                 | Role     | Purpose                                             |
-| -------------------- | -------- | --------------------------------------------------- |
-| `system-prompt.md`   | `system` | Global rules, JSON output format, layout list       |
-| `generate-prompt.md` | `user`   | Creative reorganization task + `{{markdown}}` input |
-| `fix-prompt.md`      | `user`   | Conservative cleanup task + `{{markdown}}` input    |
+| File                          | Role     | Purpose                                                             |
+| ----------------------------- | -------- | ------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                       |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck)    |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)     |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                           |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON |
 
-Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck content.
+Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
+
+Intents are mapped to prompt builders by [`AiIntentRegistry`](../src/data/ai/ai-intent-registry.js), and the [`AiOrchestrator`](../src/data/ai/ai-orchestrator.js) coordinates the LLM call, validation, and repair loop.
 
 ## System Prompt Rules
 
@@ -24,11 +28,13 @@ The system prompt (`system-prompt.md`) defines:
 - **Text blocks**: `::: text-block { ... }` for styled/multi-column text
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
-- **Allowed layouts**: injected via `{{layoutList}}`
+- **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
+- **Image handling**: preserve `<img>` tags unless FIDELITY says to drop; use `position: relative` with `left`/`top`/`width` for custom placement
+- **Allowed layouts**: injected via `{{layoutList}}` as a per-layout list of allowed `@area` names (e.g. `two-column: @header, @main, @media, @footer`)
 
-## Fix Mode (fix-prompt.md)
+## enhanceSlide Intent (fix-prompt.md)
 
-Conservative cleanup that preserves content and slide count:
+Conservative cleanup of a single slide that preserves content and slide count:
 
 - Rejoin split code lines, add language tags
 - Restore blank lines between sections
@@ -41,16 +47,34 @@ Conservative cleanup that preserves content and slide count:
 
 ## Generate Mode (generate-prompt.md)
 
-Creative reorganization that may restructure the deck:
+Refines the whole deck's wording, layouts, and structure:
 
-- Keep all substantive content but reorganize for clarity
-- Split overloaded slides, combine sparse ones
-- Use tables for comparisons, two-column for dense content
-- `media-span` only for actual images, `full-image` for full-bleed
-- `title-slide` only for the first slide (`@title`, `@footer`)
-- `three-column` uses `@main`, `@media`, `@secondary`
-- Add speaker notes where helpful
-- Do not inflate slide count
+- Improve wording: concise headers, tightened bullet points, specific statements
+- Pick the best layout per slide (two-column, focus, table) over defaulting to header-content
+- Use tables for 2-3 item comparisons; two-column for diagrams, code, or dense content
+- Add speaker notes where helpful: `<!-- notes: ... -->`
+- Preserve `theme:` directives; keep `background:` unless it doesn't fit the restructured content (decorative overlays may be dropped)
+- Preserve `<img>` tags; reposition with `position: relative` + `left`/`top`/`width` for custom placement
+- Drop images that are low quality, redundant, or don't add value
+- PPTX imports: fix mismatched layouts, reposition misplaced images, tighten verbose text
+- Follow the FIDELITY instruction appended after the prompt for how much to change
+
+### Fidelity Levels
+
+| Fidelity            | User fragment                                                  | What it does                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `polish` (Tidy up)  | `fix-prompt.md`                                                | Same specific cleanup rules as single-slide "Clean up slide": rejoin split code, fix bold wrapping, broken links, mismatched layouts. No wording changes. Slide count unchanged. |
+| `enhance` (Restyle) | `generate-prompt.md` + RESTYLE suffix                          | Rework text, pick better layouts, add notes. Slide count unchanged.                                                                                                              |
+| `rewrite` (Remix)   | `remix-plan-prompt.md` (plan) → `generate-prompt.md` (execute) | Two-phase plan→execute. Can merge, reorder, restructure. Slide count may change.                                                                                                 |
+
+## addSpeakerNotes Intent (add-speaker-notes-prompt.md)
+
+Adds speaker notes to a single slide:
+
+- Add `<!-- notes: ... -->` at the end of the slide content
+- Notes expand on key points for a presenter (2-4 sentences)
+- Include context, transitions, and talking points
+- Does not change the slide's layout or visible content
 
 ## SlideMD Syntax Reference
 
@@ -132,13 +156,16 @@ If content exceeds these limits, split across multiple slides or use two-column 
 - Do NOT replace `images/...` paths with `blob:` URLs, data URIs, or other forms
 - Keep image filenames, dimensions, and alt text unchanged
 - Use `src="images/filename.png"` and place in `@media` or `@main` area
+- For custom placement, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag
+- The AI may drop images that are low quality, redundant, or don't add value (per the generate-prompt rules)
+- The AI may change or drop `background:` directives that are decorative overlays and don't fit the restructured content
 
 ## Modification Checklist
 
 When modifying prompts:
 
-1. Check all three prompt files for consistency
-2. Run `npm test` — AI enhancer tests verify prompt processing
+1. Check all prompt files for consistency
+2. Run `npm test` — AI module tests verify prompt processing
 3. Keep combined system + user prompt length under ~150 lines
 4. Count strong negative directives (NEVER, Do NOT) — aim for <=5 per prompt
 5. Keep both layout lists in sync (system prompt `{{layoutList}}` and this doc)

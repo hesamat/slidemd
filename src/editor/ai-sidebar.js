@@ -1,15 +1,10 @@
 /**
  * AiSidebar
  *
- * Non-blocking sidebar panel for AI processing.
- * For small decks (≤8 slides): single API call.
- * For larger decks: 2-worker parallel batch processing with per-batch retry.
+ * Thin, non-blocking UI shell for AI processing. All LLM calls, batching,
+ * validation, and repair live in AiOrchestrator — this class only owns the
+ * panel UI (progress, retry, cancel) and drives it via orchestrator callbacks.
  */
-
-import { SettingsModal } from "./settings-modal.js";
-import { createAiProviderClient } from "../data/ai/ai-provider-factory.js";
-import { AiOutputValidator } from "../data/ai/ai-output-validator.js";
-import { buildRepairMessage } from "../data/ai/ai-repair-message.js";
 
 const P = "ai-sidebar__";
 
@@ -41,18 +36,19 @@ export class AiSidebar {
   }
 
   /**
-   * Show the AI sidebar and stream the response.
-   * @param {string} markdown - The markdown to enhance.
-   * @param {"fix"|"generate"} mode - Enhancement mode.
+   * Show the AI sidebar and run a whole-deck "generate" operation through
+   * the orchestrator.
+   * @param {import("../data/ai/ai-operation.js").AiOperation} operation
+   * @param {import("../data/ai/ai-orchestrator.js").AiOrchestrator} orchestrator
    * @returns {Promise<string|null>} Enhanced markdown, or null if cancelled/failed.
    */
-  static async show(markdown, mode) {
+  static async show(operation, orchestrator) {
     this.cancel();
     this.close();
     const myShowId = Symbol();
     this._showId = myShowId;
 
-    const panel = this.#createPanel(mode);
+    const panel = this.#createPanel("generate");
     document.body.appendChild(panel);
     this._currentPanel = panel;
 
@@ -69,6 +65,8 @@ export class AiSidebar {
     const headerEl = panel.querySelector(`.${P}header`);
 
     let cancelled = false;
+    let closed = false;
+    let discarded = false;
 
     cancelBtn.addEventListener("click", () => {
       cancelled = true;
@@ -81,8 +79,19 @@ export class AiSidebar {
       }
     };
 
-    closeBtn.addEventListener("click", finish);
     seeResultBtn.addEventListener("click", finish);
+    // Close serves two purposes depending on panel state:
+    // - After an error, it must break out of the retry loop below, which
+    //   awaits _retryResolve rather than _finishResolve. Without this the
+    //   panel would hang forever after an error when the user clicks Close.
+    // - After a successful run, it is relabeled "Discard" so the user can
+    //   abandon the AI result instead of applying it.
+    closeBtn.addEventListener("click", () => {
+      closed = true;
+      discarded = true;
+      this._retryResolve?.();
+      finish();
+    });
 
     retryBtn.addEventListener("click", () => {
       retryBtn.hidden = true;
@@ -118,12 +127,13 @@ export class AiSidebar {
     };
 
     const showDone = () => {
-      statusEl.textContent = 'Done! Click "See result" to apply.';
+      statusEl.textContent = 'Done! Click "Apply changes" to apply.';
       statusEl.className = `${P}status ${P}status--done`;
-      noticeEl.hidden = false;
+      noticeEl.hidden = true;
       cancelBtn.hidden = true;
       retryBtn.hidden = true;
-      closeBtn.hidden = true;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Discard";
       seeResultBtn.hidden = false;
       progressInline.hidden = true;
       outputEl.hidden = false;
@@ -143,257 +153,41 @@ export class AiSidebar {
     const updateProgress = (completedSlides, totalSlides, nextBatch) => {
       if (progressCount) progressCount.textContent = `${completedSlides}/${totalSlides}`;
       if (nextBatch) {
-        statusEl.textContent = `Processing slides ${nextBatch.start + 1}\u2013${nextBatch.end} of ${totalSlides}\u2026`;
+        statusEl.textContent = `Reading slides ${nextBatch.start + 1}\u2013${nextBatch.end} of ${totalSlides}\u2026`;
       }
     };
 
-    const { buildDeckSummary, splitSlides, slidesToMarkdown, BATCH_SIZE } =
-      await import("../data/ai-enhancer.js");
-
-    const providerLabel = SettingsModal.getProvider();
-
-    const provider = createAiProviderClient(
-      providerLabel,
-      () => SettingsModal.getBaseUrl(),
-      () => SettingsModal.getApiKey(),
-      () => SettingsModal.getModel(),
-    );
-
     const run = async () => {
+      outputEl.textContent = "";
+      outputEl.hidden = false;
+      noticeEl.hidden = true;
+      statusEl.textContent = "Preparing\u2026";
+      statusEl.className = `${P}status`;
+      headerEl.classList.add(`${P}header--active`);
+
+      const ctrl = new AbortController();
+      this._abortControllers = [ctrl];
+
       try {
-        const apiKey = SettingsModal.getApiKey();
+        const enhancedMarkdown = await orchestrator.runWholeDeckOperation(operation, ctrl.signal, {
+          onProgress: (completedSlides, totalSlides, nextBatch) => {
+            progressInline.hidden = false;
+            updateProgress(completedSlides, totalSlides, nextBatch);
+          },
+          onLog: (message, level) => appendLog(message, level || "info"),
+        });
 
-        if (!apiKey && SettingsModal.requiresApiKey(providerLabel)) {
-          showError("No API key \u2014 open Settings to configure");
-          return null;
-        }
-
-        const model = SettingsModal.getModel();
-        const modelMaxOutput = SettingsModal.getModelMaxTokens(model);
-        const useReasoning = SettingsModal.getReasoning();
-        const effort = useReasoning ? SettingsModal.getEffort() : null;
-        const reasoningEffort = useReasoning ? effort : "none";
-
-        // Split into slides to decide single vs batch path
-        const allSlides = splitSlides(markdown, mode);
-
-        // ── Single-call path (≤BATCH_SIZE slides) ──
-        if (allSlides.length <= BATCH_SIZE) {
-          return await this.#runSingleCall(markdown, mode, {
-            provider,
-            modelMaxOutput,
-            useReasoning,
-            effort,
-            reasoningEffort,
-            statusEl,
-            noticeEl,
-            isCancelled: () => cancelled,
-          });
-        }
-
-        // ── Batch path (>BATCH_SIZE slides) ──
-        const batches = [];
-        for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
-          batches.push({ start: i, end: Math.min(i + BATCH_SIZE, allSlides.length) });
-        }
-
-        const deckSummary = mode === "generate" ? buildDeckSummary(markdown) : null;
-
-        // Show progress UI
-        outputEl.textContent = "";
-        outputEl.hidden = false;
-        noticeEl.hidden = true;
-        progressInline.hidden = false;
-        progressCount.textContent = `0/${allSlides.length}`;
-        statusEl.textContent = `Processing slides 1\u2013${Math.min(BATCH_SIZE, allSlides.length)} of ${allSlides.length}\u2026`;
-        statusEl.className = `${P}status`;
-        headerEl.classList.add(`${P}header--active`);
-        appendLog(
-          `Split ${allSlides.length} slides into ${batches.length} batches of ${batches.length > 1 ? BATCH_SIZE : allSlides.length}`,
-        );
-
-        // 2-worker parallel batch loop
-        // results is keyed by batch.batchKey so split sub-batches get their own slot
-        // and cannot overwrite each other. Values carry start/end for reassembly.
-        const results = new Map();
-        let completedSlides = 0;
-        let retryCount = 0;
-        let splitCount = 0;
-        const retryAttempts = new Map(); // batch key -> attempt count
-        const repairMessages = new Map(); // batch key -> messages for next attempt
-        const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
-
-        const worker = async (_workerName) => {
-          while (queue.length > 0) {
-            if (cancelled) break;
-            const batch = queue.shift();
-
-            const batchResult = await this.#streamBatch({
-              markdown,
-              mode,
-              batch,
-              totalSlides: allSlides.length,
-              deckSummary,
-              provider,
-              modelMaxOutput,
-              useReasoning,
-              effort,
-              reasoningEffort,
-              signal: this._abortControllers[0]?.signal,
-              repairMessages: repairMessages.get(batch.batchKey) || [],
-            });
-
-            if (batchResult === null) {
-              // Cancelled
-              break;
-            }
-
-            if (batchResult.error) {
-              const attempts = (retryAttempts.get(batch.batchKey) || 0) + 1;
-              retryAttempts.set(batch.batchKey, attempts);
-
-              if (batchResult.error.type === "truncation") {
-                appendLog(
-                  `\u26A0 Batch ${batch.index + 1}: response truncated \u2014 splitting into 2\u00D7${Math.ceil((batch.end - batch.start) / 2)} slides`,
-                  "warn",
-                );
-                splitCount++;
-                const mid = batch.start + Math.ceil((batch.end - batch.start) / 2);
-                queue.unshift(
-                  {
-                    start: batch.start,
-                    end: mid,
-                    index: batch.index,
-                    batchKey: `${batch.start}-${mid}`,
-                  },
-                  {
-                    start: mid,
-                    end: batch.end,
-                    index: batch.index,
-                    batchKey: `${mid}-${batch.end}`,
-                  },
-                );
-              } else if (batchResult.error.type === "validation" && attempts < 2) {
-                const errs = batchResult.error.errors;
-                console.warn(
-                  `[AI] Batch ${batch.index + 1} (slides ${batch.start + 1}\u2013${batch.end}): ${errs.length} validation issue(s):`,
-                );
-                for (const e of errs) {
-                  console.warn(`  - ${e.message || e}`);
-                }
-                appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${errs.length} validation issue${errs.length === 1 ? "" : "s"} \u2014 retrying...`,
-                  "warn",
-                );
-                retryCount++;
-                if (batchResult.error.repairMessages) {
-                  repairMessages.set(batch.batchKey, batchResult.error.repairMessages);
-                }
-                queue.unshift(batch);
-              } else if (attempts < 2) {
-                const errMsg = batchResult.error.message ? ` (${batchResult.error.message})` : "";
-                appendLog(
-                  `\u21BB Batch ${batch.index + 1}: ${batchResult.error.type}${errMsg} \u2014 retrying...`,
-                  "warn",
-                );
-                retryCount++;
-                queue.unshift(batch);
-              } else {
-                const isValidation = batchResult.error.type === "validation";
-                const errs = isValidation ? batchResult.error.errors : [];
-                // Accept the partial output after exhausting retries so one bad batch
-                // does not discard the whole deck in either fix or generate mode.
-                if (isValidation && batchResult.error.slides) {
-                  results.set(batch.batchKey, {
-                    start: batch.start,
-                    end: batch.end,
-                    slides: batchResult.error.slides,
-                  });
-                  completedSlides += batch.end - batch.start;
-                  const messages = errs.map((e) => e.message || e);
-                  console.warn(
-                    `[AI] Batch ${batch.index + 1}: accepted after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
-                  );
-                  for (const m of messages) console.warn(`  - ${m}`);
-                  appendLog(
-                    `\u26A0 Batch ${batch.index + 1}: accepted with ${errs.length} validation issue${errs.length === 1 ? "" : "s"}`,
-                    "warn",
-                  );
-                } else {
-                  if (errs.length > 0) {
-                    console.warn(
-                      `[AI] Batch ${batch.index + 1}: failed after ${attempts} attempt(s) with ${errs.length} validation issue(s):`,
-                    );
-                    for (const e of errs) {
-                      console.warn(`  - ${e.message || e}`);
-                    }
-                  }
-                  appendLog(
-                    `\u2717 Batch ${batch.index + 1}: failed (${batchResult.error.type})`,
-                    "error",
-                  );
-                }
-                const nextBatch = queue.length > 0 ? queue[0] : null;
-                updateProgress(completedSlides, allSlides.length, nextBatch);
-              }
-            } else {
-              results.set(batch.batchKey, {
-                start: batch.start,
-                end: batch.end,
-                slides: batchResult.slides,
-              });
-              completedSlides += batch.end - batch.start;
-              const nextBatch = queue.length > 0 ? queue[0] : null;
-              updateProgress(completedSlides, allSlides.length, nextBatch);
-              appendLog(
-                `\u2713 Batch ${batch.index + 1}: slides ${batch.start + 1}\u2013${batch.end} done (${batchResult.duration.toFixed(1)}s)`,
-              );
-            }
-          }
-        };
-
-        // Create 2 AbortControllers
-        const ctrl1 = new AbortController();
-        const ctrl2 = new AbortController();
-        this._abortControllers = [ctrl1, ctrl2];
-
-        await Promise.all([worker("A"), worker("B")]);
-
-        // All done
         if (cancelled) {
           this.close();
           return null;
         }
 
-        // Reassemble batches in order and check for any gaps
-        const completedRanges = [...results.values()].sort((a, b) => a.start - b.start);
-        const hasGap = (() => {
-          if (completedRanges.length === 0) return true;
-          let expectedStart = 0;
-          for (const r of completedRanges) {
-            if (r.start !== expectedStart) return true;
-            expectedStart = r.end;
-          }
-          return expectedStart !== allSlides.length;
-        })();
-
-        if (hasGap) {
-          showError(
-            `Batch processing failed \u2014 ${completedSlides}/${allSlides.length} slides completed. ` +
-              `Try again or reduce deck size.`,
-          );
+        if (!enhancedMarkdown) {
+          showError("AI returned no content \u2014 try again");
           return null;
         }
 
-        // Combine results in order
-        const allResultSlides = completedRanges.flatMap((r) => r.slides);
-        const summaryParts = [`${allSlides.length} slides processed`];
-        if (retryCount > 0)
-          summaryParts.push(`${retryCount} retr${retryCount === 1 ? "y" : "ies"}`);
-        if (splitCount > 0) summaryParts.push(`${splitCount} split${splitCount === 1 ? "" : "s"}`);
-        appendLog(`\u2714 ${summaryParts.join(", ")}`);
-        const combined = slidesToMarkdown(allResultSlides);
-        return combined;
+        return enhancedMarkdown;
       } catch (err) {
         if (err.name === "AbortError" || err.name === "AiAbortError") {
           this.close();
@@ -408,11 +202,11 @@ export class AiSidebar {
     let runResult = await run();
 
     // Retry loop
-    while (!runResult && retryBtn.hidden === false && !cancelled) {
+    while (!runResult && retryBtn.hidden === false && !cancelled && !closed) {
       await new Promise((resolve) => {
         this._retryResolve = resolve;
       });
-      if (cancelled || this._showId !== myShowId) break;
+      if (cancelled || closed || this._showId !== myShowId) break;
       runResult = await run();
     }
 
@@ -421,6 +215,7 @@ export class AiSidebar {
       await new Promise((resolve) => {
         this._finishResolve = resolve;
       });
+      if (discarded) runResult = null;
     }
 
     if (this._showId === myShowId) {
@@ -431,249 +226,189 @@ export class AiSidebar {
   }
 
   /**
-   * Single API call path (small decks).
-   * For fix mode, validates output and retries with a focused repair message on failure.
+   * Show a lightweight panel for a single-slide AI operation.
+   * Runs the operation through the orchestrator and returns the patches.
+   * @param {import("../data/ai/ai-operation.js").AiOperation} operation
+   * @param {import("../data/ai/ai-orchestrator.js").AiOrchestrator} orchestrator
+   * @param {string} intent — for display purposes
+   * @returns {Promise<import("../data/store/slide-patch.js").SlidePatch[]|null>}
    */
-  static async #runSingleCall(markdown, mode, opts) {
-    const {
-      provider,
-      modelMaxOutput,
-      useReasoning,
-      effort,
-      reasoningEffort,
-      statusEl,
-      noticeEl,
-      isCancelled,
-    } = opts;
+  static async showSingleSlideOperation(operation, orchestrator, intent) {
+    this.cancel();
+    this.close();
+    const myShowId = Symbol();
+    this._showId = myShowId;
 
-    const { buildMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown, splitSlides } =
-      await import("../data/ai-enhancer.js");
+    const panel = this.#createPanel("single");
+    document.body.appendChild(panel);
+    this._currentPanel = panel;
 
-    const validator = new AiOutputValidator({ inputMarkdown: markdown });
-    const maxAttempts = mode === "fix" ? 3 : 2;
-    const expectedSlideCount = mode === "fix" ? splitSlides(markdown, mode).length : null;
-    let lastErrors = [];
+    const statusEl = panel.querySelector(`.${P}status`);
+    const cancelBtn = panel.querySelector('[data-action="cancel"]');
+    const closeBtn = panel.querySelector('[data-action="close"]');
+    const retryBtn = panel.querySelector('[data-action="retry"]');
+    const seeResultBtn = panel.querySelector('[data-action="see-result"]');
+    const minimizeBtn = panel.querySelector('[data-action="minimize"]');
+    const noticeEl = panel.querySelector(`.${P}notice`);
+    const progressInline = panel.querySelector(`.${P}progress-inline`);
+    const headerEl = panel.querySelector(`.${P}header`);
 
-    const { system, user } = buildMessages(markdown, mode);
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ];
+    progressInline.hidden = true;
+    noticeEl.hidden = true;
+    retryBtn.hidden = true;
+    closeBtn.hidden = true;
+    seeResultBtn.hidden = true;
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const inputTokens = estimateMaxTokens(markdown, mode, {
-        modelMaxOutput,
-        reasoningEffort,
-      });
-      statusEl.textContent =
-        attempt > 1
-          ? `Retry ${attempt}/${maxAttempts} (${lastErrors.length} issue${lastErrors.length === 1 ? "" : "s"})\u2026`
-          : `Sending (~${inputTokens.toLocaleString()} tokens)\u2026`;
-
-      const ctrl = new AbortController();
-      this._abortControllers = [ctrl];
-
-      try {
-        const response = await provider.chat(
-          {
-            messages,
-            maxTokens: inputTokens,
-            responseFormat: null,
-            reasoning: useReasoning ? { effort } : null,
-          },
-          ctrl.signal,
-        );
-
-        noticeEl.hidden = false;
-        statusEl.textContent = "AI is working\u2026";
-
-        if (isCancelled()) {
-          this.close();
-          return null;
-        }
-
-        const finishReason =
-          response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
-        if (finishReason === "length") {
-          const limitDisplay = modelMaxOutput
-            ? `${modelMaxOutput.toLocaleString()} tokens`
-            : "unknown";
-          throw new Error(
-            `Response truncated \u2014 the AI hit its output token limit (${limitDisplay} for ${SettingsModal.getModel()}). ` +
-              `Your deck may be too large for a single pass. Try reducing the number of slides, ` +
-              `or switch to a model with a higher output token limit.`,
-          );
-        }
-
-        const contentText = response.content;
-        const parsed = parseAiResponse(contentText);
-        if (!parsed) {
-          throw new Error("AI did not return valid JSON");
-        }
-
-        const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-        const result = validator.validate(enhancedMarkdown, mode, { expectedSlideCount });
-
-        if (result.ok) {
-          if (result.warnings.length > 0) {
-            for (const w of result.warnings) {
-              console.warn(`[AI ${mode}] ${w.message}`);
-            }
-          }
-          return enhancedMarkdown;
-        }
-
-        lastErrors = result.errors;
-        console.warn(
-          `[AI ${mode}] Attempt ${attempt}: ${result.errors.length} validation issue(s):`,
-        );
-        for (const err of result.errors) {
-          console.warn(`  - ${err.message}`);
-        }
-
-        if (attempt < maxAttempts) {
-          const repairMsg = buildRepairMessage(result.errors);
-          messages.push({ role: "assistant", content: contentText });
-          messages.push({ role: "user", content: repairMsg });
-          continue;
-        }
-
-        // Accept output after exhausting retries so the user does not lose the entire result.
-        console.warn(`[AI ${mode}] Accepting output after max attempts with validation issues`);
-        return enhancedMarkdown;
-      } catch (err) {
-        if (err.name === "AiAbortError") {
-          this.close();
-          return null;
-        }
-        throw err;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Stream a single batch and return parsed slides.
-   * For fix mode, validates output before returning.
-   * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
-   */
-  static async #streamBatch(opts) {
-    const {
-      markdown,
-      mode,
-      batch,
-      totalSlides,
-      deckSummary,
-      provider,
-      modelMaxOutput,
-      useReasoning,
-      effort,
-      reasoningEffort,
-      signal,
-      repairMessages = [],
-    } = opts;
-
-    const { buildBatchMessages, estimateMaxTokens, parseAiResponse, slidesToMarkdown } =
-      await import("../data/ai-enhancer.js");
-
-    const batchMarkdown = (() => {
-      const cleaned = markdown
-        .split(/\n---\n/)
-        .slice(batch.start, batch.end)
-        .join("\n\n---\n\n");
-      return cleaned;
-    })();
-
-    const { system, user } = buildBatchMessages(
-      markdown,
-      mode,
-      batch.start,
-      batch.end,
-      totalSlides,
-      deckSummary,
-    );
-
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user },
-      ...repairMessages,
-    ];
-
-    const inputTokens = estimateMaxTokens(batchMarkdown, mode, {
-      modelMaxOutput,
-      reasoningEffort,
+    minimizeBtn.addEventListener("click", () => {
+      this._minimized = !this._minimized;
+      panel.classList.toggle(`${P}panel--minimized`, this._minimized);
+      minimizeBtn.textContent = this._minimized ? "+" : "\u2212";
     });
 
-    const startTime = performance.now();
+    const intentLabels = {
+      enhanceSlide: "Cleaning up slide",
+      addSpeakerNotes: "Adding speaker notes",
+    };
+    statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
+    headerEl.classList.add(`${P}header--active`);
+
+    let ctrl = new AbortController();
+    this._abortControllers = [ctrl];
+
+    let closed = false;
+    let discarded = false;
+
+    cancelBtn.addEventListener("click", () => {
+      ctrl.abort();
+      this.cancel();
+    });
+
+    const finish = () => {
+      if (this._showId === myShowId) {
+        this._finishResolve?.();
+      }
+    };
+
+    seeResultBtn.addEventListener("click", finish);
+    // Close serves two purposes depending on panel state:
+    // - After an error, it must break out of the retry loop, which awaits
+    //   _retryResolve rather than _finishResolve. Without this the panel
+    //   would hang forever after an error when the user clicks Close.
+    // - After a successful run, it is relabeled "Discard" so the user can
+    //   abandon the AI result instead of applying it.
+    closeBtn.addEventListener("click", () => {
+      closed = true;
+      discarded = true;
+      this._retryResolve?.();
+      this._finishResolve?.();
+    });
+    retryBtn.addEventListener("click", () => {
+      this._retryResolve?.();
+    });
 
     try {
-      const response = await provider.chat(
-        {
-          messages,
-          maxTokens: inputTokens,
-          responseFormat: null,
-          reasoning: useReasoning ? { effort } : null,
-        },
-        signal,
-      );
-
-      const contentText = response.content;
-      const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
-      const duration = (performance.now() - startTime) / 1000;
-
-      if (finishReason === "length") {
-        return { error: { type: "truncation" } };
+      const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
+      if (!patches || patches.length === 0) {
+        statusEl.textContent = "No changes.";
+        statusEl.className = `${P}status`;
+        closeBtn.hidden = false;
+        closeBtn.textContent = "Close";
+        cancelBtn.hidden = true;
+        await new Promise((resolve) => {
+          this._finishResolve = resolve;
+        });
+        if (this._showId === myShowId) this._currentPanel = null;
+        panel.remove();
+        return null;
       }
 
-      const parsed = parseAiResponse(contentText);
-      if (!parsed) {
-        return { error: { type: "parse-error" } };
-      }
+      statusEl.textContent = 'Done! Click "Apply changes" to apply.';
+      statusEl.className = `${P}status ${P}status--done`;
+      noticeEl.hidden = true;
+      cancelBtn.hidden = true;
+      seeResultBtn.hidden = false;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Discard";
+      headerEl.classList.remove(`${P}header--active`);
+      panel.classList.add(`${P}panel--done`);
 
-      const enhancedMarkdown = slidesToMarkdown(parsed.slides);
-      const validator = new AiOutputValidator({ inputMarkdown: batchMarkdown });
-      const expectedCount = mode === "fix" ? batch.end - batch.start : null;
-      const result = validator.validate(enhancedMarkdown, mode, {
-        expectedSlideCount: expectedCount,
+      await new Promise((resolve) => {
+        this._finishResolve = resolve;
       });
 
-      if (!result.ok) {
-        const repairMsg = buildRepairMessage(result.errors);
-        const nextRepairMessages = [
-          ...repairMessages,
-          { role: "assistant", content: contentText },
-          { role: "user", content: repairMsg },
-        ];
-        return {
-          error: {
-            type: "validation",
-            errors: result.errors,
-            repairMessages: nextRepairMessages,
-            // Keep the parsed slides so fix mode can accept partial output
-            // after exhausting retries instead of dropping the whole batch.
-            slides: parsed.slides,
-          },
-        };
+      if (this._showId === myShowId) this._currentPanel = null;
+      panel.remove();
+      return discarded ? null : patches;
+    } catch (err) {
+      if (err.name === "AbortError" || err.name === "AiAbortError") {
+        this.close();
+        return null;
       }
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = `${P}status ${P}status--error`;
+      cancelBtn.hidden = true;
+      retryBtn.hidden = false;
+      closeBtn.hidden = false;
+      closeBtn.textContent = "Close";
+      headerEl.classList.remove(`${P}header--active`);
 
-      if (result.warnings.length > 0) {
-        for (const w of result.warnings) {
-          console.warn(`[AI batch] ${w.message}`);
+      // Retry loop
+      while (retryBtn.hidden === false) {
+        await new Promise((resolve) => {
+          this._retryResolve = resolve;
+        });
+        if (closed || this._showId !== myShowId) break;
+        // Re-run on retry with a fresh AbortController so a previous
+        // cancel/abort can't cause every subsequent retry to fail immediately.
+        retryBtn.hidden = true;
+        cancelBtn.hidden = false;
+        statusEl.textContent = `${intentLabels[intent] || "Processing"}\u2026`;
+        statusEl.className = `${P}status`;
+        headerEl.classList.add(`${P}header--active`);
+        ctrl = new AbortController();
+        this._abortControllers = [ctrl];
+        try {
+          const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
+          if (retryPatches && retryPatches.length > 0) {
+            statusEl.textContent = 'Done! Click "Apply changes" to apply.';
+            statusEl.className = `${P}status ${P}status--done`;
+            noticeEl.hidden = true;
+            cancelBtn.hidden = true;
+            seeResultBtn.hidden = false;
+            closeBtn.hidden = false;
+            closeBtn.textContent = "Discard";
+            headerEl.classList.remove(`${P}header--active`);
+            panel.classList.add(`${P}panel--done`);
+            await new Promise((resolve) => {
+              this._finishResolve = resolve;
+            });
+            if (this._showId === myShowId) this._currentPanel = null;
+            panel.remove();
+            return discarded ? null : retryPatches;
+          }
+        } catch (retryErr) {
+          if (retryErr.name === "AbortError" || retryErr.name === "AiAbortError") {
+            this.close();
+            return null;
+          }
+          statusEl.textContent = `Error: ${retryErr.message}`;
+          statusEl.className = `${P}status ${P}status--error`;
+          cancelBtn.hidden = true;
+          retryBtn.hidden = false;
+          headerEl.classList.remove(`${P}header--active`);
         }
       }
 
-      return { slides: parsed.slides, duration };
-    } catch (err) {
-      if (err.name === "AbortError" || err.name === "AiAbortError") return null;
-      return { error: { type: "network-error", message: err.message } };
+      if (this._showId === myShowId) this._currentPanel = null;
+      panel.remove();
+      return null;
     }
   }
 
   static #createPanel(mode) {
     const panel = document.createElement("div");
     panel.className = P + "panel";
-    const title = mode === "fix" ? "AI: Fix Issues" : "AI: Inspired Deck";
+    const title = mode === "generate" ? "AI: Refine all slides" : "AI: Slide";
     panel.innerHTML = `
       <div class="${P}header">
         <span class="${P}title">${title}</span>
@@ -690,7 +425,7 @@ export class AiSidebar {
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
         <button type="button" data-action="retry" class="${P}btn" hidden>Try again</button>
-        <button type="button" data-action="see-result" class="${P}btn ${P}btn--primary" hidden>See result</button>
+        <button type="button" data-action="see-result" class="${P}btn ${P}btn--primary" hidden>Apply changes</button>
         <button type="button" data-action="close" class="${P}btn" hidden>Close</button>
       </div>
     `;

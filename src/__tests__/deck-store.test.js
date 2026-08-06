@@ -82,4 +82,25 @@ describe("DeckStore", () => {
     store.loadFromMarkdown("only");
     expect(change).toHaveBeenCalledTimes(2);
   });
+
+  it("replaceDeck swaps slides and is undoable without clearing history", () => {
+    const store = new DeckStore();
+    store.loadFromMarkdown("a\n---\nb");
+    store.applyPatch(createEditPatch(0, "a", "edited"));
+    expect(store.canUndo()).toBe(true);
+
+    store.replaceDeck(["x", "y", "z"], 0, {
+      index: 0,
+      before: null,
+      after: "x\n---\ny\n---\nz",
+      source: "ai",
+      timestamp: Date.now(),
+    });
+    expect(store.getSlides()).toEqual(["x", "y", "z"]);
+    expect(store.getActiveIndex()).toBe(0);
+    // History preserved — undo restores the pre-refine deck
+    expect(store.canUndo()).toBe(true);
+    expect(store.undo()).toBe(true);
+    expect(store.getSlides()).toEqual(["edited", "b"]);
+  });
 });

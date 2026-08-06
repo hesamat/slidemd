@@ -23,6 +23,7 @@ import { GridResizerManager } from "../layout/grid-resizer-manager.js";
 import { AreaGuideManager } from "../navigation/area-guide-manager.js";
 import { SlideWarningManager } from "../navigation/slide-warning-manager.js";
 import { InsertDropdownManager } from "../ui/insert-dropdown-manager.js";
+import { AiDropdownManager } from "../ui/ai-dropdown-manager.js";
 import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
@@ -259,6 +260,16 @@ export class EditController {
       },
     });
 
+    this.aiDropdown = new AiDropdownManager({
+      btn: this.elements.aiDropdownBtn,
+      content: this.elements.aiDropdownContent,
+      actions: {
+        enhanceSlide: () => this.runSingleSlideAi("enhanceSlide"),
+        addSpeakerNotes: () => this.runSingleSlideAi("addSpeakerNotes"),
+        generate: () => this.runWholeDeckAi(),
+      },
+    });
+
     this.mermaidHelper = new MermaidHelperManager({
       mermaidHelperPanel: this.elements.mermaidHelperPanel,
       getMarkdownEditor: () => this.markdownEditor,
@@ -360,6 +371,7 @@ export class EditController {
     this.controller.addEventListener("deckchange", this._onDeckChange);
 
     this.insertDropdown.init();
+    this.aiDropdown.init();
     this.mermaidHelper.init();
 
     LayoutPicker.initModal();
@@ -456,6 +468,7 @@ export class EditController {
     this.sourceJump?.destroy();
     this.imageInserter?.destroy();
     this.insertDropdown?.destroy();
+    this.aiDropdown?.destroy();
     this.mermaidHelper?.destroy();
     this.panelResizer?.destroy();
 
@@ -663,6 +676,192 @@ export class EditController {
       return false;
     } finally {
       this._historyOperation = null;
+    }
+  }
+
+  /**
+   * Run a single-slide AI operation (enhanceSlide, addSpeakerNotes).
+   * Builds an AiOperation, runs it through the orchestrator, and applies the resulting
+   * patch via DeckStore so it's undoable.
+   * @param {string} intent — one of the single-slide intents
+   */
+  async runSingleSlideAi(intent) {
+    const { SettingsModal } = await import("../settings-modal.js");
+    const { createAiProviderClient } = await import("../../data/ai/ai-provider-factory.js");
+    const { AiOrchestrator } = await import("../../data/ai/ai-orchestrator.js");
+    const { createOperation } = await import("../../data/ai/ai-operation.js");
+    const { AiSidebar } = await import("../ai-sidebar.js");
+
+    const providerLabel = SettingsModal.getProvider();
+    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
+      Notification.error("No API key — open Settings to configure AI.");
+      return;
+    }
+    if (!this.deckStore) {
+      Notification.error("AI editing requires a loaded deck. Open or create a deck first.");
+      return;
+    }
+
+    // Sync editor state into the store so the patch's `before` matches
+    this.prepareStoreOperation();
+
+    const slideMarkdown = this.deckStore
+      ? this.deckStore.getSlides()[this.currentSlideIndex]
+      : (this.originalMarkdown[this.currentSlideIndex] ?? "");
+
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
+
+    const model = SettingsModal.getModel();
+    const orchestrator = new AiOrchestrator({
+      provider,
+      modelMaxOutput: SettingsModal.getModelMaxTokens(model),
+      useReasoning: SettingsModal.getReasoning(),
+      effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+    });
+
+    const op = createOperation(intent, this.currentSlideIndex, slideMarkdown);
+
+    try {
+      const patches = await AiSidebar.showSingleSlideOperation(op, orchestrator, intent);
+      if (patches && patches.length > 0 && this.deckStore) {
+        // The AI panel is non-blocking, so the user may have kept typing on
+        // other slides while it was open. _restoreStoreSnapshot() below
+        // reloads the deck from the store and clears unsavedMarkdown, which
+        // would silently discard those edits. Snapshot everything except the
+        // AI-patched slide (whose content is superseded by the patch) and
+        // restore it afterwards.
+        const preservedEdits = new Map(this.unsavedMarkdown);
+        preservedEdits.delete(op.targetSlide);
+
+        const applied = this.deckStore.applyPatches(patches);
+        if (!applied) {
+          Notification.error(
+            `AI ${intent} could not be applied — the slide changed since the request started.`,
+          );
+          return;
+        }
+        // Restore the snapshot to reflect the applied patch in the editor
+        await this._restoreStoreSnapshot();
+        for (const [index, markdown] of preservedEdits) {
+          this.unsavedMarkdown.set(index, markdown);
+        }
+        this.updateUnsavedChangesFlag();
+        // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size; when
+        // the user had no other pending edits that drops to 0 and clears the
+        // dirty flag. The AI-applied store state has not been written to the
+        // file, so the deck is still unsaved and the reload guard must prompt.
+        this.hasUnsavedChanges = true;
+        this.saveManager.updateButton();
+        this.loadSlideIntoEditor();
+        Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
+      }
+    } catch (err) {
+      console.error(`AI ${intent} failed:`, err);
+      Notification.error(`AI ${intent} failed: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Run a whole-deck AI generate operation (Refine all slides).
+   * Builds an AiOperation, runs it through the orchestrator, and delegates to
+   * AiSidebar.show() for the progress/retry UI — same pattern as runSingleSlideAi.
+   */
+  async runWholeDeckAi() {
+    const { SettingsModal } = await import("../settings-modal.js");
+    const { createAiProviderClient } = await import("../../data/ai/ai-provider-factory.js");
+    const { AiOrchestrator } = await import("../../data/ai/ai-orchestrator.js");
+    const { createOperation } = await import("../../data/ai/ai-operation.js");
+    const { AiSidebar } = await import("../ai-sidebar.js");
+    const { AiGenerateModal } = await import("../ui/ai-generate-modal.js");
+
+    const providerLabel = SettingsModal.getProvider();
+    if (SettingsModal.requiresApiKey(providerLabel) && !SettingsModal.getApiKey()) {
+      Notification.error("No API key — open Settings to configure AI.");
+      return;
+    }
+
+    // Sync editor state before running whole-deck AI
+    this.prepareStoreOperation();
+
+    const fullMarkdown = this.deckStore
+      ? this.deckStore.toMarkdown()
+      : this.saveManager.getFullSlides().join("\n\n---\n\n");
+
+    // Show pre-flight modal so the user can set options and see cost estimate
+    const generateOpts = await AiGenerateModal.show(fullMarkdown, {
+      modelName: SettingsModal.getModel(),
+      useReasoning: SettingsModal.getReasoning(),
+      getModelName: () => SettingsModal.getModel(),
+      getReasoning: () => SettingsModal.getReasoning(),
+      onOpenSettings: async () => {
+        await SettingsModal.show();
+      },
+    });
+    if (!generateOpts) return; // user cancelled — no API call made
+
+    const provider = createAiProviderClient(
+      providerLabel,
+      () => SettingsModal.getBaseUrl(),
+      () => SettingsModal.getApiKey(),
+      () => SettingsModal.getModel(),
+    );
+
+    const model = SettingsModal.getModel();
+    const orchestrator = new AiOrchestrator({
+      provider,
+      modelMaxOutput: SettingsModal.getModelMaxTokens(model),
+      useReasoning: SettingsModal.getReasoning(),
+      effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+    });
+
+    const op = createOperation("generate", null, fullMarkdown, {
+      tone: generateOpts.tone,
+      fidelity: generateOpts.fidelity,
+    });
+
+    try {
+      const enhanced = await AiSidebar.show(op, orchestrator);
+      if (enhanced && this.controller.reloadManager?.replaceDeck) {
+        await AssetLoader.ensureMarkdownItLoaded();
+        const deck = await DeckLoader.parseMarkdown(enhanced);
+        // Update the deck store BEFORE firing deckchange via reloadManager so
+        // the _onDeckChange handler reads the correct (post-refine) store
+        // state. This makes the ordering explicit rather than relying on the
+        // handler running synchronously during the awaited replaceDeck.
+        this.unsavedMarkdown.clear();
+        const parser = new MarkdownParser();
+        const newSlides = parser.splitSlides(enhanced);
+        if (this.deckStore) {
+          // Route through replaceDeck so the refine is undoable (Ctrl+Z)
+          // instead of loadFromMarkdown which clears history.
+          this.deckStore.replaceDeck(newSlides, 0, {
+            index: 0,
+            before: null,
+            after: enhanced,
+            source: "ai",
+            timestamp: Date.now(),
+          });
+          this.originalMarkdown = this.deckStore.getSlides();
+        } else {
+          this.originalMarkdown = newSlides;
+        }
+        await this.controller.reloadManager.replaceDeck(deck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+        this.currentSlideIndex = 0;
+        this.loadSlideIntoEditor();
+        this.saveManager?.updateButton();
+        Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
+      }
+    } catch (err) {
+      console.error("AI generate failed:", err);
+      Notification.error(`AI generate failed: ${err.message || err}`);
     }
   }
 

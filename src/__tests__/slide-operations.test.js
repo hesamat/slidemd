@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SlideOperations } from "../editor/core/slide-operations.js";
+import { DeckStore } from "../data/store/deck-store.js";
+import { Notification } from "../renderer/notification.js";
 
 /**
  * `rebuildUnsavedMarkdownMap` is the index-rewriting helper called
@@ -156,5 +158,79 @@ describe("SlideOperations.rebuildUnsavedMarkdownMap", () => {
     expect(newMap.get(0)).toBe("x");
     expect(setHasUnsavedChanges).toHaveBeenCalledWith(true);
     expect(updateButton).toHaveBeenCalled();
+  });
+});
+
+describe("SlideOperations.deleteSlide", () => {
+  function createDeleteOps({ originalMarkdown, unsavedMarkdown, currentIndex, editorValue }) {
+    const state = {
+      store: new DeckStore(),
+      deck: { slides: originalMarkdown.map((_, i) => ({ id: i + 1 })) },
+      originalMarkdown: [...originalMarkdown],
+      unsavedMarkdown: new Map(unsavedMarkdown),
+      currentIndex,
+      editorValue,
+    };
+
+    state.store.syncSlides([...state.originalMarkdown], state.currentIndex);
+
+    const getFullSlides = () => {
+      const merged = [...state.originalMarkdown];
+      state.unsavedMarkdown.forEach((value, key) => {
+        merged[key] = value;
+      });
+      return merged;
+    };
+
+    const ops = new SlideOperations({
+      getDeck: () => state.deck,
+      getElements: () => ({ slideCountEl: null, slidesContainer: null }),
+      getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
+      getThumbnails: () => ({ refresh: vi.fn() }),
+      getMarkdownEditor: () => ({ getValue: () => state.editorValue }),
+      getCurrentSlideIndex: () => state.currentIndex,
+      setCurrentSlideIndex: (v) => {
+        state.currentIndex = v;
+      },
+      getOriginalMarkdown: () => state.originalMarkdown,
+      getUnsavedMarkdown: () => state.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        state.unsavedMarkdown = v;
+      },
+      getHasUnsavedChanges: () => false,
+      setHasUnsavedChanges: vi.fn(),
+      getSaveManager: () => ({ updateButton: vi.fn(), getFullSlides }),
+      deckStore: state.store,
+      prepareStoreOperation: () => {
+        const current = state.currentIndex;
+        if (state.editorValue !== state.originalMarkdown[current]) {
+          state.unsavedMarkdown.set(current, state.editorValue);
+        }
+        state.store.syncSlides(getFullSlides(), current);
+      },
+      recordStoreOperation: vi.fn(),
+    });
+
+    return { ops, state };
+  }
+
+  it("captures fresh editor text before building the delete patch so undo restores it", async () => {
+    vi.spyOn(Notification, "confirm").mockResolvedValue(true);
+
+    const { ops, state } = createDeleteOps({
+      originalMarkdown: ["# Slide 1", "# Slide 2"],
+      unsavedMarkdown: [],
+      currentIndex: 0,
+      editorValue: "# Slide 1\n\nfresh text",
+    });
+
+    vi.stubGlobal("document", { querySelectorAll: () => [] });
+    await ops.deleteSlide();
+    vi.unstubAllGlobals();
+
+    expect(state.store.getSlideCount()).toBe(1);
+    expect(state.store.toMarkdown()).toBe("# Slide 2");
+    expect(state.store.undo()).toBe(true);
+    expect(state.store.toMarkdown()).toBe("# Slide 1\n\nfresh text\n\n---\n\n# Slide 2");
   });
 });

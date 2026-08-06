@@ -410,26 +410,47 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 | Task                       | Details                                                                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
-| [ ] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `summarize`, `toMetricCards`, `addSpeakerNotes`).                                                      |
-| [ ] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
+| [x] Add `AiOperation`      | `{ intent, targetSlide, context, prompt }` object describing one AI call.                                                                                        |
+| [x] Add `AiIntentRegistry` | Map of `intent` names to prompt builders (`enhanceSlide`, `addSpeakerNotes`, `generate`).                                                                        |
+| [x] Add `AiOrchestrator`   | Pick the right context window, call the LLM via `AiProviderClient`, validate with `AiOutputValidator`, run the repair loop. Returns patches; does **not** apply. |
 
 ### Single-Slide AI Editing
 
-| Task                                                                   | Details                                                                                           |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [ ] Add `enhanceSlide(slideMarkdown, intent)`                          | Build a prompt containing one slide Markdown string and an intent string.                         |
-| [ ] Instruct the LLM to output one slide                               | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
-| [ ] Validate the response with `MarkdownParser`                        | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
-| [ ] Patch by index via `DeckStore.applyPatch`                          | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
-| [ ] Implement intents: `summarize`, `toMetricCards`, `addSpeakerNotes` | Full prompt builders and schemas (stubs from Phase 11 promoted to working intents).               |
+| Task                                            | Details                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [x] Add `enhanceSlide(slideMarkdown, intent)`   | Build a prompt containing one slide Markdown string and an intent string.                         |
+| [x] Instruct the LLM to output one slide        | Output one valid slide using the allowed layouts and `@area` markers; no extra text.              |
+| [x] Validate the response with `MarkdownParser` | Parse the returned Markdown; reject or repair anything that does not produce a valid slide.       |
+| [x] Patch by index via `DeckStore.applyPatch`   | Swap the edited slide string back into the array through `DeckStore`; rejoins with `---` on save. |
+| [x] Implement intents: `addSpeakerNotes`        | Full prompt builder and schema (stubs from Phase 11 promoted to working intents).                 |
 
 ### Wiring
 
 | Task                               | Details                                                                                                             |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Simplify `ai-sidebar.js`       | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
-| [ ] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                                  |
+| [x] Simplify `ai-sidebar.js`       | Route single-slide requests to `enhanceSlide`; rewrite whole-deck path as `orchestrator.runOperation(wholeDeckOp)`. |
+| [x] Delete `ai-enhancer.js` facade | Remove the transition facade once all callers use the new modules.                                                  |
+
+### Import Flow Change
+
+| Task                                | Details                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [x] Drop whole-deck fix from import | Removed "Fix Issues" checkbox from conversion modal. Single-slide `enhanceSlide` replaces it. Import is now instant. |
+
+---
+
+## Phase D: Remix Planner (Two-Phase Restructuring)
+
+Goal: Replace the experimental single-shot Remix with a reliable two-phase plan→execute flow. A cheap planning call produces a structured restructuring plan, which is converted to a virtual deck and fed through the existing batched generate path. Unlocks Remix for decks of any size.
+
+### Plan→Execute Flow
+
+| Task                           | Details                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add plan phase             | One LLM call with deck summary → returns JSON plan (keep/rewrite/merge actions with briefs). Logged in AI sidebar.         |
+| [x] Add virtual deck trick     | Plan entries converted to a virtual deck markdown with `<!-- brief: ... -->` comments. Fed through existing generate path. |
+| [x] Unlock Remix for all sizes | Removed ≤8-slide limit. Execute phase batches through existing 2-worker queue for large decks.                             |
+| [x] Add `remix-plan-prompt.md` | User fragment for the plan phase: analyze deck → output restructuring plan JSON.                                           |
 
 ---
 
@@ -581,7 +602,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 10: Renderer Hardening             | ✅ Complete |
 | Phase 11: AI Operations Foundation       | Deferred    |
 | Phase 12: Deck Store & Patches           | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide | Planned     |
+| Phase 13: AI Orchestrator & Single-Slide | ✅ Complete |
 | Phase 14: Conflict Resolution & Undo     | Planned     |
 | Phase 15: Design System & Theme Registry | Planned     |
 | Phase 16: Presenter, Print & AI Commands | Planned     |
@@ -590,7 +611,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 → Phase 12 → Phase 13 → Phase 14 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 14 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
@@ -626,3 +647,12 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 | [ ] Evaluate Shiki for code highlighting  | Keep offline build; pre-tokenize code blocks with a new highlighter.  |
 | [ ] Add CSS-based slide transitions       | Per-deck default and per-slide override via frontmatter.              |
 | [ ] Add reduced-motion preference support | Respect `prefers-reduced-motion` for all transitions and reveals.     |
+
+### Logging & Metrics
+
+| Task                                | Details                                                     |
+| ----------------------------------- | ----------------------------------------------------------- |
+| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. |
+| [ ] Add error telemetry             | Capture runtime errors and failed operations in the UI.     |
+| [ ] Add build/PDF runtime metrics   | Track build time, PDF render time, and asset sizes.         |
+| [ ] Add optional log export         | Download logs for debugging without browser DevTools.       |

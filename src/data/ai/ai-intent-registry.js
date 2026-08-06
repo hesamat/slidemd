@@ -1,0 +1,119 @@
+/**
+ * AiIntentRegistry
+ *
+ * Maps intent names to prompt builders. Each builder produces { system, user }
+ * messages for the AiProviderClient. The registry is the single source of
+ * truth for which intents exist and how their prompts are composed.
+ */
+
+import { AiPromptComposer } from "./ai-prompt-composer.js";
+import { getAllowedLayoutList, stripFrontmatter } from "./ai-prompt-builder.js";
+import systemPrompt from "../prompts/system-prompt.md?raw";
+import fixPrompt from "../prompts/fix-prompt.md?raw";
+import generatePrompt from "../prompts/generate-prompt.md?raw";
+import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
+
+/**
+ * Build messages for a single-slide intent.
+ * The slide markdown is sent as-is (frontmatter kept — single-slide ops
+ * don't strip it because the AI needs to see and preserve the layout).
+ * @param {string} userFragment
+ * @param {string} slideMarkdown
+ * @returns {{ system: string, user: string }}
+ */
+function buildSingleSlideMessages(userFragment, slideMarkdown) {
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment,
+  });
+  return composer.compose({
+    markdown: slideMarkdown,
+    layoutList: getAllowedLayoutList(),
+  });
+}
+
+/**
+ * Build messages for the whole-deck generate intent.
+ * Strips layout/hidden/code-font-size (generate mode) so the AI can
+ * reorganize freely. Background and theme are kept so the AI can see them.
+ * @param {string} markdown
+ * @returns {{ system: string, user: string }}
+ */
+function buildGenerateMessages(markdown) {
+  const cleaned = stripFrontmatter(markdown, "generate");
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: generatePrompt,
+  });
+  return composer.compose({
+    markdown: cleaned,
+    layoutList: getAllowedLayoutList(),
+  });
+}
+
+/**
+ * Build messages for the whole-deck polish (Tidy up) intent.
+ * Uses fix-prompt.md (the same specific PPTX-cleanup rules as single-slide
+ * "Clean up slide") instead of a vague suffix on generate-prompt.md.
+ * Generate-mode frontmatter stripping so the AI can fix layout choices
+ * (layout stripped) while seeing background/theme to preserve them.
+ * @param {string} markdown
+ * @returns {{ system: string, user: string }}
+ */
+export function buildPolishMessages(markdown) {
+  const cleaned = stripFrontmatter(markdown, "generate");
+  const composer = new AiPromptComposer({
+    systemFragment: systemPrompt,
+    userFragment: fixPrompt,
+  });
+  return composer.compose({
+    markdown: cleaned,
+    layoutList: getAllowedLayoutList(),
+  });
+}
+
+const INTENT_BUILDERS = {
+  // Single-slide intents — return { system, user } for one slide
+  enhanceSlide: (ctx) => buildSingleSlideMessages(fixPrompt, ctx.markdown),
+  addSpeakerNotes: (ctx) => buildSingleSlideMessages(addSpeakerNotesPrompt, ctx.markdown),
+  // Whole-deck intent — returns { system, user } for the full deck
+  generate: (ctx) => buildGenerateMessages(ctx.markdown),
+};
+
+/**
+ * Get the prompt builder for an intent.
+ * @param {string} intent
+ * @returns {((ctx: { markdown: string }) => { system: string, user: string })|undefined}
+ */
+export function getBuilder(intent) {
+  return INTENT_BUILDERS[intent];
+}
+
+/**
+ * Build messages for an intent.
+ * @param {string} intent
+ * @param {{ markdown: string }} ctx
+ * @returns {{ system: string, user: string }}
+ */
+export function buildMessagesForIntent(intent, ctx) {
+  const builder = INTENT_BUILDERS[intent];
+  if (!builder) throw new Error(`Unknown AI intent: ${intent}`);
+  return builder(ctx);
+}
+
+/**
+ * Check if an intent is a single-slide intent.
+ * @param {string} intent
+ * @returns {boolean}
+ */
+export function isSingleSlideIntent(intent) {
+  return intent in INTENT_BUILDERS && intent !== "generate";
+}
+
+/**
+ * List all registered intent names.
+ * @returns {string[]}
+ */
+export function listIntents() {
+  return Object.keys(INTENT_BUILDERS);
+}
