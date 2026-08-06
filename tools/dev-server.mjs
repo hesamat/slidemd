@@ -175,10 +175,15 @@ function sendReloadEvent() {
 // ── File watching ─────────────────────────────────────────────────────────────
 
 let watchTimeout = null;
+let selfWriteUntil = 0;
 
 function scheduleReload() {
   if (watchTimeout) clearTimeout(watchTimeout);
   watchTimeout = setTimeout(() => {
+    if (Date.now() < selfWriteUntil) {
+      watchTimeout = null;
+      return;
+    }
     sendReloadEvent();
     watchTimeout = null;
   }, 100);
@@ -430,6 +435,7 @@ function createHandler(format) {
       }
       try {
         const { markdown } = await readJsonBody(req);
+        selfWriteUntil = Date.now() + 250;
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
