@@ -751,6 +751,12 @@ export class EditController {
           this.unsavedMarkdown.set(index, markdown);
         }
         this.updateUnsavedChangesFlag();
+        // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size; when
+        // the user had no other pending edits that drops to 0 and clears the
+        // dirty flag. The AI-applied store state has not been written to the
+        // file, so the deck is still unsaved and the reload guard must prompt.
+        this.hasUnsavedChanges = true;
+        this.saveManager.updateButton();
         this.loadSlideIntoEditor();
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }

@@ -102,7 +102,7 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
     // leading directive block, then restore the originals. Fence-aware so
     // code-block contents are preserved.
     const lines = stripLeadingDirectives(section.split("\n"), ["background", "theme"]);
-    const layoutIdx = lines.findIndex((l) => /^layout:\s*/.test(l));
+    const layoutIdx = findTopLevelDirectiveIdx(lines, "layout");
 
     const insertAfter = [];
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
@@ -131,7 +131,9 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
  */
 function findTopLevelDirectiveIdx(lines, name) {
   let inFence = false;
-  const re = new RegExp(`^${name}:\\s`);
+  // No space required after the colon so `layout:two-column` and
+  // `background:red` are recognized the same as `layout: two-column`.
+  const re = new RegExp(`^${name}:\\s*`);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (/^\s*```/.test(line)) {
