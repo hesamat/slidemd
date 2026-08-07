@@ -47,6 +47,8 @@ import {
   createEditPatch,
   createInsertPatch,
 } from "../../data/store/slide-patch.js";
+import { resolveConflict } from "../../data/store/conflict-resolver.js";
+import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 
 export class EditController {
@@ -691,8 +693,9 @@ export class EditController {
 
   /**
    * Run a single-slide AI operation (enhanceSlide, addSpeakerNotes).
-   * Builds an AiOperation, runs it through the orchestrator, and applies the resulting
-   * patch via DeckStore so it's undoable.
+   * Builds an AiOperation, runs it through the orchestrator, resolves any
+   * conflict with the latest working slide, and applies the resulting patch
+   * via DeckStore so it's undoable.
    * @param {string} intent — one of the single-slide intents
    */
   async runSingleSlideAi(intent) {
@@ -712,12 +715,16 @@ export class EditController {
       return;
     }
 
-    // Sync editor state into the store so the patch's `before` matches
+    // Sync editor state into the store so the patch's `before` matches and
+    // capture the structural revision / overlay baseline before the request.
     this.prepareStoreOperation();
+    const targetSlide = this.currentSlideIndex;
+    const baselineRevision = this.deckStore.getStructuralRevision();
 
-    const slideMarkdown = this.deckStore
-      ? this.deckStore.getSlides()[this.currentSlideIndex]
-      : (this.originalMarkdown[this.currentSlideIndex] ?? "");
+    const storeSlide = { index: targetSlide, markdown: this.deckStore.getSlides()[targetSlide] };
+    const workingSlide = this.saveManager.getFullSlide(targetSlide, storeSlide);
+    const slideMarkdown = workingSlide.markdown;
+    this.saveManager.setUnsavedEditorOverlay(targetSlide, slideMarkdown);
 
     const provider = createAiProviderClient(
       providerLabel,
@@ -735,28 +742,78 @@ export class EditController {
       effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
     });
 
-    const op = createOperation(intent, this.currentSlideIndex, slideMarkdown);
+    const op = createOperation(intent, targetSlide, slideMarkdown);
 
     try {
       const patches = await AiSidebar.showSingleSlideOperation(op, orchestrator, intent);
       if (patches && patches.length > 0 && this.deckStore) {
+        const patch = patches[0];
+
+        const currentSlideMarkdown =
+          this.markdownEditor?.getValue() ?? this.deckStore.getSlides()[targetSlide] ?? "";
+        const structuralRevisionChanged =
+          this.deckStore.getStructuralRevision() !== baselineRevision;
+
+        let resolution = resolveConflict({
+          patch,
+          currentSlideMarkdown,
+          intent,
+          structuralRevisionChanged,
+        });
+
+        if (resolution.action === "reject") {
+          const choice = await ConflictModal.show(patch, intent);
+          if (choice.action === "reject") {
+            this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+            Notification.warning(resolution.reason);
+            return;
+          }
+          const rebase = choice.action === "apply" ? "apply-to-latest" : choice.rebase;
+          resolution = resolveConflict({
+            patch,
+            currentSlideMarkdown,
+            intent,
+            structuralRevisionChanged,
+            rebase,
+          });
+        }
+
+        if (resolution.action === "reject") {
+          this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+          Notification.warning(resolution.reason);
+          return;
+        }
+
+        const patchToApply = resolution.rebasedPatch ?? patch;
+
+        // If the rebased patch's `before` does not match the store, fast-forward
+        // the store to the user's latest working markdown without history.
+        if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
+          const synced = [...this.deckStore.getSlides()];
+          synced[targetSlide] = patchToApply.before;
+          this.deckStore.syncSlides(synced, targetSlide);
+        }
+
+        const applied = this.deckStore.applyPatch(patchToApply, baselineRevision);
+        if (!applied || (typeof applied === "object" && !applied.success)) {
+          const reason = typeof applied === "object" ? applied.reason : "the slide changed";
+          this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+          Notification.warning(
+            `AI ${intent} could not be applied — ${reason || "the slide changed since the request started."}`,
+          );
+          return;
+        }
+
         // The AI panel is non-blocking, so the user may have kept typing on
         // other slides while it was open. _restoreStoreSnapshot() below
         // reloads the deck from the store and clears unsavedMarkdown, which
         // would silently discard those edits. Snapshot everything except the
         // AI-patched slide (whose content is superseded by the patch) and
         // restore it afterwards.
+        this.saveManager.clearUnsavedEditorOverlay(targetSlide);
         const preservedEdits = new Map(this.unsavedMarkdown);
-        preservedEdits.delete(op.targetSlide);
+        preservedEdits.delete(targetSlide);
 
-        const applied = this.deckStore.applyPatches(patches);
-        if (!applied) {
-          Notification.error(
-            `AI ${intent} could not be applied — the slide changed since the request started.`,
-          );
-          return;
-        }
-        // Restore the snapshot to reflect the applied patch in the editor
         await this._restoreStoreSnapshot();
         for (const [index, markdown] of preservedEdits) {
           this.unsavedMarkdown.set(index, markdown);
@@ -773,6 +830,8 @@ export class EditController {
       }
     } catch (err) {
       Notification.error(`AI ${intent} failed: ${err.message || err}`);
+    } finally {
+      this.saveManager?.clearUnsavedEditorOverlay(targetSlide);
     }
   }
 
