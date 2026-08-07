@@ -92,6 +92,19 @@ function guessReasoningForModel(modelId) {
   return null;
 }
 
+/**
+ * Check whether a provider-supplied `reasoning` object carries meaningful
+ * metadata. A bare `{}` is truthy but conveys no information — some providers
+ * include an empty reasoning field for non-reasoning models. Only accept
+ * objects with at least one own property so the reasoning toggle doesn't
+ * appear for models that can't actually use it.
+ * @param {*} reasoning
+ * @returns {boolean}
+ */
+function isMeaningfulReasoning(reasoning) {
+  return reasoning != null && typeof reasoning === "object" && Object.keys(reasoning).length > 0;
+}
+
 export class SettingsModal {
   static _currentBackdrop = null;
   /** @type {string|null} — which provider the current cache belongs to */
@@ -570,7 +583,9 @@ export class SettingsModal {
             const id = m.id || m.model || String(m);
             const name = m.name || id;
             this._allModels.push({ id, name });
-            const reasoning = m.reasoning || guessReasoningForModel(id);
+            const reasoning = isMeaningfulReasoning(m.reasoning)
+              ? m.reasoning
+              : guessReasoningForModel(id);
             if (reasoning) {
               this._modelReasoningMap.set(id, reasoning);
             }
@@ -859,10 +874,12 @@ export class SettingsModal {
         this._allModels.push({ id, name });
         // Prefer the provider's own per-model reasoning metadata, then OpenRouter's,
         // then fall back to the best-effort heuristic so known reasoning models still work.
-        // A truthy `reasoning` object means the model supports reasoning even when
-        // supported_efforts is null (all efforts accepted) or omitted (effort
-        // selection not exposed — use reasoning.enabled instead).
-        const apiReasoning = m.reasoning ? m.reasoning : null;
+        // A meaningful `reasoning` object (non-empty) means the model supports
+        // reasoning even when supported_efforts is null (all efforts accepted)
+        // or omitted (effort selection not exposed — use reasoning.enabled
+        // instead). A bare `{}` is rejected — some providers include it for
+        // non-reasoning models.
+        const apiReasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
         const crossRefReasoning = openRouterReasoning.get(id);
         const reasoning = apiReasoning || crossRefReasoning || guessReasoningForModel(id);
         if (reasoning) {
@@ -913,7 +930,7 @@ export class SettingsModal {
       const models = Array.isArray(data.data) ? data.data : [];
       for (const m of models) {
         const id = m.id || "";
-        const reasoning = m.reasoning ? m.reasoning : null;
+        const reasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
         if (!id.startsWith("openai/") || !reasoning) continue;
         const openaiId = id.replace("openai/", "");
         map.set(openaiId, reasoning);

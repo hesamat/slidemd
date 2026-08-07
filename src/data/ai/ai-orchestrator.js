@@ -832,21 +832,25 @@ export class AiOrchestrator {
     // Guard against the AI returning the wrong number of rewrite slides. If it
     // returns too few, fall back to the original source slide for the missing
     // ones so the deck never contains literal `undefined`. If it returns too
-    // many, drop the extras and log it.
-    if (rewrittenSlides.length !== rewriteEntries.length) {
+    // many, drop the extras — note that positional correspondence may be
+    // unreliable in that case since the AI may have merged/split differently.
+    if (rewrittenSlides.length > rewriteEntries.length) {
       onLog?.(
         `Warning: expected ${rewriteEntries.length} rewritten slide(s), got ${rewrittenSlides.length} — ` +
-          "falling back to original source slides for any missing entries.",
+          "dropping surplus slides. Positional correspondence may be unreliable if the AI merged or split content differently.",
         "warn",
       );
-      if (rewrittenSlides.length > rewriteEntries.length) {
-        rewrittenSlides.length = rewriteEntries.length;
-      } else {
-        while (rewrittenSlides.length < rewriteEntries.length) {
-          const entry = rewriteEntries[rewrittenSlides.length];
-          const fallback = rawSourceSlides[entry?.source?.[0]] ?? "";
-          rewrittenSlides.push(fallback);
-        }
+      rewrittenSlides.length = rewriteEntries.length;
+    } else if (rewrittenSlides.length < rewriteEntries.length) {
+      onLog?.(
+        `Warning: expected ${rewriteEntries.length} rewritten slide(s), got ${rewrittenSlides.length} — ` +
+          "falling back to original source slides for missing entries.",
+        "warn",
+      );
+      while (rewrittenSlides.length < rewriteEntries.length) {
+        const entry = rewriteEntries[rewrittenSlides.length];
+        const fallback = rawSourceSlides[entry?.source?.[0]] ?? "";
+        rewrittenSlides.push(fallback);
       }
     }
 

@@ -183,6 +183,13 @@ export class AiGenerateModal {
 
       const flowField = dialog.querySelector(`#${P}flow-field`);
 
+      // Track whether the user has explicitly toggled visual identity so we
+      // don't clobber their choice when they switch modes and switch back.
+      let identityTouched = false;
+      identityToggle.addEventListener("change", () => {
+        identityTouched = true;
+      });
+
       const updateModeUI = () => {
         const mode = modeSelect.value;
         modeDesc.textContent = MODE_DESCRIPTIONS[mode];
@@ -195,8 +202,10 @@ export class AiGenerateModal {
           (mode === "remix" || mode === "reimagine") && hasImages ? "" : "none";
 
         // Visual identity: only for remix. Reimagine always discards it.
+        // Default to checked only on first entry — respect the user's choice
+        // after that so switching modes doesn't silently re-enable it.
         identityRow.style.display = mode === "remix" ? "" : "none";
-        if (mode === "remix") {
+        if (mode === "remix" && !identityTouched) {
           identityToggle.checked = true;
         }
       };
