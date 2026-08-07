@@ -7,32 +7,38 @@
 - **New mode selector** — the "Refine all slides" modal now offers three modes:
   - **Polish** — fix formatting, improve wording, pick better layouts; keeps slide count and order.
   - **Remix** — two-phase plan→execute flow with moderate creative freedom; preserves visual identity by default.
-  - **Reimagine** — same two-phase flow with bold creative freedom; can rethink topic, examples, notes, and visuals. Visual identity is not preserved and the checkbox is hidden.
+  - **Reimagine** — three-phase outline→review→generate flow with bold creative freedom. The AI proposes a `plan` + chapter-grouped outline (with narrative flow tags), the user reviews and edits it in a modal, then the full deck is generated from the outline. Visual identity is not preserved and the checkbox is hidden. A slide-count guard targets 70-120% of the source deck (soft warn if outside range). Vision is available for Reimagine so the AI can see the original slide images.
+- **Flow dropdown replaces tone** — the pre-flight modal now has a "Flow" selector (Story, Technical, Persuasive, Instructional) instead of the old tone dropdown. The flow sets the narrative genre; the AI picks storytelling techniques (problem-solution, historical context arc, compare-contrast, etc.) within that genre. Flow is shown only for Remix and Reimagine.
 - **Add speaker notes** — now an explicit checkbox for all three modes instead of being bundled into "Restyle".
 - **Preserve visual identity** — checkbox for Remix only; controls whether the AI keeps the original theme, colors, and backgrounds. Reimagine always discards visual identity.
-- **Vision checkbox** — now available for both Remix and Reimagine, and only appears when the deck has content images.
+- **Vision checkbox** — now available for Remix and Reimagine, and only appears when the deck has content images.
 - Replace the old `fidelity` (`polish`/`enhance`/`rewrite`) option with a single `mode` (`polish`/`remix`/`reimagine`) and explicit boolean options.
+- Replace the old `tone` (`default`/`formal`/`casual`/`technical`) option with a `flow` (`story`/`technical`/`persuasive`/`instructional`) option.
 - Add `polish-prompt.md` — focused whole-deck prompt that combines formatting cleanup with layout and wording improvement while preserving structure.
 - Update `remix-plan-prompt.md` with mode-aware `{{creativeGuidance}}` and `{{visualIdentityGuidance}}` placeholders and relaxed structural rules (reordering allowed; no arbitrary slide-count cap).
-- Update `generate-prompt.md` and `ai-prompt-builder.js#buildGenerateOptionsSuffix` to use the new `mode`, `addSpeakerNotes`, and `preserveVisualIdentity` options.
+- Update `generate-prompt.md` and `ai-prompt-builder.js#buildGenerateOptionsSuffix` to use the new `mode`, `flow`, `addSpeakerNotes`, and `preserveVisualIdentity` options.
+- Update `generate-prompt.md` to ask the AI to pick one coherent visual theme, set `background:` and `theme:` directives (with `theme: dark` for dark backgrounds), place content images, use only Mermaid for diagrams, and ban ASCII art and text-based diagrams.
 - Add `{{sourceCount}}` and `{{maxSourceIndex}}` placeholders to `remix-plan-prompt.md` so the plan AI knows the exact valid 0-based source range and is less likely to emit out-of-range indices.
 - Remove unconditional theme/background preservation from `generate-prompt.md`. Visual identity is now controlled by the mode-aware options suffix.
 - Add `stripThemeAndBackground()` helper and strip original `theme:`/`background:` directives from the Reimagine virtual deck and kept slides so the result is not anchored to the old visual style.
 - Make sidebar plan header and orchestrator logs mode-aware (`Remix plan`, `Reimagine plan`, etc.).
+- Add `reimagine-outline-prompt.md` — outline phase prompt that asks the AI for a `{ plan, chapters }` JSON from the deck summary. Includes a palette of storytelling techniques, a fixed flow-tag vocabulary, a slide-count guard targeting 70-120% of the source deck, and image-aware instructions.
+- Add `AiReimagineOutlineModal` — modal for reviewing/editing the AI-proposed `plan` + chapter-grouped outline between the outline and generate phases. Read-only mode shows collapsible chapters with colored flow badges; an "Edit" toggle reveals inputs for editing chapters, slides, flow tags, reordering, adding, and removing.
+- Route Reimagine through a dedicated `#runReimagine` flow in the orchestrator (outline → user review via `onOutline` callback → generate from virtual brief-only deck). Phase 2 sees only the outline, not the original deck, so content is generated fresh. Includes a soft slide-count guard that warns when the outline is outside 70-120% of the source. Includes multi-modal vision support for the outline phase when the user opts in.
 
-### Vision-Augmented Remix
+### Vision-Augmented Remix & Reimagine
 
-- **Vision toggle in generate modal** — when the mode is Remix/Reimagine and the deck has content images, a "Send slide images to AI (vision)" checkbox appears with an estimated image token count. Off by default.
+- **Vision toggle in generate modal** — when the mode is Remix or Reimagine and the deck has content images, a "Send slide images to AI (vision)" checkbox appears with an estimated image token count. Off by default.
 - **Multi-modal plan phase** — when the user opts in, the plan phase sends raw content images (compressed to <40KB JPEG each) alongside the deck summary so the AI can visually assess layout quality, image content, and placement.
 - **`keepImages` plan schema** — plan entries can now include `keepImages: [0, 1]` to specify which images to keep per output slide. `[]` drops all, omit keeps all. The virtual deck filters images per `keepImages` before the execute phase.
 - **Provider multi-modal support** — Anthropic and Gemini provider clients now handle array content (vision blocks) in addition to plain strings. OpenAI-compatible clients pass arrays natively.
-- **Text-only fallback** — if the provider rejects images (e.g. model doesn't support vision), the plan phase retries with text-only automatically.
+- **Text-only fallback** — if the provider rejects images (e.g. model doesn't support vision), the plan phase retries with text-only automatically. The sidebar retry also skips images when the model rejects vision input; the error message now says "Try again will continue without images".
 - **Background image filtering** — background images (from `background: url(...)` directives) are excluded from vision; only content images (inline `<img>` and `![alt](src)`) are sent.
 - **Image compression** — canvas-based: max 768px width, JPEG quality loop (0.85 → 0.7 → 0.5 → 0.3), halve width if still >40KB. No new dependencies.
 - Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
 - Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
 - Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
-- Total tests now **830**.
+- Total tests now **862**.
 
 ## 0.9.0 (2026-08-06)
 

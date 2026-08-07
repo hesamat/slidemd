@@ -18,7 +18,7 @@ const P = "ai-generate-modal__";
 /**
  * @typedef {Object} GenerateOptions
  * @property {string} mode — "polish" | "remix" | "reimagine"
- * @property {string} tone — "default" | "formal" | "casual" | "technical"
+ * @property {string} flow — "story" | "technical" | "persuasive" | "instructional"
  * @property {boolean} addSpeakerNotes — add speaker notes where helpful
  * @property {boolean} includeImages — send slide images to the AI (vision)
  * @property {boolean} preserveVisualIdentity — keep theme/colors/backgrounds
@@ -60,14 +60,15 @@ export class AiGenerateModal {
           <p id="${P}mode-desc" class="${P}note"></p>
         </div>
 
-        <div class="${P}field">
-          <label class="${P}label" for="${P}tone">Tone</label>
-          <select id="${P}tone" class="${P}select">
-            <option value="default">Default</option>
-            <option value="formal">Formal</option>
-            <option value="casual">Casual</option>
+        <div class="${P}field" id="${P}flow-field">
+          <label class="${P}label" for="${P}flow">Flow</label>
+          <select id="${P}flow" class="${P}select">
+            <option value="story">Story</option>
             <option value="technical">Technical</option>
+            <option value="persuasive">Persuasive</option>
+            <option value="instructional">Instructional</option>
           </select>
+          <p id="${P}flow-desc" class="${P}note"></p>
         </div>
 
         <div class="${P}cost">
@@ -161,17 +162,37 @@ export class AiGenerateModal {
         remix:
           "Reorganize the story: reorder, merge, or rewrite slides. The AI proposes a plan, then you preview and apply it.",
         reimagine:
-          "Take a bold new direction. The AI can rethink the topic, examples, notes, and visuals, producing a fresh deck while preserving only the core message.",
+          "Take a bold new direction. The AI proposes a brief and chapter outline, you review and edit it, then the full deck is generated fresh. Visuals are not preserved.",
       };
+
+      const FLOW_DESCRIPTIONS = {
+        story: "Narrative-driven: emotional engagement, characters, examples, and a story arc.",
+        technical: "Logic-driven: build complexity step by step, evidence and data first.",
+        persuasive: "Argument-driven: problem, stakes, solution, benefits, call to action.",
+        instructional: "Learning-driven: objectives, step-by-step guidance, examples, recap.",
+      };
+
+      const flowSelect = dialog.querySelector(`#${P}flow`);
+      const flowDesc = dialog.querySelector(`#${P}flow-desc`);
+
+      const updateFlowUI = () => {
+        flowDesc.textContent = FLOW_DESCRIPTIONS[flowSelect.value] || "";
+      };
+      flowSelect.addEventListener("change", updateFlowUI);
+      updateFlowUI();
+
+      const flowField = dialog.querySelector(`#${P}flow-field`);
 
       const updateModeUI = () => {
         const mode = modeSelect.value;
         modeDesc.textContent = MODE_DESCRIPTIONS[mode];
 
-        const isRemixOrReimagine = mode === "remix" || mode === "reimagine";
+        // Flow: only for remix/reimagine (polish doesn't restructure the story).
+        flowField.style.display = mode === "remix" || mode === "reimagine" ? "" : "none";
 
-        // Vision: only for remix/reimagine, and only when the deck has images.
-        visionRow.style.display = isRemixOrReimagine && hasImages ? "" : "none";
+        // Vision: available for both remix and reimagine when the deck has images.
+        visionRow.style.display =
+          (mode === "remix" || mode === "reimagine") && hasImages ? "" : "none";
 
         // Visual identity: only for remix. Reimagine always discards it.
         identityRow.style.display = mode === "remix" ? "" : "none";
@@ -184,7 +205,7 @@ export class AiGenerateModal {
 
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
         const mode = modeSelect.value || "polish";
-        const tone = dialog.querySelector(`#${P}tone`).value;
+        const flow = flowSelect.value || "story";
         const visionToggle = dialog.querySelector(`#${P}vision-toggle`);
         const notesToggle = dialog.querySelector(`#${P}notes-toggle`);
         const includeImages =
@@ -195,7 +216,7 @@ export class AiGenerateModal {
 
         close({
           mode,
-          tone,
+          flow,
           addSpeakerNotes,
           includeImages,
           preserveVisualIdentity,

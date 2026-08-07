@@ -819,7 +819,7 @@ export class EditController {
     });
 
     const op = createOperation("generate", null, fullMarkdown, {
-      tone: generateOpts.tone,
+      flow: generateOpts.flow,
       mode: generateOpts.mode,
       addSpeakerNotes: generateOpts.addSpeakerNotes || false,
       includeImages: generateOpts.includeImages || false,

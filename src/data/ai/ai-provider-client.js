@@ -322,7 +322,7 @@ export class AiHttpError extends Error {
     // would otherwise be misclassified as a context-window error below.
     if (this.status === 400) {
       if (lower.includes("image") || lower.includes("vision") || lower.includes("multimodal")) {
-        return "This model doesn't support image input (or rejected an image) — disable the vision toggle or try a different model.";
+        return "This model doesn't support image input (or rejected an image). Try again will continue without images, or try a different model.";
       }
       if (lower.includes("thinking_budget") || lower.includes("thinking budget")) {
         return "This model's reasoning budget left no room for the actual output — try a model with a smaller reasoning budget, or increase the output length setting.";
@@ -343,6 +343,14 @@ export class AiHttpError extends Error {
 
     // Not found
     if (this.status === 404) {
+      if (
+        lower.includes("image") ||
+        lower.includes("vision") ||
+        lower.includes("multimodal") ||
+        lower.includes("endpoints found")
+      ) {
+        return "This model doesn't support image input. Try again will continue without images, or try a different model.";
+      }
       return "Model not found — check the model name in your settings.";
     }
 

@@ -20,7 +20,7 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * Build additional instructions suffix from user-provided generate options.
  * Appended to the user prompt so the AI sees the user's preferences.
  * @param {object} opts
- * @param {string} [opts.tone] — "default" | "formal" | "casual" | "technical"
+ * @param {string} [opts.flow] — "story" | "technical" | "persuasive" | "instructional"
  * @param {string} [opts.mode] — "polish" | "remix" | "reimagine"
  * @param {boolean} [opts.addSpeakerNotes]
  * @param {boolean} [opts.preserveVisualIdentity]
@@ -29,13 +29,18 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
 export function buildGenerateOptionsSuffix(opts = {}) {
   if (!opts) return "";
   const parts = [];
-  if (opts.tone && opts.tone !== "default") {
-    const toneMap = {
-      formal: "Use a formal, professional tone.",
-      casual: "Use a casual, conversational tone.",
-      technical: "Use a technical, precise tone with domain-specific terminology.",
+  if (opts.flow) {
+    const flowMap = {
+      story:
+        "Use a narrative, story-driven approach: emotional engagement, characters or examples, and a clear story arc.",
+      technical:
+        "Use a technical, logic-driven approach: build complexity step by step, lead with evidence and data.",
+      persuasive:
+        "Use a persuasive, argument-driven approach: problem, stakes, solution, benefits, call to action.",
+      instructional:
+        "Use an instructional, learning-driven approach: objectives, step-by-step guidance, examples, recap.",
     };
-    if (toneMap[opts.tone]) parts.push(`\n${toneMap[opts.tone]}`);
+    if (flowMap[opts.flow]) parts.push(`\n${flowMap[opts.flow]}`);
   }
   if (opts.addSpeakerNotes) {
     parts.push(

@@ -38,6 +38,27 @@ import { extractAll } from "./slide-image-extractor.js";
 import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
+import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
+
+/**
+ * @typedef {Object} ReimagineOutlineSlide
+ * @property {string} title
+ * @property {string} intent
+ */
+
+/**
+ * @typedef {Object} ReimagineOutlineChapter
+ * @property {string} title
+ * @property {string} flowTag — one of: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta
+ * @property {string} summary
+ * @property {ReimagineOutlineSlide[]} slides
+ */
+
+/**
+ * @typedef {Object} ReimagineOutline
+ * @property {string} plan
+ * @property {ReimagineOutlineChapter[]} chapters
+ */
 
 const MAX_REPAIR_ATTEMPTS = 3;
 
@@ -208,7 +229,10 @@ export class AiOrchestrator {
     // Remix and reimagine use a two-phase plan→execute flow. The plan phase
     // produces a restructuring plan, which is converted to a virtual deck and
     // fed through the existing single-call/batched path.
-    if (operation.opts?.mode === "remix" || operation.opts?.mode === "reimagine") {
+    if (operation.opts?.mode === "reimagine") {
+      return this.#runReimagine(operation, signal, callbacks);
+    }
+    if (operation.opts?.mode === "remix") {
       return this.#runRemix(operation, signal, callbacks);
     }
 
@@ -776,6 +800,343 @@ export class AiOrchestrator {
     return finalSlides.join("\n\n---\n\n");
   }
 
+  // ── Reimagine (brief + outline → generate) ──
+
+  /**
+   * Run the full reimagine flow:
+   *   1. Outline phase — the AI reads the deck summary and proposes a brief +
+   *      outline.
+   *   2. User review — the caller's onOutline callback shows the outline to
+   *      the user for editing and resolves with the edited outline (or null to
+   *      cancel).
+   *   3. Generate phase — the (edited) outline is converted to a virtual deck
+   *      of brief-only slides and run through the existing generate path.
+   * @param {import("./ai-operation.js").AiOperation} operation
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @param {(outline: ReimagineOutline) => Promise<ReimagineOutline|null>} [callbacks.onOutline]
+   * @returns {Promise<string|null>}
+   */
+  async #runReimagine(operation, signal, callbacks = {}) {
+    const { onLog, onOutline } = callbacks;
+    const sourceCount = splitSlidesForAi(operation.context, "generate").length;
+
+    // ── Phase 1: Outline ──
+    // If the user opted in to vision, extract + compress content images
+    // from each slide so the outline AI can visually assess the deck.
+    let slideImages = null;
+    if (operation.opts?.includeImages) {
+      onLog?.("Extracting slide images for vision\u2026");
+      try {
+        slideImages = await extractAll(operation.context);
+        const imageCount = slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0);
+        if (imageCount > 0) {
+          onLog?.(`Sending ${imageCount} image(s) to AI for visual assessment\u2026`);
+        } else {
+          slideImages = null;
+        }
+      } catch {
+        onLog?.("Image extraction failed — continuing with text-only outline\u2026");
+        slideImages = null;
+      }
+    }
+
+    onLog?.("Planning Reimagine outline\u2026");
+    const outline = await this.#runReimagineOutline(
+      operation,
+      signal,
+      callbacks,
+      sourceCount,
+      slideImages,
+    );
+    if (!outline) return null;
+
+    // Slide-count guard: soft warn if the outline is outside 70-120% of source.
+    const totalSlides = this.#countOutlineSlides(outline);
+    const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
+    const maxTarget = Math.round(sourceCount * 1.2);
+    if (totalSlides < minTarget || totalSlides > maxTarget) {
+      onLog?.(
+        `Warning: outline has ${totalSlides} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
+        "warn",
+      );
+    }
+
+    // ── Phase 2: User review ──
+    // Pass a deep copy so the callback can't mutate the original before we
+    // apply the edited version.
+    let editedOutline = outline;
+    if (typeof onOutline === "function") {
+      onLog?.("Waiting for outline review\u2026");
+      const edited = await onOutline(this.#cloneOutline(outline));
+      if (!edited) {
+        onLog?.("Reimagine cancelled during outline review.");
+        return null;
+      }
+      editedOutline = edited;
+    }
+
+    // ── Phase 3: Build virtual deck from the chapter outline ──
+    // Each slide entry becomes a virtual slide carrying only a brief
+    // comment. The generate prompt sees the brief and produces the slide
+    // content fresh — no source markdown is sent, so the AI is free to
+    // rewrite examples, visuals, and structure.
+    const virtualSlides = this.#outlineToVirtualSlides(editedOutline);
+    const virtualDeck = virtualSlides.join("\n\n---\n\n");
+    const virtualCount = virtualSlides.length;
+
+    onLog?.(
+      `Reimagine outline: ${virtualCount} slide(s) across ${editedOutline.chapters.length} chapter(s).`,
+    );
+
+    // Carry the plan as a log line for sidebar visibility.
+    onLog?.(`[Plan] ${editedOutline.plan}`);
+
+    // ── Phase 4: Execute via existing single-call/batched path ──
+    // Clear mode so the inner call doesn't recurse into the reimagine flow.
+    const execOp = {
+      ...operation,
+      context: virtualDeck,
+      opts: { ...operation.opts, mode: undefined },
+    };
+    const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
+
+    onLog?.(`Generating ${virtualCount} slide(s) for reimagine\u2026`);
+    const result =
+      virtualCount <= BATCH_SIZE
+        ? await this.#runWholeDeckSingleCall(execOp, signal, execSuffix, callbacks, virtualCount)
+        : await this.#runWholeDeckBatched(
+            execOp,
+            signal,
+            execSuffix,
+            virtualCount,
+            splitSlidesForAi(virtualDeck, "generate"),
+            callbacks,
+          );
+
+    if (!result) return result;
+
+    // The generate path gap-fills directives positionally when the slide
+    // count matches. For reimagine the virtual deck has no original
+    // directives, so there's nothing to gap-fill — return the result as-is.
+    return result;
+  }
+
+  /**
+   * Count total slides across all chapters in a Reimagine outline.
+   * @param {ReimagineOutline} outline
+   * @returns {number}
+   */
+  #countOutlineSlides(outline) {
+    return outline.chapters.reduce((sum, ch) => sum + (ch.slides?.length || 0), 0);
+  }
+
+  /**
+   * Deep-clone a Reimagine outline for passing to the onOutline callback.
+   * @param {ReimagineOutline} outline
+   * @returns {ReimagineOutline}
+   */
+  #cloneOutline(outline) {
+    return {
+      plan: outline.plan,
+      chapters: outline.chapters.map((ch) => ({
+        title: ch.title,
+        flowTag: ch.flowTag || "",
+        summary: ch.summary || "",
+        slides: ch.slides.map((s) => ({ title: s.title, intent: s.intent })),
+      })),
+    };
+  }
+
+  /**
+   * Flatten a Reimagine outline into virtual slide briefs.
+   * Each slide becomes `<!-- brief: {title} — {intent} -->`.
+   * @param {ReimagineOutline} outline
+   * @returns {string[]}
+   */
+  #outlineToVirtualSlides(outline) {
+    const slides = [];
+    for (const chapter of outline.chapters) {
+      for (const slide of chapter.slides) {
+        slides.push(`<!-- brief: ${slide.title} \u2014 ${slide.intent} -->`);
+      }
+    }
+    return slides;
+  }
+
+  /**
+   * Run the outline phase: call the LLM with the deck summary and parse the
+   * plan + chapter-grouped outline JSON.
+   * @param {import("./ai-operation.js").AiOperation} operation
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @param {number} sourceCount — number of source slides for the slide-count guard
+   * @param {Array<string[]|null>} [slideImages] — per-slide compressed image data URLs for vision
+   * @returns {Promise<ReimagineOutline|null>}
+   */
+  async #runReimagineOutline(operation, signal, callbacks = {}, sourceCount, slideImages = null) {
+    const { context } = operation;
+    const { onLog } = callbacks;
+
+    const deckSummary = buildDeckSummary(context);
+    const composer = new AiPromptComposer({
+      systemFragment: systemPrompt,
+      userFragment: reimagineOutlinePrompt,
+    });
+
+    const flow = operation.opts?.flow || "story";
+    const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
+    const maxSlides = Math.round(sourceCount * 1.2);
+
+    const { system, user } = composer.compose({
+      markdown: deckSummary,
+      layoutList: getAllowedLayoutList(),
+      flow,
+      sourceCount: sourceCount.toString(),
+      minSlides: minSlides.toString(),
+      maxSlides: maxSlides.toString(),
+    });
+
+    const reasoningEffort = this._useReasoning ? this._effort : "none";
+    const maxTokens = estimateMaxTokens(deckSummary, "generate", {
+      modelMaxOutput: this._modelMaxOutput,
+      reasoningEffort,
+    });
+
+    // Build the user content — either a multi-modal array (vision) or plain text.
+    const userContent = slideImages ? buildVisionMessage(user, slideImages) : user;
+
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: userContent },
+    ];
+
+    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    const imageCount = slideImages
+      ? slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0)
+      : 0;
+    onLog?.(
+      `[Tokens] Outline request \u2014 estimated input: ~${textTokenEstimate.toLocaleString()} text${imageCount > 0 ? ` + ${imageCount} image(s)` : ""}. Output cap (estimated): ${maxTokens.toLocaleString()}.`,
+    );
+
+    try {
+      const response = await this._provider.chat(
+        {
+          messages,
+          maxTokens,
+          responseFormat: null,
+          reasoning: this._useReasoning ? { effort: this._effort } : null,
+        },
+        signal,
+      );
+
+      if (response.usage) {
+        const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+        onLog?.(
+          `[Tokens] Outline response \u2014 provider usage: ${prompt_tokens ?? "?"} prompt + ${completion_tokens ?? "?"} completion = ${total_tokens ?? "?"} total.`,
+        );
+      }
+
+      return this.#parseOutlineResponse(response.content);
+    } catch (err) {
+      // If vision was used and the error looks like a vision-not-supported
+      // rejection, retry with text-only.
+      if (slideImages && isVisionError(err)) {
+        onLog?.("Vision not supported by this model — retrying outline with text-only\u2026");
+        const textMessages = [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ];
+        const response = await this._provider.chat(
+          {
+            messages: textMessages,
+            maxTokens,
+            responseFormat: null,
+            reasoning: this._useReasoning ? { effort: this._effort } : null,
+          },
+          signal,
+        );
+        if (response.usage) {
+          const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+          onLog?.(
+            `[Tokens] Outline response \u2014 provider usage: ${prompt_tokens ?? "?"} prompt + ${completion_tokens ?? "?"} completion = ${total_tokens ?? "?"} total.`,
+          );
+        }
+        return this.#parseOutlineResponse(response.content);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Parse the chapter-grouped outline JSON from an LLM response.
+   * Robust to code fences and prose wrappers (same patterns as parseAiResponse).
+   * @param {string} text
+   * @returns {ReimagineOutline|null}
+   */
+  #parseOutlineResponse(text) {
+    if (!text || typeof text !== "string") return null;
+
+    let cleaned = text.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("Outline response did not contain JSON");
+    }
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error("Outline response was not valid JSON");
+    }
+
+    if (typeof parsed.plan !== "string") {
+      throw new Error("Outline response missing 'plan' string");
+    }
+    if (!Array.isArray(parsed.chapters) || parsed.chapters.length === 0) {
+      throw new Error("Outline response missing 'chapters' array");
+    }
+
+    const chapters = parsed.chapters.map((ch, i) => {
+      if (typeof ch !== "object" || ch === null) {
+        throw new Error(`Chapter ${i} is not an object`);
+      }
+      if (typeof ch.title !== "string") {
+        throw new Error(`Chapter ${i} missing 'title' string`);
+      }
+      if (!Array.isArray(ch.slides) || ch.slides.length === 0) {
+        throw new Error(`Chapter ${i} missing non-empty 'slides' array`);
+      }
+      const slides = ch.slides.map((s, j) => {
+        if (typeof s !== "object" || s === null) {
+          throw new Error(`Chapter ${i} slide ${j} is not an object`);
+        }
+        if (typeof s.title !== "string" || typeof s.intent !== "string") {
+          throw new Error(`Chapter ${i} slide ${j} missing 'title' or 'intent' string`);
+        }
+        return { title: s.title, intent: s.intent };
+      });
+      return {
+        title: ch.title,
+        flowTag: typeof ch.flowTag === "string" ? ch.flowTag : "",
+        summary: typeof ch.summary === "string" ? ch.summary : "",
+        slides,
+      };
+    });
+
+    return {
+      plan: parsed.plan,
+      chapters,
+    };
+  }
+
   /**
    * Run the plan phase: call the LLM with the deck summary and parse the plan.
    * When slideImages is provided, sends a multi-modal message with image blocks
@@ -1167,7 +1528,7 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
  * @param {Error} err
  * @returns {boolean}
  */
-function isVisionError(err) {
+export function isVisionError(err) {
   if (err.name === "AbortError" || err.name === "AiAbortError") return false;
 
   // AiHttpError has a status property
@@ -1178,12 +1539,20 @@ function isVisionError(err) {
   const visionKeywords = ["image", "vision", "multimodal", "multi-modal", "visual", "content type"];
   const rejectionPhrases = [
     "not support",
+    "doesn't support",
+    "does not support",
     "unsupported",
     "not supported",
     "invalid content",
     "not allowed",
     "cannot process",
     "can't process",
+    "no endpoints",
+    "endpoints found",
+    "support image",
+    "support vision",
+    "image input",
+    "vision input",
   ];
   return (
     visionKeywords.some((kw) => msg.includes(kw)) && rejectionPhrases.some((kw) => msg.includes(kw))

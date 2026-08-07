@@ -6,14 +6,15 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
 
-| File                          | Role     | Purpose                                                                                                             |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                                       |
-| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                                  |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                                      |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                                     |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                           |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix/Reimagine: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
+| File                          | Role     | Purpose                                                                                                   |
+| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                             |
+| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                        |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                            |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                           |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                 |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
+| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine: analyze deck → output `{ brief, outline }` JSON for user review              |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
 
@@ -67,28 +68,39 @@ Refines the whole deck while preserving structure and visual identity:
 - Keep the same slide count and order
 - Speaker notes are preserved; new notes are only added when the user opts in
 
-### Remix and Reimagine (plan → execute)
+### Remix (plan → execute)
 
-Both use `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) that is converted to a virtual deck and sent through the generate path.
+Uses `remix-plan-prompt.md` for the planning call and `generate-prompt.md` for the execute call. The plan produces a structured `plan` array (`keep`, `rewrite`, `merge`) that is converted to a virtual deck and sent through the generate path.
 
-| Mode        | Creative freedom | Visual identity | Slide count | Plan guidance                                                                                                    |
-| ----------- | ---------------- | --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| `remix`     | Moderate         | Preserved       | May change  | Reorganize for clarity; keep good slides; use `merge` thoughtfully.                                              |
-| `reimagine` | Bold             | Not preserved   | May change  | Take a bold editorial approach; rethink topic, examples, notes, and visuals while keeping core intent and facts. |
+| Mode    | Creative freedom | Visual identity | Slide count | Plan guidance                                                       |
+| ------- | ---------------- | --------------- | ----------- | ------------------------------------------------------------------- |
+| `remix` | Moderate         | Preserved       | May change  | Reorganize for clarity; keep good slides; use `merge` thoughtfully. |
+
+### Reimagine (outline → review → generate)
+
+Uses a dedicated three-phase flow separate from Remix:
+
+1. **Outline phase** — `reimagine-outline-prompt.md` asks the AI to read the deck summary (and optionally images) and propose a `{ plan, chapters: [{title, flowTag, summary, slides: [{title, intent}]}] }` JSON. The `plan` is a 1-3 sentence statement combining the core message, fresh editorial angle, and chosen narrative structure; chapters group slides into a narrative arc (3-7 chapters, each with a flow tag from a fixed vocabulary: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta). The prompt includes a slide-count guard targeting 70-120% of the source deck.
+2. **User review** — `AiReimagineOutlineModal` shows the `plan` + chapter-grouped outline. In read-only mode, chapters are collapsible rows with colored flow badges. An "Edit" toggle reveals inputs for editing chapters and slides. The user can continue or cancel.
+3. **Generate phase** — the edited outline is flattened into a virtual deck of brief-only slides (`<!-- brief: {title} — {intent} -->`) and run through `generate-prompt.md`. Phase 2 sees only the outline, not the original deck, so content is generated fresh. The generate prompt instructs the AI to pick one coherent visual theme, set `background:` and `theme:` (using `theme: dark` for dark backgrounds), place content images, and use only Mermaid for diagrams.
+
+| Mode        | Creative freedom | Visual identity | Slide count                   | Outline guidance                                                                                                 |
+| ----------- | ---------------- | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `reimagine` | Bold             | Not preserved   | 70-120% of source (soft warn) | Take a bold editorial approach; rethink topic, examples, notes, and visuals while keeping core intent and facts. |
 
 ### Modal Options
 
 The pre-flight modal returns:
 
 - `mode` — `polish`, `remix`, or `reimagine`
-- `tone` — `default`, `formal`, `casual`, `technical`
+- `flow` — `story`, `technical`, `persuasive`, `instructional` (sets the narrative genre for Remix/Reimagine; the AI picks storytelling techniques within that genre; hidden for Polish)
 - `addSpeakerNotes` — add notes to slides that don't have them
-- `includeImages` — send content images to the plan AI (Remix/Reimagine only, only when images exist)
+- `includeImages` — send content images to the plan AI (Remix and Reimagine only, only when images exist)
 - `preserveVisualIdentity` — keep theme, colors, backgrounds (Remix only; hidden for Reimagine, which always discards visual identity)
 
 ### Vision-Augmented Planning
 
-When the user enables "Send slide images to AI" in the generate modal (visible only for Remix/Reimagine), the plan phase sends raw content images alongside the deck summary:
+When the user enables "Send slide images to AI" in the generate modal (visible for Remix and Reimagine), the plan/outline phase sends raw content images alongside the deck summary:
 
 - Content images (inline `<img>` and `![alt](src)`) are extracted per slide, excluding background images
 - Each image is compressed to <40KB JPEG (max 768px width) via canvas

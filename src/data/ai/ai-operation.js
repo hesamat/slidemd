@@ -10,7 +10,7 @@
  * @property {string} context — the markdown to send to the LLM
  * @property {object} [opts] — whole-deck options include:
  *   - mode: "polish" | "remix" | "reimagine"
- *   - tone: "default" | "formal" | "casual" | "technical"
+ *   - flow: "story" | "technical" | "persuasive" | "instructional"
  *   - addSpeakerNotes: boolean
  *   - includeImages: boolean
  *   - preserveVisualIdentity: boolean

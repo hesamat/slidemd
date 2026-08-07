@@ -6,6 +6,8 @@
  * panel UI (progress, retry, cancel) and drives it via orchestrator callbacks.
  */
 
+import { isVisionError } from "../data/ai/ai-orchestrator.js";
+
 const P = "ai-sidebar__";
 
 export class AiSidebar {
@@ -65,9 +67,20 @@ export class AiSidebar {
     const progressCount = panel.querySelector(`.${P}progress-count`);
     const headerEl = panel.querySelector(`.${P}header`);
 
+    // Reimagine outline review: the orchestrator calls onOutline between
+    // the outline and generate phases. We dynamically import the modal so
+    // it's only loaded when needed, and show it over the sidebar.
+    const onOutline = async (outline) => {
+      const { AiReimagineOutlineModal } = await import("./ui/ai-reimagine-outline-modal.js");
+      const { splitSlidesForAi } = await import("../data/ai/ai-prompt-builder.js");
+      const sourceCount = splitSlidesForAi(operation.context, "generate").length;
+      return AiReimagineOutlineModal.show(outline, { sourceCount });
+    };
+
     let cancelled = false;
     let closed = false;
     let discarded = false;
+    let skipImagesOnRetry = false;
 
     cancelBtn.addEventListener("click", () => {
       cancelled = true;
@@ -236,6 +249,13 @@ export class AiSidebar {
       statusEl.className = `${P}status`;
       headerEl.classList.add(`${P}header--active`);
 
+      // If the previous attempt failed because the model rejected vision input,
+      // retry without images and update the operation accordingly.
+      if (skipImagesOnRetry && operation.opts?.includeImages) {
+        operation.opts.includeImages = false;
+        appendLog("Vision not supported — retrying without images\u2026", "warn");
+      }
+
       const ctrl = new AbortController();
       this._abortControllers = [ctrl];
 
@@ -247,6 +267,7 @@ export class AiSidebar {
           },
           onLog: (message, level) => appendLog(message, level || "info"),
           onPlan: (plan, sourceCount, mode) => renderPlan(plan, sourceCount, mode),
+          onOutline,
         });
 
         if (cancelled) {
@@ -265,6 +286,17 @@ export class AiSidebar {
           this.close();
           return null;
         }
+
+        // If this looks like a vision-not-supported error, remember to strip
+        // images on the next retry and tell the user explicitly.
+        if (isVisionError(err) && operation.opts?.includeImages) {
+          skipImagesOnRetry = true;
+          showError(
+            "This model doesn't support image input. Try again will continue without images, or try a different model.",
+          );
+          return null;
+        }
+
         showError(err.userMessage || err.message);
         return null;
       }

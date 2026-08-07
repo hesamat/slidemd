@@ -197,9 +197,16 @@ describe("buildGenerateOptionsSuffix", () => {
     expect(buildGenerateOptionsSuffix({})).toBe("");
   });
 
-  it("adds tone instruction", () => {
-    const suffix = buildGenerateOptionsSuffix({ tone: "formal" });
-    expect(suffix).toContain("formal, professional tone");
+  it("adds flow instruction", () => {
+    const suffix = buildGenerateOptionsSuffix({ flow: "persuasive" });
+    expect(suffix).toContain("persuasive");
+    expect(suffix).toContain("argument-driven");
+  });
+
+  it("adds story flow instruction", () => {
+    const suffix = buildGenerateOptionsSuffix({ flow: "story" });
+    expect(suffix).toContain("narrative");
+    expect(suffix).toContain("story arc");
   });
 
   it("adds speaker notes instruction when requested", () => {

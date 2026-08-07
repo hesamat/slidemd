@@ -500,6 +500,14 @@ describe("AiProviderClient", () => {
       expect(err.userMessage).toContain("Model not found");
     });
 
+    it("returns a friendly message for 404 image/vision not supported", () => {
+      const err = new AiHttpError(
+        404,
+        '{"error":{"message":"No endpoints found that support image input"}}',
+      );
+      expect(err.userMessage).toContain("doesn't support image input");
+    });
+
     it("returns a friendly message for 500 server errors", () => {
       const err = new AiHttpError(500, '{"error":{"message":"internal server error"}}');
       expect(err.userMessage).toContain("having issues");
@@ -527,7 +535,7 @@ describe("AiProviderClient", () => {
         400,
         '{"error":{"message":"model does not support image input"}}',
       );
-      expect(err.userMessage).toContain("vision");
+      expect(err.userMessage).toContain("image input");
     });
 
     it("classifies image errors that also mention 'token' as vision errors, not context-length", () => {
