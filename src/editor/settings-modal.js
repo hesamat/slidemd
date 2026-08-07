@@ -209,7 +209,9 @@ export class SettingsModal {
 
   static getSupportedEfforts(modelId) {
     const info = this._modelReasoningMap.get(modelId);
-    if (!info || !info.supported_efforts) return [];
+    if (!info) return [];
+    if (info.supported_efforts === null) return ["low", "medium", "high"];
+    if (!info.supported_efforts) return [];
     return info.supported_efforts;
   }
 

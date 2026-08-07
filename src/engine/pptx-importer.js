@@ -85,16 +85,15 @@ export class PptxImporter {
       loading.updateProgress(70);
 
       // Store markdown info in localStorage so edit mode can find it.
-      // Clear webdeck_source_url so the save manager knows this deck did NOT
-      // come from the server's /api/deck endpoint — otherwise Save would
-      // POST to the server and overwrite whatever file the server is serving
-      // (e.g. docs/example/slides.md) instead of using the file picker.
+      // PPTX imports are not bound to a server source and should not overwrite
+      // the dev server file on save.
       try {
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
         localStorage.setItem("webdeck_local_file_name", "pptx-import");
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
+        localStorage.setItem("webdeck_opened_from_picker", "1");
       } catch {
         window.__WEBDECK_MARKDOWN__ = markdown;
       }
@@ -116,12 +115,6 @@ export class PptxImporter {
 
       // Open edit mode so the user can review and edit the result
       this._toggleEditMode();
-
-      // Flag the save manager to use file picker instead of overwriting
-      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (editCtrl?.saveManager) {
-        editCtrl.saveManager.needsSaveAs = true;
-      }
 
       loading.updateProgress(100);
       loading.dismiss();

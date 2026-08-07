@@ -440,19 +440,6 @@ function createHandler(format) {
       return;
     }
 
-    // ── GET /api/deck/source ──
-    if (pathname === "/api/deck/source" && req.method === "GET") {
-      if (!format || !format.mdFile) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ source: null }));
-        return;
-      }
-      const relative = path.relative(process.cwd(), format.mdFile).replace(/\\/g, "/");
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ source: relative }));
-      return;
-    }
-
     // ── POST /api/deck ──
     if (pathname === "/api/deck" && req.method === "POST") {
       if (!format) {
@@ -461,7 +448,15 @@ function createHandler(format) {
         return;
       }
       try {
-        const { markdown } = await readJsonBody(req);
+        const { markdown, source } = await readJsonBody(req);
+        if (source !== "/api/deck") {
+          const serverSource = path.relative(process.cwd(), format.mdFile).replace(/\\/g, "/");
+          if (source !== serverSource) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Source mismatch" }));
+            return;
+          }
+        }
         lastWrittenContentHashes.set(format.mdFile, hashContent(markdown));
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });

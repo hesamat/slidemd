@@ -332,6 +332,15 @@ export class AiReimagineOutlineModal {
           errorEl.textContent = "Please add at least one chapter with a slide before continuing.";
           return;
         }
+
+        const newTotal = filteredChapters.reduce((sum, ch) => sum + ch.slides.length, 0);
+        if (sourceCount > 0 && (newTotal < minTarget || newTotal > maxTarget)) {
+          errorEl.textContent =
+            `This outline has ${newTotal} slides, outside the recommended ` +
+            `${minTarget}-${maxTarget} range. Adjust it before continuing.`;
+          return;
+        }
+
         errorEl.textContent = "";
         close({
           plan: planTextarea.value.trim(),

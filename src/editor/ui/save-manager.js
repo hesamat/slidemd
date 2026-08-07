@@ -55,7 +55,6 @@ export class SaveManager {
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onBeforeSave = onBeforeSave;
     this._onSaveStateReset = onSaveStateReset;
-    this.needsSaveAs = false;
   }
 
   get deck() {
@@ -136,31 +135,27 @@ export class SaveManager {
   }
 
   async _doMarkdownSave(fullMarkdown, skipServer = false) {
-    // Use the server save endpoint only when the server is serving the exact
-    // file we loaded. The server's current deck may be different from the one
-    // in the editor (e.g. the example deck or a previously-loaded file), so we
-    // ask the server for its current source path before writing.
+    // Don't write to the dev server for decks that were imported or opened
+    // from the file picker — they are not bound to the server's source path.
+    const fromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
     const sourceUrl = localStorage.getItem("webdeck_source_url");
-    if (!skipServer && sourceUrl && (sourceUrl === "/api/deck" || sourceUrl.includes("/"))) {
+    if (
+      !fromPicker &&
+      !skipServer &&
+      sourceUrl &&
+      (sourceUrl === "/api/deck" || sourceUrl.includes("/"))
+    ) {
       try {
-        const sourceRes = await fetch("/api/deck/source");
-        if (sourceRes.ok) {
-          const { source } = await sourceRes.json();
-          // sourceUrl === "/api/deck" means the deck was loaded from the server's
-          // default file; any other value should match the server's current deck.
-          const loadedSource = sourceUrl === "/api/deck" ? source : sourceUrl;
-          if (source && loadedSource === source) {
-            const res = await fetch("/api/deck", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ markdown: fullMarkdown }),
-            });
-            if (res.ok) {
-              Notification.success("Deck saved to disk!");
-              this.needsSaveAs = false;
-              return true;
-            }
-          }
+        // Send the source URL so the server can verify it is serving the same
+        // file before writing; no filesystem path is exposed to the client.
+        const res = await fetch("/api/deck", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: fullMarkdown, source: sourceUrl }),
+        });
+        if (res.ok) {
+          Notification.success("Deck saved to disk!");
+          return true;
         }
       } catch {
         // No CLI server, or it doesn't support the endpoint — fall through
@@ -174,7 +169,6 @@ export class SaveManager {
     const rawName = localStorage.getItem("webdeck_local_file_name") || "deck";
     const suggestedName = rawName.replace(/\.(md|markdown)$/i, "");
     const saved = await this._saveMarkdownWithImages(fullMarkdown, `${suggestedName}.md`);
-    this.needsSaveAs = false;
     if (saved) Notification.success("Deck saved!");
     return saved;
   }
@@ -193,20 +187,12 @@ export class SaveManager {
   async _saveMarkdownWithImages(markdown, fileName) {
     const imagePaths = extractImagePaths(markdown);
 
-    // File System Access API path: let the user pick the .md file with the
-    // browser's native overwrite confirmation. When there are images, also
-    // pick the directory that will hold the images/ sidecar.
+    // File System Access API path: ask for the .md file first, then choose
+    // the directory that will hold the images/ sidecar. Picking the .md
+    // location first lets the user coordinate the two locations and prevents
+    // the sidecar from silently ending up in a different folder.
     if (window.showSaveFilePicker) {
       try {
-        let imagesDir = null;
-        if (imagePaths.length > 0 && window.showDirectoryPicker) {
-          imagesDir = await window.showDirectoryPicker({
-            mode: "readwrite",
-            id: "webdeck-save-images",
-            startIn: "documents",
-          });
-        }
-
         const mdHandle = await window.showSaveFilePicker({
           suggestedName: fileName,
           types: [
@@ -215,8 +201,28 @@ export class SaveManager {
               accept: { "text/markdown": [".md", ".markdown"] },
             },
           ],
-          ...(imagesDir ? { startIn: imagesDir } : {}),
         });
+
+        let imagesDir = null;
+        if (imagePaths.length > 0 && window.showDirectoryPicker) {
+          const choice = await Notification.showModal({
+            title: "Save images",
+            message:
+              `This deck references ${imagePaths.length} image(s). ` +
+              `Choose the folder that will contain the images/ sidecar. ` +
+              `For the saved deck to find its images, this must be the same folder as the .md file.`,
+            type: "info",
+            blockBackdrop: true,
+            buttons: [{ label: "Choose images folder", isPrimary: true, resolvesTo: "ok" }],
+          });
+          if (choice === "ok") {
+            imagesDir = await window.showDirectoryPicker({
+              mode: "readwrite",
+              id: "webdeck-save-images",
+              startIn: "documents",
+            });
+          }
+        }
 
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
@@ -225,7 +231,7 @@ export class SaveManager {
         if (imagePaths.length > 0) {
           if (!imagesDir) {
             Notification.warning(
-              `${fileName} was saved, but images were not saved because this browser does not support directory selection.`,
+              `${fileName} was saved, but images were not saved because no images folder was selected.`,
               6000,
             );
           } else {

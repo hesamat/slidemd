@@ -29,7 +29,7 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
 export function buildGenerateOptionsSuffix(opts = {}) {
   if (!opts) return "";
   const parts = [];
-  if (opts.flow) {
+  if (opts.flow && opts.mode !== "polish") {
     const flowMap = {
       story:
         "Use a narrative, story-driven approach: emotional engagement, characters or examples, and a clear story arc.",

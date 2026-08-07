@@ -331,6 +331,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Add speaker notes** — generate speaker notes without touching the slide
 
 <img src="images/image-3e14.png" alt="image-3e14" style="position: relative; left: 138px; top: 19px; width: 543px; height: 365px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+
 @media
 
 ### Whole Deck

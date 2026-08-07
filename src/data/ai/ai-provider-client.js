@@ -161,6 +161,20 @@ export class AiProviderClient {
         if (includeResponseFormat && res.status === 400 && lower.includes("response_format")) {
           throw new AiParseError("response_format not supported");
         }
+        // Some reasoning-mandatory models (e.g. qwen3.8-max) reserve an
+        // internal "thinking budget" out of max_completion_tokens for their
+        // hidden reasoning pass, and reject requests where max_tokens doesn't
+        // leave room for it. The error names the exact minimum — retry once
+        // with a max_tokens value above that minimum plus a safety margin for
+        // the actual visible completion. Check this before the broader
+        // reasoning-param rejection so a body that mentions both is treated
+        // as a budget error, not a reasoning rejection.
+        const budgetMatch = bodyText.match(
+          /max_completion_tokens\s*\[\s*(\d+)\s*\]\s*must be greater than\s*thinking_budget\s*\[\s*(\d+)\s*\]/i,
+        );
+        if (res.status === 400 && budgetMatch) {
+          throw new AiMaxTokensError(parseInt(budgetMatch[2], 10));
+        }
         if (
           includeReasoning &&
           effectiveReasoning &&
@@ -170,18 +184,6 @@ export class AiProviderClient {
               (lower.includes("reasoning") || lower.includes("effort"))))
         ) {
           throw new AiReasoningError("Reasoning parameter rejected by model");
-        }
-        // Some reasoning-mandatory models (e.g. qwen3.8-max) reserve an
-        // internal "thinking budget" out of max_completion_tokens for their
-        // hidden reasoning pass, and reject requests where max_tokens doesn't
-        // leave room for it. The error names the exact minimum — retry once
-        // with a max_tokens value above that minimum plus a safety margin for
-        // the actual visible completion.
-        const budgetMatch = bodyText.match(
-          /max_completion_tokens\s*\[\s*(\d+)\s*\]\s*must be greater than\s*thinking_budget\s*\[\s*(\d+)\s*\]/i,
-        );
-        if (res.status === 400 && budgetMatch) {
-          throw new AiMaxTokensError(parseInt(budgetMatch[2], 10));
         }
         throw new AiHttpError(res.status, bodyText);
       }
