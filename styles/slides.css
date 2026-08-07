@@ -427,7 +427,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
      a different glyph (e.g. a triangle) for the same code point. */
   font-family:
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Android Emoji",
-    "Twemoji Mozilla", "EmojiOne Mozilla", var(--font-sans);
+    "Twemoji Mozilla", "EmojiOne Mozilla", var(--font-sans) !important;
 }
 
 .slide__area h1 {
