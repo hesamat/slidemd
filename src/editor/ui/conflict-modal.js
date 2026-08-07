@@ -3,7 +3,7 @@
  *
  * Choice UI shown when an async single-slide AI result conflicts with the
  * current working slide. The user can keep their edits, overwrite with the
- * AI result, or pick a rebase target.
+ * AI result, or pick which version receives the AI result.
  *
  * Returns a promise that resolves to the user's choice, or `{ action: "reject" }`
  * if the modal is cancelled.
@@ -16,12 +16,23 @@ const INTENT_LABELS = {
   addSpeakerNotes: "Add speaker notes",
 };
 
+const ACTION_LABELS = {
+  enhanceSlide: {
+    apply: "Use the AI's enhanced version",
+    rebase: "Keep the original version",
+  },
+  addSpeakerNotes: {
+    apply: "Add AI notes to my current version",
+    rebase: "Add AI notes to the original version",
+  },
+};
+
 export class ConflictModal {
   /**
    * Show the conflict modal and wait for the user's choice.
    * @param {object} patch - the patch from the AI result
    * @param {string} [intent="enhanceSlide"] - the AI intent name
-   * @returns {Promise<{ action: "apply" | "rebase" | "reject", rebase?: "apply-to-original" | "apply-to-latest" }>}
+   * @returns {Promise<{ action: "apply" | "rebase" | "reject", rebase?: "apply-to-original" }>}
    */
   static show(patch, intent = "enhanceSlide") {
     return new Promise((resolve) => {
@@ -31,27 +42,26 @@ export class ConflictModal {
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">Slide changed while AI was running</h2>
+        <h2 class="${P}title">This slide changed while AI was working</h2>
         <p class="${P}subtitle" id="${P}subtitle"></p>
-        <p class="${P}explanation">The slide has been edited since the AI request started. Choose how to handle the AI result.</p>
-
-        <div class="${P}rebase-field">
-          <label class="${P}label" for="${P}rebase-select">Rebase target</label>
-          <select id="${P}rebase-select" class="${P}select">
-            <option value="apply-to-latest">Apply to latest (keep my edits)</option>
-            <option value="apply-to-original" selected>Apply to original (discard my edits)</option>
-          </select>
-        </div>
+        <p class="${P}explanation">You edited this slide after the AI request started. Pick the version you want to keep.</p>
 
         <div class="${P}actions">
-          <button type="button" class="${P}btn" data-action="reject">Keep my edits</button>
-          <button type="button" class="${P}btn" data-action="rebase">Rebase</button>
-          <button type="button" class="${P}btn ${P}btn--primary" data-action="apply">Apply</button>
+          <button type="button" class="${P}btn" data-action="reject">Keep my editor changes</button>
+          <button type="button" class="${P}btn ${P}btn--primary" data-action="apply">Use AI on the current version</button>
+          <button type="button" class="${P}btn" data-action="rebase" data-rebase="apply-to-original">Use AI on the original version</button>
         </div>
       `;
 
       const slideNumber = (patch.index ?? 0) + 1;
       const label = INTENT_LABELS[intent] || String(intent);
+      const actionLabels = ACTION_LABELS[intent] || {};
+      const applyLabel = actionLabels.apply || "Use AI on the current version";
+      const rebaseLabel = actionLabels.rebase || "Use AI on the original version";
+
+      dialog.querySelector('[data-action="apply"]').textContent = applyLabel;
+      dialog.querySelector('[data-action="rebase"]').textContent = rebaseLabel;
+
       const subtitle = dialog.querySelector(`#${P}subtitle`);
       subtitle.textContent = `Slide ${slideNumber}: ${label}`;
 
@@ -84,10 +94,10 @@ export class ConflictModal {
         .querySelector('[data-action="apply"]')
         .addEventListener("click", () => close({ action: "apply" }));
 
-      const rebaseSelect = dialog.querySelector(`#${P}rebase-select`);
-      dialog
-        .querySelector('[data-action="rebase"]')
-        .addEventListener("click", () => close({ action: "rebase", rebase: rebaseSelect.value }));
+      const rebaseBtn = dialog.querySelector('[data-action="rebase"]');
+      rebaseBtn.addEventListener("click", () =>
+        close({ action: "rebase", rebase: rebaseBtn.dataset.rebase }),
+      );
     });
   }
 }

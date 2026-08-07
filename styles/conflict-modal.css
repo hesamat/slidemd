@@ -75,8 +75,9 @@
 
 .conflict-modal__actions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  justify-content: flex-end;
+  align-items: stretch;
 }
 
 .conflict-modal__btn {
@@ -91,7 +92,7 @@
 }
 
 .conflict-modal__btn:hover {
-  background: var(--hover-bg, #f3f4f6);
+  background: var(--surface-2-bg, rgba(255, 255, 255, 0.14));
 }
 
 .conflict-modal__btn--primary {
