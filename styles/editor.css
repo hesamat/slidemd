@@ -52,6 +52,7 @@
   gap: 6px;
   appearance: none;
   border: none;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-high);
   padding: 6px 10px;
