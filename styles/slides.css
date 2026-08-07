@@ -422,12 +422,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   line-height: 1;
   vertical-align: -0.08em;
   letter-spacing: normal;
-  /* Use the platform color-emoji font before the slide's sans-serif stack,
-     otherwise the heart/symbol may fall back to a non-emoji font that draws
-     a different glyph (e.g. a triangle) for the same code point. */
-  font-family:
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "Android Emoji",
-    "Twemoji Mozilla", "EmojiOne Mozilla", var(--font-sans) !important;
 }
 
 .slide__area h1 {
