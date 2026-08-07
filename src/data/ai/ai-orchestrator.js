@@ -185,7 +185,7 @@ export class AiOrchestrator {
 
       if (attempt < MAX_REPAIR_ATTEMPTS) {
         onLog?.(
-          `Validation attempt ${attempt}/${MAX_REPAIR_ATTEMPTS} failed: ${result.errors.join("; ")}`,
+          `Validation attempt ${attempt}/${MAX_REPAIR_ATTEMPTS} failed: ${result.errors.map((e) => e.message).join("; ")}`,
           "warn",
         );
         const repairMsg = buildRepairMessage(result.errors);
@@ -199,7 +199,7 @@ export class AiOrchestrator {
 
       // Accept output after exhausting retries so the user doesn't lose the result
       onLog?.(
-        `Accepting output after ${MAX_REPAIR_ATTEMPTS} attempts despite validation errors: ${result.errors.join("; ")}`,
+        `Accepting output after ${MAX_REPAIR_ATTEMPTS} attempts despite validation errors: ${result.errors.map((e) => e.message).join("; ")}`,
         "warn",
       );
       return [createEditPatch(targetSlide, context, afterMarkdown, "ai")];
@@ -724,7 +724,12 @@ export class AiOrchestrator {
     const planContext = preserveVisualIdentity ? context : stripThemeAndBackground(context);
 
     onLog?.(`Planning ${mode} restructure\u2026`);
-    const plan = await this.#runRemixPlan(operation, signal, callbacks, slideImages);
+    const { plan, imagesWereSent } = await this.#runRemixPlan(
+      operation,
+      signal,
+      callbacks,
+      slideImages,
+    );
 
     // "keep" entries must never be sent to the execute call — the generate
     // prompt has no way to distinguish "leave this slide untouched" from a
@@ -757,7 +762,8 @@ export class AiOrchestrator {
     // Only honour keepImages when images were actually sent to the plan AI —
     // in a text-only remix the model never saw any pictures, so a
     // hallucinated keepImages array must not be allowed to delete images.
-    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, planContext, slideImages);
+    const imagesForVirtualDeck = imagesWereSent ? slideImages : null;
+    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
 
@@ -784,7 +790,7 @@ export class AiOrchestrator {
             callbacks,
           );
 
-    if (!result) return result;
+    if (result == null) return result;
 
     // Remix/reimagine intentionally reorders/splits/merges slides, so positional
     // directive injection would attach backgrounds/themes to the wrong
@@ -794,6 +800,28 @@ export class AiOrchestrator {
     // so any styling the AI kept or chose survives re-splicing.
     const rewrittenSlides = splitSlides(result);
     let rewriteIdx = 0;
+
+    // Guard against the AI returning the wrong number of rewrite slides. If it
+    // returns too few, fall back to the original source slide for the missing
+    // ones so the deck never contains literal `undefined`. If it returns too
+    // many, drop the extras and log it.
+    if (rewrittenSlides.length !== rewriteEntries.length) {
+      onLog?.(
+        `Warning: expected ${rewriteEntries.length} rewritten slide(s), got ${rewrittenSlides.length} — ` +
+          "falling back to original source slides for any missing entries.",
+        "warn",
+      );
+      if (rewrittenSlides.length > rewriteEntries.length) {
+        rewrittenSlides.length = rewriteEntries.length;
+      } else {
+        while (rewrittenSlides.length < rewriteEntries.length) {
+          const entry = rewriteEntries[rewrittenSlides.length];
+          const fallback = rawSourceSlides[entry?.source?.[0]] ?? "";
+          rewrittenSlides.push(fallback);
+        }
+      }
+    }
+
     const finalSlides = plan.map((_, i) =>
       keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
     );
@@ -1162,11 +1190,9 @@ export class AiOrchestrator {
 
     const mode = operation.opts?.mode || "remix";
     const creativeGuidance =
-      mode === "reimagine"
-        ? "Take a bold editorial approach. You may rethink the topic, examples, notes, and visuals. Substantially change the narrative progression, grouping, slide count, and visual direction when that creates a clearer, more compelling presentation. Preserve the user's core intent and factual accuracy, but do not preserve the original structure, topics, examples, or speaker notes merely for the sake of the original."
-        : "Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.";
+      "Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.";
 
-    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? mode === "remix";
+    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
     const visualIdentityGuidance = preserveVisualIdentity
       ? "Preserve the original theme, colors, backgrounds, and visual language whenever possible."
       : "Do not preserve the original theme, colors, backgrounds, or visual language. You may introduce a new visual direction that supports the restructured deck.";
@@ -1190,8 +1216,13 @@ export class AiOrchestrator {
       reasoningEffort,
     });
 
+    // Track whether images were actually delivered to the plan AI. If we fall
+    // back from vision to text-only, keepImages must not be trusted.
+    let imagesWereSent = false;
+
     // Build the user content — either a multi-modal array (vision) or plain text.
     const userContent = slideImages ? buildVisionMessage(user, slideImages) : user;
+    if (slideImages) imagesWereSent = true;
 
     const messages = [
       { role: "system", content: system },
@@ -1238,6 +1269,7 @@ export class AiOrchestrator {
         // message's "Slide N images:" labels reference pictures that are no
         // longer attached, and leaving them in would push the model to emit
         // keepImages entries it can't justify.
+        imagesWereSent = false;
         const { user: textOnlyUser } = composer.compose({
           ...composeArgs,
           imagesSection: buildImagesSectionForPrompt(false),
@@ -1291,7 +1323,7 @@ export class AiOrchestrator {
       }
     }
 
-    return plan;
+    return { plan, imagesWereSent };
   }
 
   /**
@@ -1476,6 +1508,10 @@ export class AiOrchestrator {
  * in the markdown whose src was never sent to the model (e.g. backgrounds,
  * SVG placeholders, or images that failed to compress) are left untouched,
  * since the model never had a chance to judge them.
+ *
+ * Matching is by src string, not by occurrence index. If the same src appears
+ * more than once on a slide, all occurrences are kept or removed together —
+ * the AI cannot keep one occurrence of an image and drop another.
  * @param {string} slideMarkdown
  * @param {number[]} keepIndices — 0-based indices into `sentImages`
  * @param {Array<{src: string, dataUrl: string}>} sentImages — images sent to

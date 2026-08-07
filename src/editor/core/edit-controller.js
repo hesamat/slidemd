@@ -606,6 +606,16 @@ export class EditController {
     this.updateUnsavedChangesFlag();
   }
 
+  /**
+   * Public guard for code that needs the current editor buffer captured before
+   * reading the deck markdown. Only captures when the editor is actually active
+   * so a stale buffer from a previously viewed slide is not attributed to the
+   * current slide.
+   */
+  captureCurrentEditorState() {
+    if (this.isEditMode) this._captureCurrentEditorMarkdown();
+  }
+
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();

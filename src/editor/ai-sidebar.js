@@ -74,7 +74,9 @@ export class AiSidebar {
       const { AiReimagineOutlineModal } = await import("./ui/ai-reimagine-outline-modal.js");
       const { splitSlidesForAi } = await import("../data/ai/ai-prompt-builder.js");
       const sourceCount = splitSlidesForAi(operation.context, "generate").length;
-      return AiReimagineOutlineModal.show(outline, { sourceCount });
+      const edited = await AiReimagineOutlineModal.show(outline, { sourceCount });
+      if (!edited) cancelled = true;
+      return edited;
     };
 
     let cancelled = false;

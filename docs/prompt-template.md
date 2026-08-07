@@ -14,7 +14,7 @@ Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/p
 | `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                           |
 | `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                 |
 | `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
-| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine: analyze deck → output `{ brief, outline }` JSON for user review              |
+| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review       |
 
 Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
 

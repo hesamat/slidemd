@@ -450,8 +450,10 @@ export class DeckController extends EventEmitter {
     await waitForImageUpload();
     const editController = window.__WEBDECK_EDIT_CONTROLLER__;
     // Capture any in-flight editor edits before reading the full markdown,
-    // otherwise unsaved text changes are missed by the export.
-    editController?._captureCurrentEditorMarkdown?.();
+    // otherwise unsaved text changes are missed by the export. Only capture
+    // when the editor is active to avoid attributing a stale buffer to the
+    // current slide.
+    editController?.captureCurrentEditorState?.();
     const markdown =
       editController?.saveManager?.getFullMarkdown() ??
       localStorage.getItem("webdeck_local_file") ??

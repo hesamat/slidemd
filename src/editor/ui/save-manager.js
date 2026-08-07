@@ -109,12 +109,6 @@ export class SaveManager {
     const fullMarkdown = this.getFullMarkdown();
     const fullSlides = this.getFullSlides();
 
-    this._setOriginalMarkdown(fullSlides);
-    this.unsavedMarkdown.clear();
-    this.hasUnsavedChanges = false;
-    this._onSaveStateReset?.();
-    this.updateButton();
-
     // Warn if the markdown contains blob URLs — they can't persist to disk.
     const hasBlobUrls = /blob:/.test(fullMarkdown);
     if (hasBlobUrls) {
@@ -125,32 +119,51 @@ export class SaveManager {
       );
     }
 
-    return fullMarkdown;
+    return { fullMarkdown, fullSlides };
+  }
+
+  /**
+   * Record that a save succeeded: promote the in-memory slides to the saved
+   * originals and clear the dirty state.
+   * @param {string[]} fullSlides
+   */
+  _markSaved(fullSlides) {
+    this._setOriginalMarkdown(fullSlides);
+    this.unsavedMarkdown.clear();
+    this.hasUnsavedChanges = false;
+    this._onSaveStateReset?.();
+    this.updateButton();
   }
 
   async _doMarkdownSave(fullMarkdown, skipServer = false) {
-    // Only use the server save endpoint when the deck was actually loaded
-    // from the server (source_url === "/api/deck"). Otherwise the server's
-    // "current deck" is still the originally-served file (e.g.
-    // docs/example/slides.md) and POST /api/deck would overwrite it instead
-    // of saving the imported/refined deck.
+    // Use the server save endpoint only when the server is serving the exact
+    // file we loaded. The server's current deck may be different from the one
+    // in the editor (e.g. the example deck or a previously-loaded file), so we
+    // ask the server for its current source path before writing.
     const sourceUrl = localStorage.getItem("webdeck_source_url");
-    const canUseServer = !skipServer && sourceUrl === "/api/deck";
-
-    if (canUseServer) {
+    if (!skipServer && sourceUrl) {
       try {
-        const res = await fetch("/api/deck", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ markdown: fullMarkdown }),
-        });
-        if (res.ok) {
-          Notification.success("Deck saved to disk!");
-          this.needsSaveAs = false;
-          return;
+        const sourceRes = await fetch("/api/deck/source");
+        if (sourceRes.ok) {
+          const { source } = await sourceRes.json();
+          // sourceUrl === "/api/deck" means the deck was loaded from the server's
+          // default file; any other value should match the server's current deck.
+          const loadedSource = sourceUrl === "/api/deck" ? source : sourceUrl;
+          if (source && loadedSource === source) {
+            const res = await fetch("/api/deck", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ markdown: fullMarkdown }),
+            });
+            if (res.ok) {
+              Notification.success("Deck saved to disk!");
+              this.needsSaveAs = false;
+              return true;
+            }
+          }
         }
       } catch {
-        // No CLI server — fall through to file picker
+        // No CLI server, or it doesn't support the endpoint — fall through
       }
     }
 
@@ -163,6 +176,7 @@ export class SaveManager {
     const saved = await this._saveMarkdownWithImages(fullMarkdown, `${suggestedName}.md`);
     this.needsSaveAs = false;
     if (saved) Notification.success("Deck saved!");
+    return saved;
   }
 
   /**
@@ -290,14 +304,17 @@ export class SaveManager {
   }
 
   async save() {
-    const fullMarkdown = await this._prepareSave();
+    const { fullMarkdown, fullSlides } = await this._prepareSave();
     try {
-      await this._doMarkdownSave(fullMarkdown);
+      const saved = await this._doMarkdownSave(fullMarkdown);
+      if (saved) this._markSaved(fullSlides);
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);
         Notification.error("Failed to save file: " + (error.message || error));
       }
+      // AbortError means the user cancelled — leave the dirty state in place
+      // so the next save/reload prompt still works.
     }
   }
 }

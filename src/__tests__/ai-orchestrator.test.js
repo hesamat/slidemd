@@ -338,6 +338,31 @@ describe("AiOrchestrator", () => {
       expect(logs.some((l) => l.includes("[Plan] Rewrite"))).toBe(true);
     });
 
+    it("falls back to original source slides when execute returns a mismatched slide count", async () => {
+      // The execute phase returns zero rewritten slides even though the plan
+      // has one rewrite entry. The fallback should use the original source slide
+      // so the deck doesn't contain literal `undefined`.
+      const MISSING_EXECUTE_RESPONSE = JSON.stringify({
+        slides: [],
+      });
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        MISSING_EXECUTE_RESPONSE,
+        MISSING_EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      expect(logs.some((l) => l.includes("expected 1 rewritten slide(s), got 0"))).toBe(true);
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+      expect(result).not.toContain("undefined");
+    });
+
     it("does not route to remix for mode=polish", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });

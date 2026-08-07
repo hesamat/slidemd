@@ -282,7 +282,8 @@ export function buildBatchMessages(
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
   // prompt fragment.
-  const fragment = mode === "fix" || batchMode === "polish" ? polishPrompt : generatePrompt;
+  const fragment =
+    mode === "fix" ? fixPrompt : batchMode === "polish" ? polishPrompt : generatePrompt;
   const composer = new AiPromptComposer({
     systemFragment: systemPrompt,
     userFragment: fragment,

@@ -20,7 +20,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -175,15 +175,28 @@ function sendReloadEvent() {
 // ── File watching ─────────────────────────────────────────────────────────────
 
 let watchTimeout = null;
-let selfWriteUntil = 0;
+let lastWrittenContentHash = null;
 
-function scheduleReload() {
+function hashContent(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+async function scheduleReload() {
   if (watchTimeout) clearTimeout(watchTimeout);
-  watchTimeout = setTimeout(() => {
-    if (Date.now() < selfWriteUntil) {
+  watchTimeout = setTimeout(async () => {
+    if (!format || !fs.existsSync(format.mdFile)) {
+      sendReloadEvent();
       watchTimeout = null;
       return;
     }
+    const current = fs.readFileSync(format.mdFile, "utf8");
+    const currentHash = hashContent(current);
+    if (currentHash === lastWrittenContentHash) {
+      // This is the echo of our own write — don't reload.
+      watchTimeout = null;
+      return;
+    }
+    lastWrittenContentHash = null;
     sendReloadEvent();
     watchTimeout = null;
   }, 100);
@@ -426,6 +439,19 @@ function createHandler(format) {
       return;
     }
 
+    // ── GET /api/deck/source ──
+    if (pathname === "/api/deck/source" && req.method === "GET") {
+      if (!format || !format.mdFile) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ source: null }));
+        return;
+      }
+      const relative = path.relative(process.cwd(), format.mdFile).replace(/\\/g, "/");
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ source: relative }));
+      return;
+    }
+
     // ── POST /api/deck ──
     if (pathname === "/api/deck" && req.method === "POST") {
       if (!format) {
@@ -435,7 +461,7 @@ function createHandler(format) {
       }
       try {
         const { markdown } = await readJsonBody(req);
-        selfWriteUntil = Date.now() + 250;
+        lastWrittenContentHash = hashContent(markdown);
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
