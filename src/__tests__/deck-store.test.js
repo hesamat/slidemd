@@ -103,4 +103,129 @@ describe("DeckStore", () => {
     expect(store.undo()).toBe(true);
     expect(store.getSlides()).toEqual(["edited", "b"]);
   });
+
+  it("starts the structural revision at zero and increments for structural operations", () => {
+    const store = new DeckStore();
+    expect(store.getStructuralRevision()).toBe(0);
+
+    store.loadFromMarkdown("a\n---\nb");
+    expect(store.getStructuralRevision()).toBe(1);
+
+    store.applyPatch(createEditPatch(0, "a", "edited"));
+    expect(store.getStructuralRevision()).toBe(1);
+
+    store.applyPatch(createInsertPatch(2, "c"));
+    expect(store.getStructuralRevision()).toBe(2);
+
+    store.applyPatch(createDeletePatch(1, "b"));
+    expect(store.getStructuralRevision()).toBe(3);
+
+    store.applyPatches([
+      createDeletePatch(1, "c", "user", "move"),
+      createInsertPatch(0, "c", "user", "move"),
+    ]);
+    expect(store.getStructuralRevision()).toBe(4);
+  });
+
+  it("notifies structural change listeners only on structural mutations", () => {
+    const store = new DeckStore();
+    const onStructural = vi.fn();
+    const off = store.onStructuralChange(onStructural);
+
+    store.loadFromMarkdown("a\n---\nb");
+    expect(onStructural).toHaveBeenCalledWith(1);
+
+    store.applyPatch(createEditPatch(0, "a", "edited"));
+    expect(onStructural).toHaveBeenCalledTimes(1);
+
+    store.applyPatch(createInsertPatch(2, "c"));
+    expect(onStructural).toHaveBeenCalledWith(2);
+    expect(onStructural).toHaveBeenCalledTimes(2);
+
+    off();
+    store.applyPatch(createDeletePatch(1, "b"));
+    expect(onStructural).toHaveBeenCalledTimes(2);
+  });
+
+  it("notifies store change listeners with the latest slides array on every mutation", () => {
+    const store = new DeckStore();
+    const onStore = vi.fn();
+    const off = store.onStoreChange(onStore);
+
+    store.loadFromMarkdown("a\n---\nb");
+    expect(onStore).toHaveBeenLastCalledWith(["a", "b"]);
+
+    store.applyPatch(createEditPatch(1, "b", "updated"));
+    expect(onStore).toHaveBeenLastCalledWith(["a", "updated"]);
+
+    store.applyPatch(createInsertPatch(2, "c"));
+    expect(onStore).toHaveBeenLastCalledWith(["a", "updated", "c"]);
+
+    store.undo();
+    expect(onStore).toHaveBeenLastCalledWith(["a", "updated"]);
+
+    off();
+    store.applyPatch(createEditPatch(0, "a", "again"));
+    expect(onStore).toHaveBeenCalledTimes(4);
+  });
+
+  it("applyPatch is fail-closed when an expected structural revision is provided", () => {
+    const store = new DeckStore();
+    store.loadFromMarkdown("a\n---\nb");
+    const baseline = store.getStructuralRevision();
+
+    // Successful application returns a result object
+    const ok = store.applyPatch(createEditPatch(1, "b", "updated"), baseline);
+    expect(ok).toEqual({ success: true });
+    expect(store.getSlides()).toEqual(["a", "updated"]);
+
+    // Stale index should fail without mutating
+    const stale = store.applyPatch(createEditPatch(1, "b", "stale"), store.getStructuralRevision());
+    expect(stale).toEqual(
+      expect.objectContaining({
+        success: false,
+        reason: expect.stringContaining("out of range or before mismatch"),
+      }),
+    );
+    expect(store.getSlides()).toEqual(["a", "updated"]);
+
+    // Structural change bumps the revision, invalidating the old token
+    store.applyPatch(createInsertPatch(2, "c"));
+    const current = store.getStructuralRevision();
+    expect(current).toBe(baseline + 1);
+
+    // Mismatched structural revision should fail before touching state
+    const conflict = store.applyPatch(createEditPatch(1, "updated", "again"), baseline);
+    expect(conflict).toEqual(
+      expect.objectContaining({
+        success: false,
+        reason: expect.stringContaining("Structural revision mismatch"),
+      }),
+    );
+    expect(store.getSlides()).toEqual(["a", "updated", "c"]);
+
+    // Using the current revision succeeds
+    const now = store.applyPatch(createEditPatch(1, "updated", "again"), current);
+    expect(now).toEqual({ success: true });
+    expect(store.getSlides()).toEqual(["a", "again", "c"]);
+  });
+
+  it("applyPatches rejects the whole transaction when the expected structural revision is stale", () => {
+    const store = new DeckStore();
+    store.loadFromMarkdown("a\n---\nb\n---\nc");
+    const baseline = store.getStructuralRevision();
+    store.applyPatch(createDeletePatch(1, "b"));
+
+    const result = store.applyPatches(
+      [createDeletePatch(1, "c", "user", "move"), createInsertPatch(0, "c", "user", "move")],
+      baseline,
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        reason: expect.stringContaining("Structural revision mismatch"),
+      }),
+    );
+    expect(store.getSlides()).toEqual(["a", "c"]);
+  });
 });
