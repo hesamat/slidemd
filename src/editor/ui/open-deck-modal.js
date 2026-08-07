@@ -338,7 +338,10 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.setItem("webdeck_source_url", file.name);
+      // Picker-opened files only give us a basename; don't store it as a
+      // server-comparable source URL, or Save could overwrite the dev server's
+      // file when the names happen to match.
+      localStorage.removeItem("webdeck_source_url");
 
       await DraftManager.saveDraft(rawText);
 

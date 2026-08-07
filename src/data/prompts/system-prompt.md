@@ -24,7 +24,7 @@ Rules:
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`.
 - Preserve any existing `::: text-block` blocks exactly, including all attributes and inner text.
 - Convert `[Diagram: ...]` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
-- Handle `<img>` tags in the input: preserve them unless the FIDELITY instruction says to drop specific images. When repositioning an image, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag for custom placement.
+- Handle `<img>` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag for custom placement.
 
 Allowed layouts and areas:
 {{layoutList}}

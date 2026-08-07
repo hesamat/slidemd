@@ -92,6 +92,8 @@ export class AiReimagineOutlineModal {
         </div>
         <div id="${P}chapters-list" class="${P}chapters-list"></div>
 
+        <p class="${P}error" style="color: #e53935; font-size: 0.875rem; min-height: 1.2em; margin: 0;"></p>
+
         <div class="${P}actions">
           <button type="button" class="${P}btn" data-action="cancel">Cancel</button>
           <button type="button" class="${P}btn ${P}btn--primary" data-action="continue">Continue</button>
@@ -104,6 +106,7 @@ export class AiReimagineOutlineModal {
       const planTextarea = dialog.querySelector(`#${P}plan`);
       const chaptersList = dialog.querySelector(`#${P}chapters-list`);
       const editToggleBtn = dialog.querySelector('[data-action="toggle-edit"]');
+      const errorEl = dialog.querySelector(`.${P}error`);
 
       planTextarea.value = outline.plan;
 
@@ -325,7 +328,11 @@ export class AiReimagineOutlineModal {
             slides: ch.slides.filter((s) => s.title.trim() || s.intent.trim()),
           }))
           .filter((ch) => ch.slides.length > 0);
-        if (filteredChapters.length === 0) return;
+        if (filteredChapters.length === 0) {
+          errorEl.textContent = "Please add at least one chapter with a slide before continuing.";
+          return;
+        }
+        errorEl.textContent = "";
         close({
           plan: planTextarea.value.trim(),
           chapters: filteredChapters.map((ch) => ({

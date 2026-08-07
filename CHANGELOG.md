@@ -38,7 +38,7 @@
 - Add `ai-vision-message.js` (message builder, provider mappings, token estimation).
 - Add `slide-image-extractor.js` (image extraction, background filtering, compression, fast count for modal).
 - Update `remix-plan-prompt.md` with `keepImages` schema and image-aware instructions.
-- Total tests now **862**.
+- Total tests now **863**.
 
 ## 0.9.0 (2026-08-06)
 

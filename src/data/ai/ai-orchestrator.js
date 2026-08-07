@@ -137,6 +137,13 @@ export class AiOrchestrator {
    */
   async runSingleSlideOperation(operation, signal, callbacks = {}) {
     const { onLog } = callbacks;
+    const log = (message, level = "info") => {
+      if (onLog) {
+        onLog(message, level);
+      } else if (level === "warn" || level === "error") {
+        console.warn(message);
+      }
+    };
     const { intent, targetSlide, context } = operation;
     if (!isSingleSlideIntent(intent)) {
       throw new Error(`Intent "${intent}" is not a single-slide intent`);
@@ -205,7 +212,7 @@ export class AiOrchestrator {
       }
 
       if (attempt < MAX_REPAIR_ATTEMPTS) {
-        onLog?.(
+        log(
           `Validation attempt ${attempt}/${MAX_REPAIR_ATTEMPTS} failed: ${result.errors.map((e) => e.message).join("; ")}`,
           "warn",
         );
@@ -219,7 +226,7 @@ export class AiOrchestrator {
       }
 
       // Accept output after exhausting retries so the user doesn't lose the result
-      onLog?.(
+      log(
         `Accepting output after ${MAX_REPAIR_ATTEMPTS} attempts despite validation errors: ${result.errors.map((e) => e.message).join("; ")}`,
         "warn",
       );

@@ -141,7 +141,7 @@ export class SaveManager {
     // in the editor (e.g. the example deck or a previously-loaded file), so we
     // ask the server for its current source path before writing.
     const sourceUrl = localStorage.getItem("webdeck_source_url");
-    if (!skipServer && sourceUrl) {
+    if (!skipServer && sourceUrl && (sourceUrl === "/api/deck" || sourceUrl.includes("/"))) {
       try {
         const sourceRes = await fetch("/api/deck/source");
         if (sourceRes.ok) {
@@ -191,55 +191,74 @@ export class SaveManager {
    *   or that export failed).
    */
   async _saveMarkdownWithImages(markdown, fileName) {
-    // When the File System Access API is available, use a directory picker
-    // so we can write both the .md file and its images/ folder.
-    if (window.showDirectoryPicker) {
+    const imagePaths = extractImagePaths(markdown);
+
+    // File System Access API path: let the user pick the .md file with the
+    // browser's native overwrite confirmation. When there are images, also
+    // pick the directory that will hold the images/ sidecar.
+    if (window.showSaveFilePicker) {
       try {
-        const dirHandle = await window.showDirectoryPicker({
-          mode: "readwrite",
-          id: "webdeck-save",
-          startIn: "documents",
+        let imagesDir = null;
+        if (imagePaths.length > 0 && window.showDirectoryPicker) {
+          imagesDir = await window.showDirectoryPicker({
+            mode: "readwrite",
+            id: "webdeck-save-images",
+            startIn: "documents",
+          });
+        }
+
+        const mdHandle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [
+            {
+              description: "Markdown",
+              accept: { "text/markdown": [".md", ".markdown"] },
+            },
+          ],
+          ...(imagesDir ? { startIn: imagesDir } : {}),
         });
 
-        // Write the .md file
-        const mdHandle = await dirHandle.getFileHandle(fileName, { create: true });
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
 
-        // Write images to an images/ subfolder
-        const imagePaths = extractImagePaths(markdown);
         if (imagePaths.length > 0) {
-          let imagesDir = dirHandle;
-          // Navigate/create the images/ subfolder
-          for (const part of "images".split("/")) {
-            imagesDir = await imagesDir.getDirectoryHandle(part, { create: true });
-          }
-          let saved = 0;
-          let failed = 0;
-          for (const relPath of imagePaths) {
-            try {
-              const res = await fetch(`/${relPath}`);
-              if (!res.ok) {
-                failed++;
-                continue;
-              }
-              const blob = await res.blob();
-              const imgName = relPath.split("/").pop();
-              const imgHandle = await imagesDir.getFileHandle(imgName, { create: true });
-              const imgWritable = await imgHandle.createWritable();
-              await imgWritable.write(blob);
-              await imgWritable.close();
-              saved++;
-            } catch {
-              failed++;
-            }
-          }
-          if (failed > 0) {
+          if (!imagesDir) {
             Notification.warning(
-              `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+              `${fileName} was saved, but images were not saved because this browser does not support directory selection.`,
               6000,
             );
+          } else {
+            let sidecarDir = imagesDir;
+            for (const part of "images".split("/")) {
+              sidecarDir = await sidecarDir.getDirectoryHandle(part, { create: true });
+            }
+            let saved = 0;
+            let failed = 0;
+            for (const relPath of imagePaths) {
+              try {
+                const res = await fetch(`/${relPath}`);
+                if (!res.ok) {
+                  failed++;
+                  continue;
+                }
+                const blob = await res.blob();
+                const imgName = relPath.split("/").pop();
+                const imgHandle = await sidecarDir.getFileHandle(imgName, { create: true });
+                const imgWritable = await imgHandle.createWritable();
+                await imgWritable.write(blob);
+                await imgWritable.close();
+                saved++;
+              } catch {
+                failed++;
+              }
+            }
+            if (failed > 0) {
+              Notification.warning(
+                `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+                6000,
+              );
+            }
           }
         }
         return true;
@@ -251,7 +270,6 @@ export class SaveManager {
 
     // Fallback: no File System Access API — show a modal so the user
     // understands images won't be saved and can choose .textpack instead.
-    const imagePaths = extractImagePaths(markdown);
     if (imagePaths.length > 0) {
       const choice = await Notification.showModal({
         title: "Images will not be saved",
@@ -283,9 +301,10 @@ export class SaveManager {
         } else {
           Notification.error("Textpack export failed or was cancelled. Nothing was saved.");
         }
-        // This path reports its own success/failure — the caller must not
-        // also announce "Deck saved!" (that would be wrong on failure, and
-        // a duplicate/confusing toast on success).
+        // A successful .textpack export is a valid save: clear the dirty state
+        // so the editor doesn't keep warning about unsaved changes. Return false
+        // so the caller doesn't also show the generic "Deck saved!" toast.
+        if (ok) this._markSaved(this.getFullSlides());
         return false;
       }
       // choice === "md" — fall through to blob download below

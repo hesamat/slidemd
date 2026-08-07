@@ -175,13 +175,13 @@ function sendReloadEvent() {
 // ── File watching ─────────────────────────────────────────────────────────────
 
 let watchTimeout = null;
-let lastWrittenContentHash = null;
+const lastWrittenContentHashes = new Map();
 
 function hashContent(text) {
   return createHash("sha256").update(text).digest("hex");
 }
 
-async function scheduleReload() {
+async function scheduleReload(format) {
   if (watchTimeout) clearTimeout(watchTimeout);
   watchTimeout = setTimeout(async () => {
     if (!format || !fs.existsSync(format.mdFile)) {
@@ -191,12 +191,13 @@ async function scheduleReload() {
     }
     const current = fs.readFileSync(format.mdFile, "utf8");
     const currentHash = hashContent(current);
-    if (currentHash === lastWrittenContentHash) {
+    const lastHash = lastWrittenContentHashes.get(format.mdFile);
+    if (currentHash === lastHash) {
       // This is the echo of our own write — don't reload.
       watchTimeout = null;
       return;
     }
-    lastWrittenContentHash = null;
+    lastWrittenContentHashes.delete(format.mdFile);
     sendReloadEvent();
     watchTimeout = null;
   }, 100);
@@ -208,7 +209,7 @@ function startWatching(format) {
   for (const p of watchPaths) {
     if (!fs.existsSync(p)) continue;
     fs.watch(p, { recursive: p !== format.mdFile }, () => {
-      scheduleReload();
+      scheduleReload(format);
     });
   }
 }
@@ -461,7 +462,7 @@ function createHandler(format) {
       }
       try {
         const { markdown } = await readJsonBody(req);
-        lastWrittenContentHash = hashContent(markdown);
+        lastWrittenContentHashes.set(format.mdFile, hashContent(markdown));
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));

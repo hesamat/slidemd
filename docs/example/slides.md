@@ -338,7 +338,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Polish** — fix formatting and layouts, improve wording, pick better layouts. Keeps the same slide count and order.
 - **Remix** — reorganize the story: reorder, merge, or rewrite slides. AI proposes an outline, you preview and apply.
 - **Reimagine** — take a bold new direction: rethink the topic, examples, notes, and visuals.
-- **Options** — choose tone, add speaker notes, send content images to the AI (Remix/Reimagine), or preserve the visual identity for Remix (Reimagine always discards it).
+- **Options** — choose Flow (Story / Technical / Persuasive / Instructional), add speaker notes, send content images to the AI (Remix/Reimagine), or preserve the visual identity for Remix (Reimagine always discards it).
 
 Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 

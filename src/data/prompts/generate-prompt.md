@@ -15,14 +15,14 @@ Content strategy:
 Visual styling:
 
 - Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
-- Every slide must have a `background:` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
-- Every slide must have a `theme:` directive that matches the background darkness:
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a `background:` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a `theme:` directive that matches the background darkness:
   - If the `background:` is dark or has a dark image, set `theme: dark` so the default text renders light.
   - If the `background:` is light, set `theme: light` so the default text renders dark.
 - Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
 - Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
-- When `preserveVisualIdentity` is true, keep existing `theme:` and `background:` directives unless they clearly don't fit.
+- If the following instructions say to preserve the existing visual identity, keep existing `theme:` and `background:` directives unless they clearly do not fit.
 
 Diagrams:
 
@@ -33,7 +33,7 @@ Diagrams:
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- Every slide has a `background:` directive.
+- Background and theme directives follow the visual-identity instructions that follow this prompt.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
