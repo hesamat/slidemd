@@ -372,6 +372,28 @@ function readJsonBody(req) {
   });
 }
 
+/**
+ * Verify the request came from the same origin as the dev server.
+ * Browsers send the Origin header for cross-site and non-GET requests;
+ * if it is missing we fall back to the Referer header.
+ */
+function isSameOrigin(req) {
+  const host = req.headers.host;
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  if (!host) return false;
+  const expected = `http://${host}`;
+  if (origin) return origin === expected;
+  if (referer) {
+    try {
+      return new URL(referer).origin === expected;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 
 /**
@@ -447,16 +469,13 @@ function createHandler(format) {
         res.end(JSON.stringify({ error: "No deck loaded" }));
         return;
       }
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       try {
-        const { markdown, source } = await readJsonBody(req);
-        if (source !== "/api/deck") {
-          const serverSource = path.relative(process.cwd(), format.mdFile).replace(/\\/g, "/");
-          if (source !== serverSource) {
-            res.writeHead(403, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Source mismatch" }));
-            return;
-          }
-        }
+        const { markdown } = await readJsonBody(req);
         lastWrittenContentHashes.set(format.mdFile, hashContent(markdown));
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });

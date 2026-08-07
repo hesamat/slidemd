@@ -342,9 +342,10 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_name", file.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       // Picker-opened .md files are not authoritative server sources, so don't
-      // let Save POST back to the dev server. Keep any existing source URL so
-      // Reload can still refresh from it when the same file is being re-opened.
+      // let Save POST back to the dev server. Clear the source URL so a reload
+      // does not fetch a stale server source and instead uses the cached file.
       localStorage.setItem("webdeck_opened_from_picker", "1");
+      localStorage.removeItem("webdeck_source_url");
 
       await DraftManager.saveDraft(rawText);
 

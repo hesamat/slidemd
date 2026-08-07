@@ -146,12 +146,12 @@ export class SaveManager {
       (sourceUrl === "/api/deck" || sourceUrl.includes("/"))
     ) {
       try {
-        // Send the source URL so the server can verify it is serving the same
-        // file before writing; no filesystem path is exposed to the client.
+        // The dev server knows which file it is serving; the server validates
+        // the request origin instead of trusting a client-supplied source.
         const res = await fetch("/api/deck", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ markdown: fullMarkdown, source: sourceUrl }),
+          body: JSON.stringify({ markdown: fullMarkdown }),
         });
         if (res.ok) {
           Notification.success("Deck saved to disk!");
@@ -216,11 +216,18 @@ export class SaveManager {
             buttons: [{ label: "Choose images folder", isPrimary: true, resolvesTo: "ok" }],
           });
           if (choice === "ok") {
-            imagesDir = await window.showDirectoryPicker({
-              mode: "readwrite",
-              id: "webdeck-save-images",
-              startIn: "documents",
-            });
+            try {
+              imagesDir = await window.showDirectoryPicker({
+                mode: "readwrite",
+                id: "webdeck-save-images",
+                startIn: "documents",
+              });
+            } catch (e) {
+              if (e.name !== "AbortError") throw e;
+              // User cancelled the images folder picker — save the .md anyway.
+              // The warning below will let them know images were skipped.
+              imagesDir = null;
+            }
           }
         }
 
