@@ -439,7 +439,7 @@ Goal: One entry point owning context selection, the LLM call, validation, and re
 
 ---
 
-## Phase D: Remix Planner (Two-Phase Restructuring)
+## Phase 13.1: Remix Planner (Two-Phase Restructuring)
 
 Goal: Replace the experimental single-shot Remix with a reliable two-phase plan→execute flow. A cheap planning call produces a structured restructuring plan, which is converted to a virtual deck and fed through the existing batched generate path. Unlocks Remix for decks of any size.
 
@@ -451,6 +451,41 @@ Goal: Replace the experimental single-shot Remix with a reliable two-phase plan�
 | [x] Add virtual deck trick     | Plan entries converted to a virtual deck markdown with `<!-- brief: ... -->` comments. Fed through existing generate path. |
 | [x] Unlock Remix for all sizes | Removed ≤8-slide limit. Execute phase batches through existing 2-worker queue for large decks.                             |
 | [x] Add `remix-plan-prompt.md` | User fragment for the plan phase: analyze deck → output restructuring plan JSON.                                           |
+
+---
+
+## Phase 13.2: Vision-Enabled Remix & Hardening
+
+Goal: Add vision support to the two-phase Remix/Reimagine flow and harden the dev server, save, reload, and settings paths.
+
+### Vision-Augmented Remix & Reimagine
+
+| Task                                | Details                                                                            |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| [x] Vision toggle in generate modal | "Send slide images to AI" checkbox with token estimate for Remix/Reimagine         |
+| [x] Multi-modal plan phase          | Send compressed content images with the deck summary for visual assessment         |
+| [x] `keepImages` plan schema        | Specify which images to keep per output slide; virtual deck filters before execute |
+| [x] Provider multi-modal support    | Anthropic and Gemini handle array vision blocks; OpenAI-compatible passes arrays   |
+| [x] Text-only fallback              | Retry plan/retry sidebar without images when the model rejects vision              |
+| [x] Background image filtering      | Exclude `background: url(...)` from vision; only inline `<img>` and `![...](...)`  |
+| [x] Image compression               | Canvas-based JPEG compression to <40KB; max 768px, quality loop, no new deps       |
+| [x] Add `ai-vision-message.js`      | Message builder, provider mappings, token estimation                               |
+| [x] Add `slide-image-extractor.js`  | Extraction, background filtering, compression, fast modal count                    |
+| [x] Update `remix-plan-prompt.md`   | `keepImages` schema and image-aware instructions                                   |
+
+### Dev Server, Save & Reload Hardening
+
+| Task                                  | Details                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| [x] Harden `POST /api/deck`           | Same-origin validation; no longer trusts client-supplied `source`      |
+| [x] Fix reload after picker `.md`     | Clear stale `webdeck_source_url` so reload uses the cached picker file |
+| [x] Fix save with cancelled image dir | Write `.md` and warn when the images-folder picker is cancelled        |
+
+### Settings & Reasoning Hardening
+
+| Task                                 | Details                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| [x] Reject empty `reasoning` objects | `settings-modal.js` ignores bare `{}` from providers so reasoning toggle is accurate |
 
 ---
 
@@ -587,31 +622,33 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ## Summary
 
-| Phase                                    | Status      |
-| ---------------------------------------- | ----------- |
-| Phase 1: Safety Net                      | ✅ Complete |
-| Phase 2: Build Modernization             | ✅ Complete |
-| Phase 3: Distribution                    | ✅ Complete |
-| Phase 4: New Presentation                | ✅ Complete |
-| Phase 5: Quick Fixes                     | ✅ Complete |
-| Phase 6: Testing & Polish                | ✅ Complete |
-| Phase 7: PPTX Conversion                 | ✅ Complete |
-| Phase 7.5: CLI Dev Server                | ✅ Complete |
-| Phase 8: AI Post-Processing              | ✅ Complete |
-| Phase 9: Text Insertion & Editor UX      | ✅ Complete |
-| Phase 10: Renderer Hardening             | ✅ Complete |
-| Phase 11: AI Operations Foundation       | Deferred    |
-| Phase 12: Deck Store & Patches           | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo     | Planned     |
-| Phase 15: Design System & Theme Registry | Planned     |
-| Phase 16: Presenter, Print & AI Commands | Planned     |
-| Phase 17: Cloud Mode                     | Planned     |
+| Phase                                        | Status      |
+| -------------------------------------------- | ----------- |
+| Phase 1: Safety Net                          | ✅ Complete |
+| Phase 2: Build Modernization                 | ✅ Complete |
+| Phase 3: Distribution                        | ✅ Complete |
+| Phase 4: New Presentation                    | ✅ Complete |
+| Phase 5: Quick Fixes                         | ✅ Complete |
+| Phase 6: Testing & Polish                    | ✅ Complete |
+| Phase 7: PPTX Conversion                     | ✅ Complete |
+| Phase 7.5: CLI Dev Server                    | ✅ Complete |
+| Phase 8: AI Post-Processing                  | ✅ Complete |
+| Phase 9: Text Insertion & Editor UX          | ✅ Complete |
+| Phase 10: Renderer Hardening                 | ✅ Complete |
+| Phase 11: AI Operations Foundation           | Deferred    |
+| Phase 12: Deck Store & Patches               | ✅ Complete |
+| Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
+| Phase 13.1: Remix Planner                    | ✅ Complete |
+| Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
+| Phase 14: Conflict Resolution & Undo         | Planned     |
+| Phase 15: Design System & Theme Registry     | Planned     |
+| Phase 16: Presenter, Print & AI Commands     | Planned     |
+| Phase 17: Cloud Mode                         | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 14 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
