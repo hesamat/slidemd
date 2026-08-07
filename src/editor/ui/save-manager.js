@@ -107,7 +107,7 @@ export class SaveManager {
    * @returns {object}
    */
   getFullSlide(index, deckStoreSlide) {
-    const overlay = this._unsavedEditorOverlays.get(index);
+    const overlay = this._unsavedEditorOverlays.get(index) ?? this._getUnsavedMarkdown().get(index);
     if (overlay === undefined) return deckStoreSlide;
     return { ...deckStoreSlide, index, markdown: overlay };
   }

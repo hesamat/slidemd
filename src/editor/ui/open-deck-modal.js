@@ -240,15 +240,19 @@ export class OpenDeckModal {
       loading.updateMessage("Loading deck...");
       loading.updateProgress(95);
 
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: {
-            text: resolvedMarkdown,
-            fileType: "md",
-            fileName: file.name.replace(/\.textpack$/, ""),
-          },
-        }),
-      );
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      if (editCtrl?.deckStore) {
+        editCtrl.deckStore.loadFromMarkdown(resolvedMarkdown, 0);
+      }
+
+      const newDeck = await DeckLoader.parseMarkdown(resolvedMarkdown);
+      const reloadManager = editCtrl?.controller?.reloadManager;
+      if (reloadManager?.replaceDeck) {
+        await reloadManager.replaceDeck(newDeck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+      }
 
       await DraftManager.clearDraft();
       loading.dismiss();
@@ -282,10 +286,15 @@ export class OpenDeckModal {
             localStorage.setItem("webdeck_local_file", serverMarkdown);
             await DraftManager.saveDraft(serverMarkdown);
 
-            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+            if (editCtrl?.deckStore) {
               try {
-                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
-                  new MarkdownParser().splitSlides(serverMarkdown);
+                const newSlides = new MarkdownParser().splitSlides(serverMarkdown);
+                editCtrl.deckStore.syncSlides(newSlides, editCtrl.deckStore.getActiveIndex());
+                const updatedDeck = await DeckLoader.parseMarkdown(serverMarkdown);
+                await reloadManager.replaceDeck(updatedDeck, {
+                  startAtFirstSlide: false,
+                  syncStore: false,
+                });
               } catch {
                 /* ignore */
               }
@@ -360,11 +369,19 @@ export class OpenDeckModal {
       SlideRenderer.showLoadingState();
       this.hide();
 
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: { text: rawText, fileType: "md", fileName: file.name },
-        }),
-      );
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      if (editCtrl?.deckStore) {
+        editCtrl.deckStore.loadFromMarkdown(rawText, 0);
+      }
+
+      const newDeck = await DeckLoader.parseMarkdown(rawText);
+      const reloadManager = editCtrl?.controller?.reloadManager;
+      if (reloadManager?.replaceDeck) {
+        await reloadManager.replaceDeck(newDeck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+      }
 
       // Clear stale draft from any previously opened deck
       await DraftManager.clearDraft();

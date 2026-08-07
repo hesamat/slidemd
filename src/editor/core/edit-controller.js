@@ -57,6 +57,9 @@ export class EditController {
     this.controller = controller;
     this.elements = elements;
     this.deckStore = deckStore;
+    this._offStoreChange = this.deckStore?.onStoreChange((slides) =>
+      this._handleStoreChange(slides),
+    );
 
     this.isEditMode = false;
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
@@ -91,9 +94,13 @@ export class EditController {
       this.originalMarkdown = isStoreRestore
         ? this.deckStore.getSlides()
         : this._cacheOriginalMarkdown();
-      this.unsavedMarkdown.clear();
+      if (isStoreRestore) {
+        this._reconcileUnsavedOverlays(this.originalMarkdown);
+      } else {
+        this.unsavedMarkdown.clear();
+      }
       this._pendingStructuralOperations = 0;
-      this.hasUnsavedChanges = isStoreRestore;
+      this.hasUnsavedChanges = isStoreRestore || this.unsavedMarkdown.size > 0;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
@@ -164,7 +171,14 @@ export class EditController {
       },
       onBeforeSave: () => {
         this._captureCurrentEditorMarkdown();
-        this.syncStoreFromSlides(this.saveManager.getFullSlides());
+        const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
+          index,
+          markdown,
+        }));
+        const fullSlides = this.saveManager
+          .getFullSlides(storeSlides)
+          .map((slide) => slide.markdown ?? "");
+        this.syncStoreFromSlides(fullSlides);
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -305,6 +319,8 @@ export class EditController {
     });
 
     this.styleApplier = new StyleApplier({
+      getSaveManager: () => this.saveManager,
+      getDeckStore: () => this.deckStore,
       getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
@@ -318,6 +334,7 @@ export class EditController {
       },
       onUpdateSaveButton: () => this.saveManager.updateButton(),
       getImageBg: () => this.imageBg,
+      prepareStoreOperation: () => this.prepareStoreOperation(),
     });
 
     this.sourceJump = new SourceJumpHandler({
@@ -621,13 +638,35 @@ export class EditController {
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
-    this.syncStoreFromSlides(this.saveManager.getFullSlides(), "system", {
+    const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
+      index,
+      markdown,
+    }));
+    const fullSlides = this.saveManager
+      .getFullSlides(storeSlides)
+      .map((slide) => slide.markdown ?? "");
+    this.syncStoreFromSlides(fullSlides, "system", {
       recordHistory: false,
     });
   }
 
   recordStoreOperation() {
     this._pendingStructuralOperations += 1;
+  }
+
+  /**
+   * Prune out-of-range or identical unsaved overlays, keeping only those
+   * that genuinely differ from the supplied source.
+   * @param {string[]} source
+   */
+  _reconcileUnsavedOverlays(source) {
+    const next = new Map();
+    for (const [idx, value] of this.unsavedMarkdown) {
+      if (idx >= 0 && idx < source.length && value !== source[idx]) {
+        next.set(idx, value);
+      }
+    }
+    this.unsavedMarkdown = next;
   }
 
   async _restoreStoreSnapshot() {
@@ -639,6 +678,31 @@ export class EditController {
     await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
     this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
+  }
+
+  /**
+   * Respond to a canonical DeckStore change by re-syncing the editor view.
+   * Preserves unsaved editor overlays that still differ from the store and
+   * re-renders thumbnails, the current slide, and the preview.
+   * @param {string[]} slides
+   */
+  async _handleStoreChange(slides) {
+    if (this._destroyed) return;
+
+    this.originalMarkdown = [...slides];
+    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this.hasUnsavedChanges = true;
+    this.saveManager.updateButton();
+
+    if (this.isEditMode) {
+      try {
+        await this._restoreStoreSnapshot();
+        this.previewUpdater?.update();
+      } catch (error) {
+        console.error("Store-to-view sync failed:", error);
+        Notification.error("Failed to refresh the editor view.");
+      }
+    }
   }
 
   async undo() {
