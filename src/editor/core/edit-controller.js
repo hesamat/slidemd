@@ -750,7 +750,7 @@ export class EditController {
         const patch = patches[0];
 
         const currentSlideMarkdown =
-          this.markdownEditor?.getValue() ?? this.deckStore.getSlides()[targetSlide] ?? "";
+          this.unsavedMarkdown.get(targetSlide) ?? this.deckStore.getSlides()[targetSlide] ?? "";
         const structuralRevisionChanged =
           this.deckStore.getStructuralRevision() !== baselineRevision;
 
@@ -762,6 +762,11 @@ export class EditController {
         });
 
         if (resolution.action === "reject") {
+          if (structuralRevisionChanged || currentSlideMarkdown === patch.before) {
+            this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+            Notification.warning(resolution.reason);
+            return;
+          }
           const choice = await ConflictModal.show(patch, intent);
           if (choice.action === "reject") {
             this.saveManager.clearUnsavedEditorOverlay(targetSlide);
@@ -785,6 +790,18 @@ export class EditController {
         }
 
         const patchToApply = resolution.rebasedPatch ?? patch;
+
+        // Safety check before mutating the store.
+        if (
+          this.deckStore.getStructuralRevision() !== baselineRevision ||
+          targetSlide >= this.deckStore.getSlideCount()
+        ) {
+          this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+          Notification.warning(
+            `AI ${intent} could not be applied — the slide changed since the request started.`,
+          );
+          return;
+        }
 
         // If the rebased patch's `before` does not match the store, fast-forward
         // the store to the user's latest working markdown without history.

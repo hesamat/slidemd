@@ -50,7 +50,8 @@ export class DeckStore {
     this._slides = splitSlides(markdown);
     this._activeIndex = this._clampIndex(activeIndex);
     this._history.clear();
-    this._structuralRevision = 0;
+    // Never reset the structural revision; always bump on a new deck load so a
+    // stale token from the previous deck cannot accidentally match.
     this._bumpStructuralRevision();
     this._emit("change");
     this._emit("slide");
@@ -179,6 +180,9 @@ export class DeckStore {
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    if (isInsert(entry.patch) || isDelete(entry.patch)) {
+      this._bumpStructuralRevision();
+    }
     this._emit("change");
     this._emit("slide");
     this._emitStoreChange();
@@ -190,6 +194,9 @@ export class DeckStore {
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    if (isInsert(entry.patch) || isDelete(entry.patch)) {
+      this._bumpStructuralRevision();
+    }
     this._emit("change");
     this._emit("slide");
     this._emitStoreChange();

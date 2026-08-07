@@ -125,12 +125,24 @@ describe("resolveConflict", () => {
     expect(result.action).toBe("apply");
   });
 
-  it("rebases addSpeakerNotes onto the latest slide when the visible content is unchanged", () => {
+  it("rejects addSpeakerNotes when the visible content is unchanged and no rebase is chosen", () => {
     const patch = createEditPatch(0, ORIGINAL, NOTES_AI_RESULT, "ai");
     const result = resolveConflict({
       patch,
       currentSlideMarkdown: CURRENT_WITH_OLD_NOTES,
       intent: "addSpeakerNotes",
+    });
+    expect(result.action).toBe("reject");
+    expect(result.reason).toContain("choose");
+  });
+
+  it("rebases addSpeakerNotes apply-to-latest when the visible content is unchanged", () => {
+    const patch = createEditPatch(0, ORIGINAL, NOTES_AI_RESULT, "ai");
+    const result = resolveConflict({
+      patch,
+      currentSlideMarkdown: CURRENT_WITH_OLD_NOTES,
+      intent: "addSpeakerNotes",
+      rebase: "apply-to-latest",
     });
     expect(result.action).toBe("rebase");
     expect(result.rebasedPatch).toMatchObject({

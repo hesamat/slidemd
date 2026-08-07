@@ -38,8 +38,8 @@ export class ConflictModal {
         <div class="${P}rebase-field">
           <label class="${P}label" for="${P}rebase-select">Rebase target</label>
           <select id="${P}rebase-select" class="${P}select">
-            <option value="apply-to-latest" selected>Apply to latest (keep my edits)</option>
-            <option value="apply-to-original">Apply to original (discard my edits)</option>
+            <option value="apply-to-latest">Apply to latest (keep my edits)</option>
+            <option value="apply-to-original" selected>Apply to original (discard my edits)</option>
           </select>
         </div>
 

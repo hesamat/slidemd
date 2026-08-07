@@ -1,53 +1,7 @@
 import { createEditPatch } from "./slide-patch.js";
+import { MarkdownParser } from "../markdown-parser.js";
 
-const NOTES_PATTERN = "<!--\\s*notes\\s*:(.*?)-->";
-
-/**
- * Split markdown into code-fence-aware segments.
- * @param {string} text
- * @returns {{ inFence: boolean, text: string }[]}
- */
-function splitFenceAware(text) {
-  const lines = String(text ?? "")
-    .replace(/\r\n?/g, "\n")
-    .split("\n");
-  const segments = [];
-  const plainLines = [];
-  let inFence = false;
-  let fenceMarker = null;
-
-  const flushPlain = () => {
-    if (plainLines.length === 0) return;
-    segments.push({ inFence: false, text: plainLines.join("\n") });
-    plainLines.length = 0;
-  };
-
-  for (const line of lines) {
-    const m = line.match(/^\s*(```+|~~~+)\s*/);
-
-    if (!inFence && m) {
-      flushPlain();
-      inFence = true;
-      fenceMarker = m[1][0];
-      segments.push({ inFence: true, text: line });
-      continue;
-    }
-
-    if (inFence) {
-      segments.push({ inFence: true, text: line });
-      if (m && m[1][0] === fenceMarker) {
-        inFence = false;
-        fenceMarker = null;
-      }
-      continue;
-    }
-
-    plainLines.push(line);
-  }
-
-  flushPlain();
-  return segments;
-}
+const parser = new MarkdownParser();
 
 /**
  * Extract speaker notes from `<!-- notes: ... -->` comments outside code fences.
@@ -55,16 +9,7 @@ function splitFenceAware(text) {
  * @returns {string}
  */
 function extractNotes(markdown) {
-  const parts = [];
-  for (const segment of splitFenceAware(markdown)) {
-    if (segment.inFence) continue;
-    const re = new RegExp(NOTES_PATTERN, "gis");
-    const matches = [...segment.text.matchAll(re)];
-    for (const match of matches) {
-      parts.push(match[1].trim());
-    }
-  }
-  return parts.join("\n\n").trim();
+  return parser.extractNotes(markdown);
 }
 
 /**
@@ -73,11 +18,7 @@ function extractNotes(markdown) {
  * @returns {string}
  */
 function stripNotes(markdown) {
-  return splitFenceAware(markdown)
-    .map((segment) =>
-      segment.inFence ? segment.text : segment.text.replace(new RegExp(NOTES_PATTERN, "gis"), ""),
-    )
-    .join("\n");
+  return parser.stripNotes(markdown);
 }
 
 /**
@@ -134,6 +75,14 @@ export function resolveConflict({
 }
 
 function resolveEnhance(patch, current, rebase, structuralRevisionChanged) {
+  if (structuralRevisionChanged) {
+    return {
+      action: "reject",
+      reason:
+        "The deck structure changed while the AI operation was in flight. The target slide may have moved or changed identity.",
+    };
+  }
+
   if (current === patch.before) {
     return { action: "apply" };
   }
@@ -155,14 +104,6 @@ function resolveEnhance(patch, current, rebase, structuralRevisionChanged) {
       action: "rebase",
       reason: "Rebase: discard user edits and restore the original slide.",
       rebasedPatch: createEditPatch(patch.index, current, patch.before, "ai", "rebase"),
-    };
-  }
-
-  if (structuralRevisionChanged) {
-    return {
-      action: "reject",
-      reason:
-        "The deck structure changed while the AI operation was in flight. The target slide may have moved or changed identity.",
     };
   }
 
@@ -194,10 +135,26 @@ function resolveNotes(patch, current, rebase, structuralRevisionChanged) {
   const visibleOriginal = stripNotes(patch.before).trim();
 
   if (visibleCurrent === visibleOriginal) {
+    if (rebase === "apply-to-latest") {
+      return {
+        action: "rebase",
+        reason: "Rebase: apply the AI notes to the latest slide.",
+        rebasedPatch: buildNotesRebasePatch(patch, current, current, aiNotes),
+      };
+    }
+
+    if (rebase === "apply-to-original") {
+      return {
+        action: "rebase",
+        reason: "Rebase: apply the AI notes to the original slide.",
+        rebasedPatch: buildNotesRebasePatch(patch, current, patch.before, aiNotes),
+      };
+    }
+
     return {
-      action: "rebase",
-      reason: "Non-notes content matches; rebasing notes onto the latest slide.",
-      rebasedPatch: buildNotesRebasePatch(patch, current, current, aiNotes),
+      action: "reject",
+      reason:
+        "The slide body has not changed; choose whether to keep the current notes or replace them with the AI's.",
     };
   }
 
