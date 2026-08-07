@@ -92,17 +92,38 @@ function buildImagesSectionForPrompt(imagesSent) {
  * @property {number|null} [modelMaxOutput] — model's max completion tokens
  * @property {boolean} [useReasoning] — whether extended thinking is enabled
  * @property {string} [effort] — reasoning effort: "none" | "low" | "medium" | "high"
+ * @property {boolean} [effortSupported] — whether the model exposes effort selection; when false and useReasoning is true, send { enabled: true } instead of { effort }
  */
 
 export class AiOrchestrator {
   /**
    * @param {OrchestratorDeps} deps
    */
-  constructor({ provider, modelMaxOutput = null, useReasoning = false, effort = "none" }) {
+  constructor({
+    provider,
+    modelMaxOutput = null,
+    useReasoning = false,
+    effort = "none",
+    effortSupported = true,
+  }) {
     this._provider = provider;
     this._modelMaxOutput = modelMaxOutput;
     this._useReasoning = useReasoning;
     this._effort = effort;
+    this._effortSupported = effortSupported;
+  }
+
+  /**
+   * Build the reasoning request body for the provider. When the model exposes
+   * effort selection, send { effort }. Otherwise (e.g. xiaomi/mimo-v2.5 which
+   * supports reasoning but not effort levels), send { enabled: true } to turn
+   * on reasoning with the provider's default parameters.
+   * @returns {{effort: string}|{enabled: boolean}|null}
+   */
+  _buildReasoningBody() {
+    if (!this._useReasoning) return null;
+    if (!this._effortSupported) return { enabled: true };
+    return { effort: this._effort };
   }
 
   /**
@@ -148,7 +169,7 @@ export class AiOrchestrator {
           messages,
           maxTokens,
           responseFormat: null,
-          reasoning: this._useReasoning ? { effort: this._effort } : null,
+          reasoning: this._buildReasoningBody(),
         },
         signal,
       );
@@ -343,7 +364,7 @@ export class AiOrchestrator {
           messages,
           maxTokens,
           responseFormat: null,
-          reasoning: this._useReasoning ? { effort: this._effort } : null,
+          reasoning: this._buildReasoningBody(),
         },
         signal,
       );
@@ -629,7 +650,7 @@ export class AiOrchestrator {
             reasoningEffort,
           }),
           responseFormat: null,
-          reasoning: this._useReasoning ? { effort: this._effort } : null,
+          reasoning: this._buildReasoningBody(),
         },
         signal,
       );
@@ -1053,7 +1074,7 @@ export class AiOrchestrator {
           messages,
           maxTokens,
           responseFormat: null,
-          reasoning: this._useReasoning ? { effort: this._effort } : null,
+          reasoning: this._buildReasoningBody(),
         },
         signal,
       );
@@ -1080,7 +1101,7 @@ export class AiOrchestrator {
             messages: textMessages,
             maxTokens,
             responseFormat: null,
-            reasoning: this._useReasoning ? { effort: this._effort } : null,
+            reasoning: this._buildReasoningBody(),
           },
           signal,
         );
@@ -1252,7 +1273,7 @@ export class AiOrchestrator {
           messages,
           maxTokens,
           responseFormat: null,
-          reasoning: this._useReasoning ? { effort: this._effort } : null,
+          reasoning: this._buildReasoningBody(),
         },
         signal,
       );
@@ -1282,7 +1303,7 @@ export class AiOrchestrator {
             ],
             maxTokens,
             responseFormat: null,
-            reasoning: this._useReasoning ? { effort: this._effort } : null,
+            reasoning: this._buildReasoningBody(),
           },
           signal,
         );

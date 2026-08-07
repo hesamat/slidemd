@@ -732,6 +732,7 @@ export class EditController {
       modelMaxOutput: SettingsModal.getModelMaxTokens(model),
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+      effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
     });
 
     const op = createOperation(intent, this.currentSlideIndex, slideMarkdown);
@@ -826,6 +827,7 @@ export class EditController {
       modelMaxOutput: SettingsModal.getModelMaxTokens(model),
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+      effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
     });
 
     const op = createOperation("generate", null, fullMarkdown, {
