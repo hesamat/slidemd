@@ -12,6 +12,10 @@ export class DeckStore {
     this._activeIndex = 0;
     this._history = new DeckHistory({ maxEntries: maxHistory });
     this._listeners = new Map();
+
+    this._structuralRevision = 0;
+    this._structuralListeners = new Set();
+    this._storeChangeListeners = new Set();
   }
 
   getSlides() {
@@ -30,6 +34,10 @@ export class DeckStore {
     return this._slides.length;
   }
 
+  getStructuralRevision() {
+    return this._structuralRevision;
+  }
+
   canUndo() {
     return this._history.canUndo();
   }
@@ -42,8 +50,12 @@ export class DeckStore {
     this._slides = splitSlides(markdown);
     this._activeIndex = this._clampIndex(activeIndex);
     this._history.clear();
+    // Never reset the structural revision; always bump on a new deck load so a
+    // stale token from the previous deck cannot accidentally match.
+    this._bumpStructuralRevision();
     this._emit("change");
     this._emit("slide");
+    this._emitStoreChange();
   }
 
   /**
@@ -64,8 +76,10 @@ export class DeckStore {
       activeIndexBefore,
       patch || { index: 0, before: null, after: null, source: "ai", timestamp: Date.now() },
     );
+    this._bumpStructuralRevision();
     this._emit("change");
     this._emit("slide");
+    this._emitStoreChange();
   }
 
   /**
@@ -77,16 +91,44 @@ export class DeckStore {
     this._activeIndex = this._clampIndex(activeIndex);
     this._emit("change");
     this._emit("slide");
+    this._emitStoreChange();
   }
 
-  applyPatch(patch) {
-    return this.applyPatches([patch]);
+  /**
+   * Apply a single patch to the store.
+   * @param {import("./slide-patch.js").SlidePatch} patch
+   * @param {number} [expectedStructuralRevision] - if provided, fail closed on any mismatch
+   * @returns {boolean | { success: boolean, reason?: string }}
+   */
+  applyPatch(patch, expectedStructuralRevision) {
+    return this.applyPatches([patch], expectedStructuralRevision);
   }
 
-  applyPatches(patches) {
+  /**
+   * Apply multiple patches as one history entry.
+   * @param {import("./slide-patch.js").SlidePatch[]} patches
+   * @param {number} [expectedStructuralRevision] - if provided, fail closed on any mismatch
+   * @returns {boolean | { success: boolean, reason?: string }}
+   */
+  applyPatches(patches, expectedStructuralRevision) {
     const validPatches = patches.filter((patch) => !isNoOp(patch));
-    if (!validPatches.length) return false;
+    if (!validPatches.length) {
+      return expectedStructuralRevision !== undefined
+        ? { success: false, reason: "No valid patches to apply" }
+        : false;
+    }
 
+    if (
+      expectedStructuralRevision !== undefined &&
+      this._structuralRevision !== expectedStructuralRevision
+    ) {
+      return {
+        success: false,
+        reason: `Structural revision mismatch: expected ${expectedStructuralRevision}, found ${this._structuralRevision}`,
+      };
+    }
+
+    const isStructural = validPatches.some((patch) => isInsert(patch) || isDelete(patch));
     const slidesBefore = [...this._slides];
     const activeIndexBefore = this._activeIndex;
     const move =
@@ -110,7 +152,9 @@ export class DeckStore {
       if (!this._isValidPatchIndex(patch)) {
         this._slides = slidesBefore;
         this._activeIndex = activeIndexBefore;
-        return false;
+        return expectedStructuralRevision !== undefined
+          ? { success: false, reason: "Patch target index out of range or before mismatch" }
+          : false;
       }
       this._applyPatchState(patch);
     }
@@ -119,12 +163,16 @@ export class DeckStore {
     }
 
     this._history.push(slidesBefore, activeIndexBefore, validPatches[0]);
+    if (isStructural) {
+      this._bumpStructuralRevision();
+    }
     validPatches.forEach((patch) => this._emit("patch", patch));
     this._emit("change");
     if (validPatches.some((patch) => isInsert(patch) || isDelete(patch))) {
       this._emit("slide");
     }
-    return true;
+    this._emitStoreChange();
+    return expectedStructuralRevision !== undefined ? { success: true } : true;
   }
 
   undo() {
@@ -132,8 +180,12 @@ export class DeckStore {
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    if (isInsert(entry.patch) || isDelete(entry.patch)) {
+      this._bumpStructuralRevision();
+    }
     this._emit("change");
     this._emit("slide");
+    this._emitStoreChange();
     return true;
   }
 
@@ -142,8 +194,12 @@ export class DeckStore {
     if (!entry) return false;
     this._slides = entry.slides;
     this._activeIndex = entry.activeIndex;
+    if (isInsert(entry.patch) || isDelete(entry.patch)) {
+      this._bumpStructuralRevision();
+    }
     this._emit("change");
     this._emit("slide");
+    this._emitStoreChange();
     return true;
   }
 
@@ -162,6 +218,24 @@ export class DeckStore {
     if (!this._listeners.has(event)) this._listeners.set(event, new Set());
     this._listeners.get(event).add(callback);
     return () => this._listeners.get(event)?.delete(callback);
+  }
+
+  onStructuralChange(callback) {
+    this._structuralListeners.add(callback);
+    return () => this._structuralListeners.delete(callback);
+  }
+
+  offStructuralChange(callback) {
+    this._structuralListeners.delete(callback);
+  }
+
+  onStoreChange(callback) {
+    this._storeChangeListeners.add(callback);
+    return () => this._storeChangeListeners.delete(callback);
+  }
+
+  offStoreChange(callback) {
+    this._storeChangeListeners.delete(callback);
   }
 
   _remapActiveIndexForMove(activeIndex, removeIndex, insertIndex) {
@@ -196,5 +270,15 @@ export class DeckStore {
 
   _emit(event, data) {
     this._listeners.get(event)?.forEach((callback) => callback(data));
+  }
+
+  _bumpStructuralRevision() {
+    this._structuralRevision++;
+    this._structuralListeners.forEach((callback) => callback(this._structuralRevision));
+  }
+
+  _emitStoreChange() {
+    const slides = this.getSlides();
+    this._storeChangeListeners.forEach((callback) => callback(slides));
   }
 }

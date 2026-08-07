@@ -130,6 +130,7 @@
 .insert-dropdown__content {
   position: absolute;
   top: calc(100% + 8px);
+  left: auto;
   right: 0;
   min-width: 230px;
   background: var(--surface-elevated);
@@ -140,6 +141,11 @@
   padding: 6px;
   z-index: 1000;
   animation: menuFadeIn 0.15s ease;
+}
+
+#aiDropdownContent {
+  min-width: 180px;
+  width: 180px;
 }
 
 [data-theme="dark"] .insert-dropdown__content {

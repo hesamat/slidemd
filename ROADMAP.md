@@ -389,10 +389,10 @@ Goal: Make the slide array a canonical, patchable store with undo history — th
 
 ### Patch Operations
 
-| Task                  | Details                                                            |
-| --------------------- | ------------------------------------------------------------------ |
-| [x] Add `applyPatch`  | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`. |
-| [x] Add `revertPatch` | Roll back to the snapshot before a specific patch.                 |
+| Task                             | Details                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| [x] Add `applyPatch`             | Apply a `SlidePatch` to the `DeckStore` and push to `DeckHistory`.         |
+| [x] Use snapshot-based undo/redo | `DeckHistory` stores full pre-operation snapshots; no targeted revert API. |
 
 ### Editor Wiring
 
@@ -491,25 +491,60 @@ Goal: Add vision support to the two-phase Remix/Reimagine flow and harden the de
 
 ## Phase 14: Conflict Resolution & Global Undo
 
-Goal: Reconcile overlapping edits and surface global undo/redo. Completes the state track started in Phase 12.
+Goal: Make the current working deck safe under asynchronous AI edits and undoable as a single state track. Reconcile stale single-slide patches, define global undo semantics for committed deck operations, synchronize `DeckStore` with the editor view, and remove the Phase 12 boundary-sync mirror.
+
+### State & Operation Safety
+
+| Task                                  | Details                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [ ] Add working-state adapter         | Read the latest working deck as `DeckStore` slides plus the `unsavedMarkdown` editor overlay.           |
+| [ ] Guard stale AI operations         | Capture a store revision/target snapshot; reject or cancel results after insert/delete/move operations. |
+| [ ] Add store-to-view synchronization | Keep parsed deck data, renderer, thumbnails, navigation, and editor state aligned after store changes.  |
+| [ ] Fail closed on patch rejection    | Never mutate the parsed deck or DOM when a `DeckStore` patch is rejected.                               |
 
 ### Conflict & Merge
 
-| Task                       | Details                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| [ ] Add `ConflictResolver` | Reconcile overlapping user and AI edits before applying a patch. |
+| Task                          | Details                                                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [ ] Add `ConflictResolver`    | Resolve only single-slide `enhanceSlide` and `addSpeakerNotes` patches against the latest working slide. |
+| [ ] Add conflict-choice UI    | Offer "Keep my edits" or "Overwrite with AI"; no inline diff or three-way merge editor in this phase.    |
+| [ ] Rebase speaker notes      | Replace the existing `<!-- notes: ... -->` block while preserving the user's visible Markdown content.   |
+| [ ] Preserve non-target edits | Keep edits on other slides when a single-slide AI result is applied or rejected.                         |
 
 ### Undo & Redo
 
-| Task                     | Details                                        |
-| ------------------------ | ---------------------------------------------- |
-| [ ] Add global undo/redo | `Ctrl+Z` / `Ctrl+Y` operates on `DeckHistory`. |
+| Task                                 | Details                                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Define committed-operation undo  | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
+| [ ] Complete global undo/redo        | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
+| [ ] Add undo/redo controls (stretch) | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts.           |
+| [ ] Test history boundaries          | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
 
 ### Editor Rewire
 
-| Task                             | Details                                                                                         |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [ ] Full `EditController` rewire | Replace the Phase 12 boundary-sync with direct `DeckStore` reads/writes across all sub-modules. |
+| Task                             | Details                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [ ] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.            |
+| [ ] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently. |
+| [ ] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.              |
+| [ ] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.   |
+
+### Delivery Slices
+
+| Slice                                    | Details                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [ ] Phase 14.1: State safety + conflicts | Working-state adapter, stale-operation guard, `ConflictResolver`, conflict-choice UI, and tests. |
+| [ ] Phase 14.2: Undo + editor rewire     | Undo semantics/UI, store-to-view synchronization, sub-module migration, and mirror removal.      |
+
+### Acceptance Criteria
+
+- A single-slide AI result never overwrites editor text typed after the request began without an explicit user choice.
+- Insert/delete/move operations during an AI request cannot apply the result to the wrong slide.
+- Keep/overwrite and speaker-note rebase paths preserve the intended content and create correct undo history.
+- Every committed store operation is undoable and redoable according to the documented CodeMirror/DeckHistory boundary.
+- Store patch rejection leaves the parsed deck, renderer, and DOM unchanged.
+- Opening or loading a new deck does not retain history from the previous deck.
+- The editor no longer relies on `originalMarkdown` or `syncStoreFromSlides` after the final rewire slice.
 
 ---
 
@@ -635,7 +670,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 8: AI Post-Processing                  | ✅ Complete |
 | Phase 9: Text Insertion & Editor UX          | ✅ Complete |
 | Phase 10: Renderer Hardening                 | ✅ Complete |
-| Phase 11: AI Operations Foundation           | Deferred    |
+| Phase 11: AI Operations Foundation           | ✅ Complete |
 | Phase 12: Deck Store & Patches               | ✅ Complete |
 | Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
 | Phase 13.1: Remix Planner                    | ✅ Complete |
@@ -653,7 +688,7 @@ Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → 
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
 
-Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, `applyPatch`/`revertPatch`, `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds `ConflictResolver`, global `Ctrl+Z`/`Ctrl+Y`, and the full `EditController` rewire. Phases 15-17 (Design System, Presenter/Print/AI Commands, Cloud Mode) are independent of the AI/state track.
+Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phases 15-17 (Design System, Presenter/Print/AI Commands, Cloud Mode) are independent of the AI/state track.
 
 ## Backlog
 

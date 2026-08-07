@@ -55,6 +55,7 @@ export class SaveManager {
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onBeforeSave = onBeforeSave;
     this._onSaveStateReset = onSaveStateReset;
+    this._unsavedEditorOverlays = new Map();
   }
 
   get deck() {
@@ -81,25 +82,77 @@ export class SaveManager {
   }
 
   /**
-   * Return the current slide markdown strings, merging saved original and any unsaved edits.
-   * @returns {string[]}
+   * Store the current editor markdown for a given slide index.
+   * @param {number} index
+   * @param {string} markdown
    */
-  getFullSlides() {
-    const merged = [...this.originalMarkdown];
-    for (let i = 0; i < this.deck.slides.length; i++) {
-      if (this.unsavedMarkdown.has(i)) {
-        merged[i] = this.unsavedMarkdown.get(i);
-      }
-    }
-    return merged;
+  setUnsavedEditorOverlay(index, markdown) {
+    this._unsavedEditorOverlays.set(index, markdown);
   }
 
   /**
-   * Return the current full markdown, joining the merged slide strings.
+   * Remove the unsaved editor overlay for a given slide index.
+   * @param {number} index
+   */
+  clearUnsavedEditorOverlay(index) {
+    this._unsavedEditorOverlays.delete(index);
+  }
+
+  /**
+   * Merge a DeckStore slide object with any unsaved editor overlay.
+   * The overlay is the full markdown for a single slide and replaces
+   * the slide's stored markdown while keeping the same object shape.
+   * @param {number} index
+   * @param {object} deckStoreSlide
+   * @returns {object}
+   */
+  getFullSlide(index, deckStoreSlide) {
+    const overlay = this._unsavedEditorOverlays.get(index);
+    if (overlay === undefined) return deckStoreSlide;
+    return { ...deckStoreSlide, index, markdown: overlay };
+  }
+
+  /**
+   * Return all deck slides with editor overlays applied.
+   * When called with no arguments, fall back to the legacy string-array path.
+   * @param {object[]} [deckStoreSlides]
+   * @returns {object[]|string[]}
+   */
+  getFullSlides(deckStoreSlides) {
+    if (deckStoreSlides === undefined) {
+      const merged = [...this.originalMarkdown];
+      for (let i = 0; i < this.deck.slides.length; i++) {
+        if (this.unsavedMarkdown.has(i)) {
+          merged[i] = this.unsavedMarkdown.get(i);
+        }
+      }
+      return merged;
+    }
+    return deckStoreSlides.map((slide, index) => this.getFullSlide(index, slide));
+  }
+
+  /**
+   * Return the full markdown for the provided deck slides.
+   * When called with no arguments, fall back to the legacy path.
+   * @param {object[]} [deckStoreSlides]
    * @returns {string}
    */
-  getFullMarkdown() {
-    return this.getFullSlides().join("\n\n---\n\n");
+  getFullMarkdown(deckStoreSlides) {
+    if (deckStoreSlides === undefined) {
+      return this.getFullSlides().join("\n\n---\n\n");
+    }
+    return this.getFullSlides(deckStoreSlides)
+      .map((slide) => slide.markdown ?? "")
+      .join("\n\n---\n\n");
+  }
+
+  /**
+   * Check whether an unsaved editor overlay exists for a slide index.
+   * @param {number} index
+   * @returns {boolean}
+   */
+  hasUnsavedOverlay(index) {
+    return this._unsavedEditorOverlays.has(index);
   }
 
   async _prepareSave() {

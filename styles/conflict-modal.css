@@ -1,0 +1,106 @@
+/* ── Conflict Modal (AI single-slide conflict choice) ────────────── */
+
+.conflict-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.conflict-modal__dialog {
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  border-radius: 12px;
+  padding: 24px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.conflict-modal__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.conflict-modal__subtitle {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text-medium, #666);
+  line-height: 1.5;
+}
+
+.conflict-modal__explanation {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: var(--text-medium, #666);
+  line-height: 1.5;
+}
+
+.conflict-modal__rebase-field {
+  margin-bottom: 20px;
+}
+
+.conflict-modal__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-high, #111);
+}
+
+.conflict-modal__select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  box-sizing: border-box;
+}
+
+.conflict-modal__select:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.1));
+}
+
+.conflict-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.conflict-modal__btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-medium, #ccc);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--surface-bg, #fff);
+  color: var(--text-high, #111);
+  cursor: pointer;
+}
+
+.conflict-modal__btn:hover {
+  background: var(--surface-2-bg, rgba(255, 255, 255, 0.14));
+}
+
+.conflict-modal__btn--primary {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
+}
+
+.conflict-modal__btn--primary:hover {
+  background: var(--accent-hover, #4f46e5);
+}
