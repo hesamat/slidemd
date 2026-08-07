@@ -49,6 +49,8 @@
 
 .ai-sidebar__panel--minimized .ai-sidebar__status,
 .ai-sidebar__panel--minimized .ai-sidebar__notice,
+.ai-sidebar__panel--minimized .ai-sidebar__plan,
+.ai-sidebar__panel--minimized .ai-sidebar__log-section,
 .ai-sidebar__panel--minimized .ai-sidebar__output,
 .ai-sidebar__panel--minimized .ai-sidebar__actions {
   display: none;
@@ -239,6 +241,42 @@
   }
 }
 
+.ai-sidebar__log-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-bg);
+}
+
+.ai-sidebar__log-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ai-text-secondary);
+  padding: 6px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-surface);
+  list-style: none;
+  user-select: none;
+}
+
+.ai-sidebar__log-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-sidebar__log-summary::before {
+  content: "\25BC";
+  display: inline-block;
+  font-size: 9px;
+  margin-right: 6px;
+  transition: transform 0.15s;
+}
+
+.ai-sidebar__log-section:not([open]) .ai-sidebar__log-summary::before {
+  transform: rotate(-90deg);
+}
+
 .ai-sidebar__output {
   flex: 1;
   min-height: 0;
@@ -252,6 +290,93 @@
   font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
   background: var(--ai-bg);
   color: var(--ai-text);
+}
+
+/* ── Remix plan summary (foldable) ──────────────────────────── */
+.ai-sidebar__plan {
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-surface);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ai-sidebar__plan-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ai-text);
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.ai-sidebar__plan-header:hover {
+  background: var(--ai-border);
+}
+
+.ai-sidebar__plan-chevron {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--ai-text-secondary);
+  line-height: 1;
+}
+
+.ai-sidebar__plan-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-sidebar__plan-body {
+  padding: 2px 18px 8px;
+}
+
+.ai-sidebar__plan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ai-text-secondary);
+}
+
+.ai-sidebar__plan-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 1px;
+  letter-spacing: 0.03em;
+}
+
+.ai-sidebar__plan-badge--keep {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--ai-success);
+}
+
+.ai-sidebar__plan-badge--rewrite {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--ai-accent);
+}
+
+.ai-sidebar__plan-badge--merge {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+}
+
+.ai-sidebar__plan-label {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .ai-sidebar__log-line {

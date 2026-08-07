@@ -226,7 +226,10 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name.replace(/\.textpack$/, ""));
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+      // .textpack imports are not bound to a server source and should not
+      // overwrite the dev server file on save.
       localStorage.removeItem("webdeck_source_url");
+      localStorage.setItem("webdeck_opened_from_picker", "1");
 
       await DraftManager.saveDraft(resolvedMarkdown);
 
@@ -338,7 +341,11 @@ export class OpenDeckModal {
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name);
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
-      localStorage.setItem("webdeck_source_url", file.name);
+      // Picker-opened .md files are not authoritative server sources, so don't
+      // let Save POST back to the dev server. Clear the source URL so a reload
+      // does not fetch a stale server source and instead uses the cached file.
+      localStorage.setItem("webdeck_opened_from_picker", "1");
+      localStorage.removeItem("webdeck_source_url");
 
       await DraftManager.saveDraft(rawText);
 

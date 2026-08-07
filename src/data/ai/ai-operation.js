@@ -8,7 +8,12 @@
  * @property {string} intent — "enhanceSlide" | "addSpeakerNotes" | "generate"
  * @property {number|null} targetSlide — 0-based slide index for single-slide intents, null for whole-deck
  * @property {string} context — the markdown to send to the LLM
- * @property {object} [opts] — modelMaxOutput, reasoningEffort, etc.
+ * @property {object} [opts] — whole-deck options include:
+ *   - mode: "polish" | "remix" | "reimagine"
+ *   - flow: "story" | "technical" | "persuasive" | "instructional"
+ *   - addSpeakerNotes: boolean
+ *   - includeImages: boolean
+ *   - preserveVisualIdentity: boolean
  * @property {number} timestamp — creation time (set automatically)
  */
 

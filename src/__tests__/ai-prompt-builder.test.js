@@ -4,9 +4,11 @@ import {
   buildMessages,
   buildDeckSummary,
   buildBatchMessages,
+  buildGenerateOptionsSuffix,
   splitSlidesForAi,
   BATCH_SIZE,
   stripFrontmatter,
+  stripThemeAndBackground,
 } from "../data/ai/ai-prompt-builder.js";
 
 describe("buildMessages", () => {
@@ -175,18 +177,75 @@ describe("buildBatchMessages", () => {
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
-  it("polish fidelity uses fix-prompt fragment in generate mode", () => {
-    // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+  it("polish mode uses polish-prompt fragment in generate mode", () => {
+    // polish-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "polish");
     expect(user).toContain("Rejoin split code lines");
     // Still uses generate-mode pagination (not fix-mode CRITICAL instruction)
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
-  it("enhance fidelity uses generate-prompt fragment", () => {
-    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.", "enhance");
+  it("non-polish mode uses generate-prompt fragment", () => {
+    const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.");
     expect(user).toContain("Refine this SlideMD presentation");
     expect(user).not.toContain("Rejoin split code lines");
+  });
+});
+
+describe("buildGenerateOptionsSuffix", () => {
+  it("returns empty by default", () => {
+    expect(buildGenerateOptionsSuffix({})).toBe("");
+  });
+
+  it("adds flow instruction", () => {
+    const suffix = buildGenerateOptionsSuffix({ flow: "persuasive" });
+    expect(suffix).toContain("persuasive");
+    expect(suffix).toContain("argument-driven");
+  });
+
+  it("adds story flow instruction", () => {
+    const suffix = buildGenerateOptionsSuffix({ flow: "story" });
+    expect(suffix).toContain("narrative");
+    expect(suffix).toContain("story arc");
+  });
+
+  it("adds speaker notes instruction when requested", () => {
+    const suffix = buildGenerateOptionsSuffix({ addSpeakerNotes: true });
+    expect(suffix).toContain("Add useful speaker notes");
+  });
+
+  it("asks to preserve existing notes when not adding new ones", () => {
+    const suffix = buildGenerateOptionsSuffix({ mode: "polish" });
+    expect(suffix).toContain("Do not add new speaker notes");
+  });
+
+  it("preserves visual identity when requested", () => {
+    const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
+    expect(suffix).toContain("Preserve the original theme");
+  });
+
+  it("tells reimagine to discard visual identity", () => {
+    const suffix = buildGenerateOptionsSuffix({ mode: "reimagine", preserveVisualIdentity: false });
+    expect(suffix).toContain("Do not preserve the original theme");
+    expect(suffix).toContain("You may introduce new `theme:`");
+  });
+});
+
+describe("stripThemeAndBackground", () => {
+  it("removes theme and background but keeps layout", () => {
+    const md = "layout: header-content\nbackground: #fff\ntheme: dark\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("layout: header-content");
+    expect(result).not.toContain("background: #fff");
+    expect(result).not.toContain("theme: dark");
+    expect(result).toContain("@main");
+  });
+
+  it("leaves code fences untouched", () => {
+    const md = "```yaml\ntheme: dark\n```\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("theme: dark");
+    expect(result).toContain("@main");
   });
 });
 

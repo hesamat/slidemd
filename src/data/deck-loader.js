@@ -111,6 +111,7 @@ export class DeckLoader {
             await AssetLoader.ensureMarkdownItLoaded();
             // Store the API URL so reload can re-fetch fresh content from disk
             localStorage.setItem("webdeck_source_url", "/api/deck");
+            localStorage.removeItem("webdeck_opened_from_picker");
             // Persist the markdown so the editor reads fresh content on init
             localStorage.setItem("webdeck_local_file", data.markdown);
             return new MarkdownParser().parseDeckMarkdown(data.markdown);
@@ -153,6 +154,7 @@ export class DeckLoader {
       localStorage.setItem("webdeck_local_file_name", "example");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
+      localStorage.removeItem("webdeck_opened_from_picker");
 
       return new MarkdownParser().parseDeckMarkdown(markdown);
     } catch (e) {
@@ -186,6 +188,7 @@ export class DeckLoader {
       localStorage.setItem("webdeck_local_file_name", "example");
       localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
       localStorage.setItem("webdeck_source_url", "docs/example/slides.md");
+      localStorage.removeItem("webdeck_opened_from_picker");
 
       window.dispatchEvent(
         new CustomEvent("webdeck-load-local", {

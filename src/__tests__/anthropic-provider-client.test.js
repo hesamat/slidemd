@@ -191,4 +191,77 @@ describe("AnthropicProviderClient", () => {
       ),
     ).rejects.toThrow(AiAbortError);
   });
+
+  it("maps array content (vision) to Anthropic image blocks", async () => {
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+      }),
+    });
+
+    const client = makeClient();
+    await client.chat({
+      messages: [
+        { role: "system", content: "You are helpful." },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analyze this image:" },
+            {
+              type: "image_url",
+              image_url: { url: "data:image/jpeg;base64,/9j/4AAQ=" },
+            },
+          ],
+        },
+      ],
+      maxTokens: 1000,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+    expect(body.messages[0].content).toEqual([
+      { type: "text", text: "Analyze this image:" },
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/jpeg",
+          data: "/9j/4AAQ=",
+        },
+      },
+    ]);
+  });
+
+  it("collapses system array content to text only", async () => {
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+      }),
+    });
+
+    const client = makeClient();
+    await client.chat({
+      messages: [
+        {
+          role: "system",
+          content: [
+            { type: "text", text: "Rule 1" },
+            { type: "text", text: "Rule 2" },
+          ],
+        },
+        { role: "user", content: "go" },
+      ],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+    expect(body.system).toBe("Rule 1\nRule 2");
+  });
 });

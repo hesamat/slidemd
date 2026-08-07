@@ -92,6 +92,19 @@ function guessReasoningForModel(modelId) {
   return null;
 }
 
+/**
+ * Check whether a provider-supplied `reasoning` object carries meaningful
+ * metadata. A bare `{}` is truthy but conveys no information — some providers
+ * include an empty reasoning field for non-reasoning models. Only accept
+ * objects with at least one own property so the reasoning toggle doesn't
+ * appear for models that can't actually use it.
+ * @param {*} reasoning
+ * @returns {boolean}
+ */
+function isMeaningfulReasoning(reasoning) {
+  return reasoning != null && typeof reasoning === "object" && Object.keys(reasoning).length > 0;
+}
+
 export class SettingsModal {
   static _currentBackdrop = null;
   /** @type {string|null} — which provider the current cache belongs to */
@@ -199,14 +212,19 @@ export class SettingsModal {
   }
 
   static modelSupportsReasoning(modelId) {
-    const info = this._modelReasoningMap.get(modelId);
-    if (!info) return false;
-    return Array.isArray(info.supported_efforts) && info.supported_efforts.length > 0;
+    // Presence in the reasoning map means the model exposes a `reasoning`
+    // object (from the /models endpoint or the best-effort heuristic). Such
+    // models support reasoning even when supported_efforts is null (all
+    // efforts accepted) or omitted (effort selection not exposed — use
+    // reasoning.enabled instead, e.g. xiaomi/mimo-v2.5).
+    return this._modelReasoningMap.has(modelId);
   }
 
   static getSupportedEfforts(modelId) {
     const info = this._modelReasoningMap.get(modelId);
-    if (!info || !info.supported_efforts) return [];
+    if (!info) return [];
+    if (info.supported_efforts === null) return ["low", "medium", "high"];
+    if (!info.supported_efforts) return [];
     return info.supported_efforts;
   }
 
@@ -565,7 +583,9 @@ export class SettingsModal {
             const id = m.id || m.model || String(m);
             const name = m.name || id;
             this._allModels.push({ id, name });
-            const reasoning = m.reasoning || guessReasoningForModel(id);
+            const reasoning = isMeaningfulReasoning(m.reasoning)
+              ? m.reasoning
+              : guessReasoningForModel(id);
             if (reasoning) {
               this._modelReasoningMap.set(id, reasoning);
             }
@@ -854,7 +874,12 @@ export class SettingsModal {
         this._allModels.push({ id, name });
         // Prefer the provider's own per-model reasoning metadata, then OpenRouter's,
         // then fall back to the best-effort heuristic so known reasoning models still work.
-        const apiReasoning = m.reasoning?.supported_efforts ? m.reasoning : null;
+        // A meaningful `reasoning` object (non-empty) means the model supports
+        // reasoning even when supported_efforts is null (all efforts accepted)
+        // or omitted (effort selection not exposed — use reasoning.enabled
+        // instead). A bare `{}` is rejected — some providers include it for
+        // non-reasoning models.
+        const apiReasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
         const crossRefReasoning = openRouterReasoning.get(id);
         const reasoning = apiReasoning || crossRefReasoning || guessReasoningForModel(id);
         if (reasoning) {
@@ -870,10 +895,9 @@ export class SettingsModal {
       if (saved && !this._modelReasoningMap.has(saved)) {
         const openRouterSaved = openRouterReasoning.get(saved);
         const guessed = openRouterSaved || guessReasoningForModel(saved);
-        this._modelReasoningMap.set(
-          saved,
-          guessed || { supported_efforts: null, mandatory: false },
-        );
+        if (guessed) {
+          this._modelReasoningMap.set(saved, guessed);
+        }
       }
       if (saved && !this._modelMaxOutputMap.has(saved)) {
         this._modelMaxOutputMap.set(saved, null);
@@ -906,7 +930,7 @@ export class SettingsModal {
       const models = Array.isArray(data.data) ? data.data : [];
       for (const m of models) {
         const id = m.id || "";
-        const reasoning = m.reasoning?.supported_efforts ? m.reasoning : null;
+        const reasoning = isMeaningfulReasoning(m.reasoning) ? m.reasoning : null;
         if (!id.startsWith("openai/") || !reasoning) continue;
         const openaiId = id.replace("openai/", "");
         map.set(openaiId, reasoning);

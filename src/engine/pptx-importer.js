@@ -84,12 +84,16 @@ export class PptxImporter {
 
       loading.updateProgress(70);
 
-      // Store markdown info in localStorage so edit mode can find it
+      // Store markdown info in localStorage so edit mode can find it.
+      // PPTX imports are not bound to a server source and should not overwrite
+      // the dev server file on save.
       try {
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
         localStorage.setItem("webdeck_local_file_name", "pptx-import");
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
+        localStorage.removeItem("webdeck_source_url");
+        localStorage.setItem("webdeck_opened_from_picker", "1");
       } catch {
         window.__WEBDECK_MARKDOWN__ = markdown;
       }
@@ -112,17 +116,21 @@ export class PptxImporter {
       // Open edit mode so the user can review and edit the result
       this._toggleEditMode();
 
-      // Flag the save manager to use file picker instead of overwriting
-      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (editCtrl?.saveManager) {
-        editCtrl.saveManager.needsSaveAs = true;
-      }
-
       loading.updateProgress(100);
       loading.dismiss();
 
-      const getLatestMarkdown = () =>
-        localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || markdown;
+      const getLatestMarkdown = () => {
+        // Prefer the edit controller's live markdown (which reflects AI
+        // refines, unsaved edits, etc.) over the stale localStorage snapshot.
+        const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+        if (editCtrl?.saveManager?.getFullMarkdown) {
+          const live = editCtrl.saveManager.getFullMarkdown();
+          if (live) return live;
+        }
+        return (
+          localStorage.getItem("webdeck_local_file") || window.__WEBDECK_MARKDOWN__ || markdown
+        );
+      };
 
       if (imageFiles.size > 0) {
         // Upload images to the server in the background and then swap blob URLs for server paths

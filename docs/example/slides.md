@@ -323,30 +323,25 @@ layout: two-column
 
 @main
 
-Enhance slides individually or across the whole deck using AI.
+Let the AI handle the busywork so you can focus on the message.
 
-### Single-Slide AI
+### Single Slide
 
-- **Enhance slide** — cleans up formatting, headers, code blocks, and layout
-- **Add speaker notes** — generates notes without modifying visible content
-- Both are undoable via `Ctrl+Z`
+- **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
+- **Add speaker notes** — generate speaker notes without touching the slide
 
-### Refine All Slides
-
-- **Tidy up** — fix formatting and layouts only
-- **Restyle** — reword and rework layouts, add notes
-- **Remix** — two-phase plan→execute restructuring
-- Undoable via `Ctrl+Z`
+<img src="images/image-3e14.png" alt="image-3e14" style="position: relative; left: 138px; top: 19px; width: 543px; height: 365px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 
 @media
 
-### Getting Started
+### Whole Deck
 
-1. Open **Settings** from the main menu
-2. Enter your API key (OpenRouter, OpenAI, Anthropic, Gemini, or local)
-3. Select a model
-4. Use the **AI dropdown** in the editor toolbar for single-slide actions
-5. Use **Refine all slides** for whole-deck processing
+- **Polish** — fix formatting and layouts, improve wording, pick better layouts. Keeps the same slide count and order.
+- **Remix** — reorganize the story: reorder, merge, or rewrite slides. AI proposes an outline, you preview and apply.
+- **Reimagine** — take a bold new direction: rethink the topic, examples, notes, and visuals.
+- **Options** — choose Flow (Story / Technical / Persuasive / Instructional), add speaker notes, send content images to the AI (Remix/Reimagine), or preserve the visual identity for Remix (Reimagine always discards it).
+
+Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 
 ---
 

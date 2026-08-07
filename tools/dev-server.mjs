@@ -20,7 +20,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -175,10 +175,29 @@ function sendReloadEvent() {
 // ── File watching ─────────────────────────────────────────────────────────────
 
 let watchTimeout = null;
+const lastWrittenContentHashes = new Map();
 
-function scheduleReload() {
+function hashContent(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+async function scheduleReload(format) {
   if (watchTimeout) clearTimeout(watchTimeout);
-  watchTimeout = setTimeout(() => {
+  watchTimeout = setTimeout(async () => {
+    if (!format || !fs.existsSync(format.mdFile)) {
+      sendReloadEvent();
+      watchTimeout = null;
+      return;
+    }
+    const current = fs.readFileSync(format.mdFile, "utf8");
+    const currentHash = hashContent(current);
+    const lastHash = lastWrittenContentHashes.get(format.mdFile);
+    if (currentHash === lastHash) {
+      // This is the echo of our own write — don't reload.
+      watchTimeout = null;
+      return;
+    }
+    lastWrittenContentHashes.delete(format.mdFile);
     sendReloadEvent();
     watchTimeout = null;
   }, 100);
@@ -190,7 +209,7 @@ function startWatching(format) {
   for (const p of watchPaths) {
     if (!fs.existsSync(p)) continue;
     fs.watch(p, { recursive: p !== format.mdFile }, () => {
-      scheduleReload();
+      scheduleReload(format);
     });
   }
 }
@@ -353,6 +372,28 @@ function readJsonBody(req) {
   });
 }
 
+/**
+ * Verify the request came from the same origin as the dev server.
+ * Browsers send the Origin header for cross-site and non-GET requests;
+ * if it is missing we fall back to the Referer header.
+ */
+function isSameOrigin(req) {
+  const host = req.headers.host;
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  if (!host) return false;
+  const expected = `http://${host}`;
+  if (origin) return origin === expected;
+  if (referer) {
+    try {
+      return new URL(referer).origin === expected;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 
 /**
@@ -428,8 +469,14 @@ function createHandler(format) {
         res.end(JSON.stringify({ error: "No deck loaded" }));
         return;
       }
+      if (!isSameOrigin(req)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cross-origin write not allowed" }));
+        return;
+      }
       try {
         const { markdown } = await readJsonBody(req);
+        lastWrittenContentHashes.set(format.mdFile, hashContent(markdown));
         fs.writeFileSync(format.mdFile, markdown, "utf8");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));

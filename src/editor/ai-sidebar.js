@@ -6,6 +6,8 @@
  * panel UI (progress, retry, cancel) and drives it via orchestrator callbacks.
  */
 
+import { isVisionError } from "../data/ai/ai-orchestrator.js";
+
 const P = "ai-sidebar__";
 
 export class AiSidebar {
@@ -55,6 +57,7 @@ export class AiSidebar {
     const outputEl = panel.querySelector(`.${P}output`);
     const statusEl = panel.querySelector(`.${P}status`);
     const noticeEl = panel.querySelector(`.${P}notice`);
+    const planEl = panel.querySelector(`.${P}plan`);
     const cancelBtn = panel.querySelector('[data-action="cancel"]');
     const closeBtn = panel.querySelector('[data-action="close"]');
     const retryBtn = panel.querySelector('[data-action="retry"]');
@@ -64,9 +67,22 @@ export class AiSidebar {
     const progressCount = panel.querySelector(`.${P}progress-count`);
     const headerEl = panel.querySelector(`.${P}header`);
 
+    // Reimagine outline review: the orchestrator calls onOutline between
+    // the outline and generate phases. We dynamically import the modal so
+    // it's only loaded when needed, and show it over the sidebar.
+    const onOutline = async (outline) => {
+      const { AiReimagineOutlineModal } = await import("./ui/ai-reimagine-outline-modal.js");
+      const { splitSlidesForAi } = await import("../data/ai/ai-prompt-builder.js");
+      const sourceCount = splitSlidesForAi(operation.context, "generate").length;
+      const edited = await AiReimagineOutlineModal.show(outline, { sourceCount });
+      if (!edited) cancelled = true;
+      return edited;
+    };
+
     let cancelled = false;
     let closed = false;
     let discarded = false;
+    let skipImagesOnRetry = false;
 
     cancelBtn.addEventListener("click", () => {
       cancelled = true;
@@ -100,6 +116,7 @@ export class AiSidebar {
       noticeEl.hidden = true;
       outputEl.textContent = "";
       outputEl.hidden = false;
+      if (planEl) planEl.hidden = true;
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
       progressInline.hidden = true;
@@ -150,6 +167,71 @@ export class AiSidebar {
       outputEl.scrollTop = outputEl.scrollHeight;
     };
 
+    const renderPlan = (plan, sourceCount, mode) => {
+      if (!planEl) return;
+      planEl.innerHTML = "";
+      const planLabel = mode
+        ? `${mode.charAt(0).toUpperCase() + mode.slice(1)} plan`
+        : "Remix plan";
+      const keepCount = plan.filter((e) => e.action === "keep").length;
+      const rewriteCount = plan.filter((e) => e.action === "rewrite").length;
+      const mergeCount = plan.filter((e) => e.action === "merge").length;
+      const parts = [];
+      if (keepCount) parts.push(`${keepCount} keep`);
+      if (rewriteCount) parts.push(`${rewriteCount} rewrite`);
+      if (mergeCount) parts.push(`${mergeCount} merge`);
+      const summary = `${plan.length} slides from ${sourceCount} source (${parts.join(", ")})`;
+
+      // Foldable header — click to toggle the plan body
+      const header = document.createElement("button");
+      header.type = "button";
+      header.className = `${P}plan-header`;
+      header.setAttribute("aria-expanded", "true");
+      const headerIcon = document.createElement("span");
+      headerIcon.className = `${P}plan-chevron`;
+      headerIcon.textContent = "\u25BC";
+      const headerText = document.createElement("span");
+      headerText.className = `${P}plan-header-text`;
+      headerText.textContent = `${planLabel} \u2014 ${summary}`;
+      header.appendChild(headerIcon);
+      header.appendChild(headerText);
+
+      // Collapsible body
+      const body = document.createElement("div");
+      body.className = `${P}plan-body`;
+      for (const entry of plan) {
+        const sourceLabel = entry.source.map((s) => s + 1).join("+");
+        const row = document.createElement("div");
+        row.className = `${P}plan-row ${P}plan-row--${entry.action}`;
+        const badge = document.createElement("span");
+        badge.className = `${P}plan-badge ${P}plan-badge--${entry.action}`;
+        badge.textContent = entry.action;
+        const label = document.createElement("span");
+        label.className = `${P}plan-label`;
+        if (entry.action === "keep") {
+          label.textContent = `Slide ${sourceLabel}: ${entry.title}`;
+        } else if (entry.action === "merge") {
+          label.textContent = `Slides ${sourceLabel} \u2192 ${entry.title} \u2014 ${entry.brief || ""}`;
+        } else {
+          label.textContent = `Slide ${sourceLabel}: ${entry.title} \u2014 ${entry.brief || ""}`;
+        }
+        row.appendChild(badge);
+        row.appendChild(label);
+        body.appendChild(row);
+      }
+
+      header.addEventListener("click", () => {
+        const expanded = header.getAttribute("aria-expanded") === "true";
+        header.setAttribute("aria-expanded", String(!expanded));
+        body.hidden = expanded;
+        headerIcon.textContent = expanded ? "\u25B6" : "\u25BC";
+      });
+
+      planEl.appendChild(header);
+      planEl.appendChild(body);
+      planEl.hidden = false;
+    };
+
     const updateProgress = (completedSlides, totalSlides, nextBatch) => {
       if (progressCount) progressCount.textContent = `${completedSlides}/${totalSlides}`;
       if (nextBatch) {
@@ -161,9 +243,20 @@ export class AiSidebar {
       outputEl.textContent = "";
       outputEl.hidden = false;
       noticeEl.hidden = true;
+      if (planEl) {
+        planEl.innerHTML = "";
+        planEl.hidden = true;
+      }
       statusEl.textContent = "Preparing\u2026";
       statusEl.className = `${P}status`;
       headerEl.classList.add(`${P}header--active`);
+
+      // If the previous attempt failed because the model rejected vision input,
+      // retry without images and update the operation accordingly.
+      if (skipImagesOnRetry && operation.opts?.includeImages) {
+        operation.opts.includeImages = false;
+        appendLog("Vision not supported — retrying without images\u2026", "warn");
+      }
 
       const ctrl = new AbortController();
       this._abortControllers = [ctrl];
@@ -175,6 +268,8 @@ export class AiSidebar {
             updateProgress(completedSlides, totalSlides, nextBatch);
           },
           onLog: (message, level) => appendLog(message, level || "info"),
+          onPlan: (plan, sourceCount, mode) => renderPlan(plan, sourceCount, mode),
+          onOutline,
         });
 
         if (cancelled) {
@@ -193,7 +288,18 @@ export class AiSidebar {
           this.close();
           return null;
         }
-        showError(`Error: ${err.message}`);
+
+        // If this looks like a vision-not-supported error, remember to strip
+        // images on the next retry and tell the user explicitly.
+        if (isVisionError(err) && operation.opts?.includeImages) {
+          skipImagesOnRetry = true;
+          showError(
+            "This model doesn't support image input. Try again will continue without images, or try a different model.",
+          );
+          return null;
+        }
+
+        showError(err.userMessage || err.message);
         return null;
       }
     };
@@ -306,8 +412,16 @@ export class AiSidebar {
       this._retryResolve?.();
     });
 
+    // No dedicated log panel for single-slide operations — route validation
+    // warnings to the console so they remain visible for diagnosis instead
+    // of being silently swallowed.
+    const onLog = (message, level = "info") => {
+      if (level === "warn") console.warn(`[AI] ${message}`);
+      else if (level === "error") console.error(`[AI] ${message}`);
+    };
+
     try {
-      const { patches } = await orchestrator.runOperation(operation, ctrl.signal);
+      const { patches } = await orchestrator.runOperation(operation, ctrl.signal, { onLog });
       if (!patches || patches.length === 0) {
         statusEl.textContent = "No changes.";
         statusEl.className = `${P}status`;
@@ -344,7 +458,7 @@ export class AiSidebar {
         this.close();
         return null;
       }
-      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.textContent = err.userMessage || err.message;
       statusEl.className = `${P}status ${P}status--error`;
       cancelBtn.hidden = true;
       retryBtn.hidden = false;
@@ -368,7 +482,13 @@ export class AiSidebar {
         ctrl = new AbortController();
         this._abortControllers = [ctrl];
         try {
-          const { patches: retryPatches } = await orchestrator.runOperation(operation, ctrl.signal);
+          const { patches: retryPatches } = await orchestrator.runOperation(
+            operation,
+            ctrl.signal,
+            {
+              onLog,
+            },
+          );
           if (retryPatches && retryPatches.length > 0) {
             statusEl.textContent = 'Done! Click "Apply changes" to apply.';
             statusEl.className = `${P}status ${P}status--done`;
@@ -391,7 +511,7 @@ export class AiSidebar {
             this.close();
             return null;
           }
-          statusEl.textContent = `Error: ${retryErr.message}`;
+          statusEl.textContent = retryErr.userMessage || retryErr.message;
           statusEl.className = `${P}status ${P}status--error`;
           cancelBtn.hidden = true;
           retryBtn.hidden = false;
@@ -421,7 +541,11 @@ export class AiSidebar {
       </div>
       <div class="${P}status">Starting\u2026</div>
       <div class="${P}notice">AI result not yet applied \u2014 click "See result" when done.</div>
-      <div class="${P}output"></div>
+      <div class="${P}plan" hidden></div>
+      <details class="${P}log-section" open>
+        <summary class="${P}log-summary">Log</summary>
+        <div class="${P}output"></div>
+      </details>
       <div class="${P}actions">
         <button type="button" data-action="cancel" class="${P}btn">Cancel</button>
         <button type="button" data-action="retry" class="${P}btn" hidden>Try again</button>

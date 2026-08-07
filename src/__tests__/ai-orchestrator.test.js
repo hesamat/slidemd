@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { AiOrchestrator } from "../data/ai/ai-orchestrator.js";
+import { AiOrchestrator, isVisionError } from "../data/ai/ai-orchestrator.js";
 import { createOperation } from "../data/ai/ai-operation.js";
+
+// Mock slide-image-extractor so we don't need canvas/Image in orchestrator tests.
+// The actual extractAll is async and fetches images; here we return fake data URLs.
+vi.mock("../data/ai/slide-image-extractor.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    extractAll: vi.fn(async () => [null, null]), // overridden per-test
+  };
+});
 
 /**
  * Create a mock provider that returns the given content.
@@ -215,12 +225,12 @@ describe("AiOrchestrator", () => {
       expect(progressCalls[2].completed).toBe(12);
     });
 
-    it("polish fidelity uses fix-prompt rules (not generate-prompt)", async () => {
-      // fix-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
-      // Verify the message sent to the provider includes fix-prompt text.
+    it("polish mode uses polish-prompt rules (not generate-prompt)", async () => {
+      // polish-prompt.md contains "Rejoin split code lines" — generate-prompt does not.
+      // Verify the message sent to the provider includes polish-prompt text.
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       const userMsg = provider.chat.mock.calls[0][0].messages.find(
         (m) => m.role === "user",
@@ -228,28 +238,16 @@ describe("AiOrchestrator", () => {
       expect(userMsg).toContain("Rejoin split code lines");
     });
 
-    it("polish fidelity does not append a TIDY UP suffix", async () => {
-      // After removing the polish case from buildGenerateOptionsSuffix, the
-      // message should not contain the old "Fidelity: TIDY UP" suffix.
+    it("polish mode does not append a stale Fidelity suffix", async () => {
+      // The mode-aware suffix should not contain the old "Fidelity:" text.
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "polish" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       const userMsg = provider.chat.mock.calls[0][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      expect(userMsg).not.toContain("Fidelity: TIDY UP");
-    });
-
-    it("enhance fidelity still appends RESTYLE suffix", async () => {
-      const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
-      const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
-      await orchestrator.runWholeDeckOperation(op);
-      const userMsg = provider.chat.mock.calls[0][0].messages.find(
-        (m) => m.role === "user",
-      ).content;
-      expect(userMsg).toContain("Fidelity: RESTYLE");
+      expect(userMsg).not.toContain("Fidelity:");
     });
   });
 
@@ -280,7 +278,42 @@ describe("AiOrchestrator", () => {
       ],
     });
 
-    it("runs plan phase then execute phase for fidelity=rewrite", async () => {
+    it("logs estimated input tokens before the plan request and actual usage after", async () => {
+      const provider = {
+        chat: vi
+          .fn()
+          .mockResolvedValueOnce({
+            content: REMIX_PLAN_RESPONSE,
+            usage: { prompt_tokens: 512, completion_tokens: 128, total_tokens: 640 },
+            raw: { finish_reason: "stop" },
+          })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const logs = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // Pre-request estimate log
+      expect(
+        logs.some((l) => l.includes("[Tokens] Plan request") && l.includes("estimated input")),
+      ).toBe(true);
+      // Post-response actual usage log, using the provider's reported numbers
+      expect(
+        logs.some(
+          (l) =>
+            l.includes("[Tokens] Plan response") &&
+            l.includes("512 prompt") &&
+            l.includes("128 completion") &&
+            l.includes("640 total"),
+        ),
+      ).toBe(true);
+    });
+
+    it("runs plan phase then execute phase for mode=remix", async () => {
       // Provide enough execute responses for validation retries
       const provider = mockProviderSequence([
         REMIX_PLAN_RESPONSE,
@@ -288,7 +321,7 @@ describe("AiOrchestrator", () => {
         EXECUTE_RESPONSE,
       ]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       const logs = [];
       const result = await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
@@ -305,14 +338,307 @@ describe("AiOrchestrator", () => {
       expect(logs.some((l) => l.includes("[Plan] Rewrite"))).toBe(true);
     });
 
-    it("does not route to remix for fidelity=enhance", async () => {
+    it("falls back to original source slides when execute returns a mismatched slide count", async () => {
+      // The execute phase returns zero rewritten slides even though the plan
+      // has one rewrite entry. The fallback should use the original source slide
+      // so the deck doesn't contain literal `undefined`.
+      const MISSING_EXECUTE_RESPONSE = JSON.stringify({
+        slides: [],
+      });
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        MISSING_EXECUTE_RESPONSE,
+        MISSING_EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      expect(logs.some((l) => l.includes("expected 1 rewritten slide(s), got 0"))).toBe(true);
+      expect(result).toContain("Slide 1");
+      expect(result).toContain("Slide 2");
+      expect(result).not.toContain("undefined");
+    });
+
+    it("does not route to remix for mode=polish", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { fidelity: "enhance" });
+      const op = createOperation("generate", null, SINGLE_SLIDE_MD, { mode: "polish" });
       await orchestrator.runWholeDeckOperation(op);
       // No plan phase — the call count matches the normal generate path
       // (1 or 2 depending on validation retry), not the remix 2-phase flow.
       expect(provider.chat).toHaveBeenCalled();
+    });
+
+    it("remix plan prompt uses moderate guidance and preserves visual identity", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).toContain("Preserve the deck's core message");
+      expect(planUser).toContain("Preserve the original theme");
+      expect(planUser).toContain("valid source indices are 0 through 1");
+    });
+
+    it("routes reimagine through the outline flow (no remix plan)", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Reframe the deck around outcomes. Use a historical context arc to show how current approaches evolved, then present the solution and close with evidence.",
+        chapters: [
+          {
+            title: "The problem",
+            flowTag: "problem",
+            summary: "Why current approaches fail.",
+            slides: [
+              { title: "Hook", intent: "Open with a surprising statistic." },
+              { title: "Stakes", intent: "What we lose by ignoring this." },
+            ],
+          },
+          {
+            title: "The approach",
+            flowTag: "solution",
+            summary: "The proposed solution.",
+            slides: [{ title: "Approach", intent: "Introduce the solution." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## Hook\n\n@main\n- Surprising stat" },
+          { layout: "header-content", content: "@header\n## Stakes\n\n@main\n- What we lose" },
+          { layout: "header-content", content: "@header\n## Approach\n\n@main\n- The solution" },
+        ],
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(result).toContain("Hook");
+      expect(result).toContain("Approach");
+      // The outline prompt should include flow + storytelling guidance
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("rethink the topic, examples, notes, and visuals");
+      expect(outlineUser).toContain("Do not preserve the original theme");
+      expect(outlineUser).toContain("storytelling techniques");
+      // At least 2 calls: outline + execute (may retry on validation)
+      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("reimagine invokes onOutline callback and uses the edited outline", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Original plan.",
+        chapters: [
+          {
+            title: "Opening",
+            flowTag: "hook",
+            summary: "Hook the audience.",
+            slides: [
+              { title: "Hook", intent: "Open with a surprising statistic." },
+              { title: "Approach", intent: "Introduce the solution." },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## Edited Hook\n\n@main\n- Edited" },
+          { layout: "header-content", content: "@header\n## Edited Approach\n\n@main\n- Edited" },
+          { layout: "header-content", content: "@header\n## New Slide\n\n@main\n- New" },
+        ],
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return {
+            plan: "Edited plan.",
+            chapters: [
+              {
+                title: "Edited chapter",
+                flowTag: "solution",
+                summary: "Edited summary.",
+                slides: [
+                  { title: "Edited Hook", intent: "Edited intent 1." },
+                  { title: "Edited Approach", intent: "Edited intent 2." },
+                  { title: "New Slide", intent: "Brand new slide." },
+                ],
+              },
+            ],
+          };
+        },
+      });
+      expect(outlines).toHaveLength(1);
+      expect(outlines[0].plan).toBe("Original plan.");
+      expect(outlines[0].chapters).toHaveLength(1);
+      expect(outlines[0].chapters[0].slides).toHaveLength(2);
+      expect(result).toContain("Edited Hook");
+      expect(result).toContain("New Slide");
+      // The execute call's context should carry the edited outline briefs
+      const execUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain("Edited Hook");
+      expect(execUser).toContain("Brand new slide");
+    });
+
+    it("reimagine returns null when onOutline resolves null (user cancelled)", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          {
+            title: "Ch1",
+            flowTag: "hook",
+            summary: "S.",
+            slides: [{ title: "Hook", intent: "Open." }],
+          },
+        ],
+      });
+      const provider = mockProviderSequence([outlineResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async () => null,
+      });
+      expect(result).toBeNull();
+      expect(provider.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it("reimagine skips onOutline when not provided and runs straight through", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          {
+            title: "Ch1",
+            flowTag: "hook",
+            summary: "S.",
+            slides: [{ title: "Hook", intent: "Open." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(result).toContain("Hook");
+    });
+
+    it("reimagine warns when slide count is outside 70-120% target", async () => {
+      // 2 source slides; target is 1-2 (70-120%). Return 5 slides → outside range.
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          {
+            title: "Ch1",
+            flowTag: "hook",
+            summary: "S.",
+            slides: [
+              { title: "S1", intent: "I1." },
+              { title: "S2", intent: "I2." },
+              { title: "S3", intent: "I3." },
+              { title: "S4", intent: "I4." },
+              { title: "S5", intent: "I5." },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: Array(5).fill({
+          layout: "header-content",
+          content: "@header\n## S\n\n@main\n- x",
+        }),
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const logs = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg, level) => logs.push({ msg, level }),
+      });
+      expect(logs.some((l) => l.msg.includes("target is 1-2") && l.level === "warn")).toBe(true);
+    });
+
+    it("reimagine passes flow to the outline prompt", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          {
+            title: "Ch1",
+            flowTag: "hook",
+            summary: "S.",
+            slides: [{ title: "Hook", intent: "Open." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "reimagine",
+        flow: "persuasive",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const outlineUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(outlineUser).toContain("**persuasive**");
+    });
+
+    it("reimagine throws on invalid outline JSON", async () => {
+      const provider = mockProviderSequence(["not json"]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
+        "Outline response did not contain JSON",
+      );
+    });
+
+    it("reimagine throws on missing plan", async () => {
+      const provider = mockProviderSequence([JSON.stringify({ chapters: [] })]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("missing 'plan' string");
+    });
+
+    it("reimagine throws on missing chapters", async () => {
+      const provider = mockProviderSequence([JSON.stringify({ plan: "B.", chapters: [] })]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
+        "missing 'chapters' array",
+      );
+    });
+
+    it("reimagine throws on chapter with empty slides", async () => {
+      const provider = mockProviderSequence([
+        JSON.stringify({
+          plan: "B.",
+          chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", slides: [] }],
+        }),
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
+        "missing non-empty 'slides' array",
+      );
     });
 
     it("throws on invalid plan action", async () => {
@@ -321,7 +647,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -334,7 +660,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -344,7 +670,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
@@ -369,7 +695,7 @@ describe("AiOrchestrator", () => {
       });
       const provider = mockProviderSequence([mergePlan, mergeResponse, mergeResponse]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, TWO_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       const logs = [];
       const result = await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
@@ -378,61 +704,257 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Combined");
       expect(logs.some((l) => l.includes("[Plan] Merge"))).toBe(true);
     });
+  });
 
-    it("falls back to original slides when execute returns a mismatched slide count", async () => {
-      const THREE_SLIDE_MD = [
-        "layout: header-content\n@header\n## Slide 1\n\n@main\n- Item 1",
-        "layout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2",
-        "layout: header-content\n@header\n## Slide 3\n\n@main\n- Item 3",
-      ].join("\n\n---\n\n");
+  describe("runWholeDeckOperation (remix with vision)", () => {
+    const TWO_SLIDE_WITH_IMAGES =
+      'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- No images';
 
-      const planWithTwoRewrites = JSON.stringify({
-        plan: [
-          { action: "keep", source: [0], brief: "", title: "Slide 1" },
-          { action: "rewrite", source: [1], brief: "Make concise", title: "Slide 2" },
-          { action: "rewrite", source: [2], brief: "Make concise", title: "Slide 3" },
-        ],
-      });
+    const REMIX_PLAN_RESPONSE = JSON.stringify({
+      plan: [
+        {
+          action: "rewrite",
+          source: [0],
+          brief: "Reposition image",
+          title: "Slide 1",
+          keepImages: [0],
+        },
+        { action: "keep", source: [1], brief: "", title: "Slide 2" },
+      ],
+    });
 
-      // Execute is expected to produce 2 slides (one per rewrite entry) but
-      // only ever returns 1 — even after validation retries are exhausted —
-      // simulating the AI under/over-shooting the expected slide count.
-      const shortExecuteResponse = JSON.stringify({
-        slides: [
-          {
-            layout: "header-content",
-            content: "@header\n## Slide 2\n\n@main\n- Concise point",
-          },
-        ],
-      });
+    const EXECUTE_RESPONSE = JSON.stringify({
+      slides: [
+        {
+          layout: "header-content",
+          content: "@header\n## Slide 1\n\n@main\n- Repositioned",
+        },
+      ],
+    });
+
+    it("sends multi-modal content when includeImages is true", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
 
       const provider = mockProviderSequence([
-        planWithTwoRewrites,
-        shortExecuteResponse,
-        shortExecuteResponse,
-        shortExecuteResponse,
-        shortExecuteResponse,
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
       ]);
       const orchestrator = new AiOrchestrator({ provider });
-      const op = createOperation("generate", null, THREE_SLIDE_MD, { fidelity: "rewrite" });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "remix",
+        includeImages: true,
+      });
+      const logs = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg) => logs.push(msg),
+      });
+
+      // The plan call (first chat call) should have array content for the user message
+      const planCall = provider.chat.mock.calls[0][0];
+      const userMsg = planCall.messages.find((m) => m.role === "user");
+      expect(Array.isArray(userMsg.content)).toBe(true);
+      // Should contain at least one image_url block
+      const imageBlocks = userMsg.content.filter((b) => b.type === "image_url");
+      expect(imageBlocks.length).toBeGreaterThan(0);
+      expect(logs.some((l) => l.includes("image"))).toBe(true);
+    });
+
+    it("falls back to text-only when provider rejects images with vision error", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
+
+      // First call (with images) throws a vision-related HTTP 400, second call (text-only) succeeds
+      const visionError = new Error("HTTP 400: model does not support image content");
+      visionError.name = "AiHttpError";
+      visionError.status = 400;
+      const provider = {
+        chat: vi
+          .fn()
+          .mockRejectedValueOnce(visionError)
+          .mockResolvedValueOnce({ content: REMIX_PLAN_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "remix",
+        includeImages: true,
+      });
       const logs = [];
       const result = await orchestrator.runWholeDeckOperation(op, undefined, {
         onLog: (msg) => logs.push(msg),
       });
 
-      // Original slide 1 (kept) and the original, unrewritten content for
-      // both rewrite entries must all be present — nothing dropped or blank.
-      expect(result).toContain("Slide 1");
-      expect(result).toContain("Item 1");
-      expect(result).toContain("Item 2");
-      expect(result).toContain("Item 3");
-      // Splitting into slides should never produce an empty section.
-      const slides = result.split(/\n\n---\n\n/);
-      expect(slides.length).toBe(3);
-      expect(slides.every((s) => s.trim().length > 0)).toBe(true);
-      expect(logs.some((l) => l.includes("but expected") && l.includes("keeping original"))).toBe(
-        true,
+      // Should have logged the fallback
+      expect(logs.some((l) => l.includes("text-only"))).toBe(true);
+      // The retry call should have string content (not array)
+      const retryCall = provider.chat.mock.calls[1][0];
+      const retryUserMsg = retryCall.messages.find((m) => m.role === "user");
+      expect(typeof retryUserMsg.content).toBe("string");
+      expect(result).toContain("@header");
+    });
+
+    it("does NOT fall back to text-only for non-vision errors (e.g. auth)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/fake=" }],
+        null,
+      ]);
+
+      // Auth error (401) — should NOT trigger vision fallback
+      const authError = new Error("HTTP 401: Invalid API key");
+      authError.name = "AiHttpError";
+      authError.status = 401;
+      const provider = {
+        chat: vi.fn().mockRejectedValueOnce(authError),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "remix",
+        includeImages: true,
+      });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("401");
+    });
+
+    it("does not send images when includeImages is false", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "remix",
+        includeImages: false,
+      });
+      await orchestrator.runWholeDeckOperation(op);
+
+      // The plan call should have string content (no images)
+      const planCall = provider.chat.mock.calls[0][0];
+      const userMsg = planCall.messages.find((m) => m.role === "user");
+      expect(typeof userMsg.content).toBe("string");
+    });
+
+    it("validates keepImages field", async () => {
+      const badPlan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Test",
+            title: "S1",
+            keepImages: "not-an-array",
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "remix",
+      });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
+        "keepImages must be an array",
       );
+    });
+
+    it("filters images in virtual deck per keepImages when images were sent", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [
+          { src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" },
+          { src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" },
+        ],
+        null,
+      ]);
+
+      const deckWithTwoImages =
+        'layout: header-content\n@main\n<img src="images/a.png">\n\n<img src="images/b.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
+
+      const plan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Keep only first image",
+            title: "S1",
+            keepImages: [0], // keep only a.png, drop b.png
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@main\n- Result with image a.png",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithTwoImages, {
+        mode: "remix",
+        includeImages: true,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // The execute call's context (virtual deck) should contain a.png but not b.png
+      const executeCall = provider.chat.mock.calls[1][0];
+      const executeUserMsg = executeCall.messages.find((m) => m.role === "user");
+      expect(executeUserMsg.content).toContain("a.png");
+      expect(executeUserMsg.content).not.toContain("b.png");
+      expect(result).toContain("@main");
+    });
+
+    it("ignores keepImages when no images were sent to the plan AI (text-only remix)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([null, null]);
+
+      const deckWithTwoImages =
+        'layout: header-content\n@main\n<img src="images/a.png">\n\n<img src="images/b.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
+
+      const plan = JSON.stringify({
+        plan: [
+          {
+            action: "rewrite",
+            source: [0],
+            brief: "Keep only first image",
+            title: "S1",
+            keepImages: [0], // hallucinated — no images were ever sent
+          },
+          { action: "keep", source: [1], brief: "", title: "S2" },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@main\n- Result",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithTwoImages, {
+        mode: "remix",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+
+      // Both images must survive into the execute call's virtual deck since
+      // the plan AI never saw any pictures.
+      const executeCall = provider.chat.mock.calls[1][0];
+      const executeUserMsg = executeCall.messages.find((m) => m.role === "user");
+      expect(executeUserMsg.content).toContain("a.png");
+      expect(executeUserMsg.content).toContain("b.png");
     });
   });
 
@@ -463,5 +985,37 @@ describe("AiOrchestrator", () => {
       // Result may be null or partial, but must not hang
       expect(result).toBeDefined();
     });
+  });
+});
+
+describe("isVisionError", () => {
+  it("classifies 'No endpoints found that support image input' as a vision error", () => {
+    const err = new Error("HTTP 404: No endpoints found that support image input");
+    err.name = "AiHttpError";
+    err.status = 404;
+    expect(isVisionError(err)).toBe(true);
+  });
+
+  it("classifies 'does not support image input' as a vision error", () => {
+    const err = new Error("HTTP 400: model does not support image input");
+    err.name = "AiHttpError";
+    err.status = 400;
+    expect(isVisionError(err)).toBe(true);
+  });
+
+  it("does not classify a generic 404 as a vision error", () => {
+    const err = new Error("HTTP 404: model not found");
+    err.name = "AiHttpError";
+    err.status = 404;
+    expect(isVisionError(err)).toBe(false);
+  });
+
+  it("does not classify auth or rate-limit errors as vision errors", () => {
+    for (const status of [401, 403, 429]) {
+      const err = new Error(`HTTP ${status}: denied`);
+      err.name = "AiHttpError";
+      err.status = status;
+      expect(isVisionError(err)).toBe(false);
+    }
   });
 });

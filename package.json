@@ -1,6 +1,6 @@
 {
   "name": "slidemd",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, PPTX import, and AI-powered post-processing",

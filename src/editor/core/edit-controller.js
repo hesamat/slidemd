@@ -606,6 +606,16 @@ export class EditController {
     this.updateUnsavedChangesFlag();
   }
 
+  /**
+   * Public guard for code that needs the current editor buffer captured before
+   * reading the deck markdown. Only captures when the editor is actually active
+   * so a stale buffer from a previously viewed slide is not attributed to the
+   * current slide.
+   */
+  captureCurrentEditorState() {
+    if (this.isEditMode) this._captureCurrentEditorMarkdown();
+  }
+
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
@@ -722,6 +732,7 @@ export class EditController {
       modelMaxOutput: SettingsModal.getModelMaxTokens(model),
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+      effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
     });
 
     const op = createOperation(intent, this.currentSlideIndex, slideMarkdown);
@@ -761,7 +772,6 @@ export class EditController {
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {
-      console.error(`AI ${intent} failed:`, err);
       Notification.error(`AI ${intent} failed: ${err.message || err}`);
     }
   }
@@ -817,11 +827,15 @@ export class EditController {
       modelMaxOutput: SettingsModal.getModelMaxTokens(model),
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
+      effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
     });
 
     const op = createOperation("generate", null, fullMarkdown, {
-      tone: generateOpts.tone,
-      fidelity: generateOpts.fidelity,
+      flow: generateOpts.flow,
+      mode: generateOpts.mode,
+      addSpeakerNotes: generateOpts.addSpeakerNotes || false,
+      includeImages: generateOpts.includeImages || false,
+      preserveVisualIdentity: generateOpts.preserveVisualIdentity ?? true,
     });
 
     try {
@@ -860,7 +874,6 @@ export class EditController {
         Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
     } catch (err) {
-      console.error("AI generate failed:", err);
       Notification.error(`AI generate failed: ${err.message || err}`);
     }
   }
