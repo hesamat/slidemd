@@ -154,8 +154,10 @@ export class ReloadManager extends EventEmitter {
 
         const isFileSystemAPINotSupported = !DeckLoader.supportsFileSystemAPI;
 
-        // When file system API is not supported, prompt user to re-upload file before using cached version
-        if (isFileSystemAPINotSupported) {
+        // When file system API is not supported and the caller didn't explicitly
+        // ask for localStorage, prompt the user to re-upload. Automatic cross-tab
+        // reloads use preferLocalStorage: true and should just use the cache.
+        if (isFileSystemAPINotSupported && !preferLocalStorage) {
           const shouldReupload = await Notification.promptActionOrCancel(
             "Reload Deck",
             "Your browser does not support automatic file reloading. Do you want to re-upload the file to see the latest changes, or use the cached version?",
