@@ -32,21 +32,36 @@ export class DeckImagesResolver {
   /** Blob URLs created from the directory handle, tracked for revocation. */
   static _createdBlobUrls = new Set();
 
+  /** Grace period before revoked blob URLs are released. */
+  static _revokeDelayMs = 1500;
+
   /**
-   * Release every blob URL created from the directory handle. In-flight
-   * lookups that resolve later add their URL to the set and are revoked on
-   * the next clear.
+   * Release a set of blob URLs created from the directory handle.
+   * @param {Set<string>} urls
    */
-  static _clearDirBlobUrls() {
-    for (const url of this._createdBlobUrls) {
+  static _revokeUrls(urls) {
+    for (const url of urls) {
       try {
         URL.revokeObjectURL(url);
       } catch {
         /* ignore */
       }
     }
-    this._createdBlobUrls.clear();
+  }
+
+  /**
+   * Drop the lookup table and schedule revocation of the previous
+   * generation's blob URLs. Revocation is deferred so already-rendered
+   * images keep their content while a pending re-render swaps in fresh
+   * URLs — invalidateCache() never blanks currently displayed images.
+   * In-flight lookups that resolve after the swap register their URL in
+   * the new set and are revoked on the next clear.
+   */
+  static _clearDirBlobUrls() {
+    const stale = this._createdBlobUrls;
+    this._createdBlobUrls = new Set();
     this._dirBlobUrls.clear();
+    setTimeout(() => this._revokeUrls(stale), this._revokeDelayMs);
   }
 
   /**
@@ -66,7 +81,7 @@ export class DeckImagesResolver {
   static setDirectoryHandle(handle) {
     this._directoryHandle = handle;
     this._clearDirBlobUrls();
-    this.invalidateCache();
+    this._cacheVersion = Date.now();
   }
 
   /**

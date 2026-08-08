@@ -451,6 +451,21 @@ export class OpenDeckModal {
 
     if (!hasImages || !window.showDirectoryPicker) return null;
 
+    // If the CLI server can already serve every referenced image (e.g. the
+    // user picked the very deck the server is serving), no folder prompt is
+    // needed — the existing /images/* fallback handles rendering.
+    const imageRefs = [...new Set((markdown || "").match(/images\/[\w.-]+/g) || [])];
+    if (imageRefs.length > 0) {
+      const probes = await Promise.all(
+        imageRefs.map((ref) =>
+          fetch(`/${ref}`, { method: "HEAD" })
+            .then((r) => r.ok)
+            .catch(() => false),
+        ),
+      );
+      if (probes.every(Boolean)) return null;
+    }
+
     // showOpenFilePicker already consumed the user activation, so the
     // directory picker would be rejected by Chromium if called inline.
     // Trigger it from this modal's button click instead (fresh activation).
@@ -470,8 +485,10 @@ export class OpenDeckModal {
     if (!shouldPick) return null;
 
     try {
+      // Read-only is enough for previewing; the save flow re-picks the
+      // folder with readwrite permission when the user saves.
       const handle = await window.showDirectoryPicker({
-        mode: "readwrite",
+        mode: "read",
         startIn: "documents",
       });
       // Verify the picked folder contains the .md so the relative images/

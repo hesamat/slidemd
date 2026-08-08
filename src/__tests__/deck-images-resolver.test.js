@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 
+// Revoke blob URLs synchronously so deferred revocation doesn't keep the
+// test process alive.
+DeckImagesResolver._revokeDelayMs = 0;
+
 describe("DeckImagesResolver directory images", () => {
   afterEach(() => {
     DeckImagesResolver.clearDirectoryHandle();

@@ -86,24 +86,64 @@ async function writeImagesToDir(dirHandle, relPaths) {
 const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
 
 /**
- * Remove image files from an images/ directory that are not part of the
- * newly saved deck. Called only after the user confirmed overwriting an
- * existing .md file, so a previous deck's pictures do not linger next to
- * the new deck. Best-effort — cleanup failures never fail the save.
+ * Open the deck-folder save picker. `showDirectoryPicker` requires
+ * transient user activation, which a long background image upload may have
+ * consumed; if Chromium rejects with a SecurityError, re-trigger the picker
+ * from a modal button click (fresh activation).
+ * @returns {Promise<FileSystemDirectoryHandle>}
+ */
+async function pickDeckSaveFolder() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await window.showDirectoryPicker({
+        mode: "readwrite",
+        id: "webdeck-save-deck",
+        startIn: "documents",
+      });
+    } catch (e) {
+      if (e.name !== "SecurityError") throw e;
+      if (attempt === 1) throw e;
+      const retry = await Notification.showModal({
+        title: "Choose save folder",
+        message: "Select the folder where the deck and its images should be saved.",
+        type: "info",
+        blockBackdrop: true,
+        buttons: [
+          { label: "Cancel", resolvesTo: "cancel" },
+          { label: "Choose folder", isPrimary: true, resolvesTo: "ok" },
+        ],
+      });
+      if (retry !== "ok") {
+        throw new DOMException("Save cancelled", "AbortError");
+      }
+    }
+  }
+  throw new DOMException("Save cancelled", "AbortError");
+}
+
+/**
+ * Remove the previous deck's image files from an images/ directory that the
+ * newly saved deck no longer references. Only files referenced by the
+ * overwritten .md are considered, so images belonging to other decks in the
+ * same folder are never touched. Called only after the user confirmed
+ * overwriting an existing .md file. Best-effort — cleanup failures never
+ * fail the save.
  * @param {FileSystemDirectoryHandle} dirHandle — the images/ directory
  * @param {string[]} relPaths — relative paths written by the new deck
+ * @param {Set<string>} oldImageNames — basenames referenced by the old .md
  * @returns {Promise<void>}
  */
-async function removeStaleImages(dirHandle, relPaths) {
+export async function removeStaleImages(dirHandle, relPaths, oldImageNames) {
   const keepNames = new Set(relPaths.map((p) => p.split("/").pop()));
   try {
     for await (const [name, entry] of dirHandle.entries()) {
       if (entry.kind !== "file") continue;
-      if (!IMAGE_EXT_RE.test(name) || keepNames.has(name)) continue;
+      if (!IMAGE_EXT_RE.test(name)) continue;
+      if (keepNames.has(name) || !oldImageNames.has(name)) continue;
       await dirHandle.removeEntry(name);
     }
-  } catch {
-    // Best-effort cleanup — never fail the save over stale images.
+  } catch (err) {
+    console.warn("Failed to remove stale deck images:", err);
   }
 }
 
@@ -348,13 +388,10 @@ export class SaveManager {
       let dirHandle;
       let mdWritten = false;
       let exists = false;
+      let oldImageNames = new Set();
 
       try {
-        dirHandle = await window.showDirectoryPicker({
-          mode: "readwrite",
-          id: "webdeck-save-deck",
-          startIn: "documents",
-        });
+        dirHandle = await pickDeckSaveFolder();
 
         // Restore the native overwrite confirmation the previous single-file
         // flow provided: if a file with the same name already exists, ask
@@ -362,10 +399,23 @@ export class SaveManager {
         try {
           await dirHandle.getFileHandle(safeFileName);
           exists = true;
-        } catch {
+        } catch (err) {
+          if (err?.name !== "NotFoundError") {
+            console.warn("Failed to check for an existing deck file:", err);
+          }
           /* new file */
         }
         if (exists) {
+          // Remember which images the old deck referenced so cleanup below
+          // only touches this deck's own files, never another deck's images
+          // that happen to share the folder.
+          try {
+            const oldFile = await dirHandle.getFileHandle(safeFileName);
+            const oldText = await (await oldFile.getFile()).text();
+            oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
+          } catch {
+            console.warn("Could not read the existing deck file to scope image cleanup.");
+          }
           const overwrite = await Notification.showModal({
             title: "Overwrite existing file?",
             message:
@@ -398,9 +448,10 @@ export class SaveManager {
         try {
           const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
           // Overwriting an existing deck: drop the previous deck's images
-          // that this deck no longer uses.
+          // that this deck no longer uses (scoped to the old .md's refs so
+          // other decks sharing the folder are untouched).
           if (exists) {
-            await removeStaleImages(sidecarDir, imagePaths);
+            await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
           }
           const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
           if (failed > 0) {
@@ -411,7 +462,11 @@ export class SaveManager {
           }
 
           // Remember the deck folder so reopening the .md can render the
-          // sibling images/ folder directly from disk.
+          // sibling images/ folder directly from disk, resolve the current
+          // session's images from the folder just written, and keep the
+          // stored deck name aligned with the file actually on disk.
+          localStorage.setItem("webdeck_local_file_name", safeFileName);
+          DeckImagesResolver.setDirectoryHandle(dirHandle);
           await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
         } catch (err) {
           // The .md was already written; report the missing images instead
@@ -453,6 +508,7 @@ export class SaveManager {
         const { DeckLoader } = await import("../../data/deck-loader.js");
         const { ok } = await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
           filename: DeckLoader.getDisplayTitle(this.deck),
+          readImage: (relPath) => DeckImagesResolver.getImageFile(relPath),
         });
         if (ok) {
           Notification.success("Deck exported as .textpack!");
