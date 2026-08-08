@@ -456,6 +456,23 @@ export class SaveManager {
       }
 
       if (mdWritten) {
+        // The .md is on disk, so the session must point at the new name and
+        // folder even if saving images fails afterwards — otherwise a reload
+        // cannot find the just-saved deck's folder.
+        try {
+          // The extension-less name keeps UI titles clean ("MyDeck", not
+          // "MyDeck.md"); the picker flag makes reload restore the handle.
+          localStorage.setItem(
+            "webdeck_local_file_name",
+            safeFileName.replace(/\.(md|markdown)$/i, ""),
+          );
+          localStorage.setItem("webdeck_opened_from_picker", "1");
+          DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
+          await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
+        } catch (err) {
+          console.warn("Failed to update session state after save:", err);
+        }
+
         try {
           const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
           // Overwriting an existing deck: drop the previous deck's images
@@ -471,20 +488,6 @@ export class SaveManager {
               6000,
             );
           }
-
-          // Remember the deck folder so reopening the .md can render the
-          // sibling images/ folder directly from disk, resolve the current
-          // session's images from the folder just written, and keep the
-          // stored deck name aligned with the file actually on disk.
-          // The extension-less name keeps UI titles clean ("MyDeck", not
-          // "MyDeck.md"); the picker flag makes reload restore the handle.
-          localStorage.setItem(
-            "webdeck_local_file_name",
-            safeFileName.replace(/\.(md|markdown)$/i, ""),
-          );
-          localStorage.setItem("webdeck_opened_from_picker", "1");
-          DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
-          await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
         } catch (err) {
           // The .md was already written; report the missing images instead
           // of prompting for a second save dialog.
