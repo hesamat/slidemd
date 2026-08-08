@@ -31,4 +31,19 @@ describe("DeckImagesResolver directory images", () => {
       /^\/images\/image\.png\?v=\d+$/,
     );
   });
+
+  it("caches failed disk lookups so re-renders do not re-probe the filesystem", async () => {
+    const getDirectoryHandle = vi
+      .fn()
+      .mockRejectedValue(new DOMException("not found", "NotFoundError"));
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle,
+    });
+
+    await DeckImagesResolver.resolvePreviewSrc("images/missing.png");
+    await DeckImagesResolver.resolvePreviewSrc("images/missing.png");
+
+    expect(getDirectoryHandle).toHaveBeenCalledTimes(1);
+  });
 });

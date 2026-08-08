@@ -61,6 +61,8 @@ export class DeckImagesResolver {
   static async _readFromDirectory(relPath) {
     const handle = this._directoryHandle;
     if (!handle || !relPath.startsWith("images/")) return null;
+    // Negative results are cached too (as null) so missing images or an
+    // absent images/ folder do not re-probe the filesystem on every render.
     if (this._dirBlobUrls.has(relPath)) return this._dirBlobUrls.get(relPath);
     try {
       if (handle.queryPermission) {
@@ -69,10 +71,14 @@ export class DeckImagesResolver {
           try {
             perm = await handle.requestPermission({ mode: "read" });
           } catch {
+            this._dirBlobUrls.set(relPath, null);
             return null;
           }
         }
-        if (perm !== "granted") return null;
+        if (perm !== "granted") {
+          this._dirBlobUrls.set(relPath, null);
+          return null;
+        }
       }
       const imagesDir = await handle.getDirectoryHandle("images");
       const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
@@ -81,6 +87,7 @@ export class DeckImagesResolver {
       this._dirBlobUrls.set(relPath, url);
       return url;
     } catch {
+      this._dirBlobUrls.set(relPath, null);
       return null;
     }
   }

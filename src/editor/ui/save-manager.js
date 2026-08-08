@@ -38,7 +38,7 @@ function sanitizeFileName(name, fallback = "deck.md") {
   const cleaned = String(name || "")
     .replace(/[\\/]/g, "")
     .split("")
-    .filter((c) => c.charCodeAt(0) >= 0x20)
+    .filter((c) => c.charCodeAt(0) >= 0x20 && c.charCodeAt(0) !== 0x7f)
     .join("")
     .trim();
   return cleaned || fallback;
@@ -311,36 +311,54 @@ export class SaveManager {
     // both the .md file and the images/ sidecar into the same chosen folder,
     // so the relative images/... references always resolve.
     if (imagePaths.length > 0 && window.showDirectoryPicker) {
+      // The name actually written to disk; DirectoryHandleStore must be keyed
+      // by this same name so reopening the .md finds the handle.
+      const safeFileName = sanitizeFileName(fileName);
+      let dirHandle;
+      let mdWritten = false;
+
       try {
-        const dirHandle = await window.showDirectoryPicker({
+        dirHandle = await window.showDirectoryPicker({
           mode: "readwrite",
           id: "webdeck-save-deck",
           startIn: "documents",
         });
 
-        const mdHandle = await dirHandle.getFileHandle(sanitizeFileName(fileName), {
-          create: true,
-        });
+        const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
+        mdWritten = true;
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Pre-write failure (picker or .md write) — fall through to the
+        // modal warning + simple download below.
+      }
 
-        const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
-        const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
-        if (failed > 0) {
+      if (mdWritten) {
+        try {
+          const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
+          if (failed > 0) {
+            Notification.warning(
+              `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+              6000,
+            );
+          }
+
+          // Remember the deck folder so reopening the .md can render the
+          // sibling images/ folder directly from disk.
+          await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
+        } catch (err) {
+          // The .md was already written; report the missing images instead
+          // of prompting for a second save dialog.
+          console.warn("Failed to save images alongside the .md file:", err);
           Notification.warning(
-            `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+            `${fileName} was saved, but images could not be saved: ${err?.message || err}`,
             6000,
           );
         }
-
-        // Remember the deck folder so reopening the .md can render the
-        // sibling images/ folder directly from disk.
-        await DirectoryHandleStore.save(dirHandle, "parent", fileName);
         return true;
-      } catch (e) {
-        if (e.name === "AbortError") throw e;
-        // Fall through to the modal warning + simple download below
       }
     }
 
