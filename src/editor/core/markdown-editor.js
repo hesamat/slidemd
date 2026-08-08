@@ -215,11 +215,15 @@ export class MarkdownEditor {
 
     // Cancel any pending onChange so it cannot fire after the state swap and
     // attribute the new slide's text to the new currentSlideIndex.
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
+    // The caller (EditController.loadSlideIntoEditor) is responsible for
+    // capturing the outgoing slide's text against _lastEditorSlideIndex before
+    // calling this, when a real slide switch is in progress.
+    this.cancelOnChange?.();
 
+    // Reset the cache-cleared flag so the next saveSlideState can capture
+    // this freshly-loaded state. A state loaded here belongs to the current
+    // deck revision, so even if the flag was consumed earlier by an unrelated
+    // write, loadSlideState's revision/doc checks reject stale cache entries.
     this._cacheCleared = false;
     const value = doc || "";
     this.value = value;
@@ -336,14 +340,17 @@ export class MarkdownEditor {
 
     // Cancel any pending onChange so it doesn't fire with stale data after
     // we replace the document (e.g. a slide switch inside the debounce window).
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
+    // Callers that need to preserve the outgoing text against a specific index
+    // must capture it before this call.
+    this.cancelOnChange?.();
 
     const { suppressOnChange = false, recordHistory = true } = options;
     if (suppressOnChange) this.suppressChange = true;
-    // Reset the cache-cleared flag so a future saveSlideState works.
+    // Reset the cache-cleared flag so the next saveSlideState can capture
+    // this new, post-replacement state. If an unrelated setValue consumes
+    // the flag between a structural change and the next loadSlideIntoEditor,
+    // the resulting cache entry is still safe: its revision matches the
+    // post-op _deckRevision, but loadSlideState rejects it on doc mismatch.
     this._cacheCleared = false;
 
     try {
@@ -506,6 +513,18 @@ export class MarkdownEditor {
   }
 
   // ── Change notification ──────────────────────────────────────────────────
+
+  /**
+   * Cancel the pending debounced onChange callback, if any.
+   * Callers that need to preserve the typed text against a specific slide
+   * should capture it before calling this (e.g. via EditController).
+   */
+  cancelOnChange() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+  }
 
   scheduleOnChange() {
     if (this.debounceTimer) {

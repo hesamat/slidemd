@@ -181,7 +181,6 @@ export class SlideOperations {
       return;
 
     this._deckStore.setActiveIndex(insertIndex);
-
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
@@ -205,7 +204,6 @@ export class SlideOperations {
       return;
 
     this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
-
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }
@@ -258,7 +256,6 @@ export class SlideOperations {
       else newMap.set(idx, content);
     }
     this.unsavedMarkdown = newMap;
-
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     return true;
@@ -278,7 +275,6 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
-
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
@@ -312,7 +308,6 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
-
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

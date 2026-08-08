@@ -58,8 +58,9 @@ export class EditController {
     );
     // Clear the per-slide editor-state cache whenever the store's
     // structural revision changes (add/delete/move/whole-deck load).
-    // This is more reliable than checking slide count, which misses
-    // moves that leave the count unchanged but shift every index.
+    // EditController is only used when a DeckStore is present; if deckStore
+    // is null we are in a viewer/presenter/export window and there is no
+    // per-slide cache to invalidate.
     this._lastStructuralRevision = this.deckStore?.getStructuralRevision() ?? 0;
     this._offStructuralChange = this.deckStore?.onStructuralChange(() =>
       this.markdownEditor?.clearSlideStateCache(),
@@ -615,18 +616,28 @@ export class EditController {
     }
   }
 
-  _captureCurrentEditorMarkdown() {
+  /**
+   * Capture the editor's current value into unsavedMarkdown for a specific
+   * slide index. Used for both live typing and flushing the debounced change
+   * before a slide switch.
+   * @param {number} index
+   */
+  _captureEditorMarkdown(index) {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const original = this.deckStore.getSlides()[this.currentSlideIndex];
-    if (markdown === (original ?? "")) {
-      this.unsavedMarkdown.delete(this.currentSlideIndex);
+    const original = this.deckStore.getSlides()[index] ?? "";
+    if (markdown === original) {
+      this.unsavedMarkdown.delete(index);
       this.updateUnsavedChangesFlag();
       return;
     }
-    if (markdown === this.unsavedMarkdown.get(this.currentSlideIndex)) return;
-    this.unsavedMarkdown.set(this.currentSlideIndex, markdown);
+    if (markdown === this.unsavedMarkdown.get(index)) return;
+    this.unsavedMarkdown.set(index, markdown);
     this.updateUnsavedChangesFlag();
+  }
+
+  _captureCurrentEditorMarkdown() {
+    this._captureEditorMarkdown(this.currentSlideIndex);
   }
 
   /**
@@ -703,8 +714,7 @@ export class EditController {
     // Skip this when the structural revision has changed (add/delete/move
     // or whole-deck load) because the current editor state belongs to a
     // pre-op slide at a pre-op index and would pollute the cache. The
-    // structural-change listener already cleared the cache, and the
-    // slide-count guard below will clear it again if needed.
+    // structural-change listener already cleared the cache.
     if (!structuralRevisionChanged && this._lastEditorSlideIndex >= 0 && this.markdownEditor) {
       this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
     }
@@ -1100,6 +1110,15 @@ export class EditController {
     ) {
       this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
     }
+
+    // If we are leaving a real slide, flush any pending debounced input to
+    // _lastEditorSlideIndex before the upcoming state swap. Otherwise the
+    // keystrokes are dropped when loadSlideState / setValue cancels the
+    // debounce timer.
+    if (this._lastEditorSlideIndex !== this.currentSlideIndex && this._lastEditorSlideIndex >= 0) {
+      this._captureEditorMarkdown?.(this._lastEditorSlideIndex);
+    }
+    this.markdownEditor?.cancelOnChange?.();
 
     const base = this.deckStore.getSlides()[this.currentSlideIndex] ?? "";
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
