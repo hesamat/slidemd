@@ -9,7 +9,9 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { AssetLoader } from "../../core/asset-loader.js";
 import { Notification } from "../../renderer/notification.js";
+import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { createEditPatch } from "../../data/store/slide-patch.js";
 
 export class StyleApplier {
@@ -17,6 +19,7 @@ export class StyleApplier {
    * @param {object} opts
    * @param {() => object} opts.getSaveManager
    * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
+   * @param {() => string} [opts.getSourceMarkdown]
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
    * @param {() => object} opts.getDeck
@@ -30,6 +33,7 @@ export class StyleApplier {
   constructor({
     getSaveManager,
     getDeckStore,
+    getSourceMarkdown = null,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
     getDeck,
@@ -42,6 +46,7 @@ export class StyleApplier {
   }) {
     this._getSaveManager = getSaveManager;
     this._getDeckStore = getDeckStore;
+    this._getSourceMarkdown = getSourceMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
     this._getDeck = getDeck;
@@ -154,7 +159,54 @@ export class StyleApplier {
       return;
     }
 
-    Notification.warning("No deck store is available to apply styles.");
+    await this._applyToAllLegacy(cssString, headerStyle, background, theme);
+  }
+
+  async _applyToAllLegacy(cssString, headerStyle, background, theme) {
+    const source = this._getSourceMarkdown?.();
+    if (!source) {
+      Notification.warning("No deck store is available to apply styles.");
+      return;
+    }
+
+    const parser = new MarkdownParser();
+    const sourceSlides = parser.splitSlides(source);
+
+    await AssetLoader.ensureMarkdownItLoaded();
+    for (let i = 0; i < sourceSlides.length; i++) {
+      const current = this.unsavedMarkdown.get(i) ?? sourceSlides[i] ?? "";
+      const withoutTheme = this._applyStyleToMarkdown(
+        current,
+        cssString,
+        headerStyle,
+        background,
+        theme,
+      );
+      this.unsavedMarkdown.set(i, withoutTheme);
+    }
+    this._setHasUnsavedChanges(true);
+    this._onUpdateSaveButton();
+
+    const slidesContainer = document.getElementById("slidesContainer");
+    if (slidesContainer) {
+      const allSlideEls = slidesContainer.querySelectorAll(":scope > .slide");
+      for (let i = 0; i < allSlideEls.length; i++) {
+        const md = this.unsavedMarkdown.get(i) ?? sourceSlides[i] ?? "";
+        const fullDeckData = parser.parseDeckMarkdown(md);
+        const slideData = fullDeckData.slides?.[0];
+        if (!slideData) continue;
+        this.deck.slides[i] = slideData;
+        const wasActive = allSlideEls[i].classList.contains("active");
+        const newEl = SlideRenderer.createSlideElement(this.deck, slideData, i, wasActive);
+        allSlideEls[i].replaceWith(newEl);
+      }
+    }
+
+    this.markdownEditor?.setValue(this.unsavedMarkdown.get(this.currentSlideIndex) ?? "", {
+      suppressOnChange: true,
+      recordHistory: false,
+    });
+    Notification.success("Style applied to all slides");
   }
 
   async pickImage(onSelect) {

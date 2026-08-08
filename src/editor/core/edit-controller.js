@@ -150,14 +150,14 @@ export class EditController {
     this.saveManager = new SaveManager({
       getDeck: () => this.deck,
       getDeckStore: () => this.deckStore,
+      getSourceMarkdown: () => this._getSourceMarkdown(),
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       getHasUnsavedChanges: () => this.hasUnsavedChanges,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
       onBeforeSave: () => {
-        if (!this.deckStore) return;
-        this._captureCurrentEditorMarkdown();
+        this.prepareStoreOperation();
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -299,6 +299,7 @@ export class EditController {
     this.styleApplier = new StyleApplier({
       getSaveManager: () => this.saveManager,
       getDeckStore: () => this.deckStore,
+      getSourceMarkdown: () => this._getSourceMarkdown(),
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;

@@ -4,6 +4,7 @@
  * Handles saving the deck to disk via the CLI dev server API,
  * with fallback to File System Access API or Blob download.
  */
+import { MarkdownParser } from "../../data/markdown-parser.js";
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
@@ -30,6 +31,7 @@ export class SaveManager {
    * @param {object} opts
    * @param {() => object} opts.getDeck
    * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
+   * @param {() => string} [opts.getSourceMarkdown]
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
@@ -39,6 +41,7 @@ export class SaveManager {
   constructor({
     getDeck,
     getDeckStore,
+    getSourceMarkdown = null,
     getUnsavedMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
@@ -47,6 +50,7 @@ export class SaveManager {
   }) {
     this._getDeck = getDeck;
     this._getDeckStore = getDeckStore;
+    this._getSourceMarkdown = getSourceMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
@@ -108,19 +112,36 @@ export class SaveManager {
 
   /**
    * Return all deck slides with editor overlays applied.
-   * @param {object[]} deckStoreSlides
-   * @returns {object[]}
+   * When called with no arguments, fall back to the source markdown path.
+   * @param {object[]} [deckStoreSlides]
+   * @returns {object[]|string[]}
    */
   getFullSlides(deckStoreSlides) {
+    if (deckStoreSlides === undefined) {
+      const source = this._getSourceMarkdown?.() ?? "";
+      if (!source) return [];
+      const parser = new MarkdownParser();
+      const merged = parser.splitSlides(source);
+      for (let i = 0; i < merged.length; i++) {
+        if (this.unsavedMarkdown.has(i)) {
+          merged[i] = this.unsavedMarkdown.get(i);
+        }
+      }
+      return merged;
+    }
     return deckStoreSlides.map((slide, index) => this.getFullSlide(index, slide));
   }
 
   /**
    * Return the full markdown for the provided deck slides.
-   * @param {object[]} deckStoreSlides
+   * When called with no arguments, fall back to the source markdown path.
+   * @param {object[]} [deckStoreSlides]
    * @returns {string}
    */
   getFullMarkdown(deckStoreSlides) {
+    if (deckStoreSlides === undefined) {
+      return this.getFullSlides().join("\n\n---\n\n");
+    }
     return this.getFullSlides(deckStoreSlides)
       .map((slide) => slide.markdown ?? "")
       .join("\n\n---\n\n");
@@ -140,11 +161,16 @@ export class SaveManager {
     this._onBeforeSave?.();
 
     const deckStore = this._getDeckStore?.();
-    const storeSlides = deckStore
-      ? deckStore.getSlides().map((markdown, index) => ({ index, markdown }))
-      : [];
-    const fullMarkdown = this.getFullMarkdown(storeSlides);
-    const fullSlides = this.getFullSlides(storeSlides);
+    let fullMarkdown;
+    let fullSlides;
+    if (deckStore) {
+      const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
+      fullMarkdown = this.getFullMarkdown(storeSlides);
+      fullSlides = this.getFullSlides(storeSlides);
+    } else {
+      fullMarkdown = this.getFullMarkdown();
+      fullSlides = this.getFullSlides();
+    }
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.
     const hasBlobUrls = /blob:/.test(fullMarkdown);
