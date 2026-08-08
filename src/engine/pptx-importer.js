@@ -215,47 +215,23 @@ export class PptxImporter {
             },
           },
           {
-            label: "Save as .md (markdown only)",
+            label: "Save as .md",
             onClick: async () => {
               const loading = Notification.showLoadingModal("Saving deck\u2026");
-              await waitForImageUpload();
-              const mdBlob = new Blob([getLatestMarkdown()], { type: "text/markdown" });
               try {
-                if (window.showSaveFilePicker) {
-                  const handle = await window.showSaveFilePicker({
-                    suggestedName: `${deckName || "pptx-import"}.md`,
-                    types: [
-                      {
-                        description: "Markdown file",
-                        accept: { "text/markdown": [".md"] },
-                      },
-                    ],
-                  });
-                  const writable = await handle.createWritable();
-                  await writable.write(mdBlob);
-                  await writable.close();
-                  loading.dismiss();
-                  Notification.dismissAll();
-                  Notification.success("Deck saved!");
-                  return;
+                const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+                if (!editCtrl?.saveManager?.save) {
+                  throw new Error("The editor save manager is unavailable.");
                 }
+                await editCtrl.saveManager.save();
               } catch (err) {
-                if (err?.name === "AbortError") {
-                  loading.dismiss();
-                  return;
+                if (err?.name !== "AbortError") {
+                  console.error("Failed to save imported deck:", err);
+                  Notification.error("Failed to save file: " + (err.message || err));
                 }
+              } finally {
+                loading.dismiss();
               }
-              const url = URL.createObjectURL(mdBlob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${deckName || "pptx-import"}.md`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              loading.dismiss();
-              Notification.dismissAll();
-              Notification.success("Deck saved!");
             },
           },
         ],

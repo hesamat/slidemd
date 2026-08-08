@@ -360,11 +360,10 @@ export class OpenDeckModal {
         DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
       }
 
-      // If this deck was saved by the app, reuse the persisted folder handle
-      // so the sibling images/ folder renders directly from disk (the CLI
-      // server does not know where a picker-opened .md lives).
-      const dir = await DirectoryHandleStore.load(file.name);
-      DeckImagesResolver.setDirectoryHandle(dir.handle);
+      // The CLI dev server does not know where a picker-opened .md lives, so
+      // resolve its sibling images/ folder directly from disk (blob URLs).
+      const folderHandle = await this._resolveDeckFolderHandle(file.name, rawText);
+      DeckImagesResolver.setDirectoryHandle(folderHandle);
 
       localStorage.setItem("webdeck_local_file", rawText);
       localStorage.setItem("webdeck_local_file_type", "md");
@@ -416,6 +415,65 @@ export class OpenDeckModal {
         console.error("Failed to open .md file:", e);
         Notification.error("Failed to open .md file");
       }
+    }
+  }
+
+  /**
+   * Resolve a directory handle for a picker-opened .md deck so its sibling
+   * images/ folder can render directly from disk. Reuses the folder handle
+   * persisted at save time when its read permission is still granted;
+   * otherwise asks the user to pick the folder once (which re-grants
+   * permission) and remembers it for next time.
+   * @param {string} fileName — the opened .md file name
+   * @param {string} markdown — deck markdown, checked for image references
+   * @returns {Promise<FileSystemDirectoryHandle|null>}
+   */
+  static async _resolveDeckFolderHandle(fileName, markdown) {
+    const hasImages =
+      /!\[[^\]]*\]\(images\/|<img[^>]*\ssrc=["']images\/|url\(\s*['"]?images\//i.test(
+        markdown || "",
+      );
+
+    const dir = await DirectoryHandleStore.load(fileName);
+    if (dir.handle) {
+      let perm = dir.handle.queryPermission
+        ? await dir.handle.queryPermission({ mode: "read" })
+        : "granted";
+      if (perm !== "granted" && dir.handle.requestPermission) {
+        try {
+          perm = await dir.handle.requestPermission({ mode: "read" });
+        } catch {
+          perm = "denied";
+        }
+      }
+      if (perm === "granted") return dir.handle;
+    }
+
+    if (!hasImages || !window.showDirectoryPicker) return null;
+
+    try {
+      const handle = await window.showDirectoryPicker({
+        mode: "readwrite",
+        startIn: "documents",
+      });
+      // Verify the picked folder contains the .md so the relative images/
+      // references actually resolve from it.
+      try {
+        await handle.getFileHandle(fileName);
+      } catch (_err) {
+        Notification.warning(
+          "The folder you selected does not contain this .md file, so its images could not be loaded.",
+          6000,
+        );
+        return null;
+      }
+      await DirectoryHandleStore.save(handle, "parent", fileName);
+      return handle;
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        console.warn("Deck folder selection failed:", e);
+      }
+      return null;
     }
   }
 
