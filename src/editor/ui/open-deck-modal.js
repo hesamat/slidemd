@@ -14,6 +14,7 @@ import { setImageUploadPromise } from "../../core/image-upload-promise.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
+import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",
@@ -249,7 +250,10 @@ export class OpenDeckModal {
         deckStore.loadFromMarkdown(resolvedMarkdown, 0);
       }
 
-      // Flush cached images so the new deck doesn't show stale thumbnails
+      // Flush cached images so the new deck doesn't show stale thumbnails.
+      // .textpack images are rendered from blobs / the server, not the
+      // previous .md deck's on-disk folder.
+      DeckImagesResolver.clearDirectoryHandle();
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
@@ -355,6 +359,12 @@ export class OpenDeckModal {
       if (fileHandle) {
         DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
       }
+
+      // If this deck was saved by the app, reuse the persisted folder handle
+      // so the sibling images/ folder renders directly from disk (the CLI
+      // server does not know where a picker-opened .md lives).
+      const dir = await DirectoryHandleStore.load(file.name);
+      DeckImagesResolver.setDirectoryHandle(dir.handle);
 
       localStorage.setItem("webdeck_local_file", rawText);
       localStorage.setItem("webdeck_local_file_type", "md");

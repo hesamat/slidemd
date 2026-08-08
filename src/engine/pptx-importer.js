@@ -78,7 +78,10 @@ export class PptxImporter {
         /* ignore — best-effort cleanup */
       }
 
-      // Flush cached images so the new deck doesn't show stale thumbnails
+      // Flush cached images so the new deck doesn't show stale thumbnails.
+      // PPTX images are served from the upload temp dir, not the previous
+      // .md deck's on-disk folder.
+      DeckImagesResolver.clearDirectoryHandle();
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
@@ -90,7 +93,7 @@ export class PptxImporter {
       try {
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
-        localStorage.setItem("webdeck_local_file_name", "pptx-import");
+        localStorage.setItem("webdeck_local_file_name", deckName || "pptx-import");
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
         localStorage.setItem("webdeck_opened_from_picker", "1");

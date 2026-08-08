@@ -14,10 +14,75 @@ export class DeckImagesResolver {
   static _cacheVersion = Date.now();
 
   /**
+   * Directory handle for a picker-opened .md deck. When set, `images/...`
+   * refs resolve from `<dir>/images/` directly on disk instead of the CLI
+   * server, so a saved deck's sidecar images render without a server.
+   * @type {FileSystemDirectoryHandle|null}
+   */
+  static _directoryHandle = null;
+
+  /** Blob URLs created from the directory handle, keyed by rel path. */
+  static _dirBlobUrls = new Map();
+
+  /**
    * Bump the cache version so all image URLs are treated as new resources.
    */
   static invalidateCache() {
     this._cacheVersion = Date.now();
+    this._dirBlobUrls.clear();
+  }
+
+  /**
+   * Register (or clear, when passed null) the directory handle of the
+   * currently open picker-opened .md deck, so its sibling images/ folder
+   * can render without the CLI dev server.
+   * @param {FileSystemDirectoryHandle|null} handle
+   */
+  static setDirectoryHandle(handle) {
+    this._directoryHandle = handle;
+    this._dirBlobUrls.clear();
+    this.invalidateCache();
+  }
+
+  /**
+   * Drop the registered directory handle (used when switching to a deck
+   * whose images are served by the CLI dev server, e.g. .textpack or PPTX).
+   */
+  static clearDirectoryHandle() {
+    this.setDirectoryHandle(null);
+  }
+
+  /**
+   * Read an image directly from the registered directory handle and return
+   * a blob URL, or null when the handle is unavailable/unpermitted.
+   * @param {string} relPath — relative path like "images/foo.png"
+   * @returns {Promise<string|null>}
+   */
+  static async _readFromDirectory(relPath) {
+    const handle = this._directoryHandle;
+    if (!handle || !relPath.startsWith("images/")) return null;
+    if (this._dirBlobUrls.has(relPath)) return this._dirBlobUrls.get(relPath);
+    try {
+      if (handle.queryPermission) {
+        let perm = await handle.queryPermission({ mode: "read" });
+        if (perm !== "granted" && handle.requestPermission) {
+          try {
+            perm = await handle.requestPermission({ mode: "read" });
+          } catch {
+            return null;
+          }
+        }
+        if (perm !== "granted") return null;
+      }
+      const imagesDir = await handle.getDirectoryHandle("images");
+      const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
+      const file = await fileHandle.getFile();
+      const url = URL.createObjectURL(file);
+      this._dirBlobUrls.set(relPath, url);
+      return url;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -56,8 +121,12 @@ export class DeckImagesResolver {
       return relPath;
     }
 
-    // Resolve images/ paths to HTTP routes served by the CLI dev server
+    // Resolve images/ paths. A registered directory handle (picker-opened
+    // .md deck) serves the images from disk; otherwise fall back to the
+    // HTTP routes served by the CLI dev server.
     if (relPath.startsWith("images/")) {
+      const localUrl = await this._readFromDirectory(relPath);
+      if (localUrl) return localUrl;
       return `/${relPath}?v=${this._cacheVersion}`;
     }
 
