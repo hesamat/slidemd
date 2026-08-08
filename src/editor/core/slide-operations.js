@@ -20,7 +20,6 @@ export class SlideOperations {
    * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(v: number) => void} opts.setCurrentSlideIndex
-   * @param {() => string[]} opts.getOriginalMarkdown
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
@@ -38,7 +37,6 @@ export class SlideOperations {
     getMarkdownEditor,
     getCurrentSlideIndex,
     setCurrentSlideIndex,
-    getOriginalMarkdown,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
     getHasUnsavedChanges,
@@ -55,7 +53,6 @@ export class SlideOperations {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._setCurrentSlideIndex = setCurrentSlideIndex;
-    this._getOriginalMarkdown = getOriginalMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
@@ -134,9 +131,6 @@ export class SlideOperations {
   set currentSlideIndex(v) {
     this._setCurrentSlideIndex(v);
   }
-  get originalMarkdown() {
-    return this._getOriginalMarkdown();
-  }
   get unsavedMarkdown() {
     return this._getUnsavedMarkdown();
   }
@@ -155,14 +149,13 @@ export class SlideOperations {
 
   /**
    * Return the current working Markdown for a single slide, layering the
-   * editor's unsaved buffer over the canonical store (or the legacy
-   * originalMarkdown fallback when no store is wired in).
+   * editor's unsaved buffer over the canonical store.
    * @param {number} index
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
-    const markdown = source[index] ?? "";
+    const storeSlides = this._deckStore?.getSlides() ?? [];
+    const markdown = storeSlides[index] ?? "";
     const baseSlide = { index, markdown };
     return this.saveManager.getFullSlide
       ? this.saveManager.getFullSlide(index, baseSlide)
@@ -174,8 +167,11 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
-    return source.map((_, i) => this._getWorkingSlide(i).markdown);
+    const storeSlides = this._deckStore?.getSlides() ?? [];
+    const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
+    return this.saveManager.getFullSlides
+      ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
+      : storeSlides;
   }
 
   _getWorkingMarkdown(index) {

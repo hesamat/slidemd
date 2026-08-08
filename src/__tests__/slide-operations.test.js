@@ -30,7 +30,6 @@ function createOps(initialMap = new Map()) {
     getMarkdownEditor: () => null,
     getCurrentSlideIndex: () => 0,
     setCurrentSlideIndex: vi.fn(),
-    getOriginalMarkdown: () => [],
     getUnsavedMarkdown,
     setUnsavedMarkdown,
     getHasUnsavedChanges: () => false,
@@ -201,7 +200,6 @@ describe("SlideOperations.deleteSlide", () => {
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
       },
-      getOriginalMarkdown: () => state.originalMarkdown,
       getUnsavedMarkdown: () => state.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         state.unsavedMarkdown = v;
@@ -285,7 +283,6 @@ describe("SlideOperations store-backed structural operations", () => {
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
       },
-      getOriginalMarkdown: () => state.originalMarkdown,
       getUnsavedMarkdown: () => state.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         state.unsavedMarkdown = v;
@@ -385,7 +382,6 @@ describe("StyleApplier store-backed transaction", () => {
     const applier = new StyleApplier({
       getSaveManager: () => ({ getFullSlide, getFullSlides }),
       getDeckStore: () => store,
-      getOriginalMarkdown: () => store.getSlides(),
       getUnsavedMarkdown: () => unsaved,
       setUnsavedMarkdown: () => {},
       getDeck: () => ({ slides: [] }),

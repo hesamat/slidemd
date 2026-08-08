@@ -9,8 +9,6 @@
  */
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
-import { AssetLoader } from "../../core/asset-loader.js";
-import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { Notification } from "../../renderer/notification.js";
 import { createEditPatch } from "../../data/store/slide-patch.js";
 
@@ -19,7 +17,6 @@ export class StyleApplier {
    * @param {object} opts
    * @param {() => object} opts.getSaveManager
    * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
-   * @param {() => string[]} opts.getOriginalMarkdown
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
    * @param {() => object} opts.getDeck
@@ -33,7 +30,6 @@ export class StyleApplier {
   constructor({
     getSaveManager,
     getDeckStore,
-    getOriginalMarkdown,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
     getDeck,
@@ -46,7 +42,6 @@ export class StyleApplier {
   }) {
     this._getSaveManager = getSaveManager;
     this._getDeckStore = getDeckStore;
-    this._getOriginalMarkdown = getOriginalMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
     this._getDeck = getDeck;
@@ -63,9 +58,6 @@ export class StyleApplier {
   }
   get deckStore() {
     return this._getDeckStore();
-  }
-  get originalMarkdown() {
-    return this._getOriginalMarkdown();
   }
   get unsavedMarkdown() {
     return this._getUnsavedMarkdown();
@@ -162,48 +154,7 @@ export class StyleApplier {
       return;
     }
 
-    // Legacy path for callers without a wired DeckStore.
-    await this._applyToAllLegacy(cssString, headerStyle, background, theme);
-  }
-
-  async _applyToAllLegacy(cssString, headerStyle, background, theme) {
-    await AssetLoader.ensureMarkdownItLoaded();
-    const parser = new MarkdownParser();
-    const total = this.originalMarkdown.length;
-    for (let i = 0; i < total; i++) {
-      const current = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-      const withoutTheme = this._applyStyleToMarkdown(
-        current,
-        cssString,
-        headerStyle,
-        background,
-        theme,
-      );
-      this.unsavedMarkdown.set(i, withoutTheme);
-    }
-    this._setHasUnsavedChanges(true);
-    this._onUpdateSaveButton();
-
-    const slidesContainer = document.getElementById("slidesContainer");
-    if (slidesContainer) {
-      const allSlideEls = slidesContainer.querySelectorAll(":scope > .slide");
-      for (let i = 0; i < allSlideEls.length; i++) {
-        const md = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-        const fullDeckData = parser.parseDeckMarkdown(md);
-        const slideData = fullDeckData.slides?.[0];
-        if (!slideData) continue;
-        this.deck.slides[i] = slideData;
-        const wasActive = allSlideEls[i].classList.contains("active");
-        const newEl = SlideRenderer.createSlideElement(this.deck, slideData, i, wasActive);
-        allSlideEls[i].replaceWith(newEl);
-      }
-    }
-
-    this.markdownEditor?.setValue(this.unsavedMarkdown.get(this.currentSlideIndex) ?? "", {
-      suppressOnChange: true,
-      recordHistory: false,
-    });
-    Notification.success("Style applied to all slides");
+    Notification.warning("No deck store is available to apply styles.");
   }
 
   async pickImage(onSelect) {

@@ -42,11 +42,6 @@ import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
-import {
-  createDeletePatch,
-  createEditPatch,
-  createInsertPatch,
-} from "../../data/store/slide-patch.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
@@ -67,7 +62,6 @@ export class EditController {
 
     this.markdownEditor = null;
 
-    this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
@@ -85,11 +79,12 @@ export class EditController {
     this._onDeckChange = (data) => {
       this.deck = data.deck;
       const isStoreRestore = data.syncStore === false && this.deckStore;
-      this.originalMarkdown = this.deckStore
-        ? this.deckStore.getSlides()
-        : this._cacheOriginalMarkdown();
-      if (isStoreRestore) {
-        this._reconcileUnsavedOverlays(this.originalMarkdown);
+      if (this.deckStore) {
+        if (isStoreRestore) {
+          this._reconcileUnsavedOverlays(this.deckStore.getSlides());
+        } else {
+          this.unsavedMarkdown.clear();
+        }
       } else {
         this.unsavedMarkdown.clear();
       }
@@ -154,11 +149,8 @@ export class EditController {
 
     this.saveManager = new SaveManager({
       getDeck: () => this.deck,
+      getDeckStore: () => this.deckStore,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
-      getOriginalMarkdown: () => this.originalMarkdown,
-      setOriginalMarkdown: (v) => {
-        this.originalMarkdown = v;
-      },
       getHasUnsavedChanges: () => this.hasUnsavedChanges,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
@@ -166,14 +158,6 @@ export class EditController {
       onBeforeSave: () => {
         if (!this.deckStore) return;
         this._captureCurrentEditorMarkdown();
-        const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
-          index,
-          markdown,
-        }));
-        const fullSlides = this.saveManager
-          .getFullSlides(storeSlides)
-          .map((slide) => slide.markdown ?? "");
-        this.syncStoreFromSlides(fullSlides);
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -195,7 +179,6 @@ export class EditController {
       setCurrentSlideIndex: (v) => {
         this.currentSlideIndex = v;
       },
-      getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
@@ -316,7 +299,6 @@ export class EditController {
     this.styleApplier = new StyleApplier({
       getSaveManager: () => this.saveManager,
       getDeckStore: () => this.deckStore,
-      getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
@@ -585,46 +567,11 @@ export class EditController {
     }
   }
 
-  /**
-   * Sync the current slide array into the canonical store at a save boundary.
-   * Keystrokes remain local to the editor until this method is called.
-   * @param {string[]} slides
-   * @param {string} source
-   * @param {object} opts
-   */
-  syncStoreFromSlides(slides, source = "user", { recordHistory = true, emit = true } = {}) {
-    if (!this.deckStore) return;
-    const desired = [...slides];
-    if (!recordHistory) {
-      this.deckStore.syncSlides(desired, this.currentSlideIndex, { emit });
-      return;
-    }
-
-    const working = this.deckStore.getSlides();
-    const patches = [];
-    const shared = Math.min(working.length, desired.length);
-
-    for (let i = 0; i < shared; i += 1) {
-      if (working[i] !== desired[i]) {
-        patches.push(createEditPatch(i, working[i], desired[i], source));
-        working[i] = desired[i];
-      }
-    }
-    for (let i = working.length - 1; i >= desired.length; i -= 1) {
-      patches.push(createDeletePatch(i, working[i], source));
-      working.splice(i, 1);
-    }
-    for (let i = working.length; i < desired.length; i += 1) {
-      patches.push(createInsertPatch(i, desired[i], source));
-      working.splice(i, 0, desired[i]);
-    }
-    if (patches.length) this.deckStore.applyPatches(patches);
-  }
-
   _captureCurrentEditorMarkdown() {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const original = this.originalMarkdown[this.currentSlideIndex] ?? "";
+    const storeSlides = this.deckStore?.getSlides() ?? [];
+    const original = storeSlides[this.currentSlideIndex] ?? "";
     if (markdown === original) {
       this.unsavedMarkdown.delete(this.currentSlideIndex);
       this.updateUnsavedChangesFlag();
@@ -655,15 +602,11 @@ export class EditController {
     const fullSlides = this.saveManager
       .getFullSlides(storeSlides)
       .map((slide) => slide.markdown ?? "");
-    this.syncStoreFromSlides(fullSlides, "system", {
-      recordHistory: false,
-      emit: false,
-    });
+    this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
 
     // The store was updated in place; refresh the editor's working copy
     // without triggering a full deck reload.
-    this.originalMarkdown = this.deckStore.getSlides();
-    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this._reconcileUnsavedOverlays(this.deckStore.getSlides());
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
   }
@@ -707,8 +650,7 @@ export class EditController {
   _handleStoreChange(slides) {
     if (this._destroyed) return;
 
-    this.originalMarkdown = [...slides];
-    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this._reconcileUnsavedOverlays([...slides]);
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
@@ -1022,9 +964,6 @@ export class EditController {
             source: "ai",
             timestamp: Date.now(),
           });
-          this.originalMarkdown = this.deckStore.getSlides();
-        } else {
-          this.originalMarkdown = newSlides;
         }
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
@@ -1046,10 +985,8 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    const markdown =
-      this.unsavedMarkdown.get(this.currentSlideIndex) ??
-      this.originalMarkdown[this.currentSlideIndex] ??
-      "";
+    const base = this.deckStore?.getSlides()[this.currentSlideIndex] ?? "";
+    const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
     this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory: true });
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
@@ -1126,20 +1063,20 @@ export class EditController {
 
   _deleteAreaFromMarkdown(areaName) {
     if (!this.markdownEditor?.view) return;
-    const originalMarkdown = this.markdownEditor.getValue();
+    const currentMarkdown = this.markdownEditor.getValue();
 
-    const markerRange = this.areaNav.getAreaMarkerRange(originalMarkdown, areaName);
+    const markerRange = this.areaNav.getAreaMarkerRange(currentMarkdown, areaName);
     if (!markerRange) return;
 
     const changes = [{ from: markerRange.from, to: markerRange.to, insert: "" }];
 
     const parser = new MarkdownParser();
-    const layoutResult = parser.extractDirective(originalMarkdown, "layout");
+    const layoutResult = parser.extractDirective(currentMarkdown, "layout");
 
     if (layoutResult.found) {
       // Compute the new layout directive without rewriting the whole document.
-      const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
-      if (updatedMarkdown !== originalMarkdown) {
+      const updatedMarkdown = removeAreaFromLayout(currentMarkdown, areaName);
+      if (updatedMarkdown !== currentMarkdown) {
         const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
         const newLayoutLine =
           layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
