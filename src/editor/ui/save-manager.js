@@ -8,6 +8,7 @@ import { MarkdownParser } from "../../data/markdown-parser.js";
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 
 /**
  * Extract relative image paths (images/...) from markdown.
@@ -46,6 +47,9 @@ function sanitizeFileName(name, fallback = "deck.md") {
 
 /**
  * Download the referenced images and write them into a directory handle.
+ * Images loaded from the current deck's on-disk folder are read straight
+ * from disk (the dev server does not know where a picker-opened deck
+ * lives); anything else falls back to the server's `/images/*` route.
  * Only the basename of each path is written, so image references can never
  * escape the target directory.
  * @param {FileSystemDirectoryHandle} dirHandle
@@ -57,12 +61,15 @@ async function writeImagesToDir(dirHandle, relPaths) {
   let failed = 0;
   for (const relPath of relPaths) {
     try {
-      const res = await fetch(`/${relPath}`);
-      if (!res.ok) {
-        failed++;
-        continue;
+      let blob = await DeckImagesResolver.getImageFile(relPath);
+      if (!blob) {
+        const res = await fetch(`/${relPath}`);
+        if (!res.ok) {
+          failed++;
+          continue;
+        }
+        blob = await res.blob();
       }
-      const blob = await res.blob();
       const imgName = relPath.split("/").pop();
       const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
       const imgWritable = await imgHandle.createWritable();
@@ -323,6 +330,32 @@ export class SaveManager {
           id: "webdeck-save-deck",
           startIn: "documents",
         });
+
+        // Restore the native overwrite confirmation the previous single-file
+        // flow provided: if a file with the same name already exists, ask
+        // before replacing it.
+        let exists = false;
+        try {
+          await dirHandle.getFileHandle(safeFileName);
+          exists = true;
+        } catch {
+          /* new file */
+        }
+        if (exists) {
+          const overwrite = await Notification.showModal({
+            title: "Overwrite existing file?",
+            message: `A file named "${safeFileName}" already exists in this folder. Overwrite it?`,
+            type: "warning",
+            blockBackdrop: true,
+            buttons: [
+              { label: "Cancel", resolvesTo: "cancel" },
+              { label: "Overwrite", isPrimary: true, resolvesTo: "ok" },
+            ],
+          });
+          if (overwrite !== "ok") {
+            throw new DOMException("Save cancelled", "AbortError");
+          }
+        }
 
         const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
         const mdWritable = await mdHandle.createWritable();

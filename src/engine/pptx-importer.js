@@ -217,20 +217,21 @@ export class PptxImporter {
           {
             label: "Save as .md",
             onClick: async () => {
-              const loading = Notification.showLoadingModal("Saving deck\u2026");
+              const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+              if (!editCtrl?.saveManager?.save) {
+                Notification.error("The editor save manager is unavailable.");
+                return;
+              }
+              // Delegates to SaveManager, which waits for pending image
+              // uploads and opens the save picker itself (no spinner here —
+              // a blocking modal would sit behind the native picker).
               try {
-                const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-                if (!editCtrl?.saveManager?.save) {
-                  throw new Error("The editor save manager is unavailable.");
-                }
                 await editCtrl.saveManager.save();
               } catch (err) {
                 if (err?.name !== "AbortError") {
                   console.error("Failed to save imported deck:", err);
                   Notification.error("Failed to save file: " + (err.message || err));
                 }
-              } finally {
-                loading.dismiss();
               }
             },
           },

@@ -21,15 +21,40 @@ export class DeckImagesResolver {
    */
   static _directoryHandle = null;
 
-  /** Blob URLs created from the directory handle, keyed by rel path. */
+  /**
+   * In-flight or resolved lookups for the directory handle, keyed by rel
+   * path. Each value is a promise resolving to a blob URL or null (negative
+   * results are cached too, so missing files are not re-probed per render).
+   * @type {Map<string, Promise<string|null>>}
+   */
   static _dirBlobUrls = new Map();
+
+  /** Blob URLs created from the directory handle, tracked for revocation. */
+  static _createdBlobUrls = new Set();
+
+  /**
+   * Release every blob URL created from the directory handle. In-flight
+   * lookups that resolve later add their URL to the set and are revoked on
+   * the next clear.
+   */
+  static _clearDirBlobUrls() {
+    for (const url of this._createdBlobUrls) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        /* ignore */
+      }
+    }
+    this._createdBlobUrls.clear();
+    this._dirBlobUrls.clear();
+  }
 
   /**
    * Bump the cache version so all image URLs are treated as new resources.
    */
   static invalidateCache() {
     this._cacheVersion = Date.now();
-    this._dirBlobUrls.clear();
+    this._clearDirBlobUrls();
   }
 
   /**
@@ -40,7 +65,7 @@ export class DeckImagesResolver {
    */
   static setDirectoryHandle(handle) {
     this._directoryHandle = handle;
-    this._dirBlobUrls.clear();
+    this._clearDirBlobUrls();
     this.invalidateCache();
   }
 
@@ -53,17 +78,64 @@ export class DeckImagesResolver {
   }
 
   /**
+   * Whether a deck folder handle is currently registered.
+   * @returns {boolean}
+   */
+  static hasDirectoryHandle() {
+    return Boolean(this._directoryHandle);
+  }
+
+  /**
    * Read an image directly from the registered directory handle and return
-   * a blob URL, or null when the handle is unavailable/unpermitted.
+   * a blob URL, or null when the handle is unavailable/unpermitted. The
+   * in-flight promise is cached so concurrent and repeated resolutions of
+   * the same path share a single filesystem read.
    * @param {string} relPath — relative path like "images/foo.png"
    * @returns {Promise<string|null>}
    */
-  static async _readFromDirectory(relPath) {
+  static _readFromDirectory(relPath) {
+    const handle = this._directoryHandle;
+    if (!handle || !relPath.startsWith("images/")) return Promise.resolve(null);
+    if (this._dirBlobUrls.has(relPath)) return this._dirBlobUrls.get(relPath);
+
+    const promise = (async () => {
+      try {
+        if (handle.queryPermission) {
+          let perm = await handle.queryPermission({ mode: "read" });
+          if (perm !== "granted" && handle.requestPermission) {
+            try {
+              perm = await handle.requestPermission({ mode: "read" });
+            } catch {
+              return null;
+            }
+          }
+          if (perm !== "granted") return null;
+        }
+        const imagesDir = await handle.getDirectoryHandle("images");
+        const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
+        const file = await fileHandle.getFile();
+        const url = URL.createObjectURL(file);
+        this._createdBlobUrls.add(url);
+        return url;
+      } catch {
+        return null;
+      }
+    })();
+
+    this._dirBlobUrls.set(relPath, promise);
+    return promise;
+  }
+
+  /**
+   * Read an image file directly from the registered directory handle, or
+   * null when it is unavailable/unpermitted. Used by save/export paths so
+   * deck-folder images are copied from disk instead of the dev server.
+   * @param {string} relPath — relative path like "images/foo.png"
+   * @returns {Promise<File|null>}
+   */
+  static async getImageFile(relPath) {
     const handle = this._directoryHandle;
     if (!handle || !relPath.startsWith("images/")) return null;
-    // Negative results are cached too (as null) so missing images or an
-    // absent images/ folder do not re-probe the filesystem on every render.
-    if (this._dirBlobUrls.has(relPath)) return this._dirBlobUrls.get(relPath);
     try {
       if (handle.queryPermission) {
         let perm = await handle.queryPermission({ mode: "read" });
@@ -71,23 +143,15 @@ export class DeckImagesResolver {
           try {
             perm = await handle.requestPermission({ mode: "read" });
           } catch {
-            this._dirBlobUrls.set(relPath, null);
             return null;
           }
         }
-        if (perm !== "granted") {
-          this._dirBlobUrls.set(relPath, null);
-          return null;
-        }
+        if (perm !== "granted") return null;
       }
       const imagesDir = await handle.getDirectoryHandle("images");
       const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
-      const file = await fileHandle.getFile();
-      const url = URL.createObjectURL(file);
-      this._dirBlobUrls.set(relPath, url);
-      return url;
+      return await fileHandle.getFile();
     } catch {
-      this._dirBlobUrls.set(relPath, null);
       return null;
     }
   }

@@ -451,6 +451,24 @@ export class OpenDeckModal {
 
     if (!hasImages || !window.showDirectoryPicker) return null;
 
+    // showOpenFilePicker already consumed the user activation, so the
+    // directory picker would be rejected by Chromium if called inline.
+    // Trigger it from this modal's button click instead (fresh activation).
+    const shouldPick = await Notification.showModal({
+      title: "Load deck images",
+      message:
+        `This deck references images in an "images/" folder next to the .md file. ` +
+        `Choose that folder so the images can be displayed.`,
+      type: "info",
+      blockBackdrop: true,
+      buttons: [
+        { label: "Cancel", resolvesTo: false },
+        { label: "Choose images folder", isPrimary: true, resolvesTo: true },
+      ],
+      closeResolvesTo: false,
+    });
+    if (!shouldPick) return null;
+
     try {
       const handle = await window.showDirectoryPicker({
         mode: "readwrite",

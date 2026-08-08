@@ -295,7 +295,7 @@ export class SlideStylePanel {
   static async _resolveImageBlob(path) {
     try {
       const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-      if (DeckImagesResolver._dirHandle && /^images\//.test(path)) {
+      if (DeckImagesResolver.hasDirectoryHandle() && /^images\//.test(path)) {
         const blobUrl = await DeckImagesResolver.resolvePreviewSrc(path);
         if (blobUrl !== path) {
           this._currentImageBlobUrl = blobUrl;

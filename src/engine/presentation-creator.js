@@ -6,6 +6,7 @@
  */
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
+import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { Notification } from "../renderer/notification.js";
@@ -55,6 +56,10 @@ export class PresentationCreator {
 
     // Tell the CLI server to forget the old deck (clears stale image references)
     await fetch("/api/deck/reset", { method: "POST" }).catch(() => {});
+
+    // A new presentation has no on-disk folder — drop any previous deck's
+    // handle so it cannot leak that deck's images into the new slides.
+    DeckImagesResolver.clearDirectoryHandle();
 
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();

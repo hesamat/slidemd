@@ -46,4 +46,22 @@ describe("DeckImagesResolver directory images", () => {
 
     expect(getDirectoryHandle).toHaveBeenCalledTimes(1);
   });
+
+  it("deduplicates concurrent lookups of the same image", async () => {
+    const getFile = vi.fn().mockResolvedValue(new Blob(["image"], { type: "image/png" }));
+    const getFileHandle = vi.fn().mockResolvedValue({ getFile });
+    DeckImagesResolver.setDirectoryHandle({
+      queryPermission: vi.fn().mockResolvedValue("granted"),
+      getDirectoryHandle: vi.fn().mockResolvedValue({ getFileHandle }),
+    });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:image");
+
+    const [a, b] = await Promise.all([
+      DeckImagesResolver.resolvePreviewSrc("images/same.png"),
+      DeckImagesResolver.resolvePreviewSrc("images/same.png"),
+    ]);
+    expect(a).toBe("blob:image");
+    expect(b).toBe("blob:image");
+    expect(getFileHandle).toHaveBeenCalledTimes(1);
+  });
 });

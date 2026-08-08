@@ -13,6 +13,7 @@ import { UiActions } from "../ui/ui-actions.js";
 import { RoleManager } from "./role-manager.js";
 import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
+import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 
 export class ReloadManager extends EventEmitter {
   /**
@@ -185,11 +186,57 @@ export class ReloadManager extends EventEmitter {
 
       if (!raw) throw new Error("No deck source available");
 
+      // Picker-opened decks restore their folder handle so on-disk images
+      // keep resolving after a reload; every other source must not inherit
+      // a previous deck's folder (it could show the wrong pictures).
+      await this._syncDirectoryHandle();
+
       const newDeck = await DeckLoader.processRawData(raw);
       await this.replaceDeck(newDeck);
     } catch (err) {
       console.error("Reload failed:", err);
       Notification.error("Failed to reload deck: " + err.message);
+    }
+  }
+
+  /**
+   * Restore the persisted deck-folder handle when reloading a picker-opened
+   * deck, or drop it for decks served by the CLI server / example / new.
+   */
+  async _syncDirectoryHandle() {
+    try {
+      const fromPicker = localStorage.getItem("webdeck_opened_from_picker") === "1";
+      if (!fromPicker || !window.showDirectoryPicker) {
+        DeckImagesResolver.clearDirectoryHandle();
+        return;
+      }
+      const fileName = localStorage.getItem("webdeck_local_file_name");
+      if (!fileName) {
+        DeckImagesResolver.clearDirectoryHandle();
+        return;
+      }
+      const dir = await DirectoryHandleStore.load(fileName);
+      if (!dir.handle) {
+        DeckImagesResolver.clearDirectoryHandle();
+        return;
+      }
+      let perm = dir.handle.queryPermission
+        ? await dir.handle.queryPermission({ mode: "read" })
+        : "granted";
+      if (perm !== "granted" && dir.handle.requestPermission) {
+        try {
+          perm = await dir.handle.requestPermission({ mode: "read" });
+        } catch {
+          perm = "denied";
+        }
+      }
+      if (perm === "granted") {
+        DeckImagesResolver.setDirectoryHandle(dir.handle);
+      } else {
+        DeckImagesResolver.clearDirectoryHandle();
+      }
+    } catch {
+      DeckImagesResolver.clearDirectoryHandle();
     }
   }
 
@@ -309,7 +356,9 @@ export class ReloadManager extends EventEmitter {
       const { text, fileName } = event.detail || {};
       if (fileName) localStorage.setItem("webdeck_local_file_name", fileName);
 
-      // Flush cached images so the new deck doesn't show stale thumbnails
+      // Flush cached images so the new deck doesn't show stale thumbnails.
+      // Example/local decks are server-backed, not a picker-opened folder.
+      DeckImagesResolver.clearDirectoryHandle();
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
