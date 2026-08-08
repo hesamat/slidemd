@@ -14,6 +14,7 @@ import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { waitForImageUpload } from "../core/image-upload-promise.js";
 import { ReloadManager } from "./reload-manager.js";
 import { UiActions } from "../ui/ui-actions.js";
+import { Notification } from "../renderer/notification.js";
 import { applyOpenInNewTabToLinks } from "../data/markdown-parser.js";
 import { createKeyboardHandler } from "./deck-keyboard.js";
 import { DeckEvents } from "./deck-events.js";
@@ -417,11 +418,12 @@ export class DeckController extends EventEmitter {
   }
 
   toggleEditMode() {
-    try {
-      window.__WEBDECK_EDIT_CONTROLLER__.toggleEditMode();
-    } catch (error) {
-      console.error("Error: __WEBDECK_EDIT_CONTROLLER__ not found", error);
+    const editController = window.__WEBDECK_EDIT_CONTROLLER__;
+    if (!editController) {
+      Notification.info("Editing is not available in this view");
+      return;
     }
+    editController.toggleEditMode();
     // Notify the navigator that edit mode has changed
     this.slideNavigator.onEditModeChanged();
   }

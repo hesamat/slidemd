@@ -20,7 +20,6 @@ export class SlideOperations {
    * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(v: number) => void} opts.setCurrentSlideIndex
-   * @param {() => string[]} opts.getOriginalMarkdown
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
@@ -38,7 +37,6 @@ export class SlideOperations {
     getMarkdownEditor,
     getCurrentSlideIndex,
     setCurrentSlideIndex,
-    getOriginalMarkdown,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
     getHasUnsavedChanges,
@@ -55,7 +53,6 @@ export class SlideOperations {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._setCurrentSlideIndex = setCurrentSlideIndex;
-    this._getOriginalMarkdown = getOriginalMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
@@ -89,8 +86,6 @@ export class SlideOperations {
    * @returns {boolean} true when the patches were committed, false otherwise
    */
   _applyStorePatches(patches) {
-    if (!this._deckStore) return true;
-
     if (this._isPatchSuccess(this._deckStore.applyPatches(patches))) {
       this._recordStoreOperation?.();
       return true;
@@ -134,9 +129,6 @@ export class SlideOperations {
   set currentSlideIndex(v) {
     this._setCurrentSlideIndex(v);
   }
-  get originalMarkdown() {
-    return this._getOriginalMarkdown();
-  }
   get unsavedMarkdown() {
     return this._getUnsavedMarkdown();
   }
@@ -155,16 +147,14 @@ export class SlideOperations {
 
   /**
    * Return the current working Markdown for a single slide, layering the
-   * editor's unsaved buffer over the canonical store (or the legacy
-   * originalMarkdown fallback when no store is wired in).
+   * editor's unsaved buffer over the canonical store.
    * @param {number} index
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
-    const markdown = source[index] ?? "";
+    const markdown = this._deckStore.getSlides()[index] ?? "";
     const baseSlide = { index, markdown };
-    return this.saveManager.getFullSlide
+    return this.saveManager?.getFullSlide
       ? this.saveManager.getFullSlide(index, baseSlide)
       : baseSlide;
   }
@@ -174,8 +164,11 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
-    return source.map((_, i) => this._getWorkingSlide(i).markdown);
+    const sourceSlides = this._deckStore.getSlides();
+    const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
+    return this.saveManager?.getFullSlides
+      ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
+      : sourceSlides;
   }
 
   _getWorkingMarkdown(index) {
@@ -183,7 +176,7 @@ export class SlideOperations {
   }
 
   addSlide() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const insertIndex = this.currentSlideIndex + 1;
@@ -193,14 +186,14 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
       return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
   }
 
   async deleteSlide() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount <= 1) {
       Notification.warning("Cannot delete the only slide");
       return;
@@ -213,10 +206,10 @@ export class SlideOperations {
 
     this._prepareStoreMutation();
     const deletedMarkdown = this._getWorkingMarkdown(indexToDelete);
-    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
       return;
 
+    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }
@@ -236,7 +229,7 @@ export class SlideOperations {
   }
 
   moveSlideDown() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (this.currentSlideIndex >= slideCount - 1) {
       Notification.warning("Cannot move the last slide down");
       return;
@@ -287,14 +280,14 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
   }
 
   addSlideWithLayout(layoutName) {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const template = LayoutData.getTemplate(layoutName);
@@ -320,7 +313,7 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

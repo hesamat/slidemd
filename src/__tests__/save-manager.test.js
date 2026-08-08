@@ -4,9 +4,8 @@ import { SaveManager } from "../editor/ui/save-manager.js";
 function createSaveManager() {
   return new SaveManager({
     getDeck: () => ({ slides: [] }),
+    getDeckStore: () => null,
     getUnsavedMarkdown: () => new Map(),
-    getOriginalMarkdown: () => [],
-    setOriginalMarkdown: () => {},
     getHasUnsavedChanges: () => false,
     setHasUnsavedChanges: () => {},
   });

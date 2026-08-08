@@ -4,6 +4,7 @@
  * Handles saving the deck to disk via the CLI dev server API,
  * with fallback to File System Access API or Blob download.
  */
+import { MarkdownParser } from "../../data/markdown-parser.js";
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 
@@ -29,9 +30,10 @@ export class SaveManager {
   /**
    * @param {object} opts
    * @param {() => object} opts.getDeck
+   * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
+   * @param {() => string} [opts.getSourceMarkdown]
+   * @param {(markdown: string) => void} [opts.setSourceMarkdown]
    * @param {() => Map} opts.getUnsavedMarkdown
-   * @param {() => string[]} opts.getOriginalMarkdown
-   * @param {(v: string[]) => void} opts.setOriginalMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => void} [opts.onBeforeSave]
@@ -39,18 +41,20 @@ export class SaveManager {
    */
   constructor({
     getDeck,
+    getDeckStore,
+    getSourceMarkdown = null,
+    setSourceMarkdown = null,
     getUnsavedMarkdown,
-    getOriginalMarkdown,
-    setOriginalMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
     onBeforeSave = null,
     onSaveStateReset = null,
   }) {
     this._getDeck = getDeck;
+    this._getDeckStore = getDeckStore;
+    this._getSourceMarkdown = getSourceMarkdown;
+    this._setSourceMarkdown = setSourceMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
-    this._getOriginalMarkdown = getOriginalMarkdown;
-    this._setOriginalMarkdown = setOriginalMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onBeforeSave = onBeforeSave;
@@ -69,9 +73,6 @@ export class SaveManager {
   }
   get unsavedMarkdown() {
     return this._getUnsavedMarkdown();
-  }
-  get originalMarkdown() {
-    return this._getOriginalMarkdown();
   }
 
   /**
@@ -114,35 +115,42 @@ export class SaveManager {
 
   /**
    * Return all deck slides with editor overlays applied.
-   * When called with no arguments, fall back to the legacy string-array path.
+   * When called with no arguments, fall back to the source markdown path.
    * @param {object[]} [deckStoreSlides]
    * @returns {object[]|string[]}
    */
   getFullSlides(deckStoreSlides) {
     if (deckStoreSlides === undefined) {
-      const merged = [...this.originalMarkdown];
-      for (let i = 0; i < this.deck.slides.length; i++) {
-        if (this.unsavedMarkdown.has(i)) {
-          merged[i] = this.unsavedMarkdown.get(i);
-        }
+      const deckStore = this._getDeckStore?.();
+      if (deckStore) {
+        return deckStore
+          .getSlides()
+          .map((markdown, index) =>
+            this.unsavedMarkdown.has(index) ? this.unsavedMarkdown.get(index) : markdown,
+          );
       }
-      return merged;
+
+      const source = this._getSourceMarkdown?.() ?? "";
+      if (!source) return [];
+      const parser = new MarkdownParser();
+      return parser
+        .splitSlides(source)
+        .map((markdown, index) =>
+          this.unsavedMarkdown.has(index) ? this.unsavedMarkdown.get(index) : markdown,
+        );
     }
     return deckStoreSlides.map((slide, index) => this.getFullSlide(index, slide));
   }
 
   /**
    * Return the full markdown for the provided deck slides.
-   * When called with no arguments, fall back to the legacy path.
+   * When called with no arguments, fall back to the source markdown path.
    * @param {object[]} [deckStoreSlides]
    * @returns {string}
    */
   getFullMarkdown(deckStoreSlides) {
-    if (deckStoreSlides === undefined) {
-      return this.getFullSlides().join("\n\n---\n\n");
-    }
     return this.getFullSlides(deckStoreSlides)
-      .map((slide) => slide.markdown ?? "")
+      .map((s) => (typeof s === "string" ? s : (s.markdown ?? "")))
       .join("\n\n---\n\n");
   }
 
@@ -158,8 +166,15 @@ export class SaveManager {
   async _prepareSave() {
     await waitForImageUpload();
     this._onBeforeSave?.();
-    const fullMarkdown = this.getFullMarkdown();
-    const fullSlides = this.getFullSlides();
+
+    const deckStore = this._getDeckStore?.();
+    let fullMarkdown;
+    if (deckStore) {
+      const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
+      fullMarkdown = this.getFullMarkdown(storeSlides);
+    } else {
+      fullMarkdown = this.getFullMarkdown();
+    }
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.
     const hasBlobUrls = /blob:/.test(fullMarkdown);
@@ -171,19 +186,19 @@ export class SaveManager {
       );
     }
 
-    return { fullMarkdown, fullSlides };
+    return { fullMarkdown };
   }
 
   /**
-   * Record that a save succeeded: promote the in-memory slides to the saved
-   * originals and clear the dirty state.
-   * @param {string[]} fullSlides
+   * Record that a save succeeded: clear the dirty state and update the
+   * source snapshot so the baseline matches what was written to disk.
+   * @param {string} fullMarkdown
    */
-  _markSaved(fullSlides) {
-    this._setOriginalMarkdown(fullSlides);
+  _markSaved(fullMarkdown) {
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this._onSaveStateReset?.();
+    this._setSourceMarkdown?.(fullMarkdown);
     this.updateButton();
   }
 
@@ -370,7 +385,7 @@ export class SaveManager {
         // A successful .textpack export is a valid save: clear the dirty state
         // so the editor doesn't keep warning about unsaved changes. Return false
         // so the caller doesn't also show the generic "Deck saved!" toast.
-        if (ok) this._markSaved(this.getFullSlides());
+        if (ok) this._markSaved(markdown);
         return false;
       }
       // choice === "md" — fall through to blob download below
@@ -389,10 +404,10 @@ export class SaveManager {
   }
 
   async save() {
-    const { fullMarkdown, fullSlides } = await this._prepareSave();
+    const { fullMarkdown } = await this._prepareSave();
     try {
       const saved = await this._doMarkdownSave(fullMarkdown);
-      if (saved) this._markSaved(fullSlides);
+      if (saved) this._markSaved(fullMarkdown);
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);

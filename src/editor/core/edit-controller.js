@@ -42,14 +42,10 @@ import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
-import {
-  createDeletePatch,
-  createEditPatch,
-  createInsertPatch,
-} from "../../data/store/slide-patch.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
+import { createEditPatch } from "../../data/store/slide-patch.js";
 
 export class EditController {
   constructor(deck, controller, elements, { deckStore = null } = {}) {
@@ -67,7 +63,6 @@ export class EditController {
 
     this.markdownEditor = null;
 
-    this.originalMarkdown = this._cacheOriginalMarkdown();
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
@@ -75,6 +70,11 @@ export class EditController {
     this.placeholderDialogEl = null;
 
     this._destroyed = false;
+    this._lastEditorSlideIndex = -1;
+    this._lastEditorDeck = null;
+    this._cachedSourceMarkdown = null;
+    this._cachedOriginalSlides = [];
+
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
@@ -85,11 +85,12 @@ export class EditController {
     this._onDeckChange = (data) => {
       this.deck = data.deck;
       const isStoreRestore = data.syncStore === false && this.deckStore;
-      this.originalMarkdown = this.deckStore
-        ? this.deckStore.getSlides()
-        : this._cacheOriginalMarkdown();
-      if (isStoreRestore) {
-        this._reconcileUnsavedOverlays(this.originalMarkdown);
+      if (this.deckStore) {
+        if (isStoreRestore) {
+          this._reconcileUnsavedOverlays(this.deckStore.getSlides());
+        } else {
+          this.unsavedMarkdown.clear();
+        }
       } else {
         this.unsavedMarkdown.clear();
       }
@@ -154,26 +155,16 @@ export class EditController {
 
     this.saveManager = new SaveManager({
       getDeck: () => this.deck,
+      getDeckStore: () => this.deckStore,
+      getSourceMarkdown: () => this._getSourceMarkdown(),
+      setSourceMarkdown: (markdown) => this._setSourceMarkdown(markdown),
       getUnsavedMarkdown: () => this.unsavedMarkdown,
-      getOriginalMarkdown: () => this.originalMarkdown,
-      setOriginalMarkdown: (v) => {
-        this.originalMarkdown = v;
-      },
       getHasUnsavedChanges: () => this.hasUnsavedChanges,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
       onBeforeSave: () => {
-        if (!this.deckStore) return;
-        this._captureCurrentEditorMarkdown();
-        const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
-          index,
-          markdown,
-        }));
-        const fullSlides = this.saveManager
-          .getFullSlides(storeSlides)
-          .map((slide) => slide.markdown ?? "");
-        this.syncStoreFromSlides(fullSlides);
+        this.prepareStoreOperation(true);
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -195,7 +186,6 @@ export class EditController {
       setCurrentSlideIndex: (v) => {
         this.currentSlideIndex = v;
       },
-      getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
@@ -316,14 +306,10 @@ export class EditController {
     this.styleApplier = new StyleApplier({
       getSaveManager: () => this.saveManager,
       getDeckStore: () => this.deckStore,
-      getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
       },
-      getDeck: () => this.deck,
-      getCurrentSlideIndex: () => this.currentSlideIndex,
-      getMarkdownEditor: () => this.markdownEditor,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
@@ -350,15 +336,37 @@ export class EditController {
     return DeckLoader.getSourceMarkdown();
   }
 
+  /**
+   * Update the source snapshot after a successful save so the dirty
+   * baseline matches what was written to disk.
+   * @param {string} markdown
+   */
+  _setSourceMarkdown(markdown) {
+    this._cachedSourceMarkdown = null;
+    try {
+      localStorage.setItem("webdeck_local_file", markdown);
+    } catch {
+      localStorage.removeItem("webdeck_local_file");
+      window.__WEBDECK_MARKDOWN__ = markdown;
+    }
+  }
+
   _cacheOriginalMarkdown() {
     const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
+    if (localFile === this._cachedSourceMarkdown) {
+      return this._cachedOriginalSlides;
+    }
 
     try {
       const parser = new MarkdownParser();
-      return parser.splitSlides(localFile);
+      this._cachedSourceMarkdown = localFile;
+      this._cachedOriginalSlides = parser.splitSlides(localFile);
+      return this._cachedOriginalSlides;
     } catch (error) {
       console.error("Failed to cache markdown:", error);
+      this._cachedSourceMarkdown = null;
+      this._cachedOriginalSlides = [];
       return [];
     }
   }
@@ -368,11 +376,11 @@ export class EditController {
    * @returns {boolean}
    */
   _storeDiffersFromSource() {
-    if (!this.deckStore) return false;
     const store = this.deckStore.getSlides();
     const source = this._cacheOriginalMarkdown();
     if (store.length !== source.length) return true;
-    return store.some((slide, i) => slide !== source[i]);
+    const normalize = (s) => s.replace(/\r\n?/g, "\n").trim();
+    return store.some((slide, i) => normalize(slide) !== normalize(source[i]));
   }
 
   /**
@@ -585,47 +593,11 @@ export class EditController {
     }
   }
 
-  /**
-   * Sync the current slide array into the canonical store at a save boundary.
-   * Keystrokes remain local to the editor until this method is called.
-   * @param {string[]} slides
-   * @param {string} source
-   * @param {object} opts
-   */
-  syncStoreFromSlides(slides, source = "user", { recordHistory = true, emit = true } = {}) {
-    if (!this.deckStore) return;
-    const desired = [...slides];
-    if (!recordHistory) {
-      this.deckStore.syncSlides(desired, this.currentSlideIndex, { emit });
-      return;
-    }
-
-    const working = this.deckStore.getSlides();
-    const patches = [];
-    const shared = Math.min(working.length, desired.length);
-
-    for (let i = 0; i < shared; i += 1) {
-      if (working[i] !== desired[i]) {
-        patches.push(createEditPatch(i, working[i], desired[i], source));
-        working[i] = desired[i];
-      }
-    }
-    for (let i = working.length - 1; i >= desired.length; i -= 1) {
-      patches.push(createDeletePatch(i, working[i], source));
-      working.splice(i, 1);
-    }
-    for (let i = working.length; i < desired.length; i += 1) {
-      patches.push(createInsertPatch(i, desired[i], source));
-      working.splice(i, 0, desired[i]);
-    }
-    if (patches.length) this.deckStore.applyPatches(patches);
-  }
-
   _captureCurrentEditorMarkdown() {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const original = this.originalMarkdown[this.currentSlideIndex] ?? "";
-    if (markdown === original) {
+    const original = this.deckStore.getSlides()[this.currentSlideIndex];
+    if (markdown === (original ?? "")) {
       this.unsavedMarkdown.delete(this.currentSlideIndex);
       this.updateUnsavedChangesFlag();
       return;
@@ -645,25 +617,35 @@ export class EditController {
     if (this.isEditMode) this._captureCurrentEditorMarkdown();
   }
 
-  prepareStoreOperation() {
-    if (!this.deckStore) return;
+  prepareStoreOperation(recordHistory = false) {
     this._captureCurrentEditorMarkdown();
-    const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
-      index,
-      markdown,
-    }));
+    const storeSlides = this.deckStore.getSlides();
+    const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
     const fullSlides = this.saveManager
-      .getFullSlides(storeSlides)
+      .getFullSlides(storeSlideObjects)
       .map((slide) => slide.markdown ?? "");
-    this.syncStoreFromSlides(fullSlides, "system", {
-      recordHistory: false,
-      emit: false,
-    });
 
-    // The store was updated in place; refresh the editor's working copy
-    // without triggering a full deck reload.
-    this.originalMarkdown = this.deckStore.getSlides();
-    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    if (recordHistory) {
+      const patches = [];
+      for (let i = 0; i < storeSlides.length; i++) {
+        if (storeSlides[i] !== fullSlides[i]) {
+          patches.push(createEditPatch(i, storeSlides[i], fullSlides[i], "user"));
+        }
+      }
+      if (patches.length > 0) {
+        const result = this.deckStore.applyPatches(patches, { emitStoreChange: false });
+        const succeeded = result === true || (result && result.success === true);
+        if (!succeeded) {
+          // Patches were rejected (drift / before mismatch); fall back to a
+          // silent full sync so the store stays in sync with the editor.
+          this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
+        }
+      }
+    } else {
+      this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
+    }
+
+    this._reconcileUnsavedOverlays(this.deckStore.getSlides());
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
   }
@@ -707,8 +689,7 @@ export class EditController {
   _handleStoreChange(slides) {
     if (this._destroyed) return;
 
-    this.originalMarkdown = [...slides];
-    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this._reconcileUnsavedOverlays([...slides]);
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
@@ -1012,20 +993,15 @@ export class EditController {
         this.unsavedMarkdown.clear();
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
-        if (this.deckStore) {
-          // Route through replaceDeck so the refine is undoable (Ctrl+Z)
-          // instead of loadFromMarkdown which clears history.
-          this.deckStore.replaceDeck(newSlides, 0, {
-            index: 0,
-            before: null,
-            after: enhanced,
-            source: "ai",
-            timestamp: Date.now(),
-          });
-          this.originalMarkdown = this.deckStore.getSlides();
-        } else {
-          this.originalMarkdown = newSlides;
-        }
+        // Route through replaceDeck so the refine is undoable (Ctrl+Z)
+        // instead of loadFromMarkdown which clears history.
+        this.deckStore.replaceDeck(newSlides, 0, {
+          index: 0,
+          before: null,
+          after: enhanced,
+          source: "ai",
+          timestamp: Date.now(),
+        });
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,
@@ -1046,12 +1022,23 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    const markdown =
-      this.unsavedMarkdown.get(this.currentSlideIndex) ??
-      this.originalMarkdown[this.currentSlideIndex] ??
-      "";
+    const base = this.deckStore.getSlides()[this.currentSlideIndex] ?? "";
+    const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory: true });
+    const current = this.markdownEditor.getValue();
+    if (markdown === current) {
+      this._lastEditorSlideIndex = this.currentSlideIndex;
+      this._lastEditorDeck = this.deck;
+      this.saveManager.updateButton();
+      this.areaGuides.refresh();
+      return;
+    }
+
+    const clearHistory =
+      this.currentSlideIndex !== this._lastEditorSlideIndex || this.deck !== this._lastEditorDeck;
+    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory });
+    this._lastEditorSlideIndex = this.currentSlideIndex;
+    this._lastEditorDeck = this.deck;
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
     this.saveManager.updateButton();
     this.areaGuides.refresh();
@@ -1126,20 +1113,20 @@ export class EditController {
 
   _deleteAreaFromMarkdown(areaName) {
     if (!this.markdownEditor?.view) return;
-    const originalMarkdown = this.markdownEditor.getValue();
+    const currentMarkdown = this.markdownEditor.getValue();
 
-    const markerRange = this.areaNav.getAreaMarkerRange(originalMarkdown, areaName);
+    const markerRange = this.areaNav.getAreaMarkerRange(currentMarkdown, areaName);
     if (!markerRange) return;
 
     const changes = [{ from: markerRange.from, to: markerRange.to, insert: "" }];
 
     const parser = new MarkdownParser();
-    const layoutResult = parser.extractDirective(originalMarkdown, "layout");
+    const layoutResult = parser.extractDirective(currentMarkdown, "layout");
 
     if (layoutResult.found) {
       // Compute the new layout directive without rewriting the whole document.
-      const updatedMarkdown = removeAreaFromLayout(originalMarkdown, areaName);
-      if (updatedMarkdown !== originalMarkdown) {
+      const updatedMarkdown = removeAreaFromLayout(currentMarkdown, areaName);
+      if (updatedMarkdown !== currentMarkdown) {
         const layoutLineEnd = updatedMarkdown.indexOf("\n") + 1;
         const newLayoutLine =
           layoutLineEnd > 0 ? updatedMarkdown.slice(0, layoutLineEnd) : updatedMarkdown;
