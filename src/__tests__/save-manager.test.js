@@ -1,5 +1,58 @@
-import { describe, it, expect } from "vitest";
-import { SaveManager } from "../editor/ui/save-manager.js";
+import { describe, it, expect, vi } from "vitest";
+import { SaveManager, removeStaleImages } from "../editor/ui/save-manager.js";
+
+function makeImageDir(entries) {
+  const removed = [];
+  return {
+    removed,
+    handle: {
+      entries: async function* () {
+        for (const entry of entries) yield entry;
+      },
+      removeEntry: vi.fn(async (name) => {
+        removed.push(name);
+      }),
+    },
+  };
+}
+
+describe("removeStaleImages", () => {
+  it("removes only the old deck's images that the new deck no longer uses", async () => {
+    const { handle, removed } = makeImageDir([
+      ["a.png", { kind: "file" }],
+      ["b.png", { kind: "file" }],
+      ["c.jpg", { kind: "file" }],
+    ]);
+    const oldImageNames = new Set(["a.png", "b.png", "c.jpg"]);
+
+    await removeStaleImages(handle, ["images/b.png"], oldImageNames);
+
+    expect(removed).toEqual(["a.png", "c.jpg"]);
+  });
+
+  it("never removes images the old deck did not reference (other decks' files)", async () => {
+    const { handle, removed } = makeImageDir([
+      ["a.png", { kind: "file" }],
+      ["other-deck.png", { kind: "file" }],
+    ]);
+
+    await removeStaleImages(handle, ["images/a.png"], new Set(["a.png"]));
+
+    expect(removed).toEqual([]);
+  });
+
+  it("ignores non-image files and directories", async () => {
+    const { handle, removed } = makeImageDir([
+      ["notes.txt", { kind: "file" }],
+      ["sub", { kind: "directory" }],
+      ["old.png", { kind: "file" }],
+    ]);
+
+    await removeStaleImages(handle, ["images/new.png"], new Set(["old.png", "notes.txt"]));
+
+    expect(removed).toEqual(["old.png"]);
+  });
+});
 
 function createSaveManager() {
   return new SaveManager({

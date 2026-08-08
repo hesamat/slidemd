@@ -14,10 +14,201 @@ export class DeckImagesResolver {
   static _cacheVersion = Date.now();
 
   /**
+   * Directory handle for a picker-opened .md deck. When set, `images/...`
+   * refs resolve from `<dir>/images/` directly on disk instead of the CLI
+   * server, so a saved deck's sidecar images render without a server.
+   * @type {FileSystemDirectoryHandle|null}
+   */
+  static _directoryHandle = null;
+
+  /**
+   * Snapshot of the `images/...` references the deck had when its folder
+   * was registered. Folder reads are restricted to these paths so a
+   * same-named image uploaded later through the dev server is not silently
+   * replaced by the folder's copy. Null means "no restriction".
+   * @type {Set<string>|null}
+   */
+  static _deckRefs = null;
+
+  /**
+   * In-flight or resolved lookups for the directory handle, keyed by rel
+   * path. Each value is a promise resolving to a blob URL or null (negative
+   * results are cached too, so missing files are not re-probed per render).
+   * @type {Map<string, Promise<string|null>>}
+   */
+  static _dirBlobUrls = new Map();
+
+  /** Blob URLs created from the directory handle, tracked for revocation. */
+  static _createdBlobUrls = new Set();
+
+  /** Grace period before revoked blob URLs are released. */
+  static _revokeDelayMs = 1500;
+
+  /**
+   * Release a set of blob URLs created from the directory handle.
+   * @param {Set<string>} urls
+   */
+  static _revokeUrls(urls) {
+    for (const url of urls) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /**
+   * Drop the lookup table and schedule revocation of the previous
+   * generation's blob URLs. Revocation is deferred so already-rendered
+   * images keep their content while a pending re-render swaps in fresh
+   * URLs — invalidateCache() never blanks currently displayed images.
+   * In-flight lookups that resolve after the swap register their URL in
+   * the new set and are revoked on the next clear.
+   */
+  static _clearDirBlobUrls() {
+    const stale = this._createdBlobUrls;
+    this._createdBlobUrls = new Set();
+    this._dirBlobUrls.clear();
+    setTimeout(() => this._revokeUrls(stale), this._revokeDelayMs);
+  }
+
+  /**
    * Bump the cache version so all image URLs are treated as new resources.
    */
   static invalidateCache() {
     this._cacheVersion = Date.now();
+    this._clearDirBlobUrls();
+  }
+
+  /**
+   * Register (or clear, when passed null) the directory handle of the
+   * currently open picker-opened .md deck, so its sibling images/ folder
+   * can render without the CLI dev server.
+   * @param {FileSystemDirectoryHandle|null} handle
+   * @param {string[]|null} [deckRefs] — `images/...` references the deck had
+   *   when the folder was registered; folder reads are restricted to these.
+   */
+  static setDirectoryHandle(handle, deckRefs = null) {
+    this._directoryHandle = handle;
+    this._deckRefs = deckRefs ? new Set(deckRefs) : null;
+    this._clearDirBlobUrls();
+    this._cacheVersion = Date.now();
+  }
+
+  /**
+   * Extract the `images/...` references from markdown.
+   * @param {string} markdown
+   * @returns {string[]}
+   */
+  static extractImageRefs(markdown) {
+    if (!markdown) return [];
+    return [...new Set(markdown.match(/images\/[^\s"')\]]+/g) || [])];
+  }
+
+  /**
+   * Drop the registered directory handle (used when switching to a deck
+   * whose images are served by the CLI dev server, e.g. .textpack or PPTX).
+   */
+  static clearDirectoryHandle() {
+    this.setDirectoryHandle(null);
+  }
+
+  /**
+   * Whether a deck folder handle is currently registered.
+   * @returns {boolean}
+   */
+  static hasDirectoryHandle() {
+    return Boolean(this._directoryHandle);
+  }
+
+  /**
+   * Read an image directly from the registered directory handle and return
+   * a blob URL, or null when the handle is unavailable/unpermitted. The
+   * in-flight promise is cached so concurrent and repeated resolutions of
+   * the same path share a single filesystem read.
+   * @param {string} relPath — relative path like "images/foo.png"
+   * @returns {Promise<string|null>}
+   */
+  static _readFromDirectory(relPath) {
+    const handle = this._directoryHandle;
+    if (!handle || !relPath.startsWith("images/")) return Promise.resolve(null);
+    if (this._dirBlobUrls.has(relPath)) return this._dirBlobUrls.get(relPath);
+
+    const promise = (async () => {
+      try {
+        if (handle.queryPermission) {
+          let perm = await handle.queryPermission({ mode: "read" });
+          if (perm !== "granted" && handle.requestPermission) {
+            try {
+              perm = await handle.requestPermission({ mode: "read" });
+            } catch {
+              perm = "denied";
+            }
+          }
+          if (perm !== "granted") {
+            // Permission not (yet) granted — don't cache, so a later render
+            // retries once the user grants access.
+            this._dirBlobUrls.delete(relPath);
+            return null;
+          }
+        }
+        if (this._deckRefs && !this._deckRefs.has(relPath)) {
+          // Not part of this deck's folder snapshot — serve from the server.
+          return null;
+        }
+        const imagesDir = await handle.getDirectoryHandle("images");
+        const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
+        const file = await fileHandle.getFile();
+        const url = URL.createObjectURL(file);
+        this._createdBlobUrls.add(url);
+        return url;
+      } catch (err) {
+        if (err?.name !== "NotFoundError") {
+          // Transient/unknown error — retry on next render instead of
+          // caching a permanently-broken fallback.
+          this._dirBlobUrls.delete(relPath);
+        }
+        return null;
+      }
+    })();
+
+    this._dirBlobUrls.set(relPath, promise);
+    return promise;
+  }
+
+  /**
+   * Read an image file directly from the registered directory handle, or
+   * null when it is unavailable/unpermitted. Used by save/export paths so
+   * deck-folder images are copied from disk instead of the dev server.
+   * @param {string} relPath — relative path like "images/foo.png"
+   * @returns {Promise<File|null>}
+   */
+  static async getImageFile(relPath) {
+    const handle = this._directoryHandle;
+    if (!handle || !relPath.startsWith("images/")) return null;
+    // Only read files that belong to this deck's folder snapshot; a
+    // same-named image inserted later through the dev server must come
+    // from the server, not the folder.
+    if (this._deckRefs && !this._deckRefs.has(relPath)) return null;
+    try {
+      if (handle.queryPermission) {
+        let perm = await handle.queryPermission({ mode: "read" });
+        if (perm !== "granted" && handle.requestPermission) {
+          try {
+            perm = await handle.requestPermission({ mode: "read" });
+          } catch {
+            return null;
+          }
+        }
+        if (perm !== "granted") return null;
+      }
+      const imagesDir = await handle.getDirectoryHandle("images");
+      const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
+      return await fileHandle.getFile();
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -56,8 +247,12 @@ export class DeckImagesResolver {
       return relPath;
     }
 
-    // Resolve images/ paths to HTTP routes served by the CLI dev server
+    // Resolve images/ paths. A registered directory handle (picker-opened
+    // .md deck) serves the images from disk; otherwise fall back to the
+    // HTTP routes served by the CLI dev server.
     if (relPath.startsWith("images/")) {
+      const localUrl = await this._readFromDirectory(relPath);
+      if (localUrl) return localUrl;
       return `/${relPath}?v=${this._cacheVersion}`;
     }
 

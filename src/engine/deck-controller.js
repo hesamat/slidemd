@@ -465,7 +465,13 @@ export class DeckController extends EventEmitter {
 
   async handleNewPresentation() {
     const { PresentationCreator } = await import("./presentation-creator.js");
-    const creator = new PresentationCreator({ reloadManager: this.reloadManager });
+    const creator = new PresentationCreator({
+      reloadManager: this.reloadManager,
+      onClearDeckImages: async () => {
+        const { DeckImagesResolver } = await import("../editor/image/deck-images-resolver.js");
+        DeckImagesResolver.clearDirectoryHandle();
+      },
+    });
     await creator.create();
   }
 

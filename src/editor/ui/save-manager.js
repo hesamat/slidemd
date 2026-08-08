@@ -7,6 +7,9 @@
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
+import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+import { DeckImagesResolver } from "../image/deck-images-resolver.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 
 /**
  * Extract relative image paths (images/...) from markdown.
@@ -24,6 +27,131 @@ function extractImagePaths(markdown) {
   const cssRe = /url\(\s*['"]?(images\/[^'")\s]+)['"]?\s*\)/gi;
   while ((m = cssRe.exec(markdown))) paths.add(m[1]);
   return Array.from(paths);
+}
+
+/**
+ * Sanitize a file name for use with the File System Access API. The API
+ * rejects names containing path separators or control characters.
+ * @param {string} name
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+function sanitizeFileName(name, fallback = "deck.md") {
+  const cleaned = String(name || "")
+    .replace(/[\\/]/g, "")
+    .split("")
+    .filter((c) => c.charCodeAt(0) >= 0x20 && c.charCodeAt(0) !== 0x7f)
+    .join("")
+    .trim();
+  return cleaned || fallback;
+}
+
+/**
+ * Download the referenced images and write them into a directory handle.
+ * Images loaded from the current deck's on-disk folder are read straight
+ * from disk (the dev server does not know where a picker-opened deck
+ * lives); anything else falls back to the server's `/images/*` route.
+ * Only the basename of each path is written, so image references can never
+ * escape the target directory.
+ * @param {FileSystemDirectoryHandle} dirHandle
+ * @param {string[]} relPaths — relative paths like "images/foo.png"
+ * @returns {Promise<{saved: number, failed: number}>}
+ */
+async function writeImagesToDir(dirHandle, relPaths) {
+  let saved = 0;
+  let failed = 0;
+  for (const relPath of relPaths) {
+    try {
+      let blob = await DeckImagesResolver.getImageFile(relPath);
+      if (!blob) {
+        const res = await fetch(`/${relPath}`);
+        if (!res.ok) {
+          failed++;
+          continue;
+        }
+        blob = await res.blob();
+      }
+      const imgName = relPath.split("/").pop();
+      const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
+      const imgWritable = await imgHandle.createWritable();
+      await imgWritable.write(blob);
+      await imgWritable.close();
+      saved++;
+    } catch {
+      failed++;
+    }
+  }
+  return { saved, failed };
+}
+
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
+
+/**
+ * Open the deck-folder save picker. `showDirectoryPicker` requires
+ * transient user activation, which a long background image upload may have
+ * consumed; if Chromium rejects with a SecurityError, re-trigger the picker
+ * from a modal button click (fresh activation).
+ * @returns {Promise<FileSystemDirectoryHandle>}
+ */
+async function pickDeckSaveFolder() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await window.showDirectoryPicker({
+        mode: "readwrite",
+        id: "webdeck-save-deck",
+        startIn: "documents",
+      });
+    } catch (e) {
+      if (e.name !== "SecurityError") throw e;
+      if (attempt === 1) throw e;
+      const retry = await Notification.showModal({
+        title: "Choose save folder",
+        message: "Select the folder where the deck and its images should be saved.",
+        type: "info",
+        blockBackdrop: true,
+        buttons: [
+          { label: "Cancel", resolvesTo: "cancel" },
+          { label: "Choose folder", isPrimary: true, resolvesTo: "ok" },
+        ],
+      });
+      if (retry !== "ok") {
+        throw new DOMException("Save cancelled", "AbortError");
+      }
+    }
+  }
+  throw new DOMException("Save cancelled", "AbortError");
+}
+
+/**
+ * Remove the previous deck's image files from an images/ directory that the
+ * newly saved deck no longer references. Only files referenced by the
+ * overwritten .md are considered, so images belonging to other decks in the
+ * same folder are never touched. Called only after the user confirmed
+ * overwriting an existing .md file. Best-effort — cleanup failures never
+ * fail the save.
+ * @param {FileSystemDirectoryHandle} dirHandle — the images/ directory
+ * @param {string[]} relPaths — relative paths written by the new deck
+ * @param {Set<string>} oldImageNames — basenames referenced by the old .md
+ * @returns {Promise<void>}
+ */
+export async function removeStaleImages(dirHandle, relPaths, oldImageNames) {
+  const keepNames = new Set(relPaths.map((p) => p.split("/").pop()));
+  // Collect the names first, then remove them — mutating a directory during
+  // async iteration is not spec-defined and can skip entries in practice.
+  const stale = [];
+  try {
+    for await (const [name, entry] of dirHandle.entries()) {
+      if (entry.kind !== "file") continue;
+      if (!IMAGE_EXT_RE.test(name)) continue;
+      if (keepNames.has(name) || !oldImageNames.has(name)) continue;
+      stale.push(name);
+    }
+    for (const name of stale) {
+      await dirHandle.removeEntry(name);
+    }
+  } catch (err) {
+    console.warn("Failed to remove stale deck images:", err);
+  }
 }
 
 export class SaveManager {
@@ -242,9 +370,11 @@ export class SaveManager {
   }
 
   /**
-   * Save the markdown file via the browser's save dialog, and when the
-   * File System Access API is available, also save referenced images to
-   * an `images/` folder next to the .md file.
+   * Save the markdown file, plus its referenced images to an `images/`
+   * sidecar folder. When the deck has images, a single directory picker
+   * writes both the .md file and the images into the same chosen folder so
+   * the relative `images/...` references resolve. Decks without images use
+   * a single file picker.
    * @param {string} markdown
    * @param {string} fileName — suggested .md filename
    * @returns {Promise<boolean>} true if a file was actually written and the
@@ -255,107 +385,129 @@ export class SaveManager {
   async _saveMarkdownWithImages(markdown, fileName) {
     const imagePaths = extractImagePaths(markdown);
 
-    // File System Access API path: ask for the .md file first, then choose
-    // the directory that will hold the images/ sidecar. Picking the .md
-    // location first lets the user coordinate the two locations and prevents
-    // the sidecar from silently ending up in a different folder.
-    if (window.showSaveFilePicker) {
-      try {
-        const mdHandle = await window.showSaveFilePicker({
-          suggestedName: fileName,
-          types: [
-            {
-              description: "Markdown",
-              accept: { "text/markdown": [".md", ".markdown"] },
-            },
-          ],
-        });
+    // Primary path when the deck has images: one directory picker writes
+    // both the .md file and the images/ sidecar into the same chosen folder,
+    // so the relative images/... references always resolve.
+    if (imagePaths.length > 0 && window.showDirectoryPicker) {
+      // The name actually written to disk; DirectoryHandleStore must be keyed
+      // by this same name so reopening the .md finds the handle.
+      const safeFileName = sanitizeFileName(fileName);
+      let dirHandle;
+      let mdWritten = false;
+      let exists = false;
+      let oldImageNames = new Set();
 
-        let imagesDir = null;
-        if (imagePaths.length > 0 && window.showDirectoryPicker) {
-          const choice = await Notification.showModal({
-            title: "Save images",
+      try {
+        dirHandle = await pickDeckSaveFolder();
+
+        // Restore the native overwrite confirmation the previous single-file
+        // flow provided: if a file with the same name already exists, ask
+        // before replacing it.
+        try {
+          await dirHandle.getFileHandle(safeFileName);
+          exists = true;
+        } catch (err) {
+          if (err?.name !== "NotFoundError") {
+            console.warn("Failed to check for an existing deck file:", err);
+          }
+          /* new file */
+        }
+        if (exists) {
+          // Remember which images the old deck referenced so cleanup below
+          // only touches this deck's own files, never another deck's images
+          // that happen to share the folder.
+          try {
+            const oldFile = await dirHandle.getFileHandle(safeFileName);
+            const oldText = await (await oldFile.getFile()).text();
+            oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
+          } catch {
+            console.warn("Could not read the existing deck file to scope image cleanup.");
+          }
+          const overwrite = await Notification.showModal({
+            title: "Overwrite existing file?",
             message:
-              `This deck references ${imagePaths.length} image(s). ` +
-              `Choose the folder that will contain the images/ sidecar. ` +
-              `For the saved deck to find its images, this must be the same folder as the .md file.`,
-            type: "info",
+              `A file named "${safeFileName}" already exists in this folder. ` +
+              `Overwriting replaces it and removes the previous deck's images that are no longer used.`,
+            type: "warning",
             blockBackdrop: true,
-            buttons: [{ label: "Choose images folder", isPrimary: true, resolvesTo: "ok" }],
+            buttons: [
+              { label: "Cancel", resolvesTo: "cancel" },
+              { label: "Overwrite", isPrimary: true, resolvesTo: "ok" },
+            ],
           });
-          if (choice === "ok") {
-            try {
-              imagesDir = await window.showDirectoryPicker({
-                mode: "readwrite",
-                id: "webdeck-save-images",
-                startIn: "documents",
-              });
-            } catch (e) {
-              if (e.name !== "AbortError") throw e;
-              // User cancelled the images folder picker — save the .md anyway.
-              // The warning below will let them know images were skipped.
-              imagesDir = null;
-            }
+          if (overwrite !== "ok") {
+            throw new DOMException("Save cancelled", "AbortError");
           }
         }
 
+        const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
-
-        if (imagePaths.length > 0) {
-          if (!imagesDir) {
-            Notification.warning(
-              `${fileName} was saved, but images were not saved because no images folder was selected.`,
-              6000,
-            );
-          } else {
-            let sidecarDir = imagesDir;
-            for (const part of "images".split("/")) {
-              sidecarDir = await sidecarDir.getDirectoryHandle(part, { create: true });
-            }
-            let saved = 0;
-            let failed = 0;
-            for (const relPath of imagePaths) {
-              try {
-                const res = await fetch(`/${relPath}`);
-                if (!res.ok) {
-                  failed++;
-                  continue;
-                }
-                const blob = await res.blob();
-                const imgName = relPath.split("/").pop();
-                const imgHandle = await sidecarDir.getFileHandle(imgName, { create: true });
-                const imgWritable = await imgHandle.createWritable();
-                await imgWritable.write(blob);
-                await imgWritable.close();
-                saved++;
-              } catch {
-                failed++;
-              }
-            }
-            if (failed > 0) {
-              Notification.warning(
-                `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
-                6000,
-              );
-            }
-          }
-        }
-        return true;
+        // Keep the reload file-handle registry aligned with the extension-
+        // less stored deck name so reloads re-read from disk (freshness).
+        DeckLoader.fileHandleRegistry.set(safeFileName, mdHandle);
+        DeckLoader.fileHandleRegistry.set(safeFileName.replace(/\.(md|markdown)$/i, ""), mdHandle);
+        mdWritten = true;
       } catch (e) {
         if (e.name === "AbortError") throw e;
-        // Fall through to simple blob download
+        // Pre-write failure (picker or .md write) — fall through to the
+        // modal warning + simple download below.
+      }
+
+      if (mdWritten) {
+        // The .md is on disk, so the session must point at the new name and
+        // folder even if saving images fails afterwards — otherwise a reload
+        // cannot find the just-saved deck's folder.
+        try {
+          // The extension-less name keeps UI titles clean ("MyDeck", not
+          // "MyDeck.md"); the picker flag makes reload restore the handle.
+          localStorage.setItem(
+            "webdeck_local_file_name",
+            safeFileName.replace(/\.(md|markdown)$/i, ""),
+          );
+          localStorage.setItem("webdeck_opened_from_picker", "1");
+          DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
+          await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
+        } catch (err) {
+          console.warn("Failed to update session state after save:", err);
+        }
+
+        try {
+          const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          // Overwriting an existing deck: drop the previous deck's images
+          // that this deck no longer uses (scoped to the old .md's refs so
+          // other decks sharing the folder are untouched).
+          if (exists) {
+            await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
+          }
+          const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
+          if (failed > 0) {
+            Notification.warning(
+              `Saved ${fileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+              6000,
+            );
+          }
+        } catch (err) {
+          // The .md was already written; report the missing images instead
+          // of prompting for a second save dialog.
+          console.warn("Failed to save images alongside the .md file:", err);
+          Notification.warning(
+            `${fileName} was saved, but images could not be saved: ${err?.message || err}`,
+            6000,
+          );
+        }
+        return true;
       }
     }
 
-    // Fallback: no File System Access API — show a modal so the user
-    // understands images won't be saved and can choose .textpack instead.
+    // Images could not be saved alongside the .md (the browser has no
+    // directory picker, or it failed) — warn before saving .md only.
     if (imagePaths.length > 0) {
       const choice = await Notification.showModal({
         title: "Images will not be saved",
         message:
-          `This browser cannot save images alongside the .md file. ` +
+          `Images could not be saved alongside the .md file. ` +
           `${imagePaths.length} image(s) will be lost.\n\n` +
           `Export as .textpack to keep everything in a single archive, ` +
           `or continue to save .md only.`,
@@ -376,6 +528,7 @@ export class SaveManager {
         const { DeckLoader } = await import("../../data/deck-loader.js");
         const { ok } = await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
           filename: DeckLoader.getDisplayTitle(this.deck),
+          readImage: (relPath) => DeckImagesResolver.getImageFile(relPath),
         });
         if (ok) {
           Notification.success("Deck exported as .textpack!");
@@ -388,7 +541,29 @@ export class SaveManager {
         if (ok) this._markSaved(markdown);
         return false;
       }
-      // choice === "md" — fall through to blob download below
+      // choice === "md" — fall through to the .md-only save below
+    }
+
+    // No images (or the user declined them): save the .md via a single file picker.
+    if (window.showSaveFilePicker) {
+      try {
+        const mdHandle = await window.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [
+            {
+              description: "Markdown",
+              accept: { "text/markdown": [".md", ".markdown"] },
+            },
+          ],
+        });
+        const mdWritable = await mdHandle.createWritable();
+        await mdWritable.write(markdown);
+        await mdWritable.close();
+        return true;
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        // Fall through to simple blob download
+      }
     }
 
     const mdBlob = new Blob([markdown], { type: "text/markdown" });
