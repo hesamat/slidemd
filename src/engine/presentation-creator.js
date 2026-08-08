@@ -14,9 +14,9 @@ export class PresentationCreator {
   /**
    * @param {object} opts
    * @param {object} opts.reloadManager - Deck reload manager
-   * @param {() => void} [opts.onClearDeckImages] - Drops a previous deck's
-   *   on-disk image folder handle. Injected by the caller so this engine
-   *   module does not import the editor layer.
+   * @param {() => void | Promise<void>} [opts.onClearDeckImages] - Drops a
+   *   previous deck's on-disk image folder handle. Injected by the caller so
+   *   this engine module does not import the editor layer.
    */
   constructor({ reloadManager, onClearDeckImages = () => {} }) {
     this._reloadManager = reloadManager;
@@ -61,8 +61,9 @@ export class PresentationCreator {
     await fetch("/api/deck/reset", { method: "POST" }).catch(() => {});
 
     // A new presentation has no on-disk folder — drop any previous deck's
-    // handle so it cannot leak that deck's images into the new slides.
-    this._onClearDeckImages();
+    // handle (before the deck is replaced) so it cannot leak that deck's
+    // images into the new slides.
+    await this._onClearDeckImages();
 
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
