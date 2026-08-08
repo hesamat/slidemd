@@ -35,6 +35,20 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 
 Do not run the full gate cycle prematurely — first verify the feature actually works by testing in the browser or inspecting the code logic.
 
+## Review Stage
+
+After implementation is complete and before running quality gates or committing, perform a self-review of every changed file:
+
+1. **Re-read each modified file in full** — not just the lines you edited. Verify the surrounding context still makes sense and the change integrates cleanly.
+2. **Trace every code path** that touches the change. For each caller, callee, and event handler affected, confirm the interaction is correct. Pay special attention to:
+   - Event ordering (capture vs. bubble, synchronous vs. async)
+   - Flag/lifecycle interactions (set, reset, cleared on the right paths)
+   - Comments that reference behavior — update them if the behavior changed
+3. **Check for regressions** — a fix in one path often breaks another. Before changing a shared function, audit every call site. If a function serves multiple purposes, don't narrow it without verifying all callers still work.
+4. **Verify dead code** — if you remove a call site, check whether the function it called is now unused. If you add a function, make sure it's actually wired up.
+5. **Confirm intent matches implementation** — re-read each comment you wrote or modified and verify it accurately describes what the code does. A misleading comment is worse than no comment.
+6. **Only after the review passes**, run the quality gates above.
+
 ## Change Impact Guidelines
 
 Before proposing a change, consider the blast radius beyond the immediate file:

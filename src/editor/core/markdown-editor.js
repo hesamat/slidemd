@@ -92,9 +92,13 @@ export class MarkdownEditor {
     // Per-slide EditorState cache so undo history survives slide switches.
     // Keyed by slide index; invalidated on structural/deck changes.
     // LRU-bounded to avoid unbounded memory growth on large decks.
+    // Each entry stores { state, revision } so a cache hit requires both
+    // the index and the deck revision to match, preventing identical-
+    // markdown slides from restoring the wrong undo stack after a shift.
     this._slideStateCache = new Map();
     this._cacheMaxEntries = 50;
     this._cacheCleared = false;
+    this._deckRevision = 0;
 
     // Render immediately so DOM elements exist
     this.render();
@@ -184,7 +188,7 @@ export class MarkdownEditor {
     this._cacheCleared = false;
     // Move to end of iteration order so eviction is true LRU.
     this._slideStateCache.delete(index);
-    this._slideStateCache.set(index, this.view.state);
+    this._slideStateCache.set(index, { state: this.view.state, revision: this._deckRevision });
     // Evict oldest entry if over cap.
     if (this._slideStateCache.size > this._cacheMaxEntries) {
       const oldest = this._slideStateCache.keys().next().value;
@@ -209,17 +213,20 @@ export class MarkdownEditor {
     const value = doc || "";
     this.value = value;
 
-    const cached = this._slideStateCache.get(index);
-    if (cached) {
-      const cachedDoc = cached.doc.toString();
+    const entry = this._slideStateCache.get(index);
+    if (entry && entry.revision === this._deckRevision) {
+      const cachedDoc = entry.state.doc.toString();
       if (cachedDoc === value) {
         // Exact match — restore with full history intact.
-        this.view.setState(cached);
+        this.view.setState(entry.state);
         return true;
       }
       // Document changed externally (AI, style, save baseline shift).
       // Drop the cached state — its undo stack no longer corresponds
       // to this document and would garble text on undo.
+      this._slideStateCache.delete(index);
+    } else if (entry) {
+      // Revision mismatch — slide indices shifted. Drop stale entry.
       this._slideStateCache.delete(index);
     }
 
@@ -229,7 +236,9 @@ export class MarkdownEditor {
   }
 
   /**
-   * Remove a single slide's cached state.
+   * Remove a single slide's cached state and mark the cache as cleared
+   * so the next saveSlideState (e.g. in _restoreStoreSnapshot) is skipped,
+   * preventing the stale pre-change state from being re-cached.
    * @param {number} index
    */
   invalidateSlideState(index) {
@@ -238,12 +247,15 @@ export class MarkdownEditor {
 
   /**
    * Clear all cached slide states. Call on structural/deck changes.
+   * Bumps the deck revision so surviving entries (e.g. re-cached by a
+   * racing saveSlideState) are rejected on load by revision mismatch.
    * Sets a flag that prevents the next saveSlideState from re-caching
    * the stale editor state before a fresh slide is loaded.
    */
   clearSlideStateCache() {
     this._slideStateCache.clear();
     this._cacheCleared = true;
+    this._deckRevision++;
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────
@@ -262,9 +274,27 @@ export class MarkdownEditor {
   }
 
   /**
+   * Check if the editor had undo history BEFORE the current keystroke was
+   * processed by CodeMirror. Sampled in a capture-phase listener so it
+   * reflects the state before CodeMirror's keymap consumed the key.
+   * @returns {boolean}
+   */
+  hadUndoBeforeKeystroke() {
+    return this._preUndoDepth > 0;
+  }
+
+  /**
+   * Check if the editor had redo history before the current keystroke.
+   * @returns {boolean}
+   */
+  hadRedoBeforeKeystroke() {
+    return this._preRedoDepth > 0;
+  }
+
+  /**
    * Check if the editor has undo history (CodeMirror-level, not store-level).
-   * Used by the keyboard handler to decide whether to fall through to
-   * EditController.undo() when the editor's undo stack is empty.
+   * Used by EditController.undo() to decide whether to delegate to the
+   * editor or fall through to store-level undo.
    * @returns {boolean}
    */
   canUndo() {
@@ -513,6 +543,11 @@ export class MarkdownEditor {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
+    if (this._captureKeydown && this.view?.contentDOM) {
+      this.view.contentDOM.removeEventListener("keydown", this._captureKeydown, {
+        capture: true,
+      });
+    }
     this.view?.destroy();
     this.container.innerHTML = "";
     this.view = null;
@@ -647,6 +682,27 @@ export class MarkdownEditor {
         extensions,
       }),
       parent: this.editorRoot,
+    });
+
+    // Capture-phase listener on contentDOM to sample undo/redo depth
+    // BEFORE CodeMirror's keymap runs. The document-level bubble handler
+    // can then check these values to decide whether to fall through to
+    // store-level undo. This is necessary because CodeMirror's
+    // historyKeymap uses preventDefault: true even when the undo command
+    // returns false (empty stack), so e.defaultPrevented is unreliable.
+    this._preUndoDepth = 0;
+    this._preRedoDepth = 0;
+    this._captureKeydown = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase();
+        if (key === "z" || key === "y") {
+          this._preUndoDepth = undoDepth(this.view.state);
+          this._preRedoDepth = redoDepth(this.view.state);
+        }
+      }
+    };
+    this.view.contentDOM.addEventListener("keydown", this._captureKeydown, {
+      capture: true,
     });
   }
 }
