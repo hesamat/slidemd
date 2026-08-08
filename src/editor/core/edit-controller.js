@@ -66,6 +66,7 @@ export class EditController {
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
+    this._deckRestoreInProgress = false;
 
     this.placeholderDialogEl = null;
 
@@ -80,11 +81,20 @@ export class EditController {
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       SlideStylePanel.hide();
-      this.loadSlideIntoEditor();
+      // Skip loading when a deck restore is in progress — _onDeckChange
+      // will call loadSlideIntoEditor with the updated deck reference,
+      // avoiding a stale-deck setValue that would create a fake undo entry.
+      if (!this._deckRestoreInProgress) this.loadSlideIntoEditor();
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      this.markdownEditor?.clearSlideStateCache();
+      // Only clear the per-slide state cache on real deck changes (new
+      // file loaded, whole-deck AI refine). Store restores (undo/redo,
+      // single-slide AI) use syncStore: false and don't need a full
+      // cache clear — loadSlideState's mismatch branch handles doc drift.
+      if (data.syncStore !== false) {
+        this.markdownEditor?.clearSlideStateCache();
+      }
       const isStoreRestore = data.syncStore === false && this.deckStore;
       if (this.deckStore) {
         if (isStoreRestore) {
@@ -676,7 +686,12 @@ export class EditController {
     const restoredActiveIndex = this.deckStore.getActiveIndex();
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await DeckLoader.parseMarkdown(markdown);
-    await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
+    this._deckRestoreInProgress = true;
+    try {
+      await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
+    } finally {
+      this._deckRestoreInProgress = false;
+    }
     this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
   }
@@ -1049,10 +1064,14 @@ export class EditController {
       this.deck !== this._lastEditorDeck
     ) {
       // Different slide or deck — use the per-slide state cache.
+      // After a store restore (undo/redo/AI), this.deck is a fresh object
+      // even for the same slide, so this branch is taken and loadSlideState
+      // handles doc drift via its mismatch branch (preserving undo history).
       this.markdownEditor.loadSlideState(this.currentSlideIndex, markdown);
     } else {
-      // Same slide, content changed (e.g. AI edit, save baseline shift) —
-      // update the document in-place, preserving history.
+      // Same slide and deck reference — update the document in-place.
+      // This branch is reached on first edit-mode entry and when
+      // loadSlideIntoEditor is called without a preceding deck change.
       this.markdownEditor.setValue(markdown, { suppressOnChange: true });
     }
     this._lastEditorSlideIndex = this.currentSlideIndex;

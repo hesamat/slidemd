@@ -9,6 +9,8 @@ describe("Per-slide editor undo history", () => {
       const editor = {
         view: { state: fakeState },
         _slideStateCache: new Map(),
+        _cacheMaxEntries: 50,
+        _cacheCleared: false,
       };
 
       MarkdownEditor.prototype.saveSlideState.call(editor, 0);
@@ -19,6 +21,8 @@ describe("Per-slide editor undo history", () => {
       const editor = {
         view: { state: {} },
         _slideStateCache: new Map(),
+        _cacheMaxEntries: 50,
+        _cacheCleared: false,
       };
 
       MarkdownEditor.prototype.saveSlideState.call(editor, -1);
@@ -32,6 +36,7 @@ describe("Per-slide editor undo history", () => {
         view: { setState },
         value: "",
         _slideStateCache: new Map([[0, cachedState]]),
+        _cacheCleared: false,
       };
 
       const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 0, "# A");
@@ -46,6 +51,7 @@ describe("Per-slide editor undo history", () => {
         value: "",
         _slideStateCache: new Map(),
         extensions: [],
+        _cacheCleared: false,
       };
 
       const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 1, "# B");
@@ -64,7 +70,9 @@ describe("Per-slide editor undo history", () => {
           dispatch,
         },
         value: "",
+        suppressChange: false,
         _slideStateCache: new Map([[0, cachedState]]),
+        _cacheCleared: false,
       };
 
       const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 0, "# new");
@@ -76,6 +84,49 @@ describe("Per-slide editor undo history", () => {
           changes: { from: 0, to: 5, insert: "# new" },
         }),
       );
+      // suppressChange should be reset to false after the dispatch.
+      expect(editor.suppressChange).toBe(false);
+    });
+
+    it("saveSlideState is skipped after clearSlideStateCache", () => {
+      const fakeState = { doc: { toString: () => "# A" } };
+      const editor = {
+        view: { state: fakeState },
+        _slideStateCache: new Map(),
+        _cacheMaxEntries: 50,
+        _cacheCleared: false,
+      };
+
+      MarkdownEditor.prototype.clearSlideStateCache.call(editor);
+      expect(editor._cacheCleared).toBe(true);
+
+      // saveSlideState should be skipped because the cache was just cleared.
+      MarkdownEditor.prototype.saveSlideState.call(editor, 0);
+      expect(editor._slideStateCache.size).toBe(0);
+
+      // After loadSlideState resets the flag, saving works again.
+      editor._cacheCleared = false;
+      MarkdownEditor.prototype.saveSlideState.call(editor, 0);
+      expect(editor._slideStateCache.size).toBe(1);
+    });
+
+    it("cache evicts oldest entry when over cap", () => {
+      const fakeState = { doc: { toString: () => "" } };
+      const editor = {
+        view: { state: fakeState },
+        _slideStateCache: new Map(),
+        _cacheMaxEntries: 3,
+        _cacheCleared: false,
+      };
+
+      for (let i = 0; i < 4; i++) {
+        MarkdownEditor.prototype.saveSlideState.call(editor, i);
+      }
+
+      // Should have evicted index 0 (oldest) and kept 1, 2, 3.
+      expect(editor._slideStateCache.size).toBe(3);
+      expect(editor._slideStateCache.has(0)).toBe(false);
+      expect(editor._slideStateCache.has(3)).toBe(true);
     });
 
     it("invalidateSlideState removes a single slide entry", () => {
@@ -109,12 +160,13 @@ describe("Per-slide editor undo history", () => {
       const saveSlideState = vi.fn();
       const loadSlideState = vi.fn();
       const getValue = vi.fn(() => "# old");
+      const deck = { id: 1 };
       const fake = {
         isEditMode: true,
         currentSlideIndex: 1,
-        deck: { id: 1 },
+        deck,
         _lastEditorSlideIndex: 0,
-        _lastEditorDeck: { id: 1 },
+        _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A", "# B"] },
         unsavedMarkdown: new Map(),
         markdownEditor: {

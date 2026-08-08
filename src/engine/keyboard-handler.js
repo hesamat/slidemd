@@ -204,10 +204,18 @@ export class KeyboardHandler {
       const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
         // Undo/Redo are handled by CodeMirror's own keymap when focus is
-        // inside the editor.  Only fire from the document handler when
-        // focus is outside the editor (e.g. on the slide preview).
+        // inside the editor. However, when the editor's undo/redo stack is
+        // empty (e.g. after a structural operation like add/delete slide
+        // loaded a fresh editor state), fall through to EditController.undo()
+        // so the user can undo the structural operation without having to
+        // click outside the editor.
         if ((modifierAction === "undo" || modifierAction === "redo") && inCodeMirror) {
-          return;
+          const editor = this.actions.getMarkdownEditor?.();
+          if (editor) {
+            const hasHistory = modifierAction === "undo" ? editor.canUndo() : editor.canRedo();
+            if (hasHistory) return; // Let CodeMirror handle it
+          }
+          // No editor history — fall through to store-level undo/redo.
         }
         e.preventDefault();
         this.actions[modifierAction]();

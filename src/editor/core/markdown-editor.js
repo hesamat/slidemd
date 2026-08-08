@@ -13,6 +13,8 @@ import {
   defaultKeymap,
   undo,
   redo,
+  undoDepth,
+  redoDepth,
 } from "@codemirror/commands";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
@@ -89,7 +91,10 @@ export class MarkdownEditor {
 
     // Per-slide EditorState cache so undo history survives slide switches.
     // Keyed by slide index; invalidated on structural/deck changes.
+    // LRU-bounded to avoid unbounded memory growth on large decks.
     this._slideStateCache = new Map();
+    this._cacheMaxEntries = 50;
+    this._cacheCleared = false;
 
     // Render immediately so DOM elements exist
     this.render();
@@ -162,11 +167,19 @@ export class MarkdownEditor {
   /**
    * Save the current EditorState for a slide index so its undo history
    * survives navigation to another slide and back.
+   * Skipped when the cache was just cleared (the current editor state is
+   * stale in that case — it belongs to a pre-change slide).
    * @param {number} index
    */
   saveSlideState(index) {
     if (!this.view || index < 0) return;
+    if (this._cacheCleared) return;
     this._slideStateCache.set(index, this.view.state);
+    // Evict oldest entry if over cap.
+    if (this._slideStateCache.size > this._cacheMaxEntries) {
+      const oldest = this._slideStateCache.keys().next().value;
+      this._slideStateCache.delete(oldest);
+    }
   }
 
   /**
@@ -181,6 +194,7 @@ export class MarkdownEditor {
    */
   loadSlideState(index, doc) {
     if (!this.view) return false;
+    this._cacheCleared = false;
     const value = doc || "";
     this.value = value;
 
@@ -195,7 +209,10 @@ export class MarkdownEditor {
       // Document changed externally (AI, style, save baseline shift).
       // Restore the cached state then update the document without
       // recording it in history so the prior undo stack is preserved.
+      // suppressChange prevents the update listener from firing
+      // onChange, which would falsely mark the deck as dirty.
       this.view.setState(cached);
+      this.suppressChange = true;
       try {
         this.view.dispatch({
           changes: { from: 0, to: this.view.state.doc.length, insert: value },
@@ -204,6 +221,8 @@ export class MarkdownEditor {
       } catch {
         // Fallback: recreate state from scratch (history lost).
         this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
+      } finally {
+        this.suppressChange = false;
       }
       return true;
     }
@@ -223,9 +242,12 @@ export class MarkdownEditor {
 
   /**
    * Clear all cached slide states. Call on structural/deck changes.
+   * Sets a flag that prevents the next saveSlideState from re-caching
+   * the stale editor state before a fresh slide is loaded.
    */
   clearSlideStateCache() {
     this._slideStateCache.clear();
+    this._cacheCleared = true;
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────
@@ -244,6 +266,24 @@ export class MarkdownEditor {
   }
 
   /**
+   * Check if the editor has undo history (CodeMirror-level, not store-level).
+   * Used by the keyboard handler to decide whether to fall through to
+   * EditController.undo() when the editor's undo stack is empty.
+   * @returns {boolean}
+   */
+  canUndo() {
+    return this.view ? undoDepth(this.view.state) > 0 : false;
+  }
+
+  /**
+   * Check if the editor has redo history.
+   * @returns {boolean}
+   */
+  canRedo() {
+    return this.view ? redoDepth(this.view.state) > 0 : false;
+  }
+
+  /**
    * Set the editor value.
    * @param {string} value - The new value
    * @param {object} [options={}]
@@ -257,41 +297,30 @@ export class MarkdownEditor {
     this.value = value || "";
     if (!this.view) return;
 
-    const { suppressOnChange = false, recordHistory = true, clearHistory = false } = options;
+    const { suppressOnChange = false, recordHistory = true } = options;
     if (suppressOnChange) this.suppressChange = true;
 
     try {
       // Replace the whole document as a transaction so the history extension
       // records it (Ctrl+Z works). If the incremental parser/RangeSet mapper
       // throws on a full-doc change, fall back to recreating the state.
-      // When loading a different slide (clearHistory) we recreate the state so
-      // the previous slide's undo stack is discarded.
       if (this.view.state?.doc) {
-        if (clearHistory) {
+        const spec = {
+          changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
+        };
+        if (!recordHistory) {
+          spec.annotations = [Transaction.addToHistory.of(false)];
+        }
+
+        try {
+          this.view.dispatch(spec);
+        } catch {
           this.view.setState(
             EditorState.create({
               doc: this.value,
               extensions: this.extensions,
             }),
           );
-        } else {
-          const spec = {
-            changes: { from: 0, to: this.view.state.doc.length, insert: this.value },
-          };
-          if (!recordHistory) {
-            spec.annotations = [Transaction.addToHistory.of(false)];
-          }
-
-          try {
-            this.view.dispatch(spec);
-          } catch {
-            this.view.setState(
-              EditorState.create({
-                doc: this.value,
-                extensions: this.extensions,
-              }),
-            );
-          }
         }
       } else {
         this.view.setState(
