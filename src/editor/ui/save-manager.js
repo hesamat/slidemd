@@ -83,6 +83,30 @@ async function writeImagesToDir(dirHandle, relPaths) {
   return { saved, failed };
 }
 
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
+
+/**
+ * Remove image files from an images/ directory that are not part of the
+ * newly saved deck. Called only after the user confirmed overwriting an
+ * existing .md file, so a previous deck's pictures do not linger next to
+ * the new deck. Best-effort — cleanup failures never fail the save.
+ * @param {FileSystemDirectoryHandle} dirHandle — the images/ directory
+ * @param {string[]} relPaths — relative paths written by the new deck
+ * @returns {Promise<void>}
+ */
+async function removeStaleImages(dirHandle, relPaths) {
+  const keepNames = new Set(relPaths.map((p) => p.split("/").pop()));
+  try {
+    for await (const [name, entry] of dirHandle.entries()) {
+      if (entry.kind !== "file") continue;
+      if (!IMAGE_EXT_RE.test(name) || keepNames.has(name)) continue;
+      await dirHandle.removeEntry(name);
+    }
+  } catch {
+    // Best-effort cleanup — never fail the save over stale images.
+  }
+}
+
 export class SaveManager {
   /**
    * @param {object} opts
@@ -323,6 +347,7 @@ export class SaveManager {
       const safeFileName = sanitizeFileName(fileName);
       let dirHandle;
       let mdWritten = false;
+      let exists = false;
 
       try {
         dirHandle = await window.showDirectoryPicker({
@@ -334,7 +359,6 @@ export class SaveManager {
         // Restore the native overwrite confirmation the previous single-file
         // flow provided: if a file with the same name already exists, ask
         // before replacing it.
-        let exists = false;
         try {
           await dirHandle.getFileHandle(safeFileName);
           exists = true;
@@ -344,7 +368,9 @@ export class SaveManager {
         if (exists) {
           const overwrite = await Notification.showModal({
             title: "Overwrite existing file?",
-            message: `A file named "${safeFileName}" already exists in this folder. Overwrite it?`,
+            message:
+              `A file named "${safeFileName}" already exists in this folder. ` +
+              `Overwriting replaces it and removes the previous deck's images that are no longer used.`,
             type: "warning",
             blockBackdrop: true,
             buttons: [
@@ -371,6 +397,11 @@ export class SaveManager {
       if (mdWritten) {
         try {
           const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+          // Overwriting an existing deck: drop the previous deck's images
+          // that this deck no longer uses.
+          if (exists) {
+            await removeStaleImages(sidecarDir, imagePaths);
+          }
           const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
           if (failed > 0) {
             Notification.warning(
