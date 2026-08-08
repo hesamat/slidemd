@@ -522,14 +522,14 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ### Editor Rewire
 
-| Task                             | Details                                                                                                               |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [x] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.                        |
-| [x] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently.             |
-| [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                          |
-| [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.               |
-| [ ] Preserve editor undo history | Avoid full-document `setValue()` for background/area/style changes; only clear history on real slide/deck navigation. |
-| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                        |
+| Task                             | Details                                                                                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.                                                             |
+| [x] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently.                                                  |
+| [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                                                               |
+| [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.                                                    |
+| [ ] Preserve editor undo history | Avoid full-document `setValue()` for background/area/style changes; only clear history on real slide/deck navigation.                                      |
+| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                                             |
 | [ ] Split `ai-orchestrator.js`   | Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. Data-layer counterpart to the EditController decomposition. |
 
 ### Delivery Slices
@@ -557,26 +557,26 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ### Refactoring
 
-| Task                                            | Details                                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [ ] Extract shared bundle-order module          | `HtmlExportManager` and `tools/build.mjs` duplicate `JS_BUNDLE_ORDER`; extract to a shared module to prevent drift. |
-| [ ] Split `ai-orchestrator.js` (if not done in Phase 14) | Carry over from Phase 14 if the editor rewire didn't reach it.                           |
+| Task                                                     | Details                                                                                                             |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Extract shared bundle-order module                   | `HtmlExportManager` and `tools/build.mjs` duplicate `JS_BUNDLE_ORDER`; extract to a shared module to prevent drift. |
+| [ ] Split `ai-orchestrator.js` (if not done in Phase 14) | Carry over from Phase 14 if the editor rewire didn't reach it.                                                      |
 
 ### Test Infrastructure
 
-| Task                                  | Details                                                                                  |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [ ] Add Playwright E2E test harness   | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. |
-| [ ] Add PPTX import integration test  | Feed a real `.pptx` fixture through the full extract→convert→render pipeline. Prerequisite for the backlog `officeparser` switch. |
+| Task                                 | Details                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add Playwright E2E test harness  | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. |
+| [ ] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline. Prerequisite for the backlog `officeparser` switch.                             |
 
 ### Developer Experience
 
-| Task                              | Details                                                                                  |
-| --------------------------------- | ---------------------------------------------------------------------------------------- |
+| Task                                | Details                                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. |
-| [ ] Add `CONTRIBUTING.md`          | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors. |
-| [ ] Add ADR template               | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose. |
-| [ ] Lint `tools/` and `*.mjs`      | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting. |
+| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                             |
+| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                   |
+| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                              |
 
 ---
 
@@ -754,8 +754,8 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 ### Logging & Metrics
 
-| Task                                | Details                                                     |
-| ----------------------------------- | ----------------------------------------------------------- |
-| [ ] Add error telemetry             | Capture runtime errors and failed operations in the UI.     |
-| [ ] Add build/PDF runtime metrics   | Track build time, PDF render time, and asset sizes.         |
-| [ ] Add optional log export         | Download logs for debugging without browser DevTools.       |
+| Task                              | Details                                                 |
+| --------------------------------- | ------------------------------------------------------- |
+| [ ] Add error telemetry           | Capture runtime errors and failed operations in the UI. |
+| [ ] Add build/PDF runtime metrics | Track build time, PDF render time, and asset sizes.     |
+| [ ] Add optional log export       | Download logs for debugging without browser DevTools.   |

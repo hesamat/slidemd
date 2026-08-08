@@ -76,6 +76,17 @@ the single entry point — it delegates, it does not implement.
 - Flag logic that mutates deck state without going through the store or a
   sync-aware path (multi-window sync uses `BroadcastChannel`).
 - Flag cached derived state in a second location where it can drift.
+- Flag changes to the return type of public methods (`getFullSlides`,
+  `getFullMarkdown`, `getWorkingSlides`) without updating every caller,
+  including no-argument overloads.
+- Flag removal of a no-store / viewer-window fallback without either removing
+  the feature entirely or providing a source-markdown replacement.
+- Flag changes to `DeckStore.applyPatches` or `syncSlides` that alter emit or
+  history-recording behavior without verifying all callers expect the new
+  semantics.
+- Flag `markdownEditor.setValue()` calls that clear history on same-slide
+  reloads or use full-document replacement where a targeted transaction would
+  suffice.
 
 ### Extension points ("add one of many")
 
@@ -92,3 +103,15 @@ keyboard shortcuts, command-palette actions.
   `tools/build.mjs` — prefer extracting a shared module.
 - Flag hardcoded layout names outside `src/data/layout-data.js` and
   `src/data/layouts.json` — both lists must stay in sync.
+
+## Pre-review verification for editor state changes
+
+When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`:
+
+- `SaveManager.getFullSlides()` without arguments must return `string[]` and must not throw when no `DeckStore` is wired.
+- `SaveManager.getFullMarkdown()` without arguments must produce a valid `.md` string.
+- `prepareStoreOperation()` / `onBeforeSave` must not broadcast a `storeChange` and must not clear CodeMirror history.
+- Saving must update the source baseline so the dirty flag stays clean until the next real change.
+- `loadSlideIntoEditor()` must preserve CodeMirror undo when the slide index has not changed.
+- Whole-deck AI no-store paths must not stringify objects (e.g. no `[object Object]` in prompts).
+- `DeckStore.applyPatches` default must remain `emit: true`; any new options must be reviewed.

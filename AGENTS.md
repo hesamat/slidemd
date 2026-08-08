@@ -35,6 +35,31 @@ All four must pass. If `npm run format:check` fails, run `npx prettier --write .
 
 Do not run the full gate cycle prematurely — first verify the feature actually works by testing in the browser or inspecting the code logic.
 
+## Change Impact Guidelines
+
+Before proposing a change, consider the blast radius beyond the immediate file:
+
+- **Shared state and mirrors.** If you remove a cached field (`originalMarkdown`, `unsavedMarkdown`, a getter/setter pair, or a callback), `grep` for every consumer in `src/` and `__tests__/` and update or explain each one. Shared caches are often read by save, export, AI, style, undo, and preview paths.
+- **Return type contracts.** Do not change the return type of a public method (`getFullSlides()`, `getFullMarkdown()`, `getWorkingSlides()`) without updating every caller, including no-argument overloads. If an overload must remain for backwards compatibility, keep its old contract.
+- **No-store / viewer paths.** `DeckStore` may be `null` in viewer, presenter, or export windows. If you remove a no-store fallback, either remove the feature entirely or provide a source-markdown fallback. Do not leave half-working code that throws in some paths and warns in others.
+- **Source vs. live state.** `DeckLoader.getSourceMarkdown()` is the on-disk/localStorage snapshot at load. `DeckStore.getSlides()` is the live in-memory canonical. Export, save, and whole-deck AI must use the live state; the source is only a fallback when no store is wired.
+- **History and broadcasts.** Every `DeckStore` mutation must decide three things: (1) does it record `DeckHistory`? (2) does it emit `storeChange` to other windows? (3) does it re-render the editor/preview? Do not record history or emit for silent pre-mutation syncs.
+- **CodeMirror history.** Full-document `setValue()` resets the cursor and can wipe undo. Use targeted `view.dispatch` transactions for in-place directive edits. Only clear history (`clearHistory: true`) when the slide or deck actually changes.
+- **Dirty baseline.** After a successful save, update the source snapshot (`webdeck_local_file` / `__WEBDECK_MARKDOWN__`) so the dirty flag stays clean. If `localStorage` fails, remove the stale key before falling back to the global.
+- **AI prompts and exports.** Never pass objects to string-join or prompt builders. Verify that `getFullMarkdown()` and `getFullSlides().join()` produce plain strings.
+
+## Pre-Review Verification
+
+When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`, verify the following before committing:
+
+- `SaveManager.getFullSlides()` and `SaveManager.getFullMarkdown()` called with no arguments return `string[]` / `string` and work without a `DeckStore`.
+- `prepareStoreOperation()` / `onBeforeSave()` does not broadcast a `storeChange` event and does not clear CodeMirror history.
+- Saving the deck updates the source baseline so the dirty flag stays clean until the next real change.
+- Undo immediately after save reverts the just-saved text, not an earlier structural change.
+- `loadSlideIntoEditor()` preserves the undo stack when the slide and deck have not changed.
+- No `[object Object]` or other unexpected stringification appears in whole-deck AI prompts.
+- `DeckStore.applyPatches` default must remain `emit: true`; any new options must be reviewed.
+
 ## Code Organization
 
 ### Source Structure ([src/](src))
