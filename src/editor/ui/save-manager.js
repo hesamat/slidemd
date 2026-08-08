@@ -525,7 +525,6 @@ export class SaveManager {
       }
       if (choice === "textpack") {
         const { TextpackExportManager } = await import("../../renderer/textpack-export-manager.js");
-        const { DeckLoader } = await import("../../data/deck-loader.js");
         const { ok } = await TextpackExportManager.handleTextpackExport(markdown, this.deck, {
           filename: DeckLoader.getDisplayTitle(this.deck),
           readImage: (relPath) => DeckImagesResolver.getImageFile(relPath),
