@@ -86,6 +86,8 @@ export class SlideOperations {
    * @returns {boolean} true when the patches were committed, false otherwise
    */
   _applyStorePatches(patches) {
+    if (!this._deckStore) return true;
+
     if (this._isPatchSuccess(this._deckStore.applyPatches(patches))) {
       this._recordStoreOperation?.();
       return true;
@@ -152,13 +154,10 @@ export class SlideOperations {
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    if (!this._deckStore) {
-      throw new Error("SlideOperations requires a DeckStore");
-    }
-    const storeSlides = this._deckStore.getSlides();
-    const markdown = storeSlides[index] ?? "";
+    const sourceSlides = this._deckStore?.getSlides() ?? this.saveManager?.getFullSlides() ?? [];
+    const markdown = sourceSlides[index] ?? "";
     const baseSlide = { index, markdown };
-    return this.saveManager.getFullSlide
+    return this.saveManager?.getFullSlide
       ? this.saveManager.getFullSlide(index, baseSlide)
       : baseSlide;
   }
@@ -168,14 +167,11 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    if (!this._deckStore) {
-      throw new Error("SlideOperations requires a DeckStore");
-    }
-    const storeSlides = this._deckStore.getSlides();
-    const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
-    return this.saveManager.getFullSlides
+    const sourceSlides = this._deckStore?.getSlides() ?? this.saveManager?.getFullSlides() ?? [];
+    const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
+    return this.saveManager?.getFullSlides
       ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
-      : storeSlides;
+      : sourceSlides;
   }
 
   _getWorkingMarkdown(index) {
@@ -183,7 +179,7 @@ export class SlideOperations {
   }
 
   addSlide() {
-    const slideCount = this._deckStore.getSlideCount();
+    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount === 0) return;
 
     const insertIndex = this.currentSlideIndex + 1;
@@ -193,14 +189,14 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
       return;
 
-    this._deckStore.setActiveIndex(insertIndex);
+    this._deckStore?.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
   }
 
   async deleteSlide() {
-    const slideCount = this._deckStore.getSlideCount();
+    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount <= 1) {
       Notification.warning("Cannot delete the only slide");
       return;
@@ -236,7 +232,7 @@ export class SlideOperations {
   }
 
   moveSlideDown() {
-    const slideCount = this._deckStore.getSlideCount();
+    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (this.currentSlideIndex >= slideCount - 1) {
       Notification.warning("Cannot move the last slide down");
       return;
@@ -287,14 +283,14 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
-    this._deckStore.setActiveIndex(insertIndex);
+    this._deckStore?.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
   }
 
   addSlideWithLayout(layoutName) {
-    const slideCount = this._deckStore.getSlideCount();
+    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount === 0) return;
 
     const template = LayoutData.getTemplate(layoutName);
@@ -320,7 +316,7 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
-    this._deckStore.setActiveIndex(insertIndex);
+    this._deckStore?.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

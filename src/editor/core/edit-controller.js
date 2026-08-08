@@ -72,6 +72,8 @@ export class EditController {
     this._destroyed = false;
     this._lastEditorSlideIndex = -1;
     this._lastEditorDeck = null;
+    this._cachedSourceMarkdown = null;
+    this._cachedOriginalSlides = [];
 
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
@@ -344,6 +346,7 @@ export class EditController {
    * @param {string} markdown
    */
   _setSourceMarkdown(markdown) {
+    this._cachedSourceMarkdown = null;
     try {
       localStorage.setItem("webdeck_local_file", markdown);
     } catch {
@@ -360,12 +363,19 @@ export class EditController {
   _cacheOriginalMarkdown() {
     const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
+    if (localFile === this._cachedSourceMarkdown) {
+      return this._cachedOriginalSlides;
+    }
 
     try {
       const parser = new MarkdownParser();
-      return parser.splitSlides(localFile);
+      this._cachedSourceMarkdown = localFile;
+      this._cachedOriginalSlides = parser.splitSlides(localFile);
+      return this._cachedOriginalSlides;
     } catch (error) {
       console.error("Failed to cache markdown:", error);
+      this._cachedSourceMarkdown = null;
+      this._cachedOriginalSlides = [];
       return [];
     }
   }
@@ -635,7 +645,13 @@ export class EditController {
         }
       }
       if (patches.length > 0) {
-        this.deckStore.applyPatches(patches, { emit: false });
+        const result = this.deckStore.applyPatches(patches, { emit: false });
+        const succeeded = result === true || (result && result.success === true);
+        if (!succeeded) {
+          // Patches were rejected (drift / before mismatch); fall back to a
+          // silent full sync so the store stays in sync with the editor.
+          this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
+        }
       }
     } else {
       this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
@@ -1027,6 +1043,8 @@ export class EditController {
 
     const current = this.markdownEditor.getValue();
     if (markdown === current) {
+      this._lastEditorSlideIndex = this.currentSlideIndex;
+      this._lastEditorDeck = this.deck;
       this.saveManager.updateButton();
       this.areaGuides.refresh();
       return;
