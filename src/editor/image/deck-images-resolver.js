@@ -22,6 +22,15 @@ export class DeckImagesResolver {
   static _directoryHandle = null;
 
   /**
+   * Snapshot of the `images/...` references the deck had when its folder
+   * was registered. Folder reads are restricted to these paths so a
+   * same-named image uploaded later through the dev server is not silently
+   * replaced by the folder's copy. Null means "no restriction".
+   * @type {Set<string>|null}
+   */
+  static _deckRefs = null;
+
+  /**
    * In-flight or resolved lookups for the directory handle, keyed by rel
    * path. Each value is a promise resolving to a blob URL or null (negative
    * results are cached too, so missing files are not re-probed per render).
@@ -77,11 +86,24 @@ export class DeckImagesResolver {
    * currently open picker-opened .md deck, so its sibling images/ folder
    * can render without the CLI dev server.
    * @param {FileSystemDirectoryHandle|null} handle
+   * @param {string[]|null} [deckRefs] — `images/...` references the deck had
+   *   when the folder was registered; folder reads are restricted to these.
    */
-  static setDirectoryHandle(handle) {
+  static setDirectoryHandle(handle, deckRefs = null) {
     this._directoryHandle = handle;
+    this._deckRefs = deckRefs ? new Set(deckRefs) : null;
     this._clearDirBlobUrls();
     this._cacheVersion = Date.now();
+  }
+
+  /**
+   * Extract the `images/...` references from markdown.
+   * @param {string} markdown
+   * @returns {string[]}
+   */
+  static extractImageRefs(markdown) {
+    if (!markdown) return [];
+    return [...new Set(markdown.match(/images\/[^\s"')\]]+/g) || [])];
   }
 
   /**
@@ -121,10 +143,19 @@ export class DeckImagesResolver {
             try {
               perm = await handle.requestPermission({ mode: "read" });
             } catch {
-              return null;
+              perm = "denied";
             }
           }
-          if (perm !== "granted") return null;
+          if (perm !== "granted") {
+            // Permission not (yet) granted — don't cache, so a later render
+            // retries once the user grants access.
+            this._dirBlobUrls.delete(relPath);
+            return null;
+          }
+        }
+        if (this._deckRefs && !this._deckRefs.has(relPath)) {
+          // Not part of this deck's folder snapshot — serve from the server.
+          return null;
         }
         const imagesDir = await handle.getDirectoryHandle("images");
         const fileHandle = await imagesDir.getFileHandle(relPath.split("/").pop());
@@ -132,7 +163,12 @@ export class DeckImagesResolver {
         const url = URL.createObjectURL(file);
         this._createdBlobUrls.add(url);
         return url;
-      } catch {
+      } catch (err) {
+        if (err?.name !== "NotFoundError") {
+          // Transient/unknown error — retry on next render instead of
+          // caching a permanently-broken fallback.
+          this._dirBlobUrls.delete(relPath);
+        }
         return null;
       }
     })();
@@ -151,6 +187,10 @@ export class DeckImagesResolver {
   static async getImageFile(relPath) {
     const handle = this._directoryHandle;
     if (!handle || !relPath.startsWith("images/")) return null;
+    // Only read files that belong to this deck's folder snapshot; a
+    // same-named image inserted later through the dev server must come
+    // from the server, not the folder.
+    if (this._deckRefs && !this._deckRefs.has(relPath)) return null;
     try {
       if (handle.queryPermission) {
         let perm = await handle.queryPermission({ mode: "read" });

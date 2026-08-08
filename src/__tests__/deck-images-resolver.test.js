@@ -68,4 +68,30 @@ describe("DeckImagesResolver directory images", () => {
     expect(b).toBe("blob:image");
     expect(getFileHandle).toHaveBeenCalledTimes(1);
   });
+
+  it("does not cache permission failures so later renders retry", async () => {
+    const queryPermission = vi.fn().mockResolvedValue("prompt");
+    DeckImagesResolver.setDirectoryHandle({ queryPermission });
+
+    await DeckImagesResolver.resolvePreviewSrc("images/x.png");
+    await DeckImagesResolver.resolvePreviewSrc("images/x.png");
+
+    expect(queryPermission).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips folder reads for images outside the deck snapshot", async () => {
+    const getDirectoryHandle = vi.fn();
+    DeckImagesResolver.setDirectoryHandle(
+      {
+        queryPermission: vi.fn().mockResolvedValue("granted"),
+        getDirectoryHandle,
+      },
+      ["images/original.png"],
+    );
+
+    const url = await DeckImagesResolver.resolvePreviewSrc("images/new.png");
+
+    expect(url).toMatch(/^\/images\/new\.png\?v=\d+$/);
+    expect(getDirectoryHandle).not.toHaveBeenCalled();
+  });
 });

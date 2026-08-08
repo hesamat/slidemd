@@ -153,7 +153,11 @@ export class SlideStylePanel {
     }
 
     let { markdown: withoutBg } = parser.extractDirective(withoutHeader, "background");
-    const bgValue = this._getBackgroundValue();
+    // The directive must reference the on-disk image path, never the
+    // session-only blob URL used for previewing.
+    const bgValue = this._currentImagePath
+      ? buildImageBackground(this._currentImagePath, this._imageOverlay)
+      : this._currentBg;
     if (bgValue) {
       const indented = bgValue
         .split("\n")

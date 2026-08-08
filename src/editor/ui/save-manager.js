@@ -135,11 +135,17 @@ async function pickDeckSaveFolder() {
  */
 export async function removeStaleImages(dirHandle, relPaths, oldImageNames) {
   const keepNames = new Set(relPaths.map((p) => p.split("/").pop()));
+  // Collect the names first, then remove them — mutating a directory during
+  // async iteration is not spec-defined and can skip entries in practice.
+  const stale = [];
   try {
     for await (const [name, entry] of dirHandle.entries()) {
       if (entry.kind !== "file") continue;
       if (!IMAGE_EXT_RE.test(name)) continue;
       if (keepNames.has(name) || !oldImageNames.has(name)) continue;
+      stale.push(name);
+    }
+    for (const name of stale) {
       await dirHandle.removeEntry(name);
     }
   } catch (err) {
@@ -465,8 +471,14 @@ export class SaveManager {
           // sibling images/ folder directly from disk, resolve the current
           // session's images from the folder just written, and keep the
           // stored deck name aligned with the file actually on disk.
-          localStorage.setItem("webdeck_local_file_name", safeFileName);
-          DeckImagesResolver.setDirectoryHandle(dirHandle);
+          // The extension-less name keeps UI titles clean ("MyDeck", not
+          // "MyDeck.md"); the picker flag makes reload restore the handle.
+          localStorage.setItem(
+            "webdeck_local_file_name",
+            safeFileName.replace(/\.(md|markdown)$/i, ""),
+          );
+          localStorage.setItem("webdeck_opened_from_picker", "1");
+          DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
           await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
         } catch (err) {
           // The .md was already written; report the missing images instead

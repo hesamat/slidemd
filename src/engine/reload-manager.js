@@ -231,7 +231,10 @@ export class ReloadManager extends EventEmitter {
         }
       }
       if (perm === "granted") {
-        DeckImagesResolver.setDirectoryHandle(dir.handle);
+        DeckImagesResolver.setDirectoryHandle(
+          dir.handle,
+          DeckImagesResolver.extractImageRefs(localStorage.getItem("webdeck_local_file") || ""),
+        );
       } else {
         DeckImagesResolver.clearDirectoryHandle();
       }

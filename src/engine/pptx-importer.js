@@ -223,16 +223,11 @@ export class PptxImporter {
                 return;
               }
               // Delegates to SaveManager, which waits for pending image
-              // uploads and opens the save picker itself (no spinner here —
-              // a blocking modal would sit behind the native picker).
-              try {
-                await editCtrl.saveManager.save();
-              } catch (err) {
-                if (err?.name !== "AbortError") {
-                  console.error("Failed to save imported deck:", err);
-                  Notification.error("Failed to save file: " + (err.message || err));
-                }
-              }
+              // uploads, opens the save picker and reports errors itself
+              // (including cancelled saves — no try/catch needed here).
+              // Dismiss the sticky import notification once the flow ends.
+              await editCtrl.saveManager.save();
+              Notification.dismissAll();
             },
           },
         ],

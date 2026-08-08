@@ -363,7 +363,10 @@ export class OpenDeckModal {
       // The CLI dev server does not know where a picker-opened .md lives, so
       // resolve its sibling images/ folder directly from disk (blob URLs).
       const folderHandle = await this._resolveDeckFolderHandle(file.name, rawText);
-      DeckImagesResolver.setDirectoryHandle(folderHandle);
+      DeckImagesResolver.setDirectoryHandle(
+        folderHandle,
+        DeckImagesResolver.extractImageRefs(rawText),
+      );
 
       localStorage.setItem("webdeck_local_file", rawText);
       localStorage.setItem("webdeck_local_file_type", "md");
@@ -450,21 +453,6 @@ export class OpenDeckModal {
     }
 
     if (!hasImages || !window.showDirectoryPicker) return null;
-
-    // If the CLI server can already serve every referenced image (e.g. the
-    // user picked the very deck the server is serving), no folder prompt is
-    // needed — the existing /images/* fallback handles rendering.
-    const imageRefs = [...new Set((markdown || "").match(/images\/[\w.-]+/g) || [])];
-    if (imageRefs.length > 0) {
-      const probes = await Promise.all(
-        imageRefs.map((ref) =>
-          fetch(`/${ref}`, { method: "HEAD" })
-            .then((r) => r.ok)
-            .catch(() => false),
-        ),
-      );
-      if (probes.every(Boolean)) return null;
-    }
 
     // showOpenFilePicker already consumed the user activation, so the
     // directory picker would be rejected by Chromium if called inline.
