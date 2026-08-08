@@ -172,11 +172,12 @@ export class MarkdownEditor {
    * Save the current EditorState for a slide index so its undo history
    * survives navigation to another slide and back.
    * Skipped when the cache was just cleared (the current editor state is
-   * stale in that case — it belongs to a pre-change slide) unless `force`
-   * is true, which overrides the guard for callers that explicitly know
-   * the current state should be captured (use with care).
+   * stale in that case — it belongs to a pre-change slide) unless
+   * `options.force` is true, which overrides the guard for callers that
+   * explicitly know the current state should be captured (use with care).
    * @param {number} index
-   * @param {boolean} [force=false]
+   * @param {object} [options]
+   * @param {boolean} [options.force=false]
    */
   saveSlideState(index, { force = false } = {}) {
     if (!this.view || index < 0) return;
@@ -203,6 +204,12 @@ export class MarkdownEditor {
    * state is discarded and a fresh one is created. Keeping the old undo
    * stack across a full-document replacement would garble the text on
    * undo, since the history entries no longer correspond to the buffer.
+   *
+   * This method uses `view.setState(...)` directly, which does NOT dispatch
+   * a CodeMirror `ViewUpdate`, so the `updateListener` does not run and
+   * `onChange` is not fired. That is why no `suppressChange` guard is
+   * needed here. If this ever changes to a dispatched transaction, the
+   * caller must suppress `onChange` to avoid false dirty flags.
    * @param {number} index
    * @param {string} doc - Expected document content for the slide
    * @returns {boolean} true if a cached state was restored, false if fresh

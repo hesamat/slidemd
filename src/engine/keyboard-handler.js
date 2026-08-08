@@ -101,6 +101,7 @@ export class KeyboardHandler {
    * @param {Function} actions.endBreak - Callback to end break mode
    * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
    * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
+   * @param {Function} actions.getMarkdownEditor - Callback to get the MarkdownEditor instance (used for pre-keystroke undo/redo depth checks)
    */
   constructor(actions) {
     this.actions = actions;
@@ -144,7 +145,10 @@ export class KeyboardHandler {
     if (!target?.closest) return false;
     // Exclude search/replace panel inputs (inside .cm-panels).
     if (target.closest(".cm-panels")) return false;
-    return !!target.closest(".cm-content, .markdown-editor-codemirror");
+    // Match only the actual editable content surface, not the wrapper or
+    // gutters, so undo/redo in the editor content is distinguishable from
+    // focusable elements in panels or other parts of the editor chrome.
+    return !!target.closest(".cm-content");
   }
 
   /**
