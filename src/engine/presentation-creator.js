@@ -6,7 +6,6 @@
  */
 import { NewPresentationModal } from "../editor/new-presentation-modal.js";
 import { ImagePicker } from "../editor/image/image-picker.js";
-import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { Notification } from "../renderer/notification.js";
@@ -15,9 +14,13 @@ export class PresentationCreator {
   /**
    * @param {object} opts
    * @param {object} opts.reloadManager - Deck reload manager
+   * @param {() => void} [opts.onClearDeckImages] - Drops a previous deck's
+   *   on-disk image folder handle. Injected by the caller so this engine
+   *   module does not import the editor layer.
    */
-  constructor({ reloadManager }) {
+  constructor({ reloadManager, onClearDeckImages = () => {} }) {
     this._reloadManager = reloadManager;
+    this._onClearDeckImages = onClearDeckImages;
   }
 
   async create() {
@@ -59,7 +62,7 @@ export class PresentationCreator {
 
     // A new presentation has no on-disk folder — drop any previous deck's
     // handle so it cannot leak that deck's images into the new slides.
-    DeckImagesResolver.clearDirectoryHandle();
+    this._onClearDeckImages();
 
     // Parse markdown into deck data
     await AssetLoader.ensureMarkdownItLoaded();
