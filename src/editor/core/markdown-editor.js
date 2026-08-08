@@ -172,16 +172,12 @@ export class MarkdownEditor {
    * Save the current EditorState for a slide index so its undo history
    * survives navigation to another slide and back.
    * Skipped when the cache was just cleared (the current editor state is
-   * stale in that case — it belongs to a pre-change slide) unless
-   * `options.force` is true, which overrides the guard for callers that
-   * explicitly know the current state should be captured (use with care).
+   * stale in that case — it belongs to a pre-change slide).
    * @param {number} index
-   * @param {object} [options]
-   * @param {boolean} [options.force=false]
    */
-  saveSlideState(index, { force = false } = {}) {
+  saveSlideState(index) {
     if (!this.view || index < 0) return;
-    if (this._cacheCleared && !force) {
+    if (this._cacheCleared) {
       // Reset the flag so the next save (on a real slide switch) works.
       this._cacheCleared = false;
       return;
@@ -216,6 +212,14 @@ export class MarkdownEditor {
    */
   loadSlideState(index, doc) {
     if (!this.view) return false;
+
+    // Cancel any pending onChange so it cannot fire after the state swap and
+    // attribute the new slide's text to the new currentSlideIndex.
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
     this._cacheCleared = false;
     const value = doc || "";
     this.value = value;
@@ -329,6 +333,13 @@ export class MarkdownEditor {
   setValue(value, options = {}) {
     this.value = value || "";
     if (!this.view) return;
+
+    // Cancel any pending onChange so it doesn't fire with stale data after
+    // we replace the document (e.g. a slide switch inside the debounce window).
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
 
     const { suppressOnChange = false, recordHistory = true } = options;
     if (suppressOnChange) this.suppressChange = true;

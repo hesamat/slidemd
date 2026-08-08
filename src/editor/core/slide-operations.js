@@ -17,7 +17,6 @@ export class SlideOperations {
    * @param {() => object} opts.getElements
    * @param {() => object} opts.getController
    * @param {() => object} opts.getThumbnails
-   * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(v: number) => void} opts.setCurrentSlideIndex
    * @param {() => Map} opts.getUnsavedMarkdown
@@ -34,7 +33,6 @@ export class SlideOperations {
     getElements,
     getController,
     getThumbnails,
-    getMarkdownEditor,
     getCurrentSlideIndex,
     setCurrentSlideIndex,
     getUnsavedMarkdown,
@@ -50,7 +48,6 @@ export class SlideOperations {
     this._getElements = getElements;
     this._getController = getController;
     this._getThumbnails = getThumbnails;
-    this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._setCurrentSlideIndex = setCurrentSlideIndex;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
@@ -65,14 +62,6 @@ export class SlideOperations {
 
   _prepareStoreMutation() {
     this._prepareStoreOperation?.();
-  }
-
-  /**
-   * Clear the per-slide editor undo cache. Called after any structural
-   * operation (add/delete/duplicate/move) since slide indices shift.
-   */
-  _clearEditorHistoryCache() {
-    this.markdownEditor?.clearSlideStateCache();
   }
 
   /**
@@ -127,9 +116,6 @@ export class SlideOperations {
   }
   get thumbnails() {
     return this._getThumbnails();
-  }
-  get markdownEditor() {
-    return this._getMarkdownEditor();
   }
   get currentSlideIndex() {
     return this._getCurrentSlideIndex();
@@ -195,7 +181,7 @@ export class SlideOperations {
       return;
 
     this._deckStore.setActiveIndex(insertIndex);
-    this._clearEditorHistoryCache();
+
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
@@ -219,7 +205,7 @@ export class SlideOperations {
       return;
 
     this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
-    this._clearEditorHistoryCache();
+
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }
@@ -272,7 +258,7 @@ export class SlideOperations {
       else newMap.set(idx, content);
     }
     this.unsavedMarkdown = newMap;
-    this._clearEditorHistoryCache();
+
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     return true;
@@ -292,7 +278,7 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
-    this._clearEditorHistoryCache();
+
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
@@ -326,7 +312,7 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
-    this._clearEditorHistoryCache();
+
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

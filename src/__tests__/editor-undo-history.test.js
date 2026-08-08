@@ -108,25 +108,6 @@ describe("Per-slide editor undo history", () => {
       expect(editor._slideStateCache.size).toBe(1);
     });
 
-    it("saveSlideState with force saves even after clearSlideStateCache", () => {
-      const fakeState = { doc: { toString: () => "# A" } };
-      const editor = {
-        view: { state: fakeState },
-        _slideStateCache: new Map(),
-        _cacheMaxEntries: 50,
-        _cacheCleared: false,
-        _deckRevision: 0,
-      };
-
-      MarkdownEditor.prototype.clearSlideStateCache.call(editor);
-      expect(editor._cacheCleared).toBe(true);
-
-      // force: true overrides the _cacheCleared skip.
-      MarkdownEditor.prototype.saveSlideState.call(editor, 0, { force: true });
-      expect(editor._slideStateCache.size).toBe(1);
-      expect(editor._cacheCleared).toBe(false);
-    });
-
     it("cache evicts oldest entry when over cap (true LRU)", () => {
       const fakeState = { doc: { toString: () => "" } };
       const editor = {

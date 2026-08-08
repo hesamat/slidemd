@@ -27,7 +27,6 @@ function createOps(initialMap = new Map()) {
     getElements: () => ({ slidesContainer: null, slideCountEl: null }),
     getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
     getThumbnails: () => ({ refresh: vi.fn() }),
-    getMarkdownEditor: () => null,
     getCurrentSlideIndex: () => 0,
     setCurrentSlideIndex: vi.fn(),
     getUnsavedMarkdown,
@@ -195,10 +194,6 @@ describe("SlideOperations.deleteSlide", () => {
       getElements: () => ({ slideCountEl: null, slidesContainer: null }),
       getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
       getThumbnails: () => ({ refresh: vi.fn() }),
-      getMarkdownEditor: () => ({
-        getValue: () => state.editorValue,
-        clearSlideStateCache: vi.fn(),
-      }),
       getCurrentSlideIndex: () => state.currentIndex,
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
@@ -281,7 +276,6 @@ describe("SlideOperations store-backed structural operations", () => {
       getElements: () => ({ slideCountEl: null, slidesContainer: null }),
       getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
       getThumbnails: () => ({ refresh: vi.fn() }),
-      getMarkdownEditor: () => null,
       getCurrentSlideIndex: () => state.currentIndex,
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
@@ -389,7 +383,6 @@ describe("StyleApplier store-backed transaction", () => {
       setUnsavedMarkdown: () => {},
       getDeck: () => ({ slides: [] }),
       getCurrentSlideIndex: () => 0,
-      getMarkdownEditor: () => null,
       setHasUnsavedChanges: setHasUnsaved,
       onUpdateSaveButton: updateButton,
       getImageBg: () => ({}),

@@ -200,7 +200,6 @@ export class EditController {
       getElements: () => this.elements,
       getController: () => this.controller,
       getThumbnails: () => this.thumbnails,
-      getMarkdownEditor: () => this.markdownEditor,
       getCurrentSlideIndex: () => this.currentSlideIndex,
       setCurrentSlideIndex: (v) => {
         this.currentSlideIndex = v;
