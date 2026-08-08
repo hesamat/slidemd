@@ -685,6 +685,12 @@ export class EditController {
 
   async _restoreStoreSnapshot() {
     if (!this.deckStore) return false;
+    // Save the current editor state into the cache before the restore
+    // potentially replaces it, so the most recent undo history is preserved
+    // rather than a stale snapshot from the last navigation away.
+    if (this._lastEditorSlideIndex !== undefined && this.markdownEditor) {
+      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex, { force: true });
+    }
     const markdown = this.deckStore.toMarkdown();
     const restoredActiveIndex = this.deckStore.getActiveIndex();
     const slideCountBefore = this.deckStore.getSlideCount();
@@ -705,10 +711,13 @@ export class EditController {
     } finally {
       this._deckRestoreInProgress = false;
     }
-    // Now navigate to the restored index. _onSlideChange fires and
-    // calls loadSlideIntoEditor at the correct index with the updated
-    // deck reference, so the editor shows the right slide.
+    // Now navigate to the restored index and load the editor. goTo fires
+    // _onSlideChange → loadSlideIntoEditor, but some navigators short-circuit
+    // when the index is unchanged, so call loadSlideIntoEditor explicitly to
+    // guarantee the editor reflects the restored deck.
+    this.currentSlideIndex = restoredActiveIndex;
     this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
+    this.loadSlideIntoEditor();
     return true;
   }
 

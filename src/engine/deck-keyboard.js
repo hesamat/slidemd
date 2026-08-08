@@ -167,6 +167,5 @@ export function createKeyboardHandler({
     endBreak: () => getBreakManager()?.setActive(false),
     isEditorWindow: () => getRoleManager().isEditorWindow,
     isEmbedded: isEmbedded,
-    getMarkdownEditor: () => edit()?.markdownEditor ?? null,
   });
 }

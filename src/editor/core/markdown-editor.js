@@ -171,13 +171,24 @@ export class MarkdownEditor {
    * stale in that case — it belongs to a pre-change slide).
    * @param {number} index
    */
-  saveSlideState(index) {
+  /**
+   * Save the current EditorState for a slide index so its undo history
+   * survives navigation to another slide and back.
+   * Skipped when the cache was just cleared (the current editor state is
+   * stale in that case — it belongs to a pre-change slide) unless `force`
+   * is true, which is used by explicit callers like _restoreStoreSnapshot
+   * that want to capture the latest state regardless.
+   * @param {number} index
+   * @param {boolean} [force=false]
+   */
+  saveSlideState(index, { force = false } = {}) {
     if (!this.view || index < 0) return;
-    if (this._cacheCleared) {
+    if (this._cacheCleared && !force) {
       // Reset the flag so the next save (on a real slide switch) works.
       this._cacheCleared = false;
       return;
     }
+    this._cacheCleared = false;
     this._slideStateCache.set(index, this.view.state);
     // Evict oldest entry if over cap.
     if (this._slideStateCache.size > this._cacheMaxEntries) {

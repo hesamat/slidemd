@@ -204,18 +204,16 @@ export class KeyboardHandler {
       const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
         // Undo/Redo are handled by CodeMirror's own keymap when focus is
-        // inside the editor. However, when the editor's undo/redo stack is
-        // empty (e.g. after a structural operation like add/delete slide
-        // loaded a fresh editor state), fall through to EditController.undo()
-        // so the user can undo the structural operation without having to
-        // click outside the editor.
+        // inside the editor. CodeMirror's keymap runs in the target/capture
+        // phase before this document-level bubble handler, so if it consumed
+        // the keystroke it will have called preventDefault(). When that
+        // happens, return without re-dispatching to avoid a double undo.
+        // Only fall through to EditController.undo() when CodeMirror did NOT
+        // handle it (empty undo stack → keymap returns false → no
+        // preventDefault), so the user can undo structural operations.
         if ((modifierAction === "undo" || modifierAction === "redo") && inCodeMirror) {
-          const editor = this.actions.getMarkdownEditor?.();
-          if (editor) {
-            const hasHistory = modifierAction === "undo" ? editor.canUndo() : editor.canRedo();
-            if (hasHistory) return; // Let CodeMirror handle it
-          }
-          // No editor history — fall through to store-level undo/redo.
+          if (e.defaultPrevented) return; // CodeMirror already handled it
+          // CodeMirror did not handle it — fall through to store-level undo.
         }
         e.preventDefault();
         this.actions[modifierAction]();
