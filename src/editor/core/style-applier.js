@@ -159,10 +159,10 @@ export class StyleApplier {
       return;
     }
 
-    await this._applyToAllLegacy(cssString, headerStyle, background, theme);
+    await this._applyToAllNoStore(cssString, headerStyle, background, theme);
   }
 
-  async _applyToAllLegacy(cssString, headerStyle, background, theme) {
+  async _applyToAllNoStore(cssString, headerStyle, background, theme) {
     const source = this._getSourceMarkdown?.();
     if (!source) {
       Notification.warning("No source markdown available to apply styles.");

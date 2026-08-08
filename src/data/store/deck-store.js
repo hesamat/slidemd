@@ -87,10 +87,10 @@ export class DeckStore {
    * Synchronize the current markdown without creating an undo entry.
    * Used before structural operations so their snapshots include unsaved text.
    */
-  syncSlides(slides, activeIndex = this._activeIndex, { emit = true } = {}) {
+  syncSlides(slides, activeIndex = this._activeIndex, { emitStoreChange = true } = {}) {
     this._slides = [...slides];
     this._activeIndex = this._clampIndex(activeIndex);
-    if (emit) {
+    if (emitStoreChange) {
       this._emit("change");
       this._emit("slide");
       this._emitStoreChange();
@@ -110,16 +110,16 @@ export class DeckStore {
   /**
    * Apply multiple patches as one history entry.
    * @param {import("./slide-patch.js").SlidePatch[]} patches
-   * @param {number | { expectedStructuralRevision?: number, emit?: boolean }} [maybeOptions] - if a number, treat as the expected structural revision; if an object, pass options
+   * @param {number | { expectedStructuralRevision?: number, emitStoreChange?: boolean }} [maybeOptions] - if a number, treat as the expected structural revision; if an object, pass options
    * @returns {boolean | { success: boolean, reason?: string }}
    */
   applyPatches(patches, maybeOptions = {}) {
     let expectedStructuralRevision;
-    let emit = true;
+    let emitStoreChange = true;
     if (typeof maybeOptions === "number") {
       expectedStructuralRevision = maybeOptions;
     } else if (maybeOptions && typeof maybeOptions === "object") {
-      ({ expectedStructuralRevision, emit = true } = maybeOptions);
+      ({ expectedStructuralRevision, emitStoreChange = true } = maybeOptions);
     }
 
     const validPatches = patches.filter((patch) => !isNoOp(patch));
@@ -182,7 +182,7 @@ export class DeckStore {
     if (validPatches.some((patch) => isInsert(patch) || isDelete(patch))) {
       this._emit("slide");
     }
-    if (emit) {
+    if (emitStoreChange) {
       this._emitStoreChange();
     }
     return expectedStructuralRevision !== undefined ? { success: true } : true;

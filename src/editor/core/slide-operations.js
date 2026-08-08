@@ -154,12 +154,16 @@ export class SlideOperations {
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    const sourceSlides = this._deckStore?.getSlides() ?? this.saveManager?.getFullSlides() ?? [];
+    if (this._deckStore) {
+      const markdown = this._deckStore.getSlides()[index] ?? "";
+      const baseSlide = { index, markdown };
+      return this.saveManager?.getFullSlide
+        ? this.saveManager.getFullSlide(index, baseSlide)
+        : baseSlide;
+    }
+    const sourceSlides = this.saveManager?.getFullSlides() ?? [];
     const markdown = sourceSlides[index] ?? "";
-    const baseSlide = { index, markdown };
-    return this.saveManager?.getFullSlide
-      ? this.saveManager.getFullSlide(index, baseSlide)
-      : baseSlide;
+    return { index, markdown };
   }
 
   /**
@@ -167,18 +171,30 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    const sourceSlides = this._deckStore?.getSlides() ?? this.saveManager?.getFullSlides() ?? [];
-    const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
-    return this.saveManager?.getFullSlides
-      ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
-      : sourceSlides;
+    if (this._deckStore) {
+      const sourceSlides = this._deckStore.getSlides();
+      const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
+      return this.saveManager?.getFullSlides
+        ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
+        : sourceSlides;
+    }
+    return this.saveManager?.getFullSlides() ?? [];
   }
 
   _getWorkingMarkdown(index) {
     return this._getWorkingSlide(index).markdown;
   }
 
+  _requireDeckStore() {
+    if (!this._deckStore) {
+      Notification.warning("Slide operations require a deck store in this window.");
+      return false;
+    }
+    return true;
+  }
+
   addSlide() {
+    if (!this._requireDeckStore()) return;
     const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount === 0) return;
 
@@ -196,6 +212,7 @@ export class SlideOperations {
   }
 
   async deleteSlide() {
+    if (!this._requireDeckStore()) return;
     const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount <= 1) {
       Notification.warning("Cannot delete the only slide");
@@ -218,6 +235,7 @@ export class SlideOperations {
   }
 
   moveSlideUp() {
+    if (!this._requireDeckStore()) return;
     if (this.currentSlideIndex <= 0) {
       Notification.warning("Cannot move the first slide up");
       return;
@@ -232,6 +250,7 @@ export class SlideOperations {
   }
 
   moveSlideDown() {
+    if (!this._requireDeckStore()) return;
     const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (this.currentSlideIndex >= slideCount - 1) {
       Notification.warning("Cannot move the last slide down");
@@ -271,6 +290,7 @@ export class SlideOperations {
   }
 
   async duplicateSlide() {
+    if (!this._requireDeckStore()) return;
     const sourceIndex = this.currentSlideIndex;
     const insertIndex = sourceIndex + 1;
 
@@ -290,6 +310,7 @@ export class SlideOperations {
   }
 
   addSlideWithLayout(layoutName) {
+    if (!this._requireDeckStore()) return;
     const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
     if (slideCount === 0) return;
 

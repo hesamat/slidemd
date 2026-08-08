@@ -645,16 +645,16 @@ export class EditController {
         }
       }
       if (patches.length > 0) {
-        const result = this.deckStore.applyPatches(patches, { emit: false });
+        const result = this.deckStore.applyPatches(patches, { emitStoreChange: false });
         const succeeded = result === true || (result && result.success === true);
         if (!succeeded) {
           // Patches were rejected (drift / before mismatch); fall back to a
           // silent full sync so the store stays in sync with the editor.
-          this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
+          this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
         }
       }
     } else {
-      this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
+      this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
     }
 
     this._reconcileUnsavedOverlays(this.deckStore.getSlides());
@@ -1015,6 +1015,10 @@ export class EditController {
             source: "ai",
             timestamp: Date.now(),
           });
+        } else {
+          // No store in viewer/presenter windows — write the refined deck
+          // back to the source snapshot so the editor and save use it.
+          this._setSourceMarkdown(enhanced);
         }
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,

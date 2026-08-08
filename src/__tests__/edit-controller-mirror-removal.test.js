@@ -74,7 +74,7 @@ describe("DeckStore applyPatches emit option", () => {
     const onStore = vi.fn();
     store.onStoreChange(onStore);
 
-    store.applyPatches([createEditPatch(1, "b", "updated")], { emit: false });
+    store.applyPatches([createEditPatch(1, "b", "updated")], { emitStoreChange: false });
     expect(onStore).not.toHaveBeenCalled();
     expect(store.getSlides()).toEqual(["a", "updated"]);
   });
