@@ -497,45 +497,45 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 | Task                                  | Details                                                                                                 |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| [ ] Add working-state adapter         | Read the latest working deck as `DeckStore` slides plus the `unsavedMarkdown` editor overlay.           |
-| [ ] Guard stale AI operations         | Capture a store revision/target snapshot; reject or cancel results after insert/delete/move operations. |
-| [ ] Add store-to-view synchronization | Keep parsed deck data, renderer, thumbnails, navigation, and editor state aligned after store changes.  |
-| [ ] Fail closed on patch rejection    | Never mutate the parsed deck or DOM when a `DeckStore` patch is rejected.                               |
+| [x] Add working-state adapter         | Read the latest working deck as `DeckStore` slides plus the `unsavedMarkdown` editor overlay.           |
+| [x] Guard stale AI operations         | Capture a store revision/target snapshot; reject or cancel results after insert/delete/move operations. |
+| [x] Add store-to-view synchronization | Keep parsed deck data, renderer, thumbnails, navigation, and editor state aligned after store changes.  |
+| [x] Fail closed on patch rejection    | Never mutate the parsed deck or DOM when a `DeckStore` patch is rejected.                               |
 
 ### Conflict & Merge
 
 | Task                          | Details                                                                                                  |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [ ] Add `ConflictResolver`    | Resolve only single-slide `enhanceSlide` and `addSpeakerNotes` patches against the latest working slide. |
-| [ ] Add conflict-choice UI    | Offer "Keep my edits" or "Overwrite with AI"; no inline diff or three-way merge editor in this phase.    |
-| [ ] Rebase speaker notes      | Replace the existing `<!-- notes: ... -->` block while preserving the user's visible Markdown content.   |
-| [ ] Preserve non-target edits | Keep edits on other slides when a single-slide AI result is applied or rejected.                         |
+| [x] Add `ConflictResolver`    | Resolve only single-slide `enhanceSlide` and `addSpeakerNotes` patches against the latest working slide. |
+| [x] Add conflict-choice UI    | Offer "Keep my edits" or "Overwrite with AI"; no inline diff or three-way merge editor in this phase.    |
+| [x] Rebase speaker notes      | Replace the existing `<!-- notes: ... -->` block while preserving the user's visible Markdown content.   |
+| [x] Preserve non-target edits | Keep edits on other slides when a single-slide AI result is applied or rejected.                         |
 
 ### Undo & Redo
 
 | Task                                 | Details                                                                                                                       |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Define committed-operation undo  | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
-| [ ] Complete global undo/redo        | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
+| [x] Define committed-operation undo  | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
+| [x] Complete global undo/redo        | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
 | [ ] Add undo/redo controls (stretch) | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts.           |
-| [ ] Test history boundaries          | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
+| [x] Test history boundaries          | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
 
 ### Editor Rewire
 
 | Task                             | Details                                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [ ] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.            |
-| [ ] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently. |
-| [ ] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.              |
-| [ ] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.   |
+| [x] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.            |
+| [x] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently. |
+| [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.              |
+| [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.   |
 | [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.            |
 
 ### Delivery Slices
 
 | Slice                                    | Details                                                                                          |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [ ] Phase 14.1: State safety + conflicts | Working-state adapter, stale-operation guard, `ConflictResolver`, conflict-choice UI, and tests. |
-| [ ] Phase 14.2: Undo + editor rewire     | Undo semantics/UI, store-to-view synchronization, sub-module migration, and mirror removal.      |
+| [x] Phase 14.1: State safety + conflicts | Working-state adapter, stale-operation guard, `ConflictResolver`, conflict-choice UI, and tests. |
+| [x] Phase 14.2: Undo + editor rewire     | Undo semantics/UI, store-to-view synchronization, sub-module migration, and mirror removal.      |
 
 ### Acceptance Criteria
 
@@ -676,7 +676,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
 | Phase 13.1: Remix Planner                    | ✅ Complete |
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo         | Planned     |
+| Phase 14: Conflict Resolution & Undo         | In Progress |
 | Phase 15: Design System & Theme Registry     | Planned     |
 | Phase 16: Presenter, Print & AI Commands     | Planned     |
 | Phase 17: Cloud Mode                         | Planned     |

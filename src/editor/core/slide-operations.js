@@ -154,7 +154,10 @@ export class SlideOperations {
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    const storeSlides = this._deckStore?.getSlides() ?? [];
+    if (!this._deckStore) {
+      throw new Error("SlideOperations requires a DeckStore");
+    }
+    const storeSlides = this._deckStore.getSlides();
     const markdown = storeSlides[index] ?? "";
     const baseSlide = { index, markdown };
     return this.saveManager.getFullSlide
@@ -167,7 +170,10 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    const storeSlides = this._deckStore?.getSlides() ?? [];
+    if (!this._deckStore) {
+      throw new Error("SlideOperations requires a DeckStore");
+    }
+    const storeSlides = this._deckStore.getSlides();
     const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
     return this.saveManager.getFullSlides
       ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")

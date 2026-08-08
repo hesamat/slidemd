@@ -45,6 +45,11 @@ import { SourceJumpHandler } from "./source-jump-handler.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
+import {
+  createEditPatch,
+  createInsertPatch,
+  createDeletePatch,
+} from "../../data/store/slide-patch.js";
 
 export class EditController {
   constructor(deck, controller, elements, { deckStore = null } = {}) {
@@ -151,6 +156,7 @@ export class EditController {
       getDeck: () => this.deck,
       getDeckStore: () => this.deckStore,
       getSourceMarkdown: () => this._getSourceMarkdown(),
+      setSourceMarkdown: (markdown) => this._setSourceMarkdown(markdown),
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       getHasUnsavedChanges: () => this.hasUnsavedChanges,
       setHasUnsavedChanges: (v) => {
@@ -331,6 +337,24 @@ export class EditController {
    */
   _getSourceMarkdown() {
     return DeckLoader.getSourceMarkdown();
+  }
+
+  /**
+   * Update the source snapshot after a successful save so the dirty
+   * baseline matches what was written to disk.
+   * @param {string} markdown
+   */
+  _setSourceMarkdown(markdown) {
+    try {
+      localStorage.setItem("webdeck_local_file", markdown);
+    } catch {
+      window.__WEBDECK_MARKDOWN__ = markdown;
+    }
+  }
+
+  _getSourceSlide(index) {
+    const source = this._cacheOriginalMarkdown();
+    return source[index] ?? "";
   }
 
   _cacheOriginalMarkdown() {
@@ -571,9 +595,10 @@ export class EditController {
   _captureCurrentEditorMarkdown() {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const storeSlides = this.deckStore?.getSlides() ?? [];
-    const original = storeSlides[this.currentSlideIndex] ?? "";
-    if (markdown === original) {
+    const original = this.deckStore
+      ? this.deckStore.getSlides()[this.currentSlideIndex]
+      : this._getSourceSlide(this.currentSlideIndex);
+    if (markdown === (original ?? "")) {
       this.unsavedMarkdown.delete(this.currentSlideIndex);
       this.updateUnsavedChangesFlag();
       return;
@@ -596,17 +621,30 @@ export class EditController {
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
-    const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
-      index,
-      markdown,
-    }));
+    const storeSlides = this.deckStore.getSlides();
+    const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
     const fullSlides = this.saveManager
-      .getFullSlides(storeSlides)
+      .getFullSlides(storeSlideObjects)
       .map((slide) => slide.markdown ?? "");
-    this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
 
-    // The store was updated in place; refresh the editor's working copy
-    // without triggering a full deck reload.
+    const patches = [];
+    const maxLen = Math.max(storeSlides.length, fullSlides.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < storeSlides.length && i < fullSlides.length) {
+        if (storeSlides[i] !== fullSlides[i]) {
+          patches.push(createEditPatch(i, storeSlides[i], fullSlides[i], "user"));
+        }
+      } else if (i >= storeSlides.length) {
+        patches.push(createInsertPatch(i, fullSlides[i], "user"));
+      } else {
+        patches.push(createDeletePatch(i, storeSlides[i], "user"));
+      }
+    }
+
+    if (patches.length > 0) {
+      this.deckStore.applyPatches(patches);
+    }
+
     this._reconcileUnsavedOverlays(this.deckStore.getSlides());
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();

@@ -165,7 +165,7 @@ export class StyleApplier {
   async _applyToAllLegacy(cssString, headerStyle, background, theme) {
     const source = this._getSourceMarkdown?.();
     if (!source) {
-      Notification.warning("No deck store is available to apply styles.");
+      Notification.warning("No source markdown available to apply styles.");
       return;
     }
 

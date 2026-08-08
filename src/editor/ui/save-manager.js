@@ -32,6 +32,7 @@ export class SaveManager {
    * @param {() => object} opts.getDeck
    * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
    * @param {() => string} [opts.getSourceMarkdown]
+   * @param {(markdown: string) => void} [opts.setSourceMarkdown]
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {() => boolean} opts.getHasUnsavedChanges
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
@@ -42,6 +43,7 @@ export class SaveManager {
     getDeck,
     getDeckStore,
     getSourceMarkdown = null,
+    setSourceMarkdown = null,
     getUnsavedMarkdown,
     getHasUnsavedChanges,
     setHasUnsavedChanges,
@@ -51,6 +53,7 @@ export class SaveManager {
     this._getDeck = getDeck;
     this._getDeckStore = getDeckStore;
     this._getSourceMarkdown = getSourceMarkdown;
+    this._setSourceMarkdown = setSourceMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._getHasUnsavedChanges = getHasUnsavedChanges;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
@@ -118,13 +121,19 @@ export class SaveManager {
    */
   getFullSlides(deckStoreSlides) {
     if (deckStoreSlides === undefined) {
+      const deckStore = this._getDeckStore?.();
+      if (deckStore) {
+        const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
+        return this.getFullSlides(storeSlides);
+      }
+
       const source = this._getSourceMarkdown?.() ?? "";
       if (!source) return [];
       const parser = new MarkdownParser();
-      const merged = parser.splitSlides(source);
+      const merged = parser.splitSlides(source).map((markdown, index) => ({ index, markdown }));
       for (let i = 0; i < merged.length; i++) {
         if (this.unsavedMarkdown.has(i)) {
-          merged[i] = this.unsavedMarkdown.get(i);
+          merged[i] = { ...merged[i], markdown: this.unsavedMarkdown.get(i) };
         }
       }
       return merged;
@@ -139,9 +148,6 @@ export class SaveManager {
    * @returns {string}
    */
   getFullMarkdown(deckStoreSlides) {
-    if (deckStoreSlides === undefined) {
-      return this.getFullSlides().join("\n\n---\n\n");
-    }
     return this.getFullSlides(deckStoreSlides)
       .map((slide) => slide.markdown ?? "")
       .join("\n\n---\n\n");
@@ -186,12 +192,15 @@ export class SaveManager {
   }
 
   /**
-   * Record that a save succeeded: clear the dirty state.
+   * Record that a save succeeded: clear the dirty state and update the
+   * source snapshot so the baseline matches what was written to disk.
+   * @param {string} fullMarkdown
    */
-  _markSaved() {
+  _markSaved(fullMarkdown) {
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this._onSaveStateReset?.();
+    this._setSourceMarkdown?.(fullMarkdown);
     this.updateButton();
   }
 
@@ -378,7 +387,7 @@ export class SaveManager {
         // A successful .textpack export is a valid save: clear the dirty state
         // so the editor doesn't keep warning about unsaved changes. Return false
         // so the caller doesn't also show the generic "Deck saved!" toast.
-        if (ok) this._markSaved();
+        if (ok) this._markSaved(markdown);
         return false;
       }
       // choice === "md" — fall through to blob download below
@@ -400,7 +409,7 @@ export class SaveManager {
     const { fullMarkdown } = await this._prepareSave();
     try {
       const saved = await this._doMarkdownSave(fullMarkdown);
-      if (saved) this._markSaved();
+      if (saved) this._markSaved(fullMarkdown);
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Failed to save file:", error);
