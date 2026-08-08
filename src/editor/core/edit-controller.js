@@ -109,7 +109,10 @@ export class EditController {
       this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-      this.loadSlideIntoEditor();
+      // Skip loadSlideIntoEditor during a deck restore — the final goTo
+      // in _restoreStoreSnapshot will fire _onSlideChange which calls
+      // loadSlideIntoEditor at the correct (restored) index.
+      if (!this._deckRestoreInProgress) this.loadSlideIntoEditor();
       this.imageBg.deckDirectoryHandle = null;
     };
     this._onSlidesContainerClick = (e) => {
@@ -687,9 +690,9 @@ export class EditController {
     const slideCountBefore = this.deckStore.getSlideCount();
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await DeckLoader.parseMarkdown(markdown);
-    // Keep the flag set through both replaceDeck and goTo so that
-    // _onSlideChange (fired by goTo) is suppressed — _onDeckChange
-    // already called loadSlideIntoEditor with the correct deck.
+    // Keep the flag set during replaceDeck so that _onSlideChange and
+    // _onDeckChange skip loadSlideIntoEditor (the intermediate index
+    // from replaceDeck's goTo is not the final target).
     this._deckRestoreInProgress = true;
     try {
       await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
@@ -699,10 +702,13 @@ export class EditController {
       if (this.deckStore.getSlideCount() !== slideCountBefore) {
         this.markdownEditor?.clearSlideStateCache();
       }
-      this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     } finally {
       this._deckRestoreInProgress = false;
     }
+    // Now navigate to the restored index. _onSlideChange fires and
+    // calls loadSlideIntoEditor at the correct index with the updated
+    // deck reference, so the editor shows the right slide.
+    this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
   }
 
