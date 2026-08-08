@@ -1,8 +1,9 @@
 # Review Guidelines
 
 This file provides guidance to [Devin Review](https://docs.devin.ai/work-with-devin/devin-review)
-when analyzing pull requests in this repository. Architecture details and module
-reference live in `AGENTS.md` — this file contains only review-specific rules.
+and other automated reviewers when analyzing pull requests in this repository.
+Architecture details, module reference, and pre-review verification checklists
+live in `AGENTS.md` — this file contains only review-specific rules.
 
 ## Ignore
 
@@ -11,6 +12,7 @@ Do not raise findings in:
 - `dist/` — generated build output
 - `decks/`, `images/` — user content, not source
 - `docs/compose/` — generated documentation
+- Formatting and syntax — owned by Prettier and ESLint, not review
 
 ## Critical Areas
 
@@ -103,15 +105,3 @@ keyboard shortcuts, command-palette actions.
   `tools/build.mjs` — prefer extracting a shared module.
 - Flag hardcoded layout names outside `src/data/layout-data.js` and
   `src/data/layouts.json` — both lists must stay in sync.
-
-## Pre-review verification for editor state changes
-
-When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`:
-
-- `SaveManager.getFullSlides()` without arguments must return `string[]` and must not throw when no `DeckStore` is wired.
-- `SaveManager.getFullMarkdown()` without arguments must produce a valid `.md` string.
-- `prepareStoreOperation()` / `onBeforeSave` must not broadcast a `storeChange` and must not clear CodeMirror history.
-- Saving must update the source baseline so the dirty flag stays clean until the next real change.
-- `loadSlideIntoEditor()` must preserve CodeMirror undo when the slide index has not changed.
-- Whole-deck AI no-store paths must not stringify objects (e.g. no `[object Object]` in prompts).
-- `DeckStore.applyPatches` default must remain `emit: true`; any new options must be reviewed.
