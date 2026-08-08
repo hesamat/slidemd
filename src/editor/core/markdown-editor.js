@@ -173,8 +173,8 @@ export class MarkdownEditor {
    * survives navigation to another slide and back.
    * Skipped when the cache was just cleared (the current editor state is
    * stale in that case — it belongs to a pre-change slide) unless `force`
-   * is true, which is used by explicit callers like _restoreStoreSnapshot
-   * that want to capture the latest state regardless.
+   * is true, which overrides the guard for callers that explicitly know
+   * the current state should be captured (use with care).
    * @param {number} index
    * @param {boolean} [force=false]
    */
@@ -233,16 +233,6 @@ export class MarkdownEditor {
     // No cache or stale cache — create a fresh state (no undo history).
     this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
     return false;
-  }
-
-  /**
-   * Remove a single slide's cached state and mark the cache as cleared
-   * so the next saveSlideState (e.g. in _restoreStoreSnapshot) is skipped,
-   * preventing the stale pre-change state from being re-cached.
-   * @param {number} index
-   */
-  invalidateSlideState(index) {
-    this._slideStateCache.delete(index);
   }
 
   /**

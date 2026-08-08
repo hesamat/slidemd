@@ -152,19 +152,6 @@ describe("Per-slide editor undo history", () => {
       expect(editor._slideStateCache.has(3)).toBe(true);
     });
 
-    it("invalidateSlideState removes a single slide entry", () => {
-      const editor = {
-        _slideStateCache: new Map([
-          [0, { state: {}, revision: 0 }],
-          [1, { state: {}, revision: 0 }],
-        ]),
-      };
-
-      MarkdownEditor.prototype.invalidateSlideState.call(editor, 0);
-      expect(editor._slideStateCache.has(0)).toBe(false);
-      expect(editor._slideStateCache.has(1)).toBe(true);
-    });
-
     it("clearSlideStateCache removes all entries and bumps revision", () => {
       const editor = {
         _slideStateCache: new Map([
