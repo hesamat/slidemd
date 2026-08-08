@@ -1,0 +1,199 @@
+import { describe, it, expect, vi } from "vitest";
+import { MarkdownEditor } from "../editor/core/markdown-editor.js";
+import { EditController } from "../editor/core/edit-controller.js";
+
+describe("Per-slide editor undo history", () => {
+  describe("MarkdownEditor slide state cache", () => {
+    it("saveSlideState stores the current EditorState for a slide index", () => {
+      const fakeState = { doc: { toString: () => "# A" } };
+      const editor = {
+        view: { state: fakeState },
+        _slideStateCache: new Map(),
+      };
+
+      MarkdownEditor.prototype.saveSlideState.call(editor, 0);
+      expect(editor._slideStateCache.get(0)).toBe(fakeState);
+    });
+
+    it("saveSlideState ignores negative indices", () => {
+      const editor = {
+        view: { state: {} },
+        _slideStateCache: new Map(),
+      };
+
+      MarkdownEditor.prototype.saveSlideState.call(editor, -1);
+      expect(editor._slideStateCache.size).toBe(0);
+    });
+
+    it("loadSlideState restores a cached state when the document matches", () => {
+      const cachedState = { doc: { toString: () => "# A" } };
+      const setState = vi.fn();
+      const editor = {
+        view: { setState },
+        value: "",
+        _slideStateCache: new Map([[0, cachedState]]),
+      };
+
+      const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 0, "# A");
+      expect(restored).toBe(true);
+      expect(setState).toHaveBeenCalledWith(cachedState);
+    });
+
+    it("loadSlideState creates a fresh state when no cache exists", () => {
+      const setState = vi.fn();
+      const editor = {
+        view: { setState },
+        value: "",
+        _slideStateCache: new Map(),
+        extensions: [],
+      };
+
+      const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 1, "# B");
+      expect(restored).toBe(false);
+      expect(setState).toHaveBeenCalledTimes(1);
+    });
+
+    it("loadSlideState updates the document when cached doc differs", () => {
+      const cachedState = { doc: { toString: () => "# old", length: 5 } };
+      const dispatch = vi.fn();
+      const setState = vi.fn();
+      const editor = {
+        view: {
+          setState,
+          state: cachedState,
+          dispatch,
+        },
+        value: "",
+        _slideStateCache: new Map([[0, cachedState]]),
+      };
+
+      const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 0, "# new");
+      expect(restored).toBe(true);
+      expect(setState).toHaveBeenCalledWith(cachedState);
+      // Should dispatch a document update without recording history.
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          changes: { from: 0, to: 5, insert: "# new" },
+        }),
+      );
+    });
+
+    it("invalidateSlideState removes a single slide entry", () => {
+      const editor = {
+        _slideStateCache: new Map([
+          [0, {}],
+          [1, {}],
+        ]),
+      };
+
+      MarkdownEditor.prototype.invalidateSlideState.call(editor, 0);
+      expect(editor._slideStateCache.has(0)).toBe(false);
+      expect(editor._slideStateCache.has(1)).toBe(true);
+    });
+
+    it("clearSlideStateCache removes all entries", () => {
+      const editor = {
+        _slideStateCache: new Map([
+          [0, {}],
+          [1, {}],
+        ]),
+      };
+
+      MarkdownEditor.prototype.clearSlideStateCache.call(editor);
+      expect(editor._slideStateCache.size).toBe(0);
+    });
+  });
+
+  describe("EditController.loadSlideIntoEditor", () => {
+    it("saves outgoing slide state before switching to a different slide", () => {
+      const saveSlideState = vi.fn();
+      const loadSlideState = vi.fn();
+      const getValue = vi.fn(() => "# old");
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 1,
+        deck: { id: 1 },
+        _lastEditorSlideIndex: 0,
+        _lastEditorDeck: { id: 1 },
+        deckStore: { getSlides: () => ["# A", "# B"] },
+        unsavedMarkdown: new Map(),
+        markdownEditor: {
+          getValue,
+          setValue: vi.fn(),
+          saveSlideState,
+          loadSlideState,
+          clearSlideStateCache: vi.fn(),
+        },
+        saveManager: { updateButton: vi.fn() },
+        areaGuides: { refresh: vi.fn() },
+      };
+
+      EditController.prototype.loadSlideIntoEditor.call(fake);
+
+      // Should save the outgoing slide (index 0) before loading the new one.
+      expect(saveSlideState).toHaveBeenCalledWith(0);
+      // Should load the new slide's state from cache (or create fresh).
+      expect(loadSlideState).toHaveBeenCalledWith(1, "# B");
+    });
+
+    it("uses setValue (not cache) when staying on the same slide", () => {
+      const saveSlideState = vi.fn();
+      const loadSlideState = vi.fn();
+      const setValue = vi.fn();
+      const getValue = vi.fn(() => "# old");
+      const deck = { id: 1 };
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 0,
+        deck,
+        _lastEditorSlideIndex: 0,
+        _lastEditorDeck: deck,
+        deckStore: { getSlides: () => ["# A"] },
+        unsavedMarkdown: new Map(),
+        markdownEditor: {
+          getValue,
+          setValue,
+          saveSlideState,
+          loadSlideState,
+          clearSlideStateCache: vi.fn(),
+        },
+        saveManager: { updateButton: vi.fn() },
+        areaGuides: { refresh: vi.fn() },
+      };
+
+      EditController.prototype.loadSlideIntoEditor.call(fake);
+
+      // Same slide — should use setValue, not the cache.
+      expect(saveSlideState).not.toHaveBeenCalled();
+      expect(loadSlideState).not.toHaveBeenCalled();
+      expect(setValue).toHaveBeenCalledWith("# A", { suppressOnChange: true });
+    });
+
+    it("short-circuits when markdown is unchanged on the same slide", () => {
+      const setValue = vi.fn();
+      const getValue = vi.fn(() => "# A");
+      const deck = { id: 1 };
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 0,
+        deck,
+        _lastEditorSlideIndex: 0,
+        _lastEditorDeck: deck,
+        deckStore: { getSlides: () => ["# A"] },
+        unsavedMarkdown: new Map(),
+        markdownEditor: {
+          getValue,
+          setValue,
+          saveSlideState: vi.fn(),
+          loadSlideState: vi.fn(),
+          clearSlideStateCache: vi.fn(),
+        },
+        saveManager: { updateButton: vi.fn() },
+        areaGuides: { refresh: vi.fn() },
+      };
+
+      EditController.prototype.loadSlideIntoEditor.call(fake);
+      expect(setValue).not.toHaveBeenCalled();
+    });
+  });
+});

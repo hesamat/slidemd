@@ -87,6 +87,10 @@ export class MarkdownEditor {
     this.suppressChange = false;
     this._completionSources = [];
 
+    // Per-slide EditorState cache so undo history survives slide switches.
+    // Keyed by slide index; invalidated on structural/deck changes.
+    this._slideStateCache = new Map();
+
     // Render immediately so DOM elements exist
     this.render();
   }
@@ -151,6 +155,77 @@ export class MarkdownEditor {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) overlay.classList.add("webdeck-hidden");
     });
+  }
+
+  // ── Per-slide state caching ──────────────────────────────────────────────
+
+  /**
+   * Save the current EditorState for a slide index so its undo history
+   * survives navigation to another slide and back.
+   * @param {number} index
+   */
+  saveSlideState(index) {
+    if (!this.view || index < 0) return;
+    this._slideStateCache.set(index, this.view.state);
+  }
+
+  /**
+   * Load a slide's EditorState from the cache, or create a fresh one.
+   * If a cached state exists but its document differs from `doc` (e.g.
+   * the slide was modified externally by AI or style-applier), the cached
+   * state is updated with the new document without recording it in history,
+   * preserving the slide's undo stack.
+   * @param {number} index
+   * @param {string} doc - Expected document content for the slide
+   * @returns {boolean} true if a cached state was restored, false if fresh
+   */
+  loadSlideState(index, doc) {
+    if (!this.view) return false;
+    const value = doc || "";
+    this.value = value;
+
+    const cached = this._slideStateCache.get(index);
+    if (cached) {
+      const cachedDoc = cached.doc.toString();
+      if (cachedDoc === value) {
+        // Exact match — restore with full history intact.
+        this.view.setState(cached);
+        return true;
+      }
+      // Document changed externally (AI, style, save baseline shift).
+      // Restore the cached state then update the document without
+      // recording it in history so the prior undo stack is preserved.
+      this.view.setState(cached);
+      try {
+        this.view.dispatch({
+          changes: { from: 0, to: this.view.state.doc.length, insert: value },
+          annotations: [Transaction.addToHistory.of(false)],
+        });
+      } catch {
+        // Fallback: recreate state from scratch (history lost).
+        this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
+      }
+      return true;
+    }
+
+    // No cache — create a fresh state (no undo history).
+    this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
+    return false;
+  }
+
+  /**
+   * Remove a single slide's cached state.
+   * @param {number} index
+   */
+  invalidateSlideState(index) {
+    this._slideStateCache.delete(index);
+  }
+
+  /**
+   * Clear all cached slide states. Call on structural/deck changes.
+   */
+  clearSlideStateCache() {
+    this._slideStateCache.clear();
   }
 
   // ── Text manipulation ────────────────────────────────────────────────────

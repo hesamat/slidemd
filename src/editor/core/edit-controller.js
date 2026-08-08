@@ -84,6 +84,7 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
+      this.markdownEditor?.clearSlideStateCache();
       const isStoreRestore = data.syncStore === false && this.deckStore;
       if (this.deckStore) {
         if (isStoreRestore) {
@@ -991,6 +992,7 @@ export class EditController {
         // state. This makes the ordering explicit rather than relying on the
         // handler running synchronously during the awaited replaceDeck.
         this.unsavedMarkdown.clear();
+        this.markdownEditor?.clearSlideStateCache();
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
         // Route through replaceDeck so the refine is undoable (Ctrl+Z)
@@ -1026,17 +1028,33 @@ export class EditController {
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
     const current = this.markdownEditor.getValue();
-    if (markdown === current) {
-      this._lastEditorSlideIndex = this.currentSlideIndex;
+    if (markdown === current && this.currentSlideIndex === this._lastEditorSlideIndex) {
       this._lastEditorDeck = this.deck;
       this.saveManager.updateButton();
       this.areaGuides.refresh();
       return;
     }
 
-    const clearHistory =
-      this.currentSlideIndex !== this._lastEditorSlideIndex || this.deck !== this._lastEditorDeck;
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory });
+    // Save the outgoing slide's EditorState (with undo history) before
+    // switching, so navigating back restores its undo stack.
+    if (
+      this._lastEditorSlideIndex !== undefined &&
+      this._lastEditorSlideIndex !== this.currentSlideIndex
+    ) {
+      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
+    }
+
+    if (
+      this.currentSlideIndex !== this._lastEditorSlideIndex ||
+      this.deck !== this._lastEditorDeck
+    ) {
+      // Different slide or deck — use the per-slide state cache.
+      this.markdownEditor.loadSlideState(this.currentSlideIndex, markdown);
+    } else {
+      // Same slide, content changed (e.g. AI edit, save baseline shift) —
+      // update the document in-place, preserving history.
+      this.markdownEditor.setValue(markdown, { suppressOnChange: true });
+    }
     this._lastEditorSlideIndex = this.currentSlideIndex;
     this._lastEditorDeck = this.deck;
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag

@@ -68,6 +68,14 @@ export class SlideOperations {
   }
 
   /**
+   * Clear the per-slide editor undo cache. Called after any structural
+   * operation (add/delete/duplicate/move) since slide indices shift.
+   */
+  _clearEditorHistoryCache() {
+    this.markdownEditor?.clearSlideStateCache();
+  }
+
+  /**
    * @param {boolean | { success: boolean, reason?: string }} result
    * @returns {boolean}
    */
@@ -187,6 +195,7 @@ export class SlideOperations {
       return;
 
     this._deckStore.setActiveIndex(insertIndex);
+    this._clearEditorHistoryCache();
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
@@ -210,6 +219,7 @@ export class SlideOperations {
       return;
 
     this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
+    this._clearEditorHistoryCache();
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }
@@ -262,6 +272,7 @@ export class SlideOperations {
       else newMap.set(idx, content);
     }
     this.unsavedMarkdown = newMap;
+    this._clearEditorHistoryCache();
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     return true;
@@ -281,6 +292,7 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
+    this._clearEditorHistoryCache();
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
@@ -314,6 +326,7 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
     this._deckStore.setActiveIndex(insertIndex);
+    this._clearEditorHistoryCache();
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

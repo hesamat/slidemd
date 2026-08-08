@@ -195,7 +195,10 @@ describe("SlideOperations.deleteSlide", () => {
       getElements: () => ({ slideCountEl: null, slidesContainer: null }),
       getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
       getThumbnails: () => ({ refresh: vi.fn() }),
-      getMarkdownEditor: () => ({ getValue: () => state.editorValue }),
+      getMarkdownEditor: () => ({
+        getValue: () => state.editorValue,
+        clearSlideStateCache: vi.fn(),
+      }),
       getCurrentSlideIndex: () => state.currentIndex,
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
