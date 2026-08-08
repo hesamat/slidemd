@@ -96,13 +96,10 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      // Only clear the per-slide state cache on real deck changes (new
-      // file loaded, whole-deck AI refine). Store restores (undo/redo,
-      // single-slide AI) use syncStore: false and don't need a full
-      // cache clear — loadSlideState's mismatch branch handles doc drift.
-      if (data.syncStore !== false) {
-        this.markdownEditor?.clearSlideStateCache();
-      }
+      // The DeckStore structural-revision listener (registered in the
+      // constructor) already clears the per-slide editor-state cache for
+      // structural changes. We only need to decide how to reconcile
+      // unsaved overlays here.
       const isStoreRestore = data.syncStore === false && this.deckStore;
       if (this.deckStore) {
         if (isStoreRestore) {
@@ -501,8 +498,9 @@ export class EditController {
     if (this._destroyed) return;
     this._destroyed = true;
 
-    // Store subscription
+    // Store subscriptions
     this._offStoreChange?.();
+    this._offStructuralChange?.();
 
     // Controller EventEmitter listeners
     this.controller.removeEventListener("slidechange", this._onSlideChange);
@@ -536,9 +534,10 @@ export class EditController {
       window.__WEBDECK_EDIT_CONTROLLER__ = null;
     }
 
-    this._offStoreChange?.();
-    this._offStructuralChange?.();
-    this.markdownEditor?.destroy?.();
+    // Tear down the CodeMirror view and capture listener, but leave the
+    // editor panel container in place. EditController.destroy() is terminal
+    // (beforeunload / deck switch) so the panel is not reused.
+    this.markdownEditor?.teardown?.();
   }
 
   /**
@@ -712,11 +711,6 @@ export class EditController {
     }
     const markdown = this.deckStore.toMarkdown();
     const restoredActiveIndex = this.deckStore.getActiveIndex();
-    // Capture the rendered deck's slide count (not the store's) since
-    // replaceDeck with syncStore:false doesn't touch the store — both
-    // store reads would return the same value. The rendered deck is
-    // what changes when replaceDeck swaps in the new parsed deck.
-    const renderedSlideCountBefore = this.deck?.slides?.length ?? 0;
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await DeckLoader.parseMarkdown(markdown);
     // Use a depth counter instead of a boolean so concurrent restores
@@ -724,12 +718,6 @@ export class EditController {
     this._deckRestoreDepth++;
     try {
       await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
-      // Clear the per-slide state cache when the slide count changed
-      // (e.g. undo/redo of add/delete/move). Index-keyed cache entries
-      // would otherwise attach to the wrong slide after a shift.
-      if (deck.slides.length !== renderedSlideCountBefore) {
-        this.markdownEditor?.clearSlideStateCache();
-      }
       // Navigate to the restored index while the depth is still > 0 so
       // _onSlideChange is suppressed — the explicit loadSlideIntoEditor
       // below is the single load at the correct index.
@@ -1067,10 +1055,9 @@ export class EditController {
         const deck = await DeckLoader.parseMarkdown(enhanced);
         // Update the deck store BEFORE firing deckchange via reloadManager so
         // the _onDeckChange handler reads the correct (post-refine) store
-        // state. This makes the ordering explicit rather than relying on the
-        // handler running synchronously during the awaited replaceDeck.
+        // state. The structural-revision listener will clear the per-slide
+        // editor-state cache when deckStore.replaceDeck bumps the revision.
         this.unsavedMarkdown.clear();
-        this.markdownEditor?.clearSlideStateCache();
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
         // Route through replaceDeck so the refine is undoable (Ctrl+Z)

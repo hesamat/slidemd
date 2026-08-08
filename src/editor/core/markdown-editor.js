@@ -544,9 +544,11 @@ export class MarkdownEditor {
   }
 
   /**
-   * Destroy the editor and clean up
+   * Tear down the CodeMirror view and listeners without wiping the editor
+   * container. Use this when the editor panel itself must stay in the DOM
+   * (e.g. `EditController.destroy()` on page unload / deck switch).
    */
-  destroy() {
+  teardown() {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -555,11 +557,21 @@ export class MarkdownEditor {
         capture: true,
       });
     }
+    if (this._onFocusOut && this.view?.dom) {
+      this.view.dom.removeEventListener("focusout", this._onFocusOut);
+    }
     this.view?.destroy();
-    this.container.innerHTML = "";
     this.view = null;
     this.editorRoot = null;
     this.backdrop = null;
+  }
+
+  /**
+   * Destroy the editor and clean up, including the container.
+   */
+  destroy() {
+    this.teardown();
+    this.container.innerHTML = "";
   }
 
   // ── CodeMirror setup ─────────────────────────────────────────────────────
@@ -711,5 +723,12 @@ export class MarkdownEditor {
     this.view.contentDOM.addEventListener("keydown", this._captureKeydown, {
       capture: true,
     });
+    // Reset the sampled depths when focus leaves the editor so a stale
+    // value cannot be reused if a keydown bypasses the capture listener.
+    this._onFocusOut = () => {
+      this._preUndoDepth = 0;
+      this._preRedoDepth = 0;
+    };
+    this.view.dom.addEventListener("focusout", this._onFocusOut);
   }
 }
