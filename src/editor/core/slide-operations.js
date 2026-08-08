@@ -206,10 +206,10 @@ export class SlideOperations {
 
     this._prepareStoreMutation();
     const deletedMarkdown = this._getWorkingMarkdown(indexToDelete);
-    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
       return;
 
+    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }

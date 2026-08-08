@@ -388,7 +388,8 @@ export class EditController {
     const store = this.deckStore.getSlides();
     const source = this._cacheOriginalMarkdown();
     if (store.length !== source.length) return true;
-    return store.some((slide, i) => slide !== source[i]);
+    const normalize = (s) => s.replace(/\r\n?/g, "\n").trim();
+    return store.some((slide, i) => normalize(slide) !== source[i]);
   }
 
   /**
