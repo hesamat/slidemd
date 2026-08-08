@@ -105,10 +105,18 @@ export class PptxImporter {
       await AssetLoader.ensureMarkdownItLoaded();
       const deckData = new MarkdownParser().parseDeckMarkdown(markdown);
 
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      if (editCtrl?.deckStore) {
+        editCtrl.deckStore.loadFromMarkdown(markdown, 0);
+      }
+
       loading.updateProgress(85);
 
       if (this._reloadManager?.replaceDeck) {
-        await this._reloadManager.replaceDeck(deckData, { startAtFirstSlide: true });
+        await this._reloadManager.replaceDeck(deckData, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
       }
 
       loading.updateProgress(95);
@@ -158,10 +166,19 @@ export class PptxImporter {
               window.__WEBDECK_MARKDOWN__ = serverMarkdown;
             }
             await DraftManager.saveDraft(serverMarkdown);
-            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+            const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+            if (editCtrl?.deckStore) {
               try {
-                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
-                  new MarkdownParser().splitSlides(serverMarkdown);
+                const newSlides = new MarkdownParser().splitSlides(serverMarkdown);
+                editCtrl.deckStore.syncSlides(newSlides, editCtrl.deckStore.getActiveIndex());
+                await AssetLoader.ensureMarkdownItLoaded();
+                const updatedDeck = new MarkdownParser().parseDeckMarkdown(serverMarkdown);
+                if (this._reloadManager?.replaceDeck) {
+                  await this._reloadManager.replaceDeck(updatedDeck, {
+                    startAtFirstSlide: false,
+                    syncStore: false,
+                  });
+                }
               } catch {
                 /* ignore */
               }

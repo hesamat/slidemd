@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SlideOperations } from "../editor/core/slide-operations.js";
+import { StyleApplier } from "../editor/core/style-applier.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { Notification } from "../renderer/notification.js";
 
@@ -174,12 +175,20 @@ describe("SlideOperations.deleteSlide", () => {
 
     state.store.syncSlides([...state.originalMarkdown], state.currentIndex);
 
-    const getFullSlides = () => {
-      const merged = [...state.originalMarkdown];
-      state.unsavedMarkdown.forEach((value, key) => {
-        merged[key] = value;
-      });
-      return merged;
+    const getFullSlide = (index, slide) => {
+      const overlay = state.unsavedMarkdown.get(index);
+      return overlay !== undefined ? { ...slide, markdown: overlay } : slide;
+    };
+
+    const getFullSlides = (slides) => {
+      if (slides === undefined) {
+        const merged = [...state.originalMarkdown];
+        state.unsavedMarkdown.forEach((value, key) => {
+          merged[key] = value;
+        });
+        return merged;
+      }
+      return slides.map((slide, index) => getFullSlide(index, slide));
     };
 
     const ops = new SlideOperations({
@@ -199,7 +208,7 @@ describe("SlideOperations.deleteSlide", () => {
       },
       getHasUnsavedChanges: () => false,
       setHasUnsavedChanges: vi.fn(),
-      getSaveManager: () => ({ updateButton: vi.fn(), getFullSlides }),
+      getSaveManager: () => ({ updateButton: vi.fn(), getFullSlide, getFullSlides }),
       deckStore: state.store,
       prepareStoreOperation: () => {
         const current = state.currentIndex;
@@ -232,5 +241,168 @@ describe("SlideOperations.deleteSlide", () => {
     expect(state.store.toMarkdown()).toBe("# Slide 2");
     expect(state.store.undo()).toBe(true);
     expect(state.store.toMarkdown()).toBe("# Slide 1\n\nfresh text\n\n---\n\n# Slide 2");
+  });
+});
+
+describe("SlideOperations store-backed structural operations", () => {
+  beforeEach(() => {
+    vi.spyOn(Notification, "success").mockImplementation(() => {});
+    vi.spyOn(Notification, "info").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function createStoreOps(slides, currentIndex = 0) {
+    const store = new DeckStore();
+    store.loadFromMarkdown(slides.join("\n\n---\n\n"), currentIndex);
+
+    const state = {
+      store,
+      deck: { slides: slides.map(() => ({ id: 1 })) },
+      originalMarkdown: [...slides],
+      currentIndex,
+      unsavedMarkdown: new Map(),
+      hasUnsavedChanges: false,
+    };
+
+    const getFullSlide = (index, slide) => {
+      const overlay = state.unsavedMarkdown.get(index);
+      return overlay !== undefined ? { ...slide, markdown: overlay } : slide;
+    };
+
+    const getFullSlides = (deckStoreSlides) => {
+      return deckStoreSlides.map((slide, index) => getFullSlide(index, slide));
+    };
+
+    const ops = new SlideOperations({
+      getDeck: () => state.deck,
+      getElements: () => ({ slideCountEl: null, slidesContainer: null }),
+      getController: () => ({ slideNavigator: { goTo: vi.fn() } }),
+      getThumbnails: () => ({ refresh: vi.fn() }),
+      getMarkdownEditor: () => null,
+      getCurrentSlideIndex: () => state.currentIndex,
+      setCurrentSlideIndex: (v) => {
+        state.currentIndex = v;
+      },
+      getOriginalMarkdown: () => state.originalMarkdown,
+      getUnsavedMarkdown: () => state.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        state.unsavedMarkdown = v;
+      },
+      getHasUnsavedChanges: () => state.hasUnsavedChanges,
+      setHasUnsavedChanges: (v) => {
+        state.hasUnsavedChanges = v;
+      },
+      getSaveManager: () => ({ updateButton: vi.fn(), getFullSlide, getFullSlides }),
+      deckStore: store,
+      prepareStoreOperation: () => {},
+      recordStoreOperation: () => {},
+    });
+
+    return { ops, state };
+  }
+
+  it("adds a new slide and records a single undoable history entry", () => {
+    const { ops, state } = createStoreOps(["# A", "# B"], 0);
+    ops.addSlide();
+
+    expect(state.store.getSlideCount()).toBe(3);
+    expect(state.store.getActiveIndex()).toBe(1);
+    expect(state.store.toMarkdown()).toMatch(/# A\n\n---\n\n## New Slide/);
+    expect(state.store.canUndo()).toBe(true);
+  });
+
+  it("duplicates a slide with the working overlay", async () => {
+    const { ops, state } = createStoreOps(["# A", "# B"], 0);
+    state.unsavedMarkdown.set(0, "# A\n\noverlay");
+    await ops.duplicateSlide();
+
+    expect(state.store.getSlideCount()).toBe(3);
+    expect(state.store.getSlides()[1]).toBe("# A\n\noverlay");
+    expect(state.store.undo()).toBe(true);
+    expect(state.store.getSlideCount()).toBe(2);
+  });
+
+  it("moves a slide down and updates active index", () => {
+    const { ops, state } = createStoreOps(["# A", "# B", "# C"], 0);
+    ops.moveSlideDown();
+
+    expect(state.store.getSlides()).toEqual(["# B", "# A", "# C"]);
+    expect(state.store.getActiveIndex()).toBe(1);
+    expect(state.store.canUndo()).toBe(true);
+  });
+
+  it("fails closed when the store rejects the patch after a re-sync", () => {
+    const { ops, state } = createStoreOps(["# A", "# B"], 0);
+    const warn = vi.spyOn(Notification, "warning").mockImplementation(() => {});
+    const store = state.store;
+
+    // Force the store to reject by breaking the `before` match.
+    store.syncSlides(["# Different", "# B"], 0);
+
+    // addSlide uses a before-less insert, but a stale state shouldn't matter here.
+    // Instead, test an explicit bad patch through the internals.
+    const badPatch = {
+      index: 0,
+      before: "# Wrong",
+      after: "# X",
+      source: "user",
+      timestamp: Date.now(),
+    };
+    const result = ops._applyStorePatches([badPatch]);
+
+    expect(result).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe("StyleApplier store-backed transaction", () => {
+  beforeEach(() => {
+    vi.spyOn(Notification, "success").mockImplementation(() => {});
+    vi.spyOn(Notification, "info").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("commits a style change to all slides as a single patch transaction", async () => {
+    const store = new DeckStore();
+    store.loadFromMarkdown("# A\n\n---\n\n# B", 0);
+
+    const unsaved = new Map();
+    const setHasUnsaved = vi.fn();
+    const updateButton = vi.fn();
+
+    const getFullSlide = (index, slide) => {
+      const overlay = unsaved.get(index);
+      return overlay !== undefined ? { ...slide, markdown: overlay } : slide;
+    };
+
+    const getFullSlides = (slides) => slides.map((slide, index) => getFullSlide(index, slide));
+
+    const applier = new StyleApplier({
+      getSaveManager: () => ({ getFullSlide, getFullSlides }),
+      getDeckStore: () => store,
+      getOriginalMarkdown: () => store.getSlides(),
+      getUnsavedMarkdown: () => unsaved,
+      setUnsavedMarkdown: () => {},
+      getDeck: () => ({ slides: [] }),
+      getCurrentSlideIndex: () => 0,
+      getMarkdownEditor: () => null,
+      setHasUnsavedChanges: setHasUnsaved,
+      onUpdateSaveButton: updateButton,
+      getImageBg: () => ({}),
+      prepareStoreOperation: () => {},
+    });
+
+    await applier.applyToAll("color: red", "line", "", "dark");
+
+    const slides = store.getSlides();
+    expect(slides[0]).toContain("theme: dark");
+    expect(slides[1]).toContain("theme: dark");
+    expect(slides[0]).toContain("area-style: color: red");
+    expect(store.canUndo()).toBe(true);
   });
 });

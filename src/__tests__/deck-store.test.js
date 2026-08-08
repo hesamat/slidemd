@@ -153,7 +153,7 @@ describe("DeckStore", () => {
     const off = store.onStoreChange(onStore);
 
     store.loadFromMarkdown("a\n---\nb");
-    expect(onStore).toHaveBeenLastCalledWith(["a", "b"]);
+    expect(onStore).not.toHaveBeenCalled();
 
     store.applyPatch(createEditPatch(1, "b", "updated"));
     expect(onStore).toHaveBeenLastCalledWith(["a", "updated"]);
@@ -166,7 +166,7 @@ describe("DeckStore", () => {
 
     off();
     store.applyPatch(createEditPatch(0, "a", "again"));
-    expect(onStore).toHaveBeenCalledTimes(4);
+    expect(onStore).toHaveBeenCalledTimes(3);
   });
 
   it("applyPatch is fail-closed when an expected structural revision is provided", () => {

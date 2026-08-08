@@ -12,10 +12,13 @@ import { MarkdownParser } from "../../data/markdown-parser.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { Notification } from "../../renderer/notification.js";
+import { createEditPatch } from "../../data/store/slide-patch.js";
 
 export class StyleApplier {
   /**
    * @param {object} opts
+   * @param {() => object} opts.getSaveManager
+   * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
    * @param {() => string[]} opts.getOriginalMarkdown
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
@@ -25,8 +28,11 @@ export class StyleApplier {
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => void} opts.onUpdateSaveButton
    * @param {() => object} opts.getImageBg
+   * @param {() => void} [opts.prepareStoreOperation]
    */
   constructor({
+    getSaveManager,
+    getDeckStore,
     getOriginalMarkdown,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
@@ -36,7 +42,10 @@ export class StyleApplier {
     setHasUnsavedChanges,
     onUpdateSaveButton,
     getImageBg,
+    prepareStoreOperation = null,
   }) {
+    this._getSaveManager = getSaveManager;
+    this._getDeckStore = getDeckStore;
     this._getOriginalMarkdown = getOriginalMarkdown;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
@@ -46,8 +55,15 @@ export class StyleApplier {
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onUpdateSaveButton = onUpdateSaveButton;
     this._getImageBg = getImageBg;
+    this._prepareStoreOperation = prepareStoreOperation;
   }
 
+  get saveManager() {
+    return this._getSaveManager();
+  }
+  get deckStore() {
+    return this._getDeckStore();
+  }
   get originalMarkdown() {
     return this._getOriginalMarkdown();
   }
@@ -67,50 +83,102 @@ export class StyleApplier {
     return this._getMarkdownEditor();
   }
 
-  async applyToAll(cssString, headerStyle, background, theme) {
+  _applyStyleToMarkdown(current, cssString, headerStyle, background, theme) {
     const parser = new MarkdownParser();
+    const { value: layout } = parser.extractDirective(current, "layout");
+    const isTitleSlide = layout === "title-slide";
+
+    // Skip area-style for title slides — they don't have grid areas
+    let { markdown: stripped } = parser.extractDirective(current, "area-style");
+    const trimmedCss = String(cssString || "").trim();
+    if (trimmedCss && !isTitleSlide) {
+      stripped = `area-style: ${trimmedCss}\n${stripped}`;
+    }
+
+    let { markdown: withoutHeaderStyle } = parser.extractDirective(stripped, "header-style");
+    const trimmedHeaderStyle = String(headerStyle || "")
+      .trim()
+      .toLowerCase();
+    if (trimmedHeaderStyle && trimmedHeaderStyle !== "line") {
+      withoutHeaderStyle = `header-style: ${trimmedHeaderStyle}\n${withoutHeaderStyle}`;
+    }
+
+    let { markdown: withoutBg } = parser.extractDirective(withoutHeaderStyle, "background");
+    const trimmedBg = String(background || "").trim();
+    if (trimmedBg) {
+      // Multi-line values (gradients, layered backgrounds) should keep working.
+      const indented = trimmedBg
+        .split("\n")
+        .map((line, i) => (i === 0 ? line : `  ${line}`))
+        .join("\n");
+      withoutBg = `background: ${indented}\n${withoutBg}`;
+    }
+
+    let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
+    const trimmedTheme = String(theme || "")
+      .trim()
+      .toLowerCase();
+    if (trimmedTheme) {
+      withoutTheme = `theme: ${trimmedTheme}\n${withoutTheme}`;
+    }
+
+    return withoutTheme;
+  }
+
+  async applyToAll(cssString, headerStyle, background, theme) {
+    if (this.deckStore) {
+      this._prepareStoreOperation?.();
+
+      const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
+        index,
+        markdown,
+      }));
+      const fullSlides = this.saveManager.getFullSlides(storeSlides);
+
+      const patches = [];
+      for (let i = 0; i < fullSlides.length; i++) {
+        const current = fullSlides[i].markdown ?? "";
+        const next = this._applyStyleToMarkdown(current, cssString, headerStyle, background, theme);
+        if (next !== current) {
+          patches.push(createEditPatch(i, current, next, "user"));
+        }
+      }
+
+      if (patches.length === 0) {
+        Notification.info("No style changes to apply");
+        return;
+      }
+
+      const result = this.deckStore.applyPatches(patches);
+      if (!result || (typeof result === "object" && result.success === false)) {
+        Notification.warning("Style changes could not be applied. Please try again.");
+        return;
+      }
+
+      this.unsavedMarkdown.clear();
+      this._setHasUnsavedChanges(true);
+      this._onUpdateSaveButton();
+      Notification.success("Style applied to all slides");
+      return;
+    }
+
+    // Legacy path for callers without a wired DeckStore.
+    await this._applyToAllLegacy(cssString, headerStyle, background, theme);
+  }
+
+  async _applyToAllLegacy(cssString, headerStyle, background, theme) {
     await AssetLoader.ensureMarkdownItLoaded();
+    const parser = new MarkdownParser();
     const total = this.originalMarkdown.length;
     for (let i = 0; i < total; i++) {
       const current = this.unsavedMarkdown.get(i) ?? this.originalMarkdown[i] ?? "";
-
-      const { value: layout } = parser.extractDirective(current, "layout");
-      const isTitleSlide = layout === "title-slide";
-
-      // Skip area-style for title slides — they don't have grid areas
-      let { markdown: stripped } = parser.extractDirective(current, "area-style");
-      const trimmedCss = String(cssString || "").trim();
-      if (trimmedCss && !isTitleSlide) {
-        stripped = `area-style: ${trimmedCss}\n${stripped}`;
-      }
-
-      let { markdown: withoutHeaderStyle } = parser.extractDirective(stripped, "header-style");
-      const trimmedHeaderStyle = String(headerStyle || "")
-        .trim()
-        .toLowerCase();
-      if (trimmedHeaderStyle && trimmedHeaderStyle !== "line") {
-        withoutHeaderStyle = `header-style: ${trimmedHeaderStyle}\n${withoutHeaderStyle}`;
-      }
-
-      let { markdown: withoutBg } = parser.extractDirective(withoutHeaderStyle, "background");
-      const trimmedBg = String(background || "").trim();
-      if (trimmedBg) {
-        // Multi-line values (gradients, layered backgrounds) should keep working.
-        const indented = trimmedBg
-          .split("\n")
-          .map((line, i) => (i === 0 ? line : `  ${line}`))
-          .join("\n");
-        withoutBg = `background: ${indented}\n${withoutBg}`;
-      }
-
-      let { markdown: withoutTheme } = parser.extractDirective(withoutBg, "theme");
-      const trimmedTheme = String(theme || "")
-        .trim()
-        .toLowerCase();
-      if (trimmedTheme) {
-        withoutTheme = `theme: ${trimmedTheme}\n${withoutTheme}`;
-      }
-
+      const withoutTheme = this._applyStyleToMarkdown(
+        current,
+        cssString,
+        headerStyle,
+        background,
+        theme,
+      );
       this.unsavedMarkdown.set(i, withoutTheme);
     }
     this._setHasUnsavedChanges(true);

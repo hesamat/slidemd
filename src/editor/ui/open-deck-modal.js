@@ -12,6 +12,8 @@ import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { uploadImagesInBatches } from "../../core/image-batch-uploader.js";
 import { setImageUploadPromise } from "../../core/image-upload-promise.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { DeckImagesResolver } from "../image/deck-images-resolver.js";
+import { ImagePicker } from "../image/image-picker.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",
@@ -240,15 +242,25 @@ export class OpenDeckModal {
       loading.updateMessage("Loading deck...");
       loading.updateProgress(95);
 
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: {
-            text: resolvedMarkdown,
-            fileType: "md",
-            fileName: file.name.replace(/\.textpack$/, ""),
-          },
-        }),
-      );
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      const fallbackCtrl = window.__WEBDECK_CONTROLLER__;
+      const deckStore = editCtrl?.deckStore ?? fallbackCtrl?.deckStore;
+      if (deckStore) {
+        deckStore.loadFromMarkdown(resolvedMarkdown, 0);
+      }
+
+      // Flush cached images so the new deck doesn't show stale thumbnails
+      DeckImagesResolver.invalidateCache();
+      ImagePicker.clearImageCache();
+
+      const newDeck = await DeckLoader.parseMarkdown(resolvedMarkdown);
+      const reloadManager = editCtrl?.controller?.reloadManager ?? fallbackCtrl?.reloadManager;
+      if (reloadManager?.replaceDeck) {
+        await reloadManager.replaceDeck(newDeck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+      }
 
       await DraftManager.clearDraft();
       loading.dismiss();
@@ -282,10 +294,17 @@ export class OpenDeckModal {
             localStorage.setItem("webdeck_local_file", serverMarkdown);
             await DraftManager.saveDraft(serverMarkdown);
 
-            if (window.__WEBDECK_EDIT_CONTROLLER__) {
+            if (editCtrl?.deckStore) {
               try {
-                window.__WEBDECK_EDIT_CONTROLLER__.originalMarkdown =
-                  new MarkdownParser().splitSlides(serverMarkdown);
+                const newSlides = new MarkdownParser().splitSlides(serverMarkdown);
+                editCtrl.deckStore.syncSlides(newSlides, editCtrl.deckStore.getActiveIndex());
+                const updatedDeck = await DeckLoader.parseMarkdown(serverMarkdown);
+                if (reloadManager?.replaceDeck) {
+                  await reloadManager.replaceDeck(updatedDeck, {
+                    startAtFirstSlide: false,
+                    syncStore: false,
+                  });
+                }
               } catch {
                 /* ignore */
               }
@@ -360,11 +379,25 @@ export class OpenDeckModal {
       SlideRenderer.showLoadingState();
       this.hide();
 
-      window.dispatchEvent(
-        new CustomEvent("webdeck-load-local", {
-          detail: { text: rawText, fileType: "md", fileName: file.name },
-        }),
-      );
+      const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+      const fallbackCtrl = window.__WEBDECK_CONTROLLER__;
+      const deckStore = editCtrl?.deckStore ?? fallbackCtrl?.deckStore;
+      if (deckStore) {
+        deckStore.loadFromMarkdown(rawText, 0);
+      }
+
+      // Flush cached images so the new deck doesn’t show stale thumbnails
+      DeckImagesResolver.invalidateCache();
+      ImagePicker.clearImageCache();
+
+      const newDeck = await DeckLoader.parseMarkdown(rawText);
+      const reloadManager = editCtrl?.controller?.reloadManager ?? fallbackCtrl?.reloadManager;
+      if (reloadManager?.replaceDeck) {
+        await reloadManager.replaceDeck(newDeck, {
+          startAtFirstSlide: true,
+          syncStore: false,
+        });
+      }
 
       // Clear stale draft from any previously opened deck
       await DraftManager.clearDraft();

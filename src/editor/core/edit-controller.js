@@ -57,6 +57,9 @@ export class EditController {
     this.controller = controller;
     this.elements = elements;
     this.deckStore = deckStore;
+    this._offStoreChange = this.deckStore?.onStoreChange((slides) =>
+      this._handleStoreChange(slides),
+    );
 
     this.isEditMode = false;
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
@@ -81,19 +84,17 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      // A store-history restore (undo/redo) arrives with syncStore === false.
-      // It brings the in-memory deck back in line with the store but does NOT
-      // write to disk or localStorage, so the restored state diverges from what
-      // is persisted.  Keep originalMarkdown in sync with the restored slides
-      // (so the editor displays them) but mark the deck as having unsaved
-      // changes so the reload guard prompts before discarding the undone state.
       const isStoreRestore = data.syncStore === false && this.deckStore;
-      this.originalMarkdown = isStoreRestore
+      this.originalMarkdown = this.deckStore
         ? this.deckStore.getSlides()
         : this._cacheOriginalMarkdown();
-      this.unsavedMarkdown.clear();
+      if (isStoreRestore) {
+        this._reconcileUnsavedOverlays(this.originalMarkdown);
+      } else {
+        this.unsavedMarkdown.clear();
+      }
       this._pendingStructuralOperations = 0;
-      this.hasUnsavedChanges = isStoreRestore;
+      this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
@@ -163,8 +164,16 @@ export class EditController {
         this.hasUnsavedChanges = v;
       },
       onBeforeSave: () => {
+        if (!this.deckStore) return;
         this._captureCurrentEditorMarkdown();
-        this.syncStoreFromSlides(this.saveManager.getFullSlides());
+        const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
+          index,
+          markdown,
+        }));
+        const fullSlides = this.saveManager
+          .getFullSlides(storeSlides)
+          .map((slide) => slide.markdown ?? "");
+        this.syncStoreFromSlides(fullSlides);
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -305,6 +314,8 @@ export class EditController {
     });
 
     this.styleApplier = new StyleApplier({
+      getSaveManager: () => this.saveManager,
+      getDeckStore: () => this.deckStore,
       getOriginalMarkdown: () => this.originalMarkdown,
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
@@ -318,6 +329,7 @@ export class EditController {
       },
       onUpdateSaveButton: () => this.saveManager.updateButton(),
       getImageBg: () => this.imageBg,
+      prepareStoreOperation: () => this.prepareStoreOperation(),
     });
 
     this.sourceJump = new SourceJumpHandler({
@@ -349,6 +361,18 @@ export class EditController {
       console.error("Failed to cache markdown:", error);
       return [];
     }
+  }
+
+  /**
+   * Compare the canonical store to the on-disk/on-load source markdown.
+   * @returns {boolean}
+   */
+  _storeDiffersFromSource() {
+    if (!this.deckStore) return false;
+    const store = this.deckStore.getSlides();
+    const source = this._cacheOriginalMarkdown();
+    if (store.length !== source.length) return true;
+    return store.some((slide, i) => slide !== source[i]);
   }
 
   /**
@@ -446,6 +470,9 @@ export class EditController {
   destroy() {
     if (this._destroyed) return;
     this._destroyed = true;
+
+    // Store subscription
+    this._offStoreChange?.();
 
     // Controller EventEmitter listeners
     this.controller.removeEventListener("slidechange", this._onSlideChange);
@@ -565,11 +592,11 @@ export class EditController {
    * @param {string} source
    * @param {object} opts
    */
-  syncStoreFromSlides(slides, source = "user", { recordHistory = true } = {}) {
+  syncStoreFromSlides(slides, source = "user", { recordHistory = true, emit = true } = {}) {
     if (!this.deckStore) return;
     const desired = [...slides];
     if (!recordHistory) {
-      this.deckStore.syncSlides(desired, this.currentSlideIndex);
+      this.deckStore.syncSlides(desired, this.currentSlideIndex, { emit });
       return;
     }
 
@@ -621,13 +648,43 @@ export class EditController {
   prepareStoreOperation() {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
-    this.syncStoreFromSlides(this.saveManager.getFullSlides(), "system", {
+    const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
+      index,
+      markdown,
+    }));
+    const fullSlides = this.saveManager
+      .getFullSlides(storeSlides)
+      .map((slide) => slide.markdown ?? "");
+    this.syncStoreFromSlides(fullSlides, "system", {
       recordHistory: false,
+      emit: false,
     });
+
+    // The store was updated in place; refresh the editor's working copy
+    // without triggering a full deck reload.
+    this.originalMarkdown = this.deckStore.getSlides();
+    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
+    this.saveManager.updateButton();
   }
 
   recordStoreOperation() {
     this._pendingStructuralOperations += 1;
+  }
+
+  /**
+   * Prune out-of-range or identical unsaved overlays, keeping only those
+   * that genuinely differ from the supplied source.
+   * @param {string[]} source
+   */
+  _reconcileUnsavedOverlays(source) {
+    const next = new Map();
+    for (const [idx, value] of this.unsavedMarkdown) {
+      if (idx >= 0 && idx < source.length && value !== source[idx]) {
+        next.set(idx, value);
+      }
+    }
+    this.unsavedMarkdown = next;
   }
 
   async _restoreStoreSnapshot() {
@@ -639,6 +696,35 @@ export class EditController {
     await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
     this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
+  }
+
+  /**
+   * Respond to a canonical DeckStore change by re-syncing the editor view.
+   * Preserves unsaved editor overlays that still differ from the store and
+   * re-renders thumbnails, the current slide, and the preview.
+   * @param {string[]} slides
+   */
+  _handleStoreChange(slides) {
+    if (this._destroyed) return;
+
+    this.originalMarkdown = [...slides];
+    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
+    this.saveManager.updateButton();
+
+    if (this.isEditMode) {
+      this._storeChangeQueue = (this._storeChangeQueue || Promise.resolve())
+        .catch(() => {})
+        .then(async () => {
+          try {
+            await this._restoreStoreSnapshot();
+            this.previewUpdater?.update();
+          } catch (error) {
+            console.error("Store-to-view sync failed:", error);
+            Notification.error("Failed to refresh the editor view.");
+          }
+        });
+    }
   }
 
   async undo() {
