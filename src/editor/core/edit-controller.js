@@ -310,9 +310,6 @@ export class EditController {
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
       },
-      getDeck: () => this.deck,
-      getCurrentSlideIndex: () => this.currentSlideIndex,
-      getMarkdownEditor: () => this.markdownEditor,
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
@@ -354,11 +351,6 @@ export class EditController {
     }
   }
 
-  _getSourceSlide(index) {
-    const source = this._cacheOriginalMarkdown();
-    return source[index] ?? "";
-  }
-
   _cacheOriginalMarkdown() {
     const localFile = this._getSourceMarkdown();
     if (!localFile) return [];
@@ -384,12 +376,11 @@ export class EditController {
    * @returns {boolean}
    */
   _storeDiffersFromSource() {
-    if (!this.deckStore) return false;
     const store = this.deckStore.getSlides();
     const source = this._cacheOriginalMarkdown();
     if (store.length !== source.length) return true;
     const normalize = (s) => s.replace(/\r\n?/g, "\n").trim();
-    return store.some((slide, i) => normalize(slide) !== source[i]);
+    return store.some((slide, i) => normalize(slide) !== normalize(source[i]));
   }
 
   /**
@@ -1031,7 +1022,7 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    const base = this.deckStore.getSlides()[this.currentSlideIndex];
+    const base = this.deckStore.getSlides()[this.currentSlideIndex] ?? "";
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
     const current = this.markdownEditor.getValue();

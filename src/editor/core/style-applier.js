@@ -19,9 +19,6 @@ export class StyleApplier {
    * @param {() => import('../../data/store/deck-store.js').DeckStore|null} opts.getDeckStore
    * @param {() => Map} opts.getUnsavedMarkdown
    * @param {(v: Map) => void} opts.setUnsavedMarkdown
-   * @param {() => object} opts.getDeck
-   * @param {() => number} opts.getCurrentSlideIndex
-   * @param {() => object|null} opts.getMarkdownEditor
    * @param {(v: boolean) => void} opts.setHasUnsavedChanges
    * @param {() => void} opts.onUpdateSaveButton
    * @param {() => object} opts.getImageBg
@@ -32,9 +29,6 @@ export class StyleApplier {
     getDeckStore,
     getUnsavedMarkdown,
     setUnsavedMarkdown,
-    getDeck,
-    getCurrentSlideIndex,
-    getMarkdownEditor,
     setHasUnsavedChanges,
     onUpdateSaveButton,
     getImageBg,
@@ -44,9 +38,6 @@ export class StyleApplier {
     this._getDeckStore = getDeckStore;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
     this._setUnsavedMarkdown = setUnsavedMarkdown;
-    this._getDeck = getDeck;
-    this._getCurrentSlideIndex = getCurrentSlideIndex;
-    this._getMarkdownEditor = getMarkdownEditor;
     this._setHasUnsavedChanges = setHasUnsavedChanges;
     this._onUpdateSaveButton = onUpdateSaveButton;
     this._getImageBg = getImageBg;
@@ -64,15 +55,6 @@ export class StyleApplier {
   }
   set unsavedMarkdown(v) {
     this._setUnsavedMarkdown(v);
-  }
-  get deck() {
-    return this._getDeck();
-  }
-  get currentSlideIndex() {
-    return this._getCurrentSlideIndex();
-  }
-  get markdownEditor() {
-    return this._getMarkdownEditor();
   }
 
   _applyStyleToMarkdown(current, cssString, headerStyle, background, theme) {
