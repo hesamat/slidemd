@@ -86,8 +86,6 @@ export class SlideOperations {
    * @returns {boolean} true when the patches were committed, false otherwise
    */
   _applyStorePatches(patches) {
-    if (!this._deckStore) return true;
-
     if (this._isPatchSuccess(this._deckStore.applyPatches(patches))) {
       this._recordStoreOperation?.();
       return true;
@@ -154,16 +152,11 @@ export class SlideOperations {
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    if (this._deckStore) {
-      const markdown = this._deckStore.getSlides()[index] ?? "";
-      const baseSlide = { index, markdown };
-      return this.saveManager?.getFullSlide
-        ? this.saveManager.getFullSlide(index, baseSlide)
-        : baseSlide;
-    }
-    const sourceSlides = this.saveManager?.getFullSlides() ?? [];
-    const markdown = sourceSlides[index] ?? "";
-    return { index, markdown };
+    const markdown = this._deckStore.getSlides()[index] ?? "";
+    const baseSlide = { index, markdown };
+    return this.saveManager?.getFullSlide
+      ? this.saveManager.getFullSlide(index, baseSlide)
+      : baseSlide;
   }
 
   /**
@@ -171,31 +164,19 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    if (this._deckStore) {
-      const sourceSlides = this._deckStore.getSlides();
-      const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
-      return this.saveManager?.getFullSlides
-        ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
-        : sourceSlides;
-    }
-    return this.saveManager?.getFullSlides() ?? [];
+    const sourceSlides = this._deckStore.getSlides();
+    const storeSlideObjects = sourceSlides.map((markdown, index) => ({ index, markdown }));
+    return this.saveManager?.getFullSlides
+      ? this.saveManager.getFullSlides(storeSlideObjects).map((slide) => slide.markdown ?? "")
+      : sourceSlides;
   }
 
   _getWorkingMarkdown(index) {
     return this._getWorkingSlide(index).markdown;
   }
 
-  _requireDeckStore() {
-    if (!this._deckStore) {
-      Notification.warning("Slide operations require a deck store in this window.");
-      return false;
-    }
-    return true;
-  }
-
   addSlide() {
-    if (!this._requireDeckStore()) return;
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const insertIndex = this.currentSlideIndex + 1;
@@ -205,15 +186,14 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
       return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
   }
 
   async deleteSlide() {
-    if (!this._requireDeckStore()) return;
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount <= 1) {
       Notification.warning("Cannot delete the only slide");
       return;
@@ -235,7 +215,6 @@ export class SlideOperations {
   }
 
   moveSlideUp() {
-    if (!this._requireDeckStore()) return;
     if (this.currentSlideIndex <= 0) {
       Notification.warning("Cannot move the first slide up");
       return;
@@ -250,8 +229,7 @@ export class SlideOperations {
   }
 
   moveSlideDown() {
-    if (!this._requireDeckStore()) return;
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (this.currentSlideIndex >= slideCount - 1) {
       Notification.warning("Cannot move the last slide down");
       return;
@@ -290,7 +268,6 @@ export class SlideOperations {
   }
 
   async duplicateSlide() {
-    if (!this._requireDeckStore()) return;
     const sourceIndex = this.currentSlideIndex;
     const insertIndex = sourceIndex + 1;
 
@@ -303,15 +280,14 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
   }
 
   addSlideWithLayout(layoutName) {
-    if (!this._requireDeckStore()) return;
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const template = LayoutData.getTemplate(layoutName);
@@ -337,7 +313,7 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

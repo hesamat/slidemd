@@ -156,8 +156,8 @@ import { DeckStore } from "./src/data/store/deck-store.js";
     controller.addEventListener("slidechange", syncFooterThemeIcon);
     syncFooterThemeIcon();
 
-    // 6. Initialize Editor (Optional, only in the live editor)
-    if (!window.__WEBDECK_EXPORTED__) {
+    // 6. Initialize Editor (Optional, only in the live editor, not viewer)
+    if (!window.__WEBDECK_EXPORTED__ && !isViewer) {
       try {
         const editController = new EditController(deck, controller, elements, { deckStore });
         window.__WEBDECK_EDIT_CONTROLLER__ = editController;

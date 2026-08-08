@@ -306,7 +306,6 @@ export class EditController {
     this.styleApplier = new StyleApplier({
       getSaveManager: () => this.saveManager,
       getDeckStore: () => this.deckStore,
-      getSourceMarkdown: () => this._getSourceMarkdown(),
       getUnsavedMarkdown: () => this.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         this.unsavedMarkdown = v;
@@ -605,9 +604,7 @@ export class EditController {
   _captureCurrentEditorMarkdown() {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
-    const original = this.deckStore
-      ? this.deckStore.getSlides()[this.currentSlideIndex]
-      : this._getSourceSlide(this.currentSlideIndex);
+    const original = this.deckStore.getSlides()[this.currentSlideIndex];
     if (markdown === (original ?? "")) {
       this.unsavedMarkdown.delete(this.currentSlideIndex);
       this.updateUnsavedChangesFlag();
@@ -629,7 +626,6 @@ export class EditController {
   }
 
   prepareStoreOperation(recordHistory = false) {
-    if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
     const storeSlides = this.deckStore.getSlides();
     const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
@@ -1005,21 +1001,15 @@ export class EditController {
         this.unsavedMarkdown.clear();
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
-        if (this.deckStore) {
-          // Route through replaceDeck so the refine is undoable (Ctrl+Z)
-          // instead of loadFromMarkdown which clears history.
-          this.deckStore.replaceDeck(newSlides, 0, {
-            index: 0,
-            before: null,
-            after: enhanced,
-            source: "ai",
-            timestamp: Date.now(),
-          });
-        } else {
-          // No store in viewer/presenter windows — write the refined deck
-          // back to the source snapshot so the editor and save use it.
-          this._setSourceMarkdown(enhanced);
-        }
+        // Route through replaceDeck so the refine is undoable (Ctrl+Z)
+        // instead of loadFromMarkdown which clears history.
+        this.deckStore.replaceDeck(newSlides, 0, {
+          index: 0,
+          before: null,
+          after: enhanced,
+          source: "ai",
+          timestamp: Date.now(),
+        });
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,
@@ -1040,9 +1030,7 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    const base = this.deckStore
-      ? this.deckStore.getSlides()[this.currentSlideIndex]
-      : this._getSourceSlide(this.currentSlideIndex);
+    const base = this.deckStore.getSlides()[this.currentSlideIndex];
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
     const current = this.markdownEditor.getValue();
