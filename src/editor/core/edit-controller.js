@@ -45,11 +45,7 @@ import { SourceJumpHandler } from "./source-jump-handler.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
-import {
-  createEditPatch,
-  createInsertPatch,
-  createDeletePatch,
-} from "../../data/store/slide-patch.js";
+import { createEditPatch } from "../../data/store/slide-patch.js";
 
 export class EditController {
   constructor(deck, controller, elements, { deckStore = null } = {}) {
@@ -74,6 +70,9 @@ export class EditController {
     this.placeholderDialogEl = null;
 
     this._destroyed = false;
+    this._lastEditorSlideIndex = -1;
+    this._lastEditorDeck = null;
+
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
@@ -163,7 +162,7 @@ export class EditController {
         this.hasUnsavedChanges = v;
       },
       onBeforeSave: () => {
-        this.prepareStoreOperation();
+        this.prepareStoreOperation(true);
       },
       onSaveStateReset: () => {
         this._pendingStructuralOperations = 0;
@@ -348,6 +347,7 @@ export class EditController {
     try {
       localStorage.setItem("webdeck_local_file", markdown);
     } catch {
+      localStorage.removeItem("webdeck_local_file");
       window.__WEBDECK_MARKDOWN__ = markdown;
     }
   }
@@ -618,7 +618,7 @@ export class EditController {
     if (this.isEditMode) this._captureCurrentEditorMarkdown();
   }
 
-  prepareStoreOperation() {
+  prepareStoreOperation(recordHistory = false) {
     if (!this.deckStore) return;
     this._captureCurrentEditorMarkdown();
     const storeSlides = this.deckStore.getSlides();
@@ -627,22 +627,18 @@ export class EditController {
       .getFullSlides(storeSlideObjects)
       .map((slide) => slide.markdown ?? "");
 
-    const patches = [];
-    const maxLen = Math.max(storeSlides.length, fullSlides.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < storeSlides.length && i < fullSlides.length) {
+    if (recordHistory) {
+      const patches = [];
+      for (let i = 0; i < storeSlides.length; i++) {
         if (storeSlides[i] !== fullSlides[i]) {
           patches.push(createEditPatch(i, storeSlides[i], fullSlides[i], "user"));
         }
-      } else if (i >= storeSlides.length) {
-        patches.push(createInsertPatch(i, fullSlides[i], "user"));
-      } else {
-        patches.push(createDeletePatch(i, storeSlides[i], "user"));
       }
-    }
-
-    if (patches.length > 0) {
-      this.deckStore.applyPatches(patches);
+      if (patches.length > 0) {
+        this.deckStore.applyPatches(patches, { emit: false });
+      }
+    } else {
+      this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emit: false });
     }
 
     this._reconcileUnsavedOverlays(this.deckStore.getSlides());
@@ -1024,10 +1020,23 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
-    const base = this.deckStore?.getSlides()[this.currentSlideIndex] ?? "";
+    const base = this.deckStore
+      ? this.deckStore.getSlides()[this.currentSlideIndex]
+      : this._getSourceSlide(this.currentSlideIndex);
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
-    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory: true });
+    const current = this.markdownEditor.getValue();
+    if (markdown === current) {
+      this.saveManager.updateButton();
+      this.areaGuides.refresh();
+      return;
+    }
+
+    const clearHistory =
+      this.currentSlideIndex !== this._lastEditorSlideIndex || this.deck !== this._lastEditorDeck;
+    this.markdownEditor.setValue(markdown, { suppressOnChange: true, clearHistory });
+    this._lastEditorSlideIndex = this.currentSlideIndex;
+    this._lastEditorDeck = this.deck;
     // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
     this.saveManager.updateButton();
     this.areaGuides.refresh();

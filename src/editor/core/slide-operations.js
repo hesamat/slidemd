@@ -86,8 +86,6 @@ export class SlideOperations {
    * @returns {boolean} true when the patches were committed, false otherwise
    */
   _applyStorePatches(patches) {
-    if (!this._deckStore) return true;
-
     if (this._isPatchSuccess(this._deckStore.applyPatches(patches))) {
       this._recordStoreOperation?.();
       return true;
@@ -185,7 +183,7 @@ export class SlideOperations {
   }
 
   addSlide() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const insertIndex = this.currentSlideIndex + 1;
@@ -195,14 +193,14 @@ export class SlideOperations {
     if (!this._applyStorePatches([createInsertPatch(insertIndex, newSlideMarkdown, "user")]))
       return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide added");
   }
 
   async deleteSlide() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount <= 1) {
       Notification.warning("Cannot delete the only slide");
       return;
@@ -238,7 +236,7 @@ export class SlideOperations {
   }
 
   moveSlideDown() {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (this.currentSlideIndex >= slideCount - 1) {
       Notification.warning("Cannot move the last slide down");
       return;
@@ -289,14 +287,14 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, markdown, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success("Slide duplicated successfully");
   }
 
   addSlideWithLayout(layoutName) {
-    const slideCount = this._deckStore?.getSlideCount() ?? this.deck.slides.length;
+    const slideCount = this._deckStore.getSlideCount();
     if (slideCount === 0) return;
 
     const template = LayoutData.getTemplate(layoutName);
@@ -322,7 +320,7 @@ export class SlideOperations {
     this._prepareStoreMutation();
     if (!this._applyStorePatches([createInsertPatch(insertIndex, styledTemplate, "user")])) return;
 
-    this._deckStore?.setActiveIndex(insertIndex);
+    this._deckStore.setActiveIndex(insertIndex);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
     Notification.success(`Added new slide with "${layoutName}" layout`);

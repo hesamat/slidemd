@@ -123,20 +123,21 @@ export class SaveManager {
     if (deckStoreSlides === undefined) {
       const deckStore = this._getDeckStore?.();
       if (deckStore) {
-        const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
-        return this.getFullSlides(storeSlides);
+        return deckStore
+          .getSlides()
+          .map((markdown, index) =>
+            this.unsavedMarkdown.has(index) ? this.unsavedMarkdown.get(index) : markdown,
+          );
       }
 
       const source = this._getSourceMarkdown?.() ?? "";
       if (!source) return [];
       const parser = new MarkdownParser();
-      const merged = parser.splitSlides(source).map((markdown, index) => ({ index, markdown }));
-      for (let i = 0; i < merged.length; i++) {
-        if (this.unsavedMarkdown.has(i)) {
-          merged[i] = { ...merged[i], markdown: this.unsavedMarkdown.get(i) };
-        }
-      }
-      return merged;
+      return parser
+        .splitSlides(source)
+        .map((markdown, index) =>
+          this.unsavedMarkdown.has(index) ? this.unsavedMarkdown.get(index) : markdown,
+        );
     }
     return deckStoreSlides.map((slide, index) => this.getFullSlide(index, slide));
   }
@@ -149,7 +150,7 @@ export class SaveManager {
    */
   getFullMarkdown(deckStoreSlides) {
     return this.getFullSlides(deckStoreSlides)
-      .map((slide) => slide.markdown ?? "")
+      .map((s) => (typeof s === "string" ? s : (s.markdown ?? "")))
       .join("\n\n---\n\n");
   }
 
@@ -168,14 +169,11 @@ export class SaveManager {
 
     const deckStore = this._getDeckStore?.();
     let fullMarkdown;
-    let fullSlides;
     if (deckStore) {
       const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
       fullMarkdown = this.getFullMarkdown(storeSlides);
-      fullSlides = this.getFullSlides(storeSlides);
     } else {
       fullMarkdown = this.getFullMarkdown();
-      fullSlides = this.getFullSlides();
     }
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.
@@ -188,7 +186,7 @@ export class SaveManager {
       );
     }
 
-    return { fullMarkdown, fullSlides };
+    return { fullMarkdown };
   }
 
   /**

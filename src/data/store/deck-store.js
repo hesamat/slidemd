@@ -110,10 +110,18 @@ export class DeckStore {
   /**
    * Apply multiple patches as one history entry.
    * @param {import("./slide-patch.js").SlidePatch[]} patches
-   * @param {number} [expectedStructuralRevision] - if provided, fail closed on any mismatch
+   * @param {number | { expectedStructuralRevision?: number, emit?: boolean }} [maybeOptions] - if a number, treat as the expected structural revision; if an object, pass options
    * @returns {boolean | { success: boolean, reason?: string }}
    */
-  applyPatches(patches, expectedStructuralRevision) {
+  applyPatches(patches, maybeOptions = {}) {
+    let expectedStructuralRevision;
+    let emit = true;
+    if (typeof maybeOptions === "number") {
+      expectedStructuralRevision = maybeOptions;
+    } else if (maybeOptions && typeof maybeOptions === "object") {
+      ({ expectedStructuralRevision, emit = true } = maybeOptions);
+    }
+
     const validPatches = patches.filter((patch) => !isNoOp(patch));
     if (!validPatches.length) {
       return expectedStructuralRevision !== undefined
@@ -174,7 +182,9 @@ export class DeckStore {
     if (validPatches.some((patch) => isInsert(patch) || isDelete(patch))) {
       this._emit("slide");
     }
-    this._emitStoreChange();
+    if (emit) {
+      this._emitStoreChange();
+    }
     return expectedStructuralRevision !== undefined ? { success: true } : true;
   }
 
