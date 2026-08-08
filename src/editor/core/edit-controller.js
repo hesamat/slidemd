@@ -943,6 +943,10 @@ export class EditController {
         // AI-patched slide (whose content is superseded by the patch) and
         // restore it afterwards.
         this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+        // Invalidate the cached editor state for the patched slide so the
+        // restore loads the new content with a fresh state (no stale undo
+        // stack from the pre-AI text).
+        this.markdownEditor?.invalidateSlideState(targetSlide);
         const preservedEdits = new Map(this.unsavedMarkdown);
         preservedEdits.delete(targetSlide);
 
