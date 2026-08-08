@@ -55,7 +55,8 @@ export class DeckStore {
     this._bumpStructuralRevision();
     this._emit("change");
     this._emit("slide");
-    this._emitStoreChange();
+    // A full deck load is followed by a deck-change event from the caller;
+    // do not emit a store-change here to avoid an unnecessary full refresh.
   }
 
   /**
@@ -86,12 +87,14 @@ export class DeckStore {
    * Synchronize the current markdown without creating an undo entry.
    * Used before structural operations so their snapshots include unsaved text.
    */
-  syncSlides(slides, activeIndex = this._activeIndex) {
+  syncSlides(slides, activeIndex = this._activeIndex, { emit = true } = {}) {
     this._slides = [...slides];
     this._activeIndex = this._clampIndex(activeIndex);
-    this._emit("change");
-    this._emit("slide");
-    this._emitStoreChange();
+    if (emit) {
+      this._emit("change");
+      this._emit("slide");
+      this._emitStoreChange();
+    }
   }
 
   /**
@@ -248,6 +251,9 @@ export class DeckStore {
     if (isInsert(patch)) {
       this._slides.splice(patch.index, 0, patch.after);
       if (patch.index <= this._activeIndex) this._activeIndex++;
+      if (patch.kind !== "move" && patch.index > this._activeIndex) {
+        this._activeIndex = this._clampIndex(patch.index);
+      }
     } else if (isDelete(patch)) {
       this._slides.splice(patch.index, 1);
       if (patch.index < this._activeIndex) this._activeIndex--;

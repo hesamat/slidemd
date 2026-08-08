@@ -84,14 +84,8 @@ export class EditController {
     };
     this._onDeckChange = (data) => {
       this.deck = data.deck;
-      // A store-history restore (undo/redo) arrives with syncStore === false.
-      // It brings the in-memory deck back in line with the store but does NOT
-      // write to disk or localStorage, so the restored state diverges from what
-      // is persisted.  Keep originalMarkdown in sync with the restored slides
-      // (so the editor displays them) but mark the deck as having unsaved
-      // changes so the reload guard prompts before discarding the undone state.
       const isStoreRestore = data.syncStore === false && this.deckStore;
-      this.originalMarkdown = isStoreRestore
+      this.originalMarkdown = this.deckStore
         ? this.deckStore.getSlides()
         : this._cacheOriginalMarkdown();
       if (isStoreRestore) {
@@ -100,7 +94,7 @@ export class EditController {
         this.unsavedMarkdown.clear();
       }
       this._pendingStructuralOperations = 0;
-      this.hasUnsavedChanges = isStoreRestore || this.unsavedMarkdown.size > 0;
+      this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       this.loadSlideIntoEditor();
@@ -170,6 +164,7 @@ export class EditController {
         this.hasUnsavedChanges = v;
       },
       onBeforeSave: () => {
+        if (!this.deckStore) return;
         this._captureCurrentEditorMarkdown();
         const storeSlides = this.deckStore.getSlides().map((markdown, index) => ({
           index,
@@ -369,6 +364,18 @@ export class EditController {
   }
 
   /**
+   * Compare the canonical store to the on-disk/on-load source markdown.
+   * @returns {boolean}
+   */
+  _storeDiffersFromSource() {
+    if (!this.deckStore) return false;
+    const store = this.deckStore.getSlides();
+    const source = this._cacheOriginalMarkdown();
+    if (store.length !== source.length) return true;
+    return store.some((slide, i) => slide !== source[i]);
+  }
+
+  /**
    * Initialize the edit controller
    */
   init() {
@@ -463,6 +470,9 @@ export class EditController {
   destroy() {
     if (this._destroyed) return;
     this._destroyed = true;
+
+    // Store subscription
+    this._offStoreChange?.();
 
     // Controller EventEmitter listeners
     this.controller.removeEventListener("slidechange", this._onSlideChange);
@@ -582,11 +592,11 @@ export class EditController {
    * @param {string} source
    * @param {object} opts
    */
-  syncStoreFromSlides(slides, source = "user", { recordHistory = true } = {}) {
+  syncStoreFromSlides(slides, source = "user", { recordHistory = true, emit = true } = {}) {
     if (!this.deckStore) return;
     const desired = [...slides];
     if (!recordHistory) {
-      this.deckStore.syncSlides(desired, this.currentSlideIndex);
+      this.deckStore.syncSlides(desired, this.currentSlideIndex, { emit });
       return;
     }
 
@@ -647,7 +657,15 @@ export class EditController {
       .map((slide) => slide.markdown ?? "");
     this.syncStoreFromSlides(fullSlides, "system", {
       recordHistory: false,
+      emit: false,
     });
+
+    // The store was updated in place; refresh the editor's working copy
+    // without triggering a full deck reload.
+    this.originalMarkdown = this.deckStore.getSlides();
+    this._reconcileUnsavedOverlays(this.originalMarkdown);
+    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
+    this.saveManager.updateButton();
   }
 
   recordStoreOperation() {
@@ -686,22 +704,26 @@ export class EditController {
    * re-renders thumbnails, the current slide, and the preview.
    * @param {string[]} slides
    */
-  async _handleStoreChange(slides) {
+  _handleStoreChange(slides) {
     if (this._destroyed) return;
 
     this.originalMarkdown = [...slides];
     this._reconcileUnsavedOverlays(this.originalMarkdown);
-    this.hasUnsavedChanges = true;
+    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
     if (this.isEditMode) {
-      try {
-        await this._restoreStoreSnapshot();
-        this.previewUpdater?.update();
-      } catch (error) {
-        console.error("Store-to-view sync failed:", error);
-        Notification.error("Failed to refresh the editor view.");
-      }
+      this._storeChangeQueue = (this._storeChangeQueue || Promise.resolve())
+        .catch(() => {})
+        .then(async () => {
+          try {
+            await this._restoreStoreSnapshot();
+            this.previewUpdater?.update();
+          } catch (error) {
+            console.error("Store-to-view sync failed:", error);
+            Notification.error("Failed to refresh the editor view.");
+          }
+        });
     }
   }
 

@@ -161,7 +161,7 @@ export class SlideOperations {
    * @returns {object}
    */
   _getWorkingSlide(index) {
-    const source = this._deckStore?.getSlides() ?? this.originalMarkdown ?? [];
+    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
     const markdown = source[index] ?? "";
     const baseSlide = { index, markdown };
     return this.saveManager.getFullSlide
@@ -174,7 +174,7 @@ export class SlideOperations {
    * @returns {string[]}
    */
   _getWorkingSlides() {
-    const source = this._deckStore?.getSlides() ?? this.originalMarkdown ?? [];
+    const source = this.originalMarkdown ?? this._deckStore?.getSlides() ?? [];
     return source.map((_, i) => this._getWorkingSlide(i).markdown);
   }
 
@@ -213,10 +213,10 @@ export class SlideOperations {
 
     this._prepareStoreMutation();
     const deletedMarkdown = this._getWorkingMarkdown(indexToDelete);
+    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     if (!this._applyStorePatches([createDeletePatch(indexToDelete, deletedMarkdown, "user")]))
       return;
 
-    this.rebuildUnsavedMarkdownMap(-1, indexToDelete);
     this.hasUnsavedChanges = true;
     this.saveManager.updateButton();
   }

@@ -260,6 +260,7 @@ describe("SlideOperations store-backed structural operations", () => {
     const state = {
       store,
       deck: { slides: slides.map(() => ({ id: 1 })) },
+      originalMarkdown: [...slides],
       currentIndex,
       unsavedMarkdown: new Map(),
       hasUnsavedChanges: false,
@@ -284,7 +285,7 @@ describe("SlideOperations store-backed structural operations", () => {
       setCurrentSlideIndex: (v) => {
         state.currentIndex = v;
       },
-      getOriginalMarkdown: () => store.getSlides(),
+      getOriginalMarkdown: () => state.originalMarkdown,
       getUnsavedMarkdown: () => state.unsavedMarkdown,
       setUnsavedMarkdown: (v) => {
         state.unsavedMarkdown = v;
@@ -344,7 +345,7 @@ describe("SlideOperations store-backed structural operations", () => {
     // Instead, test an explicit bad patch through the internals.
     const badPatch = {
       index: 0,
-      before: "# A",
+      before: "# Wrong",
       after: "# X",
       source: "user",
       timestamp: Date.now(),
