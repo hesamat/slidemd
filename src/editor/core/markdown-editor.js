@@ -173,7 +173,11 @@ export class MarkdownEditor {
    */
   saveSlideState(index) {
     if (!this.view || index < 0) return;
-    if (this._cacheCleared) return;
+    if (this._cacheCleared) {
+      // Reset the flag so the next save (on a real slide switch) works.
+      this._cacheCleared = false;
+      return;
+    }
     this._slideStateCache.set(index, this.view.state);
     // Evict oldest entry if over cap.
     if (this._slideStateCache.size > this._cacheMaxEntries) {
@@ -186,8 +190,9 @@ export class MarkdownEditor {
    * Load a slide's EditorState from the cache, or create a fresh one.
    * If a cached state exists but its document differs from `doc` (e.g.
    * the slide was modified externally by AI or style-applier), the cached
-   * state is updated with the new document without recording it in history,
-   * preserving the slide's undo stack.
+   * state is discarded and a fresh one is created. Keeping the old undo
+   * stack across a full-document replacement would garble the text on
+   * undo, since the history entries no longer correspond to the buffer.
    * @param {number} index
    * @param {string} doc - Expected document content for the slide
    * @returns {boolean} true if a cached state was restored, false if fresh
@@ -207,27 +212,12 @@ export class MarkdownEditor {
         return true;
       }
       // Document changed externally (AI, style, save baseline shift).
-      // Restore the cached state then update the document without
-      // recording it in history so the prior undo stack is preserved.
-      // suppressChange prevents the update listener from firing
-      // onChange, which would falsely mark the deck as dirty.
-      this.view.setState(cached);
-      this.suppressChange = true;
-      try {
-        this.view.dispatch({
-          changes: { from: 0, to: this.view.state.doc.length, insert: value },
-          annotations: [Transaction.addToHistory.of(false)],
-        });
-      } catch {
-        // Fallback: recreate state from scratch (history lost).
-        this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
-      } finally {
-        this.suppressChange = false;
-      }
-      return true;
+      // Drop the cached state — its undo stack no longer corresponds
+      // to this document and would garble text on undo.
+      this._slideStateCache.delete(index);
     }
 
-    // No cache — create a fresh state (no undo history).
+    // No cache or stale cache — create a fresh state (no undo history).
     this.view.setState(EditorState.create({ doc: value, extensions: this.extensions }));
     return false;
   }
@@ -299,6 +289,8 @@ export class MarkdownEditor {
 
     const { suppressOnChange = false, recordHistory = true } = options;
     if (suppressOnChange) this.suppressChange = true;
+    // Reset the cache-cleared flag so a future saveSlideState works.
+    this._cacheCleared = false;
 
     try {
       // Replace the whole document as a transaction so the history extension

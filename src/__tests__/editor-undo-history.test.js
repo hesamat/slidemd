@@ -59,36 +59,27 @@ describe("Per-slide editor undo history", () => {
       expect(setState).toHaveBeenCalledTimes(1);
     });
 
-    it("loadSlideState updates the document when cached doc differs", () => {
+    it("loadSlideState drops cached state when doc differs", () => {
       const cachedState = { doc: { toString: () => "# old", length: 5 } };
-      const dispatch = vi.fn();
       const setState = vi.fn();
       const editor = {
-        view: {
-          setState,
-          state: cachedState,
-          dispatch,
-        },
+        view: { setState },
         value: "",
-        suppressChange: false,
         _slideStateCache: new Map([[0, cachedState]]),
         _cacheCleared: false,
+        extensions: [],
       };
 
       const restored = MarkdownEditor.prototype.loadSlideState.call(editor, 0, "# new");
-      expect(restored).toBe(true);
-      expect(setState).toHaveBeenCalledWith(cachedState);
-      // Should dispatch a document update without recording history.
-      expect(dispatch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          changes: { from: 0, to: 5, insert: "# new" },
-        }),
-      );
-      // suppressChange should be reset to false after the dispatch.
-      expect(editor.suppressChange).toBe(false);
+      // Should return false (fresh state, not cached restore).
+      expect(restored).toBe(false);
+      // Should create a fresh state, not restore the stale cached one.
+      expect(setState).toHaveBeenCalledTimes(1);
+      // Stale cache entry should be evicted.
+      expect(editor._slideStateCache.has(0)).toBe(false);
     });
 
-    it("saveSlideState is skipped after clearSlideStateCache", () => {
+    it("saveSlideState is skipped once after clearSlideStateCache", () => {
       const fakeState = { doc: { toString: () => "# A" } };
       const editor = {
         view: { state: fakeState },
@@ -100,12 +91,12 @@ describe("Per-slide editor undo history", () => {
       MarkdownEditor.prototype.clearSlideStateCache.call(editor);
       expect(editor._cacheCleared).toBe(true);
 
-      // saveSlideState should be skipped because the cache was just cleared.
+      // First saveSlideState should be skipped (stale state) and reset flag.
       MarkdownEditor.prototype.saveSlideState.call(editor, 0);
       expect(editor._slideStateCache.size).toBe(0);
+      expect(editor._cacheCleared).toBe(false);
 
-      // After loadSlideState resets the flag, saving works again.
-      editor._cacheCleared = false;
+      // Second saveSlideState should work normally.
       MarkdownEditor.prototype.saveSlideState.call(editor, 0);
       expect(editor._slideStateCache.size).toBe(1);
     });

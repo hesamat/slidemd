@@ -684,15 +684,25 @@ export class EditController {
     if (!this.deckStore) return false;
     const markdown = this.deckStore.toMarkdown();
     const restoredActiveIndex = this.deckStore.getActiveIndex();
+    const slideCountBefore = this.deckStore.getSlideCount();
     await AssetLoader.ensureMarkdownItLoaded();
     const deck = await DeckLoader.parseMarkdown(markdown);
+    // Keep the flag set through both replaceDeck and goTo so that
+    // _onSlideChange (fired by goTo) is suppressed — _onDeckChange
+    // already called loadSlideIntoEditor with the correct deck.
     this._deckRestoreInProgress = true;
     try {
       await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
+      // Clear the per-slide state cache when the slide count changed
+      // (e.g. undo/redo of add/delete/move). Index-keyed cache entries
+      // would otherwise attach to the wrong slide after a shift.
+      if (this.deckStore.getSlideCount() !== slideCountBefore) {
+        this.markdownEditor?.clearSlideStateCache();
+      }
+      this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     } finally {
       this._deckRestoreInProgress = false;
     }
-    this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
     return true;
   }
 
@@ -728,8 +738,13 @@ export class EditController {
     if (this._historyOperation) return false;
     if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
       if (!this.markdownEditor) return false;
-      this.markdownEditor.undo?.();
-      return true;
+      // Only delegate to the editor's undo if it actually has history.
+      // Otherwise fall through to store-level undo so the user can undo
+      // structural operations even with unsaved overlays on other slides.
+      if (this.markdownEditor.canUndo?.()) {
+        this.markdownEditor.undo?.();
+        return true;
+      }
     }
     if (!this.deckStore || !this.deckStore.canUndo()) {
       if (!this.markdownEditor) return false;
@@ -753,8 +768,10 @@ export class EditController {
     if (this._historyOperation) return false;
     if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
       if (!this.markdownEditor) return false;
-      this.markdownEditor.redo?.();
-      return true;
+      if (this.markdownEditor.canRedo?.()) {
+        this.markdownEditor.redo?.();
+        return true;
+      }
     }
     if (!this.deckStore || !this.deckStore.canRedo()) {
       if (!this.markdownEditor) return false;
