@@ -128,7 +128,9 @@ export class KeyboardHandler {
    * @returns {boolean}
    */
   #isInCodeMirror(e) {
-    return !!e.target?.closest?.(".cm-editor, .markdown-editor-codemirror");
+    // Match only the editor's content DOM, not panel inputs (search/replace)
+    // which live inside .cm-panels — a sibling of .cm-content under .cm-editor.
+    return !!e.target?.closest?.(".cm-content, .markdown-editor-codemirror");
   }
 
   /**

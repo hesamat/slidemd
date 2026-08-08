@@ -119,7 +119,7 @@ describe("Per-slide editor undo history", () => {
       expect(editor._cacheCleared).toBe(false);
     });
 
-    it("cache evicts oldest entry when over cap", () => {
+    it("cache evicts oldest entry when over cap (true LRU)", () => {
       const fakeState = { doc: { toString: () => "" } };
       const editor = {
         view: { state: fakeState },
@@ -128,13 +128,18 @@ describe("Per-slide editor undo history", () => {
         _cacheCleared: false,
       };
 
-      for (let i = 0; i < 4; i++) {
+      // Insert 0, 1, 2
+      for (let i = 0; i < 3; i++) {
         MarkdownEditor.prototype.saveSlideState.call(editor, i);
       }
+      // Re-save slide 0 — should move it to the end (most recently used).
+      MarkdownEditor.prototype.saveSlideState.call(editor, 0);
+      // Insert slide 3 — should evict slide 1 (now the oldest), not slide 0.
+      MarkdownEditor.prototype.saveSlideState.call(editor, 3);
 
-      // Should have evicted index 0 (oldest) and kept 1, 2, 3.
       expect(editor._slideStateCache.size).toBe(3);
-      expect(editor._slideStateCache.has(0)).toBe(false);
+      expect(editor._slideStateCache.has(0)).toBe(true);
+      expect(editor._slideStateCache.has(1)).toBe(false);
       expect(editor._slideStateCache.has(3)).toBe(true);
     });
 
