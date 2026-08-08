@@ -1102,6 +1102,19 @@ export class EditController {
   loadSlideIntoEditor() {
     if (!this.isEditMode || !this.markdownEditor) return;
 
+    // Save the outgoing slide's EditorState (with undo history) before
+    // switching. If the cache has just been cleared (e.g. by a structural
+    // op), also call it when the slide index has not changed, so the
+    // one-shot skip flag is consumed and the *next* navigation away from
+    // this slide actually saves its state instead of dropping it.
+    // saveSlideState's index < 0 guard handles the initial -1 case.
+    if (
+      this._lastEditorSlideIndex !== this.currentSlideIndex ||
+      this.markdownEditor.hasClearedCache()
+    ) {
+      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
+    }
+
     const base = this.deckStore.getSlides()[this.currentSlideIndex] ?? "";
     const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
 
@@ -1111,13 +1124,6 @@ export class EditController {
       this.saveManager.updateButton();
       this.areaGuides.refresh();
       return;
-    }
-
-    // Save the outgoing slide's EditorState (with undo history) before
-    // switching, so navigating back restores its undo stack.
-    // saveSlideState's index < 0 guard handles the initial -1 case.
-    if (this._lastEditorSlideIndex !== this.currentSlideIndex) {
-      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
     }
 
     if (

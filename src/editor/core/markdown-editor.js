@@ -255,6 +255,16 @@ export class MarkdownEditor {
     this._deckRevision++;
   }
 
+  /**
+   * Check whether the cache has been cleared and not yet consumed.
+   * Used by EditController.loadSlideIntoEditor to decide whether to call
+   * saveSlideState even when the slide index has not changed.
+   * @returns {boolean}
+   */
+  hasClearedCache() {
+    return this._cacheCleared;
+  }
+
   // ── Text manipulation ────────────────────────────────────────────────────
 
   /**
