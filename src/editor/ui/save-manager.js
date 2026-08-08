@@ -9,6 +9,7 @@ import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
+import { DeckLoader } from "../../data/deck-loader.js";
 
 /**
  * Extract relative image paths (images/...) from markdown.
@@ -443,6 +444,10 @@ export class SaveManager {
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
+        // Keep the reload file-handle registry aligned with the extension-
+        // less stored deck name so reloads re-read from disk (freshness).
+        DeckLoader.fileHandleRegistry.set(safeFileName, mdHandle);
+        DeckLoader.fileHandleRegistry.set(safeFileName.replace(/\.(md|markdown)$/i, ""), mdHandle);
         mdWritten = true;
       } catch (e) {
         if (e.name === "AbortError") throw e;

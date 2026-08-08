@@ -225,9 +225,10 @@ export class PptxImporter {
               // Delegates to SaveManager, which waits for pending image
               // uploads, opens the save picker and reports errors itself
               // (including cancelled saves — no try/catch needed here).
-              // Dismiss the sticky import notification once the flow ends.
-              await editCtrl.saveManager.save();
+              // Dismiss the sticky import notification first so SaveManager's
+              // own toasts ("Deck saved!", errors) are not wiped by it.
               Notification.dismissAll();
+              await editCtrl.saveManager.save();
             },
           },
         ],
