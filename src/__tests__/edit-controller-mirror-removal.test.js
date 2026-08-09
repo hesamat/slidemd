@@ -128,13 +128,21 @@ describe("EditController mirror removal", () => {
         _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
-        markdownEditor: { getValue, setValue },
+        _captureEditorMarkdown: vi.fn(),
+        markdownEditor: {
+          getValue,
+          setValue,
+          saveSlideState: vi.fn(),
+          loadSlideState: vi.fn(),
+          hasClearedCache: vi.fn(() => false),
+          clearSlideStateCache: vi.fn(),
+        },
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
 
       EditController.prototype.loadSlideIntoEditor.call(fake);
-      expect(setValue).toHaveBeenCalledWith("# A", { suppressOnChange: true, clearHistory: false });
+      expect(setValue).toHaveBeenCalledWith("# A", { suppressOnChange: true });
       expect(fake._lastEditorSlideIndex).toBe(0);
       expect(fake._lastEditorDeck).toBe(fake.deck);
     });
@@ -146,11 +154,19 @@ describe("EditController mirror removal", () => {
         isEditMode: true,
         currentSlideIndex: 0,
         deck: { id: 1 },
-        _lastEditorSlideIndex: -1,
-        _lastEditorDeck: null,
+        _lastEditorSlideIndex: 0,
+        _lastEditorDeck: { id: 1 },
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
-        markdownEditor: { getValue, setValue },
+        _captureEditorMarkdown: vi.fn(),
+        markdownEditor: {
+          getValue,
+          setValue,
+          saveSlideState: vi.fn(),
+          loadSlideState: vi.fn(),
+          hasClearedCache: vi.fn(() => false),
+          clearSlideStateCache: vi.fn(),
+        },
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
