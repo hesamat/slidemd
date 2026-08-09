@@ -1346,6 +1346,48 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("badge.png");
   });
 
+  it("keeps a small top image when the only top text is a narrow marked label", () => {
+    // The extractor turns any >=34pt run into a "## " marker, so a narrow
+    // marked label must not enable the header-band icon drop either.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Marked",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Q1",
+            left: 500000,
+            top: 400000,
+            width: 1524000,
+            height: 381000,
+          },
+          {
+            type: "text",
+            content: "Body paragraph below",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
   it("keeps a small top image when the only top text is a narrow label", () => {
     // A narrow label or date placeholder in the header region is not a
     // title, so the header-band rule must not drop images beside it.

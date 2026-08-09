@@ -470,6 +470,9 @@ function convertSlide(
   }
 
   // --- RENDER SECTIONS ---
+  // INVARIANT: every branch below pushes an area marker (usually @main) or
+  // returns early. There is no late fallback anymore — a future downgrade
+  // added after the dispatch must render its content inline itself.
   if (layout.type === LAYOUT.TITLE_SLIDE.type) {
     parts.push("");
     parts.push(MARKDOWN_TAGS.TITLE);

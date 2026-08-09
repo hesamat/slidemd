@@ -240,6 +240,22 @@ describe("slide title derivation from HTML-heavy slides", () => {
     expect(deck.slides[0].title).toBe("Write <div> tags here");
   });
 
+  it("strips embedded tag pairs but keeps stray mentions in titles", () => {
+    const mdEmbedded = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      'Intro <div class="badge">x</div> here',
+    ].join("\n");
+    expect(parser.parseDeckMarkdown(mdEmbedded).slides[0].title).toBe("Intro x here");
+
+    const mdMention = ["layout: header-content", "", "@main", "", "Write <div> tags here"].join(
+      "\n",
+    );
+    expect(parser.parseDeckMarkdown(mdMention).slides[0].title).toBe("Write <div> tags here");
+  });
+
   it("titles image-first areas from the image alt text", () => {
     const mdMarkdown = [
       "layout: header-content",

@@ -98,6 +98,24 @@ function isBulletLine(text) {
 }
 
 /**
+ * Drop the previous bullet's trailing blank line so a new bullet (or list)
+ * joins it tightly. Handles both the single-entry form (paragraph ending in
+ * "\n\n") and the split-entry form (<ul>/<ol> push their trailing
+ * separator as a separate "\n" entry).
+ * @param {string[]} out
+ * @param {boolean} lastOutputWasBullet
+ */
+function tightenPreviousBullet(out, lastOutputWasBullet) {
+  if (!lastOutputWasBullet) return;
+  const last = out[out.length - 1];
+  if (typeof last === "string" && last.endsWith("\n\n")) {
+    out[out.length - 1] = last.slice(0, -2) + "\n";
+  } else if (last === "\n") {
+    out.pop();
+  }
+}
+
+/**
  * Collapse duplicate whitespace (multiple spaces, tabs, nbsp) outside fenced
  * code blocks and backtick-wrapped inline code, and strip trailing spaces.
  * Leading indentation (nested list markers) is preserved.
@@ -349,9 +367,11 @@ function processBlockNodes(nodes, out) {
       // instead of restarting. A list continues only when the immediately
       // preceding top-level block was a list of the same type.
       const reset = !(lastListType && lastListType === tag);
+      // Join the list tightly onto a preceding bullet paragraph or list.
+      tightenPreviousBullet(out, lastOutputWasBullet);
       processList(node, 0, out, counters, { reset });
       out.push("\n");
-      lastOutputWasBullet = false;
+      lastOutputWasBullet = true;
       lastListType = tag;
       lastWasOl = tag === "OL";
       minMarginLeft = Infinity;
@@ -399,9 +419,11 @@ function processBlockNodes(nodes, out) {
             }
           }
         }
+        // Join the item tightly onto a preceding bullet paragraph or list.
+        tightenPreviousBullet(out, lastOutputWasBullet);
         out.push(indent + "- " + merged + "\n");
+        lastOutputWasBullet = true;
       }
-      lastOutputWasBullet = false;
       continue;
     }
 
@@ -472,12 +494,7 @@ function processBlockNodes(nodes, out) {
           // Consecutive glyph-bullet paragraphs must form a tight list: drop
           // the previous bullet's trailing blank line so markdown-it does not
           // wrap every item in <p> like real PowerPoint bullets would.
-          if (isGlyphBullet && lastOutputWasBullet) {
-            const prev = out[out.length - 1];
-            if (typeof prev === "string" && prev.endsWith("\n\n")) {
-              out[out.length - 1] = prev.slice(0, -2) + "\n";
-            }
-          }
+          if (isGlyphBullet) tightenPreviousBullet(out, lastOutputWasBullet);
           out.push(merged + "\n\n");
           lastOutputWasBullet = isGlyphBullet;
         }

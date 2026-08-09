@@ -813,16 +813,16 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide[data-layout="media-span-right"]
   .slide__area--media:has(
     > img:only-child,
-    > button.editor-area-label + img,
+    > button.editor-area-label + img:last-child,
     > p:only-child > img:only-child,
-    > button.editor-area-label + p > img:only-child
+    > button.editor-area-label + p:last-child > img:only-child
   ),
 .slide[data-layout="media-span"]
   .slide__area--media:has(
     > img:only-child,
-    > button.editor-area-label + img,
+    > button.editor-area-label + img:last-child,
     > p:only-child > img:only-child,
-    > button.editor-area-label + p > img:only-child
+    > button.editor-area-label + p:last-child > img:only-child
   ) {
   /* max-width: 100% (from .slide__area) is relative to the grid cell and
      would neutralize the negative right margin — drop it so the area can
@@ -837,9 +837,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide[data-layout="media-span-left"]
   .slide__area--media:has(
     > img:only-child,
-    > button.editor-area-label + img,
+    > button.editor-area-label + img:last-child,
     > p:only-child > img:only-child,
-    > button.editor-area-label + p > img:only-child
+    > button.editor-area-label + p:last-child > img:only-child
   ) {
   max-width: none;
   padding: 0;
@@ -853,9 +853,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide[data-layout^="media-span"]
   .slide__area--media:has(
     > img:only-child,
-    > button.editor-area-label + img,
+    > button.editor-area-label + img:last-child,
     > p:only-child > img:only-child,
-    > button.editor-area-label + p > img:only-child
+    > button.editor-area-label + p:last-child > img:only-child
   )
   > button.editor-area-label {
   position: relative;
@@ -863,7 +863,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 .slide[data-layout^="media-span"] .slide__area--media:has(> img:only-child) > img,
-.slide[data-layout^="media-span"] .slide__area--media:has(> button.editor-area-label + img) > img {
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(> button.editor-area-label + img:last-child)
+  > img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -877,7 +879,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 .slide[data-layout^="media-span"] .slide__area--media:has(> p:only-child > img:only-child) > p,
 .slide[data-layout^="media-span"]
-  .slide__area--media:has(> button.editor-area-label + p > img:only-child)
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p {
   position: absolute;
   inset: 0;
@@ -889,7 +891,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > p
   > img,
 .slide[data-layout^="media-span"]
-  .slide__area--media:has(> button.editor-area-label + p > img:only-child)
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p
   > img {
   width: 100%;

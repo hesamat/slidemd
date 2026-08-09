@@ -158,7 +158,8 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * Uses a per-layout line format (`layout: @area1, @area2, ...`) rather than a
  * wide cross-reference table. The table format (8 columns × 12 rows) was hard
  * for the AI to scan accurately — it frequently used `@secondary` for
- * `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
+ * `two-column` (which only has `@media`) or dropped `@main` from
+ * `media-span-left`/`media-span-right`.
  * The per-layout format makes each layout's allowed areas unambiguous.
  *
  * @returns {string}

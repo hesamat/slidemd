@@ -222,11 +222,14 @@ export function isHeaderLikeTextElement(
   { requireTitleWidth = false, slideWidth = 0 } = {},
 ) {
   if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
-  if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
+  // In requireTitleWidth mode the width/footer checks gate the heading-marker
+  // shortcut too — the extractor marks any >=34pt run as a heading, and a
+  // narrow such label must not enable the icon band filter.
   if (requireTitleWidth) {
     if (el.placeholderType === ELEMENT_TYPES.FOOTER) return false;
     if ((el.width || 0) < slideWidth * CONFIG.minTitleWidthRatio) return false;
   }
+  if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
   // Extract plain text from HTML for length/bullet checks — raw HTML is
   // often much longer than the visible text due to inline styles.
   const text = stripHtml(el.content || "");

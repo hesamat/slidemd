@@ -398,6 +398,25 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     expect(result).toBe("");
   });
 
+  it("joins real and glyph bullets into one tight list", () => {
+    // Mixed bullet sources (buChar <li> + hand-typed glyphs) in one text box
+    // must not get a blank line between the two groups.
+    const liThenGlyph = PptxExtractor.htmlToMarkdown(
+      "<ul><li>real item</li></ul><p>\u2022 glyph item</p>",
+    );
+    expect(liThenGlyph).toContain("- real item\n- glyph item");
+    expect(liThenGlyph).not.toContain("- real item\n\n- glyph item");
+
+    const glyphThenLi = PptxExtractor.htmlToMarkdown(
+      "<p>\u2022 glyph item</p><ul><li>real item</li></ul>",
+    );
+    expect(glyphThenLi).toContain("- glyph item\n- real item");
+    expect(glyphThenLi).not.toContain("- glyph item\n\n- real item");
+
+    const liThenLi = PptxExtractor.htmlToMarkdown("<ul><li>a</li></ul><ul><li>b</li></ul>");
+    expect(liThenLi).toContain("- a\n- b");
+  });
+
   it("drops spaced marker residue from empty sub-bullets", () => {
     // PowerPoint leaves "- -" / "• •" behind in empty sub-bullets; they must
     // not fall through to a dangling "- " bullet.
