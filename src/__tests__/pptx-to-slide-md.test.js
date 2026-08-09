@@ -1795,7 +1795,7 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).toContain("@media");
     // The media-span image fills its column edge to edge (full-bleed media).
-    expect(md).toContain('style="width: 100%; height: 100%; object-fit: cover;"');
+    expect(md).toContain('style="width: 100%; height: 100%; object-fit: contain;"');
   });
 
   it("uses two-column when right column has text and image", () => {

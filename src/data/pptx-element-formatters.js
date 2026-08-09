@@ -184,9 +184,9 @@ export function formatImage(
     .trim();
   const altText = caption || `Slide image ${baseAlt}`;
 
-  // fitColumn: full-bleed media-span image — fills the media column and
-  // crops with object-fit so the picture spans the area edge to edge.
-  const style = fitColumn ? ' style="width: 100%; height: 100%; object-fit: cover;"' : "";
+  // fitColumn: media-span image — fills the media column's box but contains
+  // the picture (no cropping), so the whole image stays visible.
+  const style = fitColumn ? ' style="width: 100%; height: 100%; object-fit: contain;"' : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.
