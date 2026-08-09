@@ -9,7 +9,6 @@ import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
-import { fitToWidth, getStageScale } from "../image/image-position-presets.js";
 import { SlideOperations } from "./slide-operations.js";
 import { ImageBackgroundHandler } from "../image/image-background-handler.js";
 import { ImageInserter } from "../image/image-inserter.js";
