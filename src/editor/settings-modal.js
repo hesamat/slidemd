@@ -13,7 +13,7 @@
 
 // SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
-import { validateAiBaseUrl } from "../data/ai/ai-provider-client.js";
+import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
@@ -38,7 +38,7 @@ const PROVIDER_DEFAULTS = {
   Custom: "",
 };
 
-const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
+// KEY_REQUIRED_PROVIDERS is imported from ai-provider-client.js (canonical source).
 
 /**
  * Get the per-provider storage key for an API key.

@@ -30,6 +30,13 @@ const PROVIDER_HOSTS = {
 };
 
 /**
+ * Providers that require an API key. This is the canonical set — the
+ * settings modal and each provider client import it instead of maintaining
+ * their own copy.
+ */
+export const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
+
+/**
  * Validate an AI base URL before sending credentials or requests to it.
  * Only allows http: or https: schemes with a non-empty hostname.
  * If `provider` is given and the provider has known hosts, the base URL host
@@ -104,7 +111,7 @@ export class AiProviderClient {
     // "Missing Authentication header" from the upstream API. Checked before
     // base-URL validation to match AnthropicProviderClient/GeminiProviderClient
     // ordering.
-    if (!apiKey && (provider === "OpenAI" || provider === "OpenRouter")) {
+    if (!apiKey && KEY_REQUIRED_PROVIDERS.has(provider)) {
       throw new AiHttpError(0, `${provider} API key is required`);
     }
     const validation = validateAiBaseUrl(baseUrl, provider);

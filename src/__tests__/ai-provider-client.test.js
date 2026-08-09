@@ -146,6 +146,28 @@ describe("AiProviderClient", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("does not throw early for Custom provider with no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://my-custom-endpoint.example.com/v1",
+      getApiKey: () => "",
+      getProvider: () => "Custom",
+    });
+
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
   it("retries once without response_format when the provider rejects it", async () => {
     const client = makeClient();
     globalThis.fetch
