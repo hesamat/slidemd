@@ -1276,6 +1276,42 @@ describe("convertToSlideMd", () => {
     }
   });
 
+  it("treats a narrow top text box as a header for layout inference", () => {
+    // The 30% title-width rule applies only to the header-band icon filter;
+    // a short title in a narrow box must still count as a header so the
+    // slide renders header-content.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Narrow",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Short title",
+            left: 500000,
+            top: 200000,
+            width: 1905000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body text below the title",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@header");
+    expect(md).toContain("Short title");
+  });
+
   it("keeps a small top image when the slide has no heading", () => {
     // The header-band rule only drops small top images beside an actual
     // heading; a text-bearing slide without one keeps the image.
@@ -1499,6 +1535,13 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("layout: media-span-right");
     expect(md).not.toContain("layout: media-span-left");
+    // The illustration belongs to the text column: it stays in @main, and
+    // only the picture-only column's image moves to @media.
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(md.indexOf("illustration.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("illustration.png")).toBeLessThan(mediaIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
   });
 
   it("picks media-span-left when the picture-only column is on the left", () => {
@@ -1552,6 +1595,11 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     expect(md).toContain("layout: media-span-left");
     expect(md).not.toContain("layout: media-span-right");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(md.indexOf("illustration.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("illustration.png")).toBeLessThan(mediaIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
   });
 
   it("keeps divider lines typed in body text without splitting the slide", () => {

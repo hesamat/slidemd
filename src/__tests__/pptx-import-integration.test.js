@@ -230,4 +230,13 @@ describe("slide title derivation from HTML-heavy slides", () => {
     expect(title).not.toContain("<!--");
     expect(title).not.toContain("&lt;");
   });
+
+  it("keeps escaped tags mentioned in prose when deriving titles", () => {
+    // Teaching text that mentions a tag is not markup — the tag text stays.
+    const md = ["layout: header-content", "", "@main", "", "Write &lt;div&gt; tags here"].join(
+      "\n",
+    );
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Write <div> tags here");
+  });
 });

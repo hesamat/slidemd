@@ -371,10 +371,14 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       // The <li> provides the "- " marker, so drop any literal bullet glyph
       // that the author also typed ("- • item" -> "- item"), and skip items
-      // whose remaining content is marker-only ("- -" residue) or a divider
-      // ("---" — mergeAdjacentMarkers would mangle "* * *").
+      // whose remaining content is marker-only ("- -" residue). Divider items
+      // ("---") are kept as list items with their markers escaped — kept
+      // verbatim they would be misread as a divider by formatTextElement,
+      // and mergeAdjacentMarkers would mangle "* * *".
       const rawItem = inline.join("").trim();
-      const merged = isDividerLine(rawItem) ? "" : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
+      const merged = isDividerLine(rawItem)
+        ? rawItem.replace(/[-*•◦‣▪●○■]/g, (marker) => `\\${marker}`)
+        : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
       if (merged && !isMarkerOnly(merged)) {
         // Determine nesting depth from margin-left on the inner <p>.
         // Items with margin-left significantly larger than the minimum are
@@ -567,11 +571,12 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
     }
     // The list marker is provided by the <li>, so drop literal bullet glyphs
     // the author typed as text, and skip items with no content left. Divider
-    // items ("---") are kept verbatim as list items — mergeAdjacentMarkers
-    // would mangle "* * *" — so their content is not lost.
+    // items ("---") are kept as list items with their markers escaped — kept
+    // verbatim they would be misread as a divider by formatTextElement, and
+    // mergeAdjacentMarkers would mangle "* * *".
     const rawItem = inline.join("").trim();
     const merged = isDividerLine(rawItem)
-      ? rawItem
+      ? rawItem.replace(/[-*•◦‣▪●○■]/g, (marker) => `\\${marker}`)
       : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
     if (merged && !isMarkerOnly(merged)) {
       if (isOrdered) {

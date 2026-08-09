@@ -370,6 +370,7 @@ function convertSlide(
     false,
   );
   const midX = slideWidth / 2;
+  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
 
   // Overflow upgrade: a single-column slide whose body needs more vertical
   // space than the area provides is redistributed into two columns.
@@ -409,22 +410,31 @@ function convertSlide(
   // matches the source slide (image-left slides keep the image on the left).
   // The text column may itself contain a dominant image (e.g. an illustration
   // beside the body), so the first dominant image is not a reliable signal.
-  // When no column qualifies, default to the right — the historical behavior.
+  // Mirrors inferLayout's partitioning: centered elements and the header are
+  // excluded from both columns. When no column qualifies, default to the
+  // right — the historical behavior.
   if (layout.type === LAYOUT.MEDIA_SPAN.type) {
     const isTextLike = (el) =>
       (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
       [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
-    const onSide = (side) => (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
+    const isBodyElement = (el) => {
+      if (Math.abs((el.left || 0) + (el.width || 0) / 2 - midX) < centerTol) return false;
+      if (header && el === header) return false;
+      return true;
+    };
+    const onSide = (side) => (el) =>
+      isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
     const leftHasText = bodyElements.some((el) => isTextLike(el) && onSide("left")(el));
     const rightHasText = bodyElements.some((el) => isTextLike(el) && onSide("right")(el));
     const leftHasDominant = dominantImages.some(onSide("left"));
     const rightHasDominant = dominantImages.some(onSide("right"));
-    layout =
-      !leftHasText && leftHasDominant
-        ? LAYOUT.MEDIA_SPAN_LEFT
-        : !rightHasText && rightHasDominant
-          ? LAYOUT.MEDIA_SPAN_RIGHT
-          : LAYOUT.MEDIA_SPAN_RIGHT;
+    if (!leftHasText && leftHasDominant) {
+      layout = LAYOUT.MEDIA_SPAN_LEFT;
+    } else if (!rightHasText && rightHasDominant) {
+      layout = LAYOUT.MEDIA_SPAN_RIGHT;
+    } else {
+      layout = LAYOUT.MEDIA_SPAN_RIGHT; // default: historical behavior
+    }
   }
 
   parts.push(`layout: ${layout.spec}`);
@@ -456,6 +466,10 @@ function convertSlide(
   }
 
   // --- RENDER SECTIONS ---
+  // Tracks whether a render branch emitted area content, so the late
+  // fallback below never double-renders (it must not rely on scanning the
+  // parts array for a "@main" entry).
+  let renderedAreas = false;
   if (layout.type === LAYOUT.TITLE_SLIDE.type) {
     parts.push("");
     parts.push(MARKDOWN_TAGS.TITLE);
@@ -691,11 +705,24 @@ function convertSlide(
       }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    // Put all dominant images in @media, everything else in @main.
-    // Compute first so we can guard against empty @main BEFORE any rendering.
-    const mediaEls = dominantImages.filter(
-      (el) => bodyElements.includes(el) || el === dominantImages[0],
+    // Only the dominant images on the media-only column go to @media;
+    // dominant images inside the text column (illustrations beside the body)
+    // stay in @main with the text they belong to. The media side is the
+    // variant chosen above; images are partitioned without the centered/header
+    // exclusions (those apply to text). Compute first so we can guard against
+    // empty @main BEFORE any rendering.
+    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
+    let mediaEls = dominantImages.filter(
+      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
     );
+    // Fallback: when no dominant image lands on the media side (ambiguous
+    // placement), keep the images that would otherwise render with @main
+    // empty.
+    if (mediaEls.length === 0) {
+      mediaEls = dominantImages.filter(
+        (el) => bodyElements.includes(el) || el === dominantImages[0],
+      );
+    }
     const leftEls = bodyElements.filter((el) => !mediaEls.includes(el));
 
     // Guard: if no non-media body elements, @main would be empty.
@@ -806,10 +833,13 @@ function convertSlide(
     );
   }
 
+  renderedAreas = true;
+
   // If two-column was downgraded to header-content, render it now
   if (
     layout.type === LAYOUT.HEADER_CONTENT.type &&
     parts.length > 0 &&
+    !renderedAreas &&
     !parts.includes(MARKDOWN_TAGS.MAIN)
   ) {
     const { header, isHeaderValid, bodyElements } = extractHeader(

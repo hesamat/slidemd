@@ -341,17 +341,20 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
   });
 
   it("keeps divider content inside list items", () => {
-    // A divider typed as a bullet item is preserved as a list item rather
-    // than dropped; "* * *" is not mangled by marker merging.
+    // A divider typed as a bullet item is preserved as a list item, with the
+    // markers escaped so formatTextElement does not misread the item as a
+    // page-wide divider; "* * *" is not mangled by marker merging.
     const result = PptxExtractor.htmlToMarkdown(
       "<ul><li>before</li><li>---</li><li>after</li></ul>",
     );
     expect(result).toContain("- before");
-    expect(result).toContain("- ---");
+    expect(result).toContain("- \\-\\-\\-");
     expect(result).toContain("- after");
+    expect(result).not.toContain("- ---");
 
     const stars = PptxExtractor.htmlToMarkdown("<ul><li>* * *</li></ul>");
-    expect(stars).toContain("- * * *");
+    expect(stars).toContain("- \\* \\* \\*");
+    expect(stars).not.toContain("- * * *");
   });
 
   it("drops a lone bullet marker (empty text box residue)", () => {

@@ -160,10 +160,9 @@ export class MarkdownParser {
   /**
    * Strip HTML tags (replacing them with spaces so cell/wrapper content keeps
    * word boundaries), decode common entities, and remove markdown formatting.
-   * Entities are decoded first so authored `&lt;div&gt;` is removed with the
-   * tags it encodes; only well-formed tags (<tag …> / </tag>) and comments
-   * are stripped, so literal angle brackets such as "<<" or "a < b > c" are
-   * preserved.
+   * Tags are only stripped when the decoded line *starts* with markup — the
+   * fullpage-grid/flex-row wrappers PPTX imports emit — so authored text that
+   * merely mentions a tag (e.g. "write &lt;div&gt; tags") keeps its content.
    * @param {string} line
    * @returns {string}
    */
@@ -175,8 +174,10 @@ export class MarkdownParser {
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
       .replace(/&nbsp;/g, " ");
-    // Comments may be unterminated in user content — strip to end of line.
-    s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/<\/?[a-zA-Z][^>]*>/g, " ");
+    if (/^(<!--|<[a-zA-Z])/.test(s.trimStart())) {
+      // Comments may be unterminated in user content — strip to end of line.
+      s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/<\/?[a-zA-Z][^>]*>/g, " ");
+    }
     s = MarkdownParser.stripFormatting(s);
     return s.replace(/\s+/g, " ").trim();
   }

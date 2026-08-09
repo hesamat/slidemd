@@ -143,7 +143,8 @@ Use preset names instead of full CSS grid strings:
 - `header-content` - Header, content, footer stacked
 - `focus` - Content-first layout with minimal header/footer (centered content)
 - `two-column` - Two equal columns with optional header and footer
-- `media-span` - Two columns with media spanning full height (1.2:0.8)
+- `media-span-right` - Full-height media on the right, content column on the left (1.2:0.8)
+- `media-span-left` - Full-height media on the left, content column on the right (0.8:1.2)
 - `left-heavy` - Two columns with left side larger (2:1)
 - `right-heavy` - Two columns with right side larger (1:2)
 - `three-column` - Three equal columns

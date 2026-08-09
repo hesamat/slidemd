@@ -44,7 +44,10 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
   // heading in the header region — a short, non-list text element near the
   // top. Without one, small images higher up are content, not title icons.
   const hasHeaderLikeText = textElements.some((el) =>
-    isHeaderLikeTextElement(el, slideHeight, slideWidth),
+    isHeaderLikeTextElement(el, slideHeight, {
+      requireTitleWidth: true,
+      slideWidth,
+    }),
   );
 
   return elements.filter((el) => {
@@ -200,26 +203,35 @@ export function partitionByAreaOverlap(el, slideWidth, slideHeight) {
 /**
  * True when a text element looks like a heading: it sits in the header
  * region (top of the slide) and either carries a markdown heading marker or
- * is a wide, short, non-list element (a real title — not a slide number,
- * date placeholder, or decorative label). Shared by filterMeaningfulElements
- * (the header-band icon rule) and inferLayout (header detection) so the two
+ * is a short, non-list element. Shared by filterMeaningfulElements (the
+ * header-band icon rule) and inferLayout (header detection) so the two
  * predicates cannot drift apart.
+ *
+ * With {@link opts.requireTitleWidth}, the plain-title path additionally
+ * demands a wide, non-footer element — used only by the icon rule so narrow
+ * top labels, dates, and slide numbers do not count as titles; layout
+ * inference itself keeps accepting any short top text as a header.
  * @param {import('./pptx-extractor.js').ExtractedElement} el
  * @param {number} slideHeight
- * @param {number} [slideWidth] - Required for the plain-title path; when
- *   omitted, only the heading-marker path applies.
+ * @param {{ requireTitleWidth?: boolean, slideWidth?: number }} [opts]
  * @returns {boolean}
  */
-export function isHeaderLikeTextElement(el, slideHeight, slideWidth) {
+export function isHeaderLikeTextElement(
+  el,
+  slideHeight,
+  { requireTitleWidth = false, slideWidth = 0 } = {},
+) {
   if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
   if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
-  if (!slideWidth || el.placeholderType === ELEMENT_TYPES.FOOTER) return false;
+  if (requireTitleWidth) {
+    if (el.placeholderType === ELEMENT_TYPES.FOOTER) return false;
+    if ((el.width || 0) < slideWidth * CONFIG.minTitleWidthRatio) return false;
+  }
   // Extract plain text from HTML for length/bullet checks — raw HTML is
   // often much longer than the visible text due to inline styles.
   const text = stripHtml(el.content || "");
   const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
-  const isWideEnough = (el.width || 0) >= slideWidth * CONFIG.minTitleWidthRatio;
-  return text.length <= CONFIG.maxHeaderLength && !hasBullet && isWideEnough;
+  return text.length <= CONFIG.maxHeaderLength && !hasBullet;
 }
 
 /**
@@ -278,7 +290,7 @@ export function inferLayout(
       return false;
     }
 
-    return isHeaderLikeTextElement(el, slideHeight, slideWidth);
+    return isHeaderLikeTextElement(el, slideHeight);
   };
 
   const headerEl = contentEls.find(isHeader) || null;
