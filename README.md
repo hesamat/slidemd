@@ -26,6 +26,8 @@ SlideMD works in all modern browsers. The CLI dev server and File System Access 
 
 ## Run Locally
 
+**Requirements:** Node.js `>=22.12` (Node 22 LTS "Jod" or newer; the repo pins `22.12` via `.nvmrc`). Run `nvm use` to pick it up automatically.
+
 ```bash
 npm install
 npm run dev

@@ -4,21 +4,31 @@ This document describes the prompt architecture used by the AI enhancement featu
 
 ## Prompt Architecture
 
-Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/):
+Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/prompts/), cataloged by the `FRAGMENTS` map in [`ai-prompt-fragments.js`](../src/data/ai/ai-prompt-fragments.js):
 
-| File                          | Role     | Purpose                                                                                                   |
-| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, JSON output format, layout list                                                             |
-| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                        |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                            |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                           |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                 |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
-| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review       |
+| File                                | Role     | Purpose                                                                                                   |
+| ----------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `system-prompt.md`                  | `system` | Global rules, JSON output format, layout list                                                             |
+| `polish-prompt.md`                  | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                        |
+| `generate-prompt.md`                | `user`   | Creative reorganization task + `{{markdown}}` input (whole-deck execute phase)                            |
+| `fix-prompt.md`                     | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                           |
+| `add-speaker-notes-prompt.md`       | `user`   | Add speaker notes to slide (single-slide)                                                                 |
+| `remix-plan-prompt.md`              | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
+| `reimagine-outline-prompt.md`       | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review       |
+| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants (story/technical/persuasive/instructional) for the generate suffix       |
+| `speaker-notes-guidance.md`         | snippet  | Speaker-notes guidance variants (add/preserve) for the generate suffix                                    |
+| `visual-identity-guidance.md`       | snippet  | Visual-identity guidance variants (preserve/discard) used by the generate suffix                          |
+| `remix-visual-identity-guidance.md` | snippet  | Visual-identity guidance variants (preserve/discard) used by the remix plan prompt                        |
+| `images-guidance.md`                | snippet  | Vision images guidance variants (sent/not-sent) for the remix plan prompt                                 |
+| `batch-pagination.md`               | snippet  | Batch pagination instructions variants (fix/generate) for `buildBatchMessages`                            |
+| `creative-guidance.md`              | snippet  | Remix creative guidance text for the `{{creativeGuidance}}` placeholder                                   |
+| `repair-message.md`                 | snippet  | Repair message template for validation failures                                                           |
 
-Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
+Snippet files hold `<!-- variant: name -->` sections selected via `extractVariant` in [`ai-prompt-fragments.js`](../src/data/ai/ai-prompt-fragments.js). The JSON output format example lives directly in `system-prompt.md`.
 
-Intents are mapped to prompt builders by [`AiIntentRegistry`](../src/data/ai/ai-intent-registry.js), and the [`AiOrchestrator`](../src/data/ai/ai-orchestrator.js) coordinates the LLM call, validation, and repair loop.
+Fragments are composed by [`AiPromptComposer`](../src/data/ai/ai-prompt-composer.js), which replaces `{{placeholders}}` with the provided substitutions. Composition is strict: a missing or unused placeholder throws instead of silently reaching the model. The `{{layoutList}}` placeholder in the system prompt is replaced with the current layout registry; `{{markdown}}` in the user prompts is replaced with the deck or slide content.
+
+Intents are mapped to prompt fragments by [`AiIntentRegistry`](../src/data/ai/ai-intent-registry.js), and the [`AiOrchestrator`](../src/data/ai/ai-orchestrator.js) coordinates the LLM call, validation, and repair loop.
 
 ## System Prompt Rules
 
@@ -208,9 +218,9 @@ If content exceeds these limits, split across multiple slides or use two-column 
 
 When modifying prompts:
 
-1. Check all prompt files for consistency
-2. Run `npm test` — AI module tests verify prompt processing
-3. Keep combined system + user prompt length under ~150 lines
-4. Count strong negative directives (NEVER, Do NOT) — aim for <=5 per prompt
-5. Keep both layout lists in sync (system prompt `{{layoutList}}` and this doc)
-6. Update this document and `docs/example/slides.md` to reflect changes
+1. Check all prompt files for consistency.
+2. Run `npm test` — the AI hygiene tests (`ai-prompt-hygiene.test.js`) check that composed prompts contain no dangling `{{placeholders}}` and that the layout list stays in sync with `src/data/layout-data.js`.
+3. Snapshot tests (`ai-prompt-snapshots.test.js`) pin the composed system + user messages; update the snapshot deliberately and review the diff.
+4. Count strong negative directives (NEVER, Do NOT) — aim for <=5 per prompt.
+5. Keep both layout lists in sync (system prompt `{{layoutList}}` and this doc).
+6. Update this document and `docs/example/slides.md` to reflect changes.
