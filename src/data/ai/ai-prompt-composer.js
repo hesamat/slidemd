@@ -54,13 +54,15 @@ export function replacePlaceholders(fragment, substitutions, { strict = false } 
       );
     }
   }
-  let result = fragment;
-  for (const [key, value] of Object.entries(substitutions)) {
-    const placeholder = `{{${key}}}`;
-    const replacement = () => value;
-    result = result.replaceAll(placeholder, replacement);
-  }
-  return result;
+  // Single pass: every {{placeholder}} resolves simultaneously. A substituted
+  // value containing {{...}} (deck content, model-echoed error text, guidance
+  // fragments) is inserted as-is and never re-scanned, because the regex only
+  // matches positions in the original fragment text. This protects every
+  // substitution key — not just {{markdown}} — from nested expansion. The
+  // function replacement also keeps $$/$&/$`/$' in values literal.
+  return fragment.replace(/\{\{(\w+)\}\}/g, (match, name) =>
+    name in substitutions ? substitutions[name] : match,
+  );
 }
 
 export class AiPromptComposer {
@@ -94,20 +96,12 @@ export class AiPromptComposer {
           `No such placeholder exists in the fragments.`,
       );
     }
-    // Substitute `{{markdown}}` LAST so the inserted deck content is never
-    // re-scanned by the other substitution passes: a deck containing the
-    // literal text `{{layoutList}}` must pass through untouched instead of
-    // being replaced inside the user's own content.
-    const entries = Object.entries(substitutions);
-    const ordered = entries.sort((a, b) => {
-      if (a[0] === "markdown") return 1;
-      if (b[0] === "markdown") return -1;
-      return 0;
-    });
-    const orderedSubstitutions = Object.fromEntries(ordered);
+    // replacePlaceholders resolves all placeholders in a single pass, so no
+    // substituted value (deck content, guidance fragments) is ever re-scanned
+    // by another substitution.
     return {
-      system: replacePlaceholders(this._system, orderedSubstitutions),
-      user: replacePlaceholders(this._user, orderedSubstitutions),
+      system: replacePlaceholders(this._system, substitutions),
+      user: replacePlaceholders(this._user, substitutions),
     };
   }
 }

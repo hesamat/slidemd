@@ -55,10 +55,10 @@ describe("AiPromptComposer", () => {
     expect(user).toBe("Input: Use {{variable}} here");
   });
 
-  it("substitutes {{markdown}} last so deck content is not re-scanned", () => {
-    // If deck content literally contains {{layoutList}}, it must stay
-    // untouched — the markdown pass runs after the other substitutions, so
-    // it can never be replaced inside user content.
+  it("resolves placeholders in a single pass so substituted content is never re-scanned", () => {
+    // Deck content literally containing {{layoutList}} must stay untouched —
+    // the single-pass replacement only matches positions in the original
+    // fragment text, never inside an already-inserted value.
     const composer = new AiPromptComposer({
       systemFragment: "Layouts: {{layoutList}}.",
       userFragment: "Input: {{markdown}}",
@@ -69,6 +69,20 @@ describe("AiPromptComposer", () => {
     });
     expect(system).toBe("Layouts: header-content.");
     expect(user).toBe("Input: Deck mentions {{layoutList}} literally");
+  });
+
+  it("protects every substitution key from nested expansion, not just {{markdown}}", () => {
+    // A guidance fragment value that itself contains the literal text
+    // {{markdown}} must not be expanded by the markdown substitution.
+    const composer = new AiPromptComposer({
+      systemFragment: "System.",
+      userFragment: "Guidance: {{guidance}}\nInput: {{markdown}}",
+    });
+    const { user } = composer.compose({
+      guidance: "Use {{markdown}} as a literal example",
+      markdown: "deck",
+    });
+    expect(user).toBe("Guidance: Use {{markdown}} as a literal example\nInput: deck");
   });
 
   it("uses function replacement so $$...$$ math delimiters survive", () => {
