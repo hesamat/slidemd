@@ -142,9 +142,11 @@ describe("Editor undo regression suite", () => {
         unsavedMarkdown: unsaved,
         _pendingStructuralOperations: 0,
         _historyOperation: null,
+        _suppressStoreChangeRestore: false,
         _deckRestoreDepth: 0,
         _captureCurrentEditorMarkdown: () => {},
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
+        _withSuppressedStoreChange: EditController.prototype._withSuppressedStoreChange,
         _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
         saveManager: {

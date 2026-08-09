@@ -44,18 +44,28 @@ jobs:
 
             branch_encoded=$(urlencode "$branch")
 
-            updated=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.commit.committer.date')
+            # Fail closed: do not delete a branch if we cannot read its last
+            # commit date, and do not create an archive tag without a sha.
+            updated=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.commit.committer.date' || echo "")
+            if [[ -z "$updated" ]]; then
+              echo "Could not determine last commit date for $branch; skipping"
+              continue
+            fi
             if [[ "$updated" < "$CUTOFF" ]]; then
               # Archive branches with unique commits before deletion.
               ahead_by=$(gh api "repos/${{ github.repository }}/compare/main...$branch_encoded" -q '.ahead_by' || echo 0)
               if [[ "$ahead_by" -gt 0 ]]; then
-                sha=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.sha')
-                tag="archive/$(date -u +%Y-%m-%d)/$branch"
-                echo "Archiving $branch as $tag"
-                gh api -X POST "repos/${{ github.repository }}/git/refs" \
-                  -f "ref=refs/tags/$tag" \
-                  -f "sha=$sha" \
-                  --silent || true
+                sha=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.sha' || echo "")
+                if [[ -n "$sha" ]]; then
+                  tag="archive/$(date -u +%Y-%m-%d)/$branch"
+                  echo "Archiving $branch as $tag"
+                  gh api -X POST "repos/${{ github.repository }}/git/refs" \
+                    -f "ref=refs/tags/$tag" \
+                    -f "sha=$sha" \
+                    --silent || true
+                else
+                  echo "Could not determine sha for $branch; skipping archive tag"
+                fi
               fi
 
               echo "Deleting stale branch: $branch (last pushed $updated)"

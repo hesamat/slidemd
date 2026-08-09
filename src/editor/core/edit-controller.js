@@ -797,27 +797,15 @@ export class EditController {
     }
     this._historyOperation = "undo";
     try {
-      // Suppress the queued _restoreStoreSnapshot only for the synchronous
-      // storeChange emit from deckStore.undo(). Clear it immediately so
-      // in-flight store changes during the await are still projected.
-      this._suppressStoreChangeRestore = true;
-      const undoResult = this.deckStore.undo();
-      this._suppressStoreChangeRestore = false;
+      const undoResult = this._withSuppressedStoreChange(() => this.deckStore.undo());
       if (!undoResult) return false;
 
       const result = await this._restoreStoreSnapshot();
       this.previewUpdater?.update();
       return result;
     } catch (error) {
-      // Roll the store back and then the view. Suppress the queued restore
-      // for the synchronous redo emit so the explicit restore below is the
-      // single view refresh.
-      this._suppressStoreChangeRestore = true;
-      try {
-        this.deckStore.redo();
-      } finally {
-        this._suppressStoreChangeRestore = false;
-      }
+      // Roll the store back and then the view.
+      this._withSuppressedStoreChange(() => this.deckStore.redo());
       try {
         await this._restoreStoreSnapshot();
         this.previewUpdater?.update();
@@ -847,27 +835,15 @@ export class EditController {
     }
     this._historyOperation = "redo";
     try {
-      // Suppress the queued _restoreStoreSnapshot only for the synchronous
-      // storeChange emit from deckStore.redo(). Clear it immediately so
-      // in-flight store changes during the await are still projected.
-      this._suppressStoreChangeRestore = true;
-      const redoResult = this.deckStore.redo();
-      this._suppressStoreChangeRestore = false;
+      const redoResult = this._withSuppressedStoreChange(() => this.deckStore.redo());
       if (!redoResult) return false;
 
       const result = await this._restoreStoreSnapshot();
       this.previewUpdater?.update();
       return result;
     } catch (error) {
-      // Roll the store back and then the view. Suppress the queued restore
-      // for the synchronous undo emit so the explicit restore below is the
-      // single view refresh.
-      this._suppressStoreChangeRestore = true;
-      try {
-        this.deckStore.undo();
-      } finally {
-        this._suppressStoreChangeRestore = false;
-      }
+      // Roll the store back and then the view.
+      this._withSuppressedStoreChange(() => this.deckStore.undo());
       try {
         await this._restoreStoreSnapshot();
         this.previewUpdater?.update();
@@ -878,6 +854,24 @@ export class EditController {
       return false;
     } finally {
       this._historyOperation = null;
+    }
+  }
+
+  /**
+   * Run a synchronous store mutation with the queued store-change restore
+   * suppressed. Use this around any operation that immediately performs its
+   * own explicit view restore (undo, redo, AI patch, whole-deck replace) so
+   * the synchronous storeChange emit does not queue a duplicate restore.
+   * @template T
+   * @param {() => T} fn
+   * @returns {T}
+   */
+  _withSuppressedStoreChange(fn) {
+    this._suppressStoreChangeRestore = true;
+    try {
+      return fn();
+    } finally {
+      this._suppressStoreChangeRestore = false;
     }
   }
 
@@ -994,14 +988,18 @@ export class EditController {
         }
 
         // If the rebased patch's `before` does not match the store, fast-forward
-        // the store to the user's latest working markdown without history.
-        if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
-          const synced = [...this.deckStore.getSlides()];
-          synced[targetSlide] = patchToApply.before;
-          this.deckStore.syncSlides(synced, targetSlide);
-        }
-
-        const applied = this.deckStore.applyPatch(patchToApply, baselineRevision);
+        // the store to the user's latest working markdown without history, then
+        // apply the patch. Keep the queued store-change restore suppressed for
+        // the whole sequence so the explicit _restoreStoreSnapshot below is the
+        // single view refresh.
+        const applied = this._withSuppressedStoreChange(() => {
+          if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
+            const synced = [...this.deckStore.getSlides()];
+            synced[targetSlide] = patchToApply.before;
+            this.deckStore.syncSlides(synced, targetSlide);
+          }
+          return this.deckStore.applyPatch(patchToApply, baselineRevision);
+        });
         if (!applied || (typeof applied === "object" && !applied.success)) {
           const reason = typeof applied === "object" ? applied.reason : "the slide changed";
           this.saveManager.clearUnsavedEditorOverlay(targetSlide);
@@ -1036,6 +1034,7 @@ export class EditController {
         this.hasUnsavedChanges = true;
         this.saveManager.updateButton();
         this.loadSlideIntoEditor();
+        this.previewUpdater?.update();
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {
@@ -1120,20 +1119,25 @@ export class EditController {
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
         // Route through replaceDeck so the refine is undoable (Ctrl+Z)
-        // instead of loadFromMarkdown which clears history.
-        this.deckStore.replaceDeck(newSlides, 0, {
-          index: 0,
-          before: null,
-          after: enhanced,
-          source: "ai",
-          timestamp: Date.now(),
-        });
+        // instead of loadFromMarkdown which clears history. Suppress the
+        // queued store-change restore so the explicit reload below is the
+        // single view refresh.
+        this._withSuppressedStoreChange(() =>
+          this.deckStore.replaceDeck(newSlides, 0, {
+            index: 0,
+            before: null,
+            after: enhanced,
+            source: "ai",
+            timestamp: Date.now(),
+          }),
+        );
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,
         });
         this.currentSlideIndex = 0;
         this.loadSlideIntoEditor();
+        this.previewUpdater?.update();
         this.saveManager?.updateButton();
         Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
