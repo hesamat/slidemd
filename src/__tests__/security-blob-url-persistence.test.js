@@ -44,14 +44,18 @@ describe("SlideStylePanel persisted background never contains blob URLs (#187)",
   it("never emits a blob: URL even when a preview blob is present", () => {
     const restore = withState({
       _currentImagePath: "images/diagram.png",
-      _imageOverlay: { fit: "cover" },
+      _imageOverlay: 40,
       _currentImageBlobUrl: "blob:https://example/def-456",
-      _currentBg: "url(blob:https://example/def-456)",
+      _currentBg: "linear-gradient(#000,#fff)",
     });
     try {
       const value = SlideStylePanel._getPersistedBackgroundValue();
+      // Exact-match: path branch wins (ignores the blob preview and _currentBg),
+      // and the opacity overlay is computed from the numeric percentage.
+      expect(value).toBe(
+        "linear-gradient(rgba(0,0,0,0.4),rgba(0,0,0,0.4)), url('images/diagram.png') center / cover no-repeat",
+      );
       expect(value).not.toContain("blob:");
-      expect(value).toContain("images/diagram.png");
     } finally {
       restore();
     }
