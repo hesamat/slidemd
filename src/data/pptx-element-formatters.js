@@ -185,7 +185,9 @@ export function formatImage(
     .trim();
   const altText = caption || `Slide image ${baseAlt}`;
 
-  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
+  // fitColumn: media-span image — fills the media column's box but contains
+  // the picture (no cropping), so the whole image stays visible.
+  const style = fitColumn ? ' style="width: 100%; height: 100%; object-fit: contain;"' : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.

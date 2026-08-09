@@ -63,7 +63,13 @@
 .slide {
   position: absolute;
   inset: 0;
-  padding: 105px 125px 80px 105px;
+  /* Slide container padding, as variables so full-bleed areas (media-span)
+     can mirror them exactly. */
+  --slide-pad-top: 105px;
+  --slide-pad-right: 125px;
+  --slide-pad-bottom: 80px;
+  --slide-pad-left: 105px;
+  padding: var(--slide-pad-top) var(--slide-pad-right) var(--slide-pad-bottom) var(--slide-pad-left);
   visibility: hidden;
   display: grid;
   background: var(--slide-bg);
@@ -782,6 +788,117 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   object-fit: cover;
   border: none;
   margin: 0;
+}
+
+/* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
+
+/* The media column of a media-span layout bleeds to the slide edges while
+   the content column keeps the slide padding. The negative margins mirror
+   the --slide-pad-* variables above, so the bleed tracks the container
+   exactly and survives editor column resizing (the area stays a grid item).
+
+   Only applies when the media area holds a single image. The editor injects
+   an @media label button as the area's first child, so every selector
+   matches both the plain viewer structure (direct <img> or <p>-wrapped)
+   and the editor structure (button + content). The image fills the area
+   absolutely — as a flex item its height: 100% would share the column with
+   the label button and leave a gap at the top. Text, tables, and multiple
+   images keep the padded, contained look. Legacy decks using
+   `layout: media-span` match via the attribute prefix and render media on
+   the right. */
+
+/* Media area is single-image: either a direct <img>, an <img> following the
+   editor label button, or a lone <p> wrapping the image (hand-written
+   markdown), with or without the label button. */
+.slide[data-layout="media-span-right"]
+  .slide__area--media:has(
+    > img:only-child,
+    > button.editor-area-label + img:last-child,
+    > p:only-child > img:only-child,
+    > button.editor-area-label + p:last-child > img:only-child
+  ),
+.slide[data-layout="media-span"]
+  .slide__area--media:has(
+    > img:only-child,
+    > button.editor-area-label + img:last-child,
+    > p:only-child > img:only-child,
+    > button.editor-area-label + p:last-child > img:only-child
+  ) {
+  /* max-width: 100% (from .slide__area) is relative to the grid cell and
+     would neutralize the negative right margin — drop it so the area can
+     extend past the cell to the slide edge. */
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) calc(-1 * var(--slide-pad-right))
+    calc(-1 * var(--slide-pad-bottom)) 0;
+}
+
+.slide[data-layout="media-span-left"]
+  .slide__area--media:has(
+    > img:only-child,
+    > button.editor-area-label + img:last-child,
+    > p:only-child > img:only-child,
+    > button.editor-area-label + p:last-child > img:only-child
+  ) {
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) 0 calc(-1 * var(--slide-pad-bottom))
+    calc(-1 * var(--slide-pad-left));
+}
+
+/* The image fills the area edge to edge; it is removed from the flex column
+   so the editor's @media label button does not push it down. */
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(
+    > img:only-child,
+    > button.editor-area-label + img:last-child,
+    > p:only-child > img:only-child,
+    > button.editor-area-label + p:last-child > img:only-child
+  )
+  > button.editor-area-label {
+  position: relative;
+  z-index: 2;
+}
+
+.slide[data-layout^="media-span"] .slide__area--media:has(> img:only-child) > img,
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(> button.editor-area-label + img:last-child)
+  > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Contain (no cropping) so the whole picture stays visible within the
+     media column. */
+  object-fit: contain;
+  max-height: none;
+  display: block;
+}
+
+.slide[data-layout^="media-span"] .slide__area--media:has(> p:only-child > img:only-child) > p,
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
+  > p {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(> p:only-child > img:only-child)
+  > p
+  > img,
+.slide[data-layout^="media-span"]
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
+  > p
+  > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: none;
+  display: block;
 }
 
 /* Flex-row container for horizontally adjacent PPTX elements */
