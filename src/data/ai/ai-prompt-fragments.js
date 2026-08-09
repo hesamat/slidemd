@@ -107,6 +107,31 @@ export function extractVariant(fragment, name) {
   return body;
 }
 
+/**
+ * Build the `{{imagesSection}}` fragment for the remix plan prompt. The
+ * keepImages / image-assessment guidance is only relevant (and only
+ * truthful) when images are actually attached to the request — omitting it
+ * for text-only plans stops the model from hallucinating keepImages against
+ * pictures it never saw.
+ * @param {boolean} imagesSent
+ * @returns {string}
+ */
+export function buildImagesSectionForPrompt(imagesSent) {
+  return extractVariant(getFragment("images-guidance.md"), imagesSent ? "sent" : "not-sent");
+}
+
+/**
+ * Build the `{{visualIdentityGuidance}}` fragment for the remix plan prompt.
+ * @param {boolean} preserveVisualIdentity
+ * @returns {string}
+ */
+export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
+  return extractVariant(
+    getFragment("remix-visual-identity-guidance.md"),
+    preserveVisualIdentity ? "preserve" : "discard",
+  );
+}
+
 const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
 
 /**

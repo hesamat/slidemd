@@ -9,11 +9,12 @@
 import { describe, it, expect } from "vitest";
 import { buildMessagesForIntent, buildPolishMessages } from "../data/ai/ai-intent-registry.js";
 import { buildBatchMessages } from "../data/ai/ai-prompt-builder.js";
-import { composeMessages, getFragment } from "../data/ai/ai-prompt-fragments.js";
 import {
   buildImagesSectionForPrompt,
   buildRemixVisualIdentityGuidance,
-} from "../data/ai/ai-orchestrator.js";
+  composeMessages,
+  getFragment,
+} from "../data/ai/ai-prompt-fragments.js";
 
 const FIXTURE_DECK = `layout: title-slide
 background: #1a1a2e
