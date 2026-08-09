@@ -75,6 +75,7 @@ export class EditController {
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
+    this._suppressStoreChangeRestore = false;
     this._deckRestoreDepth = 0;
 
     this.placeholderDialogEl = null;
@@ -755,7 +756,7 @@ export class EditController {
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
-    if (this.isEditMode && !this._historyOperation) {
+    if (this.isEditMode && !this._suppressStoreChangeRestore) {
       // _restoreStoreSnapshot is already being called directly by
       // undo() / redo(); skip the queued restore to avoid re-parsing the
       // deck and replacing it twice.
@@ -794,20 +795,32 @@ export class EditController {
       this.markdownEditor.undo?.();
       return true;
     }
-    // Mark the history operation before mutating the store so the
-    // synchronous storeChange listener can skip its queued restore; this
-    // undo() will call _restoreStoreSnapshot explicitly below.
     this._historyOperation = "undo";
     try {
-      if (!this.deckStore.undo()) return false;
-      return await this._restoreStoreSnapshot();
+      // Suppress the queued _restoreStoreSnapshot only for the synchronous
+      // storeChange emit from deckStore.undo(). Clear it immediately so
+      // in-flight store changes during the await are still projected.
+      this._suppressStoreChangeRestore = true;
+      const undoResult = this.deckStore.undo();
+      this._suppressStoreChangeRestore = false;
+      if (!undoResult) return false;
+
+      const result = await this._restoreStoreSnapshot();
+      this.previewUpdater?.update();
+      return result;
     } catch (error) {
-      this.deckStore.redo();
-      // Roll the view back to the pre-undo state. _historyOperation is still
-      // set, so the storeChange listener for this redo will not queue its own
-      // restore; this explicit call is the single restore.
+      // Roll the store back and then the view. Suppress the queued restore
+      // for the synchronous redo emit so the explicit restore below is the
+      // single view refresh.
+      this._suppressStoreChangeRestore = true;
+      try {
+        this.deckStore.redo();
+      } finally {
+        this._suppressStoreChangeRestore = false;
+      }
       try {
         await this._restoreStoreSnapshot();
+        this.previewUpdater?.update();
       } catch (rollbackError) {
         console.error("Failed to restore view after undo rollback:", rollbackError);
       }
@@ -832,20 +845,32 @@ export class EditController {
       this.markdownEditor.redo?.();
       return true;
     }
-    // Mark the history operation before mutating the store so the
-    // synchronous storeChange listener can skip its queued restore; this
-    // redo() will call _restoreStoreSnapshot explicitly below.
     this._historyOperation = "redo";
     try {
-      if (!this.deckStore.redo()) return false;
-      return await this._restoreStoreSnapshot();
+      // Suppress the queued _restoreStoreSnapshot only for the synchronous
+      // storeChange emit from deckStore.redo(). Clear it immediately so
+      // in-flight store changes during the await are still projected.
+      this._suppressStoreChangeRestore = true;
+      const redoResult = this.deckStore.redo();
+      this._suppressStoreChangeRestore = false;
+      if (!redoResult) return false;
+
+      const result = await this._restoreStoreSnapshot();
+      this.previewUpdater?.update();
+      return result;
     } catch (error) {
-      this.deckStore.undo();
-      // Roll the view back to the pre-redo state. _historyOperation is still
-      // set, so the storeChange listener for this undo will not queue its own
-      // restore; this explicit call is the single restore.
+      // Roll the store back and then the view. Suppress the queued restore
+      // for the synchronous undo emit so the explicit restore below is the
+      // single view refresh.
+      this._suppressStoreChangeRestore = true;
+      try {
+        this.deckStore.undo();
+      } finally {
+        this._suppressStoreChangeRestore = false;
+      }
       try {
         await this._restoreStoreSnapshot();
+        this.previewUpdater?.update();
       } catch (rollbackError) {
         console.error("Failed to restore view after redo rollback:", rollbackError);
       }

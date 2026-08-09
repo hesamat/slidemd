@@ -16,17 +16,37 @@ jobs:
       - name: Delete stale branches
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           STALE_DAYS: "60"
         run: |
           CUTOFF=$(date -u -d "$STALE_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
           gh api repos/${{ github.repository }}/branches --paginate -q '.[].name' | while read -r branch; do
-            [[ "$branch" == "main" || "$branch" == "master" ]] && continue
+            # Protect primary and long-lived / archival branches.
+            case "$branch" in
+              main|master|release/*|archive/*) continue ;;
+            esac
 
-            open_prs=$(gh pr list --head "$branch" --state open --json number -q 'length')
-            [[ "$open_prs" -gt 0 ]] && continue
+            # Treat a failed lookup as "has open PRs" so we never delete
+            # a branch whose PR state we cannot verify.
+            open_prs=$(gh pr list --head "$branch" --state open --json number -q 'length' || echo "")
+            if [[ -z "$open_prs" ]] || [[ "$open_prs" -gt 0 ]]; then
+              continue
+            fi
 
             updated=$(gh api "repos/${{ github.repository }}/branches/$branch" -q '.commit.commit.committer.date')
             if [[ "$updated" < "$CUTOFF" ]]; then
+              # Archive branches with unique commits before deletion.
+              ahead_by=$(gh api "repos/${{ github.repository }}/compare/main...$branch" -q '.ahead_by' || echo 0)
+              if [[ "$ahead_by" -gt 0 ]]; then
+                sha=$(gh api "repos/${{ github.repository }}/branches/$branch" -q '.commit.sha')
+                tag="archive/$(date -u +%Y-%m-%d)/$branch"
+                echo "Archiving $branch as $tag"
+                gh api -X POST "repos/${{ github.repository }}/git/refs" \
+                  -f "ref=refs/tags/$tag" \
+                  -f "sha=$sha" \
+                  --silent || true
+              fi
+
               echo "Deleting stale branch: $branch (last pushed $updated)"
               gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$branch" --silent
             fi
@@ -37,6 +57,8 @@ jobs:
         with:
           days-before-stale: 45
           days-before-close: 14
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
           stale-pr-message: "This pull request has been inactive for 45 days. It will be closed in 14 days unless there is further activity."
           close-pr-message: "Closed because this pull request has been inactive for too long. It can be reopened when work resumes."
           stale-pr-label: "stale"

@@ -346,11 +346,11 @@ describe("Editor undo regression suite", () => {
   });
 
   describe("_handleStoreChange during undo/redo", () => {
-    it("skips the queued _restoreStoreSnapshot when a history operation is in progress", async () => {
+    it("skips the queued _restoreStoreSnapshot when a store change is suppressed", async () => {
       const restore = vi.fn(() => Promise.resolve(true));
       const fake = {
         _destroyed: false,
-        _historyOperation: "undo",
+        _suppressStoreChangeRestore: true,
         isEditMode: true,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _storeDiffersFromSource: () => false,
@@ -366,11 +366,11 @@ describe("Editor undo regression suite", () => {
       expect(restore).not.toHaveBeenCalled();
     });
 
-    it("queues _restoreStoreSnapshot when no history operation is in progress", async () => {
+    it("queues _restoreStoreSnapshot when store changes are not suppressed", async () => {
       const restore = vi.fn(() => Promise.resolve(true));
       const fake = {
         _destroyed: false,
-        _historyOperation: null,
+        _suppressStoreChangeRestore: false,
         isEditMode: true,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _storeDiffersFromSource: () => false,

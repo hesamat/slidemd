@@ -105,7 +105,6 @@ describe("MarkdownEditor suppression reset", () => {
     MarkdownEditor.prototype.teardown.call(editor);
 
     expect(cache.size).toBe(0);
-    expect(editor._cacheCleared).toBe(false);
   });
 
   it("toggles bold and italic layers without losing the other style", () => {

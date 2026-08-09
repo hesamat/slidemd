@@ -513,12 +513,11 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ### Undo & Redo
 
-| Task                                 | Details                                                                                                                       |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| [x] Define committed-operation undo  | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
-| [x] Complete global undo/redo        | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
-| [ ] Add undo/redo controls (stretch) | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts.           |
-| [x] Test history boundaries          | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
+| Task                                | Details                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [x] Define committed-operation undo | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
+| [x] Complete global undo/redo       | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
+| [x] Test history boundaries         | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
 
 ### Editor Rewire
 
@@ -753,3 +752,9 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 | [ ] Add error telemetry           | Capture runtime errors and failed operations in the UI. |
 | [ ] Add build/PDF runtime metrics | Track build time, PDF render time, and asset sizes.     |
 | [ ] Add optional log export       | Download logs for debugging without browser DevTools.   |
+
+### Editor UI
+
+| Task                   | Details                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Undo/redo controls | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts. |
