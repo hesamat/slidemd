@@ -158,6 +158,115 @@ export function describeBackground(css) {
 }
 
 /**
+ * Check whether an area already spans every row of the slide's layout grid
+ * (i.e. it appears in the same column of every row). Mirrors the renderer's
+ * full-height detection so the "Span all rows" action is only offered when
+ * it would change anything.
+ *
+ * @param {string} markdown  — slide markdown source
+ * @param {string} areaName  — area to check (e.g. "media")
+ * @returns {boolean} true when the area spans all rows
+ */
+export function areaSpansAllRows(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name) return false;
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) return false;
+
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return false;
+
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+  if (rows.length < 2) return false;
+  const firstRow = rows[0];
+  const colIdx = firstRow.indexOf(name);
+  if (colIdx === -1) return false;
+  return rows.every((row) => row[colIdx] === name);
+}
+
+/**
+ * Make an area span every grid row by rewriting the layout to a custom grid.
+ * The target area is placed in its column of every row, keeping the other
+ * areas in their original columns and shifting header/footer content left.
+ * The area reaches the slide edge on its border side (the renderer zeroes
+ * the border-side padding for full-height areas), but stays inside the
+ * slide's top/bottom padding — hence "span all rows", not "full height".
+ *
+ * @param {string} markdown  — slide markdown source
+ * @param {string} areaName  — area to make span all rows (e.g. "media")
+ * @returns {string} updated markdown with custom layout grid
+ */
+export function makeAreaFullHeight(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name) return markdown;
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) return markdown;
+
+  // The area already spans every row (e.g. media in a media-span layout) —
+  // the rewrite would produce an equivalent grid, so leave the source alone.
+  if (areaSpansAllRows(markdown, name)) return markdown;
+
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+
+  // Parse grid-template-areas into rows of cell names
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return markdown;
+
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+
+  // Find which column the target area occupies (from the content row)
+  const contentRow = rows.find((row) => row.includes(name));
+  if (!contentRow) return markdown;
+  const colIdx = contentRow.indexOf(name);
+
+  // Rows may have different lengths (e.g. a single-cell footer in a
+  // two-column grid); normalize every row to the widest row so the rebuilt
+  // template stays a valid grid.
+  const maxLen = Math.max(...rows.map((row) => row.length));
+
+  // Rebuild every row: put the target in colIdx, others shifted left.
+  // A row that already contains the target is kept but padded to width.
+  const newRows = rows.map((row) => {
+    const padded = [...row];
+    while (padded.length < maxLen) padded.push(".");
+    if (padded.includes(name)) return padded;
+    const otherCells = padded.filter((c) => c !== name);
+    const result = [];
+    for (let i = 0; i < maxLen; i++) {
+      if (i === colIdx) {
+        result.push(name);
+      } else {
+        const cellIdx = i < colIdx ? i : i - 1;
+        result.push(otherCells[cellIdx] || ".");
+      }
+    }
+    return result;
+  });
+
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(`"${newRows[i].join(" ")}"`);
+    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
+      parts.push(layout.rowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
+
+  return updateLayoutDirective(stripped, newLayout);
+}
+
+/**
  * Split a CSS grid track list into individual track tokens without
  * breaking on spaces inside functional notations (minmax, repeat, etc.).
  */

@@ -9,6 +9,8 @@ import {
   describeBackground,
   buildSingleColumnCustomLayout,
   parseSingleColumnLayout,
+  makeAreaFullHeight,
+  areaSpansAllRows,
 } from "../editor/core/directive-utils.js";
 
 describe("removeAreaFromLayout", () => {
@@ -74,6 +76,69 @@ describe("single-column layout helpers", () => {
   it("preserves full-image structure when building an aligned grid", () => {
     expect(buildSingleColumnCustomLayout("full-image", 60, "left")).toContain('"main ."');
     expect(buildSingleColumnCustomLayout("full-image", 60, "left")).not.toContain("header");
+  });
+});
+
+describe("areaSpansAllRows", () => {
+  it("returns true when the area appears in every row of the same column", () => {
+    expect(areaSpansAllRows("layout: media-span-right\n\n@media\nImage", "media")).toBe(true);
+    expect(areaSpansAllRows("layout: media-span-left\n\n@media\nImage", "media")).toBe(true);
+  });
+
+  it("returns false when the area only spans the content row", () => {
+    expect(
+      areaSpansAllRows('layout: "header header" "main media" "footer footer" / 1fr 1fr', "media"),
+    ).toBe(false);
+    expect(areaSpansAllRows("layout: two-column", "main")).toBe(false);
+  });
+
+  it("returns false for a single-row grid", () => {
+    expect(areaSpansAllRows('layout: "main media" / 1fr 1fr', "media")).toBe(false);
+  });
+
+  it("returns false when the area is missing or there is no layout", () => {
+    expect(areaSpansAllRows("layout: two-column\n\n@main\nContent", "sidebar")).toBe(false);
+    expect(areaSpansAllRows("# no layout here", "main")).toBe(false);
+  });
+});
+
+describe("makeAreaFullHeight", () => {
+  it("rewrites a two-column grid so the target area spans every row", () => {
+    const md =
+      "layout: two-column\n\n@header\nTitle\n\n@main\nContent\n\n@media\nImage\n\n@footer\nFooter";
+    const result = makeAreaFullHeight(md, "media");
+    expect(result).toContain('layout: "header media" "main media" "footer media" / 1fr 1fr');
+    expect(result).toContain("@main\nContent");
+    expect(result).toContain("@footer\nFooter");
+  });
+
+  it("preserves explicit row sizes in the rewritten grid", () => {
+    const md = 'layout: "header header" 0.1fr "main media" 1fr "footer footer" 0.1fr / 1fr 1fr';
+    const result = makeAreaFullHeight(md, "media");
+    expect(result).toContain(
+      '"header media" 0.1fr "main media" 1fr "footer media" 0.1fr / 1fr 1fr',
+    );
+  });
+
+  it("normalizes ragged rows to the widest row", () => {
+    const md = 'layout: "header header" "main media" "footer" / 1fr 1fr';
+    const result = makeAreaFullHeight(md, "media");
+    expect(result).toContain('"header media" "main media" "footer media" / 1fr 1fr');
+  });
+
+  it("is a no-op when the area is not in the layout", () => {
+    const md = "layout: two-column\n\n@main\nContent";
+    expect(makeAreaFullHeight(md, "sidebar")).toBe(md);
+  });
+
+  it("is a no-op when the area already spans every row", () => {
+    const md = "layout: media-span-right\n\n@media\nImage";
+    expect(makeAreaFullHeight(md, "media")).toBe(md);
+  });
+
+  it("is a no-op without a layout directive", () => {
+    const md = "# Hello\nContent";
+    expect(makeAreaFullHeight(md, "media")).toBe(md);
   });
 });
 
