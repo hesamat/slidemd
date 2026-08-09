@@ -7,6 +7,30 @@
  *
  * @class
  */
+/**
+ * Check that a deck file exists in a directory. Deck names stored by
+ * PPTX/textpack imports have no extension (e.g. "MyDeck"), while the
+ * handle was persisted under the written name "MyDeck.md"; both must
+ * verify against the same on-disk file.
+ * @param {FileSystemDirectoryHandle} handle
+ * @param {string} fileName
+ * @returns {Promise<boolean>} true when a candidate exists. Permission
+ *   errors are rethrown (not treated as "not found").
+ */
+export async function findDeckFileInDir(handle, fileName) {
+  const candidates = fileName.endsWith(".md") ? [fileName] : [fileName, `${fileName}.md`];
+  for (const candidate of candidates) {
+    try {
+      await handle.getFileHandle(candidate);
+      return true;
+    } catch (err) {
+      if (err?.name === "NotFoundError") continue;
+      throw err;
+    }
+  }
+  return false;
+}
+
 export class DirectoryHandleStore {
   /** @type {string} */
   static DB_NAME = "webdeck_image_dir";
@@ -110,7 +134,12 @@ export class DirectoryHandleStore {
         try {
           const perm = await result.handle.queryPermission({ mode: "read" });
           if (perm === "granted") {
-            await result.handle.getFileHandle(fileName);
+            // Extension-less names (PPTX/textpack) must match the .md file
+            // the handle was keyed by, otherwise valid handles get cleared.
+            const found = await findDeckFileInDir(result.handle, fileName);
+            if (!found) {
+              throw new DOMException("not found", "NotFoundError");
+            }
           }
         } catch (err) {
           if (err && err.name === "NotFoundError") {

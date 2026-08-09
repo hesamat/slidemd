@@ -78,7 +78,10 @@ export class PptxImporter {
         /* ignore — best-effort cleanup */
       }
 
-      // Flush cached images so the new deck doesn't show stale thumbnails
+      // Flush cached images so the new deck doesn't show stale thumbnails.
+      // PPTX images are served from the upload temp dir, not the previous
+      // .md deck's on-disk folder.
+      DeckImagesResolver.clearDirectoryHandle();
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
@@ -90,7 +93,7 @@ export class PptxImporter {
       try {
         localStorage.setItem("webdeck_local_file", markdown);
         localStorage.setItem("webdeck_local_file_type", "md");
-        localStorage.setItem("webdeck_local_file_name", "pptx-import");
+        localStorage.setItem("webdeck_local_file_name", deckName || "pptx-import");
         localStorage.setItem("webdeck_local_file_timestamp", Date.now().toString());
         localStorage.removeItem("webdeck_source_url");
         localStorage.setItem("webdeck_opened_from_picker", "1");
@@ -212,47 +215,20 @@ export class PptxImporter {
             },
           },
           {
-            label: "Save as .md (markdown only)",
+            label: "Save as .md",
             onClick: async () => {
-              const loading = Notification.showLoadingModal("Saving deck\u2026");
-              await waitForImageUpload();
-              const mdBlob = new Blob([getLatestMarkdown()], { type: "text/markdown" });
-              try {
-                if (window.showSaveFilePicker) {
-                  const handle = await window.showSaveFilePicker({
-                    suggestedName: `${deckName || "pptx-import"}.md`,
-                    types: [
-                      {
-                        description: "Markdown file",
-                        accept: { "text/markdown": [".md"] },
-                      },
-                    ],
-                  });
-                  const writable = await handle.createWritable();
-                  await writable.write(mdBlob);
-                  await writable.close();
-                  loading.dismiss();
-                  Notification.dismissAll();
-                  Notification.success("Deck saved!");
-                  return;
-                }
-              } catch (err) {
-                if (err?.name === "AbortError") {
-                  loading.dismiss();
-                  return;
-                }
+              const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
+              if (!editCtrl?.saveManager?.save) {
+                Notification.error("The editor save manager is unavailable.");
+                return;
               }
-              const url = URL.createObjectURL(mdBlob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${deckName || "pptx-import"}.md`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              loading.dismiss();
+              // Delegates to SaveManager, which waits for pending image
+              // uploads, opens the save picker and reports errors itself
+              // (including cancelled saves — no try/catch needed here).
+              // Dismiss the sticky import notification first so SaveManager's
+              // own toasts ("Deck saved!", errors) are not wiped by it.
               Notification.dismissAll();
-              Notification.success("Deck saved!");
+              await editCtrl.saveManager.save();
             },
           },
         ],

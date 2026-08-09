@@ -153,7 +153,9 @@ export class SlideStylePanel {
     }
 
     let { markdown: withoutBg } = parser.extractDirective(withoutHeader, "background");
-    const bgValue = this._getBackgroundValue();
+    // The directive must reference the on-disk image path, never the
+    // session-only blob URL used for previewing.
+    const bgValue = this._getPersistedBackgroundValue();
     if (bgValue) {
       const indented = bgValue
         .split("\n")
@@ -188,6 +190,17 @@ export class SlideStylePanel {
         this._imageOverlay,
         this._currentImageBlobUrl,
       );
+    return this._currentBg;
+  }
+
+  /**
+   * Background value for persistence/apply paths. Unlike `_getBackgroundValue`
+   * it never uses the session-only preview blob URL, so the written directive
+   * always references the on-disk image path.
+   */
+  static _getPersistedBackgroundValue() {
+    if (this._currentImagePath)
+      return buildImageBackground(this._currentImagePath, this._imageOverlay);
     return this._currentBg;
   }
 
@@ -295,7 +308,7 @@ export class SlideStylePanel {
   static async _resolveImageBlob(path) {
     try {
       const { DeckImagesResolver } = await import("../image/deck-images-resolver.js");
-      if (DeckImagesResolver._dirHandle && /^images\//.test(path)) {
+      if (DeckImagesResolver.hasDirectoryHandle() && /^images\//.test(path)) {
         const blobUrl = await DeckImagesResolver.resolvePreviewSrc(path);
         if (blobUrl !== path) {
           this._currentImageBlobUrl = blobUrl;
@@ -525,7 +538,7 @@ export class SlideStylePanel {
       }
       const cssString = this._buildCssFromUI();
       const headerStyle = this._getSelectedHeaderStyle();
-      const bgValue = this._getBackgroundValue();
+      const bgValue = this._getPersistedBackgroundValue();
       this.saveDefaultStyles(cssString, headerStyle, bgValue, this._currentTheme);
       this._doApplyChange();
       this.hide();
@@ -539,7 +552,7 @@ export class SlideStylePanel {
       }
       const cssString = this._buildCssFromUI();
       const headerStyle = this._getSelectedHeaderStyle();
-      const bgValue = this._getBackgroundValue();
+      const bgValue = this._getPersistedBackgroundValue();
       this.saveDefaultStyles(cssString, headerStyle, bgValue, this._currentTheme);
       if (this._applyToAll) this._applyToAll(cssString, headerStyle, bgValue, this._currentTheme);
     });

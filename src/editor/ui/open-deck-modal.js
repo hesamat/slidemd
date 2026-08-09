@@ -14,6 +14,7 @@ import { setImageUploadPromise } from "../../core/image-upload-promise.js";
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
+import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",
@@ -249,7 +250,10 @@ export class OpenDeckModal {
         deckStore.loadFromMarkdown(resolvedMarkdown, 0);
       }
 
-      // Flush cached images so the new deck doesn't show stale thumbnails
+      // Flush cached images so the new deck doesn't show stale thumbnails.
+      // .textpack images are rendered from blobs / the server, not the
+      // previous .md deck's on-disk folder.
+      DeckImagesResolver.clearDirectoryHandle();
       DeckImagesResolver.invalidateCache();
       ImagePicker.clearImageCache();
 
@@ -356,6 +360,14 @@ export class OpenDeckModal {
         DeckLoader.fileHandleRegistry.set(file.name, fileHandle);
       }
 
+      // The CLI dev server does not know where a picker-opened .md lives, so
+      // resolve its sibling images/ folder directly from disk (blob URLs).
+      const folderHandle = await this._resolveDeckFolderHandle(file.name, rawText);
+      DeckImagesResolver.setDirectoryHandle(
+        folderHandle,
+        DeckImagesResolver.extractImageRefs(rawText),
+      );
+
       localStorage.setItem("webdeck_local_file", rawText);
       localStorage.setItem("webdeck_local_file_type", "md");
       localStorage.setItem("webdeck_local_file_name", file.name);
@@ -406,6 +418,85 @@ export class OpenDeckModal {
         console.error("Failed to open .md file:", e);
         Notification.error("Failed to open .md file");
       }
+    }
+  }
+
+  /**
+   * Resolve a directory handle for a picker-opened .md deck so its sibling
+   * images/ folder can render directly from disk. Reuses the folder handle
+   * persisted at save time when its read permission is still granted;
+   * otherwise asks the user to pick the folder once (which re-grants
+   * permission) and remembers it for next time.
+   * @param {string} fileName — the opened .md file name
+   * @param {string} markdown — deck markdown, checked for image references
+   * @returns {Promise<FileSystemDirectoryHandle|null>}
+   */
+  static async _resolveDeckFolderHandle(fileName, markdown) {
+    const hasImages =
+      /!\[[^\]]*\]\(images\/|<img[^>]*\ssrc=["']images\/|url\(\s*['"]?images\//i.test(
+        markdown || "",
+      );
+
+    const dir = await DirectoryHandleStore.load(fileName);
+    if (dir.handle) {
+      let perm = dir.handle.queryPermission
+        ? await dir.handle.queryPermission({ mode: "read" })
+        : "granted";
+      if (perm !== "granted" && dir.handle.requestPermission) {
+        try {
+          perm = await dir.handle.requestPermission({ mode: "read" });
+        } catch {
+          perm = "denied";
+        }
+      }
+      if (perm === "granted") return dir.handle;
+    }
+
+    if (!hasImages || !window.showDirectoryPicker) return null;
+
+    // showOpenFilePicker already consumed the user activation, so the
+    // directory picker would be rejected by Chromium if called inline.
+    // Trigger it from this modal's button click instead (fresh activation).
+    const shouldPick = await Notification.showModal({
+      title: "Load deck images",
+      message:
+        `This deck references images in an "images/" folder next to the .md file. ` +
+        `Choose that folder so the images can be displayed.`,
+      type: "info",
+      blockBackdrop: true,
+      buttons: [
+        { label: "Cancel", resolvesTo: false },
+        { label: "Choose images folder", isPrimary: true, resolvesTo: true },
+      ],
+      closeResolvesTo: false,
+    });
+    if (!shouldPick) return null;
+
+    try {
+      // Read-only is enough for previewing; the save flow re-picks the
+      // folder with readwrite permission when the user saves.
+      const handle = await window.showDirectoryPicker({
+        mode: "read",
+        startIn: "documents",
+      });
+      // Verify the picked folder contains the .md so the relative images/
+      // references actually resolve from it.
+      try {
+        await handle.getFileHandle(fileName);
+      } catch (_err) {
+        Notification.warning(
+          "The folder you selected does not contain this .md file, so its images could not be loaded.",
+          6000,
+        );
+        return null;
+      }
+      await DirectoryHandleStore.save(handle, "parent", fileName);
+      return handle;
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        console.warn("Deck folder selection failed:", e);
+      }
+      return null;
     }
   }
 

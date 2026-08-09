@@ -16,11 +16,18 @@ export class TextpackExportManager {
    * @param {Object} deck - The deck object (used for title/filename only)
    * @param {Object} [options]
    * @param {string} [options.filename] - Output filename (default: auto-generated)
+   * @param {(relPath: string) => Promise<Blob|null>} [options.readImage] -
+   *   Optional provider that reads an image from the deck's on-disk folder;
+   *   used when the dev server cannot serve the images (picker-opened decks).
    * @returns {Promise<{ok: boolean, cancelled: boolean}>} `ok` when the export
    *   completed; `cancelled` when the user aborted it (or an export was already
    *   in progress), so callers can skip fallbacks and error messaging.
    */
-  static async handleTextpackExport(markdownSource, deck, { filename = null } = {}) {
+  static async handleTextpackExport(
+    markdownSource,
+    deck,
+    { filename = null, readImage = null } = {},
+  ) {
     if (TextpackExportManager._isExporting) return { ok: false, cancelled: true };
     TextpackExportManager._isExporting = true;
 
@@ -60,10 +67,15 @@ export class TextpackExportManager {
           throw new DOMException(".textpack export cancelled", "AbortError");
         }
         try {
-          const url = `/${relPath}`;
-          const res = await fetch(url, { signal: controller.signal });
-          if (!res.ok) return;
-          const blob = await res.blob();
+          // Prefer the deck's on-disk folder when a provider is wired
+          // (picker-opened decks are not served by the dev server).
+          let blob = readImage ? await readImage(relPath) : null;
+          if (!blob) {
+            const url = `/${relPath}`;
+            const res = await fetch(url, { signal: controller.signal });
+            if (!res.ok) return;
+            blob = await res.blob();
+          }
           const name = relPath.split("/").pop();
           assetsFolder.file(name, blob);
         } catch (e) {
