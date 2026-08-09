@@ -189,8 +189,7 @@ export class SlideRenderer {
     const layoutAreaNames = new Set(layout.orderedAreas);
 
     // Auto-detect full-height areas: areas that appear in every row at the
-    // same column. Used for full-height row sizing and the media-span bleed
-    // (below).
+    // same column. Used for full-height row sizing.
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
     const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
     const fullHeightAreas = new Set();
@@ -206,26 +205,6 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
-
-    // Media-span bleed intent comes from the layout name: media-span-left /
-    // media-span-right (legacy: media-span, media on the right). Custom grids
-    // — including the output of the editor's "Span all rows" action — keep
-    // the padded look; the geometry (media spanning every row in an edge
-    // column) is only a precondition, not the trigger.
-    if (fullHeightAreas.has("media")) {
-      const mediaCol = allRowCells[0].indexOf("media");
-      const lastCol = allRowCells[0].length - 1;
-      const nameSide =
-        layoutKey === "media-span-left"
-          ? "left"
-          : layoutKey === "media-span-right" || layoutKey === "media-span"
-            ? "right"
-            : null;
-      const geometrySide = mediaCol === 0 ? "left" : mediaCol === lastCol ? "right" : null;
-      if (nameSide && nameSide === geometrySide) {
-        wrapper.setAttribute("data-media-span", nameSide);
-      }
-    }
 
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;
@@ -301,15 +280,6 @@ export class SlideRenderer {
       // Footer spans full width when full-height areas exist
       if (fullHeightAreas.size > 0 && name === "footer") {
         area.style.gridColumn = "1 / -1";
-      }
-      // Media-span areas touch the slide border on their edge column side
-      // (right for the last column, left for the first); zero that padding
-      // so the column meets the slide edge. Other full-height areas (e.g.
-      // the "Span all rows" action) keep the slide padding.
-      if (fullHeightAreas.has(name) && wrapper.hasAttribute("data-media-span")) {
-        const colIdx = allRowCells[0].indexOf(name);
-        if (colIdx === 0) area.style.paddingLeft = "0";
-        else if (colIdx === allRowCells[0].length - 1) area.style.paddingRight = "0";
       }
 
       area.innerHTML = this.sanitizeAreaHtml(html);

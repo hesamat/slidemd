@@ -27,7 +27,6 @@ describe("LayoutData", () => {
       const layouts = LayoutData.getAllLayouts();
       expect(layouts).not.toContain("default");
       expect(layouts).not.toContain("header-two-column");
-      expect(layouts).not.toContain("media-span");
       expect(layouts).not.toContain("sidebar-content");
       expect(layouts).not.toContain("content-sidebar");
     });
@@ -73,11 +72,6 @@ describe("LayoutData", () => {
       const left = LayoutData.getGridTemplate("media-span-left");
       expect(right).toBe('"header media" "main media" "footer media" / 1.2fr 0.8fr');
       expect(left).toBe('"media header" "media main" "media footer" / 0.8fr 1.2fr');
-    });
-
-    it("resolves the legacy media-span alias to the right-side grid", () => {
-      const legacy = LayoutData.getGridTemplate("media-span");
-      expect(legacy).toBe(LayoutData.getGridTemplate("media-span-right"));
     });
 
     it("returns null for unknown layout", () => {

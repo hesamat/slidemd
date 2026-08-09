@@ -30,13 +30,6 @@
       "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
       "template": "layout: media-span-left\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nPrimary content goes here\n\n* Key point\n* Another point\n\n@media\n## Full Height Media\n\nImage or diagram spanning the left side\n\n@footer\nAdditional context or reference"
     },
-    "media-span": {
-      "_note": "Hidden from modal. Kept for backwards compatibility — renamed to media-span-right.",
-      "gridTemplate": "\"header media\" \"main media\" \"footer media\" / 1.2fr 0.8fr",
-      "description": "Two columns with media spanning full height",
-      "preview": "<div style=\"grid-area: header\"></div><div style=\"grid-area: main\"></div><div style=\"grid-area: media\"></div><div style=\"grid-area: footer\"></div>",
-      "template": "layout: media-span\n\n@header\n## Slide Title\n\n@main\n## Main Content\n\nPrimary content goes here\n\n* Key point\n* Another point\n\n@media\n## Full Height Media\n\nImage or diagram spanning the right side\n\n@footer\nAdditional context or reference"
-    },
     "header-two-column": {
       "_note": "Hidden from modal. Kept for backwards compatibility — merged into two-column which now has optional header.",
       "gridTemplate": "\"header header\" \"main media\" \"footer footer\" / 1fr 1fr",

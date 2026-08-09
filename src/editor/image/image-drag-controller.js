@@ -85,7 +85,11 @@ export class ImageDragController {
     // not convert them to inline-positioned images on drag — that would
     // reflow them below the area label and cause a visible jump on click.
     // Toggling freeflow (explicit inline position) re-enables dragging.
-    if (!img.style.position && img.closest("[data-media-span]")) return;
+    if (
+      !img.style.position &&
+      img.closest(".slide[data-layout='media-span-left'], .slide[data-layout='media-span-right']")
+    )
+      return;
 
     if (ctx.getSelectedImg() && !ctx.getSelectedImg().isConnected) {
       this._selectedImg = null;

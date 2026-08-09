@@ -11,7 +11,7 @@ export const LAYOUT = {
   FOCUS: { type: "focus", spec: "focus" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
-  MEDIA_SPAN: { type: "media-span", spec: "media-span" },
+  MEDIA_SPAN: { type: "media-span", spec: "media-span-right" },
   MEDIA_SPAN_LEFT: { type: "media-span", spec: "media-span-left" },
   MEDIA_SPAN_RIGHT: { type: "media-span", spec: "media-span-right" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },

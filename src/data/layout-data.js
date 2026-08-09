@@ -13,7 +13,6 @@ const STORAGE_KEY = "webdeck:custom-layouts";
 const HIDDEN_PRESETS = new Set([
   "default",
   "header-two-column",
-  "media-span",
   "sidebar-content",
   "content-sidebar",
 ]);
