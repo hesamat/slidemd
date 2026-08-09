@@ -128,6 +128,7 @@ describe("EditController mirror removal", () => {
         _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: vi.fn(),
         markdownEditor: {
           getValue,
           setValue,
@@ -157,6 +158,7 @@ describe("EditController mirror removal", () => {
         _lastEditorDeck: { id: 1 },
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: vi.fn(),
         markdownEditor: {
           getValue,
           setValue,

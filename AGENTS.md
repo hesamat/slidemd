@@ -15,8 +15,9 @@ For most tasks, use this loop:
    - `npm run format:check`
    - `npm test`
    - `npm run build`
-   
+
    For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant targeted check.
+
 6. **Re-review** after fixes and checks.
 7. **Report** what changed and whether checks passed.
 

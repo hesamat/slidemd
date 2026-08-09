@@ -705,7 +705,7 @@ export class EditController {
   async _restoreStoreSnapshot() {
     if (!this.deckStore) return false;
     const currentStructuralRevision = this.deckStore.getStructuralRevision();
-    const structuralRevisionChanged = currentStructuralRevision !== this._lastStructuralRevision;
+    let structuralRevisionChanged = currentStructuralRevision !== this._lastStructuralRevision;
     this._lastStructuralRevision = currentStructuralRevision;
 
     // Save the current editor state into the cache before the restore
@@ -1116,7 +1116,7 @@ export class EditController {
     // keystrokes are dropped when loadSlideState / setValue cancels the
     // debounce timer.
     if (this._lastEditorSlideIndex !== this.currentSlideIndex && this._lastEditorSlideIndex >= 0) {
-      this._captureEditorMarkdown?.(this._lastEditorSlideIndex);
+      this._captureEditorMarkdown(this._lastEditorSlideIndex);
     }
     this.markdownEditor?.cancelOnChange?.();
 

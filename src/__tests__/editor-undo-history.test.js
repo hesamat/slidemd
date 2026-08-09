@@ -181,6 +181,7 @@ describe("Per-slide editor undo history", () => {
         _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A", "# B"] },
         unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: vi.fn(),
         markdownEditor: {
           getValue,
           setValue: vi.fn(),
@@ -215,6 +216,7 @@ describe("Per-slide editor undo history", () => {
         _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: vi.fn(),
         markdownEditor: {
           getValue,
           setValue,
@@ -247,6 +249,7 @@ describe("Per-slide editor undo history", () => {
         _lastEditorDeck: deck,
         deckStore: { getSlides: () => ["# A"] },
         unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: vi.fn(),
         markdownEditor: {
           getValue,
           setValue,
