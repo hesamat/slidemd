@@ -315,6 +315,18 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     expect(result).not.toContain("###");
   });
 
+  it("preserves content inside language-tagged fences", () => {
+    // The fence guard must toggle on "```yaml" too, or code lines like "---"
+    // inside the fence would be rewritten as dividers.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">```yaml</span></p>' +
+        '<p><span style="font-family: Consolas;">---</span></p>' +
+        '<p><span style="font-family: Consolas;">key: value</span></p>' +
+        '<p><span style="font-family: Consolas;">```</span></p>',
+    );
+    expect(result).toContain("---");
+  });
+
   it("normalizes glyphs without a following space", () => {
     // "•item" (no space) must become a markdown bullet, not leak "### •item".
     const spaced = PptxExtractor.htmlToMarkdown(

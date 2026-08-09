@@ -239,4 +239,24 @@ describe("slide title derivation from HTML-heavy slides", () => {
     const deck = parser.parseDeckMarkdown(md);
     expect(deck.slides[0].title).toBe("Write <div> tags here");
   });
+
+  it("titles image-first areas from the image alt text", () => {
+    const mdMarkdown = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      "![Quarterly revenue chart](images/revenue.png)",
+    ].join("\n");
+    expect(parser.parseDeckMarkdown(mdMarkdown).slides[0].title).toBe("Quarterly revenue chart");
+
+    const mdHtml = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '<img src="images/revenue.png" alt="Revenue by region">',
+    ].join("\n");
+    expect(parser.parseDeckMarkdown(mdHtml).slides[0].title).toBe("Revenue by region");
+  });
 });

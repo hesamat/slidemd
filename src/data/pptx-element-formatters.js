@@ -30,7 +30,8 @@ export function formatTextElement(raw) {
       continue;
     }
 
-    if (trimmed === "```") {
+    if (/^```/.test(trimmed)) {
+      // Toggle on any fence line — bare or language-tagged ("```yaml").
       inFencedCode = !inFencedCode;
       result.push(trimmed);
       continue;

@@ -149,6 +149,13 @@ export class MarkdownParser {
    */
   _deriveFallbackTitle(raw) {
     for (const line of safeString(raw).split("\n")) {
+      // An area that opens with an image (markdown or HTML) titles from the
+      // image's alt text — otherwise markup-only areas would fall through to
+      // the generic "Slide N" name.
+      const mdAlt = line.trim().match(/^!\[([^\]]*)\]\(/);
+      if (mdAlt && mdAlt[1].trim()) return mdAlt[1].trim().slice(0, 80);
+      const htmlAlt = line.match(/<img[^>]*\salt=["']([^"']*)["']/i);
+      if (htmlAlt && htmlAlt[1].trim()) return htmlAlt[1].trim().slice(0, 80);
       const text = this._htmlToPlainText(line);
       if (text) {
         return text.length > 80 ? text.slice(0, 80).trim() + "…" : text;

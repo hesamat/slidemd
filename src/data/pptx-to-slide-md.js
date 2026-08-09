@@ -374,6 +374,10 @@ function convertSlide(
 
   // Overflow upgrade: a single-column slide whose body needs more vertical
   // space than the area provides is redistributed into two columns.
+  // NOTE: only a single body element can be content-split (see the pre-check
+  // and renderer below), so multi-element bodies that overflow are upgraded
+  // and then downgraded back to header-content — the heuristic does not fix
+  // multi-box overflow, it only avoids regressing it.
   const bodyOverflows = estimateBodyOverflow(bodyElements);
   if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
     layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
@@ -466,10 +470,6 @@ function convertSlide(
   }
 
   // --- RENDER SECTIONS ---
-  // Tracks whether a render branch emitted area content, so the late
-  // fallback below never double-renders (it must not rely on scanning the
-  // parts array for a "@main" entry).
-  let renderedAreas = false;
   if (layout.type === LAYOUT.TITLE_SLIDE.type) {
     parts.push("");
     parts.push(MARKDOWN_TAGS.TITLE);
@@ -831,50 +831,6 @@ function convertSlide(
     parts.push(
       renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
     );
-  }
-
-  renderedAreas = true;
-
-  // If two-column was downgraded to header-content, render it now
-  if (
-    layout.type === LAYOUT.HEADER_CONTENT.type &&
-    parts.length > 0 &&
-    !renderedAreas &&
-    !parts.includes(MARKDOWN_TAGS.MAIN)
-  ) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
-    );
-    const singleImage =
-      bodyElements.length === 1 &&
-      bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
-      bodyElements[0].ref;
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
-      parts.push("");
-      parts.push(formatTextElement(header.content));
-      parts.push("");
-    }
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    if (singleImage) {
-      const el = bodyElements[0];
-      const hasExplicitDims = el.width && el.height;
-      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
-    } else {
-      parts.push(
-        renderElementsWithFlex(
-          bodyElements,
-          slideWidth,
-          slideHeight,
-          deckName,
-          formatSingleElement,
-        ),
-      );
-    }
   }
 
   if (footerElements.length > 0) {
