@@ -102,9 +102,9 @@ function _getCustomSingleColumnStyle(layout) {
   if (!rows[1].includes("main")) return null;
   if (!rows[2].every((cell) => cell === "footer")) return null;
 
-  const rowSizes = layout.gridTemplateRows?.split(/\s+/) || [];
-  const isFocusRow = (value) => /^([\d.]+)fr$/i.test(value) && parseFloat(value) === 0.08;
-  return isFocusRow(rowSizes[0]) && isFocusRow(rowSizes[2]) ? "focus" : "header-content";
+  const rowSizes = layout.rowSizes || [];
+  const isFocusFooter = (value) => /^([\d.]+)fr$/i.test(value) && parseFloat(value) === 0.08;
+  return isFocusFooter(rowSizes[2]) ? "focus" : "header-content";
 }
 
 export class SlideRenderer {

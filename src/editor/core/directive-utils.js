@@ -395,7 +395,7 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   const newRows = rows.map((row, i) => {
     const token = row.cells[0];
     let newCells;
-    if (token === "main") {
+    if (row.cells.includes("main")) {
       if (numCols === 2) {
         newCells = align === "left" ? ["main", "."] : [".", "main"];
       } else {

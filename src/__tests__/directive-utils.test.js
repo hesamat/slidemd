@@ -63,6 +63,12 @@ describe("single-column layout helpers", () => {
     );
   });
 
+  it("recognizes a resized focus grid with auto header and 0.08fr footer", () => {
+    const layout =
+      '"header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" 0.08fr / 1.5fr 3fr 1.5fr';
+    expect(parseSingleColumnLayout(layout)).toEqual({ base: "focus", width: 50, align: "center" });
+  });
+
   it("returns the base preset for a centered 100% width", () => {
     expect(buildSingleColumnCustomLayout("focus", 100, "center")).toBe("focus");
   });

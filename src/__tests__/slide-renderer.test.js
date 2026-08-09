@@ -66,4 +66,42 @@ describe("SlideRenderer", () => {
     expect(html).toContain(`data-mermaid-source="${encoded}"`);
     expect(html).toContain('class="mermaid"');
   });
+
+  it("sets data-layout to focus for the built-in focus preset", () => {
+    const slide = {
+      id: "focus-preset",
+      title: "Focus Preset",
+      layout: "focus",
+      areas: { header: "<h2>Hi</h2>", main: "<p>Body</p>", footer: "Foot" },
+    };
+    const deck = { slides: [slide] };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    expect(el.getAttribute("data-layout")).toBe("focus");
+  });
+
+  it("classifies a resized focus grid (auto header, 0.08fr footer) as focus", () => {
+    const slide = {
+      id: "focus-resized",
+      title: "Focus Resized",
+      layout:
+        '"header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" 0.08fr / 1.5fr 3fr 1.5fr',
+      areas: { header: "<h2>Hi</h2>", main: "<p>Body</p>", footer: "Foot" },
+    };
+    const deck = { slides: [slide] };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    expect(el.getAttribute("data-layout")).toBe("focus");
+  });
+
+  it("classifies a header-content grid (auto footer) as header-content", () => {
+    const slide = {
+      id: "hc-custom",
+      title: "HC Custom",
+      layout:
+        '"header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" auto / 1fr 2fr 1fr',
+      areas: { header: "<h2>Hi</h2>", main: "<p>Body</p>", footer: "Foot" },
+    };
+    const deck = { slides: [slide] };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    expect(el.getAttribute("data-layout")).toBe("header-content");
+  });
 });
