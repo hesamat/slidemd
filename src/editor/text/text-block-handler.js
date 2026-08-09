@@ -12,6 +12,7 @@
 
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
+import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import {
   buildTextBlockDirective,
   parseTextBlockDirectives,
@@ -78,6 +79,7 @@ export class TextBlockHandler {
   static _idCounter = 0;
   static _panel = null;
   static _abortController = null;
+  static _onPreviewReady = null;
 
   /**
    * @param {object} opts
@@ -87,6 +89,8 @@ export class TextBlockHandler {
    * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   * @param {(callback: (slideEl: HTMLElement) => void) => void} [opts.onPreviewReady]
+   *   Register a one-shot callback to run after the next preview re-render.
    */
   static init({
     getMarkdown,
@@ -95,6 +99,7 @@ export class TextBlockHandler {
     getMarkdownEditor,
     getCurrentSlideIndex,
     getSlideElementByIndex,
+    onPreviewReady,
   }) {
     if (this._initialized) return;
     this._initialized = true;
@@ -104,6 +109,7 @@ export class TextBlockHandler {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._getSlideElementByIndex = getSlideElementByIndex;
+    this._onPreviewReady = onPreviewReady || null;
 
     document.addEventListener("mousedown", (e) => {
       if (!this._selected) return;
@@ -152,6 +158,45 @@ export class TextBlockHandler {
     };
     const directive = buildTextBlockDirective(settings, "Text");
     this._insertHtmlSnippet(directive, settings.float);
+
+    // Auto-open the properties panel once the preview re-renders the new block.
+    // If an in-flight render from an earlier keystroke completes first (before
+    // the new block exists), re-register so the callback fires on the render
+    // that actually contains the block. Give up if the user navigates away
+    // from the insertion slide or after a few retries to avoid a permanently
+    // pending callback that pops the panel open out of context later.
+    const insertionSlide = this._getCurrentSlideIndex?.() ?? 0;
+    let retries = 0;
+    const MAX_RETRIES = 3;
+    const onReady = (slideEl) => {
+      // Bail if the user exited edit mode or navigated away.
+      if (!this._container) return;
+      const currentSlide = this._getCurrentSlideIndex?.() ?? 0;
+      if (currentSlide !== insertionSlide) return;
+      const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
+      if (!block || this.isMultiColumn(block)) {
+        if (retries >= MAX_RETRIES) return;
+        retries += 1;
+        this._onPreviewReady?.(onReady);
+        return;
+      }
+      // Deselect any selected image so only one element appears selected.
+      ImageInteractionHandler.deselect();
+      this.select(block);
+      block.classList.add("text-block--just-inserted");
+      const removeHighlight = () => block.classList.remove("text-block--just-inserted");
+      block.addEventListener(
+        "animationend",
+        (e) => {
+          if (e.target === block) removeHighlight();
+        },
+        { once: true },
+      );
+      // Fallback in case animationend never fires (e.g. animations disabled).
+      setTimeout(removeHighlight, 2800);
+      this._showPanel({ below: true });
+    };
+    this._onPreviewReady?.(onReady);
   }
 
   static _nextId() {
@@ -517,7 +562,7 @@ export class TextBlockHandler {
     });
   }
 
-  static _showPanel() {
+  static _showPanel({ below = false } = {}) {
     this._ensurePanel();
     const el = this._selected;
     if (!el || !this._panel) return;
@@ -531,12 +576,32 @@ export class TextBlockHandler {
     const panelH = this._panel.offsetHeight || 260;
     const panelW = this._panel.offsetWidth || 280;
 
-    let left = rect.right + window.scrollX + 8;
-    let top = rect.top + window.scrollY;
-    if (left + panelW > window.innerWidth) {
-      left = rect.left + window.scrollX - panelW - 8;
+    let left;
+    let top;
+    if (below) {
+      // Auto-open: place below the block, left-aligned with it.
+      // Falls back to above if there isn't room below.
+      left = rect.left + window.scrollX;
+      top = rect.bottom + window.scrollY + 8;
+      if (top + panelH > window.innerHeight + window.scrollY) {
+        top = rect.top + window.scrollY - panelH - 8;
+      }
+    } else {
+      // Right-click: place to the right of the block, flip left on overflow.
+      left = rect.right + window.scrollX + 8;
+      top = rect.top + window.scrollY;
+      if (left + panelW > window.innerWidth + window.scrollX) {
+        left = rect.left + window.scrollX - panelW - 8;
+      }
     }
-    top = Math.max(8, Math.min(top, window.innerHeight - panelH - 8));
+    top = Math.max(
+      window.scrollY + 8,
+      Math.min(top, window.innerHeight + window.scrollY - panelH - 8),
+    );
+    left = Math.max(
+      window.scrollX + 8,
+      Math.min(left, window.innerWidth + window.scrollX - panelW - 8),
+    );
 
     this._panel.style.top = `${top}px`;
     this._panel.style.left = `${left}px`;
