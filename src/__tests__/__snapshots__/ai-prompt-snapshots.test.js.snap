@@ -1,0 +1,962 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`composed prompt snapshots > addSpeakerNotes (single-slide) 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Add speaker notes to this single slide. Return the result as JSON.
+
+What to do:
+
+- Notes should expand on the slide's key points for a presenter.
+- Include context, transitions, and talking points that a presenter would say aloud.
+- Keep notes to 2-4 sentences.
+- Do not change the slide's layout, areas, or visible content.
+- Do not add or remove slides.
+- Base notes only on facts already present in the slide. Do not invent data, examples, or claims.
+
+Success criteria:
+
+- Output is valid JSON with a \`slides\` array containing exactly one slide.
+- The slide's visible content is unchanged.
+- Notes are relevant to the slide's topic and useful for a presenter.
+
+Input markdown:
+layout: title-slide
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+",
+}
+`;
+
+exports[`composed prompt snapshots > batched fix with context slides 1`] = `
+{
+  "original": "layout: title-slide
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+
+---
+
+layout: two-column
+
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+layout: header-content
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+",
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Fix the provided SlideMD markdown. Return the result as JSON.
+
+What to fix:
+
+- Rejoin split code lines and add language tags where the language is clear.
+- Restore blank lines between functions, classes, and logical sections.
+- Remove bold wrapping from headings.
+- Fix broken links, lists, and tables.
+- Remove duplicate blank lines and trailing whitespace.
+- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Make sure the headers for slides are correctly set and the heading level is consistent as much as possible.
+- Do not add or remove slides.
+
+Success criteria:
+
+- Output is valid JSON with a \`slides\` array.
+- Each slide has a layout and non-empty content.
+- Speaker notes are preserved and placed at the end of the slide content.
+- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling.
+
+Input markdown:
+<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index 0) -->
+layout: title-slide
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+
+---
+
+<!-- SLIDE INDEX 1 (return this) -->
+layout: two-column
+
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+<!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index 2) -->
+layout: header-content
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+
+
+CRITICAL: You must return EXACTLY 1 slide(s) — one for each "SLIDE INDEX" comment in the input (indices 1 through 1). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.",
+}
+`;
+
+exports[`composed prompt snapshots > batched generate with deck summary 1`] = `
+{
+  "original": "layout: title-slide
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+
+---
+
+layout: two-column
+
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+layout: header-content
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+",
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Deck Context:
+Deck: 3 slides.
+Outline:
+1. [title-slide] AI for Presentations
+
+Input markdown:
+Refine this SlideMD presentation. Return the result as JSON.
+
+Content strategy:
+
+- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
+- Use tables for 2-3 item comparisons.
+- Use two-column for diagrams, code, or dense content.
+- Add speaker notes where helpful: \`<!-- notes: ... -->\`.
+- Drop images that are low quality, redundant, or don't add value to the slide.
+- If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
+- If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- Follow the mode and visual-identity instructions that follow this prompt.
+
+Visual styling:
+
+- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a \`background:\` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a \`theme:\` directive that matches the background darkness:
+  - If the \`background:\` is dark or has a dark image, set \`theme: dark\` so the default text renders light.
+  - If the \`background:\` is light, set \`theme: light\` so the default text renders dark.
+- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
+- Place content images using \`<img>\` tags with appropriate \`position: relative\` + \`left\`/\`top\`/\`width\` for custom placement when the layout allows it.
+- For full-bleed visuals, use \`layout: full-image\` with the image as the \`@main\` content.
+- If the following instructions say to preserve the existing visual identity, keep existing \`theme:\` and \`background:\` directives unless they clearly do not fit.
+
+Diagrams:
+
+- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: \`​\`\`\`mermaid\` code blocks.
+- Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. \`─┐\`, \`├──>\`, \`──>\`). These render poorly and are not interactive.
+- If a concept needs a visual, use Mermaid or a table instead.
+
+Success criteria:
+
+- Every slide has an appropriate layout with valid area markers.
+- Background and theme directives follow the visual-identity instructions that follow this prompt.
+- Headers use the correct hierarchy.
+- All \`[Diagram:]\` markers are addressed with Mermaid.
+- No ASCII art or text-based diagrams.
+- The JSON is valid and parseable.
+
+Input markdown:
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+
+
+Return exactly 2 slide(s) as JSON. Fix or organize these slides within the context of the full deck.",
+}
+`;
+
+exports[`composed prompt snapshots > enhanceSlide (single-slide fix) 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Fix the provided SlideMD markdown. Return the result as JSON.
+
+What to fix:
+
+- Rejoin split code lines and add language tags where the language is clear.
+- Restore blank lines between functions, classes, and logical sections.
+- Remove bold wrapping from headings.
+- Fix broken links, lists, and tables.
+- Remove duplicate blank lines and trailing whitespace.
+- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Make sure the headers for slides are correctly set and the heading level is consistent as much as possible.
+- Do not add or remove slides.
+
+Success criteria:
+
+- Output is valid JSON with a \`slides\` array.
+- Each slide has a layout and non-empty content.
+- Speaker notes are preserved and placed at the end of the slide content.
+- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling.
+
+Input markdown:
+layout: title-slide
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+",
+}
+`;
+
+exports[`composed prompt snapshots > generate (whole deck) 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Refine this SlideMD presentation. Return the result as JSON.
+
+Content strategy:
+
+- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
+- Use tables for 2-3 item comparisons.
+- Use two-column for diagrams, code, or dense content.
+- Add speaker notes where helpful: \`<!-- notes: ... -->\`.
+- Drop images that are low quality, redundant, or don't add value to the slide.
+- If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
+- If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- Follow the mode and visual-identity instructions that follow this prompt.
+
+Visual styling:
+
+- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a \`background:\` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
+- Unless the following instructions say to preserve the existing visual identity, every slide must have a \`theme:\` directive that matches the background darkness:
+  - If the \`background:\` is dark or has a dark image, set \`theme: dark\` so the default text renders light.
+  - If the \`background:\` is light, set \`theme: light\` so the default text renders dark.
+- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
+- Place content images using \`<img>\` tags with appropriate \`position: relative\` + \`left\`/\`top\`/\`width\` for custom placement when the layout allows it.
+- For full-bleed visuals, use \`layout: full-image\` with the image as the \`@main\` content.
+- If the following instructions say to preserve the existing visual identity, keep existing \`theme:\` and \`background:\` directives unless they clearly do not fit.
+
+Diagrams:
+
+- Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: \`​\`\`\`mermaid\` code blocks.
+- Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. \`─┐\`, \`├──>\`, \`──>\`). These render poorly and are not interactive.
+- If a concept needs a visual, use Mermaid or a table instead.
+
+Success criteria:
+
+- Every slide has an appropriate layout with valid area markers.
+- Background and theme directives follow the visual-identity instructions that follow this prompt.
+- Headers use the correct hierarchy.
+- All \`[Diagram:]\` markers are addressed with Mermaid.
+- No ASCII art or text-based diagrams.
+- The JSON is valid and parseable.
+
+Input markdown:
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+
+---
+
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+",
+}
+`;
+
+exports[`composed prompt snapshots > polish (whole deck) 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Polish this SlideMD presentation. Return the result as JSON.
+
+What to do:
+
+- Fix formatting, links, lists, tables, code blocks, and layout mismatches.
+- Rejoin split code lines and add language tags where the language is clear.
+- Restore blank lines between functions, classes, and logical sections.
+- Remove bold wrapping from headings.
+- Remove duplicate blank lines and trailing whitespace.
+- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Pick the best layout for each slide's content; use \`two-column\`, \`focus\`, or \`table\` layouts when they clarify the material.
+- Use tables for 2-3 item comparisons.
+- Preserve each slide's \`theme:\` directive. Keep \`background:\` directives unless they no longer fit the restructured content.
+- Drop images that are low quality, redundant, or add no value, and keep the rest.
+- If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
+
+Constraints:
+
+- Keep the same slide count and order.
+- Keep the same overall narrative flow.
+- Preserve existing speaker notes unless asked to add new ones.
+- Preserve the overall visual identity (theme, colors, backgrounds).
+
+Success criteria:
+
+- Each slide has a layout and non-empty content.
+- Headers use the correct hierarchy.
+- All \`[Diagram:]\` markers are addressed.
+- Speaker notes are preserved and placed at the end of the slide content.
+
+Input markdown:
+background: #1a1a2e
+theme: dark
+
+@title
+
+# AI for Presentations
+
+@footer
+
+Speaker Name
+
+---
+
+@header
+
+## Why SlideMD
+
+@main
+
+- Markdown-driven
+- Offline-first
+- Deterministic layout
+
+@media
+
+![diagram](images/chart.png)
+
+---
+
+@header
+
+## Roadmap
+
+@main
+
+\`\`\`js
+const x = 1;
+console.log(x);
+\`\`\`
+
+- Ship v1.0
+- Add themes
+- Export PDF
+",
+}
+`;
+
+exports[`composed prompt snapshots > reimagine outline 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Analyze this deck and propose a bold new direction. Return the result as JSON.
+
+If images are provided with this request, use them to assess the visual content, quality, and style of the original deck. You may reference the visual themes in your plan, but you are free to propose a completely new visual direction.
+
+The presentation flow is **story**. Choose storytelling techniques that fit this flow and the content — you may combine several:
+
+- **Problem → Solution → Benefits** — open with the gap, present the approach, show the payoff.
+- **Historical context arc** — trace how the topic evolved over time, then position the present moment.
+- **Hook → Tension → Resolution** — grab attention, build stakes, deliver the payoff.
+- **Compare → Contrast** — juxtapose alternatives, then argue for one.
+- **Past → Present → Future** — where we were, where we are, where we're going.
+- **Cause → Effect** — trace consequences from a root cause.
+- **Layered reveal** — start simple, add complexity layer by layer.
+
+Output format:
+
+\`\`\`json
+{
+  "plan": "1-3 sentence statement of the deck's core message, the fresh editorial angle, and the narrative structure you chose (e.g. 'Reframe the deck around outcomes. Open with historical context, build tension around the current gap, present the approach with evidence, close with a call to action.').",
+  "chapters": [
+    {
+      "title": "Where we were",
+      "flowTag": "context",
+      "summary": "Historical context for the topic.",
+      "slides": [
+        { "title": "The origins", "intent": "How the field started and why." },
+        { "title": "How it evolved", "intent": "Key milestones over the past decade." }
+      ]
+    },
+    {
+      "title": "The gap",
+      "flowTag": "problem",
+      "summary": "What current approaches miss.",
+      "slides": [
+        { "title": "The limitation", "intent": "The core problem with existing solutions." }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- \`plan\` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
+- \`chapters\` — 3-7 chapters that group the slides into a narrative arc. Each chapter has:
+  - \`title\` — short chapter title.
+  - \`flowTag\` — one of: \`hook\`, \`context\`, \`problem\`, \`tension\`, \`solution\`, \`evidence\`, \`comparison\`, \`example\`, \`transition\`, \`climax\`, \`cta\`.
+  - \`summary\` — one sentence describing what the chapter covers.
+  - \`slides\` — array of \`{ title, intent }\` entries. Each \`intent\` is one sentence describing what the slide should accomplish.
+- **Slide count target**: the original deck has 3 slides. Aim for 2-4 slides total (70-120% of the original). Do not collapse the deck drastically — if the original is large, keep enough slides to cover the material. Add slides where the story needs them; drop only slides that are truly redundant.
+- Take a bold editorial approach. You may rethink the topic, examples, notes, and visuals. Preserve the user's core intent and factual accuracy, but do not preserve the original structure, topics, examples, or speaker notes merely for the sake of the original.
+- Do not preserve the original theme, colors, backgrounds, or visual language. You may propose a new visual direction.
+
+Success criteria:
+
+- The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
+- The chapters form a clear narrative arc from opening to close.
+- The total slide count is within 2-4 (3 source slides).
+- Each slide has a distinct purpose within its chapter.
+- The JSON is valid and parseable.
+
+Input deck summary and outline:
+Deck: 3 slides.
+Outline:
+1. [title-slide] AI for Presentations
+",
+}
+`;
+
+exports[`composed prompt snapshots > remix plan (text-only) 1`] = `
+{
+  "system": "You are a SlideMD editor. Improve the provided markdown and return the result as a JSON object.
+
+Output format:
+
+\`\`\`json
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\\n# Title\\n\\n@main\\n- Point 1\\n- Point 2" }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- Every slide must have non-empty content.
+- Use \`\\n\` for newlines inside the "content" string.
+- Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed \`@area\` names. Using an area not listed for the chosen layout is an error.
+- Put a blank line before and after every @area marker.
+- Put a blank line before and after code blocks, lists, tables, and headers.
+- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code.
+- The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
+- Speaker notes go at the very end: \`<!-- notes: ... -->\`.
+- Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
+- Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
+- Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
+
+Allowed layouts and areas:
+title-slide: @title, @footer
+header-content: @header, @main, @footer
+two-column: @header, @main, @media, @footer
+media-span: @header, @main, @media, @footer
+left-heavy: @header, @main, @media, @footer
+right-heavy: @header, @main, @media, @footer
+three-column: @header, @main, @media, @secondary, @footer
+focus: @header, @main, @footer
+full-image: @main
+",
+  "user": "Analyze this deck and produce a restructuring plan. Return the result as JSON.
+
+Output format:
+
+\`\`\`json
+{
+  "plan": [
+    {
+      "action": "keep",
+      "source": [0],
+      "brief": "",
+      "title": "Introduction"
+    },
+    {
+      "action": "rewrite",
+      "source": [2],
+      "brief": "Make this slide more concise and use a two-column layout",
+      "title": "Roadmap",
+      "keepImages": [0]
+    },
+    {
+      "action": "merge",
+      "source": [3, 4],
+      "brief": "Combine these two thin slides into a single comparison slide",
+      "title": "Comparison",
+      "keepImages": [0, 1]
+    }
+  ]
+}
+\`\`\`
+
+Rules:
+
+- Return only valid JSON. No explanations, markdown fences, or surrounding text.
+- \`action\` must be one of: \`keep\`, \`rewrite\`, \`merge\`.
+  - \`keep\` — the slide is already good; copy it as-is. \`brief\` should be empty.
+  - \`rewrite\` — rework one slide's content. \`source\` must have exactly 1 index.
+  - \`merge\` — combine multiple slides into one. \`source\` must have 2 or more indices.
+- \`source\` indices are 0-based into the original deck. The deck has 3 source slides, so valid source indices are 0 through 2 inclusive. The outline above is numbered from 1 for readability, but the index for the first source slide is 0 and the last source slide is 2.
+- \`brief\` is a one-sentence description of what the output slide should contain. Required for \`rewrite\` and \`merge\`; empty for \`keep\`.
+- \`title\` is a short label for the slide (used for display, not sent to the generator).
+- \`keepImages\` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit \`keepImages\` entirely — do not guess it.
+- Cover every source slide. Reorder freely if a different order tells the story better.
+- Use \`keep\` for slides that are already clear, well-structured, and in the right place.
+- Use \`rewrite\` when the topic is right but the content or layout could be improved.
+- Use \`merge\` when adjacent slides are thin, overlapping, or redundant.
+
+Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.
+
+Preserve the original theme, colors, backgrounds, and visual language whenever possible.
+
+No images were sent with this request — omit \`keepImages\` from every plan entry.
+
+Success criteria:
+
+- The plan covers every original slide (every source index appears in at least one entry).
+- The JSON is valid and parseable.
+- No source index is out of range.
+- Each output slide has a clear purpose.
+
+Input deck summary and outline:
+Deck: 3 slides.
+Outline:
+1. [title-slide] AI for Presentations
+",
+}
+`;

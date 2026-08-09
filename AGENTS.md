@@ -492,7 +492,7 @@ export class NewModule {
 
 ## Common Tasks
 
-- **Add a new layout preset:** Add to `src/data/layout-data.js`
+- **Add a new layout preset:** Add to `src/data/layout-data.js`, then regenerate the prompt snapshots (`npx vitest run -u` on `src/__tests__/ai-prompt-snapshots.test.js`) — every snapshot embeds the generated layout list, so an intentional layout change fails them all at once and is not a regression.
 - **Modify deck content:** Edit `docs/example/slides.md`
 - **Change build input:** Update argument in `tools/build.mjs`
 - **Add a rendering feature:** Enhance `src/renderer/content-enhancer.js` or `src/renderer/slide-renderer.js`
@@ -504,15 +504,25 @@ export class NewModule {
 
 AI prompts live in `src/data/prompts/`:
 
-| File                          | Role     | Purpose                                                                            |
-| ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, structure, formatting                                                |
-| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input                                |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input                                   |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide                                                         |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix; outputs restructuring plan JSON                              |
-| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine; outputs `{ plan, chapters }` JSON                     |
+| File                                | Role     | Purpose                                                                            |
+| ----------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `system-prompt.md`                  | `system` | Global rules, structure, formatting; `{{layoutList}}`                              |
+| `polish-prompt.md`                  | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order |
+| `generate-prompt.md`                | `user`   | Creative reorganization task + `{{markdown}}` input                                |
+| `fix-prompt.md`                     | `user`   | Conservative cleanup task + `{{markdown}}` input                                   |
+| `add-speaker-notes-prompt.md`       | `user`   | Add speaker notes to slide                                                         |
+| `remix-plan-prompt.md`              | `user`   | Plan phase for Remix; outputs restructuring plan JSON                              |
+| `reimagine-outline-prompt.md`       | `user`   | Outline phase for Reimagine; outputs `{ plan, chapters }` JSON                     |
+| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants used by the generate options suffix               |
+| `speaker-notes-guidance.md`         | snippet  | Speaker-notes guidance variants used by the generate options suffix                |
+| `visual-identity-guidance.md`       | snippet  | Visual-identity guidance variants (preserve/discard) used by the generate suffix   |
+| `remix-visual-identity-guidance.md` | snippet  | Visual-identity guidance variants (preserve/discard) used by the remix plan prompt |
+| `images-guidance.md`                | snippet  | Vision images guidance variants for the remix plan prompt                          |
+| `batch-pagination.md`               | snippet  | Batch pagination instructions variants for `buildBatchMessages`                    |
+| `creative-guidance.md`              | snippet  | Remix creative guidance for the `{{creativeGuidance}}` placeholder                 |
+| `repair-message.md`                 | snippet  | Repair message template for validation failures                                    |
+
+Snippet files contain `<!-- variant: name -->` sections; code selects a variant via `extractVariant` in `src/data/ai/ai-prompt-fragments.js`. The `FRAGMENTS` map in that module is the single runtime catalog of every prompt file.
 
 ### Prompt Rules
 
@@ -527,9 +537,9 @@ AI prompts live in `src/data/prompts/`:
 ### Modification Checklist
 
 1. Check all prompts for consistency.
-2. Run `npm test` — AI module tests verify prompt processing.
-3. Verify combined system + user prompt length stays under 150 lines.
-4. Keep both layout lists in sync.
+2. Run `npm test` — the AI hygiene tests (`ai-prompt-hygiene.test.js`) check that composed prompts contain no dangling `{{placeholders}}` and that the layout list stays in sync with `src/data/layout-data.js`.
+3. Snapshot tests (`ai-prompt-snapshots.test.js`) pin the composed messages — update the snapshot deliberately when a prompt change is intended, and review the diff.
+4. Keep both layout lists in sync (`getAllowedLayoutList()` output and this doc's layout table).
 5. Reflect changes in `docs/prompt-template.md` and `docs/example/slides.md` when applicable.
 
 ---
@@ -542,23 +552,24 @@ The following sections are reference material for specific subsystems and known 
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under `src/data/ai/`:
 
-| Module                     | Purpose                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair     |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory               |
-| `ai-intent-registry.js`    | Maps intent names to prompt builders                             |
-| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building       |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown              |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                      |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                            |
-| `ai-output-validator.js`   | Validate AI output against schema                                |
-| `ai-output-schema.js`      | Per-intent schemas                                               |
-| `ai-prompt-composer.js`    | Compose system + user prompts from fragments                     |
-| `ai-repair-message.js`     | Build repair messages for validation failures                    |
-| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization   |
-| `ai-provider-factory.js`   | Provider client factory                                          |
-| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation |
-| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB    |
+| Module                     | Purpose                                                                  |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair             |
+| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                       |
+| `ai-intent-registry.js`    | Maps intent names to prompt fragments                                    |
+| `ai-prompt-fragments.js`   | Fragment imports, frontmatter stripping, layout list, variant extraction |
+| `ai-prompt-builder.js`     | Deck summaries, message/batch building                                   |
+| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                      |
+| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                              |
+| `ai-token-estimator.js`    | Token count and max_tokens estimation                                    |
+| `ai-output-validator.js`   | Validate AI output against schema                                        |
+| `ai-output-schema.js`      | Per-intent schemas                                                       |
+| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                            |
+| `ai-repair-message.js`     | Build repair messages for validation failures                            |
+| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization           |
+| `ai-provider-factory.js`   | Provider client factory                                                  |
+| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation         |
+| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB            |
 
 ---
 

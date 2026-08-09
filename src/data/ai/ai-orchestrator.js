@@ -24,7 +24,6 @@ import {
   buildGenerateOptionsSuffix,
   BATCH_SIZE,
   splitSlidesForAi,
-  getAllowedLayoutList,
   stripThemeAndBackground,
 } from "./ai-prompt-builder.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
@@ -32,13 +31,15 @@ import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { splitSlides } from "../markdown-parser.js";
 import { createEditPatch } from "../store/slide-patch.js";
-import { AiPromptComposer } from "./ai-prompt-composer.js";
+import {
+  buildImagesSectionForPrompt,
+  buildRemixVisualIdentityGuidance,
+  composeMessages,
+  getFragment,
+} from "./ai-prompt-fragments.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { extractAll } from "./slide-image-extractor.js";
 import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
-import systemPrompt from "../prompts/system-prompt.md?raw";
-import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
-import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
 
 /**
  * @typedef {Object} ReimagineOutlineSlide
@@ -61,29 +62,6 @@ import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
  */
 
 const MAX_REPAIR_ATTEMPTS = 3;
-
-/**
- * Build the `{{imagesSection}}` fragment for the remix plan prompt. The
- * keepImages / image-assessment guidance is only relevant (and only
- * truthful) when images are actually attached to the request — omitting it
- * for text-only plans stops the model from hallucinating keepImages against
- * pictures it never saw.
- * @param {boolean} imagesSent
- * @returns {string}
- */
-function buildImagesSectionForPrompt(imagesSent) {
-  if (!imagesSent) {
-    return "No images were sent with this request — omit `keepImages` from every plan entry.";
-  }
-  return (
-    "When images are provided:\n\n" +
-    "- You will also receive the raw images from each slide (background images are excluded). Use these images to assess their content and quality when deciding whether to keep, rewrite, or merge slides.\n" +
-    "- In the plan, each entry can specify `keepImages`: an array of 0-based indices into that source slide's extracted images (in order of appearance). Omit to keep all images; use `[]` to drop all images from a slide.\n" +
-    "- When merging slides, `keepImages` indices are still per-source-slide, not indices into a combined set — the same array is applied independently to each slide listed in `source`.\n" +
-    "- You are not limited to placing images in a `@media` area. Images can be freely positioned using `position: relative` with `left`, `top`, `width`, and `height` style attributes on the `<img>` tag. Use this when an image needs custom placement that doesn't fit the standard area layout.\n" +
-    "- If an image is low quality, redundant, or doesn't add value, drop it (don't include it in `keepImages`)."
-  );
-}
 
 /**
  * @typedef {Object} OrchestratorDeps
@@ -1039,23 +1017,22 @@ export class AiOrchestrator {
     const { onLog } = callbacks;
 
     const deckSummary = buildDeckSummary(context);
-    const composer = new AiPromptComposer({
-      systemFragment: systemPrompt,
-      userFragment: reimagineOutlinePrompt,
-    });
 
     const flow = operation.opts?.flow || "story";
     const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
     const maxSlides = Math.round(sourceCount * 1.2);
 
-    const { system, user } = composer.compose({
-      markdown: deckSummary,
-      layoutList: getAllowedLayoutList(),
-      flow,
-      sourceCount: sourceCount.toString(),
-      minSlides: minSlides.toString(),
-      maxSlides: maxSlides.toString(),
-    });
+    const { system, user } = composeMessages(
+      getFragment("system-prompt.md"),
+      getFragment("reimagine-outline-prompt.md"),
+      {
+        markdown: deckSummary,
+        flow,
+        sourceCount: sourceCount.toString(),
+        minSlides: minSlides.toString(),
+        maxSlides: maxSlides.toString(),
+      },
+    );
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const maxTokens = estimateMaxTokens(deckSummary, "generate", {
@@ -1215,32 +1192,28 @@ export class AiOrchestrator {
 
     const deckSummary = buildDeckSummary(context);
     const sourceCount = splitSlidesForAi(context, "generate").length;
-    const composer = new AiPromptComposer({
-      systemFragment: systemPrompt,
-      userFragment: remixPlanPrompt,
-    });
 
     const mode = operation.opts?.mode || "remix";
-    const creativeGuidance =
-      "Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.";
+    const creativeGuidance = getFragment("creative-guidance.md").trim();
 
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
-    const visualIdentityGuidance = preserveVisualIdentity
-      ? "Preserve the original theme, colors, backgrounds, and visual language whenever possible."
-      : "Do not preserve the original theme, colors, backgrounds, or visual language. You may introduce a new visual direction that supports the restructured deck.";
+    const visualIdentityGuidance = buildRemixVisualIdentityGuidance(preserveVisualIdentity);
 
     const composeArgs = {
       markdown: deckSummary,
-      layoutList: getAllowedLayoutList(),
       creativeGuidance,
       visualIdentityGuidance,
       sourceCount: sourceCount.toString(),
       maxSourceIndex: (sourceCount - 1).toString(),
     };
-    const { system, user } = composer.compose({
-      ...composeArgs,
-      imagesSection: buildImagesSectionForPrompt(Boolean(slideImages)),
-    });
+    const { system, user } = composeMessages(
+      getFragment("system-prompt.md"),
+      getFragment("remix-plan-prompt.md"),
+      {
+        ...composeArgs,
+        imagesSection: buildImagesSectionForPrompt(Boolean(slideImages)),
+      },
+    );
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const maxTokens = estimateMaxTokens(deckSummary, "generate", {
@@ -1302,10 +1275,14 @@ export class AiOrchestrator {
         // longer attached, and leaving them in would push the model to emit
         // keepImages entries it can't justify.
         imagesWereSent = false;
-        const { user: textOnlyUser } = composer.compose({
-          ...composeArgs,
-          imagesSection: buildImagesSectionForPrompt(false),
-        });
+        const { user: textOnlyUser } = composeMessages(
+          getFragment("system-prompt.md"),
+          getFragment("remix-plan-prompt.md"),
+          {
+            ...composeArgs,
+            imagesSection: buildImagesSectionForPrompt(false),
+          },
+        );
         response = await this._provider.chat(
           {
             messages: [
