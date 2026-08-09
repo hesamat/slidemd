@@ -1474,19 +1474,19 @@ body[data-edit-mode="true"] .slide__area .text-block[contenteditable="true"] {
 
 @keyframes text-block-pulse {
   0% {
-    background-color: rgba(2, 132, 199, 0.35);
-    outline: 3px solid rgba(2, 132, 199, 0.9);
-    outline-offset: 4px;
+    box-shadow:
+      0 0 0 4px rgba(2, 132, 199, 0.5),
+      0 0 16px 4px rgba(2, 132, 199, 0.3);
   }
-  30% {
-    background-color: rgba(2, 132, 199, 0.25);
-    outline: 3px solid rgba(2, 132, 199, 0.7);
-    outline-offset: 4px;
+  60% {
+    box-shadow:
+      0 0 0 4px rgba(2, 132, 199, 0.25),
+      0 0 12px 2px rgba(2, 132, 199, 0.15);
   }
   100% {
-    background-color: transparent;
-    outline: 3px solid transparent;
-    outline-offset: 4px;
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 0 0 transparent;
   }
 }
 

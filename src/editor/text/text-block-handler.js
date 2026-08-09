@@ -159,9 +159,15 @@ export class TextBlockHandler {
     this._insertHtmlSnippet(directive, settings.float);
 
     // Auto-open the properties panel once the preview re-renders the new block.
-    this._onPreviewReady?.((slideEl) => {
+    // If an in-flight render from an earlier keystroke completes first (before
+    // the new block exists), re-register so the callback fires on the render
+    // that actually contains the block.
+    const onReady = (slideEl) => {
       const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
-      if (!block || this.isMultiColumn(block)) return;
+      if (!block || this.isMultiColumn(block)) {
+        this._onPreviewReady?.(onReady);
+        return;
+      }
       this.select(block);
       block.classList.add("text-block--just-inserted");
       const removeHighlight = () => block.classList.remove("text-block--just-inserted");
@@ -174,8 +180,9 @@ export class TextBlockHandler {
       );
       // Fallback in case animationend never fires (e.g. animations disabled).
       setTimeout(removeHighlight, 2800);
-      this._showPanel();
-    });
+      this._showPanel({ below: true });
+    };
+    this._onPreviewReady?.(onReady);
   }
 
   static _nextId() {
@@ -541,7 +548,7 @@ export class TextBlockHandler {
     });
   }
 
-  static _showPanel() {
+  static _showPanel({ below = false } = {}) {
     this._ensurePanel();
     const el = this._selected;
     if (!el || !this._panel) return;
@@ -555,12 +562,23 @@ export class TextBlockHandler {
     const panelH = this._panel.offsetHeight || 260;
     const panelW = this._panel.offsetWidth || 280;
 
-    // Always place the panel below the block, left-aligned with it.
-    // Falls back to above if there isn't room below.
-    let left = rect.left + window.scrollX;
-    let top = rect.bottom + window.scrollY + 8;
-    if (top + panelH > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - panelH - 8;
+    let left;
+    let top;
+    if (below) {
+      // Auto-open: place below the block, left-aligned with it.
+      // Falls back to above if there isn't room below.
+      left = rect.left + window.scrollX;
+      top = rect.bottom + window.scrollY + 8;
+      if (top + panelH > window.innerHeight + window.scrollY) {
+        top = rect.top + window.scrollY - panelH - 8;
+      }
+    } else {
+      // Right-click: place to the right of the block, flip left on overflow.
+      left = rect.right + window.scrollX + 8;
+      top = rect.top + window.scrollY;
+      if (left + panelW > window.innerWidth + window.scrollX) {
+        left = rect.left + window.scrollX - panelW - 8;
+      }
     }
     top = Math.max(
       window.scrollY + 8,

@@ -271,10 +271,7 @@ export class SlidePreviewUpdater {
             } catch {
               /* best-effort enhancement */
             }
-            if (generation !== this._updateGeneration) {
-              this._clearReadyCallbacks();
-              return;
-            }
+            if (generation !== this._updateGeneration) return;
             const enhancedHtml = temp.innerHTML;
             if (areaEl.innerHTML !== enhancedHtml) {
               areaEl.innerHTML = enhancedHtml;
@@ -312,10 +309,7 @@ export class SlidePreviewUpdater {
             console.warn("Failed to enhance slide preview:", err);
           }
 
-          if (generation !== this._updateGeneration) {
-            this._clearReadyCallbacks();
-            return;
-          }
+          if (generation !== this._updateGeneration) return;
           slideEl.replaceWith(newSlideEl);
           this.warnings.applyPendingSlideWarning(newSlideEl);
 
