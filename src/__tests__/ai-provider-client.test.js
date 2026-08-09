@@ -108,6 +108,66 @@ describe("AiProviderClient", () => {
     expect(init.headers["Content-Type"]).toBe("application/json");
   });
 
+  it("throws early when OpenRouter has no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://openrouter.ai/api/v1",
+      getApiKey: () => "",
+      getProvider: () => "OpenRouter",
+    });
+
+    await expect(
+      client.chat({
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      }),
+    ).rejects.toThrow("OpenRouter API key is required");
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("throws early when OpenAI has no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://api.openai.com/v1",
+      getApiKey: () => "",
+      getProvider: () => "OpenAI",
+    });
+
+    await expect(
+      client.chat({
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      }),
+    ).rejects.toThrow("OpenAI API key is required");
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not throw early for Custom provider with no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://my-custom-endpoint.example.com/v1",
+      getApiKey: () => "",
+      getProvider: () => "Custom",
+    });
+
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+    });
+
+    await client.chat({
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      responseFormat: null,
+      reasoning: null,
+    });
+
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
   it("retries once without response_format when the provider rejects it", async () => {
     const client = makeClient();
     globalThis.fetch
@@ -479,6 +539,18 @@ describe("AiProviderClient", () => {
   });
 
   describe("AiHttpError.userMessage", () => {
+    it("returns a 'no API key' message for status-0 missing-key errors", () => {
+      const err = new AiHttpError(0, "OpenRouter API key is required");
+      expect(err.userMessage).toContain("No API key configured");
+      expect(err.userMessage).not.toContain("HTTP 0");
+    });
+
+    it("frames status-0 network errors as AI request failures", () => {
+      const err = new AiHttpError(0, "Failed to fetch");
+      expect(err.userMessage).toContain("AI request failed");
+      expect(err.userMessage).toContain("Failed to fetch");
+    });
+
     it("returns a friendly message for 401 auth errors", () => {
       const err = new AiHttpError(401, '{"error":{"message":"invalid api key"}}');
       expect(err.userMessage).toContain("Invalid API key");
