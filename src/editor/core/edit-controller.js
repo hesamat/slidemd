@@ -757,20 +757,10 @@ export class EditController {
     this.saveManager.updateButton();
 
     if (this.isEditMode && !this._suppressStoreChangeRestore) {
-      // _restoreStoreSnapshot is already being called directly by
-      // undo() / redo(); skip the queued restore to avoid re-parsing the
-      // deck and replacing it twice.
-      this._storeChangeQueue = (this._storeChangeQueue || Promise.resolve())
-        .catch(() => {})
-        .then(async () => {
-          try {
-            await this._restoreStoreSnapshot();
-            this.previewUpdater?.update();
-          } catch (error) {
-            console.error("Store-to-view sync failed:", error);
-            Notification.error("Failed to refresh the editor view.");
-          }
-        });
+      this._storeChangeQueue = this._chainStoreChangeRestore().catch((error) => {
+        console.error("Store-to-view sync failed:", error);
+        Notification.error("Failed to refresh the editor view.");
+      });
     }
   }
 
@@ -800,15 +790,12 @@ export class EditController {
       const undoResult = this._withSuppressedStoreChange(() => this.deckStore.undo());
       if (!undoResult) return false;
 
-      const result = await this._restoreStoreSnapshot();
-      this.previewUpdater?.update();
-      return result;
+      return await this._chainStoreChangeRestore();
     } catch (error) {
       // Roll the store back and then the view.
       this._withSuppressedStoreChange(() => this.deckStore.redo());
       try {
-        await this._restoreStoreSnapshot();
-        this.previewUpdater?.update();
+        await this._chainStoreChangeRestore();
       } catch (rollbackError) {
         console.error("Failed to restore view after undo rollback:", rollbackError);
       }
@@ -838,15 +825,12 @@ export class EditController {
       const redoResult = this._withSuppressedStoreChange(() => this.deckStore.redo());
       if (!redoResult) return false;
 
-      const result = await this._restoreStoreSnapshot();
-      this.previewUpdater?.update();
-      return result;
+      return await this._chainStoreChangeRestore();
     } catch (error) {
       // Roll the store back and then the view.
       this._withSuppressedStoreChange(() => this.deckStore.undo());
       try {
-        await this._restoreStoreSnapshot();
-        this.previewUpdater?.update();
+        await this._chainStoreChangeRestore();
       } catch (rollbackError) {
         console.error("Failed to restore view after redo rollback:", rollbackError);
       }
@@ -855,6 +839,24 @@ export class EditController {
     } finally {
       this._historyOperation = null;
     }
+  }
+
+  /**
+   * Chain an explicit store-to-view restore onto the store-change queue.
+   * This serializes the restore with any in-flight one so a stale restore
+   * from a previous operation cannot overwrite a newer store state.
+   * @returns {Promise<boolean>}
+   */
+  _chainStoreChangeRestore() {
+    const queue = (this._storeChangeQueue || Promise.resolve())
+      .catch(() => {})
+      .then(async () => {
+        await this._restoreStoreSnapshot();
+        this.previewUpdater?.update();
+        return true;
+      });
+    this._storeChangeQueue = queue;
+    return queue;
   }
 
   /**
@@ -867,11 +869,12 @@ export class EditController {
    * @returns {T}
    */
   _withSuppressedStoreChange(fn) {
+    const previous = this._suppressStoreChangeRestore;
     this._suppressStoreChangeRestore = true;
     try {
       return fn();
     } finally {
-      this._suppressStoreChangeRestore = false;
+      this._suppressStoreChangeRestore = previous;
     }
   }
 
@@ -992,24 +995,29 @@ export class EditController {
         // apply the patch. Keep the queued store-change restore suppressed for
         // the whole sequence so the explicit _restoreStoreSnapshot below is the
         // single view refresh.
-        const applied = this._withSuppressedStoreChange(() => {
+        const { applied, syncRan } = this._withSuppressedStoreChange(() => {
+          let syncRan = false;
           if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
             const synced = [...this.deckStore.getSlides()];
             synced[targetSlide] = patchToApply.before;
             this.deckStore.syncSlides(synced, targetSlide);
+            syncRan = true;
           }
-          return this.deckStore.applyPatch(patchToApply, baselineRevision);
+          return { applied: this.deckStore.applyPatch(patchToApply, baselineRevision), syncRan };
         });
         if (!applied || (typeof applied === "object" && !applied.success)) {
           const reason = typeof applied === "object" ? applied.reason : "the slide changed";
           this.saveManager.clearUnsavedEditorOverlay(targetSlide);
           // syncSlides may have fast-forwarded the store; re-project that
           // working state into the view since the queued restore is suppressed.
-          try {
-            await this._restoreStoreSnapshot();
-            this.previewUpdater?.update();
-          } catch (restoreError) {
-            console.error("Failed to refresh view after rejected AI patch:", restoreError);
+          // Avoid a no-op restore when syncSlides did not run.
+          if (syncRan) {
+            try {
+              await this._restoreStoreSnapshot();
+              this.previewUpdater?.update();
+            } catch (restoreError) {
+              console.error("Failed to refresh view after rejected AI patch:", restoreError);
+            }
           }
           Notification.warning(
             `AI ${intent} could not be applied — ${reason || "the slide changed since the request started."}`,

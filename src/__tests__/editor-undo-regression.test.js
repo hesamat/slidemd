@@ -147,6 +147,7 @@ describe("Editor undo regression suite", () => {
         _captureCurrentEditorMarkdown: () => {},
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _withSuppressedStoreChange: EditController.prototype._withSuppressedStoreChange,
+        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
         _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
         saveManager: {
@@ -358,6 +359,7 @@ describe("Editor undo regression suite", () => {
         _storeDiffersFromSource: () => false,
         unsavedMarkdown: new Map(),
         saveManager: { updateButton: vi.fn() },
+        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
         _restoreStoreSnapshot: restore,
         previewUpdater: { update: vi.fn() },
       };
@@ -378,6 +380,7 @@ describe("Editor undo regression suite", () => {
         _storeDiffersFromSource: () => false,
         unsavedMarkdown: new Map(),
         saveManager: { updateButton: vi.fn() },
+        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
         _restoreStoreSnapshot: restore,
         previewUpdater: { update: vi.fn() },
       };
