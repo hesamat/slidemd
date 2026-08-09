@@ -158,67 +158,6 @@ export function describeBackground(css) {
 }
 
 /**
- * Make an area span all rows by rewriting the layout to a custom grid.
- * The target area is placed in the last column of every row, keeping
- * header/footer in column 1 only.
- *
- * @param {string} markdown  — slide markdown source
- * @param {string} areaName  — area to make full-height (e.g. "media")
- * @returns {string} updated markdown with custom layout grid
- */
-export function makeAreaFullHeight(markdown, areaName) {
-  const name = String(areaName || "")
-    .trim()
-    .toLowerCase();
-  if (!name) return markdown;
-
-  const parser = new MarkdownParser();
-  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
-  if (!layoutValue) return markdown;
-
-  const resolved = LayoutParser.resolvePreset(layoutValue);
-  const layout = LayoutParser.parse(resolved);
-
-  // Parse grid-template-areas into rows of cell names
-  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
-  if (rowMatches.length === 0) return markdown;
-
-  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
-
-  // Find which column the target area occupies (from the content row)
-  const contentRow = rows.find((row) => row.includes(name));
-  if (!contentRow) return markdown;
-  const colIdx = contentRow.indexOf(name);
-
-  // Rebuild every row: put the target in colIdx, others shifted left
-  const newRows = rows.map((row) => {
-    if (row.includes(name)) return row;
-    const otherCells = row.filter((c) => c !== name);
-    const result = [];
-    for (let i = 0; i < row.length; i++) {
-      if (i === colIdx) {
-        result.push(name);
-      } else {
-        const cellIdx = i < colIdx ? i : i - 1;
-        result.push(otherCells[cellIdx] || ".");
-      }
-    }
-    return result;
-  });
-
-  const parts = [];
-  for (let i = 0; i < newRows.length; i++) {
-    parts.push(`"${newRows[i].join(" ")}"`);
-    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
-      parts.push(layout.rowSizes[i]);
-    }
-  }
-  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
-
-  return updateLayoutDirective(stripped, newLayout);
-}
-
-/**
  * Split a CSS grid track list into individual track tokens without
  * breaking on spaces inside functional notations (minmax, repeat, etc.).
  */

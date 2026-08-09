@@ -10,14 +10,12 @@ export class AreaContextMenu {
    * @param {object} opts
    * @param {(areaName: string) => void} opts.onDeleteArea
    * @param {(areaName: string) => void} opts.onSwapArea
-   * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string, align: string) => void} opts.onAlignMain
    * @param {(areaName: string, color: string) => void} opts.onSetBackground
    */
-  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain, onSetBackground }) {
+  constructor({ onDeleteArea, onSwapArea, onAlignMain, onSetBackground }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
-    this._onMakeFullHeight = onMakeFullHeight;
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
     this._menuEl = null;
@@ -49,7 +47,6 @@ export class AreaContextMenu {
    * @param {object} [opts]
    * @param {boolean} [opts.canDelete=true]
    * @param {boolean} [opts.canSwap=false]  — show swap option
-   * @param {boolean} [opts.canMakeFullHeight=false]  — show full-height option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
    * @param {boolean} [opts.canSetBackground=false]  — show background color picker
    * @param {string} [opts.currentColor]  — seed value for the colour picker (#rrggbb)
@@ -61,11 +58,10 @@ export class AreaContextMenu {
     this.close();
     const canDelete = opts.canDelete !== false;
     const canSwap = opts.canSwap === true;
-    const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
     const canSetBackground = opts.canSetBackground === true;
     const activeAlign = opts.activeAlign;
-    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain && !canSetBackground) return;
+    if (!canDelete && !canSwap && !canAlignMain && !canSetBackground) return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -111,20 +107,6 @@ export class AreaContextMenu {
         e.stopPropagation();
         this.close();
         this._onSwapArea?.(areaName);
-      });
-      menu.appendChild(btn);
-    }
-
-    if (canMakeFullHeight) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "area-context-menu__item";
-      btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Make full height</span>`;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.close();
-        this._onMakeFullHeight?.(areaName);
       });
       menu.appendChild(btn);
     }
