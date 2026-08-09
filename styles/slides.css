@@ -810,14 +810,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 /* Media area is single-image: either a direct <img>, an <img> following the
    editor label button, or a lone <p> wrapping the image (hand-written
    markdown), with or without the label button. */
-.slide[data-layout="media-span-right"]
+.slide[data-media-span="right"]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
     > p:only-child > img:only-child,
     > button.editor-area-label + p:last-child > img:only-child
   ),
-.slide[data-layout="media-span"]
+.slide[data-media-span="right"]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
@@ -834,7 +834,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     calc(-1 * var(--slide-pad-bottom)) 0;
 }
 
-.slide[data-layout="media-span-left"]
+.slide[data-media-span="left"]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
@@ -850,7 +850,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* The image fills the area edge to edge; it is removed from the flex column
    so the editor's @media label button does not push it down. */
-.slide[data-layout^="media-span"]
+.slide[data-media-span]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
@@ -862,10 +862,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   z-index: 2;
 }
 
-.slide[data-layout^="media-span"] .slide__area--media:has(> img:only-child) > img,
-.slide[data-layout^="media-span"]
-  .slide__area--media:has(> button.editor-area-label + img:last-child)
-  > img {
+.slide[data-media-span] .slide__area--media:has(> img:only-child) > img,
+.slide[data-media-span] .slide__area--media:has(> button.editor-area-label + img:last-child) > img {
   /* Fill the media column: absolute insets plus forced width/height. The
      imported inline style ("height: auto") must stay layout-agnostic so the
      image renders naturally if the layout changes, hence !important. */
@@ -878,8 +876,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   display: block;
 }
 
-.slide[data-layout^="media-span"] .slide__area--media:has(> p:only-child > img:only-child) > p,
-.slide[data-layout^="media-span"]
+.slide[data-media-span] .slide__area--media:has(> p:only-child > img:only-child) > p,
+.slide[data-media-span]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p {
   position: absolute;
@@ -887,11 +885,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-.slide[data-layout^="media-span"]
-  .slide__area--media:has(> p:only-child > img:only-child)
-  > p
-  > img,
-.slide[data-layout^="media-span"]
+.slide[data-media-span] .slide__area--media:has(> p:only-child > img:only-child) > p > img,
+.slide[data-media-span]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p
   > img {

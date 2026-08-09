@@ -188,6 +188,17 @@ export class SlideRenderer {
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
 
+    // Media-span detection: when "media" occupies every row the media column
+    // spans the full slide height. This holds for the media-span presets and
+    // for custom grid specs (e.g. after the editor resizes the column, which
+    // makes data-layout "custom") — the full-bleed styling keys off this
+    // geometry attribute instead of the layout name.
+    const areaRowMatches = (layout.gridTemplateAreas || "").match(/"[^"]*"|'[^']*'/g) || [];
+    if (areaRowMatches.length > 1 && areaRowMatches.every((row) => row.includes("media"))) {
+      const firstRow = areaRowMatches[0].slice(1, -1).split(/\s+/);
+      wrapper.setAttribute("data-media-span", firstRow.indexOf("media") === 0 ? "left" : "right");
+    }
+
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
     let layoutStyleKey = layoutKey;
