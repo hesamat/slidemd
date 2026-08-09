@@ -346,6 +346,58 @@ describe("convertToSlideMd", () => {
     expect(secondImageIndex).toBeGreaterThan(mediaIndex);
   });
 
+  it("splits image-only slides with images on both halves between @media and @main", () => {
+    // Three dominant images (one left, two right): the media-span variant
+    // follows the media-only column (left), the left image goes to @media,
+    // and the remaining images render in @main — no empty areas.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Gallery",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "left.png",
+            base64: "abc",
+            left: 762000,
+            top: 1000000,
+            width: 3000000,
+            height: 3000000,
+          },
+          {
+            type: "image",
+            ref: "right1.png",
+            base64: "def",
+            left: 5200000,
+            top: 1000000,
+            width: 3000000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "right2.png",
+            base64: "ghi",
+            left: 5200000,
+            top: 3200000,
+            width: 3000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-left");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(md.indexOf("left.png")).toBeGreaterThan(mediaIdx);
+    expect(md.indexOf("right1.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("right2.png")).toBeGreaterThan(mainIdx);
+  });
+
   it("keeps image-only slides in single-column layout", () => {
     const extraction = makeExtraction([
       {
@@ -1476,6 +1528,55 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@main");
     expect(md).toContain("Element A text");
     expect(md).toContain("Element B text");
+  });
+
+  it("keeps fenced code blocks intact when an overflowing body is split", () => {
+    // mid lands inside the fenced block; a blank line inside the fence must
+    // not override the fence-adjusted split point (which would leave an
+    // unterminated ``` in @main and a stray one in @media).
+    const body = Array.from(
+      { length: 16 },
+      (_, i) => `Body line number ${i + 1} of the slide`,
+    ).join("\n");
+    const fence = ["```", "first = 1", "second = 2", "", "third = 3", "```"].join("\n");
+    const tail = Array.from(
+      { length: 12 },
+      (_, i) => `Tail line number ${i + 1} of the slide`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Fence",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: [body, fence, tail].join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainSection = md.slice(md.indexOf("@main"), md.indexOf("@media"));
+    const mediaSection = md.slice(md.indexOf("@media"));
+    // Every fence line must be balanced within its section.
+    expect((mainSection.match(/^```/gm) || []).length % 2).toBe(0);
+    expect((mediaSection.match(/^```/gm) || []).length % 2).toBe(0);
+    expect(mediaSection).toContain("Tail line number 12");
   });
 
   it("patches the layout directive when the pre-check downgrades two-column", () => {

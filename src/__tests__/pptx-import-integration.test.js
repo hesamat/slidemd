@@ -152,11 +152,14 @@ describe("slide title derivation from HTML-heavy slides", () => {
     ].join("\n");
     const deck = parser.parseDeckMarkdown(md);
     const title = deck.slides[0].title;
-    expect(title).toContain("OPERATOR");
+    // Cell contents keep word boundaries: "OPERATOR NAME ACTION", not
+    // "OPERATORNAMEACTION".
+    expect(title).toContain("OPERATOR NAME ACTION");
     expect(title).toContain("&"); // entities decoded, not &amp;
     expect(title).not.toContain("<div");
     expect(title).not.toContain("&lt;");
     expect(title).not.toContain("&amp;");
+    expect(title).not.toContain("OPERATORNAME");
     expect(title.length).toBeLessThanOrEqual(81);
   });
 
@@ -274,5 +277,18 @@ describe("slide title derivation from HTML-heavy slides", () => {
       '<img src="images/revenue.png" alt="Revenue by region">',
     ].join("\n");
     expect(parser.parseDeckMarkdown(mdHtml).slides[0].title).toBe("Revenue by region");
+  });
+
+  it("prefers readable text over auto-generated alt text on mixed lines", () => {
+    // A flex-row line with an image plus text must title from the text, not
+    // from the generic "Slide image 1" alt.
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '<div style="flex: 1; min-width: 0;">Revenue growth <img src="images/chart.png" alt="Slide image 1"></div>',
+    ].join("\n");
+    expect(parser.parseDeckMarkdown(md).slides[0].title).toBe("Revenue growth");
   });
 });

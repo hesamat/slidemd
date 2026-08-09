@@ -547,6 +547,7 @@ function convertSlide(
         // Scan outward from mid to find the nearest blank line or fence boundary.
         let splitAt = mid;
         let inFence = false;
+        let fenceAdjusted = false;
         for (let i = 0; i < lines.length; i++) {
           if (/^\s*```/.test(lines[i].trim())) inFence = !inFence;
         }
@@ -560,16 +561,21 @@ function convertSlide(
           for (let i = mid; i < lines.length; i++) {
             if (/^\s*```/.test(lines[i].trim())) {
               splitAt = i + 1;
+              fenceAdjusted = true;
               break;
             }
           }
         }
-        // Also prefer splitting at blank lines for cleaner output
-        const searchRange = Math.min(lines.length, mid + 5);
-        for (let i = mid; i < searchRange; i++) {
-          if (lines[i].trim() === "") {
-            splitAt = i + 1;
-            break;
+        // Also prefer splitting at blank lines for cleaner output — but never
+        // override a fence-adjusted split: a blank line inside the fence
+        // would leave an unterminated ``` in @main.
+        if (!fenceAdjusted) {
+          const searchRange = Math.min(lines.length, mid + 5);
+          for (let i = mid; i < searchRange; i++) {
+            if (lines[i].trim() === "") {
+              splitAt = i + 1;
+              break;
+            }
           }
         }
 

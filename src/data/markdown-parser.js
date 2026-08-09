@@ -149,13 +149,18 @@ export class MarkdownParser {
    */
   _deriveFallbackTitle(raw) {
     for (const line of safeString(raw).split("\n")) {
-      // An area that opens with an image (markdown or HTML) titles from the
-      // image's alt text — otherwise markup-only areas would fall through to
-      // the generic "Slide N" name.
-      const mdAlt = line.trim().match(/^!\[([^\]]*)\]\(/);
-      if (mdAlt && mdAlt[1].trim()) return mdAlt[1].trim().slice(0, 80);
-      const htmlAlt = line.match(/<img[^>]*\salt=["']([^"']*)["']/i);
-      if (htmlAlt && htmlAlt[1].trim()) return htmlAlt[1].trim().slice(0, 80);
+      // An area that opens with an image titles from the image's alt text —
+      // but only when the line is entirely that image (markdown or HTML).
+      // A line that also carries readable text (e.g. a flex-row with an
+      // image plus a caption) must title from that text, not from the
+      // auto-generated "Slide image N" alt.
+      const mdImg = line.trim().match(/^!\[([^\]]*)\]\([^)]*\)\s*$/);
+      if (mdImg && mdImg[1].trim()) return mdImg[1].trim().slice(0, 80);
+      const htmlImg = line.match(/^\s*<img\b[^>]*>\s*$/i);
+      if (htmlImg) {
+        const htmlAlt = line.match(/<img[^>]*\salt=["']([^"']*)["']/i);
+        if (htmlAlt && htmlAlt[1].trim()) return htmlAlt[1].trim().slice(0, 80);
+      }
       const text = this._htmlToPlainText(line);
       if (text) {
         return text.length > 80 ? text.slice(0, 80).trim() + "…" : text;
@@ -184,19 +189,26 @@ export class MarkdownParser {
       .replace(/&nbsp;/g, " ");
     // Comments may be unterminated in user content — strip to end of line.
     s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, " ");
-    // Remove complete tag pairs (innermost first), keeping the inner text.
-    // Inner content that itself contains "<" (e.g. "<<" operator cells) is
-    // handled by a tolerant second pass — by then every inner pair is gone,
-    // so a non-greedy match lands on the correct closing tag.
+    // Void elements (no closing tag) are removed anywhere — an <img> inside a
+    // flex-row line must not survive into the derived title.
+    s = s.replace(
+      /<(img|br|hr|input|meta|link|wbr|source|embed|area|base|col|param|track)\b[^>]*>/gi,
+      " ",
+    );
+    // Remove complete tag pairs (innermost first), keeping the inner text
+    // and surrounding it with spaces so adjacent cell content keeps word
+    // boundaries. Inner content that itself contains "<" (e.g. "<<" operator
+    // cells) is handled by a tolerant second pass — by then every inner pair
+    // is gone, so a non-greedy match lands on the correct closing tag.
     let prev = null;
     while (prev !== s) {
       prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([^<]*)<\/\1>/g, "$2");
+      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([^<]*)<\/\1>/g, " $2 ");
     }
     prev = null;
     while (prev !== s) {
       prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([\s\S]*?)<\/\1>/g, "$2");
+      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([\s\S]*?)<\/\1>/g, " $2 ");
     }
     // Stray tags left after pair removal are either wrapper openers (a
     // flex-row <div> whose close lives on another line) or prose mentions.
