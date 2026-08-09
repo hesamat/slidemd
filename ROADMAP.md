@@ -734,7 +734,6 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
 | [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
 
 ### Stepped Content & Motion
