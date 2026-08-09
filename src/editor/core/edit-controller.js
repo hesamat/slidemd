@@ -469,6 +469,7 @@ export class EditController {
       getMarkdownEditor: () => this.markdownEditor,
       getCurrentSlideIndex: () => this.currentSlideIndex,
       getSlideElementByIndex: (i) => this.getSlideElementByIndex(i),
+      onPreviewReady: (callback) => this.previewUpdater.onReadyOnce(callback),
     });
 
     this._initImagePropertiesPanel();

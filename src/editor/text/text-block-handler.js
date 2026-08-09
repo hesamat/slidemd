@@ -78,6 +78,7 @@ export class TextBlockHandler {
   static _idCounter = 0;
   static _panel = null;
   static _abortController = null;
+  static _onPreviewReady = null;
 
   /**
    * @param {object} opts
@@ -87,6 +88,8 @@ export class TextBlockHandler {
    * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(index: number) => HTMLElement|null} opts.getSlideElementByIndex
+   * @param {(callback: (slideEl: HTMLElement) => void) => void} [opts.onPreviewReady]
+   *   Register a one-shot callback to run after the next preview re-render.
    */
   static init({
     getMarkdown,
@@ -95,6 +98,7 @@ export class TextBlockHandler {
     getMarkdownEditor,
     getCurrentSlideIndex,
     getSlideElementByIndex,
+    onPreviewReady,
   }) {
     if (this._initialized) return;
     this._initialized = true;
@@ -104,6 +108,7 @@ export class TextBlockHandler {
     this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._getSlideElementByIndex = getSlideElementByIndex;
+    this._onPreviewReady = onPreviewReady || null;
 
     document.addEventListener("mousedown", (e) => {
       if (!this._selected) return;
@@ -152,6 +157,14 @@ export class TextBlockHandler {
     };
     const directive = buildTextBlockDirective(settings, "Text");
     this._insertHtmlSnippet(directive, settings.float);
+
+    // Auto-open the properties panel once the preview re-renders the new block.
+    this._onPreviewReady?.((slideEl) => {
+      const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
+      if (!block || this.isMultiColumn(block)) return;
+      this.select(block);
+      this._showPanel();
+    });
   }
 
   static _nextId() {
