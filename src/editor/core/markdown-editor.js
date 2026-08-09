@@ -594,6 +594,10 @@ export class MarkdownEditor {
     this.view = null;
     this.editorRoot = null;
     this.backdrop = null;
+    // Release cached EditorState objects so teardown is explicit and nothing
+    // holding a reference to the editor retains large undo stacks / documents.
+    this._slideStateCache.clear();
+    this._cacheCleared = false;
   }
 
   /**

@@ -755,7 +755,10 @@ export class EditController {
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
-    if (this.isEditMode) {
+    if (this.isEditMode && !this._historyOperation) {
+      // _restoreStoreSnapshot is already being called directly by
+      // undo() / redo(); skip the queued restore to avoid re-parsing the
+      // deck and replacing it twice.
       this._storeChangeQueue = (this._storeChangeQueue || Promise.resolve())
         .catch(() => {})
         .then(async () => {
@@ -791,12 +794,23 @@ export class EditController {
       this.markdownEditor.undo?.();
       return true;
     }
-    if (this._historyOperation || !this.deckStore.undo()) return false;
+    // Mark the history operation before mutating the store so the
+    // synchronous storeChange listener can skip its queued restore; this
+    // undo() will call _restoreStoreSnapshot explicitly below.
     this._historyOperation = "undo";
     try {
+      if (!this.deckStore.undo()) return false;
       return await this._restoreStoreSnapshot();
     } catch (error) {
       this.deckStore.redo();
+      // Roll the view back to the pre-undo state. _historyOperation is still
+      // set, so the storeChange listener for this redo will not queue its own
+      // restore; this explicit call is the single restore.
+      try {
+        await this._restoreStoreSnapshot();
+      } catch (rollbackError) {
+        console.error("Failed to restore view after undo rollback:", rollbackError);
+      }
       Notification.error(`Undo failed: ${error.message || error}`);
       return false;
     } finally {
@@ -818,12 +832,23 @@ export class EditController {
       this.markdownEditor.redo?.();
       return true;
     }
-    if (!this.deckStore.redo()) return false;
+    // Mark the history operation before mutating the store so the
+    // synchronous storeChange listener can skip its queued restore; this
+    // redo() will call _restoreStoreSnapshot explicitly below.
     this._historyOperation = "redo";
     try {
+      if (!this.deckStore.redo()) return false;
       return await this._restoreStoreSnapshot();
     } catch (error) {
       this.deckStore.undo();
+      // Roll the view back to the pre-redo state. _historyOperation is still
+      // set, so the storeChange listener for this undo will not queue its own
+      // restore; this explicit call is the single restore.
+      try {
+        await this._restoreStoreSnapshot();
+      } catch (rollbackError) {
+        console.error("Failed to restore view after redo rollback:", rollbackError);
+      }
       Notification.error(`Redo failed: ${error.message || error}`);
       return false;
     } finally {
@@ -1115,7 +1140,14 @@ export class EditController {
     // _lastEditorSlideIndex before the upcoming state swap. Otherwise the
     // keystrokes are dropped when loadSlideState / setValue cancels the
     // debounce timer.
-    if (this._lastEditorSlideIndex !== this.currentSlideIndex && this._lastEditorSlideIndex >= 0) {
+    // Only flush when the underlying deck is unchanged; if the deck was
+    // rebuilt (undo, redo, whole-deck AI), the buffer belongs to the old
+    // deck and must not be written into the new slide at the same index.
+    if (
+      this._lastEditorSlideIndex !== this.currentSlideIndex &&
+      this._lastEditorSlideIndex >= 0 &&
+      this.deck === this._lastEditorDeck
+    ) {
       this._captureEditorMarkdown(this._lastEditorSlideIndex);
     }
     this.markdownEditor?.cancelOnChange?.();

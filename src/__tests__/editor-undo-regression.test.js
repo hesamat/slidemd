@@ -279,5 +279,111 @@ describe("Editor undo regression suite", () => {
       expect(loadSlideState).not.toHaveBeenCalled();
       expect(saveSlideState).not.toHaveBeenCalled();
     });
+
+    it("does not flush stale buffer to the wrong slide when the deck has changed", () => {
+      const oldDeck = { id: 1 };
+      const newDeck = { id: 2 };
+      const capture = vi.fn();
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 0,
+        deck: newDeck,
+        _lastEditorSlideIndex: 1,
+        _lastEditorDeck: oldDeck,
+        deckStore: { getSlides: () => ["# A", "# B"] },
+        unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: capture,
+        markdownEditor: {
+          getValue: vi.fn(() => "## New Slide"),
+          setValue: vi.fn(),
+          saveSlideState: vi.fn(),
+          loadSlideState: vi.fn(),
+          cancelOnChange: vi.fn(),
+          hasClearedCache: vi.fn(() => true),
+        },
+        saveManager: { updateButton: vi.fn() },
+        areaGuides: { refresh: vi.fn() },
+      };
+
+      EditController.prototype.loadSlideIntoEditor.call(fake);
+
+      // The old buffer belongs to the previous deck; do not write it into
+      // slide 1 of the restored deck.
+      expect(capture).not.toHaveBeenCalled();
+      expect(fake._lastEditorSlideIndex).toBe(0);
+      expect(fake._lastEditorDeck).toBe(newDeck);
+    });
+
+    it("flushes pending editor buffer when navigating within the same deck", () => {
+      const deck = { id: 1 };
+      const capture = vi.fn();
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 1,
+        deck,
+        _lastEditorSlideIndex: 0,
+        _lastEditorDeck: deck,
+        deckStore: { getSlides: () => ["# A", "# B"] },
+        unsavedMarkdown: new Map(),
+        _captureEditorMarkdown: capture,
+        markdownEditor: {
+          getValue: vi.fn(() => "## B edited"),
+          setValue: vi.fn(),
+          saveSlideState: vi.fn(),
+          loadSlideState: vi.fn(),
+          cancelOnChange: vi.fn(),
+          hasClearedCache: vi.fn(() => false),
+        },
+        saveManager: { updateButton: vi.fn() },
+        areaGuides: { refresh: vi.fn() },
+      };
+
+      EditController.prototype.loadSlideIntoEditor.call(fake);
+
+      // Same deck: the buffer for the previous slide should still be captured.
+      expect(capture).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe("_handleStoreChange during undo/redo", () => {
+    it("skips the queued _restoreStoreSnapshot when a history operation is in progress", async () => {
+      const restore = vi.fn(() => Promise.resolve(true));
+      const fake = {
+        _destroyed: false,
+        _historyOperation: "undo",
+        isEditMode: true,
+        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
+        _storeDiffersFromSource: () => false,
+        unsavedMarkdown: new Map(),
+        saveManager: { updateButton: vi.fn() },
+        _restoreStoreSnapshot: restore,
+        previewUpdater: { update: vi.fn() },
+      };
+
+      EditController.prototype._handleStoreChange.call(fake, ["# A"]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(restore).not.toHaveBeenCalled();
+    });
+
+    it("queues _restoreStoreSnapshot when no history operation is in progress", async () => {
+      const restore = vi.fn(() => Promise.resolve(true));
+      const fake = {
+        _destroyed: false,
+        _historyOperation: null,
+        isEditMode: true,
+        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
+        _storeDiffersFromSource: () => false,
+        unsavedMarkdown: new Map(),
+        saveManager: { updateButton: vi.fn() },
+        _restoreStoreSnapshot: restore,
+        previewUpdater: { update: vi.fn() },
+      };
+
+      EditController.prototype._handleStoreChange.call(fake, ["# A"]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(restore).toHaveBeenCalled();
+    });
   });
 });

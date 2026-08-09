@@ -566,7 +566,7 @@ Goal: Pay down structural debt and close test gaps before building new features 
 | Task                                 | Details                                                                                                                                                       |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Add Playwright E2E test harness  | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. |
-| [ ] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline. Prerequisite for the backlog `officeparser` switch.                             |
+| [ ] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline and verify the output deck structure.                                            |
 
 ### Developer Experience
 
@@ -735,10 +735,6 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Switch PPTX/ODP parser to `officeparser`     | Replace `pptxtojson` with `officeparser` for PPTX and ODP AST  |
-| [ ] Add `.odp` file type to import               | Update conversion modal to accept `.odp` uploads               |
-| [ ] Normalize `officeparser` AST                 | Adapt `PptxExtractor` to consume `officeparser` output         |
-| [ ] Preserve image extraction                    | Keep embedded image extraction for ODP like PPTX               |
 | [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
 | [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
 
