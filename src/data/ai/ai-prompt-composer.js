@@ -96,8 +96,8 @@ export class AiPromptComposer {
     }
     // Substitute `{{markdown}}` LAST so the inserted deck content is never
     // re-scanned by the other substitution passes: a deck containing the
-    // literal text `{{layoutList}}` or `{{outputFormat}}` must pass through
-    // untouched instead of being replaced inside the user's own content.
+    // literal text `{{layoutList}}` must pass through untouched instead of
+    // being replaced inside the user's own content.
     const entries = Object.entries(substitutions);
     const ordered = entries.sort((a, b) => {
       if (a[0] === "markdown") return 1;

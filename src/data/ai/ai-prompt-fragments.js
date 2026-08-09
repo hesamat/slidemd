@@ -1,15 +1,13 @@
 /**
  * AI Prompt Fragments
  *
- * Single source of truth for prompt fragment imports, the prompt manifest,
- * layout-list generation, and message composition. All modules that compose
- * prompts import from here instead of importing `?raw` fragments directly.
+ * Single source of truth for prompt fragment imports, layout-list
+ * generation, and message composition. All modules that compose prompts
+ * import from here instead of importing `?raw` fragments directly.
  */
 
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
-import { OUTPUT_FORMAT_EXAMPLE } from "./ai-output-format.js";
 import { LayoutData } from "../layout-data.js";
-import manifest from "../prompts/manifest.json";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -44,16 +42,6 @@ export const FRAGMENTS = {
   "creative-guidance.md": creativeGuidance,
   "repair-message.md": repairMessage,
 };
-
-/** @typedef {import("../prompts/manifest.json")} PromptManifest */
-
-/**
- * The prompt manifest: the catalog of every fragment and its role/intent.
- * @returns {PromptManifest}
- */
-export function getManifest() {
-  return manifest;
-}
 
 /**
  * Get a raw fragment by filename, e.g. "system-prompt.md".
@@ -145,8 +133,8 @@ export function getAllowedLayoutList() {
 
 /**
  * Compose system + user messages from fragments, auto-filling the shared
- * `{{layoutList}}` and `{{outputFormat}}` substitutions when the fragments
- * reference them. Callers pass only their intent-specific substitutions.
+ * `{{layoutList}}` substitution when the fragments reference it. Callers
+ * pass only their intent-specific substitutions.
  * @param {string} systemFragment
  * @param {string} userFragment
  * @param {Object<string, string>} substitutions
@@ -156,6 +144,5 @@ export function composeMessages(systemFragment, userFragment, substitutions = {}
   const placeholders = collectPlaceholders(systemFragment, userFragment);
   const filled = { ...substitutions };
   if (placeholders.has("layoutList")) filled.layoutList ??= getAllowedLayoutList();
-  if (placeholders.has("outputFormat")) filled.outputFormat ??= OUTPUT_FORMAT_EXAMPLE;
   return new AiPromptComposer({ systemFragment, userFragment }).compose(filled);
 }

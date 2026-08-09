@@ -506,7 +506,7 @@ AI prompts live in `src/data/prompts/`:
 
 | File                                | Role     | Purpose                                                                            |
 | ----------------------------------- | -------- | ---------------------------------------------------------------------------------- |
-| `system-prompt.md`                  | `system` | Global rules, structure, formatting; `{{layoutList}}` and `{{outputFormat}}`       |
+| `system-prompt.md`                  | `system` | Global rules, structure, formatting; `{{layoutList}}`                              |
 | `polish-prompt.md`                  | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order |
 | `generate-prompt.md`                | `user`   | Creative reorganization task + `{{markdown}}` input                                |
 | `fix-prompt.md`                     | `user`   | Conservative cleanup task + `{{markdown}}` input                                   |
@@ -521,9 +521,8 @@ AI prompts live in `src/data/prompts/`:
 | `batch-pagination.md`               | snippet  | Batch pagination instructions variants for `buildBatchMessages`                    |
 | `creative-guidance.md`              | snippet  | Remix creative guidance for the `{{creativeGuidance}}` placeholder                 |
 | `repair-message.md`                 | snippet  | Repair message template for validation failures                                    |
-| `manifest.json`                     | —        | Catalog of every fragment, its role, and the intent that uses it                   |
 
-Snippet files contain `<!-- variant: name -->` sections; code selects a variant via `extractVariant` in `src/data/ai/ai-prompt-fragments.js`. The JSON output format example is generated from `src/data/ai/ai-output-format.js` and injected into the system prompt as `{{outputFormat}}`.
+Snippet files contain `<!-- variant: name -->` sections; code selects a variant via `extractVariant` in `src/data/ai/ai-prompt-fragments.js`. The `FRAGMENTS` map in that module is the single runtime catalog of every prompt file.
 
 ### Prompt Rules
 
@@ -538,12 +537,7 @@ Snippet files contain `<!-- variant: name -->` sections; code selects a variant 
 ### Modification Checklist
 
 1. Check all prompts for consistency.
-2. Run `npm test` — the AI hygiene tests (`ai-prompt-hygiene.test.js`) enforce:
-   - manifest ↔ fragment-file sync
-   - layout list sync with `src/data/layout-data.js`
-   - combined system + user prompt line budget (≤150)
-   - negative-directive budget (≤5 per fragment)
-   - no dangling `{{placeholders}}` in any composed intent
+2. Run `npm test` — the AI hygiene tests (`ai-prompt-hygiene.test.js`) check that composed prompts contain no dangling `{{placeholders}}` and that the layout list stays in sync with `src/data/layout-data.js`.
 3. Snapshot tests (`ai-prompt-snapshots.test.js`) pin the composed messages — update the snapshot deliberately when a prompt change is intended, and review the diff.
 4. Keep both layout lists in sync (`getAllowedLayoutList()` output and this doc's layout table).
 5. Reflect changes in `docs/prompt-template.md` and `docs/example/slides.md` when applicable.
@@ -558,25 +552,24 @@ The following sections are reference material for specific subsystems and known 
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under `src/data/ai/`:
 
-| Module                     | Purpose                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair     |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory               |
-| `ai-intent-registry.js`    | Maps intent names to prompt fragments                            |
-| `ai-prompt-fragments.js`   | Fragment imports, manifest, layout list, variant extraction      |
-| `ai-output-format.js`      | Canonical JSON output format example (`{{outputFormat}}`)        |
-| `ai-prompt-builder.js`     | Frontmatter stripping, deck summaries, message/batch building    |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown              |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                      |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                            |
-| `ai-output-validator.js`   | Validate AI output against schema                                |
-| `ai-output-schema.js`      | Per-intent schemas                                               |
-| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                    |
-| `ai-repair-message.js`     | Build repair messages for validation failures                    |
-| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization   |
-| `ai-provider-factory.js`   | Provider client factory                                          |
-| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation |
-| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB    |
+| Module                     | Purpose                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair       |
+| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                 |
+| `ai-intent-registry.js`    | Maps intent names to prompt fragments                              |
+| `ai-prompt-fragments.js`   | Fragment imports, layout list, variant extraction, composeMessages |
+| `ai-prompt-builder.js`     | Frontmatter stripping, deck summaries, message/batch building      |
+| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                |
+| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                        |
+| `ai-token-estimator.js`    | Token count and max_tokens estimation                              |
+| `ai-output-validator.js`   | Validate AI output against schema                                  |
+| `ai-output-schema.js`      | Per-intent schemas                                                 |
+| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                      |
+| `ai-repair-message.js`     | Build repair messages for validation failures                      |
+| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization     |
+| `ai-provider-factory.js`   | Provider client factory                                            |
+| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation   |
+| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB      |
 
 ---
 

@@ -3,7 +3,11 @@ You are a SlideMD editor. Improve the provided markdown and return the result as
 Output format:
 
 ```json
-{{outputFormat}}
+{
+  "slides": [
+    { "layout": "header-content", "content": "@header\n# Title\n\n@main\n- Point 1\n- Point 2" }
+  ]
+}
 ```
 
 Rules:

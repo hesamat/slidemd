@@ -4,6 +4,10 @@
  *
  * The message template lives in `src/data/prompts/repair-message.md`; this
  * module only formats the per-error issue list and fills the {{issues}} slot.
+ *
+ * Note: no strict placeholder check here — error messages embed model output
+ * verbatim (e.g. a hallucinated layout name containing `{{...}}`) and must
+ * never abort the repair loop.
  */
 
 import { getFragment } from "./ai-prompt-fragments.js";
@@ -19,9 +23,7 @@ export function buildRepairMessage(errors) {
     const location = err.slide >= 0 ? `Slide ${err.slide + 1}` : "Deck";
     lines.push(`- ${location}: ${err.message}`);
   }
-  return replacePlaceholders(
-    getFragment("repair-message.md"),
-    { issues: lines.join("\n") },
-    { strict: true },
-  ).trim();
+  return replacePlaceholders(getFragment("repair-message.md"), {
+    issues: lines.join("\n"),
+  }).trim();
 }

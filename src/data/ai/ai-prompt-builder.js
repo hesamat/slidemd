@@ -244,6 +244,8 @@ export function buildBatchMessages(
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
   // prompt fragment.
+  // TODO: resolve this through the polish intent in ai-intent-registry.js
+  // instead of a mode flag (batch path is the only remaining special case).
   const fragment =
     mode === "fix"
       ? getFragment("fix-prompt.md")

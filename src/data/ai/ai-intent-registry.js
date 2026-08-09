@@ -20,17 +20,30 @@ const INTENTS = {
   enhanceSlide: {
     system: "system-prompt.md",
     user: "fix-prompt.md",
+    singleSlide: true,
   },
   addSpeakerNotes: {
     system: "system-prompt.md",
     user: "add-speaker-notes-prompt.md",
+    singleSlide: true,
   },
-  // Whole-deck intent — strips layout/hidden/code-font-size (generate mode)
+  // Whole-deck intents — strip layout/hidden/code-font-size (generate mode)
   // so the AI can reorganize freely. Background and theme are kept so the AI
   // can see them.
   generate: {
     system: "system-prompt.md",
     user: "generate-prompt.md",
+    singleSlide: false,
+    transform: (ctx) => ({ markdown: stripFrontmatter(ctx.markdown, "generate") }),
+  },
+  polish: {
+    system: "system-prompt.md",
+    user: "polish-prompt.md",
+    singleSlide: false,
+    // polish-prompt.md combines PPTX-style cleanup with layout improvement
+    // while preserving slide count, order, and visual identity. Same
+    // frontmatter stripping as generate so the AI can fix layout choices
+    // (layout stripped) while seeing background/theme to preserve them.
     transform: (ctx) => ({ markdown: stripFrontmatter(ctx.markdown, "generate") }),
   },
 };
@@ -49,19 +62,14 @@ function composeForIntent(intent, ctx) {
 }
 
 /**
- * Build messages for the whole-deck polish flow.
- * Uses polish-prompt.md, which combines PPTX-style cleanup with layout
- * improvement while preserving slide count, order, and visual identity.
- * Generate-mode frontmatter stripping so the AI can fix layout choices
- * (layout stripped) while seeing background/theme to preserve them.
+ * Build messages for the whole-deck polish intent.
+ * Kept as a named export for backwards compatibility; it is the same path as
+ * buildMessagesForIntent("polish", ...).
  * @param {string} markdown
  * @returns {{ system: string, user: string }}
  */
 export function buildPolishMessages(markdown) {
-  const cleaned = stripFrontmatter(markdown, "generate");
-  return composeMessages(getFragment("system-prompt.md"), getFragment("polish-prompt.md"), {
-    markdown: cleaned,
-  });
+  return buildMessagesForIntent("polish", { markdown });
 }
 
 /**
@@ -85,12 +93,12 @@ export function buildMessagesForIntent(intent, ctx) {
 }
 
 /**
- * Check if an intent is a single-slide intent.
+ * Check if an intent operates on a single slide.
  * @param {string} intent
  * @returns {boolean}
  */
 export function isSingleSlideIntent(intent) {
-  return intent in INTENTS && intent !== "generate";
+  return INTENTS[intent]?.singleSlide === true;
 }
 
 /**
