@@ -12,6 +12,7 @@
 
 import interact from "interactjs";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
+import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import {
   buildTextBlockDirective,
   parseTextBlockDirectives,
@@ -168,14 +169,19 @@ export class TextBlockHandler {
     let retries = 0;
     const MAX_RETRIES = 3;
     const onReady = (slideEl) => {
+      // Bail if the user exited edit mode or navigated away.
+      if (!this._container) return;
       const currentSlide = this._getCurrentSlideIndex?.() ?? 0;
-      if (currentSlide !== insertionSlide || retries >= MAX_RETRIES) return;
+      if (currentSlide !== insertionSlide) return;
       const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
       if (!block || this.isMultiColumn(block)) {
+        if (retries >= MAX_RETRIES) return;
         retries += 1;
         this._onPreviewReady?.(onReady);
         return;
       }
+      // Deselect any selected image so only one element appears selected.
+      ImageInteractionHandler.deselect();
       this.select(block);
       block.classList.add("text-block--just-inserted");
       const removeHighlight = () => block.classList.remove("text-block--just-inserted");
