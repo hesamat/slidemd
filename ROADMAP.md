@@ -522,15 +522,15 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ### Editor Rewire
 
-| Task                             | Details                                                                                                                                                    |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [x] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.                                                             |
-| [x] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently.                                                  |
-| [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                                                               |
-| [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.                                                    |
-| [ ] Preserve editor undo history | Avoid full-document `setValue()` for background/area/style changes; only clear history on real slide/deck navigation.                                      |
-| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                                             |
-| [ ] Split `ai-orchestrator.js`   | Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. Data-layer counterpart to the EditController decomposition. |
+| Task                             | Details                                                                                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Rewire structural operations | `SlideOperations` reads/writes through `DeckStore` and does not proceed after patch rejection.                                                                                  |
+| [x] Rewire editor services       | `SaveManager` exposes the working-state overlay; `StyleApplier` and related services use it consistently.                                                                       |
+| [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                                                                                    |
+| [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.                                                                         |
+| [x] Preserve editor undo history | Per-slide `EditorState` cache in `MarkdownEditor`; clear on structural/deck changes; drop stale states on doc mismatch (history not preserved across external content changes). |
+| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                                                                  |
+| [ ] Split `ai-orchestrator.js`   | Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. Data-layer counterpart to the EditController decomposition.                      |
 
 ### Delivery Slices
 

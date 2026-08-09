@@ -101,6 +101,7 @@ export class KeyboardHandler {
    * @param {Function} actions.endBreak - Callback to end break mode
    * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
    * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
+   * @param {Function} actions.getMarkdownEditor - Callback to get the MarkdownEditor instance (used for pre-keystroke undo/redo depth checks)
    */
   constructor(actions) {
     this.actions = actions;
@@ -129,6 +130,25 @@ export class KeyboardHandler {
    */
   #isInCodeMirror(e) {
     return !!e.target?.closest?.(".cm-editor, .markdown-editor-codemirror");
+  }
+
+  /**
+   * Check if the event originated inside the CodeMirror editor content
+   * (not the search/replace panel inputs). Used specifically for the
+   * undo/redo fall-through, which should only fire when focus is in the
+   * editor content, not in panel inputs.
+   * @param {KeyboardEvent} e
+   * @returns {boolean}
+   */
+  #isInCodeMirrorContent(e) {
+    const target = e.target;
+    if (!target?.closest) return false;
+    // Exclude search/replace panel inputs (inside .cm-panels).
+    if (target.closest(".cm-panels")) return false;
+    // Match only the actual editable content surface, not the wrapper or
+    // gutters, so undo/redo in the editor content is distinguishable from
+    // focusable elements in panels or other parts of the editor chrome.
+    return !!target.closest(".cm-content");
   }
 
   /**
@@ -181,6 +201,7 @@ export class KeyboardHandler {
   handleKeyboard(e) {
     const isEditable = this.#isEditableTarget(e);
     const inCodeMirror = this.#isInCodeMirror(e);
+    const inCodeMirrorContent = this.#isInCodeMirrorContent(e);
     const isEditMode = !!this.actions.isEditMode?.();
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
@@ -203,11 +224,31 @@ export class KeyboardHandler {
     if (isEditMode && isEditorWindow && (inCodeMirror || !isEditable)) {
       const modifierAction = this.#findModifierAction(e, KeyboardHandler.#MODIFIER_ACTIONS);
       if (modifierAction && this.actions[modifierAction]) {
-        // Undo/Redo are handled by CodeMirror's own keymap when focus is
-        // inside the editor.  Only fire from the document handler when
-        // focus is outside the editor (e.g. on the slide preview).
-        if ((modifierAction === "undo" || modifierAction === "redo") && inCodeMirror) {
-          return;
+        // Undo/Redo: CodeMirror's keymap always calls preventDefault for
+        // Mod-z/Mod-y (even when the undo stack is empty), so
+        // e.defaultPrevented is unreliable. Instead, the editor samples
+        // undo/redo depth in a capture-phase listener before CodeMirror's
+        // keymap runs. If there was history to undo/redo, let CodeMirror
+        // handle it. If not, fall through to EditController.undo() so the
+        // user can undo structural operations from inside the editor.
+        // Only applies when focus is in the editor content (not the
+        // search/replace panel inputs, which get native undo).
+        if (modifierAction === "undo" || modifierAction === "redo") {
+          if (inCodeMirrorContent) {
+            const editor = this.actions.getMarkdownEditor?.();
+            if (editor) {
+              const hadHistory =
+                modifierAction === "undo"
+                  ? editor.hadUndoBeforeKeystroke()
+                  : editor.hadRedoBeforeKeystroke();
+              if (hadHistory) return; // Let CodeMirror handle it
+            }
+            // No editor history — fall through to store-level undo/redo.
+          } else if (inCodeMirror) {
+            // In a CodeMirror panel (search/replace) — let the browser
+            // do native undo in the input field.
+            return;
+          }
         }
         e.preventDefault();
         this.actions[modifierAction]();

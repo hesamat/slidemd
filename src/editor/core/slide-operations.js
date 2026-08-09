@@ -17,7 +17,6 @@ export class SlideOperations {
    * @param {() => object} opts.getElements
    * @param {() => object} opts.getController
    * @param {() => object} opts.getThumbnails
-   * @param {() => object|null} opts.getMarkdownEditor
    * @param {() => number} opts.getCurrentSlideIndex
    * @param {(v: number) => void} opts.setCurrentSlideIndex
    * @param {() => Map} opts.getUnsavedMarkdown
@@ -34,7 +33,6 @@ export class SlideOperations {
     getElements,
     getController,
     getThumbnails,
-    getMarkdownEditor,
     getCurrentSlideIndex,
     setCurrentSlideIndex,
     getUnsavedMarkdown,
@@ -50,7 +48,6 @@ export class SlideOperations {
     this._getElements = getElements;
     this._getController = getController;
     this._getThumbnails = getThumbnails;
-    this._getMarkdownEditor = getMarkdownEditor;
     this._getCurrentSlideIndex = getCurrentSlideIndex;
     this._setCurrentSlideIndex = setCurrentSlideIndex;
     this._getUnsavedMarkdown = getUnsavedMarkdown;
@@ -119,9 +116,6 @@ export class SlideOperations {
   }
   get thumbnails() {
     return this._getThumbnails();
-  }
-  get markdownEditor() {
-    return this._getMarkdownEditor();
   }
   get currentSlideIndex() {
     return this._getCurrentSlideIndex();
