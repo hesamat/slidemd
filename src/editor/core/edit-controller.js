@@ -1013,8 +1013,7 @@ export class EditController {
           // Avoid a no-op restore when syncSlides did not run.
           if (syncRan) {
             try {
-              await this._restoreStoreSnapshot();
-              this.previewUpdater?.update();
+              await this._chainStoreChangeRestore();
             } catch (restoreError) {
               console.error("Failed to refresh view after rejected AI patch:", restoreError);
             }
@@ -1038,19 +1037,24 @@ export class EditController {
         const preservedEdits = new Map(this.unsavedMarkdown);
         preservedEdits.delete(targetSlide);
 
-        await this._restoreStoreSnapshot();
-        for (const [index, markdown] of preservedEdits) {
-          this.unsavedMarkdown.set(index, markdown);
-        }
-        this.updateUnsavedChangesFlag();
-        // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size; when
-        // the user had no other pending edits that drops to 0 and clears the
-        // dirty flag. The AI-applied store state has not been written to the
-        // file, so the deck is still unsaved and the reload guard must prompt.
-        this.hasUnsavedChanges = true;
-        this.saveManager.updateButton();
-        this.loadSlideIntoEditor();
-        this.previewUpdater?.update();
+        // Chain the restore onto _storeChangeQueue so it serializes with any
+        // in-flight restore. The preserved-edits restoration and post-restore
+        // UI updates run in the .then() continuation after the queued restore
+        // completes, so they see the post-restore store state.
+        await this._chainStoreChangeRestore().then(() => {
+          for (const [index, markdown] of preservedEdits) {
+            this.unsavedMarkdown.set(index, markdown);
+          }
+          this.updateUnsavedChangesFlag();
+          // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size;
+          // when the user had no other pending edits that drops to 0 and
+          // clears the dirty flag. The AI-applied store state has not been
+          // written to the file, so the deck is still unsaved and the reload
+          // guard must prompt.
+          this.hasUnsavedChanges = true;
+          this.saveManager.updateButton();
+          this.loadSlideIntoEditor();
+        });
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {

@@ -53,18 +53,32 @@ jobs:
             fi
             if [[ "$updated" < "$CUTOFF" ]]; then
               # Archive branches with unique commits before deletion.
-              ahead_by=$(gh api "repos/${{ github.repository }}/compare/main...$branch_encoded" -q '.ahead_by' || echo 0)
+              # Fail closed: if we cannot determine whether the branch has
+              # unique commits, skip it rather than risk deleting
+              # unmerged work with no archive tag.
+              ahead_by=$(gh api "repos/${{ github.repository }}/compare/main...$branch_encoded" -q '.ahead_by' || echo "")
+              if [[ -z "$ahead_by" ]]; then
+                echo "Could not determine ahead_by for $branch; skipping"
+                continue
+              fi
               if [[ "$ahead_by" -gt 0 ]]; then
                 sha=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.sha' || echo "")
                 if [[ -n "$sha" ]]; then
                   tag="archive/$(date -u +%Y-%m-%d)/$branch"
                   echo "Archiving $branch as $tag"
-                  gh api -X POST "repos/${{ github.repository }}/git/refs" \
+                  # Fail closed: if the archive tag cannot be created, do
+                  # not delete the branch — the unique commits would be
+                  # lost forever.
+                  if ! gh api -X POST "repos/${{ github.repository }}/git/refs" \
                     -f "ref=refs/tags/$tag" \
                     -f "sha=$sha" \
-                    --silent || true
+                    --silent; then
+                    echo "Failed to create archive tag $tag for $branch; skipping deletion"
+                    continue
+                  fi
                 else
-                  echo "Could not determine sha for $branch; skipping archive tag"
+                  echo "Could not determine sha for $branch; skipping deletion"
+                  continue
                 fi
               fi
 
