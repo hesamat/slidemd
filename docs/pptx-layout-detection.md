@@ -40,12 +40,13 @@ How the PPTX importer decides which layout to use for each slide.
 
 After `inferLayout` returns, the renderer applies several corrections:
 
-### MEDIA_SPAN upgrade (lines ~320–349)
+### MEDIA_SPAN decision (in `inferLayout`)
 
-If `inferLayout` returned `TWO_COLUMN` but exactly one column contains a single
-dominant image and there is body text, upgrade to `MEDIA_SPAN` — regardless of
-which side the image is on (image-left layouts previously rendered the image in
-`@main` and the TEXT in `@media`).
+The side-agnostic `MEDIA_SPAN` decision lives entirely in `inferLayout`: when
+one column holds only images (with a dominant image) and the other holds body
+text, the layout is `MEDIA_SPAN` regardless of which side the image is on —
+image-left layouts previously rendered the image in `@main` and the TEXT in
+`@media`.
 
 ### Two-column pre-check (lines ~364–382)
 

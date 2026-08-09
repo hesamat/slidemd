@@ -318,6 +318,16 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
   it("keeps divider lines typed in slides", () => {
     expect(PptxExtractor.htmlToMarkdown("<p>---</p>")).toContain("---");
     expect(PptxExtractor.htmlToMarkdown("<p>***</p>")).toContain("***");
+    // Spaced three-marker dividers survive too (mergeAdjacentMarkers would
+    // otherwise mangle "* * *" into a marker-only residue)
+    expect(PptxExtractor.htmlToMarkdown("<p>- - -</p>")).toContain("- - -");
+    expect(PptxExtractor.htmlToMarkdown("<p>* * *</p>")).toContain("* * *");
+  });
+
+  it("drops two-marker dash runs as residue", () => {
+    // "--" is a double-hyphen artifact, not a divider — it must not become a
+    // horizontal rule, and it must not leak a dangling "- ".
+    expect(PptxExtractor.htmlToMarkdown("<p>--</p>")).toBe("");
   });
 
   it("drops a lone bullet marker (empty text box residue)", () => {
@@ -330,6 +340,14 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
       '<p>Use <span style="font-family: Courier New;">x  =  1</span> here</p>',
     );
     expect(result).toContain("Use `x  =  1` here");
+  });
+
+  it("collapses whitespace between two inline-code spans", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p>Use <span style="font-family: Courier New;">a</span>    <span style="font-family: Courier New;">b</span> here</p>',
+    );
+    expect(result).toContain("`a` `b`");
+    expect(result).not.toContain("`a`    `b`");
   });
 
   it("drops a marker-only CSS-bullet item without a dangling dash", () => {

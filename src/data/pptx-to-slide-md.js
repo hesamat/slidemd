@@ -23,7 +23,6 @@ import {
   filterMeaningfulElements,
   findDominantImages,
   inferLayout,
-  partitionByAreaOverlap,
 } from "./pptx-layout-inference.js";
 import {
   LAYOUT,
@@ -52,8 +51,9 @@ function setLayoutDirective(parts, layout) {
  * Estimate whether the body content of a slide overflows the vertical space
  * available to a single column. Line heights and the available area are
  * constants calibrated to the fixed 1920x1080 render geometry, so the result
- * does not depend on the source deck's page size. Long lines are assumed to
- * wrap.
+ * does not depend on the source deck's page size. Long lines (body and
+ * headings) are assumed to wrap. Only text elements are measured — tables,
+ * charts, diagrams, and images size themselves.
  * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyElements
  * @returns {boolean}
  */
@@ -69,7 +69,8 @@ function estimateBodyOverflow(bodyElements) {
       } else if (t === "```") {
         required += CONFIG.overflowLineHeightCode;
       } else if (/^#{1,3}\s/.test(t)) {
-        required += CONFIG.overflowLineHeightHeading;
+        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+        required += CONFIG.overflowLineHeightHeading * wrappedLines;
       } else {
         const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
         required += CONFIG.overflowLineHeightBody * wrappedLines;
@@ -360,55 +361,6 @@ function convertSlide(
     return "";
   };
 
-  // --- MEDIA-SPAN UPGRADE ---
-  // If we have a two-column layout and exactly one column contains a single
-  // image (while the other has body text), upgrade to media-span so the image
-  // spans the full slide height — regardless of which side the image is on.
-  if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const { header, bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-    const midX = slideWidth / 2;
-    const centerTol = slideWidth * CONFIG.centerToleranceRatio;
-    const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
-    const isBodyElement = (el) => {
-      if (isCentered(el)) return false;
-      if (header && el === header) return false;
-      return true;
-    };
-    // Same area-overlap partition rule as inferLayout, so the upgrade can
-    // never disagree with the layout decision that produced two-column.
-    const leftEls = bodyElements.filter(
-      (el) => isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === "left",
-    );
-    const rightEls = bodyElements.filter(
-      (el) => isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === "right",
-    );
-
-    const isSingleImage = (els) =>
-      els.length === 1 && els[0].type === ELEMENT_TYPES.IMAGE && els[0].ref;
-    // The image must be dominant: the MEDIA_SPAN render branch fills @media
-    // exclusively from dominantImages, so a non-dominant side image would
-    // leave @media empty.
-    const singleImageLeft = isSingleImage(leftEls) && dominantImages.includes(leftEls[0]);
-    const singleImageRight = isSingleImage(rightEls) && dominantImages.includes(rightEls[0]);
-    const singleDominantImageOnSide = singleImageLeft || singleImageRight;
-
-    // Only upgrade to media-span if the column opposite the image holds real
-    // body content. Otherwise @main would be empty — header-content handles
-    // this — and text sitting beside the image would be moved across columns.
-    const isBodyText = (el) =>
-      el !== header &&
-      el.type !== ELEMENT_TYPES.IMAGE &&
-      ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-        el.type === ELEMENT_TYPES.TABLE ||
-        el.type === ELEMENT_TYPES.CHART ||
-        el.type === ELEMENT_TYPES.DIAGRAM);
-    const textSide = singleImageLeft ? rightEls : singleImageRight ? leftEls : [];
-    const hasBodyContentOnTextSide = textSide.some(isBodyText);
-    if (singleDominantImageOnSide && hasBodyContentOnTextSide) {
-      layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
-    }
-  }
-
   // Compute extractHeader once — reused by pre-check and all render branches.
   const { header, isHeaderValid, bodyElements } = extractHeader(
     textElements,
@@ -465,9 +417,12 @@ function convertSlide(
   if (fullImageCandidate) {
     layout = LAYOUT.FULL_IMAGE;
     setLayoutDirective(parts, layout);
-    // Remove background/theme if they were set — not needed for full-image
-    if (parts[1]?.startsWith("background:")) parts.splice(1, 1);
-    if (parts[1] === "theme: dark") parts.splice(1, 1);
+    // Remove background/theme if they were set — not needed for full-image.
+    // Locate them by content: speaker notes may precede the directives.
+    const bgIdx = parts.findIndex((p) => p.startsWith("background:"));
+    if (bgIdx !== -1) parts.splice(bgIdx, 1);
+    const themeIdx = parts.findIndex((p) => p === "theme: dark");
+    if (themeIdx !== -1) parts.splice(themeIdx, 1);
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");

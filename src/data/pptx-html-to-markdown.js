@@ -63,26 +63,25 @@ function stripBulletGlyphs(text) {
 }
 
 /**
- * True when the line contains only bullet markers — a lone marker or spaced
- * markers ("-", "- -", "• •") — and no content. This is the residue of an
- * empty text box or sub-bullet. Adjacent multi-marker runs ("---", "***")
- * are divider lines and are preserved (handled by the divider branch).
+ * True when the line contains only one or two bullet markers ("-", "- -",
+ * "--", "• •") and no content. This is the residue of an empty text box or
+ * sub-bullet. Divider lines (three or more markers) are preserved.
  * @param {string} text
  * @returns {boolean}
  */
 function isMarkerOnly(text) {
-  return /^(?:[-*•◦‣▪●○■]\s*)+$/.test(text.trim());
+  return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■])?)\s*$/.test(text.trim());
 }
 
 /**
- * True when the line is an adjacent multi-marker run ("---", "***", "••") —
- * a divider line, not empty-bullet residue. formatTextElement converts it to
- * a markdown horizontal rule ("***").
+ * True when the line is a divider — three or more bullet markers, adjacent
+ * or spaced ("---", "- - -", "***", "• • •"). formatTextElement converts it
+ * to a markdown horizontal rule ("***").
  * @param {string} text
  * @returns {boolean}
  */
 function isDividerLine(text) {
-  return /^[-*•◦‣▪●○■]{2,}\s*$/.test(text.trim());
+  return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■]){2,})\s*$/.test(text.trim());
 }
 
 /**
@@ -120,9 +119,17 @@ function collapseDuplicateWhitespace(md) {
       // plain-text segments between them. Trailing whitespace is stripped
       // once from the whole line, not per segment, so the space before an
       // inline code snippet survives.
-      const collapsed = line
-        .split(/(`[^`]+`)/)
-        .map((part, i) => (i % 2 === 1 ? part : collapseSegment(part)))
+      const parts = line.split(/(`[^`]+`)/);
+      const collapsed = parts
+        .map((part, i) => {
+          if (i % 2 === 1) return part;
+          // A whitespace-only segment between two inline-code spans (e.g.
+          // "`a`    `b`") collapses to a single space so code stays
+          // separated but not padded. Leading/trailing line whitespace is
+          // not touched here.
+          if (/^[ \t\u00a0]+$/.test(part) && i > 0 && i < parts.length - 1) return " ";
+          return collapseSegment(part);
+        })
         .join("");
       return collapsed.replace(/[ \t\u00a0]+$/g, "");
     })
@@ -362,8 +369,10 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       // The <li> provides the "- " marker, so drop any literal bullet glyph
       // that the author also typed ("- • item" -> "- item"), and skip items
-      // whose remaining content is marker-only ("- -" residue).
-      const merged = stripBulletGlyphs(mergeAdjacentMarkers(inline.join("").trim()));
+      // whose remaining content is marker-only ("- -" residue) or a divider
+      // ("---" — mergeAdjacentMarkers would mangle "* * *").
+      const rawItem = inline.join("").trim();
+      const merged = isDividerLine(rawItem) ? "" : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
       if (merged && !isMarkerOnly(merged)) {
         // Determine nesting depth from margin-left on the inner <p>.
         // Items with margin-left significantly larger than the minimum are
@@ -391,6 +400,7 @@ function processBlockNodes(nodes, out) {
     }
 
     if (tag === "TABLE") {
+      lastOutputWasBullet = false;
       continue;
     }
 
@@ -408,10 +418,15 @@ function processBlockNodes(nodes, out) {
       processInlineNodes(node.childNodes, inline);
       // Turn literal bullet glyphs into markdown bullets, and skip paragraphs
       // that contain only a leftover marker (empty text boxes). Divider lines
-      // ("---") are kept — they are converted to "***" by formatTextElement.
-      let merged = normalizeBulletGlyphs(mergeAdjacentMarkers(inline.join("")));
+      // ("---", "- - -", "* * *") are kept verbatim — mergeAdjacentMarkers
+      // would mangle "* * *" — and converted to "***" by formatTextElement.
+      const rawJoined = inline.join("");
+      const isDivider = isDividerLine(rawJoined.trim());
+      let merged = isDivider
+        ? rawJoined.trim()
+        : normalizeBulletGlyphs(mergeAdjacentMarkers(rawJoined));
       const trimmed = merged.trim();
-      const isResidue = isMarkerOnly(trimmed) && !isDividerLine(trimmed);
+      const isResidue = isMarkerOnly(trimmed) && !isDivider;
       if (trimmed && !isResidue) {
         // Skip heading detection if all content is monospace code —
         // these paragraphs should be treated as code, not headings.
@@ -447,7 +462,7 @@ function processBlockNodes(nodes, out) {
               return line.replace(/^#/gm, "\\#");
             })
             .join("\n");
-          const isGlyphBullet = isBulletLine(trimmed);
+          const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
           // Consecutive glyph-bullet paragraphs must form a tight list: drop
           // the previous bullet's trailing blank line so markdown-it does not
           // wrap every item in <p> like real PowerPoint bullets would.
@@ -549,8 +564,10 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
       }
     }
     // The list marker is provided by the <li>, so drop literal bullet glyphs
-    // the author typed as text, and skip items with no content left.
-    const merged = stripBulletGlyphs(mergeAdjacentMarkers(inline.join("").trim()));
+    // the author typed as text, and skip items with no content left or that
+    // are dividers ("---" — mergeAdjacentMarkers would mangle "* * *").
+    const rawItem = inline.join("").trim();
+    const merged = isDividerLine(rawItem) ? "" : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
     if (merged && !isMarkerOnly(merged)) {
       if (isOrdered) {
         counters[depth]++;

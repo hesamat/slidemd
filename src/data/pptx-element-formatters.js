@@ -45,18 +45,20 @@ export function formatTextElement(raw) {
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
 
-    // Multi-marker runs ("---", "***", "••") are divider lines. A raw "---"
-    // line would terminate the slide in splitSlides, so emit "***" (which
-    // renders as a horizontal rule) instead of the original markers.
-    if (/^[-*•◦‣▪●○■]{2,}\s*$/.test(trimmed)) {
+    // Divider lines — three or more markers, adjacent or spaced ("---",
+    // "- - -", "***", "* * *", "•••"). A raw "---" line would terminate the
+    // slide in splitSlides, so emit "***" (which renders as a horizontal
+    // rule) instead of the original markers.
+    if (/^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■]){2,})\s*$/.test(trimmed)) {
       result.push("***");
       continue;
     }
 
-    // Marker-only residue — a lone marker or spaced markers ("-", "- -",
-    // "• •") that PowerPoint leaves behind in empty sub-bullets. These have
-    // no content, so drop the line instead of emitting a dangling "- ".
-    if (/^(?:[-*•◦‣▪●○■]\s*)+$/.test(trimmed)) continue;
+    // Marker-only residue — one or two markers, adjacent or spaced ("-",
+    // "- -", "--", "• •") that PowerPoint leaves behind in empty sub-bullets.
+    // These have no content, so drop the line instead of emitting a dangling
+    // "- ".
+    if (/^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■])?)\s*$/.test(trimmed)) continue;
 
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);

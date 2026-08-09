@@ -40,6 +40,17 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
   const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
   const textElements = elements.filter((el) => el.type === "text" && el.content?.trim());
 
+  // The header band rule (below) only applies when the slide actually has a
+  // heading in the header region — a short, non-list text element near the
+  // top. Without one, small images higher up are content, not title icons.
+  const hasHeaderLikeText = textElements.some((el) => {
+    if (el.top >= bodyThreshold) return false;
+    const text = stripHtml(el.content || "");
+    return (
+      text.length <= CONFIG.maxHeaderLength && !REGEX.BULLET.test(text) && !REGEX.NUMBER.test(text)
+    );
+  });
+
   return elements.filter((el) => {
     // 1. Always keep text and rich content types
     if (el.type === ELEMENT_TYPES.TEXT) {
@@ -102,8 +113,9 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
       // Any small image starting inside the top strip is a template logo.
       const isInTopStrip = el.top < slideHeight * CONFIG.marginTopRatio;
       // Small images fully contained in the wider header band are decorative
-      // icons beside titles.
-      const isInTopBand = el.top + (h || 0) <= slideHeight * CONFIG.maxHeaderBandRatio;
+      // icons beside titles — but only when a heading is actually present.
+      const isInTopBand =
+        hasHeaderLikeText && el.top + (h || 0) <= slideHeight * CONFIG.maxHeaderBandRatio;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
       // Discard small elements placed inside either the top (header strip or

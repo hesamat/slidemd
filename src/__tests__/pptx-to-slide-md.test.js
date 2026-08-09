@@ -1132,6 +1132,182 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: three-column");
   });
 
+  it("strips background/theme from full-image slides that carry speaker notes", () => {
+    // With notes, the directive lines are not at parts[0]/parts[1]; the
+    // full-image override must find and remove them wherever they sit. A
+    // footer keeps the slide from being pruned as empty (the full-image
+    // candidate itself is excluded from the content elements), and a dark
+    // slide fill makes convertSlide emit background:/theme: dark lines that
+    // the override must then remove.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Photo",
+        notes: "This slide has speaker notes.",
+        background: "#111111",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 0,
+            top: 0,
+            width: Math.round(DEFAULT_SIZE.width * 0.9),
+            height: Math.round(DEFAULT_SIZE.height * 0.9),
+          },
+          {
+            type: "text",
+            content: "Photo credit",
+            placeholderType: "footer",
+            left: 500000,
+            top: 4500000,
+            width: 4000000,
+            height: 300000,
+          },
+        ],
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: full-image");
+    expect(md).toContain("This slide has speaker notes.");
+    expect(md).not.toContain("background:");
+    expect(md).not.toContain("theme: dark");
+  });
+
+  it("uses media-span when body text straddles the midpoint", () => {
+    // A dominant image on the left plus body text whose box crosses the
+    // midpoint still yields media-span, with the image in @media and the
+    // straddling text in @main. Guards the layout decision (inferLayout
+    // treats the straddling box as body content rather than forcing
+    // two-column).
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Straddle",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 762000,
+            top: 1422400,
+            width: 2500000,
+            height: 3000000,
+          },
+          {
+            type: "text",
+            content: "Body text that straddles the midpoint of the slide",
+            left: 3000000,
+            top: 1422400,
+            width: 5600000,
+            height: 2000000,
+          },
+          {
+            type: "text",
+            content: "Supporting text on the right",
+            left: 5200000,
+            top: 1800000,
+            width: 2500000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("straddles the midpoint")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
+  });
+
+  it("splits overflowing slides with long wrapping headings into two columns", () => {
+    // Each ~70-char heading wraps to two rendered lines, so 8 headings need
+    // ~928px — over the 760px budget — and the body must be redistributed.
+    const headings = Array.from(
+      { length: 8 },
+      (_, i) =>
+        `### Topic number ${i + 1} with a long enough title to wrap over two rendered lines`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Wrap",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: headings,
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    for (let i = 1; i <= 8; i++) {
+      expect(md).toContain(`Topic number ${i}`);
+    }
+  });
+
+  it("keeps a small top image when the slide has no heading", () => {
+    // The header-band rule only drops small top images beside an actual
+    // heading; a text-bearing slide without one keeps the image.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "No Header",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Body paragraph",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
   it("keeps divider lines typed in body text without splitting the slide", () => {
     const extraction = makeExtraction([
       {

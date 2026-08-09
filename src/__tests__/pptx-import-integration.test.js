@@ -185,4 +185,32 @@ describe("slide title derivation from HTML-heavy slides", () => {
     const deck = parser.parseDeckMarkdown(md);
     expect(deck.slides[0].title).toBe("Slide 1");
   });
+
+  it("preserves literal angle brackets when deriving titles", () => {
+    const md = ["layout: header-content", "", "@main", "", "a < b > c"].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("a < b > c");
+  });
+
+  it("keeps << / >> cells in titles derived from fullpage grids", () => {
+    const cells = [
+      ["<<", "Left Shift", "Moves bits left"],
+      [">>", "Right Shift", "Moves bits right"],
+    ]
+      .flat()
+      .map((cell) => `<div class="fullpage-grid__cell" style="background:#000611b3">${cell}</div>`)
+      .join("");
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      `<div class="fullpage-grid" style="grid-template-columns:repeat(3,1fr)">${cells}</div>`,
+    ].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    const title = deck.slides[0].title;
+    expect(title).toContain("<<");
+    expect(title).toContain(">>");
+    expect(title).not.toContain("<div");
+  });
 });
