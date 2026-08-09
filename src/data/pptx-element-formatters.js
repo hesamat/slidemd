@@ -45,6 +45,10 @@ export function formatTextElement(raw) {
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
 
+    // Drop lines that contain only bullet markers — the residue of empty text
+    // boxes with a leftover bullet glyph. They have no content to show.
+    if (/^[-*•◦‣▪●○■]+\s*$/.test(trimmed)) continue;
+
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
     const isLetterList = /^[a-zA-Z][.)]\s+\S/.test(trimmed);

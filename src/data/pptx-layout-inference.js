@@ -100,15 +100,17 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
 
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
-      const isInTopMargin = el.top < slideHeight * CONFIG.marginTopRatio;
+      const isInTopBand = el.top < slideHeight * CONFIG.maxHeaderBandRatio;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
-      // Discard small elements placed inside either the top or bottom margin bounds
-      if (isInTopMargin || isInBottomMargin) {
+      // Discard small elements placed inside either the top (header band) or
+      // bottom margin bounds — they are decorative icons/logos beside titles,
+      // or footer ornaments, rather than content.
+      if (isInTopBand || isInBottomMargin) {
         return false;
       }
-      // Small images not in margins are kept — they are likely icons, badges, or
-      // inline decorations rather than background/border elements.
+      // Small images not in the bands are kept — they are likely icons, badges,
+      // or inline decorations rather than background/border elements.
       return true;
     }
 
@@ -338,19 +340,18 @@ export function inferLayout(
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
-    // When the right column has only images (no text), media-span is a
-    // better fit — but only if there's actual body text beyond the header.
-    const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-    const hasBodyText = leftEls.some(
-      (el) =>
-        el !== headerEl &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
-        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-          el.type === ELEMENT_TYPES.TABLE ||
-          el.type === ELEMENT_TYPES.CHART ||
-          el.type === ELEMENT_TYPES.DIAGRAM),
-    );
-    if (!rightHasText && hasBodyText) return LAYOUT.MEDIA_SPAN;
+    // MEDIA_SPAN is a better fit when one column holds only media (images,
+    // tables) and the other holds text — regardless of which physical side
+    // each column is on. The header never lands in either column list, so a
+    // text-only column always contains real body content.
+    const isTextLike = (el) =>
+      (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
+    const leftHasText = leftEls.some(isTextLike);
+    const rightHasText = rightEls.some(isTextLike);
+    const oneSideIsMediaOnly =
+      leftHasText !== rightHasText && leftEls.length > 0 && rightEls.length > 0;
+    if (oneSideIsMediaOnly) return LAYOUT.MEDIA_SPAN;
     return LAYOUT.TWO_COLUMN;
   }
 

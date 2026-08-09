@@ -317,22 +317,29 @@ function convertSlide(
   };
 
   // --- MEDIA-SPAN UPGRADE ---
-  // If we have a two-column layout and the right column contains exactly one
-  // image, upgrade to media-span so the image spans the full slide height.
+  // If we have a two-column layout and exactly one column contains a single
+  // image (while the other has body text), upgrade to media-span so the image
+  // spans the full slide height — regardless of which side the image is on.
   if (layout.type === LAYOUT.TWO_COLUMN.type) {
     const { header, bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
     const midX = slideWidth / 2;
     const centerTol = slideWidth * CONFIG.centerToleranceRatio;
     const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
 
+    const leftEls = bodyElements.filter((el) => {
+      if (isCentered(el)) return false;
+      if (header && el === header) return false;
+      return (el.left || 0) + (el.width || 0) / 2 < midX;
+    });
     const rightEls = bodyElements.filter((el) => {
       if (isCentered(el)) return false;
       if (header && el === header) return false;
       return (el.left || 0) + (el.width || 0) / 2 >= midX;
     });
 
-    const singleImageOnRight =
-      rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref;
+    const isSingleImage = (els) =>
+      els.length === 1 && els[0].type === ELEMENT_TYPES.IMAGE && els[0].ref;
+    const singleImageOnSide = isSingleImage(leftEls) || isSingleImage(rightEls);
 
     // Only upgrade to media-span if there's actual body content beyond the
     // header. Otherwise @main would be empty — header-content handles this.
@@ -345,7 +352,7 @@ function convertSlide(
           el.type === ELEMENT_TYPES.CHART ||
           el.type === ELEMENT_TYPES.DIAGRAM),
     );
-    if (singleImageOnRight && hasBodyContent) {
+    if (singleImageOnSide && hasBodyContent) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
     }
   }

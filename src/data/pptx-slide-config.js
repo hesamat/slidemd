@@ -95,6 +95,10 @@ export const REGEX = {
 
 export const CONFIG = {
   bodyTopRatio: 0.22,
+  // Top band (fraction of slide height) in which small images are treated as
+  // decorative (icons/logos beside headings) and dropped. Covers the header
+  // zone below the pure top-margin strip.
+  maxHeaderBandRatio: 0.22,
   rowMaxVerticalDiffRatio: 0.1,
   minColumnSpreadRatio: 0.15,
   maxTitleLength: 300,
