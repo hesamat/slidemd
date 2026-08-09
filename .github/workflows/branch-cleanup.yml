@@ -1,0 +1,45 @@
+name: Branch Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  stale-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STALE_DAYS: "60"
+        run: |
+          CUTOFF=$(date -u -d "$STALE_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          gh api repos/${{ github.repository }}/branches --paginate -q '.[].name' | while read -r branch; do
+            [[ "$branch" == "main" || "$branch" == "master" ]] && continue
+
+            open_prs=$(gh pr list --head "$branch" --state open --json number -q 'length')
+            [[ "$open_prs" -gt 0 ]] && continue
+
+            updated=$(gh api "repos/${{ github.repository }}/branches/$branch" -q '.commit.commit.committer.date')
+            if [[ "$updated" < "$CUTOFF" ]]; then
+              echo "Deleting stale branch: $branch (last pushed $updated)"
+              gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$branch" --silent
+            fi
+          done
+
+      - name: Close stale pull requests
+        uses: actions/stale@v9
+        with:
+          days-before-stale: 45
+          days-before-close: 14
+          stale-pr-message: "This pull request has been inactive for 45 days. It will be closed in 14 days unless there is further activity."
+          close-pr-message: "Closed because this pull request has been inactive for too long. It can be reopened when work resumes."
+          stale-pr-label: "stale"
+          exempt-pr-labels: "keep-open,roadmap"
+          exempt-draft-pr: true
+          operations-per-run: 100
