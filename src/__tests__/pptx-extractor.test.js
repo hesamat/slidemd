@@ -367,6 +367,12 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     const stars = PptxExtractor.htmlToMarkdown("<ul><li>* * *</li></ul>");
     expect(stars).toContain("- \\* \\* \\*");
     expect(stars).not.toContain("- * * *");
+
+    // Non-ASCII glyphs need no backslash escape — CommonMark only honours
+    // escapes before ASCII punctuation, so "\•" would stay visible.
+    const glyphs = PptxExtractor.htmlToMarkdown("<ul><li>• • •</li></ul>");
+    expect(glyphs).toContain("- • • •");
+    expect(glyphs).not.toContain("\\");
   });
 
   it("drops a lone bullet marker (empty text box residue)", () => {

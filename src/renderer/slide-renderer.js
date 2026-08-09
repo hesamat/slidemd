@@ -188,15 +188,31 @@ export class SlideRenderer {
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
 
-    // Media-span detection: when "media" occupies every row the media column
-    // spans the full slide height. This holds for the media-span presets and
-    // for custom grid specs (e.g. after the editor resizes the column, which
-    // makes data-layout "custom") — the full-bleed styling keys off this
-    // geometry attribute instead of the layout name.
-    const areaRowMatches = (layout.gridTemplateAreas || "").match(/"[^"]*"|'[^']*'/g) || [];
-    if (areaRowMatches.length > 1 && areaRowMatches.every((row) => row.includes("media"))) {
-      const firstRow = areaRowMatches[0].slice(1, -1).split(/\s+/);
-      wrapper.setAttribute("data-media-span", firstRow.indexOf("media") === 0 ? "left" : "right");
+    // Auto-detect full-height areas: areas that appear in every row at the
+    // same column. Also used for the media-span bleed: when "media" is such
+    // an area it spans the full slide height — for the media-span presets
+    // and for custom grid specs (e.g. after the editor resizes the column,
+    // which makes data-layout "custom"). The full-bleed styling keys off the
+    // data-media-span geometry attribute (left/right edge column only).
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+    const fullHeightAreas = new Set();
+    if (allRowCells.length > 1) {
+      const numCols = allRowCells[0]?.length || 0;
+      for (let col = 0; col < numCols; col++) {
+        const areaName = allRowCells[0][col];
+        if (!areaName || areaName === ".") continue;
+        const spansAll = allRowCells.every((row) => row[col] === areaName);
+        if (spansAll) fullHeightAreas.add(areaName);
+      }
+    }
+    if (fullHeightAreas.has("media")) {
+      const mediaCol = allRowCells[0].indexOf("media");
+      const lastCol = allRowCells[0].length - 1;
+      if (mediaCol === 0) wrapper.setAttribute("data-media-span", "left");
+      else if (mediaCol === lastCol) wrapper.setAttribute("data-media-span", "right");
+      // A media area spanning all rows in a middle column is not a side
+      // column — no bleed attribute.
     }
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
@@ -229,20 +245,6 @@ export class SlideRenderer {
 
     const areaStyle = safeString(slide?.areaStyle);
     const perAreaStyles = slide?.areaStyles || {};
-
-    // Auto-detect full-height areas: areas that appear in every row at the same column
-    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
-    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
-    const fullHeightAreas = new Set();
-    if (allRowCells.length > 1) {
-      const numCols = allRowCells[0]?.length || 0;
-      for (let col = 0; col < numCols; col++) {
-        const areaName = allRowCells[0][col];
-        if (!areaName || areaName === ".") continue;
-        const spansAll = allRowCells.every((row) => row[col] === areaName);
-        if (spansAll) fullHeightAreas.add(areaName);
-      }
-    }
 
     if (fullHeightAreas.size > 0) {
       grid.classList.add("slide__grid--full-height");
@@ -290,9 +292,13 @@ export class SlideRenderer {
       if (fullHeightAreas.size > 0 && name === "footer") {
         area.style.gridColumn = "1 / -1";
       }
-      // Full-height areas touch the right slide border
+      // Full-height areas touch the slide border on their edge column side
+      // (right for the last column, left for the first); zero that padding
+      // so the column meets the slide edge.
       if (fullHeightAreas.has(name)) {
-        area.style.paddingRight = "0";
+        const colIdx = allRowCells[0].indexOf(name);
+        if (colIdx === 0) area.style.paddingLeft = "0";
+        else if (colIdx === allRowCells[0].length - 1) area.style.paddingRight = "0";
       }
 
       area.innerHTML = this.sanitizeAreaHtml(html);

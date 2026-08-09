@@ -414,9 +414,10 @@ function convertSlide(
   // matches the source slide (image-left slides keep the image on the left).
   // The text column may itself contain a dominant image (e.g. an illustration
   // beside the body), so the first dominant image is not a reliable signal.
-  // Mirrors inferLayout's partitioning: centered elements and the header are
-  // excluded from both columns. When no column qualifies, default to the
-  // right — the historical behavior.
+  // Centered elements and the header are excluded from the TEXT partition
+  // (mirroring inferLayout); images are partitioned with the bare area rule,
+  // consistent with the @media population below. When no column qualifies,
+  // default to the right — the historical behavior.
   if (layout.type === LAYOUT.MEDIA_SPAN.type) {
     const isTextLike = (el) =>
       (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
@@ -426,10 +427,13 @@ function convertSlide(
       if (header && el === header) return false;
       return true;
     };
-    const onSide = (side) => (el) =>
-      isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
-    const leftHasText = bodyElements.some((el) => isTextLike(el) && onSide("left")(el));
-    const rightHasText = bodyElements.some((el) => isTextLike(el) && onSide("right")(el));
+    const onSide = (side) => (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
+    const leftHasText = bodyElements.some(
+      (el) => isTextLike(el) && isBodyElement(el) && onSide("left")(el),
+    );
+    const rightHasText = bodyElements.some(
+      (el) => isTextLike(el) && isBodyElement(el) && onSide("right")(el),
+    );
     const leftHasDominant = dominantImages.some(onSide("left"));
     const rightHasDominant = dominantImages.some(onSide("right"));
     if (!leftHasText && leftHasDominant) {

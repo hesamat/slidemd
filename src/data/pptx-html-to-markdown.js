@@ -397,7 +397,7 @@ function processBlockNodes(nodes, out) {
       // and mergeAdjacentMarkers would mangle "* * *".
       const rawItem = inline.join("").trim();
       const merged = isDividerLine(rawItem)
-        ? rawItem.replace(/[-*•◦‣▪●○■]/g, (marker) => `\\${marker}`)
+        ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
         : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
       if (merged && !isMarkerOnly(merged)) {
         // Determine nesting depth from margin-left on the inner <p>.
@@ -593,7 +593,7 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
     // mergeAdjacentMarkers would mangle "* * *".
     const rawItem = inline.join("").trim();
     const merged = isDividerLine(rawItem)
-      ? rawItem.replace(/[-*•◦‣▪●○■]/g, (marker) => `\\${marker}`)
+      ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
       : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
     if (merged && !isMarkerOnly(merged)) {
       if (isOrdered) {
