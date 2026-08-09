@@ -108,6 +108,44 @@ describe("AiProviderClient", () => {
     expect(init.headers["Content-Type"]).toBe("application/json");
   });
 
+  it("throws early when OpenRouter has no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://openrouter.ai/api/v1",
+      getApiKey: () => "",
+      getProvider: () => "OpenRouter",
+    });
+
+    await expect(
+      client.chat({
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      }),
+    ).rejects.toThrow("OpenRouter API key is required");
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("throws early when OpenAI has no API key", async () => {
+    const client = makeClient({
+      getBaseUrl: () => "https://api.openai.com/v1",
+      getApiKey: () => "",
+      getProvider: () => "OpenAI",
+    });
+
+    await expect(
+      client.chat({
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 100,
+        responseFormat: null,
+        reasoning: null,
+      }),
+    ).rejects.toThrow("OpenAI API key is required");
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("retries once without response_format when the provider rejects it", async () => {
     const client = makeClient();
     globalThis.fetch
