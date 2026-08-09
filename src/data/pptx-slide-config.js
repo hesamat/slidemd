@@ -128,4 +128,14 @@ export const CONFIG = {
   fullScreenTableThreshold: 0.8,
   flexRowVerticalTolerance: 0.15,
   flexRowMinHorizontalGap: 0.1,
+  // Overflow detection: fraction of slide height available for body content,
+  // and the estimated rendered height (points) per content line. When the
+  // body of a single-column slide needs more vertical space than the area
+  // provides, the layout is upgraded to two-column and content is split.
+  overflowBodyAreaRatio: 0.75,
+  overflowLineHeightHeading: 34,
+  overflowLineHeightBody: 26,
+  overflowLineHeightCode: 22,
+  overflowLineHeightBlank: 14,
+  overflowWrapLength: 55,
 };

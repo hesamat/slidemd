@@ -1329,6 +1329,56 @@ describe("convertToSlideMd", () => {
     expect(md).toContain(longBody);
   });
 
+  it("upgrades header-content to two-column when the body overflows", () => {
+    // Mirrors a real Week 04 slide ("Assert, assert, assert!"): a title and a
+    // single body box with 14 large-font (28pt) lines that cannot fit one
+    // column. The body box is only ~2/3 slide width, so the split must not
+    // depend on the wide-element heuristic.
+    const assertLines = Array.from(
+      { length: 14 },
+      (_, i) => `### assert case number ${i + 1}`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Asserts",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Assert, assert, assert!",
+            left: 0,
+            top: 0,
+            width: 318 * 12700,
+            height: 540 * 12700,
+          },
+          {
+            type: "text",
+            content: assertLines,
+            left: 396 * 12700,
+            top: 18 * 12700,
+            width: 480 * 12700,
+            height: 482 * 12700,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    // Every line survives the split exactly once
+    for (let i = 1; i <= 14; i++) {
+      expect(md).toContain(`assert case number ${i}`);
+    }
+    expect((md.match(/assert case number/g) || []).length).toBe(14);
+    expect(md).toContain("### assert case number 1");
+    expect(md).toContain("### assert case number 14");
+  });
+
   it("upgrades media-span to two-column when body overflows", () => {
     const longBody = "Item with enough text to trigger overflow detection. ".repeat(20).trim(); // ~1100 chars
     const extraction = makeExtraction([

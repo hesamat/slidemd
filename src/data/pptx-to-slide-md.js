@@ -36,6 +36,37 @@ import {
 } from "./pptx-slide-config.js";
 
 /**
+ * Estimate whether the body content of a slide overflows the vertical space
+ * available to a single column. Rendered line heights are approximated from
+ * the markdown line kind (headings are larger than body text), and long
+ * lines are assumed to wrap.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyElements
+ * @param {number} slideHeight
+ * @returns {boolean}
+ */
+function estimateBodyOverflow(bodyElements, slideHeight) {
+  const available = slideHeight * CONFIG.overflowBodyAreaRatio;
+  let required = 0;
+  for (const el of bodyElements) {
+    if (el.type !== ELEMENT_TYPES.TEXT || !el.content) continue;
+    for (const line of el.content.split("\n")) {
+      const t = line.trim();
+      if (!t) {
+        required += CONFIG.overflowLineHeightBlank;
+      } else if (t === "```") {
+        required += CONFIG.overflowLineHeightCode;
+      } else if (/^#{1,3}\s/.test(t)) {
+        required += CONFIG.overflowLineHeightHeading;
+      } else {
+        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+        required += CONFIG.overflowLineHeightBody * wrappedLines;
+      }
+    }
+  }
+  return required > available;
+}
+
+/**
  * Convert English Metric Units (EMUs) to standard slide points.
  * @param {number} val
  * @returns {number}
@@ -371,6 +402,13 @@ function convertSlide(
   );
   const midX = slideWidth / 2;
 
+  // Overflow upgrade: a single-column slide whose body needs more vertical
+  // space than the area provides is redistributed into two columns.
+  const bodyOverflows = estimateBodyOverflow(bodyElements, slideHeight);
+  if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
+    layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
+  }
+
   // Pre-check: if two-column split would leave one side empty, downgrade now
   // so the layout spec matches the actual rendered content.
   // Use 1.2x threshold (less aggressive than 1.5x) to avoid false positives
@@ -387,9 +425,10 @@ function convertSlide(
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
-      // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
+      // Keep TWO_COLUMN if there's a single element that can be content-split:
+      // a wide element (merged code from PPTX) or an overflowing body.
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
-      if (!(bodyElements.length === 1 && hasWideElement)) {
+      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
         layout = LAYOUT.HEADER_CONTENT;
       }
     }
@@ -472,13 +511,16 @@ function convertSlide(
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    // If the position split leaves one side empty, check for a single wide element
-    // that spans both columns (merged code from PPTX extraction). Split its content
-    // at a safe boundary — not inside a fenced code block.
+    // If the position split leaves one side empty, check for a single element
+    // that spans both columns (merged code from PPTX extraction) or overflows
+    // the column area. Split its content at a safe boundary — not inside a
+    // fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
-      if (wideEl && bodyElements.length === 1) {
-        const rawContent = wideEl.content || "";
+      const splitEl =
+        bodyElements.length === 1 && (wideEl || bodyOverflows) ? bodyElements[0] : null;
+      if (splitEl) {
+        const rawContent = splitEl.content || "";
         const lines = rawContent.split("\n");
         const mid = Math.ceil(lines.length / 2);
 
