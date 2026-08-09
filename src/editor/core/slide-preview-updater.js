@@ -47,7 +47,7 @@ export class SlidePreviewUpdater {
     this._getThumbnails = getThumbnails;
     this._getAreaGuides = getAreaGuides;
     this._getGridResizer = getGridResizer;
-    this._pendingReadyCallback = null;
+    this._pendingReadyCallbacks = [];
     this._updateGeneration = 0;
   }
 
@@ -76,9 +76,37 @@ export class SlidePreviewUpdater {
   /**
    * Register a one-shot callback to run after the next preview update
    * finishes attaching overlays (image handlers, area guides, etc.).
+   * Multiple callbacks can be queued; each fires once in order, then is
+   * discarded. All pending callbacks are cleared if an update aborts
+   * early (invalid markdown, missing container, generation superseded).
    */
   onReadyOnce(callback) {
-    this._pendingReadyCallback = callback;
+    if (typeof callback === "function") this._pendingReadyCallbacks.push(callback);
+  }
+
+  /**
+   * Drain and fire all pending ready callbacks, passing the slide element.
+   * Called after a successful preview re-render.
+   */
+  _drainReadyCallbacks(slideEl) {
+    if (!this._pendingReadyCallbacks.length) return;
+    const callbacks = this._pendingReadyCallbacks;
+    this._pendingReadyCallbacks = [];
+    for (const cb of callbacks) {
+      try {
+        cb(slideEl);
+      } catch (err) {
+        console.warn("onReadyOnce callback failed:", err);
+      }
+    }
+  }
+
+  /**
+   * Discard all pending ready callbacks without firing them.
+   * Called when an update aborts early.
+   */
+  _clearReadyCallbacks() {
+    this._pendingReadyCallbacks = [];
   }
 
   async update() {
@@ -103,6 +131,7 @@ export class SlidePreviewUpdater {
 
       if (!fullDeckData.slides || fullDeckData.slides.length === 0) {
         Notification.warning("Invalid markdown: Unable to generate slide from current content");
+        this._clearReadyCallbacks();
         return;
       }
 
@@ -151,7 +180,10 @@ export class SlidePreviewUpdater {
       this.thumbnails.updateThumbnailTitle(this.currentSlideIndex, slideData.title);
 
       const slidesContainer = document.getElementById("slidesContainer");
-      if (!slidesContainer) return;
+      if (!slidesContainer) {
+        this._clearReadyCallbacks();
+        return;
+      }
 
       const allSlides = slidesContainer.querySelectorAll(":scope > .slide");
       const slideEl = allSlides[this.currentSlideIndex];
@@ -239,7 +271,10 @@ export class SlidePreviewUpdater {
             } catch {
               /* best-effort enhancement */
             }
-            if (generation !== this._updateGeneration) return;
+            if (generation !== this._updateGeneration) {
+              this._clearReadyCallbacks();
+              return;
+            }
             const enhancedHtml = temp.innerHTML;
             if (areaEl.innerHTML !== enhancedHtml) {
               areaEl.innerHTML = enhancedHtml;
@@ -257,11 +292,7 @@ export class SlidePreviewUpdater {
 
           requestAnimationFrame(() => {
             this.areaGuides.updateAreaOverflow(slideEl);
-            if (this._pendingReadyCallback) {
-              const cb = this._pendingReadyCallback;
-              this._pendingReadyCallback = null;
-              cb(slideEl);
-            }
+            this._drainReadyCallbacks(slideEl);
           });
         } else {
           // ── Slow path: layout or areas changed — full replace ──────────
@@ -281,7 +312,10 @@ export class SlidePreviewUpdater {
             console.warn("Failed to enhance slide preview:", err);
           }
 
-          if (generation !== this._updateGeneration) return;
+          if (generation !== this._updateGeneration) {
+            this._clearReadyCallbacks();
+            return;
+          }
           slideEl.replaceWith(newSlideEl);
           this.warnings.applyPendingSlideWarning(newSlideEl);
 
@@ -293,19 +327,17 @@ export class SlidePreviewUpdater {
               TextBlockHandler.activate(grid);
               ImageInteractionHandler.activate(grid);
             }
-            if (this._pendingReadyCallback) {
-              const cb = this._pendingReadyCallback;
-              this._pendingReadyCallback = null;
-              cb(newSlideEl);
-            }
+            this._drainReadyCallbacks(newSlideEl);
           });
         }
       } else {
         this.warnings.applyPendingSlideWarning();
+        this._clearReadyCallbacks();
       }
     } catch (error) {
       console.error("Failed to update preview:", error);
       Notification.error("Failed to parse markdown: " + (error.message || "Unknown error"));
+      this._clearReadyCallbacks();
     }
   }
 }

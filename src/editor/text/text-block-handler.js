@@ -164,11 +164,16 @@ export class TextBlockHandler {
       if (!block || this.isMultiColumn(block)) return;
       this.select(block);
       block.classList.add("text-block--just-inserted");
+      const removeHighlight = () => block.classList.remove("text-block--just-inserted");
       block.addEventListener(
         "animationend",
-        () => block.classList.remove("text-block--just-inserted"),
+        (e) => {
+          if (e.target === block) removeHighlight();
+        },
         { once: true },
       );
+      // Fallback in case animationend never fires (e.g. animations disabled).
+      setTimeout(removeHighlight, 2800);
       this._showPanel();
     });
   }
@@ -557,8 +562,14 @@ export class TextBlockHandler {
     if (top + panelH > window.innerHeight + window.scrollY) {
       top = rect.top + window.scrollY - panelH - 8;
     }
-    top = Math.max(8, Math.min(top, window.innerHeight + window.scrollY - panelH - 8));
-    left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - panelW - 8));
+    top = Math.max(
+      window.scrollY + 8,
+      Math.min(top, window.innerHeight + window.scrollY - panelH - 8),
+    );
+    left = Math.max(
+      window.scrollX + 8,
+      Math.min(left, window.innerWidth + window.scrollX - panelW - 8),
+    );
 
     this._panel.style.top = `${top}px`;
     this._panel.style.left = `${left}px`;
