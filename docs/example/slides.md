@@ -331,7 +331,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
 - **Add speaker notes** — generate speaker notes without touching the slide
 
-<img src="images/image-3e14.png" alt="image-3e14" style="position: relative; left: 138px; top: 19px; width: 543px; height: 365px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+<img src="images/image-a199.png" alt="image-3e14" style="position: relative; left: 239px; top: 8px; width: 342px; height: 346px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 
 @media
 
