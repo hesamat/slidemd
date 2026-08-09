@@ -67,8 +67,20 @@ const MAX_REPAIR_ATTEMPTS = 3;
  * @param {boolean} imagesSent
  * @returns {string}
  */
-function buildImagesSectionForPrompt(imagesSent) {
+export function buildImagesSectionForPrompt(imagesSent) {
   return extractVariant(getFragment("images-guidance.md"), imagesSent ? "sent" : "not-sent");
+}
+
+/**
+ * Build the `{{visualIdentityGuidance}}` fragment for the remix plan prompt.
+ * @param {boolean} preserveVisualIdentity
+ * @returns {string}
+ */
+export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
+  return extractVariant(
+    getFragment("remix-visual-identity-guidance.md"),
+    preserveVisualIdentity ? "preserve" : "discard",
+  );
 }
 
 /**
@@ -1205,10 +1217,7 @@ export class AiOrchestrator {
     const creativeGuidance = getFragment("creative-guidance.md").trim();
 
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
-    const visualIdentityGuidance = extractVariant(
-      getFragment("visual-identity-guidance.md"),
-      preserveVisualIdentity ? "preserve" : "discard",
-    );
+    const visualIdentityGuidance = buildRemixVisualIdentityGuidance(preserveVisualIdentity);
 
     const composeArgs = {
       markdown: deckSummary,

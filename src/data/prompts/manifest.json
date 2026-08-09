@@ -68,7 +68,14 @@
       "role": "snippet",
       "intent": null,
       "version": 1,
-      "description": "Visual-identity guidance variants (preserve/discard)"
+      "description": "Visual-identity guidance variants (preserve/discard) used by the generate options suffix"
+    },
+    {
+      "file": "remix-visual-identity-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Visual-identity guidance variants (preserve/discard) used by the remix plan prompt"
     },
     {
       "file": "images-guidance.md",

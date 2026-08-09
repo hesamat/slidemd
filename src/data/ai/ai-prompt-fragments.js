@@ -21,6 +21,7 @@ import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
 import visualIdentityGuidance from "../prompts/visual-identity-guidance.md?raw";
+import remixVisualIdentityGuidance from "../prompts/remix-visual-identity-guidance.md?raw";
 import imagesGuidance from "../prompts/images-guidance.md?raw";
 import batchPagination from "../prompts/batch-pagination.md?raw";
 import creativeGuidance from "../prompts/creative-guidance.md?raw";
@@ -37,6 +38,7 @@ export const FRAGMENTS = {
   "flow-guidance.md": flowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
   "visual-identity-guidance.md": visualIdentityGuidance,
+  "remix-visual-identity-guidance.md": remixVisualIdentityGuidance,
   "images-guidance.md": imagesGuidance,
   "batch-pagination.md": batchPagination,
   "creative-guidance.md": creativeGuidance,
@@ -64,6 +66,32 @@ export function getFragment(name) {
   return fragment;
 }
 
+const VARIANT_MARKER_RE = /<!--\s*variant:\s*([\w-]+)\s*-->/g;
+
+/**
+ * Parse a snippet fragment into a { name: body } map using full
+ * `<!-- variant: name -->` markers. Throws on duplicate markers.
+ * @param {string} fragment
+ * @returns {Map<string, string>}
+ */
+export function parseVariants(fragment) {
+  const variants = new Map();
+  const markers = [];
+  for (const match of fragment.matchAll(VARIANT_MARKER_RE)) {
+    markers.push({ name: match[1], start: match.index, end: match.index + match[0].length });
+  }
+  for (let i = 0; i < markers.length; i++) {
+    const { name } = markers[i];
+    const end = i + 1 < markers.length ? markers[i + 1].start : fragment.length;
+    const body = fragment.slice(markers[i].end, end).trim();
+    if (variants.has(name)) {
+      throw new Error(`Duplicate variant "${name}" in prompt snippet`);
+    }
+    variants.set(name, body);
+  }
+  return variants;
+}
+
 /**
  * Check whether a snippet fragment contains a `<!-- variant: name -->` section.
  * @param {string} fragment
@@ -71,7 +99,7 @@ export function getFragment(name) {
  * @returns {boolean}
  */
 export function hasVariant(fragment, name) {
-  return fragment.includes(`<!-- variant: ${name} -->`);
+  return parseVariants(fragment).has(name);
 }
 
 /**
@@ -81,14 +109,14 @@ export function hasVariant(fragment, name) {
  * @returns {string}
  */
 export function extractVariant(fragment, name) {
-  const marker = `<!-- variant: ${name} -->`;
-  const start = fragment.indexOf(marker);
-  if (start === -1) {
-    throw new Error(`Variant "${name}" not found in prompt fragment`);
+  const variants = parseVariants(fragment);
+  const body = variants.get(name);
+  if (body === undefined) {
+    throw new Error(
+      `Variant "${name}" not found in prompt fragment (available: ${[...variants.keys()].join(", ")})`,
+    );
   }
-  const rest = fragment.slice(start + marker.length).trim();
-  const next = rest.indexOf("<!-- variant:");
-  return (next === -1 ? rest : rest.slice(0, next)).trim();
+  return body;
 }
 
 const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];

@@ -234,6 +234,8 @@ console.log(x);
 - Ship v1.0
 - Add themes
 - Export PDF
+
+
 CRITICAL: You must return EXACTLY 1 slide(s) — one for each "SLIDE INDEX" comment in the input (indices 1 through 1). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.",
 }
 `;
@@ -406,6 +408,8 @@ console.log(x);
 - Ship v1.0
 - Add themes
 - Export PDF
+
+
 Return exactly 2 slide(s) as JSON. Fix or organize these slides within the context of the full deck.",
 }
 `;
@@ -938,7 +942,7 @@ Rules:
 
 Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.
 
-Preserve visual identity.
+Preserve the original theme, colors, backgrounds, and visual language whenever possible.
 
 No images were sent with this request — omit \`keepImages\` from every plan entry.
 

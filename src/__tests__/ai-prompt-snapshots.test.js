@@ -10,6 +10,10 @@ import { describe, it, expect } from "vitest";
 import { buildMessagesForIntent, buildPolishMessages } from "../data/ai/ai-intent-registry.js";
 import { buildBatchMessages } from "../data/ai/ai-prompt-builder.js";
 import { composeMessages, getFragment } from "../data/ai/ai-prompt-fragments.js";
+import {
+  buildImagesSectionForPrompt,
+  buildRemixVisualIdentityGuidance,
+} from "../data/ai/ai-orchestrator.js";
 
 const FIXTURE_DECK = `layout: title-slide
 background: #1a1a2e
@@ -114,11 +118,10 @@ describe("composed prompt snapshots", () => {
       {
         markdown: "Deck: 3 slides.\nOutline:\n1. [title-slide] AI for Presentations",
         creativeGuidance: getFragment("creative-guidance.md").trim(),
-        visualIdentityGuidance: "Preserve visual identity.",
+        visualIdentityGuidance: buildRemixVisualIdentityGuidance(true),
         sourceCount: "3",
         maxSourceIndex: "2",
-        imagesSection:
-          "No images were sent with this request — omit `keepImages` from every plan entry.",
+        imagesSection: buildImagesSectionForPrompt(false),
       },
     );
     expect({ system, user }).toMatchSnapshot();

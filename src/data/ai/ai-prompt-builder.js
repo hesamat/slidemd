@@ -271,7 +271,10 @@ export function buildBatchMessages(
 
   return {
     system,
-    user: userPrefix + user + paginationInstruction,
+    // The pagination instruction stands on its own after the input markdown;
+    // the old inline strings began with "\n\n" and the separator must be
+    // re-added here because variants are trimmed.
+    user: userPrefix + user + "\n\n" + paginationInstruction,
     original: markdown,
   };
 }

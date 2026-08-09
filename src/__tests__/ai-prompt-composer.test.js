@@ -55,6 +55,22 @@ describe("AiPromptComposer", () => {
     expect(user).toBe("Input: Use {{variable}} here");
   });
 
+  it("substitutes {{markdown}} last so deck content is not re-scanned", () => {
+    // If deck content literally contains {{layoutList}} / {{outputFormat}},
+    // those must stay untouched — the markdown pass runs after the other
+    // substitutions, so they can never be replaced inside user content.
+    const composer = new AiPromptComposer({
+      systemFragment: "Layouts: {{layoutList}}.",
+      userFragment: "Input: {{markdown}}",
+    });
+    const { system, user } = composer.compose({
+      markdown: "Deck mentions {{layoutList}} and {{outputFormat}} literally",
+      layoutList: "header-content",
+    });
+    expect(system).toBe("Layouts: header-content.");
+    expect(user).toBe("Input: Deck mentions {{layoutList}} and {{outputFormat}} literally");
+  });
+
   it("uses function replacement so $$...$$ math delimiters survive", () => {
     const composer = new AiPromptComposer({
       systemFragment: "System.",

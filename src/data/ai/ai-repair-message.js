@@ -23,5 +23,5 @@ export function buildRepairMessage(errors) {
     getFragment("repair-message.md"),
     { issues: lines.join("\n") },
     { strict: true },
-  );
+  ).trim();
 }

@@ -19,6 +19,7 @@ import {
   getFragment,
   getManifest,
   composeMessages,
+  parseVariants,
 } from "../data/ai/ai-prompt-fragments.js";
 import { LayoutData } from "../data/layout-data.js";
 import {
@@ -81,13 +82,19 @@ console.log(x);
 `;
 
 const NEGATIVE_DIRECTIVE_RE = /do not|never|don't|must not|forbidden|prohibited/gi;
-const MAX_NEGATIVE_DIRECTIVES = 6;
+const MAX_NEGATIVE_DIRECTIVES = 5;
 const MAX_COMBINED_LINES = 150;
+
+// Whole-deck flow consumers that compose prompts but are not registered
+// intents in ai-intent-registry.js (polish / remix plan / reimagine outline).
+const FLOW_CONSUMER_INTENTS = new Set(["polish", "remixPlan", "reimagineOutline"]);
 
 describe("prompt manifest", () => {
   it("lists exactly the files in src/data/prompts/", () => {
+    // Every non-manifest file in the directory must be cataloged — not just
+    // .md files, so a new fragment format (e.g. .txt or .json) is caught too.
     const onDisk = readdirSync(PROMPTS_DIR)
-      .filter((f) => f.endsWith(".md"))
+      .filter((f) => f !== "manifest.json")
       .sort();
     const inManifest = getManifest()
       .fragments.map((f) => f.file)
@@ -111,6 +118,18 @@ describe("prompt manifest", () => {
       files.add(entry.file);
       // Every fragment must load — a stale reference fails loudly here.
       expect(getFragment(entry.file).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("declares intents that correspond to real prompt consumers", () => {
+    const registryIntents = new Set(listIntents());
+    for (const entry of getManifest().fragments) {
+      if (entry.intent === null) continue;
+      const known = registryIntents.has(entry.intent) || FLOW_CONSUMER_INTENTS.has(entry.intent);
+      expect(
+        known,
+        `${entry.file} declares unknown intent "${entry.intent}" (registry: ${[...registryIntents].join(", ")}, flows: ${[...FLOW_CONSUMER_INTENTS].join(", ")})`,
+      ).toBe(true);
     }
   });
 });
@@ -216,6 +235,28 @@ describe("negative directive budget", () => {
         count,
         `${entry.file} has ${count} negative directives (limit ${MAX_NEGATIVE_DIRECTIVES})`,
       ).toBeLessThanOrEqual(MAX_NEGATIVE_DIRECTIVES);
+    }
+  });
+});
+
+describe("snippet variant coverage", () => {
+  // Contract: every variant name a caller may request exists in its snippet.
+  // Renaming a variant in a .md file without updating this table (or vice
+  // versa) fails here instead of throwing at runtime.
+  const EXPECTED_VARIANTS = {
+    "flow-guidance.md": ["story", "technical", "persuasive", "instructional"],
+    "speaker-notes-guidance.md": ["add", "preserve"],
+    "visual-identity-guidance.md": ["preserve", "discard"],
+    "remix-visual-identity-guidance.md": ["preserve", "discard"],
+    "images-guidance.md": ["sent", "not-sent"],
+    "batch-pagination.md": ["fix", "generate"],
+  };
+
+  it("exposes exactly the variants each caller expects", () => {
+    for (const [file, expected] of Object.entries(EXPECTED_VARIANTS)) {
+      const fragment = getFragment(file);
+      const actual = [...parseVariants(fragment).keys()].sort();
+      expect(actual, file).toEqual([...expected].sort());
     }
   });
 });

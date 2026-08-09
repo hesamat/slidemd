@@ -87,9 +87,20 @@ export class AiPromptComposer {
           `No such placeholder exists in the fragments.`,
       );
     }
+    // Substitute `{{markdown}}` LAST so the inserted deck content is never
+    // re-scanned by the other substitution passes: a deck containing the
+    // literal text `{{layoutList}}` or `{{outputFormat}}` must pass through
+    // untouched instead of being replaced inside the user's own content.
+    const entries = Object.entries(substitutions);
+    const ordered = entries.sort((a, b) => {
+      if (a[0] === "markdown") return 1;
+      if (b[0] === "markdown") return -1;
+      return 0;
+    });
+    const orderedSubstitutions = Object.fromEntries(ordered);
     return {
-      system: replacePlaceholders(this._system, substitutions),
-      user: replacePlaceholders(this._user, substitutions),
+      system: replacePlaceholders(this._system, orderedSubstitutions),
+      user: replacePlaceholders(this._user, orderedSubstitutions),
     };
   }
 }
