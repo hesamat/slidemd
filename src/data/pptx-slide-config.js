@@ -133,14 +133,17 @@ export const CONFIG = {
   fullScreenTableThreshold: 0.8,
   flexRowVerticalTolerance: 0.15,
   flexRowMinHorizontalGap: 0.1,
-  // Overflow detection: fraction of slide height available for body content,
-  // and the estimated rendered height (points) per content line. When the
-  // body of a single-column slide needs more vertical space than the area
-  // provides, the layout is upgraded to two-column and content is split.
-  overflowBodyAreaRatio: 0.75,
-  overflowLineHeightHeading: 34,
-  overflowLineHeightBody: 26,
-  overflowLineHeightCode: 22,
-  overflowLineHeightBlank: 14,
-  overflowWrapLength: 55,
+  // Overflow detection, calibrated to the fixed 1920x1080 render geometry
+  // (not the source deck's page size, which varies between PowerPoint
+  // templates): the vertical space available to a slide's body area, and the
+  // rendered height (px) per content line. When the body of a single-column
+  // slide needs more space than the area provides, the layout is upgraded to
+  // two-column and content is split. Line heights reflect the renderer's
+  // typography: h3 32px x 1.3 + margins, body 24px x 1.4, code 22px, blank.
+  overflowBodyAreaHeight: 760,
+  overflowLineHeightHeading: 58,
+  overflowLineHeightBody: 34,
+  overflowLineHeightCode: 28,
+  overflowLineHeightBlank: 16,
+  overflowWrapLength: 60,
 };

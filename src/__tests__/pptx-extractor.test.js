@@ -340,6 +340,24 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     );
     expect(result).toBe("");
   });
+
+  it("drops spaced marker residue from empty sub-bullets", () => {
+    // PowerPoint leaves "- -" / "• •" behind in empty sub-bullets; they must
+    // not fall through to a dangling "- " bullet.
+    expect(PptxExtractor.htmlToMarkdown("<p>- -</p>")).toBe("");
+    expect(PptxExtractor.htmlToMarkdown("<p>• •</p>")).toBe("");
+    expect(
+      PptxExtractor.htmlToMarkdown('<p style="text-indent: -24pt; margin-left: 24pt">- -</p>'),
+    ).toBe("");
+  });
+
+  it("renders consecutive literal-glyph bullets as a tight list", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>• one</p><p>• two</p><p>• three</p>");
+    expect(result).toContain("- one\n- two\n- three");
+    // No blank lines between the items — markdown-it would render a loose
+    // list (each item wrapped in <p>) otherwise.
+    expect(result).not.toContain("- one\n\n- two");
+  });
 });
 
 describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {

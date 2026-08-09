@@ -63,15 +63,26 @@ function stripBulletGlyphs(text) {
 }
 
 /**
- * True when the line contains only a single bullet marker ("-", "•", ...) and
- * no content — the residue of an empty text box with a leftover bullet.
- * Multi-character runs ("---", "***") are legitimate divider lines and are
- * preserved.
+ * True when the line contains only bullet markers — a lone marker or spaced
+ * markers ("-", "- -", "• •") — and no content. This is the residue of an
+ * empty text box or sub-bullet. Adjacent multi-marker runs ("---", "***")
+ * are divider lines and are preserved (handled by the divider branch).
  * @param {string} text
  * @returns {boolean}
  */
 function isMarkerOnly(text) {
-  return /^[-*•◦‣▪●○■]\s*$/.test(text.trim());
+  return /^(?:[-*•◦‣▪●○■]\s*)+$/.test(text.trim());
+}
+
+/**
+ * True when the line is an adjacent multi-marker run ("---", "***", "••") —
+ * a divider line, not empty-bullet residue. formatTextElement converts it to
+ * a markdown horizontal rule ("***").
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isDividerLine(text) {
+  return /^[-*•◦‣▪●○■]{2,}\s*$/.test(text.trim());
 }
 
 /**
@@ -304,11 +315,18 @@ function processBlockNodes(nodes, out) {
   // detection.  Items with margin-left significantly larger than the minimum
   // are indented as sub-bullets.
   let minMarginLeft = Infinity;
+  // True when the last pushed paragraph was a literal-glyph bullet line.
+  // Consecutive glyph bullets are joined without a blank line so markdown-it
+  // renders them as a tight list, like real PowerPoint bullets.
+  let lastOutputWasBullet = false;
 
   for (const node of nodes) {
     if (node.nodeType === 3) {
       const text = node.textContent;
-      if (text.trim()) out.push(text);
+      if (text.trim()) {
+        lastOutputWasBullet = false;
+        out.push(text);
+      }
       continue;
     }
     if (node.nodeType !== 1) continue;
@@ -324,6 +342,7 @@ function processBlockNodes(nodes, out) {
       const reset = !(lastListType && lastListType === tag);
       processList(node, 0, out, counters, { reset });
       out.push("\n");
+      lastOutputWasBullet = false;
       lastListType = tag;
       lastWasOl = tag === "OL";
       minMarginLeft = Infinity;
@@ -367,6 +386,7 @@ function processBlockNodes(nodes, out) {
         }
         out.push(indent + "- " + merged + "\n");
       }
+      lastOutputWasBullet = false;
       continue;
     }
 
@@ -379,6 +399,7 @@ function processBlockNodes(nodes, out) {
       if (text.trim()) {
         out.push("```\n" + text + "\n```\n\n");
       }
+      lastOutputWasBullet = false;
       continue;
     }
 
@@ -386,14 +407,17 @@ function processBlockNodes(nodes, out) {
       const inline = [];
       processInlineNodes(node.childNodes, inline);
       // Turn literal bullet glyphs into markdown bullets, and skip paragraphs
-      // that contain only a leftover marker (empty text boxes).
+      // that contain only a leftover marker (empty text boxes). Divider lines
+      // ("---") are kept — they are converted to "***" by formatTextElement.
       let merged = normalizeBulletGlyphs(mergeAdjacentMarkers(inline.join("")));
       const trimmed = merged.trim();
-      if (trimmed && !isMarkerOnly(trimmed)) {
+      const isResidue = isMarkerOnly(trimmed) && !isDividerLine(trimmed);
+      if (trimmed && !isResidue) {
         // Skip heading detection if all content is monospace code —
         // these paragraphs should be treated as code, not headings.
         const allMono = isAllMonospace(node);
         if (allMono) {
+          lastOutputWasBullet = false;
           out.push(merged + "\n\n");
         } else {
           // Detect headings by font size — use band-specific heading level
@@ -403,6 +427,7 @@ function processBlockNodes(nodes, out) {
           const fontSize = getLargestFontSize(node);
           const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
           if (headingBand && !isBulletLine(trimmed) && trimmed.length <= 80) {
+            lastOutputWasBullet = false;
             out.push(`${headingBand.prefix}${trimmed}\n\n`);
             continue;
           }
@@ -422,13 +447,25 @@ function processBlockNodes(nodes, out) {
               return line.replace(/^#/gm, "\\#");
             })
             .join("\n");
+          const isGlyphBullet = isBulletLine(trimmed);
+          // Consecutive glyph-bullet paragraphs must form a tight list: drop
+          // the previous bullet's trailing blank line so markdown-it does not
+          // wrap every item in <p> like real PowerPoint bullets would.
+          if (isGlyphBullet && lastOutputWasBullet) {
+            const prev = out[out.length - 1];
+            if (typeof prev === "string" && prev.endsWith("\n\n")) {
+              out[out.length - 1] = prev.slice(0, -2) + "\n";
+            }
+          }
           out.push(merged + "\n\n");
+          lastOutputWasBullet = isGlyphBullet;
         }
       }
       continue;
     }
 
     if (tag === "BR") {
+      lastOutputWasBullet = false;
       out.push("\n");
       continue;
     }
@@ -437,6 +474,7 @@ function processBlockNodes(nodes, out) {
     processInlineNodes(node.childNodes, inline);
     const merged = mergeAdjacentMarkers(inline.join(""));
     if (merged.trim()) {
+      lastOutputWasBullet = false;
       out.push(merged + "\n\n");
     }
   }

@@ -1219,6 +1219,70 @@ describe("convertToSlideMd", () => {
     expect(bodyIdx).toBeGreaterThan(-1);
   });
 
+  it("uses two-column when a column mixes an image and a table", () => {
+    // A right column with both an image and a table counts as text-bearing
+    // (tables are content), so media-span is not inferred and the table keeps
+    // its column instead of being pushed across the divide into @main.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Mixed",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left text content",
+            left: 500000,
+            top: 1500000,
+            width: 3500000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5500000,
+            top: 1500000,
+            width: 3000000,
+            height: 1800000,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "Name" }, { text: "Value" }],
+              [{ text: "A" }, { text: "1" }],
+            ],
+            left: 5500000,
+            top: 3600000,
+            width: 3000000,
+            height: 900000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("layout: media-span");
+    const mediaIdx = md.indexOf("@media");
+    const imageIdx = md.indexOf("photo.png");
+    const tableIdx = md.indexOf("| Name | Value |");
+    const mainIdx = md.indexOf("@main");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    // Image and table both stay in the right column (@media)
+    expect(imageIdx).toBeGreaterThan(mediaIdx);
+    expect(tableIdx).toBeGreaterThan(mediaIdx);
+  });
+
   it("uses media-span when right column has only an image", () => {
     const extraction = makeExtraction([
       {
@@ -1295,14 +1359,16 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("Right text");
   });
 
-  it("upgrades header-content to two-column when body overflows", () => {
-    // A slide with a header and a long body (>500 chars) should auto-split
-    // into two columns so the content doesn't overflow a single column.
-    const longBody = "Word ".repeat(120).trim(); // ~600 chars
+  it("keeps header-content when a long paragraph still fits the column", () => {
+    // A ~400-char single paragraph wraps to ~7 rendered lines — well under
+    // the overflow budget — so the slide must stay in one column. This is the
+    // counterpart of the overflow-upgrade test below: the split only happens
+    // when the body genuinely cannot fit.
+    const longBody = "Word ".repeat(80).trim(); // ~400 chars
     const extraction = makeExtraction([
       {
         index: 0,
-        title: "Overflow",
+        title: "Fits",
         notes: "",
         elements: [
           {
@@ -1326,7 +1392,6 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    // Long body stays in header-content — no forced overflow upgrade
     expect(md).toContain("layout: header-content");
     expect(md).toContain("@main");
     expect(md).toContain(longBody);

@@ -37,16 +37,28 @@ import {
 } from "./pptx-slide-config.js";
 
 /**
+ * Rewrite the layout directive already pushed into parts, wherever it sits
+ * (speaker notes may precede it). No-op when the directive has not been
+ * pushed yet.
+ * @param {string[]} parts
+ * @param {{ spec: string }} layout
+ */
+function setLayoutDirective(parts, layout) {
+  const idx = parts.findIndex((p) => p.startsWith("layout:"));
+  if (idx !== -1) parts[idx] = `layout: ${layout.spec}`;
+}
+
+/**
  * Estimate whether the body content of a slide overflows the vertical space
- * available to a single column. Rendered line heights are approximated from
- * the markdown line kind (headings are larger than body text), and long
- * lines are assumed to wrap.
+ * available to a single column. Line heights and the available area are
+ * constants calibrated to the fixed 1920x1080 render geometry, so the result
+ * does not depend on the source deck's page size. Long lines are assumed to
+ * wrap.
  * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyElements
- * @param {number} slideHeight
  * @returns {boolean}
  */
-function estimateBodyOverflow(bodyElements, slideHeight) {
-  const available = slideHeight * CONFIG.overflowBodyAreaRatio;
+function estimateBodyOverflow(bodyElements) {
+  const available = CONFIG.overflowBodyAreaHeight;
   let required = 0;
   for (const el of bodyElements) {
     if (el.type !== ELEMENT_TYPES.TEXT || !el.content) continue;
@@ -408,7 +420,7 @@ function convertSlide(
 
   // Overflow upgrade: a single-column slide whose body needs more vertical
   // space than the area provides is redistributed into two columns.
-  const bodyOverflows = estimateBodyOverflow(bodyElements, slideHeight);
+  const bodyOverflows = estimateBodyOverflow(bodyElements);
   if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
     layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
   }
@@ -452,7 +464,7 @@ function convertSlide(
   // the image as an <img> tag in @main instead of using CSS background.
   if (fullImageCandidate) {
     layout = LAYOUT.FULL_IMAGE;
-    parts[0] = `layout: ${layout.spec}`;
+    setLayoutDirective(parts, layout);
     // Remove background/theme if they were set — not needed for full-image
     if (parts[1]?.startsWith("background:")) parts.splice(1, 1);
     if (parts[1] === "theme: dark") parts.splice(1, 1);
@@ -563,8 +575,7 @@ function convertSlide(
         // If right side is empty after split, fall back to single-column rendering
         if (!rightContent) {
           // Replace the layout directive in parts (already pushed as two-column)
-          const layoutIdx = parts.findIndex((p) => p.startsWith("layout:"));
-          if (layoutIdx !== -1) parts[layoutIdx] = `layout: ${LAYOUT.HEADER_CONTENT.spec}`;
+          setLayoutDirective(parts, LAYOUT.HEADER_CONTENT);
           parts.push("");
           if (isHeaderValid) {
             parts.push(MARKDOWN_TAGS.HEADER);
@@ -593,6 +604,7 @@ function convertSlide(
         }
       } else {
         layout = LAYOUT.HEADER_CONTENT;
+        setLayoutDirective(parts, layout);
       }
     } else {
       // Overlap-based split
@@ -621,7 +633,7 @@ function convertSlide(
       if (rightEls.length === 0) {
         // No elements on the right — downgrade to header-content
         layout = LAYOUT.HEADER_CONTENT;
-        parts[0] = `layout: ${layout.spec}`;
+        setLayoutDirective(parts, layout);
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
@@ -671,7 +683,7 @@ function convertSlide(
     // Downgrade to header-content and put the image(s) in @main instead.
     if (leftEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
-      parts[0] = `layout: ${layout.spec}`;
+      setLayoutDirective(parts, layout);
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);

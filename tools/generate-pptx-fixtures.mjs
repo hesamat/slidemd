@@ -425,10 +425,13 @@ function decorativeIconSlide() {
   const icon = pic({
     id: 10,
     name: "Picture 9",
+    // 55..75pt: below the 10% top strip (40.5pt) so the band rule is the one
+    // under test, with the bottom edge at ~18.5% — comfortably inside the
+    // 22% header band rather than grazing its boundary.
     x: 580,
-    y: 48,
-    w: 40,
-    h: 40,
+    y: 55,
+    w: 20,
+    h: 20,
     embed: "rId2",
     flipH: true,
     creationId: "{A8580954-7034-2141-77FC-9AF7302EBC19}",
@@ -568,6 +571,11 @@ function buildFixture({ name, slideBody, imageCount }) {
   add("ppt/slides/_rels/slide1.xml.rels", slideRels(imageCount));
   for (let i = 0; i < imageCount; i++) {
     add(`ppt/media/image${i + 1}.png`, makePng(64, 48));
+  }
+  // JSZip creates directory entries automatically with live timestamps; pin
+  // those too, otherwise regeneration is not byte-identical.
+  for (const entry of Object.values(zip.files)) {
+    entry.date = FIXED_DATE;
   }
   return zip;
 }
