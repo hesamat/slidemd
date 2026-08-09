@@ -185,9 +185,10 @@ export function formatImage(
     .trim();
   const altText = caption || `Slide image ${baseAlt}`;
 
-  // fitColumn: media-span image — fills the media column's box but contains
-  // the picture (no cropping), so the whole image stays visible.
-  const style = fitColumn ? ' style="width: 100%; height: 100%; object-fit: contain;"' : "";
+  // fitColumn: media-span image — the media-span CSS fills the column via
+  // absolute insets and object-fit: contain; the inline style stays
+  // layout-agnostic so the image renders naturally if the layout changes.
+  const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
 
   if (!omitDimensions) {
     // Image dimensions are in points (normalised by emuToPoints); convert to pixels.

@@ -243,6 +243,25 @@ describe("slide title derivation from HTML-heavy slides", () => {
     expect(deck.slides[0].title).toBe("Write <div> tags here");
   });
 
+  it("strips wrapper openers that lead a line with text", () => {
+    // A flex-row item's first line is "<div style=...>First line of text"
+    // (closing tag on a later line) — the opener must not leak into the name.
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '<div style="flex: 1; min-width: 0;">Revenue growth',
+      "continued here</div>",
+    ].join("\n");
+    expect(parser.parseDeckMarkdown(md).slides[0].title).toBe("Revenue growth");
+  });
+
+  it("matches mixed-case tag pairs when deriving titles", () => {
+    const md = ["layout: header-content", "", "@main", "", "<DIV>Mixed case</div>"].join("\n");
+    expect(parser.parseDeckMarkdown(md).slides[0].title).toBe("Mixed case");
+  });
+
   it("strips embedded tag pairs but keeps stray mentions in titles", () => {
     const mdEmbedded = [
       "layout: header-content",

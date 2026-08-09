@@ -203,20 +203,21 @@ export class MarkdownParser {
     let prev = null;
     while (prev !== s) {
       prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([^<]*)<\/\1>/g, " $2 ");
+      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([^<]*)<\/\1>/gi, " $2 ");
     }
     prev = null;
     while (prev !== s) {
       prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([\s\S]*?)<\/\1>/g, " $2 ");
+      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([\s\S]*?)<\/\1>/gi, " $2 ");
     }
     // Stray tags left after pair removal are either wrapper openers (a
     // flex-row <div> whose close lives on another line) or prose mentions.
-    // When removing them all leaves no text, they were wrappers — strip them;
-    // otherwise keep the line so mentions ("write <div> tags") survive.
+    // Strip them when they leave no text OR when an opening tag leads the
+    // line (a wrapper opener with text on the same line); keep the line when
+    // a tag is merely mentioned mid-sentence ("write <div> tags").
     if (/<[a-zA-Z]/.test(s)) {
-      const withoutTags = s.replace(/<\/?[a-zA-Z][^>]*>/g, " ");
-      if (!withoutTags.trim()) s = withoutTags;
+      const withoutTags = s.replace(/<\/?[a-zA-Z][^>]*>/gi, " ");
+      if (!withoutTags.trim() || /^<\s*[a-zA-Z]/.test(s.trimStart())) s = withoutTags;
     }
     s = MarkdownParser.stripFormatting(s);
     return s.replace(/\s+/g, " ").trim();
