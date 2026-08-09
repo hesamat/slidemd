@@ -555,11 +555,11 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ### Refactoring
 
-| Task                                                     | Details                                                                                                             |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Extract shared bundle-order module                   | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. |
-| [ ] Decompose EditController                             | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules. |
-| [ ] Split `ai-orchestrator.js`                           | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. |
+| Task                                   | Details                                                                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Extract shared bundle-order module | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. |
+| [ ] Decompose EditController           | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                         |
+| [ ] Split `ai-orchestrator.js`         | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes.                                         |
 
 ### Test Infrastructure
 
@@ -735,7 +735,6 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
 | [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
 
 ### Stepped Content & Motion
