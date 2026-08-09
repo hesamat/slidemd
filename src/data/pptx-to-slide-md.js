@@ -23,6 +23,7 @@ import {
   filterMeaningfulElements,
   findDominantImages,
   inferLayout,
+  partitionByAreaOverlap,
 } from "./pptx-layout-inference.js";
 import {
   LAYOUT,
@@ -356,39 +357,42 @@ function convertSlide(
     const midX = slideWidth / 2;
     const centerTol = slideWidth * CONFIG.centerToleranceRatio;
     const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
-
-    const leftEls = bodyElements.filter((el) => {
+    const isBodyElement = (el) => {
       if (isCentered(el)) return false;
       if (header && el === header) return false;
-      return (el.left || 0) + (el.width || 0) / 2 < midX;
-    });
-    const rightEls = bodyElements.filter((el) => {
-      if (isCentered(el)) return false;
-      if (header && el === header) return false;
-      return (el.left || 0) + (el.width || 0) / 2 >= midX;
-    });
+      return true;
+    };
+    // Same area-overlap partition rule as inferLayout, so the upgrade can
+    // never disagree with the layout decision that produced two-column.
+    const leftEls = bodyElements.filter(
+      (el) => isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === "left",
+    );
+    const rightEls = bodyElements.filter(
+      (el) => isBodyElement(el) && partitionByAreaOverlap(el, slideWidth, slideHeight) === "right",
+    );
 
     const isSingleImage = (els) =>
       els.length === 1 && els[0].type === ELEMENT_TYPES.IMAGE && els[0].ref;
     // The image must be dominant: the MEDIA_SPAN render branch fills @media
     // exclusively from dominantImages, so a non-dominant side image would
     // leave @media empty.
-    const singleDominantImageOnSide =
-      (isSingleImage(leftEls) && dominantImages.includes(leftEls[0])) ||
-      (isSingleImage(rightEls) && dominantImages.includes(rightEls[0]));
+    const singleImageLeft = isSingleImage(leftEls) && dominantImages.includes(leftEls[0]);
+    const singleImageRight = isSingleImage(rightEls) && dominantImages.includes(rightEls[0]);
+    const singleDominantImageOnSide = singleImageLeft || singleImageRight;
 
-    // Only upgrade to media-span if there's actual body content beyond the
-    // header. Otherwise @main would be empty — header-content handles this.
-    const hasBodyContent = bodyElements.some(
-      (el) =>
-        el !== header &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
-        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-          el.type === ELEMENT_TYPES.TABLE ||
-          el.type === ELEMENT_TYPES.CHART ||
-          el.type === ELEMENT_TYPES.DIAGRAM),
-    );
-    if (singleDominantImageOnSide && hasBodyContent) {
+    // Only upgrade to media-span if the column opposite the image holds real
+    // body content. Otherwise @main would be empty — header-content handles
+    // this — and text sitting beside the image would be moved across columns.
+    const isBodyText = (el) =>
+      el !== header &&
+      el.type !== ELEMENT_TYPES.IMAGE &&
+      ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+        el.type === ELEMENT_TYPES.TABLE ||
+        el.type === ELEMENT_TYPES.CHART ||
+        el.type === ELEMENT_TYPES.DIAGRAM);
+    const textSide = singleImageLeft ? rightEls : singleImageRight ? leftEls : [];
+    const hasBodyContentOnTextSide = textSide.some(isBodyText);
+    if (singleDominantImageOnSide && hasBodyContentOnTextSide) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
     }
   }

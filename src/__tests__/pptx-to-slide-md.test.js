@@ -1132,7 +1132,7 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: three-column");
   });
 
-  it("keeps divider lines typed in body text", () => {
+  it("keeps divider lines typed in body text without splitting the slide", () => {
     const extraction = makeExtraction([
       {
         index: 0,
@@ -1160,7 +1160,10 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("Before\n---\nAfter");
+    // The divider becomes a markdown horizontal rule; a raw "---" line would
+    // terminate the slide in splitSlides.
+    expect(md).toContain("Before\n***\nAfter");
+    expect(md).not.toMatch(/^---\s*$/m);
     expect(md).not.toContain("\n- \n");
   });
 

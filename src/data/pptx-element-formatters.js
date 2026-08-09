@@ -49,10 +49,11 @@ export function formatTextElement(raw) {
     // empty text box with a leftover bullet glyph.
     if (/^[-*•◦‣▪●○■]\s*$/.test(trimmed)) continue;
 
-    // Multi-marker runs ("---", "***", "••") are divider lines: keep them
-    // verbatim instead of letting REGEX.BULLET below collapse them to "- ".
+    // Multi-marker runs ("---", "***", "••") are divider lines. A raw "---"
+    // line would terminate the slide in splitSlides, so emit "***" (which
+    // renders as a horizontal rule) instead of the original markers.
     if (/^[-*•◦‣▪●○■]{2,}\s*$/.test(trimmed)) {
-      result.push(trimmed);
+      result.push("***");
       continue;
     }
 

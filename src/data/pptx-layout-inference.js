@@ -97,18 +97,19 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
     if (isThinHorizontalLine || isThinVerticalLine) return false;
 
     const isSmallImage = area < slideArea * CONFIG.maxLogoAreaRatio;
-
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
-      // Fully inside the top header band (decorative icon/logo beside the
-      // title) or overlapping the bottom margin (footer ornament) — drop.
+      // Any small image starting inside the top strip is a template logo.
+      const isInTopStrip = el.top < slideHeight * CONFIG.marginTopRatio;
+      // Small images fully contained in the wider header band are decorative
+      // icons beside titles.
       const isInTopBand = el.top + (h || 0) <= slideHeight * CONFIG.maxHeaderBandRatio;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
-      // Discard small elements placed inside either the top (header band) or
-      // bottom margin bounds — they are decorative icons/logos beside titles,
-      // or footer ornaments, rather than content.
-      if (isInTopBand || isInBottomMargin) {
+      // Discard small elements placed inside either the top (header strip or
+      // band) or bottom margin bounds — they are decorative icons/logos
+      // beside titles, or footer ornaments, rather than content.
+      if (isInTopStrip || isInTopBand || isInBottomMargin) {
         return false;
       }
       // Small images not in the bands are kept — they are likely icons, badges,
@@ -156,6 +157,36 @@ export function findDominantImages(allEls, slideWidth, slideHeight) {
 
     return area >= slideArea * CONFIG.minDominantAreaRatio;
   });
+}
+
+/**
+ * Partition an element into the left or right half of the slide using
+ * area-overlap analysis. Elements that straddle the midpoint (no side has
+ * 1.5x more overlap than the other) are ambiguous and return null.
+ * Shared by inferLayout and the render-time MEDIA_SPAN upgrade so both use
+ * the same column-partitioning rule.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @returns {'left'|'right'|null}
+ */
+export function partitionByAreaOverlap(el, slideWidth, slideHeight) {
+  const midX = slideWidth / 2;
+  const overlapLeft = getOverlapArea(el, {
+    left: 0,
+    top: 0,
+    width: midX,
+    height: slideHeight,
+  });
+  const overlapRight = getOverlapArea(el, {
+    left: midX,
+    top: 0,
+    width: midX,
+    height: slideHeight,
+  });
+  if (overlapLeft > overlapRight * 1.5) return "left";
+  if (overlapRight > overlapLeft * 1.5) return "right";
+  return null; // truly ambiguous — don't force
 }
 
 /**
@@ -314,24 +345,11 @@ export function inferLayout(
   // text boxes in two-column PPTX slides commonly start on the left but extend
   // past center.
   // Use area-overlap analysis instead of center-point to handle wide elements
-  // that straddle the midpoint.
+  // that straddle the midpoint. Shared helper — the render-time MEDIA_SPAN
+  // upgrade uses the same rule so the two never disagree.
   const partition = (el) => {
     if (el === headerEl || isCentered(el)) return null;
-    const overlapLeft = getOverlapArea(el, {
-      left: 0,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    const overlapRight = getOverlapArea(el, {
-      left: midX,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    if (overlapLeft > overlapRight * 1.5) return "left";
-    if (overlapRight > overlapLeft * 1.5) return "right";
-    return null; // truly ambiguous — don't force
+    return partitionByAreaOverlap(el, slideWidth, slideHeight);
   };
   const leftEls = allEls.filter((el) => partition(el) === "left");
   const rightEls = allEls.filter((el) => partition(el) === "right");

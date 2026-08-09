@@ -116,6 +116,11 @@ export const CONFIG = {
   minDominantAreaRatio: 0.05,
   thinLineThresholdPoints: 15,
   microNoiseThresholdPoints: 150,
+  // Top strip (fraction of slide height): any small image starting inside it
+  // is dropped (template logos). The wider header band below it (see
+  // maxHeaderBandRatio) additionally drops small images fully contained in
+  // the header zone, i.e. icons beside titles.
+  marginTopRatio: 0.1,
   marginBottomRatio: 0.9,
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,

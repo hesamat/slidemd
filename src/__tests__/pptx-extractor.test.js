@@ -329,7 +329,16 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     const result = PptxExtractor.htmlToMarkdown(
       '<p>Use <span style="font-family: Courier New;">x  =  1</span> here</p>',
     );
-    expect(result).toContain("`x  =  1`");
+    expect(result).toContain("Use `x  =  1` here");
+  });
+
+  it("drops a marker-only CSS-bullet item without a dangling dash", () => {
+    // A hanging-indent paragraph containing only a hyphen becomes a
+    // standalone <li>; the residue must vanish instead of "- -".
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p style="text-indent: -24pt; margin-left: 24pt">-</p>',
+    );
+    expect(result).toBe("");
   });
 });
 

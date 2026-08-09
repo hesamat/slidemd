@@ -96,20 +96,24 @@ function collapseDuplicateWhitespace(md) {
   const lines = md.split("\n");
   let inFence = false;
   const collapseSegment = (segment) =>
-    segment
-      .replace(/(?<=\S)[ \t\u00a0]{2,}(?=\S)/g, " ")
-      .replace(/(?<=\S)\t(?=\S)/g, " ")
-      .replace(/[ \t\u00a0]+$/g, "");
+    segment.replace(/(?<=\S)[ \t\u00a0]{2,}(?=\S)/g, " ").replace(/(?<=\S)\t(?=\S)/g, " ");
   return lines
     .map((line) => {
-      if (/^\s*```/.test(line)) inFence = !inFence;
+      // Fence lines (opening and closing) are returned untouched.
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
       if (inFence) return line;
       // Preserve inline code spans exactly; collapse whitespace only in the
-      // plain-text segments between them.
-      return line
+      // plain-text segments between them. Trailing whitespace is stripped
+      // once from the whole line, not per segment, so the space before an
+      // inline code snippet survives.
+      const collapsed = line
         .split(/(`[^`]+`)/)
         .map((part, i) => (i % 2 === 1 ? part : collapseSegment(part)))
         .join("");
+      return collapsed.replace(/[ \t\u00a0]+$/g, "");
     })
     .join("\n");
 }
@@ -338,9 +342,10 @@ function processBlockNodes(nodes, out) {
       const inline = [];
       processInlineNodes(node.childNodes, inline);
       // The <li> provides the "- " marker, so drop any literal bullet glyph
-      // that the author also typed ("- • item" -> "- item").
+      // that the author also typed ("- • item" -> "- item"), and skip items
+      // whose remaining content is marker-only ("- -" residue).
       const merged = stripBulletGlyphs(mergeAdjacentMarkers(inline.join("").trim()));
-      if (merged) {
+      if (merged && !isMarkerOnly(merged)) {
         // Determine nesting depth from margin-left on the inner <p>.
         // Items with margin-left significantly larger than the minimum are
         // sub-bullets (e.g. "Thursdays" at margin-left 54pt under "Lectures"
