@@ -1,0 +1,102 @@
+{
+  "fragments": [
+    {
+      "file": "system-prompt.md",
+      "role": "system",
+      "intent": null,
+      "version": 1,
+      "description": "Global rules, JSON output format, layout list"
+    },
+    {
+      "file": "fix-prompt.md",
+      "role": "user",
+      "intent": "enhanceSlide",
+      "version": 1,
+      "description": "Conservative cleanup task + {{markdown}} input"
+    },
+    {
+      "file": "generate-prompt.md",
+      "role": "user",
+      "intent": "generate",
+      "version": 1,
+      "description": "Creative reorganization task + {{markdown}} input"
+    },
+    {
+      "file": "polish-prompt.md",
+      "role": "user",
+      "intent": "polish",
+      "version": 1,
+      "description": "Whole-deck cleanup preserving slide count, order, and visual identity"
+    },
+    {
+      "file": "add-speaker-notes-prompt.md",
+      "role": "user",
+      "intent": "addSpeakerNotes",
+      "version": 1,
+      "description": "Add speaker notes to a single slide"
+    },
+    {
+      "file": "remix-plan-prompt.md",
+      "role": "user",
+      "intent": "remixPlan",
+      "version": 1,
+      "description": "Plan phase for Remix; outputs restructuring plan JSON"
+    },
+    {
+      "file": "reimagine-outline-prompt.md",
+      "role": "user",
+      "intent": "reimagineOutline",
+      "version": 1,
+      "description": "Outline phase for Reimagine; outputs { plan, chapters } JSON"
+    },
+    {
+      "file": "flow-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Narrative-flow guidance variants used by the generate options suffix"
+    },
+    {
+      "file": "speaker-notes-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Speaker-notes guidance variants used by the generate options suffix"
+    },
+    {
+      "file": "visual-identity-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Visual-identity guidance variants (preserve/discard)"
+    },
+    {
+      "file": "images-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Vision images guidance variants for the remix plan prompt"
+    },
+    {
+      "file": "batch-pagination.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Batch pagination instructions variants for buildBatchMessages"
+    },
+    {
+      "file": "creative-guidance.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Remix creative guidance text for the {{creativeGuidance}} placeholder"
+    },
+    {
+      "file": "repair-message.md",
+      "role": "snippet",
+      "intent": null,
+      "version": 1,
+      "description": "Repair message template for validation failures"
+    }
+  ]
+}

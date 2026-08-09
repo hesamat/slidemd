@@ -1,59 +1,55 @@
 /**
  * AiIntentRegistry
  *
- * Maps intent names to prompt builders. Each builder produces { system, user }
+ * Maps intent names to prompt fragments. Each intent composes { system, user }
  * messages for the AiProviderClient. The registry is the single source of
- * truth for which intents exist and how their prompts are composed.
+ * truth for which intents exist and which fragments their prompts use.
+ *
+ * All fragment copy lives in `src/data/prompts/` and is imported through
+ * `ai-prompt-fragments.js`; this module only maps intents to fragments and
+ * applies per-intent input transforms (e.g. frontmatter stripping).
  */
 
-import { AiPromptComposer } from "./ai-prompt-composer.js";
-import { getAllowedLayoutList, stripFrontmatter } from "./ai-prompt-builder.js";
-import systemPrompt from "../prompts/system-prompt.md?raw";
-import fixPrompt from "../prompts/fix-prompt.md?raw";
-import generatePrompt from "../prompts/generate-prompt.md?raw";
-import polishPrompt from "../prompts/polish-prompt.md?raw";
-import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
+import { composeMessages, getFragment } from "./ai-prompt-fragments.js";
+import { stripFrontmatter } from "./ai-prompt-builder.js";
+
+const INTENTS = {
+  // Single-slide intents — the slide markdown is sent as-is (frontmatter
+  // kept — single-slide ops don't strip it because the AI needs to see and
+  // preserve the layout).
+  enhanceSlide: {
+    system: "system-prompt.md",
+    user: "fix-prompt.md",
+  },
+  addSpeakerNotes: {
+    system: "system-prompt.md",
+    user: "add-speaker-notes-prompt.md",
+  },
+  // Whole-deck intent — strips layout/hidden/code-font-size (generate mode)
+  // so the AI can reorganize freely. Background and theme are kept so the AI
+  // can see them.
+  generate: {
+    system: "system-prompt.md",
+    user: "generate-prompt.md",
+    transform: (ctx) => ({ markdown: stripFrontmatter(ctx.markdown, "generate") }),
+  },
+};
 
 /**
- * Build messages for a single-slide intent.
- * The slide markdown is sent as-is (frontmatter kept — single-slide ops
- * don't strip it because the AI needs to see and preserve the layout).
- * @param {string} userFragment
- * @param {string} slideMarkdown
+ * Compose system + user messages for an intent.
+ * @param {string} intent
+ * @param {{ markdown: string }} ctx
  * @returns {{ system: string, user: string }}
  */
-function buildSingleSlideMessages(userFragment, slideMarkdown) {
-  const composer = new AiPromptComposer({
-    systemFragment: systemPrompt,
-    userFragment,
-  });
-  return composer.compose({
-    markdown: slideMarkdown,
-    layoutList: getAllowedLayoutList(),
-  });
+function composeForIntent(intent, ctx) {
+  const def = INTENTS[intent];
+  if (!def) throw new Error(`Unknown AI intent: ${intent}`);
+  const substitutions = def.transform ? def.transform(ctx) : { markdown: ctx.markdown };
+  return composeMessages(getFragment(def.system), getFragment(def.user), substitutions);
 }
 
 /**
- * Build messages for the whole-deck generate intent.
- * Strips layout/hidden/code-font-size (generate mode) so the AI can
- * reorganize freely. Background and theme are kept so the AI can see them.
- * @param {string} markdown
- * @returns {{ system: string, user: string }}
- */
-function buildGenerateMessages(markdown) {
-  const cleaned = stripFrontmatter(markdown, "generate");
-  const composer = new AiPromptComposer({
-    systemFragment: systemPrompt,
-    userFragment: generatePrompt,
-  });
-  return composer.compose({
-    markdown: cleaned,
-    layoutList: getAllowedLayoutList(),
-  });
-}
-
-/**
- * Build messages for the whole-deck polish intent.
+ * Build messages for the whole-deck polish flow.
  * Uses polish-prompt.md, which combines PPTX-style cleanup with layout
  * improvement while preserving slide count, order, and visual identity.
  * Generate-mode frontmatter stripping so the AI can fix layout choices
@@ -63,23 +59,10 @@ function buildGenerateMessages(markdown) {
  */
 export function buildPolishMessages(markdown) {
   const cleaned = stripFrontmatter(markdown, "generate");
-  const composer = new AiPromptComposer({
-    systemFragment: systemPrompt,
-    userFragment: polishPrompt,
-  });
-  return composer.compose({
+  return composeMessages(getFragment("system-prompt.md"), getFragment("polish-prompt.md"), {
     markdown: cleaned,
-    layoutList: getAllowedLayoutList(),
   });
 }
-
-const INTENT_BUILDERS = {
-  // Single-slide intents — return { system, user } for one slide
-  enhanceSlide: (ctx) => buildSingleSlideMessages(fixPrompt, ctx.markdown),
-  addSpeakerNotes: (ctx) => buildSingleSlideMessages(addSpeakerNotesPrompt, ctx.markdown),
-  // Whole-deck intent — returns { system, user } for the full deck
-  generate: (ctx) => buildGenerateMessages(ctx.markdown),
-};
 
 /**
  * Get the prompt builder for an intent.
@@ -87,7 +70,8 @@ const INTENT_BUILDERS = {
  * @returns {((ctx: { markdown: string }) => { system: string, user: string })|undefined}
  */
 export function getBuilder(intent) {
-  return INTENT_BUILDERS[intent];
+  if (!(intent in INTENTS)) return undefined;
+  return (ctx) => composeForIntent(intent, ctx);
 }
 
 /**
@@ -97,9 +81,7 @@ export function getBuilder(intent) {
  * @returns {{ system: string, user: string }}
  */
 export function buildMessagesForIntent(intent, ctx) {
-  const builder = INTENT_BUILDERS[intent];
-  if (!builder) throw new Error(`Unknown AI intent: ${intent}`);
-  return builder(ctx);
+  return composeForIntent(intent, ctx);
 }
 
 /**
@@ -108,7 +90,7 @@ export function buildMessagesForIntent(intent, ctx) {
  * @returns {boolean}
  */
 export function isSingleSlideIntent(intent) {
-  return intent in INTENT_BUILDERS && intent !== "generate";
+  return intent in INTENTS && intent !== "generate";
 }
 
 /**
@@ -116,5 +98,5 @@ export function isSingleSlideIntent(intent) {
  * @returns {string[]}
  */
 export function listIntents() {
-  return Object.keys(INTENT_BUILDERS);
+  return Object.keys(INTENTS);
 }
