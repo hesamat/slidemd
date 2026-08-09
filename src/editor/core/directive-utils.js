@@ -302,6 +302,25 @@ export function removeAreaFromLayout(markdown, areaName) {
     }
   }
 
+  // Preserve symmetric filler columns around main (e.g. focus layout's
+  // ". main ." row).  If one filler column is kept but its mirror is not,
+  // the main column would shift off-center after pruning.
+  const mainRowIdx = replacedRows.findIndex((r) => r.includes("main"));
+  if (mainRowIdx >= 0) {
+    const mainCells = replacedRows[mainRowIdx];
+    const mainColIdx = mainCells.indexOf("main");
+    const leftFiller = mainColIdx > 0 && mainCells[mainColIdx - 1] === ".";
+    const rightFiller = mainColIdx < mainCells.length - 1 && mainCells[mainColIdx + 1] === ".";
+    if (leftFiller && rightFiller) {
+      const leftKept = keepCol[mainColIdx - 1];
+      const rightKept = keepCol[mainColIdx + 1];
+      if (leftKept !== rightKept) {
+        if (!leftKept) keepCol[mainColIdx - 1] = true;
+        if (!rightKept) keepCol[mainColIdx + 1] = true;
+      }
+    }
+  }
+
   const newRows = rowData.map(({ cells }) => {
     const kept = cells.filter((_, j) => keepCol[j]);
     return `"${kept.join(" ") || "."}"`;
@@ -428,6 +447,11 @@ export function parseSingleColumnLayout(layoutValue) {
     return { base: "default", width: 100, align: "center" };
   }
   if (["header-content", "focus", "default", "full-image"].includes(key)) {
+    const gridTemplate = LayoutData.getGridTemplate(key);
+    if (gridTemplate) {
+      const parsed = parseSingleColumnLayout(gridTemplate);
+      if (parsed) return { base: key, width: parsed.width, align: parsed.align };
+    }
     return { base: key, width: 100, align: "center" };
   }
 
@@ -495,7 +519,13 @@ export function parseSingleColumnLayout(layoutValue) {
 
   let base;
   if (areaArray.includes("header") && areaArray.includes("footer")) {
-    base = raw.includes("0.08fr") ? "focus" : "header-content";
+    const footerRow = rows.find((r) => r.cells.every((c) => c === "footer"));
+    const footerSize = (footerRow?.size || "").trim();
+    const footerFrMatch = footerSize.match(/^([\d.]+)fr$/i);
+    base =
+      footerFrMatch && Math.abs(parseFloat(footerFrMatch[1]) - 0.08) < 0.001
+        ? "focus"
+        : "header-content";
   } else if (areaArray.length === 1 && areaArray[0] === "main") {
     base = "full-image";
   } else {

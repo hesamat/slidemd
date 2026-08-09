@@ -38,6 +38,29 @@ describe("removeAreaFromLayout", () => {
     const md = 'layout: "header" "main" / 1fr\n\n@main\ncontent';
     expect(removeAreaFromLayout(md, "main")).toBe(md);
   });
+
+  it("keeps main centered when deleting header from a focus (3-column) layout", () => {
+    const md =
+      'layout: "header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" 0.08fr / 1fr 4.6667fr 1fr\n\n@header\nTitle\n\n@main\nContent\n\n@footer\nFoot';
+    const result = removeAreaFromLayout(md, "header");
+    expect(result).toContain('"footer footer footer"');
+    expect(result).toContain('". main ."');
+    expect(result).toContain("/ 1fr 4.6667fr 1fr");
+    // Should not produce a 2-column right-aligned grid
+    expect(result).not.toContain('". main"');
+    expect(result).not.toContain('"main ."');
+  });
+
+  it("keeps main centered when deleting footer from a focus (3-column) layout", () => {
+    const md =
+      'layout: "header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" 0.08fr / 1fr 4.6667fr 1fr\n\n@header\nTitle\n\n@main\nContent\n\n@footer\nFoot';
+    const result = removeAreaFromLayout(md, "footer");
+    expect(result).toContain('"header header header"');
+    expect(result).toContain('". main ."');
+    expect(result).toContain("/ 1fr 4.6667fr 1fr");
+    expect(result).not.toContain('". main"');
+    expect(result).not.toContain('"main ."');
+  });
 });
 
 describe("single-column layout helpers", () => {
@@ -67,6 +90,19 @@ describe("single-column layout helpers", () => {
     const layout =
       '"header header header" auto ". main ." minmax(0, 1fr) "footer footer footer" 0.08fr / 1.5fr 3fr 1.5fr';
     expect(parseSingleColumnLayout(layout)).toEqual({ base: "focus", width: 50, align: "center" });
+  });
+
+  it("reports the actual rendered width for the focus preset name", () => {
+    const parsed = parseSingleColumnLayout("focus");
+    expect(parsed.base).toBe("focus");
+    expect(parsed.align).toBe("center");
+    expect(parsed.width).toBe(70);
+  });
+
+  it("still reports 100% width for single-column preset names", () => {
+    expect(parseSingleColumnLayout("header-content").width).toBe(100);
+    expect(parseSingleColumnLayout("default").width).toBe(100);
+    expect(parseSingleColumnLayout("full-image").width).toBe(100);
   });
 
   it("returns the base preset for a centered 100% width", () => {

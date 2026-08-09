@@ -103,7 +103,10 @@ function _getCustomSingleColumnStyle(layout) {
   if (!rows[2].every((cell) => cell === "footer")) return null;
 
   const rowSizes = layout.rowSizes || [];
-  const isFocusFooter = (value) => /^([\d.]+)fr$/i.test(value) && parseFloat(value) === 0.08;
+  const isFocusFooter = (value) => {
+    const m = /^([\d.]+)fr$/i.exec(value);
+    return m && Math.abs(parseFloat(m[1]) - 0.08) < 0.001;
+  };
   return isFocusFooter(rowSizes[2]) ? "focus" : "header-content";
 }
 
