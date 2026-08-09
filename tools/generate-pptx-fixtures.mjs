@@ -138,9 +138,17 @@ function presentationRels(slideCount) {
   ).join("");
   return XML_HEADER +
     `<Relationships xmlns="${RELS}">` +
-    `<Relationship Id="rId1" Type="${RN}/officeDocument" Target="ppt/presentation.xml"/>` +
+    `<Relationship Id="rId1" Type="${RN}/slideMaster" Target="slideMasters/slideMaster1.xml"/>` +
     `<Relationship Id="rId2" Type="${RN}/theme" Target="theme/theme1.xml"/>` +
     slides +
+    `</Relationships>`;
+}
+
+/** Package-level relationships (officeDocument). */
+function rootRels() {
+  return XML_HEADER +
+    `<Relationships xmlns="${RELS}">` +
+    `<Relationship Id="rId1" Type="${RN}/officeDocument" Target="ppt/presentation.xml"/>` +
     `</Relationships>`;
 }
 
@@ -418,7 +426,7 @@ function decorativeIconSlide() {
     id: 10,
     name: "Picture 9",
     x: 580,
-    y: 50,
+    y: 48,
     w: 40,
     h: 40,
     embed: "rId2",
@@ -546,7 +554,7 @@ function buildFixture({ name, slideBody, imageCount }) {
   // Pin the ZIP entry timestamps so regeneration is byte-identical.
   const add = (path, content) => zip.file(path, content, { date: FIXED_DATE });
   add("[Content_Types].xml", contentTypes(1));
-  add("_rels/.rels", "");
+  add("_rels/.rels", rootRels());
   add("ppt/presentation.xml", presentationXml(1));
   add("ppt/_rels/presentation.xml.rels", presentationRels(1));
   add("ppt/theme/theme1.xml", themeXml());

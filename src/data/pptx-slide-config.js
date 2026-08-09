@@ -116,7 +116,6 @@ export const CONFIG = {
   minDominantAreaRatio: 0.05,
   thinLineThresholdPoints: 15,
   microNoiseThresholdPoints: 150,
-  marginTopRatio: 0.1,
   marginBottomRatio: 0.9,
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,

@@ -100,7 +100,9 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
 
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
-      const isInTopBand = el.top < slideHeight * CONFIG.maxHeaderBandRatio;
+      // Fully inside the top header band (decorative icon/logo beside the
+      // title) or overlapping the bottom margin (footer ornament) — drop.
+      const isInTopBand = el.top + (h || 0) <= slideHeight * CONFIG.maxHeaderBandRatio;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
       // Discard small elements placed inside either the top (header band) or
@@ -340,17 +342,26 @@ export function inferLayout(
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
-    // MEDIA_SPAN is a better fit when one column holds only media (images,
-    // tables) and the other holds text — regardless of which physical side
-    // each column is on. The header never lands in either column list, so a
-    // text-only column always contains real body content.
+    // MEDIA_SPAN is a better fit when one column holds only images and the
+    // other holds text — regardless of which physical side each column is on.
+    // The header never lands in either column list, so a text-only column
+    // always contains real body content.
     const isTextLike = (el) =>
       (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
       [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
     const leftHasText = leftEls.some(isTextLike);
     const rightHasText = rightEls.some(isTextLike);
+    // The media-only column must contain a dominant image: the MEDIA_SPAN
+    // render branch fills @media exclusively from dominantImages, so without
+    // one the layout would emit an empty @media.
+    const mediaOnlySideHasDominant =
+      (!leftHasText && leftEls.some((el) => dominantImages.includes(el))) ||
+      (!rightHasText && rightEls.some((el) => dominantImages.includes(el)));
     const oneSideIsMediaOnly =
-      leftHasText !== rightHasText && leftEls.length > 0 && rightEls.length > 0;
+      leftHasText !== rightHasText &&
+      leftEls.length > 0 &&
+      rightEls.length > 0 &&
+      mediaOnlySideHasDominant;
     if (oneSideIsMediaOnly) return LAYOUT.MEDIA_SPAN;
     return LAYOUT.TWO_COLUMN;
   }

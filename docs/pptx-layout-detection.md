@@ -21,7 +21,7 @@ How the PPTX importer decides which layout to use for each slide.
 3. Header detected? (top 22%, ≤150 chars, no bullets, not massive)
 4. Has media (images/tables/charts)?
    ├─ header + two columns + text     → check both columns:
-   │   ├─ one side media-only         → MEDIA_SPAN (image side becomes @media)
+   │   ├─ one side image-only (with a dominant image) → MEDIA_SPAN (image side becomes @media)
    │   └─ both sides have text        → TWO_COLUMN
    ├─ no header + ≥2 dominant images  → MEDIA_SPAN
    ├─ 1 dominant image + text body    → MEDIA_SPAN

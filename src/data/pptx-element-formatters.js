@@ -45,9 +45,16 @@ export function formatTextElement(raw) {
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
 
-    // Drop lines that contain only bullet markers — the residue of empty text
-    // boxes with a leftover bullet glyph. They have no content to show.
-    if (/^[-*•◦‣▪●○■]+\s*$/.test(trimmed)) continue;
+    // Drop lines that contain only a single bullet marker — the residue of an
+    // empty text box with a leftover bullet glyph.
+    if (/^[-*•◦‣▪●○■]\s*$/.test(trimmed)) continue;
+
+    // Multi-marker runs ("---", "***", "••") are divider lines: keep them
+    // verbatim instead of letting REGEX.BULLET below collapse them to "- ".
+    if (/^[-*•◦‣▪●○■]{2,}\s*$/.test(trimmed)) {
+      result.push(trimmed);
+      continue;
+    }
 
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);

@@ -297,6 +297,42 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
   });
 });
 
+describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {
+  it("promotes numbered titles to headings", () => {
+    // A large-font title that starts with a number must keep its heading size
+    // instead of being emitted as an ordered-list item.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 44pt;">3. Data Structures</span></p>',
+    );
+    expect(result).toContain("## 3. Data Structures");
+  });
+
+  it("does not promote bullet lines to headings", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 32pt;">• First item</span></p>',
+    );
+    expect(result).toContain("- First item");
+    expect(result).not.toContain("###");
+  });
+
+  it("keeps divider lines typed in slides", () => {
+    expect(PptxExtractor.htmlToMarkdown("<p>---</p>")).toContain("---");
+    expect(PptxExtractor.htmlToMarkdown("<p>***</p>")).toContain("***");
+  });
+
+  it("drops a lone bullet marker (empty text box residue)", () => {
+    expect(PptxExtractor.htmlToMarkdown("<p>•</p>")).toBe("");
+    expect(PptxExtractor.htmlToMarkdown("<p>-</p>")).toBe("");
+  });
+
+  it("preserves whitespace inside inline code that sits mid-line", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p>Use <span style="font-family: Courier New;">x  =  1</span> here</p>',
+    );
+    expect(result).toContain("`x  =  1`");
+  });
+});
+
 describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {
   it("preserves indentation in monospace code", () => {
     const result = PptxExtractor.htmlToMarkdown(

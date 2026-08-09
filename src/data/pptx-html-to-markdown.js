@@ -63,43 +63,53 @@ function stripBulletGlyphs(text) {
 }
 
 /**
- * True when the line contains only bullet markers ("-", "•", ...) and no
- * content — the residue of empty text boxes with a leftover bullet.
+ * True when the line contains only a single bullet marker ("-", "•", ...) and
+ * no content — the residue of an empty text box with a leftover bullet.
+ * Multi-character runs ("---", "***") are legitimate divider lines and are
+ * preserved.
  * @param {string} text
  * @returns {boolean}
  */
 function isMarkerOnly(text) {
-  return /^[-*•◦‣▪●○■]+\s*$/.test(text.trim());
+  return /^[-*•◦‣▪●○■]\s*$/.test(text.trim());
 }
 
 /**
- * True when a line looks like a bullet/numbered item — used to keep heading
- * detection from turning list items into headings.
+ * True when a line starts with a bullet marker — used to keep heading
+ * detection from turning bullet lines into headings. Numbered lines ("3.
+ * Data Structures") are real headings when they are large-font titles.
  * @param {string} text
  * @returns {boolean}
  */
 function isBulletLine(text) {
-  return /^([-*•]|\d+[.)])\s/.test(text.trimStart());
+  return /^[-*•]\s/.test(text.trimStart());
 }
 
 /**
  * Collapse duplicate whitespace (multiple spaces, tabs, nbsp) outside fenced
- * code blocks and backtick-wrapped lines, and strip trailing spaces. Leading
- * indentation (nested list markers) is preserved.
+ * code blocks and backtick-wrapped inline code, and strip trailing spaces.
+ * Leading indentation (nested list markers) is preserved.
  * @param {string} md
  * @returns {string}
  */
 function collapseDuplicateWhitespace(md) {
   const lines = md.split("\n");
   let inFence = false;
+  const collapseSegment = (segment) =>
+    segment
+      .replace(/(?<=\S)[ \t\u00a0]{2,}(?=\S)/g, " ")
+      .replace(/(?<=\S)\t(?=\S)/g, " ")
+      .replace(/[ \t\u00a0]+$/g, "");
   return lines
     .map((line) => {
       if (/^\s*```/.test(line)) inFence = !inFence;
-      if (inFence || /^`.+`$/.test(line.trim())) return line;
+      if (inFence) return line;
+      // Preserve inline code spans exactly; collapse whitespace only in the
+      // plain-text segments between them.
       return line
-        .replace(/(?<=\S)[ \t\u00a0]{2,}(?=\S)/g, " ")
-        .replace(/(?<=\S)\t(?=\S)/g, " ")
-        .replace(/[ \t\u00a0]+$/g, "");
+        .split(/(`[^`]+`)/)
+        .map((part, i) => (i % 2 === 1 ? part : collapseSegment(part)))
+        .join("");
     })
     .join("\n");
 }

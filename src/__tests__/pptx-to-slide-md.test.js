@@ -1132,6 +1132,90 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: three-column");
   });
 
+  it("keeps divider lines typed in body text", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Divider",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Before\n---\nAfter",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("Before\n---\nAfter");
+    expect(md).not.toContain("\n- \n");
+  });
+
+  it("keeps two-column when the side image is not dominant (no empty @media)", () => {
+    // Image area 14000 pt² (~4.8% of slide) sits between the logo threshold
+    // (1.5%) and the dominant threshold (5%): it survives filtering but must
+    // not trigger media-span, whose @media is filled only by dominant images.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Small",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "small.png",
+            base64: "abc",
+            left: 762000,
+            top: 1422400,
+            width: 1778000,
+            height: 1270000,
+          },
+          {
+            type: "text",
+            content: "Body text on the right",
+            left: 6858000,
+            top: 1422400,
+            width: 3657600,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("layout: media-span");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    const imageIdx = md.indexOf("small.png");
+    const bodyIdx = md.indexOf("Body text on the right");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(imageIdx).toBeGreaterThan(-1);
+    expect(bodyIdx).toBeGreaterThan(-1);
+  });
+
   it("uses media-span when right column has only an image", () => {
     const extraction = makeExtraction([
       {

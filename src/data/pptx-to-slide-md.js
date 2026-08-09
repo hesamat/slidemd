@@ -339,7 +339,12 @@ function convertSlide(
 
     const isSingleImage = (els) =>
       els.length === 1 && els[0].type === ELEMENT_TYPES.IMAGE && els[0].ref;
-    const singleImageOnSide = isSingleImage(leftEls) || isSingleImage(rightEls);
+    // The image must be dominant: the MEDIA_SPAN render branch fills @media
+    // exclusively from dominantImages, so a non-dominant side image would
+    // leave @media empty.
+    const singleDominantImageOnSide =
+      (isSingleImage(leftEls) && dominantImages.includes(leftEls[0])) ||
+      (isSingleImage(rightEls) && dominantImages.includes(rightEls[0]));
 
     // Only upgrade to media-span if there's actual body content beyond the
     // header. Otherwise @main would be empty — header-content handles this.
@@ -352,7 +357,7 @@ function convertSlide(
           el.type === ELEMENT_TYPES.CHART ||
           el.type === ELEMENT_TYPES.DIAGRAM),
     );
-    if (singleImageOnSide && hasBodyContent) {
+    if (singleDominantImageOnSide && hasBodyContent) {
       layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
     }
   }
