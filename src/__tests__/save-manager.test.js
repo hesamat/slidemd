@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { SaveManager, removeStaleImages } from "../editor/ui/save-manager.js";
+import { Notification } from "../renderer/notification.js";
 
 function makeImageDir(entries) {
   const removed = [];
@@ -116,5 +117,36 @@ describe("SaveManager working-state overlay", () => {
     ];
 
     expect(sm.getFullMarkdown(slides)).toBe("# A\n\n---\n\n## B edited");
+  });
+});
+
+describe("SaveManager save() dedup and file-name prompt", () => {
+  it("dedupes concurrent save() calls while a save is in flight", async () => {
+    const sm = createSaveManager();
+    const doSave = vi.spyOn(sm, "_doMarkdownSave").mockResolvedValue(true);
+    vi.spyOn(sm, "_prepareSave").mockResolvedValue({ fullMarkdown: "# x" });
+    vi.spyOn(sm, "_markSaved").mockImplementation(() => {});
+
+    const first = sm.save();
+    const second = sm.save();
+    await Promise.all([first, second]);
+
+    expect(doSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws AbortError when the file-name prompt is cancelled", async () => {
+    const sm = createSaveManager();
+    vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: false, value: "" });
+
+    await expect(sm._promptFileName("deck.md")).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
+  it("sanitizes the chosen name and appends .md when missing", async () => {
+    const sm = createSaveManager();
+    vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: true, value: "  My Deck  " });
+
+    await expect(sm._promptFileName("deck.md")).resolves.toBe("My Deck.md");
   });
 });

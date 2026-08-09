@@ -108,7 +108,10 @@ export const SHORTCUTS = [
     id: "save",
     name: "Save changes",
     category: "Edit",
-    bindings: [{ key: "s", modifiers: { cmdOrCtrl: true } }],
+    // Global: intercept Ctrl+S in every mode so the browser's own save
+    // dialog never appears; the save action silently re-saves or falls back
+    // to the app's picker flow when there is no destination yet.
+    bindings: [{ key: "s", modifiers: { cmdOrCtrl: true }, global: true }],
   },
   {
     id: "newSlide",

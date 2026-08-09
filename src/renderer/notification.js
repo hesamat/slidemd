@@ -670,6 +670,113 @@ export class Notification {
   }
 
   /**
+   * Show a prompt modal with a single text input.
+   * @param {string} title
+   * @param {string} message
+   * @param {{ defaultValue?: string, placeholder?: string }} [opts]
+   * @returns {Promise<{ ok: boolean, value: string }>}
+   */
+  static async prompt(title, message, { defaultValue = "", placeholder = "" } = {}) {
+    return new Promise((resolve) => {
+      const modalId = `notification-modal-${++this.modalId}`;
+      const titleId = `${modalId}-title`;
+      const messageId = `${modalId}-message`;
+      const inputId = `${modalId}-input`;
+
+      const backdrop = document.createElement("div");
+      backdrop.className = "notification-modal-backdrop notification-modal-backdrop--blocking";
+
+      const modal = document.createElement("div");
+      modal.className = "notification-modal notification-modal--info";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-labelledby", titleId);
+      modal.setAttribute("aria-describedby", messageId);
+
+      const titleEl = document.createElement("h3");
+      titleEl.id = titleId;
+      titleEl.className = "notification-modal__title";
+      titleEl.textContent = title;
+
+      const messageEl = document.createElement("p");
+      messageEl.id = messageId;
+      messageEl.className = "notification-modal__message";
+      messageEl.textContent = message;
+
+      const input = document.createElement("input");
+      input.id = inputId;
+      input.type = "text";
+      input.className = "notification-modal__input";
+      input.value = defaultValue;
+      input.placeholder = placeholder;
+      input.setAttribute("aria-label", title);
+
+      const content = document.createElement("div");
+      content.className = "notification-modal__content";
+
+      const icon = this.getIcon("info");
+      icon.classList.add("notification-modal__icon");
+
+      const copy = document.createElement("div");
+      copy.className = "notification-modal__copy";
+      copy.appendChild(titleEl);
+      copy.appendChild(messageEl);
+
+      content.appendChild(icon);
+      content.appendChild(copy);
+      content.appendChild(input);
+
+      const actions = document.createElement("div");
+      actions.className = "notification-modal__actions";
+
+      let finished = false;
+      const finish = (ok) => {
+        if (finished) return;
+        finished = true;
+        const value = input.value;
+        backdrop.classList.add("notification-modal-backdrop--hide");
+        setTimeout(() => backdrop.remove(), 200);
+        document.removeEventListener("keydown", keyHandler);
+        resolve({ ok, value });
+      };
+
+      const keyHandler = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        }
+      };
+
+      const okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "btn btn--sm btn--primary";
+      okBtn.textContent = "OK";
+      okBtn.onclick = () => finish(true);
+      actions.appendChild(okBtn);
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn btn--sm";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.onclick = () => finish(false);
+      actions.appendChild(cancelBtn);
+
+      modal.appendChild(content);
+      modal.appendChild(actions);
+      backdrop.appendChild(modal);
+      this.getRootElement().appendChild(backdrop);
+
+      document.addEventListener("keydown", keyHandler);
+      requestAnimationFrame(() => {
+        input.focus();
+        input.select();
+      });
+    });
+  }
+
+  /**
    * Show a modal dialog that returns a promise
    * @param {Object} config - Modal configuration
    * @returns {Promise<*>} Resolves with the selected button's value or closeResolvesTo

@@ -123,6 +123,14 @@ export class DeckImagesResolver {
   }
 
   /**
+   * The currently registered deck folder handle, or null.
+   * @returns {FileSystemDirectoryHandle|null}
+   */
+  static getDirectoryHandle() {
+    return this._directoryHandle || null;
+  }
+
+  /**
    * Read an image directly from the registered directory handle and return
    * a blob URL, or null when the handle is unavailable/unpermitted. The
    * in-flight promise is cached so concurrent and repeated resolutions of
