@@ -1310,6 +1310,48 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("badge.png");
   });
 
+  it("keeps a small top image when the only top text is a narrow label", () => {
+    // A narrow label or date placeholder in the header region is not a
+    // title, so the header-band rule must not drop images beside it.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Label",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Course 101",
+            left: 500000,
+            top: 400000,
+            width: 1524000,
+            height: 381000,
+          },
+          {
+            type: "text",
+            content: "Body paragraph below",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
   it("renders all body content when the two-column split leaves one side empty", () => {
     // Element A's overlap ratio (1.33) passes the 1.2x pre-check but not the
     // renderer's 1.5x threshold, so the render split finds no left elements.
@@ -1402,6 +1444,114 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: two-column");
     expect(md).toContain("@main");
     expect(md).toContain("Stacked body element");
+  });
+
+  it("picks the media-span variant from the media-only column, not the first dominant image", () => {
+    // The text column also contains a dominant image, so dominantImages[0]
+    // (element order) is the illustration inside the text column. The variant
+    // must follow the picture-only column instead — media on the right.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Pics",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left column body text that carries the main content",
+            left: 762000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          // Illustration inside the text column — comes first in element order
+          {
+            type: "image",
+            ref: "illustration.png",
+            base64: "abc",
+            left: 1016000,
+            top: 2540000,
+            width: 2540000,
+            height: 1905000,
+          },
+          // The media-only column
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5334000,
+            top: 1270000,
+            width: 3556000,
+            height: 4318000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("layout: media-span-left");
+  });
+
+  it("picks media-span-left when the picture-only column is on the left", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Pics L",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Right column body text that carries the main content",
+            left: 5334000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          // Illustration inside the text column — comes first among images,
+          // so dominantImages[0] would point at the wrong column
+          {
+            type: "image",
+            ref: "illustration.png",
+            base64: "abc",
+            left: 5588000,
+            top: 2540000,
+            width: 2540000,
+            height: 1905000,
+          },
+          // The media-only column (left)
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 762000,
+            top: 1270000,
+            width: 3556000,
+            height: 4318000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-left");
+    expect(md).not.toContain("layout: media-span-right");
   });
 
   it("keeps divider lines typed in body text without splitting the slide", () => {

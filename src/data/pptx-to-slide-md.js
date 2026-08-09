@@ -395,25 +395,36 @@ function convertSlide(
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
       // Keep TWO_COLUMN if there's a single element that can be content-split:
-      // a wide element (merged code from PPTX) or an overflowing body.
+      // a wide element (merged code from PPTX) or an overflowing body. The
+      // layout directive is not pushed yet — it picks up the new spec below.
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
       if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
         layout = LAYOUT.HEADER_CONTENT;
-        setLayoutDirective(parts, layout);
       }
     }
   }
 
-  // Pick the media-span variant by the dominant image's side so the rendered
-  // media column matches the source slide (image-left slides keep the image
-  // on the left). An ambiguous image defaults to the right — the historical
-  // media-span behavior.
+  // Pick the media-span variant from the media-only column — the column that
+  // holds dominant images and no body text — so the rendered media column
+  // matches the source slide (image-left slides keep the image on the left).
+  // The text column may itself contain a dominant image (e.g. an illustration
+  // beside the body), so the first dominant image is not a reliable signal.
+  // When no column qualifies, default to the right — the historical behavior.
   if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    const mediaImage = dominantImages[0];
+    const isTextLike = (el) =>
+      (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
+    const onSide = (side) => (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
+    const leftHasText = bodyElements.some((el) => isTextLike(el) && onSide("left")(el));
+    const rightHasText = bodyElements.some((el) => isTextLike(el) && onSide("right")(el));
+    const leftHasDominant = dominantImages.some(onSide("left"));
+    const rightHasDominant = dominantImages.some(onSide("right"));
     layout =
-      mediaImage && partitionByAreaOverlap(mediaImage, slideWidth, slideHeight) === "left"
+      !leftHasText && leftHasDominant
         ? LAYOUT.MEDIA_SPAN_LEFT
-        : LAYOUT.MEDIA_SPAN_RIGHT;
+        : !rightHasText && rightHasDominant
+          ? LAYOUT.MEDIA_SPAN_RIGHT
+          : LAYOUT.MEDIA_SPAN_RIGHT;
   }
 
   parts.push(`layout: ${layout.spec}`);
@@ -583,6 +594,10 @@ function convertSlide(
         // immediately — the late fallback must not be the only renderer.
         layout = LAYOUT.HEADER_CONTENT;
         setLayoutDirective(parts, layout);
+        const singleImage =
+          bodyElements.length === 1 &&
+          bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
+          bodyElements[0].ref;
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
@@ -592,15 +607,23 @@ function convertSlide(
         }
         parts.push(MARKDOWN_TAGS.MAIN);
         parts.push("");
-        parts.push(
-          renderElementsWithFlex(
-            bodyElements,
-            slideWidth,
-            slideHeight,
-            deckName,
-            formatSingleElement,
-          ),
-        );
+        if (singleImage) {
+          // Mirror the late fallback's single-image handling so the two
+          // downgrade paths cannot drift.
+          const el = bodyElements[0];
+          const hasExplicitDims = el.width && el.height;
+          parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+        } else {
+          parts.push(
+            renderElementsWithFlex(
+              bodyElements,
+              slideWidth,
+              slideHeight,
+              deckName,
+              formatSingleElement,
+            ),
+          );
+        }
       }
     } else {
       // Overlap-based split

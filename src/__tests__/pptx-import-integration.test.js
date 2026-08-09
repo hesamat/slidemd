@@ -213,4 +213,21 @@ describe("slide title derivation from HTML-heavy slides", () => {
     expect(title).toContain(">>");
     expect(title).not.toContain("<div");
   });
+
+  it("strips entity-encoded tags and unterminated comments from titles", () => {
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '&lt;div class="widget"&gt;Encoded markup&lt;/div&gt;',
+      "<!-- broken comment without a close",
+    ].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    const title = deck.slides[0].title;
+    expect(title).toContain("Encoded markup");
+    expect(title).not.toContain("<div");
+    expect(title).not.toContain("<!--");
+    expect(title).not.toContain("&lt;");
+  });
 });

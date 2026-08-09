@@ -315,6 +315,16 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     expect(result).not.toContain("###");
   });
 
+  it("normalizes glyphs without a following space", () => {
+    // "•item" (no space) must become a markdown bullet, not leak "### •item".
+    const spaced = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 32pt;">•item</span></p>',
+    );
+    expect(spaced).toContain("- item");
+    expect(spaced).not.toContain("•");
+    expect(spaced).not.toContain("###");
+  });
+
   it("keeps divider lines typed in slides", () => {
     expect(PptxExtractor.htmlToMarkdown("<p>---</p>")).toContain("---");
     expect(PptxExtractor.htmlToMarkdown("<p>***</p>")).toContain("***");
@@ -328,6 +338,20 @@ describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge case
     // "--" is a double-hyphen artifact, not a divider — it must not become a
     // horizontal rule, and it must not leak a dangling "- ".
     expect(PptxExtractor.htmlToMarkdown("<p>--</p>")).toBe("");
+  });
+
+  it("keeps divider content inside list items", () => {
+    // A divider typed as a bullet item is preserved as a list item rather
+    // than dropped; "* * *" is not mangled by marker merging.
+    const result = PptxExtractor.htmlToMarkdown(
+      "<ul><li>before</li><li>---</li><li>after</li></ul>",
+    );
+    expect(result).toContain("- before");
+    expect(result).toContain("- ---");
+    expect(result).toContain("- after");
+
+    const stars = PptxExtractor.htmlToMarkdown("<ul><li>* * *</li></ul>");
+    expect(stars).toContain("- * * *");
   });
 
   it("drops a lone bullet marker (empty text box residue)", () => {

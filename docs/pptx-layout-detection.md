@@ -48,13 +48,13 @@ text, the layout is `MEDIA_SPAN` regardless of which side the image is on —
 image-left layouts previously rendered the image in `@main` and the TEXT in
 `@media`.
 
-### Two-column pre-check (lines ~364–382)
+### Two-column pre-check
 
 If `TWO_COLUMN` split would leave one side empty, downgrade to `HEADER_CONTENT`.
 Exception: a single wide element (>80% of slide width) is kept as `TWO_COLUMN`
 because it likely represents merged two-column content from PPTX.
 
-### Empty-@main guard (MEDIA_SPAN rendering, lines ~640–680)
+### Empty-@main guard (MEDIA_SPAN rendering)
 
 If MEDIA_SPAN rendering would produce an empty `@main` (all body elements are
 dominant images), downgrade to `HEADER_CONTENT` and put images in `@main`.

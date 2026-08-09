@@ -5,7 +5,7 @@
  * Extracted from pptx-to-slide-md.js for clarity and reuse.
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
+import { stripHtml, escapeHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
 import { sanitizeCssColor, isColorDark } from "./pptx-color-utils.js";
 import { CONVERSION, DEFAULTS, REGEX, CONFIG, MARKDOWN_TAGS } from "./pptx-slide-config.js";
 
@@ -48,8 +48,9 @@ export function formatTextElement(raw) {
     // Divider lines — three or more markers, adjacent or spaced ("---",
     // "- - -", "***", "* * *", "•••"). A raw "---" line would terminate the
     // slide in splitSlides, so emit "***" (which renders as a horizontal
-    // rule) instead of the original markers.
-    if (/^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■]){2,})\s*$/.test(trimmed)) {
+    // rule) instead of the original markers. Shared with htmlToMarkdown so
+    // the two modules cannot drift.
+    if (isDividerLine(trimmed)) {
       result.push("***");
       continue;
     }
@@ -58,7 +59,7 @@ export function formatTextElement(raw) {
     // "- -", "--", "• •") that PowerPoint leaves behind in empty sub-bullets.
     // These have no content, so drop the line instead of emitting a dangling
     // "- ".
-    if (/^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■])?)\s*$/.test(trimmed)) continue;
+    if (isMarkerOnly(trimmed)) continue;
 
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);

@@ -43,7 +43,9 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
   // The header band rule (below) only applies when the slide actually has a
   // heading in the header region — a short, non-list text element near the
   // top. Without one, small images higher up are content, not title icons.
-  const hasHeaderLikeText = textElements.some((el) => isHeaderLikeTextElement(el, slideHeight));
+  const hasHeaderLikeText = textElements.some((el) =>
+    isHeaderLikeTextElement(el, slideHeight, slideWidth),
+  );
 
   return elements.filter((el) => {
     // 1. Always keep text and rich content types
@@ -198,21 +200,26 @@ export function partitionByAreaOverlap(el, slideWidth, slideHeight) {
 /**
  * True when a text element looks like a heading: it sits in the header
  * region (top of the slide) and either carries a markdown heading marker or
- * is short and not a list item. Shared by filterMeaningfulElements (the
- * header-band icon rule) and inferLayout (header detection) so the two
+ * is a wide, short, non-list element (a real title — not a slide number,
+ * date placeholder, or decorative label). Shared by filterMeaningfulElements
+ * (the header-band icon rule) and inferLayout (header detection) so the two
  * predicates cannot drift apart.
  * @param {import('./pptx-extractor.js').ExtractedElement} el
  * @param {number} slideHeight
+ * @param {number} [slideWidth] - Required for the plain-title path; when
+ *   omitted, only the heading-marker path applies.
  * @returns {boolean}
  */
-export function isHeaderLikeTextElement(el, slideHeight) {
+export function isHeaderLikeTextElement(el, slideHeight, slideWidth) {
   if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
   if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
+  if (!slideWidth || el.placeholderType === ELEMENT_TYPES.FOOTER) return false;
   // Extract plain text from HTML for length/bullet checks — raw HTML is
   // often much longer than the visible text due to inline styles.
   const text = stripHtml(el.content || "");
   const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
-  return text.length <= CONFIG.maxHeaderLength && !hasBullet;
+  const isWideEnough = (el.width || 0) >= slideWidth * CONFIG.minTitleWidthRatio;
+  return text.length <= CONFIG.maxHeaderLength && !hasBullet && isWideEnough;
 }
 
 /**
@@ -271,7 +278,7 @@ export function inferLayout(
       return false;
     }
 
-    return isHeaderLikeTextElement(el, slideHeight);
+    return isHeaderLikeTextElement(el, slideHeight, slideWidth);
   };
 
   const headerEl = contentEls.find(isHeader) || null;

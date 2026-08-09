@@ -160,20 +160,23 @@ export class MarkdownParser {
   /**
    * Strip HTML tags (replacing them with spaces so cell/wrapper content keeps
    * word boundaries), decode common entities, and remove markdown formatting.
-   * Only well-formed tags (<tag …> / </tag>) are stripped — literal angle
-   * brackets in text such as "<<" or "a < b > c" are preserved.
+   * Entities are decoded first so authored `&lt;div&gt;` is removed with the
+   * tags it encodes; only well-formed tags (<tag …> / </tag>) and comments
+   * are stripped, so literal angle brackets such as "<<" or "a < b > c" are
+   * preserved.
    * @param {string} line
    * @returns {string}
    */
   _htmlToPlainText(line) {
-    let s = line.replace(/<!--[\s\S]*?-->|<\/?[a-zA-Z][^>]*>/g, " ");
-    s = s
+    let s = line
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
       .replace(/&nbsp;/g, " ");
+    // Comments may be unterminated in user content — strip to end of line.
+    s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, " ").replace(/<\/?[a-zA-Z][^>]*>/g, " ");
     s = MarkdownParser.stripFormatting(s);
     return s.replace(/\s+/g, " ").trim();
   }

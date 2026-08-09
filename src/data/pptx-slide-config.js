@@ -111,6 +111,9 @@ export const CONFIG = {
   minSubstantialBodyLength: 80,
   maxHeaderLength: 150,
   maxHeaderLengthShort: 80,
+  // A plain (non-marker) title must span at least this fraction of the slide
+  // width — narrow top text (slide numbers, dates, labels) is not a title.
+  minTitleWidthRatio: 0.3,
   minMediaAreaRatio: 0.005,
   maxMediaAreaRatio: 0.85,
   maxLogoAreaRatio: 0.015,

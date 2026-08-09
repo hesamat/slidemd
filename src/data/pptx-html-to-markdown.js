@@ -22,7 +22,9 @@ const MONOSPACE_PATTERN =
   /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i;
 
 // Bullet glyphs PowerPoint authors sometimes type as literal text runs.
-const BULLET_GLYPH_START = /^([•◦‣▪●○■])(?:\s+|$)/;
+// Matches a leading glyph followed by whitespace, end of line, or any other
+// character — so "•item" (no space) normalizes to "- item" as well.
+const BULLET_GLYPH_START = /^([•◦‣▪●○■])(?:\s+|$|(?=\S))/;
 
 /**
  * Convert a leading bullet glyph ("• item") into a markdown bullet ("- item").
@@ -69,7 +71,7 @@ function stripBulletGlyphs(text) {
  * @param {string} text
  * @returns {boolean}
  */
-function isMarkerOnly(text) {
+export function isMarkerOnly(text) {
   return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■])?)\s*$/.test(text.trim());
 }
 
@@ -80,7 +82,7 @@ function isMarkerOnly(text) {
  * @param {string} text
  * @returns {boolean}
  */
-function isDividerLine(text) {
+export function isDividerLine(text) {
   return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■]){2,})\s*$/.test(text.trim());
 }
 
@@ -564,10 +566,13 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
       }
     }
     // The list marker is provided by the <li>, so drop literal bullet glyphs
-    // the author typed as text, and skip items with no content left or that
-    // are dividers ("---" — mergeAdjacentMarkers would mangle "* * *").
+    // the author typed as text, and skip items with no content left. Divider
+    // items ("---") are kept verbatim as list items — mergeAdjacentMarkers
+    // would mangle "* * *" — so their content is not lost.
     const rawItem = inline.join("").trim();
-    const merged = isDividerLine(rawItem) ? "" : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
+    const merged = isDividerLine(rawItem)
+      ? rawItem
+      : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
     if (merged && !isMarkerOnly(merged)) {
       if (isOrdered) {
         counters[depth]++;
