@@ -1471,3 +1471,19 @@ body[data-edit-mode="true"] .slide__area .text-block[contenteditable="true"] {
   outline: 2px solid var(--accent);
   user-select: text;
 }
+
+@keyframes text-block-pulse {
+  0% {
+    background-color: rgba(2, 132, 199, 0.18);
+    outline: 2px solid rgba(2, 132, 199, 0.6);
+  }
+  100% {
+    background-color: transparent;
+    outline: 2px solid transparent;
+  }
+}
+
+body[data-edit-mode="true"] .slide__area .text-block--just-inserted {
+  animation: text-block-pulse 1.5s ease-out forwards;
+  border-radius: 4px;
+}
