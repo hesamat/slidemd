@@ -137,6 +137,45 @@ export class MarkdownParser {
     return s.trim();
   }
 
+  /**
+   * Derive a readable slide title from raw area markdown: scan lines for the
+   * first one that yields text once HTML tags are removed, decode entities,
+   * strip markdown formatting, collapse whitespace, and truncate. Lines that
+   * are pure markup (e.g. the flex-row/fullpage-grid wrappers emitted by PPTX
+   * imports) are skipped so the title never shows raw HTML.
+   * Returns "" when no line carries readable text.
+   * @param {string} raw
+   * @returns {string}
+   */
+  _deriveFallbackTitle(raw) {
+    for (const line of safeString(raw).split("\n")) {
+      const text = this._htmlToPlainText(line);
+      if (text) {
+        return text.length > 80 ? text.slice(0, 80).trim() + "…" : text;
+      }
+    }
+    return "";
+  }
+
+  /**
+   * Strip HTML tags (replacing them with spaces so cell/wrapper content keeps
+   * word boundaries), decode common entities, and remove markdown formatting.
+   * @param {string} line
+   * @returns {string}
+   */
+  _htmlToPlainText(line) {
+    let s = line.replace(/<[^>]*>/g, " ");
+    s = s
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, " ");
+    s = MarkdownParser.stripFormatting(s);
+    return s.replace(/\s+/g, " ").trim();
+  }
+
   extractTitle(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -856,12 +895,8 @@ export class MarkdownParser {
         if (headerHeading) {
           slideTitle = MarkdownParser.stripFormatting(headerHeading[1]);
         } else {
-          // Fallback: first non-empty line of @header, truncated
-          const firstHeaderLine = headerText.split("\n").find((l) => l.trim() !== "");
-          if (firstHeaderLine) {
-            slideTitle = MarkdownParser.stripFormatting(firstHeaderLine);
-            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
-          }
+          // Fallback: first line of @header that yields readable text
+          slideTitle = this._deriveFallbackTitle(headerText);
         }
       }
 
@@ -871,12 +906,8 @@ export class MarkdownParser {
         if (mainHeading) {
           slideTitle = MarkdownParser.stripFormatting(mainHeading[1]);
         } else {
-          // Fallback: first non-empty line of @main, truncated
-          const firstMainLine = mainText.split("\n").find((l) => l.trim() !== "");
-          if (firstMainLine) {
-            slideTitle = MarkdownParser.stripFormatting(firstMainLine);
-            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
-          }
+          // Fallback: first line of @main that yields readable text
+          slideTitle = this._deriveFallbackTitle(mainText);
         }
       }
 

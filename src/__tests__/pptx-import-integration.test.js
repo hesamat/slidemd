@@ -117,3 +117,72 @@ describe("pptx import integration", () => {
     expect(markdown).toContain("- *Store references*: a variable holds an address in memory");
   });
 });
+
+describe("slide title derivation from HTML-heavy slides", () => {
+  const gridCells = [
+    ["OPERATOR", "NAME", "ACTION"],
+    ["&", "AND", "Sets a bit to 1 if both are 1"],
+    ["|", "OR", "Sets a bit to 1 if one or both are 1"],
+    ["^", "XOR", "Sets a bit to 1 if only one is 1"],
+    ["~", "NOT", "Inverts all the bits"],
+    ["<<", "Left Shift", "Shifts bits to the left"],
+    [">>", "Right Shift", "Shifts bits to the right"],
+  ];
+
+  it("derives a readable title from a fullpage-grid @main (no raw HTML)", () => {
+    const cells = gridCells
+      .flat()
+      .map(
+        (cell) =>
+          `<div class="fullpage-grid__cell fullpage-grid__cell--on-color" style="background:#000611b3">${cell}</div>`,
+      )
+      .join("");
+    const md = [
+      "layout: header-content",
+      "background: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/image12-3b70.jpeg) center / cover no-repeat",
+      "theme: dark",
+      "",
+      "@main",
+      "",
+      `<div class="fullpage-grid" style="grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(7,1fr)">${cells}</div>`,
+      "",
+      "@footer",
+      "",
+      "COMP 1510 202630",
+    ].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    const title = deck.slides[0].title;
+    expect(title).toContain("OPERATOR");
+    expect(title).toContain("&"); // entities decoded, not &amp;
+    expect(title).not.toContain("<div");
+    expect(title).not.toContain("&lt;");
+    expect(title).not.toContain("&amp;");
+    expect(title.length).toBeLessThanOrEqual(81);
+  });
+
+  it("skips HTML wrapper lines and titles from the first readable line", () => {
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '<div class="flex-row" style="display: flex; gap: 1em; align-items: start;">',
+      '<div style="flex: 1; min-width: 0;">**Bold text**</div>',
+      "</div>",
+    ].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Bold text");
+  });
+
+  it("falls back to Slide N when the area holds only markup", () => {
+    const md = [
+      "layout: header-content",
+      "",
+      "@main",
+      "",
+      '<div class="fullpage-grid" style="grid-template-columns:repeat(3,1fr)"></div>',
+    ].join("\n");
+    const deck = parser.parseDeckMarkdown(md);
+    expect(deck.slides[0].title).toBe("Slide 1");
+  });
+});
