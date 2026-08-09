@@ -549,26 +549,16 @@ export class TextBlockHandler {
     const rect = el.getBoundingClientRect();
     const panelH = this._panel.offsetHeight || 260;
     const panelW = this._panel.offsetWidth || 280;
-    const isWide = rect.width > panelW * 1.5;
 
-    let left;
-    let top;
-    if (isWide) {
-      // For full-width blocks, place the panel below near the text start.
-      left = rect.left + window.scrollX;
-      top = rect.bottom + window.scrollY + 8;
-      if (top + panelH > window.innerHeight) {
-        top = rect.top + window.scrollY - panelH - 8;
-      }
-    } else {
-      left = rect.right + window.scrollX + 8;
-      top = rect.top + window.scrollY;
-      if (left + panelW > window.innerWidth) {
-        left = rect.left + window.scrollX - panelW - 8;
-      }
+    // Always place the panel below the block, left-aligned with it.
+    // Falls back to above if there isn't room below.
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 8;
+    if (top + panelH > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - panelH - 8;
     }
-    top = Math.max(8, Math.min(top, window.innerHeight - panelH - 8));
-    left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
+    top = Math.max(8, Math.min(top, window.innerHeight + window.scrollY - panelH - 8));
+    left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - panelW - 8));
 
     this._panel.style.top = `${top}px`;
     this._panel.style.left = `${left}px`;
