@@ -552,24 +552,24 @@ The following sections are reference material for specific subsystems and known 
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under `src/data/ai/`:
 
-| Module                     | Purpose                                                             |
-| -------------------------- | ------------------------------------------------------------------- |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair        |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                  |
-| `ai-intent-registry.js`    | Maps intent names to prompt fragments                               |
-| `ai-prompt-fragments.js`   | Fragment imports, layout list, variant extraction, guidance helpers |
-| `ai-prompt-builder.js`     | Frontmatter stripping, deck summaries, message/batch building       |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                 |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                         |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                               |
-| `ai-output-validator.js`   | Validate AI output against schema                                   |
-| `ai-output-schema.js`      | Per-intent schemas                                                  |
-| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                       |
-| `ai-repair-message.js`     | Build repair messages for validation failures                       |
-| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization      |
-| `ai-provider-factory.js`   | Provider client factory                                             |
-| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation    |
-| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB       |
+| Module                     | Purpose                                                                  |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair             |
+| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                       |
+| `ai-intent-registry.js`    | Maps intent names to prompt fragments                                    |
+| `ai-prompt-fragments.js`   | Fragment imports, frontmatter stripping, layout list, variant extraction |
+| `ai-prompt-builder.js`     | Deck summaries, message/batch building                                   |
+| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                      |
+| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                              |
+| `ai-token-estimator.js`    | Token count and max_tokens estimation                                    |
+| `ai-output-validator.js`   | Validate AI output against schema                                        |
+| `ai-output-schema.js`      | Per-intent schemas                                                       |
+| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                            |
+| `ai-repair-message.js`     | Build repair messages for validation failures                            |
+| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization           |
+| `ai-provider-factory.js`   | Provider client factory                                                  |
+| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation         |
+| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB            |
 
 ---
 

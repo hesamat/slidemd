@@ -10,8 +10,7 @@
  * applies per-intent input transforms (e.g. frontmatter stripping).
  */
 
-import { composeMessages, getFragment } from "./ai-prompt-fragments.js";
-import { stripFrontmatter } from "./ai-prompt-builder.js";
+import { composeMessages, getFragment, stripFrontmatter } from "./ai-prompt-fragments.js";
 
 const INTENTS = {
   // Single-slide intents — the slide markdown is sent as-is (frontmatter
@@ -70,6 +69,19 @@ function composeForIntent(intent, ctx) {
  */
 export function buildPolishMessages(markdown) {
   return buildMessagesForIntent("polish", { markdown });
+}
+
+/**
+ * Get the user-fragment filename an intent composes with.
+ * Used by code that needs the fragment without composing messages (e.g. the
+ * batched-message path in ai-prompt-builder.js).
+ * @param {string} intent
+ * @returns {string}
+ */
+export function getIntentUserFragment(intent) {
+  const def = INTENTS[intent];
+  if (!def) throw new Error(`Unknown AI intent: ${intent}`);
+  return def.user;
 }
 
 /**

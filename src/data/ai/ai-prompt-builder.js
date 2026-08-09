@@ -2,18 +2,29 @@
  * AI Prompt Builder
  *
  * Builds system and user messages for AI calls from reusable prompt fragments.
- * Provides frontmatter stripping, deck summaries, and batch message
- * construction for whole-deck operations.
+ * Provides deck summaries and batch message construction for whole-deck
+ * operations.
  *
  * All prompt copy lives in `src/data/prompts/` fragments; this module owns
  * only the logic that chooses fragments and fills their placeholders.
  */
 
 import { MarkdownParser } from "../markdown-parser.js";
-import { composeMessages, extractVariant, getFragment, hasVariant } from "./ai-prompt-fragments.js";
+import {
+  composeMessages,
+  extractVariant,
+  getFragment,
+  hasVariant,
+  stripFrontmatter,
+} from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
+import { getIntentUserFragment } from "./ai-intent-registry.js";
 
-export { getAllowedLayoutList } from "./ai-prompt-fragments.js";
+export {
+  getAllowedLayoutList,
+  stripFrontmatter,
+  stripThemeAndBackground,
+} from "./ai-prompt-fragments.js";
 
 /**
  * Build additional instructions suffix from user-provided generate options.
@@ -50,87 +61,6 @@ export function buildGenerateOptionsSuffix(opts = {}) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
   }
   return parts.join("");
-}
-
-/**
- * Strip `theme:` and `background:` directives from markdown.
- * Only replaces directives outside fenced code blocks.
- *
- * @param {string} markdown
- * @returns {string}
- */
-export function stripThemeAndBackground(markdown) {
-  const lines = markdown.split("\n");
-  const result = [];
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      inFence = !inFence;
-      result.push(line);
-      continue;
-    }
-    if (inFence) {
-      result.push(line);
-      continue;
-    }
-    if (/^(theme|background):\s*.*$/.test(line)) {
-      result.push("");
-      continue;
-    }
-    result.push(line);
-  }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-/**
- * Strip frontmatter directives from markdown.
- * Only replaces directives outside fenced code blocks.
- *
- * Fix mode: keeps layout (so AI preserves it), strips theme/background/hidden/code-font-size
- *   (restored post-AI via injectDirectives/restoreDirectives).
- * Generate mode: strips layout, hidden, code-font-size — keeps background and theme
- *   so the AI can see the originals and make informed decisions.
- *
- * @param {string} markdown
- * @param {"fix"|"generate"} mode
- * @returns {string}
- */
-export function stripFrontmatter(markdown, mode) {
-  const lines = markdown.split("\n");
-  const result = [];
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      inFence = !inFence;
-      result.push(line);
-      continue;
-    }
-    if (inFence) {
-      result.push(line);
-      continue;
-    }
-    if (mode === "generate") {
-      // Generate mode: keep background and theme so AI sees the originals
-      if (/^(layout|hidden|code-font-size):\s*.*$/.test(line)) {
-        result.push("");
-        continue;
-      }
-    } else {
-      // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
-      if (/^(theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
-        result.push("");
-        continue;
-      }
-    }
-    result.push(line);
-  }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /**
@@ -243,15 +173,11 @@ export function buildBatchMessages(
 
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
-  // prompt fragment.
-  // TODO: resolve this through the polish intent in ai-intent-registry.js
-  // instead of a mode flag (batch path is the only remaining special case).
+  // prompt fragment. The fragment selection is owned by the intent registry.
   const fragment =
     mode === "fix"
-      ? getFragment("fix-prompt.md")
-      : batchMode === "polish"
-        ? getFragment("polish-prompt.md")
-        : getFragment("generate-prompt.md");
+      ? getFragment(getIntentUserFragment("enhanceSlide"))
+      : getFragment(getIntentUserFragment(batchMode === "polish" ? "polish" : "generate"));
   const { system, user } = composeMessages(getFragment("system-prompt.md"), fragment, {
     markdown: contentForPrompt,
   });

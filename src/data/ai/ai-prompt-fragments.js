@@ -56,17 +56,32 @@ export function getFragment(name) {
 
 const VARIANT_MARKER_RE = /<!--\s*variant:\s*([\w-]+)\s*-->/g;
 
+// Parse results are memoized per fragment content; parsing is deterministic
+// for a given string, and snippet fragments are re-extracted on every call.
+const variantCache = new Map();
+
 /**
  * Parse a snippet fragment into a { name: body } map using full
- * `<!-- variant: name -->` markers. Throws on duplicate markers.
+ * `<!-- variant: name -->` markers. Throws on duplicate markers and on
+ * non-whitespace text before the first marker (such text would otherwise be
+ * silently dropped from the prompt).
  * @param {string} fragment
  * @returns {Map<string, string>}
  */
 export function parseVariants(fragment) {
+  const cached = variantCache.get(fragment);
+  if (cached) return cached;
+
   const variants = new Map();
   const markers = [];
   for (const match of fragment.matchAll(VARIANT_MARKER_RE)) {
     markers.push({ name: match[1], start: match.index, end: match.index + match[0].length });
+  }
+  const preamble = markers.length > 0 ? fragment.slice(0, markers[0].start).trim() : "";
+  if (preamble) {
+    throw new Error(
+      `Text before the first variant marker would be dropped from the prompt: "${preamble.slice(0, 60)}"`,
+    );
   }
   for (let i = 0; i < markers.length; i++) {
     const { name } = markers[i];
@@ -77,6 +92,7 @@ export function parseVariants(fragment) {
     }
     variants.set(name, body);
   }
+  variantCache.set(fragment, variants);
   return variants;
 }
 
@@ -100,9 +116,11 @@ export function extractVariant(fragment, name) {
   const variants = parseVariants(fragment);
   const body = variants.get(name);
   if (body === undefined) {
-    throw new Error(
-      `Variant "${name}" not found in prompt fragment (available: ${[...variants.keys()].join(", ")})`,
-    );
+    const available =
+      variants.size > 0
+        ? ` (available: ${[...variants.keys()].join(", ")})`
+        : " (no variants found)";
+    throw new Error(`Variant "${name}" not found in prompt fragment${available}`);
   }
   return body;
 }
@@ -170,4 +188,63 @@ export function composeMessages(systemFragment, userFragment, substitutions = {}
   const filled = { ...substitutions };
   if (placeholders.has("layoutList")) filled.layoutList ??= getAllowedLayoutList();
   return new AiPromptComposer({ systemFragment, userFragment }).compose(filled);
+}
+
+/**
+ * Strip `theme:` and `background:` directives from markdown.
+ * Only replaces directives outside fenced code blocks.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function stripThemeAndBackground(markdown) {
+  return stripDirectives(markdown, /^(theme|background):\s*.*$/);
+}
+
+/**
+ * Strip frontmatter directives from markdown.
+ * Only replaces directives outside fenced code blocks.
+ *
+ * Fix mode: keeps layout (so AI preserves it), strips theme/background/hidden/code-font-size
+ *   (restored post-AI via injectDirectives/restoreDirectives).
+ * Generate mode: strips layout, hidden, code-font-size — keeps background and theme
+ *   so the AI can see the originals and make informed decisions.
+ *
+ * @param {string} markdown
+ * @param {"fix"|"generate"} mode
+ * @returns {string}
+ */
+export function stripFrontmatter(markdown, mode) {
+  if (mode === "generate") {
+    // Generate mode: keep background and theme so AI sees the originals
+    return stripDirectives(markdown, /^(layout|hidden|code-font-size):\s*.*$/);
+  }
+  // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
+  return stripDirectives(markdown, /^(theme|background|hidden|code-font-size):\s*.*$/);
+}
+
+function stripDirectives(markdown, pattern) {
+  const lines = markdown.split("\n");
+  const result = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^```/.test(line.trim())) {
+      inFence = !inFence;
+      result.push(line);
+      continue;
+    }
+    if (inFence) {
+      result.push(line);
+      continue;
+    }
+    if (pattern.test(line)) {
+      result.push("");
+      continue;
+    }
+    result.push(line);
+  }
+  return result
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

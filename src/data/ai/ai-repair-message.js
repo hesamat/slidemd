@@ -23,7 +23,9 @@ export function buildRepairMessage(errors) {
     const location = err.slide >= 0 ? `Slide ${err.slide + 1}` : "Deck";
     lines.push(`- ${location}: ${err.message}`);
   }
-  return replacePlaceholders(getFragment("repair-message.md"), {
-    issues: lines.join("\n"),
-  }).trim();
+  // The template places the blank line after "issues:" through the
+  // "{{issues}}" placeholder itself, so an empty error list renders the same
+  // bytes as a non-empty one (one blank line, not two).
+  const issues = lines.length > 0 ? `\n${lines.join("\n")}` : "";
+  return replacePlaceholders(getFragment("repair-message.md"), { issues }).trim();
 }
