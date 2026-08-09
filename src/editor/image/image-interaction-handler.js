@@ -179,9 +179,11 @@ export class ImageInteractionHandler {
     // in the markdown source and apply styles to the existing DOM element.
     // Existing HTML <img> tags (from PPTX import) already have correct
     // dimensions and position — skip conversion to avoid layout shift.
+    // Media-span fill images are skipped too: the view fills them
+    // absolutely, and converting them would reflow the layout on select.
     const isExistingHtmlImg =
       img.getAttribute("width") && img.getAttribute("height") && !img.style.position;
-    if (!img.style.position && !isExistingHtmlImg) {
+    if (!img.style.position && !isExistingHtmlImg && !img.closest("[data-media-span]")) {
       this._convertMdImgToHtml(img);
       img.classList.add("img-positioned");
     }

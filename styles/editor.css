@@ -1122,6 +1122,12 @@
   opacity: 0.85;
 }
 
+/* Media-span fill images — the view positions them; not draggable unless
+   the user explicitly toggles freeflow (which writes an inline position). */
+[data-edit-mode="true"] .slide[data-media-span] .slide__area--media > img:not([style*="position"]) {
+  cursor: default;
+}
+
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */
 
 [data-edit-mode="true"] .slides .slide .slide__area [data-source-line] {

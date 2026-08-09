@@ -81,6 +81,11 @@ export class ImageDragController {
     const ctx = this._ctx;
     if (!img || !ctx) return;
     if (img.closest(".flex-row")) return;
+    // Media-span fill images are positioned by the view (absolute fill); do
+    // not convert them to inline-positioned images on drag — that would
+    // reflow them below the area label and cause a visible jump on click.
+    // Toggling freeflow (explicit inline position) re-enables dragging.
+    if (!img.style.position && img.closest("[data-media-span]")) return;
 
     if (ctx.getSelectedImg() && !ctx.getSelectedImg().isConnected) {
       this._selectedImg = null;
