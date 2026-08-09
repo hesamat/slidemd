@@ -1003,6 +1003,14 @@ export class EditController {
         if (!applied || (typeof applied === "object" && !applied.success)) {
           const reason = typeof applied === "object" ? applied.reason : "the slide changed";
           this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+          // syncSlides may have fast-forwarded the store; re-project that
+          // working state into the view since the queued restore is suppressed.
+          try {
+            await this._restoreStoreSnapshot();
+            this.previewUpdater?.update();
+          } catch (restoreError) {
+            console.error("Failed to refresh view after rejected AI patch:", restoreError);
+          }
           Notification.warning(
             `AI ${intent} could not be applied — ${reason || "the slide changed since the request started."}`,
           );
@@ -1131,6 +1139,9 @@ export class EditController {
             timestamp: Date.now(),
           }),
         );
+        // Keep _lastStructuralRevision in sync because we are not using
+        // _restoreStoreSnapshot() for this whole-deck mutation.
+        this._lastStructuralRevision = this.deckStore.getStructuralRevision();
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,
