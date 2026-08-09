@@ -398,6 +398,7 @@ function convertSlide(
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
       if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
         layout = LAYOUT.HEADER_CONTENT;
+        setLayoutDirective(parts, layout);
       }
     }
   }
@@ -488,8 +489,14 @@ function convertSlide(
     // fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
+      // Only a single TEXT element can be content-split — a wide image or
+      // table has no lines to split and would otherwise be dropped.
       const splitEl =
-        bodyElements.length === 1 && (wideEl || bodyOverflows) ? bodyElements[0] : null;
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TEXT &&
+        (wideEl || bodyOverflows)
+          ? bodyElements[0]
+          : null;
       if (splitEl) {
         const rawContent = splitEl.content || "";
         const lines = rawContent.split("\n");
@@ -558,8 +565,29 @@ function convertSlide(
           parts.push(formatTextElement(rightContent));
         }
       } else {
+        // No single element to content-split (multiple body elements landed
+        // on one side). Downgrade to header-content and render the body
+        // immediately — the late fallback must not be the only renderer.
         layout = LAYOUT.HEADER_CONTENT;
         setLayoutDirective(parts, layout);
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        parts.push(
+          renderElementsWithFlex(
+            bodyElements,
+            slideWidth,
+            slideHeight,
+            deckName,
+            formatSingleElement,
+          ),
+        );
       }
     } else {
       // Overlap-based split

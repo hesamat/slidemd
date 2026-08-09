@@ -1308,6 +1308,100 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("badge.png");
   });
 
+  it("renders all body content when the two-column split leaves one side empty", () => {
+    // Element A's overlap ratio (1.33) passes the 1.2x pre-check but not the
+    // renderer's 1.5x threshold, so the render split finds no left elements.
+    // The slide must downgrade to header-content AND render every element —
+    // not emit an empty slide.
+    const longA = "Element A text with enough words to be substantial. ".repeat(6);
+    const longB = "Element B text with enough words to be substantial. ".repeat(6);
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Split",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longA,
+            left: 2540000,
+            top: 1500000,
+            width: 3556000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: longB,
+            left: 6350000,
+            top: 1500000,
+            width: 2540000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
+    expect(md).toContain("Element A text");
+    expect(md).toContain("Element B text");
+  });
+
+  it("patches the layout directive when the pre-check downgrades two-column", () => {
+    // Two overflowing body elements stacked on the left are forced into
+    // two-column by the overflow upgrade, but the pre-check finds no right
+    // column and downgrades — the emitted directive must match.
+    const longText = "Stacked body element with a lot of words. ".repeat(20);
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Stack",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longText,
+            left: 1000000,
+            top: 1500000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: longText,
+            left: 1000000,
+            top: 3200000,
+            width: 6000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).not.toContain("layout: two-column");
+    expect(md).toContain("@main");
+    expect(md).toContain("Stacked body element");
+  });
+
   it("keeps divider lines typed in body text without splitting the slide", () => {
     const extraction = makeExtraction([
       {

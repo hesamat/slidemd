@@ -43,13 +43,7 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
   // The header band rule (below) only applies when the slide actually has a
   // heading in the header region — a short, non-list text element near the
   // top. Without one, small images higher up are content, not title icons.
-  const hasHeaderLikeText = textElements.some((el) => {
-    if (el.top >= bodyThreshold) return false;
-    const text = stripHtml(el.content || "");
-    return (
-      text.length <= CONFIG.maxHeaderLength && !REGEX.BULLET.test(text) && !REGEX.NUMBER.test(text)
-    );
-  });
+  const hasHeaderLikeText = textElements.some((el) => isHeaderLikeTextElement(el, slideHeight));
 
   return elements.filter((el) => {
     // 1. Always keep text and rich content types
@@ -175,8 +169,8 @@ export function findDominantImages(allEls, slideWidth, slideHeight) {
  * Partition an element into the left or right half of the slide using
  * area-overlap analysis. Elements that straddle the midpoint (no side has
  * 1.5x more overlap than the other) are ambiguous and return null.
- * Shared by inferLayout and the render-time MEDIA_SPAN upgrade so both use
- * the same column-partitioning rule.
+ * Used by inferLayout's column partitioning; the two-column renderer keeps
+ * its own thresholds on top of this rule.
  * @param {import('./pptx-extractor.js').ExtractedElement} el
  * @param {number} slideWidth
  * @param {number} slideHeight
@@ -199,6 +193,26 @@ export function partitionByAreaOverlap(el, slideWidth, slideHeight) {
   if (overlapLeft > overlapRight * 1.5) return "left";
   if (overlapRight > overlapLeft * 1.5) return "right";
   return null; // truly ambiguous — don't force
+}
+
+/**
+ * True when a text element looks like a heading: it sits in the header
+ * region (top of the slide) and either carries a markdown heading marker or
+ * is short and not a list item. Shared by filterMeaningfulElements (the
+ * header-band icon rule) and inferLayout (header detection) so the two
+ * predicates cannot drift apart.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideHeight
+ * @returns {boolean}
+ */
+export function isHeaderLikeTextElement(el, slideHeight) {
+  if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
+  if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
+  // Extract plain text from HTML for length/bullet checks — raw HTML is
+  // often much longer than the visible text due to inline styles.
+  const text = stripHtml(el.content || "");
+  const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
+  return text.length <= CONFIG.maxHeaderLength && !hasBullet;
 }
 
 /**
@@ -247,6 +261,8 @@ export function inferLayout(
   const isHeader = (el) => {
     if (el.top >= bodyThreshold) return false;
 
+    // A box taller than the header limit is a body container; it only counts
+    // as a header when it is the slide's sole element and carries a marker.
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
       if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
@@ -255,13 +271,7 @@ export function inferLayout(
       return false;
     }
 
-    if (isHeadingMarker(el)) return true;
-
-    // Extract plain text from HTML for length/bullet checks — raw HTML is
-    // often much longer than the visible text due to inline styles.
-    const text = stripHtml(el.content || "");
-    const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
-    return text.length <= CONFIG.maxHeaderLength && !hasBullet;
+    return isHeaderLikeTextElement(el, slideHeight);
   };
 
   const headerEl = contentEls.find(isHeader) || null;
@@ -357,8 +367,7 @@ export function inferLayout(
   // text boxes in two-column PPTX slides commonly start on the left but extend
   // past center.
   // Use area-overlap analysis instead of center-point to handle wide elements
-  // that straddle the midpoint. Shared helper — the render-time MEDIA_SPAN
-  // upgrade uses the same rule so the two never disagree.
+  // that straddle the midpoint.
   const partition = (el) => {
     if (el === headerEl || isCentered(el)) return null;
     return partitionByAreaOverlap(el, slideWidth, slideHeight);

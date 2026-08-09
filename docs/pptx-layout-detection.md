@@ -79,5 +79,5 @@ inline code in numbered lists (e.g., `1. print("hello")`).
 | Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                              |
 | `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                               |
 | Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column             |
-| Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision + upgrade                  |
+| Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`           |
 | Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images (`maxHeaderBandRatio`) |
