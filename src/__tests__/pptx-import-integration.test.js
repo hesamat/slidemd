@@ -46,11 +46,11 @@ function textOf(html) {
 }
 
 describe("pptx import integration", () => {
-  it("converts one-image-plus-body.pptx to media-span with the image in @media", async () => {
+  it("converts one-image-plus-body.pptx to media-span-left with the image in @media", async () => {
     const { markdown, deck } = await convertFixture("one-image-plus-body.pptx");
 
     expect(deck.slides).toHaveLength(1);
-    expect(deck.slides[0].layout).toBe("media-span");
+    expect(deck.slides[0].layout).toBe("media-span-left");
 
     const { header = "", main = "", media = "" } = deck.slides[0].areas;
     expect(textOf(header)).toContain("Strings and Immutability");
@@ -60,7 +60,7 @@ describe("pptx import integration", () => {
     // The image goes to @media; @main must not contain it
     expect(media).toContain("images/image1.png");
     expect(main).not.toContain("image1.png");
-    expect(markdown).toContain("layout: media-span");
+    expect(markdown).toContain("layout: media-span-left");
   });
 
   it("converts two-text-columns.pptx to two-column with non-empty columns", async () => {

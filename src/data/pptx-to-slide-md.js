@@ -23,6 +23,7 @@ import {
   filterMeaningfulElements,
   findDominantImages,
   inferLayout,
+  partitionByAreaOverlap,
 } from "./pptx-layout-inference.js";
 import {
   LAYOUT,
@@ -401,6 +402,18 @@ function convertSlide(
         setLayoutDirective(parts, layout);
       }
     }
+  }
+
+  // Pick the media-span variant by the dominant image's side so the rendered
+  // media column matches the source slide (image-left slides keep the image
+  // on the left). An ambiguous image defaults to the right — the historical
+  // media-span behavior.
+  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const mediaImage = dominantImages[0];
+    layout =
+      mediaImage && partitionByAreaOverlap(mediaImage, slideWidth, slideHeight) === "left"
+        ? LAYOUT.MEDIA_SPAN_LEFT
+        : LAYOUT.MEDIA_SPAN_RIGHT;
   }
 
   parts.push(`layout: ${layout.spec}`);

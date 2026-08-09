@@ -76,17 +76,18 @@ layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 
 
 @main
 
-| Layout           | Areas                                             |
-| ---------------- | ------------------------------------------------- |
-| `header-content` | `@header` `@main` `@footer`                       |
-| `title-slide`    | `@title`                                          |
-| `focus`          | `@header` `@main` `@footer`                       |
-| `full-image`     | `@main`                                           |
-| `two-column`     | `@header` `@main` `@media` `@footer`              |
-| `media-span`     | `@header` `@main` `@media` `@footer`              |
-| `left-heavy`     | `@header` `@main` `@media` `@footer`              |
-| `right-heavy`    | `@header` `@main` `@media` `@footer`              |
-| `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |
+| Layout             | Areas                                             |
+| ------------------ | ------------------------------------------------- |
+| `header-content`   | `@header` `@main` `@footer`                       |
+| `title-slide`      | `@title`                                          |
+| `focus`            | `@header` `@main` `@footer`                       |
+| `full-image`       | `@main`                                           |
+| `two-column`       | `@header` `@main` `@media` `@footer`              |
+| `media-span-left`  | `@header` `@main` `@media` `@footer`              |
+| `media-span-right` | `@header` `@main` `@media` `@footer`              |
+| `left-heavy`       | `@header` `@main` `@media` `@footer`              |
+| `right-heavy`      | `@header` `@main` `@media` `@footer`              |
+| `three-column`     | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
 

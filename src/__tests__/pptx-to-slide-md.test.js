@@ -251,7 +251,7 @@ describe("convertToSlideMd", () => {
     const mediaIndex = md.indexOf("@media");
     const imageIndex = md.indexOf("dominant.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(md).not.toContain("@secondary");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
@@ -337,7 +337,7 @@ describe("convertToSlideMd", () => {
     const firstImageIndex = md.indexOf("dominant-1.png");
     const secondImageIndex = md.indexOf("dominant-2.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
     expect(textIndex).toBeGreaterThan(mainIndex);
@@ -471,7 +471,7 @@ describe("convertToSlideMd", () => {
     const headingIdx = md.indexOf("escape sequences");
     const imageIdx = md.indexOf("code-example.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     // Heading must appear in the @header section (between @header and @main)
     expect(headingIdx).toBeGreaterThan(headerIdx);
     expect(headingIdx).toBeLessThan(mainIdx);
@@ -1224,7 +1224,9 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: media-span");
+    // The dominant image sits on the left, so the left media-span variant is
+    // emitted and the image stays in @media (now the left column).
+    expect(md).toContain("layout: media-span-left");
     const mainIdx = md.indexOf("@main");
     const mediaIdx = md.indexOf("@media");
     expect(mainIdx).toBeGreaterThan(-1);
@@ -1590,7 +1592,7 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(md).toContain("@header");
     expect(md).toContain("@main");
     expect(md).toContain("@media");
