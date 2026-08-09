@@ -529,8 +529,6 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 | [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                                                                                    |
 | [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.                                                                         |
 | [x] Preserve editor undo history | Per-slide `EditorState` cache in `MarkdownEditor`; clear on structural/deck changes; drop stale states on doc mismatch (history not preserved across external content changes). |
-| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                                                                  |
-| [ ] Split `ai-orchestrator.js`   | Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. Data-layer counterpart to the EditController decomposition.                      |
 
 ### Delivery Slices
 
@@ -553,14 +551,15 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ## Phase 14.5: Structural Cleanup & Test Infrastructure
 
-Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized.
+Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
 
 ### Refactoring
 
 | Task                                                     | Details                                                                                                             |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Extract shared bundle-order module                   | `HtmlExportManager` and `tools/build.mjs` duplicate `JS_BUNDLE_ORDER`; extract to a shared module to prevent drift. |
-| [ ] Split `ai-orchestrator.js` (if not done in Phase 14) | Carry over from Phase 14 if the editor rewire didn't reach it.                                                      |
+| [ ] Extract shared bundle-order module                   | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. |
+| [ ] Decompose EditController                             | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules. |
+| [ ] Split `ai-orchestrator.js`                           | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. |
 
 ### Test Infrastructure
 
@@ -707,7 +706,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
 | Phase 13.1: Remix Planner                    | ✅ Complete |
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo         | In Progress |
+| Phase 14: Conflict Resolution & Undo         | ✅ Complete |
 | Phase 14.5: Structural Cleanup & Tests       | Planned     |
 | Phase 15: Design System & Theme Registry     | Planned     |
 | Phase 16: Presenter, Print & AI Commands     | Planned     |
@@ -716,7 +715,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
