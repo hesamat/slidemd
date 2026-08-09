@@ -89,12 +89,24 @@ describe("collectPlaceholders", () => {
 });
 
 describe("replacePlaceholders", () => {
-  it("replaces placeholders and throws on leftovers in strict mode", () => {
+  it("replaces placeholders and throws on template placeholders without a key in strict mode", () => {
     const out = replacePlaceholders("{{a}} and {{b}}", { a: "1", b: "2" }, { strict: true });
     expect(out).toBe("1 and 2");
     expect(() => replacePlaceholders("{{a}} and {{b}}", { a: "1" }, { strict: true })).toThrow(
       /{{b}}/,
     );
+  });
+
+  it("strict mode does not scan substituted values for placeholders", () => {
+    // Model-derived content (e.g. validation errors echoing deck template
+    // syntax) may legitimately contain {{...}} — the check must look only at
+    // the template's own placeholders, not the substituted result.
+    const out = replacePlaceholders(
+      "Template: {{issues}}",
+      { issues: 'Slide 1 uses unknown layout "{{weird}}"' },
+      { strict: true },
+    );
+    expect(out).toBe('Template: Slide 1 uses unknown layout "{{weird}}"');
   });
 
   it("leaves leftovers untouched when strict is false", () => {

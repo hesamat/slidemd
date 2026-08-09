@@ -29,29 +29,36 @@ export function collectPlaceholders(...fragments) {
  * substitution patterns ($$, $&, $`, $') which corrupt dollar signs in deck
  * content (e.g. $$...$$ math delimiters).
  *
- * When `strict` is true, throws if any `{{placeholder}}` remains after
- * substitution. Compose does not use strict mode: substituted deck content
- * may legitimately contain `{{...}}` (e.g. template syntax), and those must
- * pass through untouched.
+ * When `strict` is true, throws if the template declares a placeholder with
+ * no supplied substitution. The check is computed from the template's own
+ * placeholders before substitution — never by scanning the substituted
+ * result, because substituted values can legitimately contain `{{...}}`
+ * (e.g. validation errors that embed model output echoing deck template
+ * syntax). Compose does not use strict mode: substituted deck content may
+ * contain `{{...}}` and must pass through untouched.
  *
  * @param {string} fragment
  * @param {Object<string, string>} substitutions
  * @param {object} [opts]
- * @param {boolean} [opts.strict] — throw on leftover placeholders
+ * @param {boolean} [opts.strict] — throw on template placeholders without a key
  * @returns {string}
  */
 export function replacePlaceholders(fragment, substitutions, { strict = false } = {}) {
+  if (strict) {
+    const placeholders = collectPlaceholders(fragment);
+    const missing = [...placeholders].filter((p) => !(p in substitutions));
+    if (missing.length > 0) {
+      throw new Error(
+        `Unresolved placeholder(s) in template: ${missing.map((p) => `{{${p}}}`).join(", ")}. ` +
+          `Add the missing key(s) to the substitution call.`,
+      );
+    }
+  }
   let result = fragment;
   for (const [key, value] of Object.entries(substitutions)) {
     const placeholder = `{{${key}}}`;
     const replacement = () => value;
     result = result.replaceAll(placeholder, replacement);
-  }
-  if (strict) {
-    const remaining = [...new Set(result.match(/\{\{(\w+)\}\}/g) || [])];
-    if (remaining.length > 0) {
-      throw new Error(`Unresolved placeholder(s) after substitution: ${remaining.join(", ")}`);
-    }
   }
   return result;
 }

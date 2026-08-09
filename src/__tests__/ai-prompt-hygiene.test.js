@@ -91,15 +91,27 @@ const FLOW_CONSUMER_INTENTS = new Set(["polish", "remixPlan", "reimagineOutline"
 
 describe("prompt manifest", () => {
   it("lists exactly the files in src/data/prompts/", () => {
-    // Every non-manifest file in the directory must be cataloged — not just
-    // .md files, so a new fragment format (e.g. .txt or .json) is caught too.
+    // Every non-manifest fragment file in the directory must be cataloged —
+    // not just .md files, so a new fragment format (e.g. .txt or .json) is
+    // caught too. Dotfiles and editor temp files (which carry no prompt
+    // content) are ignored so incidental files don't fail the sync guard.
     const onDisk = readdirSync(PROMPTS_DIR)
-      .filter((f) => f !== "manifest.json")
+      .filter(
+        (f) =>
+          f !== "manifest.json" &&
+          !f.startsWith(".") &&
+          !/^#.*#$/.test(f) &&
+          !f.endsWith("~") &&
+          !f.endsWith(".swp") &&
+          !f.endsWith(".tmp"),
+      )
       .sort();
     const inManifest = getManifest()
       .fragments.map((f) => f.file)
       .sort();
-    expect(inManifest).toEqual(onDisk);
+    const extra = onDisk.filter((f) => !inManifest.includes(f));
+    const missing = inManifest.filter((f) => !onDisk.includes(f));
+    expect({ extra, missing }).toEqual({ extra: [], missing: [] });
   });
 
   it("matches the fragments module exports", () => {

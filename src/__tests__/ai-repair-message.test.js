@@ -20,4 +20,16 @@ describe("buildRepairMessage", () => {
     expect(msg).toContain("Fix these issues and return the complete corrected output.");
     expect(msg).not.toContain("- ");
   });
+
+  it("does not throw when error text echoes deck template syntax", () => {
+    // Validation errors embed model output verbatim; a model that echoes
+    // {{...}} template syntax from the deck must not abort the repair path.
+    const errors = [
+      { slide: 0, code: "INVALID_LAYOUT", message: 'Slide 1 uses unknown layout "{{weird}}"' },
+      { slide: 2, code: "INVALID_AREA", message: "uses @{{area}} but layout allows only: @main" },
+    ];
+    const msg = buildRepairMessage(errors);
+    expect(msg).toContain('Slide 1 uses unknown layout "{{weird}}"');
+    expect(msg).toContain("uses @{{area}} but layout allows only: @main");
+  });
 });

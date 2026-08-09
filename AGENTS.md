@@ -562,14 +562,16 @@ The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused m
 | -------------------------- | ---------------------------------------------------------------- |
 | `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair     |
 | `ai-operation.js`          | `AiOperation` type and `createOperation()` factory               |
-| `ai-intent-registry.js`    | Maps intent names to prompt builders                             |
-| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building       |
+| `ai-intent-registry.js`    | Maps intent names to prompt fragments                            |
+| `ai-prompt-fragments.js`   | Fragment imports, manifest, layout list, variant extraction      |
+| `ai-output-format.js`      | Canonical JSON output format example (`{{outputFormat}}`)        |
+| `ai-prompt-builder.js`     | Frontmatter stripping, deck summaries, message/batch building    |
 | `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown              |
 | `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                      |
 | `ai-token-estimator.js`    | Token count and max_tokens estimation                            |
 | `ai-output-validator.js`   | Validate AI output against schema                                |
 | `ai-output-schema.js`      | Per-intent schemas                                               |
-| `ai-prompt-composer.js`    | Compose system + user prompts from fragments                     |
+| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                    |
 | `ai-repair-message.js`     | Build repair messages for validation failures                    |
 | `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization   |
 | `ai-provider-factory.js`   | Provider client factory                                          |
