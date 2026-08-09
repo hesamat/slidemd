@@ -33,6 +33,7 @@ For most tasks, use this loop:
 - [Required Final Report](#required-final-report)
 - [Quality Gates](#quality-gates)
 - [Pull Requests](#pull-requests)
+- [Branch Lifecycle & Cleanup](#branch-lifecycle--cleanup)
 - [Change Impact Guidelines](#change-impact-guidelines)
 - [Pre-Review Verification](#pre-review-verification)
 - [Code Organization](#code-organization)
@@ -284,6 +285,28 @@ or:
 and list the exact actions to perform.
 
 Do not use a generic "manual test" checkbox when concrete verification steps can be provided.
+
+---
+
+## Branch Lifecycle & Cleanup
+
+### Naming
+
+- Branch prefixes: `fix/`, `feature/` (or `feat/`), `refactor/`, `release/`. Copilot-generated branches use `copilot/`.
+- One branch per logical change, one PR per branch, short-lived.
+
+### Lifecycle rules
+
+- After a PR merges, delete the branch (enable "Automatically delete head branches" in repo settings; otherwise delete manually).
+- Branches must not live longer than ~30 days. Stale work should be closed, not left dormant.
+- The scheduled `.github/workflows/branch-cleanup.yml` bot deletes branches older than 60 days with no open PR, and closes PRs inactive for 45+ days (exempt labels: `keep-open`, `roadmap`).
+- Before deleting a stale branch with unique commits, archive its tip with an `archive/YYYY-MM-DD/<branch>` tag.
+
+### Housekeeping
+
+- After any branch deletion, run `git fetch --prune origin` and delete the matching local branch.
+- Avoid creating worktrees for merged work; remove worktrees when their PR merges (`git worktree remove <path>`).
+- Never push to `main` directly.
 
 ---
 
