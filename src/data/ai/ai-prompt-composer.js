@@ -46,7 +46,7 @@ export function collectPlaceholders(...fragments) {
 export function replacePlaceholders(fragment, substitutions, { strict = false } = {}) {
   if (strict) {
     const placeholders = collectPlaceholders(fragment);
-    const missing = [...placeholders].filter((p) => !(p in substitutions));
+    const missing = [...placeholders].filter((p) => !Object.hasOwn(substitutions, p));
     if (missing.length > 0) {
       throw new Error(
         `Unresolved placeholder(s) in template: ${missing.map((p) => `{{${p}}}`).join(", ")}. ` +
@@ -60,8 +60,10 @@ export function replacePlaceholders(fragment, substitutions, { strict = false } 
   // matches positions in the original fragment text. This protects every
   // substitution key — not just {{markdown}} — from nested expansion. The
   // function replacement also keeps $$/$&/$`/$' in values literal.
+  // Object.hasOwn (not `in`) so inherited keys like toString/constructor are
+  // never spliced into the prompt.
   return fragment.replace(/\{\{(\w+)\}\}/g, (match, name) =>
-    name in substitutions ? substitutions[name] : match,
+    Object.hasOwn(substitutions, name) ? substitutions[name] : match,
   );
 }
 
@@ -82,7 +84,7 @@ export class AiPromptComposer {
    */
   compose(substitutions) {
     const placeholders = collectPlaceholders(this._system, this._user);
-    const missing = [...placeholders].filter((p) => !(p in substitutions));
+    const missing = [...placeholders].filter((p) => !Object.hasOwn(substitutions, p));
     if (missing.length > 0) {
       throw new Error(
         `Missing substitution(s) for placeholder(s): ${missing.map((p) => `{{${p}}}`).join(", ")}. ` +

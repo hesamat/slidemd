@@ -93,6 +93,14 @@ describe("AiPromptComposer", () => {
     const { user } = composer.compose({ markdown: "$$x^2$$ and $& $` $'" });
     expect(user).toBe("Input: $$x^2$$ and $& $` $'");
   });
+
+  it("throws for a fragment placeholder that is only an inherited key", () => {
+    const composer = new AiPromptComposer({
+      systemFragment: "System.",
+      userFragment: "{{toString}}",
+    });
+    expect(() => composer.compose({})).toThrow(/{{toString}}/);
+  });
 });
 
 describe("collectPlaceholders", () => {
@@ -125,5 +133,14 @@ describe("replacePlaceholders", () => {
 
   it("leaves leftovers untouched when strict is false", () => {
     expect(replacePlaceholders("{{a}} and {{b}}", { a: "1" })).toBe("1 and {{b}}");
+  });
+
+  it("never resolves inherited keys like toString via the prototype chain", () => {
+    // A fragment declaring {{toString}} with no own substitution must keep
+    // the literal placeholder instead of splicing in Object.prototype's
+    // function source.
+    expect(replacePlaceholders("Call {{toString}} now", {})).toBe("Call {{toString}} now");
+    expect(replacePlaceholders("Call {{toString}} now", { toString: "me" })).toBe("Call me now");
+    expect(() => replacePlaceholders("{{toString}}", {}, { strict: true })).toThrow(/{{toString}}/);
   });
 });

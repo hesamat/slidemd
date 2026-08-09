@@ -492,7 +492,7 @@ export class NewModule {
 
 ## Common Tasks
 
-- **Add a new layout preset:** Add to `src/data/layout-data.js`
+- **Add a new layout preset:** Add to `src/data/layout-data.js`, then regenerate the prompt snapshots (`npx vitest run -u` on `src/__tests__/ai-prompt-snapshots.test.js`) — every snapshot embeds the generated layout list, so an intentional layout change fails them all at once and is not a regression.
 - **Modify deck content:** Edit `docs/example/slides.md`
 - **Change build input:** Update argument in `tools/build.mjs`
 - **Add a rendering feature:** Enhance `src/renderer/content-enhancer.js` or `src/renderer/slide-renderer.js`
