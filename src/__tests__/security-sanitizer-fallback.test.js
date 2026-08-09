@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
 // Force the DOMPurify import to be unavailable so sanitizeAreaHtml takes its
 // documented degrade path (escapeHtml) instead of the real sanitizer. This must
@@ -19,6 +19,18 @@ import { SlideRenderer } from "../renderer/slide-renderer.js";
  * escape, not silently drop or pass through).
  */
 describe("SlideRenderer.sanitizeAreaHtml fallback (no DOMPurify)", () => {
+  let _savedDomPurify;
+  beforeAll(() => {
+    // Explicitly remove any ambient window.DOMPurify so the degrade path is
+    // deterministic. getDOMPurify() would otherwise fall back to a vendor
+    // global if one were attached by a setup file or imported module.
+    _savedDomPurify = window.DOMPurify;
+    delete window.DOMPurify;
+  });
+  afterAll(() => {
+    if (_savedDomPurify !== undefined) window.DOMPurify = _savedDomPurify;
+  });
+
   it("escapes executable markup instead of passing it through or dropping it", () => {
     const dirty = `<img src=x onerror=alert(1)><script>alert(2)</script>`;
     const out = SlideRenderer.sanitizeAreaHtml(dirty);
