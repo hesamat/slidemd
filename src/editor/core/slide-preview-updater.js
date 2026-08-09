@@ -77,8 +77,10 @@ export class SlidePreviewUpdater {
    * Register a one-shot callback to run after the next preview update
    * finishes attaching overlays (image handlers, area guides, etc.).
    * Multiple callbacks can be queued; each fires once in order, then is
-   * discarded. All pending callbacks are cleared if an update aborts
-   * early (invalid markdown, missing container, generation superseded).
+   * discarded. Pending callbacks are cleared on terminal aborts (invalid
+   * markdown, missing container, missing slide element, parse error) but
+   * are intentionally kept across generation supersessions so that a
+   * newer in-flight render can still drain them.
    */
   onReadyOnce(callback) {
     if (typeof callback === "function") this._pendingReadyCallbacks.push(callback);

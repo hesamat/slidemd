@@ -161,10 +161,18 @@ export class TextBlockHandler {
     // Auto-open the properties panel once the preview re-renders the new block.
     // If an in-flight render from an earlier keystroke completes first (before
     // the new block exists), re-register so the callback fires on the render
-    // that actually contains the block.
+    // that actually contains the block. Give up if the user navigates away
+    // from the insertion slide or after a few retries to avoid a permanently
+    // pending callback that pops the panel open out of context later.
+    const insertionSlide = this._getCurrentSlideIndex?.() ?? 0;
+    let retries = 0;
+    const MAX_RETRIES = 3;
     const onReady = (slideEl) => {
+      const currentSlide = this._getCurrentSlideIndex?.() ?? 0;
+      if (currentSlide !== insertionSlide || retries >= MAX_RETRIES) return;
       const block = slideEl?.querySelector(`.text-block[data-id="${id}"]`);
       if (!block || this.isMultiColumn(block)) {
+        retries += 1;
         this._onPreviewReady?.(onReady);
         return;
       }
