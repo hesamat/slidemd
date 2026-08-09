@@ -3,6 +3,10 @@
   "version": "0.9.1",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "packageManager": "npm@10.9.8",
   "description": "Create presentations with Markdown - live editing, presenter view, code highlighting, math, diagrams, PPTX import, and AI-powered post-processing",
   "author": "Hesam Alizadeh",
   "license": "MIT",

@@ -2,23 +2,34 @@
  * AI Prompt Builder
  *
  * Builds system and user messages for AI calls from reusable prompt fragments.
- * Provides layout-list generation, frontmatter stripping, and batch message
- * construction for whole-deck operations.
+ * Provides deck summaries and batch message construction for whole-deck
+ * operations.
+ *
+ * All prompt copy lives in `src/data/prompts/` fragments; this module owns
+ * only the logic that chooses fragments and fills their placeholders.
  */
 
-import { LayoutData } from "../layout-data.js";
 import { MarkdownParser } from "../markdown-parser.js";
-import { AiPromptComposer } from "./ai-prompt-composer.js";
-import systemPrompt from "../prompts/system-prompt.md?raw";
-import fixPrompt from "../prompts/fix-prompt.md?raw";
-import generatePrompt from "../prompts/generate-prompt.md?raw";
-import polishPrompt from "../prompts/polish-prompt.md?raw";
+import {
+  composeMessages,
+  extractVariant,
+  getFragment,
+  hasVariant,
+  stripFrontmatter,
+} from "./ai-prompt-fragments.js";
+import { replacePlaceholders } from "./ai-prompt-composer.js";
+import { getIntentUserFragment } from "./ai-intent-registry.js";
 
-const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
+export {
+  getAllowedLayoutList,
+  stripFrontmatter,
+  stripThemeAndBackground,
+} from "./ai-prompt-fragments.js";
 
 /**
  * Build additional instructions suffix from user-provided generate options.
  * Appended to the user prompt so the AI sees the user's preferences.
+ * The guidance copy comes from snippet fragments in `src/data/prompts/`.
  * @param {object} opts
  * @param {string} [opts.flow] — "story" | "technical" | "persuasive" | "instructional"
  * @param {string} [opts.mode] — "polish" | "remix" | "reimagine"
@@ -30,142 +41,26 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   if (!opts) return "";
   const parts = [];
   if (opts.flow && opts.mode !== "polish") {
-    const flowMap = {
-      story:
-        "Use a narrative, story-driven approach: emotional engagement, characters or examples, and a clear story arc.",
-      technical:
-        "Use a technical, logic-driven approach: build complexity step by step, lead with evidence and data.",
-      persuasive:
-        "Use a persuasive, argument-driven approach: problem, stakes, solution, benefits, call to action.",
-      instructional:
-        "Use an instructional, learning-driven approach: objectives, step-by-step guidance, examples, recap.",
-    };
-    if (flowMap[opts.flow]) parts.push(`\n${flowMap[opts.flow]}`);
+    const flowGuidance = getFragment("flow-guidance.md");
+    if (hasVariant(flowGuidance, opts.flow)) {
+      parts.push(`\n${extractVariant(flowGuidance, opts.flow)}`);
+    }
   }
+  const speakerNotesGuidance = getFragment("speaker-notes-guidance.md");
   if (opts.addSpeakerNotes) {
-    parts.push(
-      "\nAdd useful speaker notes at the end of each slide that does not already have them.",
-    );
+    parts.push(`\n${extractVariant(speakerNotesGuidance, "add")}`);
   } else if (opts.mode === "polish") {
     // The polish prompt asks to preserve notes unless asked to add them;
     // this suffix makes the default explicit when the checkbox is off.
-    parts.push(
-      "\nDo not add new speaker notes. Preserve existing notes, but do not create new ones.",
-    );
+    parts.push(`\n${extractVariant(speakerNotesGuidance, "preserve")}`);
   }
+  const visualIdentityGuidance = getFragment("visual-identity-guidance.md");
   if (opts.preserveVisualIdentity) {
-    parts.push(
-      "\nPreserve the original theme, colors, backgrounds, and visual language whenever possible. Keep each slide's existing `theme:` and `background:` directives unless they clearly do not fit the restructured content.",
-    );
+    parts.push(`\n${extractVariant(visualIdentityGuidance, "preserve")}`);
   } else if (opts.preserveVisualIdentity === false) {
-    parts.push(
-      "\nDo not preserve the original theme, colors, backgrounds, or visual language. You may introduce new `theme:` and `background:` directives that support the new direction, or omit them entirely.",
-    );
+    parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
   }
   return parts.join("");
-}
-
-/**
- * Build the layout list injected into the system prompt.
- *
- * Uses a per-layout line format (`layout: @area1, @area2, ...`) rather than a
- * wide cross-reference table. The table format (8 columns × 12 rows) was hard
- * for the AI to scan accurately — it frequently used `@secondary` for
- * `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
- * The per-layout format makes each layout's allowed areas unambiguous.
- *
- * @returns {string}
- */
-/**
- * Strip `theme:` and `background:` directives from markdown.
- * Only replaces directives outside fenced code blocks.
- *
- * @param {string} markdown
- * @returns {string}
- */
-export function stripThemeAndBackground(markdown) {
-  const lines = markdown.split("\n");
-  const result = [];
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      inFence = !inFence;
-      result.push(line);
-      continue;
-    }
-    if (inFence) {
-      result.push(line);
-      continue;
-    }
-    if (/^(theme|background):\s*.*$/.test(line)) {
-      result.push("");
-      continue;
-    }
-    result.push(line);
-  }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-export function getAllowedLayoutList() {
-  const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
-  const lines = [];
-  for (const layout of layouts) {
-    const allowedAreas = LayoutData.getAreaNames(layout);
-    const areaTags = ALLOWED_AREAS.filter((a) => allowedAreas.includes(a)).map((a) => `@${a}`);
-    lines.push(`${layout}: ${areaTags.join(", ")}`);
-  }
-  return lines.join("\n");
-}
-
-/**
- * Strip frontmatter directives from markdown.
- * Only replaces directives outside fenced code blocks.
- *
- * Fix mode: keeps layout (so AI preserves it), strips theme/background/hidden/code-font-size
- *   (restored post-AI via injectDirectives/restoreDirectives).
- * Generate mode: strips layout, hidden, code-font-size — keeps background and theme
- *   so the AI can see the originals and make informed decisions.
- *
- * @param {string} markdown
- * @param {"fix"|"generate"} mode
- * @returns {string}
- */
-export function stripFrontmatter(markdown, mode) {
-  const lines = markdown.split("\n");
-  const result = [];
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line.trim())) {
-      inFence = !inFence;
-      result.push(line);
-      continue;
-    }
-    if (inFence) {
-      result.push(line);
-      continue;
-    }
-    if (mode === "generate") {
-      // Generate mode: keep background and theme so AI sees the originals
-      if (/^(layout|hidden|code-font-size):\s*.*$/.test(line)) {
-        result.push("");
-        continue;
-      }
-    } else {
-      // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
-      if (/^(theme|background|hidden|code-font-size):\s*.*$/.test(line)) {
-        result.push("");
-        continue;
-      }
-    }
-    result.push(line);
-  }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /**
@@ -176,12 +71,9 @@ export function stripFrontmatter(markdown, mode) {
  */
 export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
-  const fragment = mode === "fix" ? fixPrompt : generatePrompt;
-  const composer = new AiPromptComposer({
-    systemFragment: systemPrompt,
-    userFragment: fragment,
-  });
-  return composer.compose({ markdown: cleaned, layoutList: getAllowedLayoutList() });
+  const fragment =
+    mode === "fix" ? getFragment("fix-prompt.md") : getFragment("generate-prompt.md");
+  return composeMessages(getFragment("system-prompt.md"), fragment, { markdown: cleaned });
 }
 
 /**
@@ -281,29 +173,36 @@ export function buildBatchMessages(
 
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
-  // prompt fragment.
+  // prompt fragment. The fragment selection is owned by the intent registry.
   const fragment =
-    mode === "fix" ? fixPrompt : batchMode === "polish" ? polishPrompt : generatePrompt;
-  const composer = new AiPromptComposer({
-    systemFragment: systemPrompt,
-    userFragment: fragment,
-  });
-  const { system, user } = composer.compose({
+    mode === "fix"
+      ? getFragment(getIntentUserFragment("enhanceSlide"))
+      : getFragment(getIntentUserFragment(batchMode === "polish" ? "polish" : "generate"));
+  const { system, user } = composeMessages(getFragment("system-prompt.md"), fragment, {
     markdown: contentForPrompt,
-    layoutList: getAllowedLayoutList(),
   });
 
-  const paginationInstruction =
-    mode === "fix"
-      ? `\n\nCRITICAL: You must return EXACTLY ${actualCount} slide(s) — one for each "SLIDE INDEX" comment in the input (indices ${startIdx} through ${endIdx - 1}). Do NOT return context slides. Each output slide must include the same "SLIDE INDEX" comment as its first line.`
-      : `\n\nReturn exactly ${actualCount} slide(s) as JSON. Fix or organize these slides within the context of the full deck.`;
+  const pagination = getFragment("batch-pagination.md");
+  const paginationVariant = mode === "fix" ? "fix" : "generate";
+  const paginationInstruction = replacePlaceholders(
+    extractVariant(pagination, paginationVariant),
+    {
+      actualCount: actualCount.toString(),
+      startIdx: startIdx.toString(),
+      endIdx: (endIdx - 1).toString(),
+    },
+    { strict: true },
+  );
 
   const userPrefix =
     mode === "generate" && deckSummary ? `Deck Context:\n${deckSummary}\n\nInput markdown:\n` : "";
 
   return {
     system,
-    user: userPrefix + user + paginationInstruction,
+    // The pagination instruction stands on its own after the input markdown;
+    // the old inline strings began with "\n\n" and the separator must be
+    // re-added here because variants are trimmed.
+    user: userPrefix + user + "\n\n" + paginationInstruction,
     original: markdown,
   };
 }
