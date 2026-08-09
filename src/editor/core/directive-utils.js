@@ -305,13 +305,16 @@ export function removeAreaFromLayout(markdown, areaName) {
   // Preserve symmetric filler columns around main (e.g. focus layout's
   // ". main ." row).  If one filler column is kept but its mirror is not,
   // the main column would shift off-center after pruning.
+  // Only apply when the original (pre-deletion) row already had dots on
+  // both sides of main — not when asymmetry was created by the deletion.
   const mainRowIdx = replacedRows.findIndex((r) => r.includes("main"));
   if (mainRowIdx >= 0) {
-    const mainCells = replacedRows[mainRowIdx];
-    const mainColIdx = mainCells.indexOf("main");
-    const leftFiller = mainColIdx > 0 && mainCells[mainColIdx - 1] === ".";
-    const rightFiller = mainColIdx < mainCells.length - 1 && mainCells[mainColIdx + 1] === ".";
-    if (leftFiller && rightFiller) {
+    const originalCells = rowMatches[mainRowIdx].slice(1, -1).split(/\s+/).filter(Boolean);
+    const mainColIdx = originalCells.indexOf("main");
+    const leftWasDot = mainColIdx > 0 && originalCells[mainColIdx - 1] === ".";
+    const rightWasDot =
+      mainColIdx < originalCells.length - 1 && originalCells[mainColIdx + 1] === ".";
+    if (leftWasDot && rightWasDot) {
       const leftKept = keepCol[mainColIdx - 1];
       const rightKept = keepCol[mainColIdx + 1];
       if (leftKept !== rightKept) {
@@ -362,8 +365,14 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   if (!gridTemplate) return null;
 
   let w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
-  if (w >= 1) {
-    if (align === "center") return base;
+  if (w >= 1 && align === "center") {
+    // Only return the preset name if it actually renders at 100% width.
+    // Focus renders at ~70%, so requesting 100% must emit an explicit grid.
+    const presetParsed = parseSingleColumnLayout(base);
+    if (!presetParsed || presetParsed.width >= 100) return base;
+    // Preset renders narrower than 100% — fall through to build an
+    // explicit full-width grid (w stays 1, producing a single column).
+  } else if (w >= 1) {
     // A left/right aligned full-width main column would look unchanged,
     // so default to an actual side-by-side split.
     w = 0.5;

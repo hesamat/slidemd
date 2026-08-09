@@ -61,6 +61,16 @@ describe("removeAreaFromLayout", () => {
     expect(result).not.toContain('". main"');
     expect(result).not.toContain('"main ."');
   });
+
+  it("does not force-center main when the original row was asymmetric", () => {
+    // "media main ." — deleting media makes it ". main ." but the original
+    // was not symmetric, so the mirror rule should not fire.
+    const md =
+      'layout: "header header header" "media main ." "footer footer footer" / 1fr 2fr 1fr\n\n@media\nimg\n\n@main\nContent\n\n@footer\nFoot';
+    const result = removeAreaFromLayout(md, "media");
+    // The right filler column should be pruned, producing a 2-column grid
+    expect(result).not.toContain('". main ."');
+  });
 });
 
 describe("single-column layout helpers", () => {
@@ -105,8 +115,20 @@ describe("single-column layout helpers", () => {
     expect(parseSingleColumnLayout("full-image").width).toBe(100);
   });
 
-  it("returns the base preset for a centered 100% width", () => {
-    expect(buildSingleColumnCustomLayout("focus", 100, "center")).toBe("focus");
+  it("returns the base preset for a centered 100% width when preset renders at 100%", () => {
+    expect(buildSingleColumnCustomLayout("header-content", 100, "center")).toBe("header-content");
+    expect(buildSingleColumnCustomLayout("default", 100, "center")).toBe("default");
+  });
+
+  it("emits an explicit full-width grid for focus at 100% (preset renders at 70%)", () => {
+    const result = buildSingleColumnCustomLayout("focus", 100, "center");
+    expect(result).not.toBe("focus");
+    expect(result).toContain('"header header header"');
+    expect(result).toContain('"footer footer footer"');
+    expect(result).toContain("0.08fr");
+    const parsed = parseSingleColumnLayout(result);
+    expect(parsed.width).toBe(100);
+    expect(parsed.base).toBe("focus");
   });
 
   it("does not classify a title row as an editable single-column layout", () => {
