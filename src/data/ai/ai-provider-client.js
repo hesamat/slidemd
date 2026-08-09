@@ -30,6 +30,13 @@ const PROVIDER_HOSTS = {
 };
 
 /**
+ * Providers that require an API key. This is the canonical set — the
+ * settings modal and each provider client import it instead of maintaining
+ * their own copy.
+ */
+export const KEY_REQUIRED_PROVIDERS = new Set(["OpenAI", "OpenRouter", "Anthropic", "Gemini"]);
+
+/**
  * Validate an AI base URL before sending credentials or requests to it.
  * Only allows http: or https: schemes with a non-empty hostname.
  * If `provider` is given and the provider has known hosts, the base URL host
@@ -98,12 +105,20 @@ export class AiProviderClient {
 
     const baseUrl = (this._getBaseUrl() || "").replace(/\/+$/, "");
     const provider = this._getProvider?.();
+    const apiKey = this._getApiKey();
+    // Fail fast with a clear message when a key-required provider has no key,
+    // instead of sending a request that will fail with a confusing 401
+    // "Missing Authentication header" from the upstream API. Checked before
+    // base-URL validation to match AnthropicProviderClient/GeminiProviderClient
+    // ordering.
+    if (!apiKey && KEY_REQUIRED_PROVIDERS.has(provider)) {
+      throw new AiHttpError(0, `${provider} API key is required`);
+    }
     const validation = validateAiBaseUrl(baseUrl, provider);
     if (!validation.ok) {
       throw new AiHttpError(0, validation.error || "Invalid base URL");
     }
     const url = `${baseUrl}/chat/completions`;
-    const apiKey = this._getApiKey();
     const rawModel = this._getModel();
     // OpenRouter model IDs can have at most one routing suffix. Only append
     // the default :nitro suffix when the user hasn't already picked one.
@@ -301,6 +316,19 @@ export class AiHttpError extends Error {
   get userMessage() {
     const summary = sanitizeErrorBody(this.body);
     const lower = (summary || "").toLowerCase();
+
+    // Local pre-flight errors (status 0) — missing API key, invalid base URL,
+    // or a network failure caught by a sibling client's try/catch. Frame
+    // these as AI request failures so the user has context, rather than
+    // surfacing the raw underlying string (e.g. "Failed to fetch").
+    if (this.status === 0) {
+      if (lower.includes("api key is required")) {
+        return "No API key configured — open Settings to add your API key.";
+      }
+      return summary
+        ? `The AI request failed before sending: ${summary}`
+        : "The AI request failed before sending.";
+    }
 
     // Auth errors
     if (this.status === 401) {
