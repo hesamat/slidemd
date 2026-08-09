@@ -63,7 +63,13 @@
 .slide {
   position: absolute;
   inset: 0;
-  padding: 105px 125px 80px 105px;
+  /* Slide container padding, as variables so full-bleed areas (media-span)
+     can mirror them exactly. */
+  --slide-pad-top: 105px;
+  --slide-pad-right: 125px;
+  --slide-pad-bottom: 80px;
+  --slide-pad-left: 105px;
+  padding: var(--slide-pad-top) var(--slide-pad-right) var(--slide-pad-bottom) var(--slide-pad-left);
   visibility: hidden;
   display: grid;
   background: var(--slide-bg);
@@ -782,6 +788,46 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   object-fit: cover;
   border: none;
   margin: 0;
+}
+
+/* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
+
+/* The media column of a media-span layout bleeds to the slide edges while
+   the content column keeps the slide padding. The negative margins mirror
+   the --slide-pad-* variables above, so the bleed tracks the container
+   exactly and survives editor column resizing (the area stays a grid item).
+
+   Only applies when the media area holds a single image (the case PPTX
+   imports produce); text, tables, and multiple images keep the padded,
+   contained look. Legacy decks using `layout: media-span` match via the
+   attribute prefix and render media on the right. */
+.slide[data-layout="media-span-right"] .slide__area--media:has(> p > img:only-child),
+.slide[data-layout="media-span"] .slide__area--media:has(> p > img:only-child) {
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) calc(-1 * var(--slide-pad-right))
+    calc(-1 * var(--slide-pad-bottom)) 0;
+}
+
+.slide[data-layout="media-span-left"] .slide__area--media:has(> p > img:only-child) {
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) 0 calc(-1 * var(--slide-pad-bottom))
+    calc(-1 * var(--slide-pad-left));
+}
+
+.slide[data-layout^="media-span"] .slide__area--media:has(> p > img:only-child) > p {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+}
+
+.slide[data-layout^="media-span"] .slide__area--media:has(> p > img:only-child) > p > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  max-height: none;
+  display: block;
 }
 
 /* Flex-row container for horizontally adjacent PPTX elements */
