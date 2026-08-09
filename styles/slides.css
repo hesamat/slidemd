@@ -792,31 +792,22 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
 
-/* The media column of a media-span layout bleeds to the slide edges while
-   the content column keeps the slide padding. The negative margins mirror
-   the --slide-pad-* variables above, so the bleed tracks the container
-   exactly and survives editor column resizing (the area stays a grid item).
+/* The media column of a media-span layout always bleeds to the slide edges
+   while the content column keeps the slide padding — the layout itself
+   implies bleed, independent of the media area's content (image, mermaid,
+   text, table). The negative margins mirror the --slide-pad-* variables
+   above, so the bleed tracks the container exactly and survives editor
+   column resizing (the area stays a grid item).
 
-   Only applies when the media area holds a single image. The editor injects
-   an @media label button as the area's first child, so every selector
-   matches both the plain viewer structure (direct <img> or <p>-wrapped)
-   and the editor structure (button + content). The image fills the area
-   absolutely — as a flex item its height: 100% would share the column with
-   the label button and leave a gap at the top. Text, tables, and multiple
-   images keep the padded, contained look. Legacy decks using
-   `layout: media-span` match via the attribute prefix and render media on
-   the right. */
-
-/* Media area is single-image: either a direct <img>, an <img> following the
-   editor label button, or a lone <p> wrapping the image (hand-written
-   markdown), with or without the label button. */
-.slide[data-media-span="right"]
-  .slide__area--media:has(
-    > img:only-child,
-    > button.editor-area-label + img:last-child,
-    > p:only-child > img:only-child,
-    > button.editor-area-label + p:last-child > img:only-child
-  ) {
+   The editor injects an @media label button as the area's first child; the
+   image-fill rules below therefore match both the plain viewer structure
+   (direct <img> or <p>-wrapped) and the editor structure (button + content).
+   A single image fills the area absolutely — as a flex item its height: 100%
+   would share the column with the label button and leave a gap at the top.
+   Multiple images and other content keep flowing normally inside the
+   bleeding column. Legacy decks using `layout: media-span` match via the
+   attribute prefix and render media on the right. */
+.slide[data-media-span="right"] .slide__area--media {
   /* max-width: 100% (from .slide__area) is relative to the grid cell and
      would neutralize the negative right margin — drop it so the area can
      extend past the cell to the slide edge. */
@@ -827,13 +818,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     calc(-1 * var(--slide-pad-bottom)) 0;
 }
 
-.slide[data-media-span="left"]
-  .slide__area--media:has(
-    > img:only-child,
-    > button.editor-area-label + img:last-child,
-    > p:only-child > img:only-child,
-    > button.editor-area-label + p:last-child > img:only-child
-  ) {
+.slide[data-media-span="left"] .slide__area--media {
   max-width: none;
   padding: 0;
   overflow: hidden;
