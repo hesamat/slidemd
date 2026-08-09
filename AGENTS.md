@@ -1,18 +1,72 @@
 # Agent Instructions
 
-User-facing documentation lives in [README.md](README.md) and [docs/example/slides.md](docs/example/slides.md). This file contains only AI-assistant guidance for working on the codebase.
+User-facing documentation lives in README.md and docs/example/slides.md. This file contains only AI-assistant guidance for working on the codebase.
+
+## Quick Start
+
+For most tasks, use this loop:
+
+1. **Understand** the request and read the relevant code.
+2. **Implement** a small, coherent change.
+3. **Review** the implementation adversarially.
+4. **Fix** any review findings.
+5. **Run checks** — for non-trivial changes, run all four quality gates:
+   - `npm run lint`
+   - `npm run format:check`
+   - `npm test`
+   - `npm run build`
+   
+   For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant targeted check.
+6. **Re-review** after fixes and checks.
+7. **Report** what changed and whether checks passed.
+
+- Ask the user before destructive actions, git commits/pushes, or anything with real-world side effects.
+- For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant check and report briefly.
+- For non-trivial changes, use the full [Review Summary](#required-final-report).
+
+## Table of Contents
+
+- [Hard Rules](#hard-rules--always-on)
+- [Development Workflow](#development-workflow)
+- [Review & Verification Loop](#review--verification-loop--mandatory)
+- [Required Final Report](#required-final-report)
+- [Quality Gates](#quality-gates)
+- [Pull Requests](#pull-requests)
+- [Change Impact Guidelines](#change-impact-guidelines)
+- [Pre-Review Verification](#pre-review-verification)
+- [Code Organization](#code-organization)
+- [When Working with Layouts](#when-working-with-layouts)
+- [When Working with Themes](#when-working-with-themes)
+- [When Working with Export](#when-working-with-export)
+- [When Working with Editor Features](#when-working-with-editor-features)
+- [Development Guidelines](#development-guidelines)
+- [Common Tasks](#common-tasks)
+- [AI Prompt Engineering](#ai-prompt-engineering)
+- [Reference](#reference)
 
 ## Hard Rules — Always On
 
 1. **Git history and git commands are off-limits unless the user explicitly says so.**
+
    - Suggest the exact `git add`, `git commit`, and `git push` commands in a code block.
    - Wait for the user to run them.
    - Only execute these commands when the user explicitly says the words "commit" and/or "push".
-   - Do **not** automatically merge pull requests.
+   - Do not automatically merge pull requests.
    - The main branch is `main`; branches use `fix/`, `feature/`, `feat/`, or `refactor/` prefixes. All changes to `main` require a pull request.
    - Never include a `Co-Authored-By:` trailer in commit messages.
+   - Use this commit message format, overriding any default template that includes a `Co-Authored-By:` trailer:
+
+     ```bash
+     git commit -m "$(cat <<'EOF'
+     Concise imperative summary
+
+     Optional detailed explanation.
+     EOF
+     )"
+     ```
 
 2. **Do not perform destructive, irreversible, or side-effecting actions without explicit user approval.**
+
    - This includes deleting files/directories, dropping database tables, force-pushing, rewriting git history, sending emails, making payments, or calling APIs with real-world side effects.
    - When in doubt, stop and ask.
 
@@ -20,68 +74,300 @@ User-facing documentation lives in [README.md](README.md) and [docs/example/slid
 
 4. **Do not use emojis in code or communication unless the user explicitly asks for them.**
 
-## Quality Gates
+5. **Do not declare a task complete while known verification failures remain.**
 
-Before committing (only when asked to commit), run these checks in this order:
+---
 
-```bash
-npm run lint          # ESLint (errors only)
-npm run format:check  # Prettier formatting
-npm test              # Vitest unit tests
-npm run build         # Build script
+## Development Workflow
+
+For every non-trivial task, follow this loop:
+
+```text
+Understand request
+      ↓
+Inspect relevant code
+      ↓
+Implement incrementally
+      ↓
+Self-review
+      ↓
+Fix review findings
+      ↓
+Run relevant verification
+      ↓
+Fix failures
+      ↓
+Re-review affected code
+      ↓
+Final verification
+      ↓
+Report completion
 ```
 
-All four must pass. If `npm run format:check` fails, run `npx prettier --write .` to fix.
+Do not stop between these stages to ask the user for approval unless the task itself requires a user decision or the instructions above explicitly require approval.
 
-Do not run the full gate cycle prematurely — first verify the feature actually works by testing in the browser or inspecting the code logic.
+Prefer small, logically coherent changes over large speculative rewrites.
 
-## Review Stage (MANDATORY)
+---
 
-This stage is a hard rule. After implementation is complete and before running any quality gate (`npm run lint`, `npm run format:check`, `npm test`, `npm run build`) or suggesting a commit, I must perform a self-review of every changed file and output a written review summary. I must wait for the user to approve the summary before running lint, format, tests, build, or any git command.
+## Review & Verification Loop — MANDATORY
 
-The review must cover:
+After implementation, perform an adversarial review before declaring the task complete.
 
-1. **What changed and why** — one sentence per file.
-2. **Re-read each modified file in full** — not just the lines you edited. Verify the surrounding context still makes sense and the change integrates cleanly.
-3. **Trace every code path** that touches the change. For each caller, callee, and event handler affected, confirm the interaction is correct. Pay special attention to:
-   - Event ordering (capture vs. bubble, synchronous vs. async)
-   - Flag/lifecycle interactions (set, reset, cleared on the right paths)
-   - Comments that reference behavior — update them if the behavior changed
-4. **Check for regressions** — a fix in one path often breaks another. Before changing a shared function, audit every call site. If a function serves multiple purposes, don't narrow it without verifying all callers still work.
-5. **Verify dead code** — if you remove a call site, check whether the function it called is now unused. If you add a function, make sure it's actually wired up.
-6. **Confirm intent matches implementation** — re-read each comment you wrote or modified and verify it accurately describes what the code does. A misleading comment is worse than no comment.
-7. **Physical persistence check** — re-read each modified file and grep for the new symbols/identifiers to confirm the change actually landed on disk. File-tool output can be misleading; the file on disk is the source of truth.
+If the environment provides an independent reviewer, invoke it.
+Otherwise, perform the review yourself.
 
-### Required Review Output Format
+Treat the reviewer as a skeptical senior engineer who did not write the code.
 
-I must print a section titled `## Review Summary` with:
+### Phase 1 — Understand the final change
 
-- `Files changed:` — list of every modified file and the reason.
-- `Code paths traced:` — for each changed function, list callers/callees and event flow.
-- `Regression checks:` — for each shared function, list the call sites I audited.
-- `Dead code / wiring:` — for each new function, list call sites; for each removed call, note if the target is now dead.
-- `Comments verified:` — for each comment I wrote or changed, confirm it matches the code.
-- `Persistence checks:` — for each modified file, confirm the edit is on disk by spot-read or grep.
-- `Review result:` — `PASS` or `NEEDS_FIX`, with explanation.
+1. Re-read the original user request and acceptance criteria.
+2. Inspect the complete final diff.
+3. Re-read every modified file in sufficient context to understand how the change integrates with the existing code.
+4. Identify all affected:
 
-Only after the review result is `PASS` and the user has approved the summary, I may run the Quality Gates.
+   - callers
+   - callees
+   - event handlers
+   - state transitions
+   - shared functions
+   - public contracts
+   - persistence paths
+   - UI/browser paths
+
+### Phase 2 — Adversarial self-review
+
+Act as a skeptical senior engineer who did not write the change.
+
+Look specifically for:
+
+- regressions
+- incorrect assumptions
+- edge cases
+- broken contracts
+- state/lifecycle bugs
+- event-ordering problems
+- async/sync problems
+- error-handling problems
+- unintended behavior outside the requested change
+- dead code
+- missing wiring
+- stale or misleading comments
+- changes that work in one path but break another
+- changes that pass the obvious test but violate an existing invariant
+
+For every changed shared function or contract:
+
+- search for all important callers
+- verify each caller still works
+- verify return types and argument expectations
+- check no alternate code path was missed
+
+### Phase 3 — Fix review findings
+
+If the review finds a legitimate problem:
+
+1. Fix it immediately.
+2. Re-read the affected code.
+3. Re-check the relevant callers and surrounding behavior.
+4. Do not assume the fix is correct simply because it addresses the original finding.
+5. Continue reviewing until there are no known issues.
+
+Do not report `PASS` while known issues remain.
+
+### Phase 4 — Verification
+
+After self-review passes, run the appropriate verification.
+
+For normal changes, use:
+
+```bash
+npm run lint
+npm run format:check
+npm test
+npm run build
+```
+
+All applicable checks must pass before declaring the task complete.
+
+If `npm run format:check` fails:
+
+```bash
+npx prettier --write .
+```
+
+Then rerun the formatting check and any affected checks.
+
+For UI/browser changes:
+
+1. First verify the actual behavior in the browser when practical.
+2. Then run the relevant automated checks.
+3. If browser verification exposes a problem, fix it and repeat the review/verification loop.
+
+Do not stop merely because a check fails. Diagnose the failure, fix it, and rerun the affected checks.
+
+### Phase 5 — Final review
+
+After all fixes and verification:
+
+1. Inspect the final diff again.
+2. Confirm the original request is fully satisfied.
+3. Confirm relevant tests and checks pass.
+4. Confirm no unrelated behavior was accidentally changed.
+5. Confirm modified files are actually saved on disk.
+6. Report any remaining uncertainty explicitly.
+
+---
+
+## Required Final Report
+
+When the task is complete, provide a report. For trivial changes (typo fixes, single-file config edits, pure formatting), a brief report covering the change and the check result is enough. For non-trivial changes, use the full Review Summary below.
+
+## Review Summary
+
+- `Files changed:` — every modified file and its purpose.
+- `Code paths traced:` — important callers, callees, and interactions checked.
+- `Regression checks:` — important existing behaviors checked.
+- `Dead code / wiring:` — relevant additions/removals checked.
+- `Tests/checks:` — commands run and results.
+- `Review result:` — `PASS` or `NEEDS_FIX`.
+- `Remaining uncertainty:` — only if applicable.
+
+Keep the final report concise. Do not dump unnecessary reasoning or full file contents.
+
+---
+
+## Quality Gates
+
+The normal quality gate is:
+
+```bash
+npm run lint
+npm run format:check
+npm test
+npm run build
+```
+
+Run all applicable checks before declaring completion.
+
+Do not run expensive checks repeatedly when a cheaper check can first identify an obvious problem. However, after fixing a failure, rerun the affected check and perform another review of the affected code.
+
+If a change is isolated and a full gate is clearly unnecessary during intermediate development, run the most relevant targeted checks first. The full gate should still be run before committing when the user asks for a commit.
+
+---
+
+## Pull Requests
+
+When a PR changes user-facing behavior, including:
+
+- image loading
+- `.textpack` opening
+- PPTX import
+- save/export
+- editing flows
+
+include specific manual/browser verification steps in the PR description.
+
+Use either:
+
+```text
+## Acceptance Criteria
+```
+
+or:
+
+```text
+## Manual Verification
+```
+
+and list the exact actions to perform.
+
+Do not use a generic "manual test" checkbox when concrete verification steps can be provided.
+
+---
 
 ## Change Impact Guidelines
 
-Before proposing a change, consider the blast radius beyond the immediate file:
+Before proposing or implementing a change, consider the blast radius beyond the immediate file.
 
-- **Shared state and mirrors.** If you remove a cached field (`originalMarkdown`, `unsavedMarkdown`, a getter/setter pair, or a callback), `grep` for every consumer in `src/` and `__tests__/` and update or explain each one. Shared caches are often read by save, export, AI, style, undo, and preview paths.
-- **Return type contracts.** Do not change the return type of a public method (`getFullSlides()`, `getFullMarkdown()`, `getWorkingSlides()`) without updating every caller, including no-argument overloads. If an overload must remain for backwards compatibility, keep its old contract.
-- **No-store / viewer paths.** `DeckStore` may be `null` in viewer, presenter, or export windows. If you remove a no-store fallback, either remove the feature entirely or provide a source-markdown fallback. Do not leave half-working code that throws in some paths and warns in others.
-- **Source vs. live state.** `DeckLoader.getSourceMarkdown()` is the on-disk/localStorage snapshot at load. `DeckStore.getSlides()` is the live in-memory canonical. Export, save, and whole-deck AI must use the live state; the source is only a fallback when no store is wired.
-- **History and broadcasts.** Every `DeckStore` mutation must decide three things: (1) does it record `DeckHistory`? (2) does it emit `storeChange` to other windows? (3) does it re-render the editor/preview? Do not record history or emit for silent pre-mutation syncs.
-- **CodeMirror history.** Full-document `setValue()` resets the cursor and can wipe undo. Use targeted `view.dispatch` transactions for in-place directive edits. Only clear history (`clearHistory: true`) when the slide or deck actually changes.
-- **Dirty baseline.** After a successful save, update the source snapshot (`webdeck_local_file` / `__WEBDECK_MARKDOWN__`) so the dirty flag stays clean. If `localStorage` fails, remove the stale key before falling back to the global.
-- **AI prompts and exports.** Never pass objects to string-join or prompt builders. Verify that `getFullMarkdown()` and `getFullSlides().join()` produce plain strings.
+### Shared state and mirrors
+
+If you remove a cached field (`originalMarkdown`, `unsavedMarkdown`, a getter/setter pair, or a callback), search for every consumer in `src/` and `__tests__/` and update or explain each one.
+
+Shared caches are often read by:
+
+- save
+- export
+- AI
+- style
+- undo
+- preview
+- persistence
+
+### Return type contracts
+
+Do not change the return type of a public method (`getFullSlides()`, `getFullMarkdown()`, `getWorkingSlides()`) without updating every caller, including no-argument overloads.
+
+If an overload must remain for backwards compatibility, preserve its existing contract.
+
+### No-store / viewer paths
+
+`DeckStore` may be `null` in viewer, presenter, or export windows.
+
+If removing a no-store fallback:
+
+- remove the feature entirely, or
+- provide a source-markdown fallback.
+
+Do not leave half-working code that throws in some paths and warns in others.
+
+### Source vs. live state
+
+`DeckLoader.getSourceMarkdown()` is the on-disk/localStorage snapshot at load.
+
+`DeckStore.getSlides()` is the live in-memory canonical state.
+
+Export, save, and whole-deck AI must use live state; source state is only a fallback when no store is wired.
+
+### History and broadcasts
+
+Every `DeckStore` mutation must consider:
+
+1. Does it record `DeckHistory`?
+2. Does it emit `storeChange` to other windows?
+3. Does it re-render the editor/preview?
+
+Do not record history or emit events for silent pre-mutation synchronization.
+
+### CodeMirror history
+
+Full-document `setValue()` resets the cursor and can wipe undo.
+
+Use targeted `view.dispatch` transactions for in-place directive edits.
+
+Only clear history (`clearHistory: true`) when the slide or deck actually changes.
+
+### Dirty baseline
+
+After a successful save, update the source snapshot (`webdeck_local_file` / `__WEBDECK_MARKDOWN__`) so the dirty flag stays clean until the next real change.
+
+If `localStorage` fails, remove the stale key before falling back to the global.
+
+### AI prompts and exports
+
+Never pass objects to string-join or prompt builders.
+
+Verify that:
+
+- `getFullMarkdown()` produces a plain string.
+- `getFullSlides().join()` produces plain strings.
+- Whole-deck AI prompts do not contain `[object Object]` or other unexpected stringification.
+
+---
 
 ## Pre-Review Verification
 
-When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`, verify the following before committing:
+When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`, explicitly verify:
 
 - `SaveManager.getFullSlides()` and `SaveManager.getFullMarkdown()` called with no arguments return `string[]` / `string` and work without a `DeckStore`.
 - `prepareStoreOperation()` / `onBeforeSave()` does not broadcast a `storeChange` event and does not clear CodeMirror history.
@@ -89,66 +375,90 @@ When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleAppl
 - Undo immediately after save reverts the just-saved text, not an earlier structural change.
 - `loadSlideIntoEditor()` preserves the undo stack when the slide and deck have not changed.
 - No `[object Object]` or other unexpected stringification appears in whole-deck AI prompts.
-- `DeckStore.applyPatches` default must remain `emit: true`; any new options must be reviewed.
+- `DeckStore.applyPatches` default remains `emit: true`; any new options must be reviewed.
+
+---
 
 ## Code Organization
 
-### Source Structure ([src/](src))
+### Source Structure (`src`)
 
 - **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config)
 - **data/** — Data parsing (layout-data, layout-parser, markdown-parser, deck-loader, layouts.json)
 - **editor/** — Live editing features
+
   - **core/** — Edit controller, markdown editor, slide thumbnails, slide operations, slide preview updater, style applier, source jump handler, directive utils, edit state manager
   - **image/** — Image picker, inserter, interaction handler, properties panel, background handler, deck images resolver
   - **layout/** — Layout picker, layout manager, grid resizer, grid resizer manager
   - **navigation/** — Area navigation, area guide manager, slide warning manager
   - **ui/** — Background picker, insert dropdown, mermaid helper, panel resizer, save manager, slide style panel, theme manager
+
 - **engine/** — Presentation logic (deck-controller, slide-navigator, keyboard-handler, break-manager, reload-manager, role-manager, wheel-handler, freeze-manager)
 - **renderer/** — Display logic (slide-renderer, stage-scaler, theme-manager, content-enhancer, html-export-manager, print-manager, notification)
 - **ui/** — UI actions (ui-actions)
 
 ### Entry Points
 
-- [index.html](index.html) — Main deck page (dev mode)
-- [deck.js](deck.js) — Application entry point and orchestrator
-- [tools/build.mjs](tools/build.mjs) — Build script
-- [tools/pdf.mjs](tools/pdf.mjs) — PDF export script
+- `index.html` — Main deck page (dev mode)
+- `deck.js` — Application entry point and orchestrator
+- `tools/build.mjs` — Build script
+- `tools/pdf.mjs` — PDF export script
 
-### When Working with Layouts
+---
 
-- Layout definitions are in [src/data/layout-data.js](src/data/layout-data.js). Built-in presets live in [src/data/layouts.json](src/data/layouts.json); user-created custom layouts are persisted in `localStorage` under `webdeck:custom-layouts`.
+## When Working with Layouts
+
+- Layout definitions are in `src/data/layout-data.js`.
+- Built-in presets live in `src/data/layouts.json`.
+- User-created custom layouts are persisted in `localStorage` under `webdeck:custom-layouts`.
 - `layout:` accepts either a preset name or a CSS `grid-template` shorthand string with quoted area names, e.g. `layout: "header header" "main media" / 2fr 1fr`.
-- Area markers route content to specific grid regions; the `@` name must match a name in the `layout:` grid.
+- Area markers route content to specific grid regions.
+- The `@` name must match a name in the `layout:` grid.
 - Text before the first `@area` marker flows into `@main`.
 - The Layout Picker's `Custom` tile lets users save named grid strings to `localStorage` and reuse them across decks.
 
-### When Working with Themes
+---
 
-- Theme management is in [src/renderer/theme-manager.js](src/renderer/theme-manager.js)
-- Themes can be set per-slide via `theme:` frontmatter
+## When Working with Themes
 
-### When Working with Export
+Theme management is in:
 
-- **App UI HTML export**: [src/renderer/html-export-manager.js](src/renderer/html-export-manager.js)
-- **App UI PDF export**: [src/renderer/print-manager.js](src/renderer/print-manager.js)
-- **Build script HTML**: [tools/build.mjs](tools/build.mjs)
-- **Build script PDF**: [tools/pdf.mjs](tools/pdf.mjs) — Uses Playwright for headless PDF generation
+```text
+src/renderer/theme-manager.js
+```
 
-### When Working with Editor Features
+Themes can be set per-slide via `theme:` frontmatter.
 
-- Edit controller: [src/editor/core/edit-controller.js](src/editor/core/edit-controller.js) — orchestrator, delegates to sub-modules
-- Slide preview updater: [src/editor/core/slide-preview-updater.js](src/editor/core/slide-preview-updater.js) — parses markdown and re-renders slide preview
-- Style applier: [src/editor/core/style-applier.js](src/editor/core/style-applier.js) — applies style directives to all slides
-- Source jump handler: [src/editor/core/source-jump-handler.js](src/editor/core/source-jump-handler.js) — click-to-jump markdown source
-- Markdown editor: [src/editor/core/markdown-editor.js](src/editor/core/markdown-editor.js)
-- Layout picker: [src/editor/layout/layout-picker.js](src/editor/layout/layout-picker.js)
-- Slide thumbnails: [src/editor/core/slide-thumbnails.js](src/editor/core/slide-thumbnails.js)
-- Image handling: [src/editor/image/](src/editor/image/)
-- Grid resizer: [src/editor/layout/grid-resizer.js](src/editor/layout/grid-resizer.js)
+---
 
-#### Editor Sub-Module Architecture
+## When Working with Export
 
-All editor sub-modules use **dependency injection** — they receive only the specific dependencies they need via constructor parameters, not the full `EditController` instance. Mutable state is accessed via getter functions (e.g., `getCurrentSlideIndex`), and cross-module actions are passed as callbacks (e.g., `onPreviewUpdate`). The `EditController` constructor wires everything together.
+- **App UI HTML export:** `src/renderer/html-export-manager.js`
+- **App UI PDF export:** `src/renderer/print-manager.js`
+- **Build script HTML:** `tools/build.mjs`
+- **Build script PDF:** `tools/pdf.mjs` — Uses Playwright for headless PDF generation
+
+---
+
+## When Working with Editor Features
+
+- Edit controller: `src/editor/core/edit-controller.js` — orchestrator, delegates to sub-modules
+- Slide preview updater: `src/editor/core/slide-preview-updater.js` — parses markdown and re-renders slide preview
+- Style applier: `src/editor/core/style-applier.js` — applies style directives to all slides
+- Source jump handler: `src/editor/core/source-jump-handler.js` — click-to-jump markdown source
+- Markdown editor: `src/editor/core/markdown-editor.js`
+- Layout picker: `src/editor/layout/layout-picker.js`
+- Slide thumbnails: `src/editor/core/slide-thumbnails.js`
+- Image handling: `src/editor/image/`
+- Grid resizer: `src/editor/layout/grid-resizer.js`
+
+### Editor Sub-Module Architecture
+
+All editor sub-modules use **dependency injection** — they receive only the specific dependencies they need via constructor parameters, not the full `EditController` instance.
+
+Mutable state is accessed via getter functions (e.g., `getCurrentSlideIndex`), and cross-module actions are passed as callbacks (e.g., `onPreviewUpdate`).
+
+The `EditController` constructor wires everything together.
 
 Pattern for new sub-modules:
 
@@ -156,8 +466,8 @@ Pattern for new sub-modules:
 export class NewModule {
   /**
    * @param {object} opts
-   * @param {() => Type} opts.getSomething  — getter for mutable state
-   * @param {(arg: Type) => void} opts.onAction  — callback for actions
+   * @param {() => Type} opts.getSomething — getter for mutable state
+   * @param {(arg: Type) => void} opts.onAction — callback for actions
    */
   constructor({ getSomething, onAction }) {
     this._getSomething = getSomething;
@@ -166,100 +476,136 @@ export class NewModule {
 }
 ```
 
+---
+
 ## Development Guidelines
 
 ### Core Principles
 
-1. **Deterministic rendering**: All positioning uses the 1920x1080 coordinate system.
-2. **Offline-first**: Build script inlines all assets; no runtime CDN dependencies.
-3. **No reflow on resize**: Use [stage-scaler.js](src/renderer/stage-scaler.js) for letterboxing/pillarboxing.
-4. **Markdown-driven**: Deck content comes from parsed Markdown files.
+1. **Deterministic rendering:** All positioning uses the 1920x1080 coordinate system.
+2. **Offline-first:** Build script inlines all assets; no runtime CDN dependencies.
+3. **No reflow on resize:** Use `stage-scaler.js` for letterboxing/pillarboxing.
+4. **Markdown-driven:** Deck content comes from parsed Markdown files.
+
+---
 
 ## Common Tasks
 
-- **Add a new layout preset**: Add to [src/data/layout-data.js](src/data/layout-data.js)
-- **Modify deck content**: Edit [docs/example/slides.md](docs/example/slides.md)
-- **Change build input**: Update argument in [tools/build.mjs](tools/build.mjs)
-- **Add a rendering feature**: Enhance [src/renderer/content-enhancer.js](src/renderer/content-enhancer.js) or [src/renderer/slide-renderer.js](src/renderer/slide-renderer.js)
-- **Add or change a keyboard shortcut**: Update [src/engine/keyboard-shortcuts.js](src/engine/keyboard-shortcuts.js), then run the quality gates
+- **Add a new layout preset:** Add to `src/data/layout-data.js`
+- **Modify deck content:** Edit `docs/example/slides.md`
+- **Change build input:** Update argument in `tools/build.mjs`
+- **Add a rendering feature:** Enhance `src/renderer/content-enhancer.js` or `src/renderer/slide-renderer.js`
+- **Add or change a keyboard shortcut:** Update `src/engine/keyboard-shortcuts.js`, then run the quality gates.
 
-## AI Prompt Engineering (2026 Best Practices)
+---
 
-AI prompts live in [src/data/prompts/](src/data/prompts/):
+## AI Prompt Engineering
 
-| File                          | Role     | Purpose                                                                                                                             |
-| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `system-prompt.md`            | `system` | Global rules, structure, formatting                                                                                                 |
-| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order                                                  |
-| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input (execute phase)                                                                 |
-| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input (enhanceSlide)                                                                     |
-| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide (single-slide)                                                                                           |
-| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON                                                                 |
-| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine: analyze deck (+ optional images) → output `{ plan, chapters }` JSON with flow tags + slide-count guard |
+AI prompts live in `src/data/prompts/`:
 
-### AI Module Architecture (Phase 13)
-
-The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under [src/data/ai/](src/data/ai/):
-
-| Module                     | Purpose                                                            |
-| -------------------------- | ------------------------------------------------------------------ |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair       |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                 |
-| `ai-intent-registry.js`    | Maps intent names to prompt builders                               |
-| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building         |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                        |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                              |
-| `ai-output-validator.js`   | Validate AI output against schema (layout, area, content rules)    |
-| `ai-output-schema.js`      | Per-intent schemas (min/max slides, layout requirements)           |
-| `ai-prompt-composer.js`    | Compose system + user prompts from fragments with {{placeholders}} |
-| `ai-repair-message.js`     | Build repair messages for validation failures                      |
-| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization     |
-| `ai-provider-factory.js`   | Provider client factory (OpenRouter, Anthropic, Gemini, etc.)      |
-| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation   |
-| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB      |
-
-### Editor UI Modules
-
-| Module                          | Purpose                                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ai-dropdown-manager.js`        | AI dropdown in the editor toolbar (Enhance, Add notes, Refine all)                                          |
-| `ai-generate-modal.js`          | Pre-flight modal for whole-deck Refine (mode, flow, options, cost)                                          |
-| `ai-reimagine-outline-modal.js` | Chapter-grouped plan + outline editor with flow badges, shown between Reimagine outline and generate phases |
-| `insert-dropdown-manager.js`    | Format dropdown in the editor toolbar (Layout, Appearance, Insert)                                          |
-| `dropdown-registry.js`          | Shared registry so Format and AI dropdowns can't overlap                                                    |
+| File                          | Role     | Purpose                                                                            |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `system-prompt.md`            | `system` | Global rules, structure, formatting                                                |
+| `polish-prompt.md`            | `user`   | Whole-deck cleanup and wording/layout improvement; preserves slide count and order |
+| `generate-prompt.md`          | `user`   | Creative reorganization task + `{{markdown}}` input                                |
+| `fix-prompt.md`               | `user`   | Conservative cleanup task + `{{markdown}}` input                                   |
+| `add-speaker-notes-prompt.md` | `user`   | Add speaker notes to slide                                                         |
+| `remix-plan-prompt.md`        | `user`   | Plan phase for Remix; outputs restructuring plan JSON                              |
+| `reimagine-outline-prompt.md` | `user`   | Outline phase for Reimagine; outputs `{ plan, chapters }` JSON                     |
 
 ### Prompt Rules
 
-- **Do NOT duplicate** rules across `system` and `user` prompts.
-- **Put constraints before creative freedom** in user prompts.
-- **Keep prompts focused** — system + user prompts should not exceed ~150 combined lines.
-- **Prefer positive instructions** over negative ones.
-- **Limit strong negative directives** ("NEVER", "Do NOT") to ~5 per prompt.
-- **Place the most critical rules first**.
-- **Add success criteria** at the end of each prompt.
+- Do not duplicate rules across `system` and `user` prompts.
+- Put constraints before creative freedom in user prompts.
+- Keep prompts focused; system + user prompts should stay under ~150 combined lines.
+- Prefer positive instructions over negative instructions.
+- Limit strong negative directives to approximately five per prompt.
+- Place the most critical rules first.
+- Add success criteria at the end of each prompt.
 
 ### Modification Checklist
 
 1. Check all prompts for consistency.
 2. Run `npm test` — AI module tests verify prompt processing.
-3. Verify the combined system + user prompt length stays under 150 lines.
-4. Count strong negative directives; aim for ≤5 per prompt.
-5. Keep both layout lists in sync.
-6. Reflect changes in [docs/prompt-template.md](docs/prompt-template.md) and [docs/example/slides.md](docs/example/slides.md).
+3. Verify combined system + user prompt length stays under 150 lines.
+4. Keep both layout lists in sync.
+5. Reflect changes in `docs/prompt-template.md` and `docs/example/slides.md` when applicable.
 
-## Renderer Hardening
+---
 
-- All user-authored Markdown HTML assigned to `SlideRenderer` slide areas is sanitized with `DOMPurify` before `innerHTML` is set. Mermaid SVG output and hardcoded UI `innerHTML` strings are trusted library/output markup and are not sanitized.
-- `ContentEnhancer` is exposed on `window` so the runtime, exported HTML, and PDF paths can all call the same `ContentEnhancer.enhanceRenderedContent(...)` entry point.
-- Mermaid source is stored in `data-mermaid-source` base64-encoded (with `b64:` prefix) because DOMPurify strips attributes containing `-->` (HTML comment-end sequences). The parser decodes HTML entities before encoding, and `ContentEnhancer` decodes the attribute before passing it to Mermaid.
+## Reference
 
-## Known Issues
+The following sections are reference material for specific subsystems and known environment quirks.
 
-- **`nul` file on Windows**: The `.gitignore` previously contained `nul` which created an untracked file that cannot be deleted via normal Windows commands (it's a reserved device name). This was removed from `.gitignore` but the file may still appear in `git status`. Ignore it.
-- **PowerShell quoting**: The `gh` CLI and `npm` commands with special characters (parentheses, quotes) fail in PowerShell. Use `cmd /c` wrapper or write content to temp files and use `--body-file`, `-F` flags.
-- **npm via PowerShell**: `npm.ps1` is blocked by execution policy on this system. Use `cmd /c "npm ..."` to run npm commands.
+### AI Module Architecture
 
-## Pull Requests
+The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under `src/data/ai/`:
 
-When a PR changes user-facing behavior (image loading, `.textpack` open, PPTX import, save/export, editing flows, etc.), include the specific manual/browser verification steps in the PR description. Use the `## Acceptance Criteria` or `## Manual Verification` section to list the exact actions to perform, not just a generic "manual test" checkbox.
+| Module                     | Purpose                                                          |
+| -------------------------- | ---------------------------------------------------------------- |
+| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair     |
+| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory               |
+| `ai-intent-registry.js`    | Maps intent names to prompt builders                             |
+| `ai-prompt-builder.js`     | Layout list, frontmatter stripping, message/batch building       |
+| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown              |
+| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                      |
+| `ai-token-estimator.js`    | Token count and max_tokens estimation                            |
+| `ai-output-validator.js`   | Validate AI output against schema                                |
+| `ai-output-schema.js`      | Per-intent schemas                                               |
+| `ai-prompt-composer.js`    | Compose system + user prompts from fragments                     |
+| `ai-repair-message.js`     | Build repair messages for validation failures                    |
+| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization   |
+| `ai-provider-factory.js`   | Provider client factory                                          |
+| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation |
+| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB    |
+
+---
+
+### Editor UI Modules
+
+| Module                          | Purpose                                                   |
+| ------------------------------- | --------------------------------------------------------- |
+| `ai-dropdown-manager.js`        | AI dropdown in editor toolbar                             |
+| `ai-generate-modal.js`          | Pre-flight modal for whole-deck Refine                    |
+| `ai-reimagine-outline-modal.js` | Chapter-grouped plan + outline editor                     |
+| `insert-dropdown-manager.js`    | Format dropdown                                           |
+| `dropdown-registry.js`          | Shared registry so Format and AI dropdowns cannot overlap |
+
+---
+
+### Renderer Hardening
+
+- All user-authored Markdown HTML assigned to `SlideRenderer` slide areas is sanitized with `DOMPurify` before `innerHTML` is set.
+- Mermaid SVG output and hardcoded UI `innerHTML` strings are trusted library/output markup and are not sanitized.
+- Mermaid source is stored in `data-mermaid-source` base64-encoded with a `b64:` prefix because DOMPurify strips attributes containing `-->`.
+- The parser decodes HTML entities before encoding.
+- `ContentEnhancer` decodes the attribute before passing it to Mermaid.
+- `ContentEnhancer` is exposed on `window` so runtime, exported HTML, and PDF paths use the same entry point.
+
+---
+
+### Known Issues
+
+#### Windows `nul` file
+
+The `.gitignore` previously contained `nul`, which created an untracked file that cannot be deleted via normal Windows commands because it is a reserved device name.
+
+This was removed from `.gitignore`, but the file may still appear in `git status`. Ignore it.
+
+#### PowerShell quoting
+
+The `gh` CLI and `npm` commands with special characters such as parentheses or quotes can fail in PowerShell.
+
+Use a `cmd /c` wrapper or write content to temporary files and use `--body-file` / `-F` flags.
+
+#### npm via PowerShell
+
+`npm.ps1` is blocked by execution policy on this system.
+
+Use:
+
+```bash
+cmd /c "npm ..."
+```
+
+when necessary.
