@@ -517,6 +517,18 @@ describe("AiProviderClient", () => {
   });
 
   describe("AiHttpError.userMessage", () => {
+    it("returns a 'no API key' message for status-0 missing-key errors", () => {
+      const err = new AiHttpError(0, "OpenRouter API key is required");
+      expect(err.userMessage).toContain("No API key configured");
+      expect(err.userMessage).not.toContain("HTTP 0");
+    });
+
+    it("frames status-0 network errors as AI request failures", () => {
+      const err = new AiHttpError(0, "Failed to fetch");
+      expect(err.userMessage).toContain("AI request failed");
+      expect(err.userMessage).toContain("Failed to fetch");
+    });
+
     it("returns a friendly message for 401 auth errors", () => {
       const err = new AiHttpError(401, '{"error":{"message":"invalid api key"}}');
       expect(err.userMessage).toContain("Invalid API key");

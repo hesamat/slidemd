@@ -98,18 +98,20 @@ export class AiProviderClient {
 
     const baseUrl = (this._getBaseUrl() || "").replace(/\/+$/, "");
     const provider = this._getProvider?.();
+    const apiKey = this._getApiKey();
+    // Fail fast with a clear message when a key-required provider has no key,
+    // instead of sending a request that will fail with a confusing 401
+    // "Missing Authentication header" from the upstream API. Checked before
+    // base-URL validation to match AnthropicProviderClient/GeminiProviderClient
+    // ordering.
+    if (!apiKey && (provider === "OpenAI" || provider === "OpenRouter")) {
+      throw new AiHttpError(0, `${provider} API key is required`);
+    }
     const validation = validateAiBaseUrl(baseUrl, provider);
     if (!validation.ok) {
       throw new AiHttpError(0, validation.error || "Invalid base URL");
     }
     const url = `${baseUrl}/chat/completions`;
-    const apiKey = this._getApiKey();
-    // Fail fast with a clear message when a key-required provider has no key,
-    // instead of sending a request that will fail with a confusing 401
-    // "Missing Authentication header" from the upstream API.
-    if (!apiKey && (provider === "OpenAI" || provider === "OpenRouter")) {
-      throw new AiHttpError(0, `${provider} API key is required`);
-    }
     const rawModel = this._getModel();
     // OpenRouter model IDs can have at most one routing suffix. Only append
     // the default :nitro suffix when the user hasn't already picked one.
@@ -308,16 +310,21 @@ export class AiHttpError extends Error {
     const summary = sanitizeErrorBody(this.body);
     const lower = (summary || "").toLowerCase();
 
-    // Local pre-flight errors (status 0) — e.g. missing API key
+    // Local pre-flight errors (status 0) — missing API key, invalid base URL,
+    // or a network failure caught by a sibling client's try/catch. Frame
+    // these as AI request failures so the user has context, rather than
+    // surfacing the raw underlying string (e.g. "Failed to fetch").
     if (this.status === 0) {
-      return summary || "The AI request failed before sending.";
+      if (lower.includes("api key is required")) {
+        return "No API key configured — open Settings to add your API key.";
+      }
+      return summary
+        ? `The AI request failed before sending: ${summary}`
+        : "The AI request failed before sending.";
     }
 
     // Auth errors
     if (this.status === 401) {
-      if (lower.includes("missing authentication")) {
-        return "No API key configured — open Settings to add your API key.";
-      }
       return "Invalid API key — check your settings and try again.";
     }
     if (this.status === 403) {
