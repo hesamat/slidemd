@@ -3,6 +3,11 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 
+// Browser globals used inside page.evaluate() callbacks. Playwright serializes
+// the function body and executes it in the browser page, so these identifiers
+// are valid at runtime even though this file runs in Node.
+/* global window, document, NodeFilter, ContentEnhancer */
+
 const root = process.cwd();
 const distDir = path.join(root, "dist");
 
@@ -114,9 +119,6 @@ try {
 // but PDF needs all slides to be highlighted.
 // Also need to render Mermaid diagrams and remove emojis for PDF.js compatibility.
 console.log("Enhancing all slides for PDF output...");
-// ContentEnhancer is a browser global exposed by the rendered deck page; the
-// evaluate callback below runs in the page context, not Node.
-/* global ContentEnhancer */
 const enhancementAvailable = await page.evaluate(async () => {
     const slides = Array.from(document.querySelectorAll('.slide'));
 

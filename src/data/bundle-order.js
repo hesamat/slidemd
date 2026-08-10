@@ -3,10 +3,13 @@
  *
  * Single source of truth for the order in which source files are concatenated
  * when producing a self-contained HTML export. The runtime HTML export path
- * (HtmlExportManager) fetches each file in this order and strips ESM syntax;
- * the build script (tools/build.mjs) currently relies on esbuild's dependency
- * resolution instead, but importing this constant keeps the two paths aligned
- * if the build script ever needs explicit ordering.
+ * (HtmlExportManager) fetches each file in this order and strips ESM syntax.
+ *
+ * The build script (tools/build.mjs) does NOT import this constant: it uses
+ * esbuild's dependency resolution from deck.js as its entry point, so the
+ * explicit order is not needed there. This module exists so that the runtime
+ * export path has a stable, documented order and so the build script can adopt
+ * it later if it ever needs explicit ordering.
  *
  * Keep additions in sync with the import graph in deck.js. Files must appear
  * before any file that imports them so the concatenated IIFE sees each

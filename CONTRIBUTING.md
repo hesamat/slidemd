@@ -60,10 +60,11 @@ If `npm run format:check` fails, run `npm run format` (or
 npm run lint
 ```
 
-ESLint flat config lives in `eslint.config.js`. It lints `src/`, `tools/`, and
-root `*.mjs` files. Node tooling (`tools/**/*.mjs`, `*.mjs`) gets Node globals;
-browser code gets browser globals. Unused variables matching `^_` are allowed
-(intentional unused args/caught errors).
+ESLint flat config lives in `eslint.config.js`. Browser source (`src/**/*.js`,
+`deck.js`) gets browser globals; Node tooling (`tools/**/*.mjs`, root `*.mjs`)
+gets Node globals only, so accidental use of browser-only APIs like `document`
+or `localStorage` in build/dev scripts is reported. Unused variables matching
+`^_` are allowed (intentional unused args/caught errors).
 
 ### Format
 
@@ -81,7 +82,7 @@ npm test
 ```
 
 Tests run on Vitest with a jsdom environment. Specs live in
-`src/__tests/**/*.test.js`. Snapshot tests
+`src/__tests__/**/*.test.js`. Snapshot tests
 (`src/__tests__/ai-prompt-snapshots.test.js`) pin composed AI prompts; update
 them deliberately with `npx vitest run -u` and review the diff.
 
