@@ -8,7 +8,7 @@
  */
 
 import { splitSlides } from "../markdown-parser.js";
-import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
+import { parseAllImages } from "../image-markdown-parser.js";
 import { DeckImagesResolver } from "../../editor/image/deck-images-resolver.js";
 import { estimateTotalImageTokens } from "./ai-vision-message.js";
 

@@ -64,10 +64,6 @@ export class WholeDeckOrchestrator {
       throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
     }
 
-    // Remix and reimagine use a two-phase plan→execute flow. The plan phase
-    // produces a restructuring plan, which is converted to a virtual deck and
-    // fed through the existing single-call/batched path.
-
     const allSlides = splitSlidesForAi(context, "generate");
     const totalSlides = allSlides.length;
 

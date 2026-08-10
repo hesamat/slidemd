@@ -47,12 +47,9 @@ export class AiOrchestrator {
     effort = "none",
     effortSupported = true,
   }) {
-    this._provider = provider;
-    this._modelMaxOutput = modelMaxOutput;
-    this._useReasoning = useReasoning;
-    this._effort = effort;
-    this._effortSupported = effortSupported;
-
+    // Configuration is passed to the sub-orchestrators at construction time
+    // and not retained on this facade — mutating fields here would have no
+    // effect on requests since all work is delegated.
     const sharedDeps = { provider, modelMaxOutput, useReasoning, effort, effortSupported };
 
     this._singleSlide = new SingleSlideOrchestrator(sharedDeps);

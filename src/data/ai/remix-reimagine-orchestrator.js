@@ -26,7 +26,7 @@ import {
 } from "./ai-prompt-fragments.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
-import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
+import { parseAllImages } from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 
 /**

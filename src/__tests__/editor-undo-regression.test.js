@@ -443,14 +443,28 @@ describe("Editor undo regression suite", () => {
 
   describe("handleStoreChange during undo/redo", () => {
     it("skips the queued restoreStoreSnapshot when a store change is suppressed", async () => {
+      const replaceDeck = vi.fn(() => Promise.resolve());
       const fake = {
+        deckStore: {
+          getStructuralRevision: () => 0,
+          toMarkdown: () => "# A",
+          getActiveIndex: () => 0,
+          getSlides: () => ["# A"],
+        },
+        controller: {
+          reloadManager: { replaceDeck },
+          slideNavigator: { goTo: () => {}, currentIndex: 0 },
+        },
         isEditMode: true,
         unsavedMarkdown: new Map(),
         hasUnsavedChanges: false,
         _destroyed: false,
+        _lastEditorSlideIndex: -1,
+        _deckRestoreDepth: 0,
         _storeDiffersFromSource: () => false,
         saveManager: { updateButton: vi.fn() },
         previewUpdater: { update: vi.fn() },
+        markdownEditor: null,
         loadSlideIntoEditor: () => {},
       };
       const storeSync = createStoreSync(fake);
@@ -460,16 +474,13 @@ describe("Editor undo regression suite", () => {
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // restoreStoreSnapshot is not called directly, but chainStoreChangeRestore
-      // would invoke it. Since restore is suppressed, the queue should not
-      // call restore. We verify by checking that the restore mock (if wired)
-      // is not called. Instead, verify the suppress flag prevented queuing
-      // by checking that chainStoreChangeRestore was not triggered.
-      // The simplest verification: the queue should still be null.
-      expect(storeSync._queue).toBeNull();
+      // The restore path calls reloadManager.replaceDeck; suppression should
+      // prevent that call entirely.
+      expect(replaceDeck).not.toHaveBeenCalled();
     });
 
     it("queues restoreStoreSnapshot when store changes are not suppressed", async () => {
+      const replaceDeck = vi.fn(() => Promise.resolve());
       const fake = {
         deckStore: {
           getStructuralRevision: () => 0,
@@ -478,7 +489,7 @@ describe("Editor undo regression suite", () => {
           getSlides: () => ["# A"],
         },
         controller: {
-          reloadManager: { replaceDeck: () => Promise.resolve() },
+          reloadManager: { replaceDeck },
           slideNavigator: { goTo: () => {}, currentIndex: 0 },
         },
         isEditMode: true,
@@ -497,9 +508,8 @@ describe("Editor undo regression suite", () => {
       storeSync.handleStoreChange(["# A"]);
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // The queue should have been set and resolved.
-      expect(storeSync._queue).toBeInstanceOf(Promise);
-      await storeSync._queue;
+      // The restore path should have run and called replaceDeck.
+      expect(replaceDeck).toHaveBeenCalledTimes(1);
     });
   });
 });
