@@ -29,7 +29,13 @@ export class SingleSlideOrchestrator {
    * @param {string} [deps.effort] — reasoning effort: "none" | "low" | "medium" | "high"
    * @param {boolean} [deps.effortSupported] — whether the model exposes effort selection
    */
-  constructor({ provider, modelMaxOutput = null, useReasoning = false, effort = "none", effortSupported = true }) {
+  constructor({
+    provider,
+    modelMaxOutput = null,
+    useReasoning = false,
+    effort = "none",
+    effortSupported = true,
+  }) {
     this._provider = provider;
     this._modelMaxOutput = modelMaxOutput;
     this._useReasoning = useReasoning;

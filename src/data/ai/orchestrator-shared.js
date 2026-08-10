@@ -46,14 +46,7 @@ export function isVisionError(err) {
   if (status === 401 || status === 403 || status === 429 || !status) return false;
 
   const msg = (err.message || "").toLowerCase();
-  const visionKeywords = [
-    "image",
-    "vision",
-    "multimodal",
-    "multi-modal",
-    "visual",
-    "content type",
-  ];
+  const visionKeywords = ["image", "vision", "multimodal", "multi-modal", "visual", "content type"];
   const rejectionPhrases = [
     "not support",
     "doesn't support",
