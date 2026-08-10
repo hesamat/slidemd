@@ -13,13 +13,15 @@ export default defineConfig({
             ignored: /[/\\]images[/\\]/,
         },
         proxy: {
+            // changeOrigin must stay OFF: the CLI server's isSameOrigin()
+            // compares the browser's Origin header against the Host it
+            // receives. Rewriting Host to localhost:8001 would make every
+            // write (POST /api/deck) fail the check with a 403.
             '/api': {
                 target: 'http://localhost:8001',
-                changeOrigin: true,
             },
             '/images': {
                 target: 'http://localhost:8001',
-                changeOrigin: true,
             },
         },
     },
