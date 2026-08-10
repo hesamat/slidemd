@@ -219,11 +219,12 @@ export class KeyboardHandler {
     // browser's native default through — e.g. Ctrl+S in exported decks or
     // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
-    // Preserve CodeMirror's editor behavior, but keep Ctrl+S suppressed in
-    // every other app input when an editor exists. This prevents the
-    // browser's Save Page dialog from appearing over the save-name prompt
-    // or another app modal. In exported/embedded decks (no editor wired),
-    // the browser's save is the only useful behavior.
+    // Preserve CodeMirror's editor behavior. For Ctrl+S in other app inputs
+    // when an editor exists, suppress the browser's Save Page dialog but
+    // still run the app save (the re-entrancy guard dedupes if a save is
+    // already in flight, e.g. inside the file-name prompt). In
+    // exported/embedded decks (no editor wired), the browser's save is the
+    // only useful behavior.
     if (
       globalAction === "save" &&
       isEditable &&
@@ -231,6 +232,7 @@ export class KeyboardHandler {
       window.__WEBDECK_EDIT_CONTROLLER__
     ) {
       e.preventDefault();
+      this.actions.save?.();
       return;
     }
     if (globalAction && this.actions[globalAction]) {

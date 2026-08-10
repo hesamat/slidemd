@@ -155,6 +155,22 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(doSave).toHaveBeenCalledTimes(1);
   });
 
+  it("does not reject unhandled when pre-save preparation throws", async () => {
+    const sm = createSaveManager();
+    const error = vi.spyOn(Notification, "error").mockImplementation(() => {});
+    vi.spyOn(sm, "_prepareSave").mockRejectedValue(new Error("upload failed"));
+    vi.spyOn(sm, "_doMarkdownSave").mockResolvedValue(true);
+
+    const promise = sm.save();
+    const rejection = vi.fn();
+    promise.catch(rejection);
+    await promise;
+
+    expect(rejection).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("upload failed"));
+    expect(sm._doMarkdownSave).not.toHaveBeenCalled();
+  });
+
   it("throws AbortError when the file-name prompt is cancelled", async () => {
     const sm = createSaveManager();
     vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: false, value: "" });

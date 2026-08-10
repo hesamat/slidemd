@@ -32,7 +32,6 @@ export class DeckEvents {
    * @param {object} opts.breakManager - Break manager
    * @param {object} opts.freezeManager - Freeze manager
    * @param {object} opts.reloadManager - Reload manager
-   * @param {Function} opts.isEditMode - Check edit mode callback
    */
   constructor({
     elements,

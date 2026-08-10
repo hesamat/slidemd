@@ -962,7 +962,16 @@ export class SaveManager {
     if (this._saveInFlight) return this._saveInFlight;
     this._saveInFlight = (async () => {
       try {
-        const { fullMarkdown } = await this._prepareSave();
+        let fullMarkdown;
+        try {
+          ({ fullMarkdown } = await this._prepareSave());
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            console.error("Failed to prepare save:", error);
+            Notification.error("Failed to save file: " + (error.message || error));
+          }
+          return;
+        }
         try {
           const saved = await this._doMarkdownSave(fullMarkdown);
           if (saved) this._markSaved(fullMarkdown);
