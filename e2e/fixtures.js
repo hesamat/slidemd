@@ -4,11 +4,15 @@ export const test = base.extend({
   consoleMessages: [
     async ({ page }, use, testInfo) => {
       const messages = [];
-      page.on("console", (message) => {
+      const maxMessages = 200;
+      const onConsole = (message) => {
+        if (messages.length === maxMessages) messages.shift();
         messages.push({ type: message.type(), text: message.text() });
-      });
+      };
+      page.on("console", onConsole);
 
       await use(messages);
+      page.off("console", onConsole);
 
       if (testInfo.status !== testInfo.expectedStatus && messages.length > 0) {
         await testInfo.attach("browser-console.json", {
