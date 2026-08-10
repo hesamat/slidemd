@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(__dirname, "..");
 const rawArgs = process.argv.slice(2);
 const noOpen = rawArgs.includes("--no-open");
 const args = rawArgs.filter((arg) => arg !== "--no-open");
@@ -15,17 +16,19 @@ const args = rawArgs.filter((arg) => arg !== "--no-open");
 // CLI server on port 8001
 const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8001"];
 const cli = spawn(process.execPath, cliArgs, {
-  cwd: path.join(__dirname, ".."),
+  cwd: root,
   stdio: "inherit",
 });
 
 // Vite on port 8000 (proxies /api and /images to CLI server)
-const viteArgs = ["vite"];
-if (noOpen) viteArgs.push("--open=false");
-const vite = spawn("npx", viteArgs, {
-  cwd: path.join(__dirname, ".."),
+const viteScript = path.join(root, "node_modules", "vite", "bin", "vite.js");
+const vite = spawn(process.execPath, [viteScript], {
+  cwd: root,
+  env: {
+    ...process.env,
+    ...(noOpen ? { WEBDECK_NO_OPEN: "1" } : {}),
+  },
   stdio: "inherit",
-  shell: true,
 });
 
 cli.on("close", (code) => process.exit(code));

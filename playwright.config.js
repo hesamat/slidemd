@@ -27,7 +27,7 @@ export default defineConfig({
   webServer: {
     command: "node tools/dev.mjs docs/example/slides.md --no-open",
     url: "http://127.0.0.1:8000/index.html",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
     stdout: "pipe",
     stderr: "pipe",

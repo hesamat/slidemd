@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import { imageUploadPlugin } from './tools/vite-plugin-upload.mjs';
 
+const noOpen = process.env.WEBDECK_NO_OPEN === '1' || process.env.WEBDECK_NO_OPEN === 'true';
+
 export default defineConfig({
     plugins: [imageUploadPlugin()],
     optimizeDeps: {
@@ -8,7 +10,7 @@ export default defineConfig({
     },
     server: {
         port: 8000,
-        open: '/index.html',
+        open: noOpen ? false : '/index.html',
         watch: {
             ignored: /[/\\]images[/\\]/,
         },

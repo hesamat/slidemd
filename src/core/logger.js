@@ -12,8 +12,10 @@ const LEVELS = Object.freeze({
   error: 3,
 });
 
-// The logger is a page-wide singleton. Tests and temporary callers should use
-// resetLevel() when they need to restore the environment-aware default.
+// The logger is a page-wide singleton. It is intentionally not exposed on
+// window.WebDeck, so exported decks have no public debug-output escape hatch.
+// Tests and temporary callers should use resetLevel() when they need to restore
+// the environment-aware default.
 let configuredLevel = null;
 
 function isProductionBuild() {

@@ -10,10 +10,11 @@ For most tasks, use this loop:
 2. **Implement** a small, coherent change.
 3. **Review** the implementation adversarially.
 4. **Fix** any review findings.
-5. **Run checks** — for non-trivial changes, run all four quality gates:
+5. **Run checks** — for non-trivial changes, run all five quality gates:
    - `npm run lint`
    - `npm run format:check`
    - `npm test`
+   - `npm run test:e2e`
    - `npm run build`
 
    For trivial changes (typo fixes, single-file config edits, pure formatting), run the relevant targeted check.
@@ -187,6 +188,7 @@ For normal changes, use:
 npm run lint
 npm run format:check
 npm test
+npm run test:e2e
 npm run build
 ```
 
@@ -247,6 +249,7 @@ The normal quality gate is:
 npm run lint
 npm run format:check
 npm test
+npm run test:e2e
 npm run build
 ```
 
