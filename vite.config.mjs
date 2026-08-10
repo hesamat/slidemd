@@ -9,6 +9,7 @@ export default defineConfig({
         exclude: ['@codemirror/language-data'],
     },
     server: {
+        host: '127.0.0.1',
         port: 8000,
         open: noOpen ? false : '/index.html',
         watch: {
