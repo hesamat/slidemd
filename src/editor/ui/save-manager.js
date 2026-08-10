@@ -382,12 +382,25 @@ export class SaveManager {
     const check = async (handle) => {
       if (!handle) return null;
       try {
-        const perm =
-          handle.queryPermission && (await handle.queryPermission({ mode: "readwrite" }));
-        return perm === "granted" ? handle : null;
+        if (handle.queryPermission) {
+          let perm = await handle.queryPermission({ mode: "readwrite" });
+          if (perm !== "granted" && handle.requestPermission) {
+            // After a page reload a persisted handle's readwrite state is
+            // "prompt". The save runs right after Ctrl+S, so transient
+            // activation is normally available to re-grant it. A denied
+            // request (or no activation) falls back to the picker flow.
+            try {
+              perm = await handle.requestPermission({ mode: "readwrite" });
+            } catch {
+              perm = "denied";
+            }
+          }
+          return perm === "granted" ? handle : null;
+        }
       } catch {
         return null;
       }
+      return null;
     };
 
     const inMemory = DeckImagesResolver.getDirectoryHandle();
@@ -404,7 +417,13 @@ export class SaveManager {
         }
       }
     }
+    // keysFor strips a trailing .md, so for "deck.md" both candidates map
+    // to the identical IndexedDB key — probe each distinct key only once.
+    const seenKeys = new Set();
     for (const name of candidates) {
+      const key = DirectoryHandleStore.keysFor(name).handleKey;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
       const stored = await DirectoryHandleStore.load(name);
       if (stored.handle) {
         const usable = await check(stored.handle);
@@ -463,20 +482,33 @@ export class SaveManager {
     DeckLoader.fileHandleRegistry.set(safeFileName, mdHandle);
     DeckLoader.fileHandleRegistry.set(safeFileName.replace(/\.(md|markdown)$/i, ""), mdHandle);
 
-    const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
-    if (oldImageNames.size > 0) {
-      await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
-    }
-    const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
-    if (failed > 0) {
+    // The .md is on disk — record the session before saving images, so a
+    // sidecar failure cannot fall through to the picker flow and write the
+    // deck a second time to a different folder. Awaiting also guarantees
+    // the IndexedDB handle write completes before save() reports success.
+    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
+
+    try {
+      const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+      if (oldImageNames.size > 0) {
+        await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
+      }
+      const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
+      if (failed > 0) {
+        Notification.warning(
+          `Saved ${safeFileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+          6000,
+        );
+      }
+    } catch (err) {
+      // The .md was already written; report the missing images instead of
+      // prompting for a second save dialog.
+      console.warn("Failed to save images alongside the .md file:", err);
       Notification.warning(
-        `Saved ${safeFileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+        `${safeFileName} was saved, but images could not be saved: ${err?.message || err}`,
         6000,
       );
     }
-    // Await so the IndexedDB handle write completes before save() reports
-    // success — a page unload right after Ctrl+S must not lose the folder.
-    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
   }
 
   /**
@@ -744,7 +776,9 @@ export class SaveManager {
     const url = URL.createObjectURL(mdBlob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = safeFileName;
+    // Prefer the name the user chose in the save dialog; fall back to the
+    // stored name only when no picker flow ran (no name was ever offered).
+    a.download = chosenName ?? safeFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

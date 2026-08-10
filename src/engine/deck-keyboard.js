@@ -69,11 +69,11 @@ export function createKeyboardHandler({
     },
     save: () => {
       try {
-        // Never start a save while presenting/viewing: Layer 0 still calls
-        // preventDefault for the wired action, so the browser's own save
-        // dialog stays suppressed without popping app dialogs over the
-        // slides (matches the command palette's edit-mode gate).
-        if (!isEditMode()) return;
+        // Save whenever an edit controller exists, in edit mode or not: a
+        // user who toggled out of edit mode with pending changes must still
+        // get Ctrl+S to work instead of a silent no-op. Viewer/presenter
+        // windows have no edit controller, so Ctrl+S stays suppressed there
+        // without popping app dialogs over the slides.
         edit()?.saveManager?.save?.();
       } catch (e) {
         console.warn("Save shortcut failed:", e);

@@ -744,7 +744,11 @@ export class Notification {
           e.preventDefault();
           e.stopPropagation();
           finish(false);
-        } else if (e.key === "Enter") {
+        } else if (e.key === "Enter" && e.target === input) {
+          // Only treat Enter as confirmation when it originates from the
+          // text input. When a button (OK/Cancel) has focus, the browser's
+          // native activation must run instead, or Enter on Cancel would
+          // save the deck instead of cancelling.
           e.preventDefault();
           e.stopPropagation();
           finish(true);

@@ -298,5 +298,50 @@ describe("Notification", () => {
       await expect(promise).resolves.toEqual({ ok: false, value: "" });
       expect(docHandler).not.toHaveBeenCalled();
     });
+
+    it("does not confirm when Enter is pressed on the Cancel button", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const cancelBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "Cancel",
+      );
+      cancelBtn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+      // The keydown must not resolve the prompt as a confirmation. jsdom
+      // does not synthesize the browser's native button activation on
+      // Enter, so drive the click the browser would have fired.
+      let settled = false;
+      promise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      cancelBtn.click();
+      await expect(promise).resolves.toEqual({ ok: false, value: "deck.md" });
+    });
+
+    it("still confirms via native activation when Enter is pressed on the OK button", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const okBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "OK",
+      );
+      okBtn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+      let settled = false;
+      promise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      okBtn.click();
+      await expect(promise).resolves.toEqual({ ok: true, value: "deck.md" });
+    });
   });
 });

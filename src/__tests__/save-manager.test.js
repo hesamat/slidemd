@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { JSDOM } from "jsdom";
 import { SaveManager, removeStaleImages } from "../editor/ui/save-manager.js";
 import { Notification } from "../renderer/notification.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -264,6 +265,91 @@ describe("SaveManager save() dedup and file-name prompt", () => {
 
     expect(result).toBeNull();
     expect(dir.getFileHandle).toHaveBeenCalledWith("deck.md");
+  });
+
+  it("requests readwrite permission for a stored folder handle after a reload", async () => {
+    const sm = createSaveManager();
+    const requestPermission = vi.fn().mockResolvedValue("granted");
+    const stored = {
+      queryPermission: vi.fn(async () => "prompt"),
+      requestPermission,
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+
+    const result = await sm._restoreDeckDir("deck.md");
+
+    expect(requestPermission).toHaveBeenCalledWith({ mode: "readwrite" });
+    expect(result).toBe(stored);
+  });
+
+  it("falls back to the picker flow when readwrite permission is refused", async () => {
+    const sm = createSaveManager();
+    const stored = {
+      queryPermission: vi.fn(async () => "prompt"),
+      requestPermission: vi.fn(async () => "denied"),
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+
+    await expect(sm._restoreDeckDir("deck.md")).resolves.toBeNull();
+  });
+
+  it("names the fallback blob download with the name chosen in the dialog", async () => {
+    const sm = createSaveManager();
+    const { window: domWindow } = new JSDOM("<!doctype html><html><body></body></html>");
+    vi.stubGlobal("document", domWindow.document);
+    vi.stubGlobal("window", {
+      showSaveFilePicker: vi.fn(async () => {
+        throw new Error("picker failed");
+      }),
+    });
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:test"),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: true, value: "My Deck.md" });
+    const appendSpy = vi.spyOn(domWindow.document.body, "appendChild");
+
+    const saved = await sm._saveMarkdownWithImages("# Hello", "deck.md");
+
+    expect(saved).toBe(true);
+    const anchor = appendSpy.mock.calls.map(([el]) => el).find((el) => el.tagName === "A");
+    expect(anchor.download).toBe("My Deck.md");
+  });
+
+  it("records the session and still succeeds when the images sidecar cannot be written", async () => {
+    const sm = createSaveManager();
+    const dir = {
+      getFileHandle: vi.fn(async () => ({
+        createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+      })),
+      getDirectoryHandle: vi.fn(async () => {
+        throw new Error("a plain file named images exists");
+      }),
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    const saveSpy = vi.spyOn(DirectoryHandleStore, "save").mockResolvedValue(undefined);
+    const warning = vi.spyOn(Notification, "warning").mockImplementation(() => {});
+
+    await expect(sm._writeDeckToDir(dir, "deck.md", "# deck", [])).resolves.toBeUndefined();
+
+    // The .md is on disk, so the session must be recorded before the
+    // sidecar failure is reported — a reload must find the new folder.
+    expect(saveSpy).toHaveBeenCalledWith(dir, "parent", "deck.md");
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining("deck.md was saved, but images could not be saved"),
+      6000,
+    );
   });
 
   it("removes stale images during a silent directory re-save", async () => {
