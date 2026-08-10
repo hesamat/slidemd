@@ -273,6 +273,7 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     const stored = {
       queryPermission: vi.fn(async () => "prompt"),
       requestPermission,
+      getFileHandle: vi.fn(async () => ({})),
     };
     vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
     vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
@@ -293,6 +294,24 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
 
     await expect(sm._restoreDeckDir("deck.md")).resolves.toBeNull();
+  });
+
+  it("rejects a stored folder that does not contain the deck file", async () => {
+    const sm = createSaveManager();
+    const stored = {
+      queryPermission: vi.fn(async () => "granted"),
+      requestPermission: vi.fn(),
+      getFileHandle: vi.fn(async () => {
+        throw new DOMException("not found", "NotFoundError");
+      }),
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+
+    const result = await sm._restoreDeckDir("deck.md");
+
+    expect(result).toBeNull();
+    expect(stored.getFileHandle).toHaveBeenCalledWith("deck.md");
   });
 
   it("names the fallback blob download with the name chosen in the dialog", async () => {
@@ -352,7 +371,7 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     );
   });
 
-  it("removes stale images during a silent directory re-save", async () => {
+  it("keeps stale images and warns during a silent directory re-save", async () => {
     const sm = createSaveManager();
     const removed = [];
     const sidecar = {
@@ -389,11 +408,19 @@ describe("SaveManager save() dedup and file-name prompt", () => {
       removeItem: vi.fn(),
     });
     vi.spyOn(DirectoryHandleStore, "save").mockResolvedValue(undefined);
+    const warning = vi.spyOn(Notification, "warning").mockImplementation(() => {});
 
     await sm._writeDeckToDir(dir, "deck.md", "# deck\n\n![keep](images/keep.png)", [
       "images/keep.png",
     ]);
 
-    expect(removed).toEqual(["old.png"]);
+    // The unconfirmed silent re-save must never delete files the deck no
+    // longer references — it only warns, so an undo cannot lose data.
+    expect(removed).toEqual([]);
+    expect(sidecar.removeEntry).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining("1 image(s) from the previous version"),
+      6000,
+    );
   });
 });

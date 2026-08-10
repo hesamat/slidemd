@@ -266,7 +266,9 @@
   font-family: var(--font-sans);
   font-size: 0.875rem;
   color: var(--text-high);
-  background: rgba(255, 255, 255, 0.7);
+  /* Themed surface so the input stays readable in dark mode (--surface-bg
+     flips to a dark value under [data-theme="dark"]). */
+  background: var(--surface-bg, #fff);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   outline: none;

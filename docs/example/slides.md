@@ -112,7 +112,8 @@ Right column content.
 
 ---
 
-layout: "header media" "main media" "footer media" / 2fr 1fr
+layout: left-heavy
+
 @header
 
 # Code, Math & Diagrams
@@ -531,7 +532,8 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: focus
+layout: header-content
+
 @header
 
 # Multi-Column Text Blocks

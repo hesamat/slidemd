@@ -425,9 +425,19 @@ export class SaveManager {
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
       const stored = await DirectoryHandleStore.load(name);
-      if (stored.handle) {
-        const usable = await check(stored.handle);
-        if (usable) return usable;
+      if (!stored.handle) continue;
+      const usable = await check(stored.handle);
+      if (!usable) continue;
+      // Same containment check as the in-memory handle above: the stored
+      // handle is trusted only when the deck file is actually inside it.
+      // DirectoryHandleStore.load defers its verification while the read
+      // permission is "prompt" (typical right after a reload), so without
+      // this probe a stale handle could silently create the file in the
+      // wrong folder.
+      try {
+        if (await findDeckFileInDir(usable, fileName)) return usable;
+      } catch {
+        // Permission or probe failure — fall through to the next candidate.
       }
     }
     return null;
@@ -463,17 +473,20 @@ export class SaveManager {
    * @returns {Promise<void>}
    */
   async _writeDeckToDir(dirHandle, safeFileName, markdown, imagePaths) {
-    // Capture the previous deck's image references before overwriting so
-    // cleanup below only removes images this deck no longer uses (scoped to
-    // the old .md's refs, leaving other decks sharing the folder untouched).
+    // Capture the previous deck's image references so the user can be warned
+    // (but never silently deleted) about files the deck no longer uses.
+    // Removal only happens in the explicitly confirmed overwrite flow, where
+    // the confirmation modal states that stale images are deleted.
     let oldImageNames = new Set();
     try {
       const oldFile = await dirHandle.getFileHandle(safeFileName);
       const oldText = await (await oldFile.getFile()).text();
       oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
     } catch {
-      /* new file — nothing to clean up */
+      /* new file — nothing to warn about */
     }
+    const newImageNames = new Set(imagePaths.map((p) => p.split("/").pop()));
+    const staleCount = [...oldImageNames].filter((name) => !newImageNames.has(name)).length;
 
     const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
     const mdWritable = await mdHandle.createWritable();
@@ -488,11 +501,16 @@ export class SaveManager {
     // the IndexedDB handle write completes before save() reports success.
     await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
 
+    if (staleCount > 0) {
+      Notification.warning(
+        `${staleCount} image(s) from the previous version of this deck are no longer ` +
+          `referenced and were kept in the folder.`,
+        6000,
+      );
+    }
+
     try {
       const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
-      if (oldImageNames.size > 0) {
-        await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
-      }
       const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
       if (failed > 0) {
         Notification.warning(
@@ -731,6 +749,15 @@ export class SaveManager {
           const mdWritable = await existingHandle.createWritable();
           await mdWritable.write(markdown);
           await mdWritable.close();
+          // Mirror the picker branch's session bookkeeping so a locally
+          // written deck is never treated as server-backed on the next save
+          // (the stored name also feeds the reload handle lookup).
+          const writtenName = existingHandle.name;
+          localStorage.setItem(
+            "webdeck_local_file_name",
+            writtenName.replace(/\.(md|markdown)$/i, ""),
+          );
+          localStorage.setItem("webdeck_opened_from_picker", "1");
           return true;
         } catch (err) {
           // Handle no longer writable — fall through to the picker.
