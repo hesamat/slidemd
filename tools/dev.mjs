@@ -40,9 +40,13 @@ function terminate(child, signal = "SIGTERM") {
 }
 
 function shutdown(code) {
+  if (typeof code === "number" && (code !== 0 || process.exitCode === undefined)) {
+    process.exitCode = code;
+  } else if (process.exitCode === undefined) {
+    process.exitCode = 1;
+  }
   if (shutdownStarted) return;
   shutdownStarted = true;
-  process.exitCode = typeof code === "number" ? code : 1;
   terminate(cli);
   terminate(vite);
   forceShutdownTimer = setTimeout(() => {

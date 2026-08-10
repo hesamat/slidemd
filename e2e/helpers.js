@@ -10,8 +10,8 @@ async function waitForDeckApi(page) {
     try {
       const response = await page.request.get("/api/deck", { timeout: 2_000 });
       if (response.ok()) {
-        const markdown = await response.text();
-        if (markdown.trim().length > 0) return;
+        const data = await response.json();
+        if (typeof data.markdown === "string" && data.markdown.trim().length > 0) return;
         lastFailure = "the API returned an empty deck";
       } else {
         lastFailure = `HTTP ${response.status()}`;
