@@ -43,6 +43,7 @@ import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StoreSyncController } from "./store-sync-controller.js";
+import { EditorBufferController } from "./editor-buffer-controller.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
@@ -97,8 +98,8 @@ export class EditController {
       },
       getIsEditMode: () => this.isEditMode,
       isDestroyed: () => this._destroyed,
-      captureCurrentEditorMarkdown: () => this._captureCurrentEditorMarkdown(),
-      loadSlideIntoEditor: () => this.loadSlideIntoEditor(),
+      captureCurrentEditorMarkdown: () => this.buffer.captureCurrentEditorMarkdown(),
+      loadSlideIntoEditor: () => this.buffer.loadSlideIntoEditor(),
       storeDiffersFromSource: () => this._storeDiffersFromSource(),
       getLastEditorSlideIndex: () => this._lastEditorSlideIndex,
       incrementDeckRestoreDepth: () => {
@@ -113,6 +114,32 @@ export class EditController {
       },
     });
     this._offStoreChange = this.storeSync.subscribe();
+
+    // Editor buffer module. Owns slide loading, editor-to-overlay capture,
+    // input handling, and the per-slide EditorState cache lifecycle.
+    this.buffer = new EditorBufferController({
+      getMarkdownEditor: () => this.markdownEditor,
+      getDeckStore: () => this.deckStore,
+      getDeck: () => this.deck,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      getIsEditMode: () => this.isEditMode,
+      getSaveManager: () => this.saveManager,
+      getPreviewUpdater: () => this.previewUpdater,
+      getAreaGuides: () => this.areaGuides,
+      getLastEditorSlideIndex: () => this._lastEditorSlideIndex,
+      setLastEditorSlideIndex: (v) => {
+        this._lastEditorSlideIndex = v;
+      },
+      getLastEditorDeck: () => this._lastEditorDeck,
+      setLastEditorDeck: (v) => {
+        this._lastEditorDeck = v;
+      },
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+    });
+
     // Clear the per-slide editor-state cache whenever the store's
     // structural revision changes (add/delete/move/whole-deck load).
     // EditController is only used when a DeckStore is present; if deckStore
@@ -656,36 +683,23 @@ export class EditController {
 
   /**
    * Capture the editor's current value into unsavedMarkdown for a specific
-   * slide index. Used for both live typing and flushing the debounced change
-   * before a slide switch.
+   * slide index.
    * @param {number} index
    */
   _captureEditorMarkdown(index) {
-    if (!this.markdownEditor) return;
-    const markdown = this.markdownEditor.getValue();
-    const original = this.deckStore.getSlides()[index] ?? "";
-    if (markdown === original) {
-      this.unsavedMarkdown.delete(index);
-      this.updateUnsavedChangesFlag();
-      return;
-    }
-    if (markdown === this.unsavedMarkdown.get(index)) return;
-    this.unsavedMarkdown.set(index, markdown);
-    this.updateUnsavedChangesFlag();
+    this.buffer.captureEditorMarkdown(index);
   }
 
   _captureCurrentEditorMarkdown() {
-    this._captureEditorMarkdown(this.currentSlideIndex);
+    this.buffer.captureCurrentEditorMarkdown();
   }
 
   /**
    * Public guard for code that needs the current editor buffer captured before
-   * reading the deck markdown. Only captures when the editor is actually active
-   * so a stale buffer from a previously viewed slide is not attributed to the
-   * current slide.
+   * reading the deck markdown.
    */
   captureCurrentEditorState() {
-    if (this.isEditMode) this._captureCurrentEditorMarkdown();
+    this.buffer.captureCurrentEditorState();
   }
 
   prepareStoreOperation(recordHistory = false) {
@@ -1099,88 +1113,24 @@ export class EditController {
   }
 
   /**
-   * Load the current slide's markdown into the editor
+   * Load the current slide's markdown into the editor.
    */
   loadSlideIntoEditor() {
-    if (!this.isEditMode || !this.markdownEditor) return;
-
-    // Save the outgoing slide's EditorState (with undo history) before
-    // switching. If the cache has just been cleared (e.g. by a structural
-    // op), also call it when the slide index has not changed, so the
-    // one-shot skip flag is consumed and the *next* navigation away from
-    // this slide actually saves its state instead of dropping it.
-    // saveSlideState's index < 0 guard handles the initial -1 case.
-    if (
-      this._lastEditorSlideIndex !== this.currentSlideIndex ||
-      this.markdownEditor.hasClearedCache()
-    ) {
-      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
-    }
-
-    // If we are leaving a real slide, flush any pending debounced input to
-    // _lastEditorSlideIndex before the upcoming state swap. Otherwise the
-    // keystrokes are dropped when loadSlideState / setValue cancels the
-    // debounce timer.
-    // Only flush when the underlying deck is unchanged; if the deck was
-    // rebuilt (undo, redo, whole-deck AI), the buffer belongs to the old
-    // deck and must not be written into the new slide at the same index.
-    if (
-      this._lastEditorSlideIndex !== this.currentSlideIndex &&
-      this._lastEditorSlideIndex >= 0 &&
-      this.deck === this._lastEditorDeck
-    ) {
-      this._captureEditorMarkdown(this._lastEditorSlideIndex);
-    }
-    this.markdownEditor?.cancelOnChange?.();
-
-    const base = this.deckStore.getSlides()[this.currentSlideIndex] ?? "";
-    const markdown = this.unsavedMarkdown.get(this.currentSlideIndex) ?? base;
-
-    const current = this.markdownEditor.getValue();
-    if (markdown === current && this.currentSlideIndex === this._lastEditorSlideIndex) {
-      this._lastEditorDeck = this.deck;
-      this.saveManager.updateButton();
-      this.areaGuides.refresh();
-      return;
-    }
-
-    if (
-      this.currentSlideIndex !== this._lastEditorSlideIndex ||
-      this.deck !== this._lastEditorDeck
-    ) {
-      // Different slide or deck — use the per-slide state cache. After a
-      // store restore (undo/redo/AI) this.deck is a fresh object, so this
-      // branch is taken and loadSlideState handles doc drift by discarding
-      // the cached state and creating a fresh one (no stale undo history).
-      this.markdownEditor.loadSlideState(this.currentSlideIndex, markdown);
-    } else {
-      // Same slide and same deck reference — update the document in-place
-      // without replacing the editor state, so CodeMirror history is kept.
-      this.markdownEditor.setValue(markdown, { suppressOnChange: true });
-    }
-    this._lastEditorSlideIndex = this.currentSlideIndex;
-    this._lastEditorDeck = this.deck;
-    // Don't reset hasUnsavedChanges - if there are unsaved changes, keep the flag
-    this.saveManager.updateButton();
-    this.areaGuides.refresh();
+    this.buffer.loadSlideIntoEditor();
   }
 
   /**
    * Handle editor input events
    */
   onEditorInput(value) {
-    this.unsavedMarkdown.set(this.currentSlideIndex, value);
-    this.updateUnsavedChangesFlag();
-    this.previewUpdater.update();
+    this.buffer.onEditorInput(value);
   }
 
   /**
    * Update the hasUnsavedChanges flag based on whether any slide has unsaved changes
    */
   updateUnsavedChangesFlag() {
-    const hasUnsaved = this.unsavedMarkdown.size > 0;
-    this.hasUnsavedChanges = hasUnsaved;
-    this.saveManager.updateButton();
+    this.buffer.updateUnsavedChangesFlag();
   }
 
   getSlideElementByIndex(index) {

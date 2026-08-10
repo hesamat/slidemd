@@ -4,6 +4,35 @@ import { DeckStore } from "../data/store/deck-store.js";
 import { createEditPatch } from "../data/store/slide-patch.js";
 import { EditController } from "../editor/core/edit-controller.js";
 import { StoreSyncController } from "../editor/core/store-sync-controller.js";
+import { EditorBufferController } from "../editor/core/editor-buffer-controller.js";
+
+/**
+ * Wire a real EditorBufferController to a fake EditController-like object.
+ */
+function createBuffer(fake) {
+  return new EditorBufferController({
+    getMarkdownEditor: () => fake.markdownEditor,
+    getDeckStore: () => fake.deckStore,
+    getDeck: () => fake.deck,
+    getUnsavedMarkdown: () => fake.unsavedMarkdown,
+    getCurrentSlideIndex: () => fake.currentSlideIndex,
+    getIsEditMode: () => fake.isEditMode,
+    getSaveManager: () => fake.saveManager,
+    getPreviewUpdater: () => fake.previewUpdater,
+    getAreaGuides: () => fake.areaGuides,
+    getLastEditorSlideIndex: () => fake._lastEditorSlideIndex,
+    setLastEditorSlideIndex: (v) => {
+      fake._lastEditorSlideIndex = v;
+    },
+    getLastEditorDeck: () => fake._lastEditorDeck,
+    setLastEditorDeck: (v) => {
+      fake._lastEditorDeck = v;
+    },
+    setHasUnsavedChanges: (v) => {
+      fake.hasUnsavedChanges = v;
+    },
+  });
+}
 
 /**
  * Wire a real StoreSyncController to a fake EditController-like object.
@@ -181,8 +210,9 @@ describe("EditController mirror removal", () => {
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
+      const buffer = createBuffer(fake);
 
-      EditController.prototype.loadSlideIntoEditor.call(fake);
+      buffer.loadSlideIntoEditor();
       expect(setValue).toHaveBeenCalledWith("# A", { suppressOnChange: true });
       expect(fake._lastEditorSlideIndex).toBe(0);
       expect(fake._lastEditorDeck).toBe(fake.deck);
@@ -211,8 +241,9 @@ describe("EditController mirror removal", () => {
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
+      const buffer = createBuffer(fake);
 
-      EditController.prototype.loadSlideIntoEditor.call(fake);
+      buffer.loadSlideIntoEditor();
       expect(setValue).not.toHaveBeenCalled();
     });
   });
