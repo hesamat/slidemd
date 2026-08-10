@@ -351,9 +351,10 @@ export class SaveManager {
   _markSaved(fullMarkdown) {
     // Always update the source baseline so that the file-on-disk state
     // stays in sync with what was just written — this keeps the handle
-    // identity check correct on the next silent .md re-save. Only the
-    // dirty-flag and overlay clearing are gated on whether the deck
-    // changed during the save.
+    // identity check correct on the next silent .md re-save. If the deck
+    // changed during the save, keep the unsaved state (overlays, dirty
+    // flag, and the pending structural-operation counter) so the newer
+    // edits are saved on the next attempt.
     const isCurrent = this._currentFullMarkdown() === fullMarkdown;
     this._setSourceMarkdown?.(fullMarkdown);
     if (!isCurrent) return;
@@ -556,8 +557,10 @@ export class SaveManager {
     const staleCandidates = [...oldImageNames].filter((name) => !newImageNames.has(name));
     // Only warn about files that actually exist in the images/ sidecar:
     // the old .md's references may point at images the dev server served,
-    // which were never written into the folder.
-    let staleNames = staleCandidates;
+    // which were never written into the folder. When the sidecar cannot be
+    // read, treat it as "no stale files" so the warning never claims files
+    // were kept that are not on disk.
+    let staleNames = [];
     if (staleCandidates.length > 0) {
       try {
         const sidecarDir = await dirHandle.getDirectoryHandle("images");
@@ -567,7 +570,7 @@ export class SaveManager {
         }
         staleNames = staleCandidates.filter((name) => onDisk.has(name));
       } catch {
-        // No sidecar (or permission lost) — keep the reference-based set.
+        /* no sidecar — nothing to warn about */
       }
     }
 

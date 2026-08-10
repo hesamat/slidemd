@@ -742,7 +742,10 @@ export class Notification {
       const keyHandler = (e) => {
         if (e.key === "Escape") {
           e.preventDefault();
-          e.stopPropagation();
+          // stopImmediatePropagation so sibling document keydown listeners
+          // (deck keyboard handler, an underlying showModal escape handler)
+          // do not also react to this Escape while the prompt is open.
+          e.stopImmediatePropagation();
           finish(false);
         } else if (e.key === "Enter" && e.target === input) {
           // Only treat Enter as confirmation when it originates from the
@@ -750,7 +753,7 @@ export class Notification {
           // native activation must run instead, or Enter on Cancel would
           // save the deck instead of cancelling.
           e.preventDefault();
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           finish(true);
         }
       };

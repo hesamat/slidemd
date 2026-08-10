@@ -552,6 +552,47 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(warning).toHaveBeenCalledTimes(1);
   });
 
+  it("does not warn about stale images when the images sidecar is missing", async () => {
+    const sm = createSaveManager();
+    const oldFile = {
+      getFile: async () => ({
+        text: async () => "![old](images/old.png)\n![keep](images/keep.png)",
+      }),
+    };
+    const mdHandle = {
+      createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+    };
+    const dir = {
+      getFileHandle: vi.fn(async (name, opts) => {
+        if (name === "deck.md" && !opts?.create) return oldFile;
+        return mdHandle;
+      }),
+      getDirectoryHandle: vi.fn(async () => {
+        throw new DOMException("not found", "NotFoundError");
+      }),
+    };
+    vi.spyOn(DeckImagesResolver, "getImageFile").mockResolvedValue(new Blob(["x"]));
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    vi.spyOn(DirectoryHandleStore, "save").mockResolvedValue(undefined);
+    const warning = vi.spyOn(Notification, "warning").mockImplementation(() => {});
+
+    await sm._writeDeckToDir(dir, "deck.md", "# deck\n\n![keep](images/keep.png)", [
+      "images/keep.png",
+    ]);
+
+    // Nothing is on disk, so the "kept in the folder" stale warning must
+    // not fire (a separate "images could not be saved" warning is expected
+    // because the missing sidecar also fails the image write).
+    expect(warning).not.toHaveBeenCalledWith(
+      expect.stringContaining("from the previous version"),
+      6000,
+    );
+  });
+
   it("keeps the dirty state when edits arrive while the save was in flight", async () => {
     const unsaved = new Map();
     let dirty = false;

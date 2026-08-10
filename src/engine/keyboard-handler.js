@@ -3,6 +3,7 @@
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
 import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
+import { Logger } from "../core/logger.js";
 
 export class KeyboardHandler {
   static #buildPlainKeyMap() {
@@ -236,7 +237,15 @@ export class KeyboardHandler {
       return;
     }
     if (globalAction && this.actions[globalAction]) {
-      const handled = this.actions[globalAction]();
+      let handled = true;
+      try {
+        handled = this.actions[globalAction]();
+      } catch (error) {
+        // A throwing action is still treated as handled: the failure must
+        // not leak the browser's native default (search/save dialog) on top
+        // of the app, and must not propagate out of the document listener.
+        Logger.warn(`Global keyboard action failed (${globalAction}):`, error);
+      }
       if (handled !== false) {
         e.preventDefault();
       }

@@ -53,6 +53,18 @@ describe("KeyboardHandler Layer 0 (global actions)", () => {
     expect(action).toHaveBeenCalledTimes(1);
     expect(e.defaultPrevented).toBe(false);
   });
+
+  it("suppresses the default when the global action throws", () => {
+    const action = vi.fn(() => {
+      throw new Error("palette failed");
+    });
+    const handler = makeHandler(action);
+    const e = keyEvent(window, "k", { ctrlKey: true });
+
+    expect(() => handler.handleKeyboard(e)).not.toThrow();
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(e.defaultPrevented).toBe(true);
+  });
 });
 
 describe("createKeyboardHandler save action", () => {
