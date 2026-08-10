@@ -81,10 +81,12 @@ Prettier enforces formatting. Do not hand-format code; let Prettier do it.
 npm test
 ```
 
-Tests run on Vitest with a jsdom environment. Specs live in
-`src/__tests__/**/*.test.js`. Snapshot tests
-(`src/__tests__/ai-prompt-snapshots.test.js`) pin composed AI prompts; update
-them deliberately with `npx vitest run -u` and review the diff.
+Tests run on Vitest. The default environment is `node`; specs that need a DOM
+add a `// @vitest-environment jsdom` pragma at the top of the file. Specs live
+under `src/__tests__/**/*.test.js` (the config's `include` glob is
+`src/**/*.test.js`, but all current specs are under `__tests__/`). Snapshot
+tests (`src/__tests__/ai-prompt-snapshots.test.js`) pin composed AI prompts;
+update them deliberately with `npx vitest run -u` and review the diff.
 
 ### Build
 
@@ -151,8 +153,10 @@ the maintainer asks for them.
 ### Unit tests
 
 Add or update tests in `src/__tests__/` alongside your change. Tests use
-Vitest with jsdom. Name test files `*.test.js` and place them under
-`src/__tests__/` mirroring the source path where practical.
+Vitest with `node` as the default environment; add a
+`// @vitest-environment jsdom` pragma at the top of the file if the test needs
+a DOM. Name test files `*.test.js` and place them under `src/__tests__/`
+mirroring the source path where practical.
 
 When changing AI prompts:
 

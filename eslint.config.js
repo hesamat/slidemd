@@ -35,15 +35,17 @@ export default [
     },
     rules: sharedRules,
   },
-  // Node tooling: build scripts, dev server, fixture generator, and root
-  // config files (*.mjs). These run in Node, not the browser, so they get
-  // Node globals only. They are ESM via "type": "module" in package.json.
-  // Note: tools/pdf.mjs uses browser APIs (document, NodeFilter) inside
-  // page.evaluate callbacks that execute in the browser context; those are
-  // stringified function bodies, not Node-scope references, so scoping
-  // browser globals out of the Node block does not produce false positives.
+  // Node tooling and root config files: build scripts, dev server, fixture
+  // generator, and root config (*.mjs and *.js such as eslint.config.js and
+  // vitest.config.js). These run in Node, not the browser, so they get Node
+  // globals only. They are ESM via "type": "module" in package.json.
+  // Note: tools/pdf.mjs uses browser APIs (document, NodeFilter, etc.) inside
+  // page.evaluate callbacks. ESLint parses those as ordinary function
+  // expressions in Node scope, so the file declares them via a file-level
+  // /* global */ directive. Follow the same pattern when adding new Node
+  // tooling that calls page.evaluate or similar browser-context callbacks.
   {
-    files: ["tools/**/*.mjs", "*.mjs"],
+    files: ["tools/**/*.mjs", "*.mjs", "*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
