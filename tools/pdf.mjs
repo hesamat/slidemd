@@ -3,6 +3,11 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 
+// Browser globals used inside page.evaluate() callbacks. Playwright serializes
+// the function body and executes it in the browser page, so these identifiers
+// are valid at runtime even though this file runs in Node.
+/* global window, document, NodeFilter, ContentEnhancer */
+
 const root = process.cwd();
 const distDir = path.join(root, "dist");
 
@@ -66,7 +71,8 @@ try {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("Executable doesn't exist") || message.includes("executable doesn't exist")) {
         throw new Error(
-            `${message}\n\nPlaywright Chromium is not installed. Run: npx playwright install chromium\nThen re-run: npm run pdf`
+            `${message}\n\nPlaywright Chromium is not installed. Run: npx playwright install chromium\nThen re-run: npm run pdf`,
+            { cause: err },
         );
     }
 
