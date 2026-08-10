@@ -15,8 +15,6 @@ export { parseAllImages };
 // ── Constants ────────────────────────────────────────────────────────────
 
 const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-const HTML_IMG_RE = /<img\b([^>]*?)>/gi;
-const MD_IMG_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
 const ALT_ATTR_RE = /alt=["']([^"']*)["']/i;
 const ALT_MD_RE = /!\[([^\]]*)\]/;
 const ROTATION_RE = /rotate\(([-\d.]+)deg\)/i;

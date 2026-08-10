@@ -8,16 +8,6 @@ import {
   extractAll,
 } from "../data/ai/slide-image-extractor.js";
 
-// Mock DeckImagesResolver to avoid localStorage access in jsdom
-vi.mock("../editor/image/deck-images-resolver.js", () => ({
-  DeckImagesResolver: {
-    resolvePreviewSrc: vi.fn(async (src) => {
-      if (src.startsWith("images/")) return `/${src}`;
-      return src;
-    }),
-  },
-}));
-
 /**
  * Mock Image class that triggers onload asynchronously when src is set.
  */

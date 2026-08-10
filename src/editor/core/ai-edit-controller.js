@@ -117,6 +117,10 @@ export class AiEditController {
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
       effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
+      resolveImageSrc: (src) =>
+        import("../image/deck-images-resolver.js").then(({ DeckImagesResolver }) =>
+          DeckImagesResolver.resolvePreviewSrc(src),
+        ),
     });
 
     const op = createOperation(intent, targetSlide, slideMarkdown);
@@ -308,6 +312,10 @@ export class AiEditController {
       useReasoning: SettingsModal.getReasoning(),
       effort: SettingsModal.getReasoning() ? SettingsModal.getEffort() : "none",
       effortSupported: SettingsModal.getSupportedEfforts(model).length > 0,
+      resolveImageSrc: (src) =>
+        import("../image/deck-images-resolver.js").then(({ DeckImagesResolver }) =>
+          DeckImagesResolver.resolvePreviewSrc(src),
+        ),
     });
 
     const op = createOperation("generate", null, fullMarkdown, {

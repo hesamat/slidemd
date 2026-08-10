@@ -58,6 +58,9 @@ export class RemixReimagineOrchestrator {
    * @param {string} [deps.effort] — reasoning effort: "none" | "low" | "medium" | "high"
    * @param {boolean} [deps.effortSupported] — whether the model exposes effort selection
    * @param {object} deps.wholeDeckOrchestrator — WholeDeckOrchestrator instance for execute phase
+   * @param {(src: string) => Promise<string>} [deps.resolveImageSrc] — resolves
+   *   `images/...` relative paths to fetchable URLs for vision-augmented AI.
+   *   Injected from the editor layer to avoid a data→editor upward import.
    */
   constructor({
     provider,
@@ -66,6 +69,7 @@ export class RemixReimagineOrchestrator {
     effort = "none",
     effortSupported = true,
     wholeDeckOrchestrator,
+    resolveImageSrc = (src) => Promise.resolve(src),
   }) {
     this._provider = provider;
     this._modelMaxOutput = modelMaxOutput;
@@ -73,6 +77,7 @@ export class RemixReimagineOrchestrator {
     this._effort = effort;
     this._effortSupported = effortSupported;
     this._wholeDeck = wholeDeckOrchestrator;
+    this._resolveImageSrc = resolveImageSrc;
   }
 
   // ── Remix (two-phase plan→execute) ──
@@ -95,7 +100,7 @@ export class RemixReimagineOrchestrator {
     if (operation.opts?.includeImages) {
       onLog?.("Extracting slide images for vision\u2026");
       try {
-        slideImages = await extractAll(context);
+        slideImages = await extractAll(context, this._resolveImageSrc);
         const imageCount = slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0);
         if (imageCount > 0) {
           onLog?.(`Sending ${imageCount} image(s) to AI for visual assessment\u2026`);
@@ -255,7 +260,7 @@ export class RemixReimagineOrchestrator {
     if (operation.opts?.includeImages) {
       onLog?.("Extracting slide images for vision\u2026");
       try {
-        slideImages = await extractAll(operation.context);
+        slideImages = await extractAll(operation.context, this._resolveImageSrc);
         const imageCount = slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0);
         if (imageCount > 0) {
           onLog?.(`Sending ${imageCount} image(s) to AI for visual assessment\u2026`);

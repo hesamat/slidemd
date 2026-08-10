@@ -34,6 +34,9 @@ export { isVisionError } from "./orchestrator-shared.js";
  * @property {boolean} [useReasoning] — whether extended thinking is enabled
  * @property {string} [effort] — reasoning effort: "none" | "low" | "medium" | "high"
  * @property {boolean} [effortSupported] — whether the model exposes effort selection; when false and useReasoning is true, send { enabled: true } instead of { effort }
+ * @property {(src: string) => Promise<string>} [resolveImageSrc] — resolves
+ *   `images/...` relative paths to fetchable URLs for vision-augmented AI.
+ *   Injected from the editor layer to avoid a data→editor upward import.
  */
 
 export class AiOrchestrator {
@@ -46,6 +49,7 @@ export class AiOrchestrator {
     useReasoning = false,
     effort = "none",
     effortSupported = true,
+    resolveImageSrc,
   }) {
     // Configuration is passed to the sub-orchestrators at construction time
     // and not retained on this facade — mutating fields here would have no
@@ -57,6 +61,7 @@ export class AiOrchestrator {
     this._remixReimagine = new RemixReimagineOrchestrator({
       ...sharedDeps,
       wholeDeckOrchestrator: this._wholeDeck,
+      resolveImageSrc,
     });
   }
 
