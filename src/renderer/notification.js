@@ -735,7 +735,7 @@ export class Notification {
         const value = input.value;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => backdrop.remove(), 200);
-        modal.removeEventListener("keydown", keyHandler);
+        document.removeEventListener("keydown", keyHandler);
         resolve({ ok, value });
       };
 
@@ -774,9 +774,12 @@ export class Notification {
       backdrop.appendChild(modal);
       this.getRootElement().appendChild(backdrop);
 
-      // Scoped to the modal (not document) so other document-level key
-      // handlers cannot be affected while the prompt is open.
-      modal.addEventListener("keydown", keyHandler);
+      // Document-scoped so Escape/Enter keep working even when a click
+      // inside the dialog moved focus out of the modal (a keydown on body
+      // would not bubble through the modal element). Matches the other
+      // modals' document-level Escape handling; the handler is removed in
+      // finish() so it cannot outlive the prompt.
+      document.addEventListener("keydown", keyHandler);
       requestAnimationFrame(() => {
         input.focus();
         input.select();

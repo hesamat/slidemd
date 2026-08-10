@@ -184,11 +184,13 @@ describe("SaveManager save() dedup and file-name prompt", () => {
       setItem: vi.fn(),
       removeItem: vi.fn(),
     });
-    vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: true, value: "deck.md" });
+    const prompt = vi.spyOn(Notification, "prompt");
 
     const saved = await sm._saveMarkdownWithImages("# Hello", "deck.md");
 
     expect(saved).toBe(true);
+    // The native picker names the file itself — no duplicate app prompt.
+    expect(prompt).not.toHaveBeenCalled();
     expect(picker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: "deck.md" }));
     expect(DeckLoader.fileHandleRegistry.get("Renamed.md")).toBe(handle);
     expect(DeckLoader.fileHandleRegistry.get("Renamed")).toBe(handle);
@@ -282,6 +284,20 @@ describe("SaveManager save() dedup and file-name prompt", () => {
 
     expect(requestPermission).toHaveBeenCalledWith({ mode: "readwrite" });
     expect(result).toBe(stored);
+  });
+
+  it("treats a stored folder handle without queryPermission as usable", async () => {
+    const sm = createSaveManager();
+    const stored = {
+      getFileHandle: vi.fn(async () => ({})),
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+
+    const result = await sm._restoreDeckDir("deck.md");
+
+    expect(result).toBe(stored);
+    expect(stored.getFileHandle).toHaveBeenCalledWith("deck.md");
   });
 
   it("falls back to the picker flow when readwrite permission is refused", async () => {
@@ -422,5 +438,38 @@ describe("SaveManager save() dedup and file-name prompt", () => {
       expect.stringContaining("1 image(s) from the previous version"),
       6000,
     );
+  });
+
+  it("keeps the dirty state when edits arrive while the save was in flight", async () => {
+    const unsaved = new Map();
+    let dirty = false;
+    const sm = new SaveManager({
+      getDeck: () => ({ slides: [] }),
+      getDeckStore: () => ({ getSlides: () => ["# A"] }),
+      getUnsavedMarkdown: () => unsaved,
+      getHasUnsavedChanges: () => dirty,
+      setHasUnsavedChanges: (v) => {
+        dirty = v;
+      },
+      onSaveStateReset: () => {},
+    });
+
+    // Nothing changed while the save was in flight — marked clean.
+    sm._markSaved("# A");
+    expect(dirty).toBe(false);
+
+    // An edit lands while the save dialogs are open (the edit path marks
+    // the deck dirty)…
+    unsaved.set(0, "# A edited");
+    dirty = true;
+    sm._markSaved("# A");
+    // …so the save that just completed must not clear the dirty state.
+    expect(dirty).toBe(true);
+    expect(unsaved.has(0)).toBe(true);
+
+    // A follow-up save of the newer content clears it.
+    sm._markSaved("# A edited");
+    expect(dirty).toBe(false);
+    expect(unsaved.size).toBe(0);
   });
 });

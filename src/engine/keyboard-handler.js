@@ -206,12 +206,16 @@ export class KeyboardHandler {
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
     // ── Layer 0: Global shortcuts ───────────────────────────────────────
-    // These work in both edit and presentation modes.  Only prevent the
-    // default and fire if an action callback is actually wired up.
+    // These work in both edit and presentation modes.  The action runs
+    // first so it can decline handling (return false) and let the
+    // browser's native default through — e.g. Ctrl+S in exported decks or
+    // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
     if (globalAction && this.actions[globalAction]) {
-      e.preventDefault();
-      this.actions[globalAction]();
+      const handled = this.actions[globalAction]();
+      if (handled !== false) {
+        e.preventDefault();
+      }
       return;
     }
 

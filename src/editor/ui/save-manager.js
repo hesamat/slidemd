@@ -291,18 +291,27 @@ export class SaveManager {
     return this._unsavedEditorOverlays.has(index);
   }
 
+  /**
+   * Derive the current full markdown from live state: the deck store's
+   * slides with unsaved overlays applied, or the source-markdown fallback
+   * when no store is wired. Must match what `_prepareSave` snapshots so
+   * `_markSaved` can detect edits made during an in-flight save.
+   * @returns {string}
+   */
+  _currentFullMarkdown() {
+    const deckStore = this._getDeckStore?.();
+    if (deckStore) {
+      const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
+      return this.getFullMarkdown(storeSlides);
+    }
+    return this.getFullMarkdown();
+  }
+
   async _prepareSave() {
     await waitForImageUpload();
     this._onBeforeSave?.();
 
-    const deckStore = this._getDeckStore?.();
-    let fullMarkdown;
-    if (deckStore) {
-      const storeSlides = deckStore.getSlides().map((markdown, index) => ({ index, markdown }));
-      fullMarkdown = this.getFullMarkdown(storeSlides);
-    } else {
-      fullMarkdown = this.getFullMarkdown();
-    }
+    const fullMarkdown = this._currentFullMarkdown();
 
     // Warn if the markdown contains blob URLs — they can't persist to disk.
     const hasBlobUrls = /blob:/.test(fullMarkdown);
@@ -320,9 +329,13 @@ export class SaveManager {
   /**
    * Record that a save succeeded: clear the dirty state and update the
    * source snapshot so the baseline matches what was written to disk.
+   * Edits made while the save dialogs were open are not marked clean: if
+   * the current deck content no longer matches what was just written, the
+   * unsaved state is kept so the next save writes the newer edits.
    * @param {string} fullMarkdown
    */
   _markSaved(fullMarkdown) {
+    if (this._currentFullMarkdown() !== fullMarkdown) return;
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this._onSaveStateReset?.();
@@ -382,8 +395,13 @@ export class SaveManager {
     const check = async (handle) => {
       if (!handle) return null;
       try {
+        // Handles without queryPermission are treated as usable — matching
+        // the image resolver's read path and reload-manager, which both
+        // default to "granted" when the API is absent. (Chromium, the only
+        // engine with showDirectoryPicker, always has it.)
+        let perm = "granted";
         if (handle.queryPermission) {
-          let perm = await handle.queryPermission({ mode: "readwrite" });
+          perm = await handle.queryPermission({ mode: "readwrite" });
           if (perm !== "granted" && handle.requestPermission) {
             // After a page reload a persisted handle's readwrite state is
             // "prompt". The save runs right after Ctrl+S, so transient
@@ -395,12 +413,11 @@ export class SaveManager {
               perm = "denied";
             }
           }
-          return perm === "granted" ? handle : null;
         }
+        return perm === "granted" ? handle : null;
       } catch {
         return null;
       }
-      return null;
     };
 
     const inMemory = DeckImagesResolver.getDirectoryHandle();
@@ -486,7 +503,23 @@ export class SaveManager {
       /* new file — nothing to warn about */
     }
     const newImageNames = new Set(imagePaths.map((p) => p.split("/").pop()));
-    const staleCount = [...oldImageNames].filter((name) => !newImageNames.has(name)).length;
+    const staleCandidates = [...oldImageNames].filter((name) => !newImageNames.has(name));
+    // Only warn about files that actually exist in the images/ sidecar:
+    // the old .md's references may point at images the dev server served,
+    // which were never written into the folder.
+    let staleCount = staleCandidates.length;
+    if (staleCandidates.length > 0) {
+      try {
+        const sidecarDir = await dirHandle.getDirectoryHandle("images");
+        const onDisk = new Set();
+        for await (const [name, entry] of sidecarDir.entries()) {
+          if (entry.kind === "file") onDisk.add(name);
+        }
+        staleCount = staleCandidates.filter((name) => onDisk.has(name)).length;
+      } catch {
+        // No sidecar (or permission lost) — keep the reference-based count.
+      }
+    }
 
     const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
     const mdWritable = await mdHandle.createWritable();
@@ -765,10 +798,12 @@ export class SaveManager {
         }
       }
 
-      chosenName ??= await this._promptFileName(safeFileName);
+      // No app name prompt here — the native picker lets the user name the
+      // file itself (mdHandle.name wins below). The app prompt is only
+      // load-bearing for the directory flow and the download fallback.
       try {
         const mdHandle = await window.showSaveFilePicker({
-          suggestedName: chosenName,
+          suggestedName: chosenName ?? safeFileName,
           types: [
             {
               description: "Markdown",
@@ -799,6 +834,9 @@ export class SaveManager {
       }
     }
 
+    // No native picker (or it failed): the app prompt is the only way to
+    // name the file before downloading it.
+    chosenName ??= await this._promptFileName(safeFileName);
     const mdBlob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(mdBlob);
     const a = document.createElement("a");

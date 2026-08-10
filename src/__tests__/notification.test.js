@@ -268,35 +268,35 @@ describe("Notification", () => {
       expect(input).not.toBeNull();
       expect(input.closest(".notification-modal__copy")).not.toBeNull();
 
-      // Enter inside the input confirms via the modal-scoped handler.
+      // Enter inside the input confirms via the document-scoped handler.
       input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       await expect(promise).resolves.toEqual({ ok: true, value: "deck.md" });
     });
 
-    it("does not react to Escape pressed outside the modal", async () => {
-      let resolved = false;
-      Notification.prompt("Save deck as", "Choose a file name.").then(() => {
-        resolved = true;
-      });
-
-      // The keydown listener is scoped to the modal — a document-level
-      // Escape must not dismiss it.
-      document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-
-      expect(resolved).toBe(false);
-      expect(document.querySelector(".notification-modal__input")).toBeTruthy();
-    });
-
-    it("stops Escape inside the modal from reaching document handlers", async () => {
-      const docHandler = vi.fn();
-      document.addEventListener("keydown", docHandler);
+    it("closes the prompt with Escape even when focus is outside the modal", async () => {
       const promise = Notification.prompt("Save deck as", "Choose a file name.");
 
-      const input = document.querySelector(".notification-modal__input");
-      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      // A click inside the dialog (title, message, backdrop) moves focus to
+      // body; the keydown then targets body, not the modal. The handler is
+      // document-scoped so Escape still dismisses.
+      document.body.dispatchEvent(
+        new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
 
       await expect(promise).resolves.toEqual({ ok: false, value: "" });
-      expect(docHandler).not.toHaveBeenCalled();
+    });
+
+    it("removes the document key handler once the prompt is finished", async () => {
+      const removeSpy = vi.spyOn(document, "removeEventListener");
+      const promise = Notification.prompt("Save deck as", "Choose a file name.");
+
+      const okBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "OK",
+      );
+      okBtn.click();
+
+      await expect(promise).resolves.toEqual({ ok: true, value: "" });
+      expect(removeSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
     });
 
     it("does not confirm when Enter is pressed on the Cancel button", async () => {

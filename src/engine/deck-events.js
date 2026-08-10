@@ -125,7 +125,10 @@ export class DeckEvents {
     });
     listen(this._elements.menuSaveBtn, "click", () => {
       const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (this._isEditMode() && editCtrl?.saveManager) {
+      // Saving works whenever an editor exists — edit mode on or off —
+      // mirroring the Ctrl+S shortcut. Only windows without an editor
+      // (viewer/presenter) cannot save.
+      if (editCtrl?.saveManager) {
         editCtrl.saveManager.save();
       } else {
         Notification.info("Open edit mode (E) to save changes");
