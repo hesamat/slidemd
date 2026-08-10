@@ -9,6 +9,7 @@ import { AssetLoader } from "../core/asset-loader.js";
 import { MarkdownParser } from "./markdown-parser.js";
 import { safeString, getDeckId, DESIGN_SIZE } from "../core/utils.js";
 import { Notification } from "../renderer/notification.js";
+import { Logger } from "../core/logger.js";
 
 /** @class */
 export class DeckLoader {
@@ -158,7 +159,7 @@ export class DeckLoader {
 
       return new MarkdownParser().parseDeckMarkdown(markdown);
     } catch (e) {
-      console.error("Failed to load example deck:", e);
+      Logger.error("Failed to load example deck:", e);
       // Final fallback — minimal deck
       return new MarkdownParser().parseDeckMarkdown(
         "# Welcome to SlideMD\n\nMarkdown-based presentations made simple.\n\nUse **Menu \u2192 Open File** to start presenting.",
@@ -196,7 +197,7 @@ export class DeckLoader {
         }),
       );
     } catch (e) {
-      console.error("Failed to load example deck:", e);
+      Logger.error("Failed to load example deck:", e);
       Notification.error("Could not load example deck");
     }
   }
@@ -220,7 +221,7 @@ export class DeckLoader {
     try {
       return await this.loadFromFileHandle(handle);
     } catch (e) {
-      console.error("Failed to reload from file handle:", e);
+      Logger.error("Failed to reload from file handle:", e);
       DeckLoader.fileHandleRegistry.delete(deckId);
       if (fileName) DeckLoader.fileHandleRegistry.delete(fileName);
       throw e;
@@ -272,7 +273,7 @@ export class DeckLoader {
       await AssetLoader.ensureMarkdownItLoaded();
       return new MarkdownParser().parseDeckMarkdown(localFile);
     } catch (err) {
-      console.error("loadFromLocalStorage: parsing error", err);
+      Logger.error("loadFromLocalStorage: parsing error", err);
       return null;
     }
   }

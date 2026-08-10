@@ -11,6 +11,7 @@ import { ImagePicker } from "../editor/image/image-picker.js";
 import { DraftManager } from "../core/draft-manager.js";
 import { TextpackExportManager } from "../renderer/textpack-export-manager.js";
 import { uploadImagesInBatches } from "../core/image-batch-uploader.js";
+import { Logger } from "../core/logger.js";
 import { setImageUploadPromise, waitForImageUpload } from "../core/image-upload-promise.js";
 
 export class PptxImporter {
@@ -188,7 +189,7 @@ export class PptxImporter {
             }
           })().catch((err) => {
             if (err.name === "AbortError") return;
-            console.warn("Background image upload failed:", err);
+            Logger.warn("Background image upload failed:", err);
           }),
         );
       }
@@ -239,7 +240,7 @@ export class PptxImporter {
         Notification.info("PPTX import cancelled");
         return;
       }
-      console.error("PPTX import failed:", err);
+      Logger.error("PPTX import failed:", err);
       Notification.error(`Import failed: ${err.message || err}`);
     }
   }
@@ -266,7 +267,7 @@ export class PptxImporter {
     try {
       binary = atob(padded);
     } catch {
-      console.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
+      Logger.warn("Failed to decode base64 for image:", img.ref, "sample:", padded.slice(0, 80));
       return null;
     }
 

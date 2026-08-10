@@ -3,6 +3,7 @@
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { Logger } from "../../core/logger.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
@@ -385,7 +386,7 @@ export class EditController {
       this._cachedOriginalSlides = parser.splitSlides(localFile);
       return this._cachedOriginalSlides;
     } catch (error) {
-      console.error("Failed to cache markdown:", error);
+      Logger.error("Failed to cache markdown:", error);
       this._cachedSourceMarkdown = null;
       this._cachedOriginalSlides = [];
       return [];
@@ -760,7 +761,7 @@ export class EditController {
 
     if (this.isEditMode && !this._suppressStoreChangeRestore) {
       this._storeChangeQueue = this._chainStoreChangeRestore().catch((error) => {
-        console.error("Store-to-view sync failed:", error);
+        Logger.error("Store-to-view sync failed:", error);
         Notification.error("Failed to refresh the editor view.");
       });
     }
@@ -799,7 +800,7 @@ export class EditController {
       try {
         await this._chainStoreChangeRestore();
       } catch (rollbackError) {
-        console.error("Failed to restore view after undo rollback:", rollbackError);
+        Logger.error("Failed to restore view after undo rollback:", rollbackError);
       }
       Notification.error(`Undo failed: ${error.message || error}`);
       return false;
@@ -834,7 +835,7 @@ export class EditController {
       try {
         await this._chainStoreChangeRestore();
       } catch (rollbackError) {
-        console.error("Failed to restore view after redo rollback:", rollbackError);
+        Logger.error("Failed to restore view after redo rollback:", rollbackError);
       }
       Notification.error(`Redo failed: ${error.message || error}`);
       return false;
@@ -1021,7 +1022,7 @@ export class EditController {
             try {
               await this._chainStoreChangeRestore();
             } catch (restoreError) {
-              console.error("Failed to refresh view after rejected AI patch:", restoreError);
+              Logger.error("Failed to refresh view after rejected AI patch:", restoreError);
             }
           }
           Notification.warning(

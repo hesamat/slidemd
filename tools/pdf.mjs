@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 // Browser globals used inside page.evaluate() callbacks. Playwright serializes
 // the function body and executes it in the browser page, so these identifiers

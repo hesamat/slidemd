@@ -10,6 +10,7 @@ import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
+import { Logger } from "../core/logger.js";
 
 const SAFE_URI_REGEXP =
   /^(?:(?:https?|mailto|ftp|ftps|tel|callto|cid|xmpp):|blob:|data:image\/(?:avif|bmp|gif|jpeg|jpg|png|webp)(?:[;,]|$)|[^-a-z0-9+.]|[-a-z0-9+.]+(?:[^-a-z0-9+.:]|$))/i;
@@ -85,7 +86,7 @@ function sanitizeAreaHtml(html) {
   if (!purify) {
     if (!_domPurifyWarned) {
       _domPurifyWarned = true;
-      console.warn("DOMPurify not available; rendering slide HTML as text");
+      Logger.warn("DOMPurify not available; rendering slide HTML as text");
     }
     return escapeHtml(html);
   }

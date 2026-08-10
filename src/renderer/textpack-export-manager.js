@@ -6,6 +6,7 @@
 
 import { DeckLoader } from "../data/deck-loader.js";
 import { Notification } from "./notification.js";
+import { Logger } from "../core/logger.js";
 
 export class TextpackExportManager {
   static _isExporting = false;
@@ -105,7 +106,7 @@ export class TextpackExportManager {
         cancelled = true;
         Notification.info(".textpack export cancelled");
       } else {
-        console.error("Textpack export failed:", e);
+        Logger.error("Textpack export failed:", e);
         Notification.error("Textpack export failed: " + (e.message || e));
       }
     } finally {

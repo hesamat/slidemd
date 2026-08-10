@@ -10,6 +10,7 @@ import { waitForImageUpload } from "../../core/image-upload-promise.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { DeckLoader } from "../../data/deck-loader.js";
+import { Logger } from "../../core/logger.js";
 
 /**
  * Extract relative image paths (images/...) from markdown.
@@ -150,7 +151,7 @@ export async function removeStaleImages(dirHandle, relPaths, oldImageNames) {
       await dirHandle.removeEntry(name);
     }
   } catch (err) {
-    console.warn("Failed to remove stale deck images:", err);
+    Logger.warn("Failed to remove stale deck images:", err);
   }
 }
 
@@ -408,7 +409,7 @@ export class SaveManager {
           exists = true;
         } catch (err) {
           if (err?.name !== "NotFoundError") {
-            console.warn("Failed to check for an existing deck file:", err);
+            Logger.warn("Failed to check for an existing deck file:", err);
           }
           /* new file */
         }
@@ -421,7 +422,7 @@ export class SaveManager {
             const oldText = await (await oldFile.getFile()).text();
             oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
           } catch {
-            console.warn("Could not read the existing deck file to scope image cleanup.");
+            Logger.warn("Could not read the existing deck file to scope image cleanup.");
           }
           const overwrite = await Notification.showModal({
             title: "Overwrite existing file?",
@@ -470,7 +471,7 @@ export class SaveManager {
           DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
           await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
         } catch (err) {
-          console.warn("Failed to update session state after save:", err);
+          Logger.warn("Failed to update session state after save:", err);
         }
 
         try {
@@ -491,7 +492,7 @@ export class SaveManager {
         } catch (err) {
           // The .md was already written; report the missing images instead
           // of prompting for a second save dialog.
-          console.warn("Failed to save images alongside the .md file:", err);
+          Logger.warn("Failed to save images alongside the .md file:", err);
           Notification.warning(
             `${fileName} was saved, but images could not be saved: ${err?.message || err}`,
             6000,
@@ -584,7 +585,7 @@ export class SaveManager {
       if (saved) this._markSaved(fullMarkdown);
     } catch (error) {
       if (error.name !== "AbortError") {
-        console.error("Failed to save file:", error);
+        Logger.error("Failed to save file:", error);
         Notification.error("Failed to save file: " + (error.message || error));
       }
       // AbortError means the user cancelled — leave the dirty state in place

@@ -42,14 +42,18 @@ npm run dev -- path/to/slides.md
 
 ## Quality Gates
 
-Run all four checks before opening a PR. They must pass.
+Run all five checks before opening a PR. They must pass.
 
 ```bash
 npm run lint
 npm run format:check
 npm test
+npm run test:e2e
 npm run build
 ```
+
+The Playwright E2E suite runs in CI and is required for pull requests. It starts
+its own dual-process dev server and installs Chromium in the CI workflow.
 
 If `npm run format:check` fails, run `npm run format` (or
 `npx prettier --write .`) and rerun the check.
@@ -79,9 +83,12 @@ Prettier enforces formatting. Do not hand-format code; let Prettier do it.
 
 ```bash
 npm test
+npm run test:e2e
 ```
 
-Tests run on Vitest. The default environment is `node`; specs that need a DOM
+`npm test` runs the Vitest unit suite. `npm run test:e2e` runs the Playwright
+Chromium suite and starts the dual-process dev server automatically. Unit tests
+run on Vitest with the default environment set to `node`; specs that need a DOM
 add a `// @vitest-environment jsdom` pragma at the top of the file. Specs live
 under `src/__tests__/**/*.test.js` (the config's `include` glob is
 `src/**/*.test.js`, but all current specs are under `__tests__/`). Snapshot
