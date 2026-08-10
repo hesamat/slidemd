@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1 (Unreleased)
+## 0.9.1 (2026-08-10)
 
 ### Whole-Deck Modes (Polish, Remix, Reimagine)
 
