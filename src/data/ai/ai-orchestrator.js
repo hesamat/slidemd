@@ -91,7 +91,7 @@ export class AiOrchestrator {
   async runWholeDeckOperation(operation, signal, callbacksArg = {}) {
     const callbacks =
       typeof callbacksArg === "function" ? { onProgress: callbacksArg } : callbacksArg || {};
-    const { intent, context } = operation;
+    const { intent } = operation;
     if (intent !== "generate") {
       throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
     }
