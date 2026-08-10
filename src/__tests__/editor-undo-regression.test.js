@@ -144,6 +144,7 @@ describe("Editor undo regression suite", () => {
         _historyOperation: null,
         _deckRestoreDepth: 0,
         _captureCurrentEditorMarkdown: () => {},
+        captureCurrentEditorState: EditController.prototype.captureCurrentEditorState,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
@@ -186,6 +187,7 @@ describe("Editor undo regression suite", () => {
         deckStore,
         unsavedMarkdown: unsaved,
         _captureCurrentEditorMarkdown: () => {},
+        captureCurrentEditorState: EditController.prototype.captureCurrentEditorState,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
@@ -219,6 +221,7 @@ describe("Editor undo regression suite", () => {
         deckStore,
         unsavedMarkdown: unsaved,
         _captureCurrentEditorMarkdown: () => {},
+        captureCurrentEditorState: EditController.prototype.captureCurrentEditorState,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
@@ -278,6 +281,63 @@ describe("Editor undo regression suite", () => {
       expect(setValue).toHaveBeenCalledWith("# A", { suppressOnChange: true });
       expect(loadSlideState).not.toHaveBeenCalled();
       expect(saveSlideState).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("prepareStoreOperation buffer capture", () => {
+    function makeFake({ isEditMode, currentSlideIndex, bufferValue, unsaved = new Map() }) {
+      const deckStore = new DeckStore();
+      deckStore.loadFromMarkdown("# s0\n\n---\n\n# s1\n\n---\n\n# s2\n\n---\n\n# s3");
+      return {
+        isEditMode,
+        currentSlideIndex,
+        deckStore,
+        unsavedMarkdown: unsaved,
+        _pendingStructuralOperations: 0,
+        markdownEditor: {
+          // The buffer may be stale when the editor is not active.
+          getValue: () => bufferValue,
+        },
+        captureCurrentEditorState: EditController.prototype.captureCurrentEditorState,
+        _captureCurrentEditorMarkdown: EditController.prototype._captureCurrentEditorMarkdown,
+        _captureEditorMarkdown: EditController.prototype._captureEditorMarkdown,
+        updateUnsavedChangesFlag: EditController.prototype.updateUnsavedChangesFlag,
+        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
+        _storeDiffersFromSource: () => false,
+        saveManager: {
+          // getFullSlides returns slide objects with a .markdown property,
+          // matching the real contract that prepareStoreOperation depends on.
+          getFullSlides: (slides) => slides.map((s) => ({ markdown: s.markdown })),
+          updateButton: vi.fn(),
+        },
+      };
+    }
+
+    it("does not attribute the stale editor buffer to the current slide outside edit mode", () => {
+      const fake = makeFake({
+        isEditMode: false,
+        currentSlideIndex: 3,
+        bufferValue: "# stale slide 0 text",
+      });
+
+      EditController.prototype.prepareStoreOperation.call(fake, true);
+
+      // Slide 3 keeps its own content; the stale buffer must not leak into
+      // unsavedMarkdown (and from there into the written file).
+      expect(fake.deckStore.getSlides()[3]).toBe("# s3");
+      expect(fake.unsavedMarkdown.has(3)).toBe(false);
+    });
+
+    it("captures the live buffer when the editor is active", () => {
+      const fake = makeFake({
+        isEditMode: true,
+        currentSlideIndex: 3,
+        bufferValue: "# typed in the editor",
+      });
+
+      EditController.prototype.prepareStoreOperation.call(fake, true);
+
+      expect(fake.unsavedMarkdown.get(3)).toBe("# typed in the editor");
     });
   });
 });

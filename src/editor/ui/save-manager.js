@@ -189,8 +189,9 @@ export class SaveManager {
     this._onSaveStateReset = onSaveStateReset;
     this._unsavedEditorOverlays = new Map();
     // Destinations already warned about kept (stale) images this session,
-    // so the informational toast does not repeat on every silent re-save.
-    this._staleWarnedDestinations = new Set();
+    // keyed by the folder handle object (identity, not basename — two
+    // distinct folders with the same name must not share a warning key).
+    this._staleWarnedDestinations = new Map();
   }
 
   get deck() {
@@ -545,11 +546,14 @@ export class SaveManager {
 
     if (staleNames.length > 0) {
       // The silent path never deletes, so the same stale set stays on disk;
-      // warn once per destination to avoid repeating the toast on every
-      // Ctrl+S (the warning only reappears if the stale set changes).
-      const warnKey = `${dirHandle.name || ""}/${safeFileName}:${[...staleNames].sort().join(",")}`;
-      if (!this._staleWarnedDestinations.has(warnKey)) {
-        this._staleWarnedDestinations.add(warnKey);
+      // warn once per destination (folder handle + file name + stale set)
+      // to avoid repeating the toast on every Ctrl+S. The warning only
+      // reappears if the stale set changes.
+      const warnKey = `${safeFileName}:${[...staleNames].sort().join(",")}`;
+      const handleWarned = this._staleWarnedDestinations.get(dirHandle) ?? new Set();
+      if (!handleWarned.has(warnKey)) {
+        handleWarned.add(warnKey);
+        this._staleWarnedDestinations.set(dirHandle, handleWarned);
         Notification.warning(
           `${staleNames.length} image(s) from the previous version of this deck are no longer ` +
             `referenced and were kept in the folder.`,

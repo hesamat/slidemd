@@ -652,7 +652,12 @@ export class EditController {
   }
 
   prepareStoreOperation(recordHistory = false) {
-    this._captureCurrentEditorMarkdown();
+    // Only capture the editor buffer when the editor is active. Outside
+    // edit mode the buffer is never refreshed on slide navigation, so it
+    // still holds the previously edited slide's text; attributing it to
+    // the current slide (save can now run outside edit mode) would
+    // overwrite the visible slide with stale text and write it to disk.
+    this.captureCurrentEditorState();
     const storeSlides = this.deckStore.getSlides();
     const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
     const fullSlides = this.saveManager

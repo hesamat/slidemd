@@ -84,16 +84,38 @@ export class DeckImagesResolver {
   /**
    * Register (or clear, when passed null) the directory handle of the
    * currently open picker-opened .md deck, so its sibling images/ folder
-   * can render without the CLI dev server.
+   * can render without the CLI dev server. Re-registering the same handle
+   * with the same reference set is a no-op, so repeated saves do not
+   * discard the blob-URL cache and force a re-render of every image.
    * @param {FileSystemDirectoryHandle|null} handle
    * @param {string[]|null} [deckRefs] — `images/...` references the deck had
    *   when the folder was registered; folder reads are restricted to these.
    */
   static setDirectoryHandle(handle, deckRefs = null) {
+    const refs = deckRefs ? new Set(deckRefs) : null;
+    if (this._directoryHandle === handle && this._sameDeckRefs(this._deckRefs, refs)) {
+      return;
+    }
     this._directoryHandle = handle;
-    this._deckRefs = deckRefs ? new Set(deckRefs) : null;
+    this._deckRefs = refs;
     this._clearDirBlobUrls();
     this._cacheVersion = Date.now();
+  }
+
+  /**
+   * Whether two reference sets (null-safe) are equal.
+   * @param {Set<string>|null} a
+   * @param {Set<string>|null} b
+   * @returns {boolean}
+   */
+  static _sameDeckRefs(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (a.size !== b.size) return false;
+    for (const ref of a) {
+      if (!b.has(ref)) return false;
+    }
+    return true;
   }
 
   /**

@@ -94,4 +94,24 @@ describe("DeckImagesResolver directory images", () => {
     expect(url).toMatch(/^\/images\/new\.png\?v=\d+$/);
     expect(getDirectoryHandle).not.toHaveBeenCalled();
   });
+
+  it("re-registering the same handle and refs does not discard the blob-URL cache", () => {
+    const directoryHandle = { name: "deck-folder" };
+    DeckImagesResolver.setDirectoryHandle(directoryHandle, ["images/a.png", "images/b.png"]);
+    const createdUrls = DeckImagesResolver._createdBlobUrls;
+    const dirBlobUrls = DeckImagesResolver._dirBlobUrls;
+    dirBlobUrls.set("images/a.png", Promise.resolve("blob:a"));
+
+    // Silent re-save path: identical handle + identical refs — no churn.
+    DeckImagesResolver.setDirectoryHandle(directoryHandle, ["images/a.png", "images/b.png"]);
+
+    expect(DeckImagesResolver._createdBlobUrls).toBe(createdUrls);
+    expect(DeckImagesResolver._dirBlobUrls).toBe(dirBlobUrls);
+    expect(DeckImagesResolver._dirBlobUrls.get("images/a.png")).toBeDefined();
+
+    // A changed reference set still invalidates.
+    DeckImagesResolver.setDirectoryHandle(directoryHandle, ["images/c.png"]);
+    expect(DeckImagesResolver._createdBlobUrls).not.toBe(createdUrls);
+    expect(DeckImagesResolver._dirBlobUrls.has("images/a.png")).toBe(false);
+  });
 });

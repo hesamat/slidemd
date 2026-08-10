@@ -473,6 +473,12 @@ describe("SaveManager save() dedup and file-name prompt", () => {
       expect.stringContaining("1 image(s) from the previous version"),
       6000,
     );
+
+    // The same destination with the same stale set warns only once.
+    await sm._writeDeckToDir(dir, "deck.md", "# deck\n\n![keep](images/keep.png)", [
+      "images/keep.png",
+    ]);
+    expect(warning).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the dirty state when edits arrive while the save was in flight", async () => {

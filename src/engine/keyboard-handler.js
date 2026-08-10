@@ -102,6 +102,13 @@ export class KeyboardHandler {
    * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
    * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
    * @param {Function} actions.getMarkdownEditor - Callback to get the MarkdownEditor instance (used for pre-keystroke undo/redo depth checks)
+   *
+   * Global (Layer 0) action contract: the action may return exactly
+   * `false` to decline handling, in which case the browser's default for
+   * the key event is NOT prevented (e.g. Ctrl+S in exported decks or
+   * embedded iframes where there is nothing to save). Any other return
+   * value (including `undefined`) means the action handled the event and
+   * the default is suppressed.
    */
   constructor(actions) {
     this.actions = actions;

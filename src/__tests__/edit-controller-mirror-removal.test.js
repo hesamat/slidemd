@@ -94,6 +94,7 @@ describe("EditController mirror removal", () => {
         unsavedMarkdown: new Map(),
         hasUnsavedChanges: false,
         _captureCurrentEditorMarkdown: () => {},
+        captureCurrentEditorState: EditController.prototype.captureCurrentEditorState,
         _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _storeDiffersFromSource: () => false,
         saveManager: {

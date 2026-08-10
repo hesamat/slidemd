@@ -131,7 +131,7 @@ export class DeckEvents {
       if (editCtrl?.saveManager) {
         editCtrl.saveManager.save();
       } else {
-        Notification.info("Open edit mode (E) to save changes");
+        Notification.info("Saving is only available in the editor window");
       }
       this._closeMenu();
     });
