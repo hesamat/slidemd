@@ -33,6 +33,7 @@ For most tasks, use this loop:
 - [Required Final Report](#required-final-report)
 - [Quality Gates](#quality-gates)
 - [Pull Requests](#pull-requests)
+- [Branch Lifecycle & Cleanup](#branch-lifecycle--cleanup)
 - [Change Impact Guidelines](#change-impact-guidelines)
 - [Pre-Review Verification](#pre-review-verification)
 - [Code Organization](#code-organization)
@@ -287,6 +288,28 @@ Do not use a generic "manual test" checkbox when concrete verification steps can
 
 ---
 
+## Branch Lifecycle & Cleanup
+
+### Naming
+
+- Branch prefixes: `fix/`, `feature/` (or `feat/`), `refactor/`, `release/`. Copilot-generated branches use `copilot/`.
+- One branch per logical change, one PR per branch, short-lived.
+
+### Lifecycle rules
+
+- After a PR merges, delete the branch (enable "Automatically delete head branches" in repo settings; otherwise delete manually).
+- Branches must not live longer than ~30 days. Stale work should be closed, not left dormant.
+- The scheduled `.github/workflows/branch-cleanup.yml` bot deletes branches older than 60 days with no open PR, and closes PRs inactive for 45+ days (exempt labels: `keep-open`, `roadmap`).
+- Before deleting a stale branch with unique commits, archive its tip with an `archive/YYYY-MM-DD/<branch>` tag.
+
+### Housekeeping
+
+- After any branch deletion, run `git fetch --prune origin` and delete the matching local branch.
+- Avoid creating worktrees for merged work; remove worktrees when their PR merges (`git worktree remove <path>`).
+- Never push to `main` directly.
+
+---
+
 ## Change Impact Guidelines
 
 Before proposing or implementing a change, consider the blast radius beyond the immediate file.
@@ -340,13 +363,13 @@ Every `DeckStore` mutation must consider:
 
 Do not record history or emit events for silent pre-mutation synchronization.
 
-### CodeMirror history
+### CodeMirror history and per-slide state cache
 
 Full-document `setValue()` resets the cursor and can wipe undo.
 
 Use targeted `view.dispatch` transactions for in-place directive edits.
 
-Only clear history (`clearHistory: true`) when the slide or deck actually changes.
+`MarkdownEditor` caches a separate `EditorState` per slide (`saveSlideState`) keyed by slide index and deck revision. Load the cached state when the slide and deck are unchanged (`loadSlideState`); it automatically discards the cache when the document changed externally (AI, style, save baseline shift) or the deck revision bumped. Clear the cache (`clearSlideStateCache`) on structural/deck changes. `teardown()` must also clear the cache to avoid retaining large `EditorState` objects after the editor is destroyed.
 
 ### Dirty baseline
 
@@ -371,7 +394,7 @@ Verify that:
 When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleApplier`, `DeckStore`, or `MarkdownEditor`, explicitly verify:
 
 - `SaveManager.getFullSlides()` and `SaveManager.getFullMarkdown()` called with no arguments return `string[]` / `string` and work without a `DeckStore`.
-- `prepareStoreOperation()` / `onBeforeSave()` does not broadcast a `storeChange` event and does not clear CodeMirror history.
+- `prepareStoreOperation()` / `onBeforeSave()` does not broadcast a `storeChange` event and does not clear the per-slide `EditorState` cache.
 - Saving the deck updates the source baseline so the dirty flag stays clean until the next real change.
 - Undo immediately after save reverts the just-saved text, not an earlier structural change.
 - `loadSlideIntoEditor()` preserves the undo stack when the slide and deck have not changed.

@@ -101,7 +101,9 @@ keyboard shortcuts, command-palette actions.
 
 ### Reuse before reinvention
 
-- Flag duplicated bundle-ordering logic between `HtmlExportManager` and
-  `tools/build.mjs` — prefer extracting a shared module.
+- Flag `JS_BUNDLE_ORDER` still maintained inside `HtmlExportManager` —
+  prefer extracting `src/data/bundle-order.js` so the export manager and any
+  future bundler share one source of truth. `tools/build.mjs` uses esbuild's
+  dependency resolution and does not duplicate the list.
 - Flag hardcoded layout names outside `src/data/layout-data.js` and
   `src/data/layouts.json` — both lists must stay in sync.

@@ -1,0 +1,102 @@
+name: Branch Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  stale-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STALE_DAYS: "60"
+        run: |
+          urlencode() { python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"; }
+          CUTOFF=$(date -u -d "$STALE_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          gh api repos/${{ github.repository }}/branches --paginate -q '.[].name' | while read -r branch; do
+            # Protect primary and long-lived / archival branches.
+            case "$branch" in
+              main|master|release/*|archive/*) continue ;;
+            esac
+
+            # Only process branches that follow the documented naming convention
+            # and a safe character set, so attacker-influenceable branch names
+            # cannot be injected into API paths or tag refs.
+            if [[ ! "$branch" =~ ^(fix|feature|feat|refactor|copilot)/[A-Za-z0-9._/-]+$ ]]; then
+              echo "Skipping branch with non-conforming name: $branch"
+              continue
+            fi
+
+            # Treat a failed lookup as "has open PRs" so we never delete
+            # a branch whose PR state we cannot verify.
+            open_prs=$(gh pr list --head "$branch" --state open --json number -q 'length' || echo "")
+            if [[ -z "$open_prs" ]] || [[ "$open_prs" -gt 0 ]]; then
+              continue
+            fi
+
+            branch_encoded=$(urlencode "$branch")
+
+            # Fail closed: do not delete a branch if we cannot read its last
+            # commit date, and do not create an archive tag without a sha.
+            updated=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.commit.committer.date' || echo "")
+            if [[ -z "$updated" ]]; then
+              echo "Could not determine last commit date for $branch; skipping"
+              continue
+            fi
+            if [[ "$updated" < "$CUTOFF" ]]; then
+              # Archive branches with unique commits before deletion.
+              # Fail closed: if we cannot determine whether the branch has
+              # unique commits, skip it rather than risk deleting
+              # unmerged work with no archive tag.
+              ahead_by=$(gh api "repos/${{ github.repository }}/compare/main...$branch_encoded" -q '.ahead_by' || echo "")
+              if [[ -z "$ahead_by" ]]; then
+                echo "Could not determine ahead_by for $branch; skipping"
+                continue
+              fi
+              if [[ "$ahead_by" -gt 0 ]]; then
+                sha=$(gh api "repos/${{ github.repository }}/branches/$branch_encoded" -q '.commit.sha' || echo "")
+                if [[ -n "$sha" ]]; then
+                  tag="archive/$(date -u +%Y-%m-%d)/$branch"
+                  echo "Archiving $branch as $tag"
+                  # Fail closed: if the archive tag cannot be created, do
+                  # not delete the branch — the unique commits would be
+                  # lost forever.
+                  if ! gh api -X POST "repos/${{ github.repository }}/git/refs" \
+                    -f "ref=refs/tags/$tag" \
+                    -f "sha=$sha" \
+                    --silent; then
+                    echo "Failed to create archive tag $tag for $branch; skipping deletion"
+                    continue
+                  fi
+                else
+                  echo "Could not determine sha for $branch; skipping deletion"
+                  continue
+                fi
+              fi
+
+              echo "Deleting stale branch: $branch (last pushed $updated)"
+              gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$branch_encoded" --silent
+            fi
+          done
+
+      - name: Close stale pull requests
+        uses: actions/stale@v9
+        with:
+          days-before-stale: 45
+          days-before-close: 14
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          stale-pr-message: "This pull request has been inactive for 45 days. It will be closed in 14 days unless there is further activity."
+          close-pr-message: "Closed because this pull request has been inactive for too long. It can be reopened when work resumes."
+          stale-pr-label: "stale"
+          exempt-pr-labels: "keep-open,roadmap"
+          exempt-draft-pr: true
+          operations-per-run: 100
