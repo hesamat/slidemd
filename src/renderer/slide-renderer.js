@@ -250,7 +250,16 @@ export class SlideRenderer {
       const html = areas[name] || "";
       const area = document.createElement("div");
       area.className = `slide__area slide__area--${name}`;
-      area.style.gridArea = name;
+      // Areas not in the layout template get auto-placed.  Use explicit
+      // full-width placement in a new row instead of grid-area: <name>,
+      // which would fill empty '.' cells in existing rows (e.g. the
+      // filler columns of the focus layout's ". main ." row).
+      if (layoutAreaNames.has(name)) {
+        area.style.gridArea = name;
+      } else {
+        area.style.gridColumn = "1 / -1";
+        area.style.gridRow = "auto";
+      }
       area.dataset.areaName = name;
 
       if (name === "cards") {

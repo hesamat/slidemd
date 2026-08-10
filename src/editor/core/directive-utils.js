@@ -365,13 +365,20 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   if (!gridTemplate) return null;
 
   let w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
+  // Return the preset name when the requested width/align matches what
+  // the preset actually renders.  This avoids directive churn on no-op
+  // interactions (e.g. re-centering an already-centered focus slide).
+  const presetParsed = parseSingleColumnLayout(base);
+  if (
+    presetParsed &&
+    presetParsed.align === align &&
+    presetParsed.width === Math.round(Number(width) || 0)
+  ) {
+    return base;
+  }
   if (w >= 1 && align === "center") {
-    // Only return the preset name if it actually renders at 100% width.
-    // Focus renders at ~70%, so requesting 100% must emit an explicit grid.
-    const presetParsed = parseSingleColumnLayout(base);
-    if (!presetParsed || presetParsed.width >= 100) return base;
     // Preset renders narrower than 100% — fall through to build an
-    // explicit full-width grid (w stays 1, producing a single column).
+    // explicit full-width grid (w stays 1, mainFr becomes 999).
   } else if (w >= 1) {
     // A left/right aligned full-width main column would look unchanged,
     // so default to an actual side-by-side split.

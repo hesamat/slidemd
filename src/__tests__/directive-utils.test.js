@@ -120,6 +120,11 @@ describe("single-column layout helpers", () => {
     expect(buildSingleColumnCustomLayout("default", 100, "center")).toBe("default");
   });
 
+  it("returns the preset name when requested width/align matches the preset's rendered values", () => {
+    // Focus renders at 70% centered — requesting 70% center is a no-op
+    expect(buildSingleColumnCustomLayout("focus", 70, "center")).toBe("focus");
+  });
+
   it("emits an explicit full-width grid for focus at 100% (preset renders at 70%)", () => {
     const result = buildSingleColumnCustomLayout("focus", 100, "center");
     expect(result).not.toBe("focus");

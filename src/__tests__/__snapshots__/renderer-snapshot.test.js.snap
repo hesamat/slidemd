@@ -26,7 +26,7 @@ exports[`SlideRenderer markdown → DOM snapshots > produces a stable two-column
 <blockquote data-source-line="6">
 <p data-source-line="6">A blockquote with <code>code</code>.</p>
 </blockquote>
-</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""></div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div><div class="slide__area slide__area--sidebar" style="grid-area: sidebar;" data-area-name="sidebar" data-applied-area-style=""><pre><code data-source-line="1" class="language-python">def hello():
+</div><div class="slide__area slide__area--media" style="grid-area: media;" data-area-name="media" data-applied-area-style=""></div><div class="slide__area slide__area--footer" style="grid-area: footer;" data-area-name="footer" data-applied-area-style=""></div><div class="slide__area slide__area--sidebar" style="grid-column: 1 / -1; grid-row: auto;" data-area-name="sidebar" data-applied-area-style=""><pre><code data-source-line="1" class="language-python">def hello():
     return "world"
 </code></pre>
 </div></div></div>"

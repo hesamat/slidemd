@@ -104,4 +104,20 @@ describe("SlideRenderer", () => {
     const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
     expect(el.getAttribute("data-layout")).toBe("header-content");
   });
+
+  it("places extra areas in a full-width row, not in filler cells", () => {
+    const slide = {
+      id: "focus-extra",
+      title: "Focus Extra",
+      layout: "focus",
+      areas: { header: "<h2>Hi</h2>", main: "<p>Body</p>", footer: "Foot", media: "<img />" },
+    };
+    const deck = { slides: [slide] };
+    const el = SlideRenderer.createSlideElement(deck, slide, 0, true);
+    const mediaArea = el.querySelector('[data-area-name="media"]');
+    expect(mediaArea).not.toBeNull();
+    // Extra areas should use explicit full-width placement, not grid-area
+    expect(mediaArea.style.gridArea).toBe("");
+    expect(mediaArea.style.gridColumn).toBe("1 / -1");
+  });
 });
