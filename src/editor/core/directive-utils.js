@@ -302,6 +302,28 @@ export function removeAreaFromLayout(markdown, areaName) {
     }
   }
 
+  // Preserve symmetric filler columns around main (e.g. focus layout's
+  // ". main ." row).  If one filler column is kept but its mirror is not,
+  // the main column would shift off-center after pruning.
+  // Only apply when the original (pre-deletion) row already had dots on
+  // both sides of main — not when asymmetry was created by the deletion.
+  const mainRowIdx = replacedRows.findIndex((r) => r.includes("main"));
+  if (mainRowIdx >= 0) {
+    const originalCells = rowMatches[mainRowIdx].slice(1, -1).split(/\s+/).filter(Boolean);
+    const mainColIdx = originalCells.indexOf("main");
+    const leftWasDot = mainColIdx > 0 && originalCells[mainColIdx - 1] === ".";
+    const rightWasDot =
+      mainColIdx < originalCells.length - 1 && originalCells[mainColIdx + 1] === ".";
+    if (leftWasDot && rightWasDot) {
+      const leftKept = keepCol[mainColIdx - 1];
+      const rightKept = keepCol[mainColIdx + 1];
+      if (leftKept !== rightKept) {
+        if (!leftKept) keepCol[mainColIdx - 1] = true;
+        if (!rightKept) keepCol[mainColIdx + 1] = true;
+      }
+    }
+  }
+
   const newRows = rowData.map(({ cells }) => {
     const kept = cells.filter((_, j) => keepCol[j]);
     return `"${kept.join(" ") || "."}"`;
@@ -343,8 +365,24 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   if (!gridTemplate) return null;
 
   let w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
-  if (w >= 1) {
-    if (align === "center") return base;
+  // Return the preset name when the requested width/align matches what
+  // the preset actually renders AND no custom row sizes were supplied.
+  // This avoids directive churn on no-op interactions (e.g. re-centering
+  // an already-centered focus slide) while preserving hand-tuned row heights.
+  const presetParsed = parseSingleColumnLayout(base);
+  const hasCustomRowSizes = String(rowSizes || "").trim().length > 0;
+  if (
+    !hasCustomRowSizes &&
+    presetParsed &&
+    presetParsed.align === align &&
+    presetParsed.width === Math.round(Number(width) || 0)
+  ) {
+    return base;
+  }
+  if (w >= 1 && align === "center") {
+    // Preset renders narrower than 100% — fall through to build an
+    // explicit full-width grid (w stays 1, mainFr becomes 999).
+  } else if (w >= 1) {
     // A left/right aligned full-width main column would look unchanged,
     // so default to an actual side-by-side split.
     w = 0.5;
@@ -395,7 +433,7 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
   const newRows = rows.map((row, i) => {
     const token = row.cells[0];
     let newCells;
-    if (token === "main") {
+    if (row.cells.includes("main")) {
       if (numCols === 2) {
         newCells = align === "left" ? ["main", "."] : [".", "main"];
       } else {
@@ -428,6 +466,11 @@ export function parseSingleColumnLayout(layoutValue) {
     return { base: "default", width: 100, align: "center" };
   }
   if (["header-content", "focus", "default", "full-image"].includes(key)) {
+    const gridTemplate = LayoutData.getGridTemplate(key);
+    if (gridTemplate) {
+      const parsed = parseSingleColumnLayout(gridTemplate);
+      if (parsed) return { base: key, width: parsed.width, align: parsed.align };
+    }
     return { base: key, width: 100, align: "center" };
   }
 
@@ -495,7 +538,13 @@ export function parseSingleColumnLayout(layoutValue) {
 
   let base;
   if (areaArray.includes("header") && areaArray.includes("footer")) {
-    base = raw.includes("0.08fr") ? "focus" : "header-content";
+    const footerRow = rows.find((r) => r.cells.every((c) => c === "footer"));
+    const footerSize = (footerRow?.size || "").trim();
+    const footerFrMatch = footerSize.match(/^([\d.]+)fr$/i);
+    base =
+      footerFrMatch && Math.abs(parseFloat(footerFrMatch[1]) - 0.08) < 0.001
+        ? "focus"
+        : "header-content";
   } else if (areaArray.length === 1 && areaArray[0] === "main") {
     base = "full-image";
   } else {

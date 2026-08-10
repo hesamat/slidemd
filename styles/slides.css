@@ -217,6 +217,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   justify-content: center;
   align-items: center;
   text-align: left;
+  --line-max: none;
 }
 
 .slide[data-layout="focus"] .slide__area--main p,
