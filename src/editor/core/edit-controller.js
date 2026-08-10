@@ -866,6 +866,10 @@ export class EditController {
    * suppressed. Use this around any operation that immediately performs its
    * own explicit view restore (undo, redo, AI patch, whole-deck replace) so
    * the synchronous storeChange emit does not queue a duplicate restore.
+   *
+   * The callback **must be synchronous** — the flag is restored in a
+   * `finally` block, so an `async` callback would clear it at the first
+   * `await` and any later `storeChange` emit would not be suppressed.
    * @template T
    * @param {() => T} fn
    * @returns {T}
@@ -1154,7 +1158,12 @@ export class EditController {
           }),
         );
         // Keep _lastStructuralRevision in sync because we are not using
-        // _restoreStoreSnapshot() for this whole-deck mutation.
+        // _restoreStoreSnapshot() for this whole-deck mutation. Any future
+        // store mutation that suppresses the queued restore and does its own
+        // reload MUST also update _lastStructuralRevision here — otherwise the
+        // next _restoreStoreSnapshot will incorrectly believe the revision is
+        // unchanged and saveSlideState the current editor state for a stale
+        // slide index, silently corrupting the per-slide undo cache.
         this._lastStructuralRevision = this.deckStore.getStructuralRevision();
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
