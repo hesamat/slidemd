@@ -32,9 +32,11 @@ const vite = spawn(process.execPath, [viteScript], {
 });
 
 let shutdownStarted = false;
+let closedChildren = 0;
+let forceShutdownTimer = null;
 
-function terminate(child) {
-  if (!child.killed) child.kill("SIGTERM");
+function terminate(child, signal = "SIGTERM") {
+  if (!child.killed) child.kill(signal);
 }
 
 function shutdown(code) {
@@ -43,6 +45,19 @@ function shutdown(code) {
   process.exitCode = typeof code === "number" ? code : 1;
   terminate(cli);
   terminate(vite);
+  forceShutdownTimer = setTimeout(() => {
+    terminate(cli, "SIGKILL");
+    terminate(vite, "SIGKILL");
+  }, 5_000);
+  forceShutdownTimer.unref();
+}
+
+function handleClose(code) {
+  if (!shutdownStarted) shutdown(code);
+  closedChildren += 1;
+  if (closedChildren === 2 && forceShutdownTimer) {
+    clearTimeout(forceShutdownTimer);
+  }
 }
 
 cli.on("error", (error) => {
@@ -53,8 +68,8 @@ vite.on("error", (error) => {
   console.error("Failed to start Vite:", error);
   shutdown(1);
 });
-cli.on("close", (code) => shutdown(code));
-vite.on("close", (code) => shutdown(code));
+cli.on("close", handleClose);
+vite.on("close", handleClose);
 
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));

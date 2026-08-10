@@ -2,10 +2,31 @@
 
 import { expect } from "@playwright/test";
 
+async function waitForDeckApi(page) {
+  const deadline = Date.now() + 30_000;
+  let lastFailure = "unknown error";
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await page.request.get("/api/deck", { timeout: 2_000 });
+      if (response.ok()) {
+        const markdown = await response.text();
+        if (markdown.trim().length > 0) return;
+        lastFailure = "the API returned an empty deck";
+      } else {
+        lastFailure = `HTTP ${response.status()}`;
+      }
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : String(error);
+    }
+    await page.waitForTimeout(250);
+  }
+
+  throw new Error(`Deck API did not become ready: ${lastFailure}`);
+}
+
 export async function loadExampleDeck(page) {
-  const response = await page.request.get("/api/deck");
-  await expect(response).toBeOK();
-  expect((await response.text()).trim().length).toBeGreaterThan(0);
+  await waitForDeckApi(page);
 
   await page.addInitScript(() => {
     delete window.showOpenFilePicker;
