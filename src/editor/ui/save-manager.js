@@ -474,7 +474,9 @@ export class SaveManager {
         6000,
       );
     }
-    this._recordSavedSession(dirHandle, safeFileName, imagePaths);
+    // Await so the IndexedDB handle write completes before save() reports
+    // success — a page unload right after Ctrl+S must not lose the folder.
+    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
   }
 
   /**
@@ -684,11 +686,14 @@ export class SaveManager {
 
     // No images (or the user declined them): save the .md via a single file
     // picker. A previously saved deck re-saves silently through its existing
-    // file handle.
+    // file handle — but only when the user has not just chosen a new name in
+    // the directory flow; writing to the old handle would silently overwrite
+    // the previous file and discard the chosen name.
     if (window.showSaveFilePicker) {
-      const existingHandle =
-        DeckLoader.fileHandleRegistry.get(safeFileName) ||
-        DeckLoader.fileHandleRegistry.get(safeFileName.replace(/\.(md|markdown)$/i, ""));
+      const existingHandle = !chosenName
+        ? DeckLoader.fileHandleRegistry.get(safeFileName) ||
+          DeckLoader.fileHandleRegistry.get(safeFileName.replace(/\.(md|markdown)$/i, ""))
+        : null;
       if (existingHandle) {
         try {
           const mdWritable = await existingHandle.createWritable();
@@ -725,6 +730,9 @@ export class SaveManager {
           "webdeck_local_file_name",
           writtenName.replace(/\.(md|markdown)$/i, ""),
         );
+        // Mark the deck as picker-opened so reloads skip the dev-server save
+        // path and look up the written name instead of a stale server source.
+        localStorage.setItem("webdeck_opened_from_picker", "1");
         return true;
       } catch (e) {
         if (e.name === "AbortError") throw e;

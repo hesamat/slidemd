@@ -192,6 +192,7 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(DeckLoader.fileHandleRegistry.get("Renamed.md")).toBe(handle);
     expect(DeckLoader.fileHandleRegistry.get("Renamed")).toBe(handle);
     expect(localStorage.setItem).toHaveBeenCalledWith("webdeck_local_file_name", "Renamed");
+    expect(localStorage.setItem).toHaveBeenCalledWith("webdeck_opened_from_picker", "1");
   });
 
   it("re-saves silently through the registered file handle", async () => {
@@ -213,6 +214,39 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(handle.createWritable).toHaveBeenCalledTimes(1);
     expect(picker).not.toHaveBeenCalled();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite the previous file when a new name was chosen", async () => {
+    const sm = createSaveManager();
+    const oldHandle = {
+      name: "deck.md",
+      createWritable: vi.fn(async () => ({ write: vi.fn(), close: vi.fn() })),
+    };
+    DeckLoader.fileHandleRegistry.set("deck", oldHandle);
+    const picker = vi.fn().mockResolvedValue({
+      name: "New Name.md",
+      createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+    });
+    vi.stubGlobal("window", {
+      showDirectoryPicker: vi.fn(async () => {
+        throw new Error("picker failed");
+      }),
+      showSaveFilePicker: picker,
+    });
+    const prompt = vi.spyOn(Notification, "prompt").mockResolvedValue({
+      ok: true,
+      value: "New Name.md",
+    });
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: null });
+    vi.spyOn(Notification, "showModal").mockResolvedValue("md");
+
+    const saved = await sm._saveMarkdownWithImages("# x\n\n![a](images/a.png)", "deck.md");
+
+    expect(saved).toBe(true);
+    // The chosen name wins over the old silent handle.
+    expect(oldHandle.createWritable).not.toHaveBeenCalled();
+    expect(picker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: "New Name.md" }));
+    expect(prompt).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an in-memory folder that does not contain the deck file", async () => {

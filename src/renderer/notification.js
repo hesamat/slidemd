@@ -742,9 +742,11 @@ export class Notification {
       const keyHandler = (e) => {
         if (e.key === "Escape") {
           e.preventDefault();
+          e.stopPropagation();
           finish(false);
         } else if (e.key === "Enter") {
           e.preventDefault();
+          e.stopPropagation();
           finish(true);
         }
       };

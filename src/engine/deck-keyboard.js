@@ -69,6 +69,11 @@ export function createKeyboardHandler({
     },
     save: () => {
       try {
+        // Never start a save while presenting/viewing: Layer 0 still calls
+        // preventDefault for the wired action, so the browser's own save
+        // dialog stays suppressed without popping app dialogs over the
+        // slides (matches the command palette's edit-mode gate).
+        if (!isEditMode()) return;
         edit()?.saveManager?.save?.();
       } catch (e) {
         console.warn("Save shortcut failed:", e);

@@ -286,5 +286,17 @@ describe("Notification", () => {
       expect(resolved).toBe(false);
       expect(document.querySelector(".notification-modal__input")).toBeTruthy();
     });
+
+    it("stops Escape inside the modal from reaching document handlers", async () => {
+      const docHandler = vi.fn();
+      document.addEventListener("keydown", docHandler);
+      const promise = Notification.prompt("Save deck as", "Choose a file name.");
+
+      const input = document.querySelector(".notification-modal__input");
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+      await expect(promise).resolves.toEqual({ ok: false, value: "" });
+      expect(docHandler).not.toHaveBeenCalled();
+    });
   });
 });
