@@ -1,6 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SaveManager, removeStaleImages } from "../editor/ui/save-manager.js";
 import { Notification } from "../renderer/notification.js";
+import { DeckLoader } from "../data/deck-loader.js";
+import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
+import { DirectoryHandleStore } from "../core/directory-handle-store.js";
 
 function makeImageDir(entries) {
   const removed = [];
@@ -121,6 +124,22 @@ describe("SaveManager working-state overlay", () => {
 });
 
 describe("SaveManager save() dedup and file-name prompt", () => {
+  beforeEach(() => {
+    // DeckLoader.fileHandleRegistry and the save flow read window/localStorage.
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    DeckLoader.fileHandleRegistry.clear();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("dedupes concurrent save() calls while a save is in flight", async () => {
     const sm = createSaveManager();
     const doSave = vi.spyOn(sm, "_doMarkdownSave").mockResolvedValue(true);
@@ -129,6 +148,7 @@ describe("SaveManager save() dedup and file-name prompt", () => {
 
     const first = sm.save();
     const second = sm.save();
+    expect(second).toBe(first);
     await Promise.all([first, second]);
 
     expect(doSave).toHaveBeenCalledTimes(1);
@@ -148,5 +168,112 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: true, value: "  My Deck  " });
 
     await expect(sm._promptFileName("deck.md")).resolves.toBe("My Deck.md");
+  });
+
+  it("registers the native file handle and stores the actual written name", async () => {
+    const sm = createSaveManager();
+    const handle = {
+      name: "Renamed.md",
+      createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+    };
+    const picker = vi.fn().mockResolvedValue(handle);
+    vi.stubGlobal("window", { showSaveFilePicker: picker });
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    vi.spyOn(Notification, "prompt").mockResolvedValue({ ok: true, value: "deck.md" });
+
+    const saved = await sm._saveMarkdownWithImages("# Hello", "deck.md");
+
+    expect(saved).toBe(true);
+    expect(picker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: "deck.md" }));
+    expect(DeckLoader.fileHandleRegistry.get("Renamed.md")).toBe(handle);
+    expect(DeckLoader.fileHandleRegistry.get("Renamed")).toBe(handle);
+    expect(localStorage.setItem).toHaveBeenCalledWith("webdeck_local_file_name", "Renamed");
+  });
+
+  it("re-saves silently through the registered file handle", async () => {
+    const sm = createSaveManager();
+    const handle = {
+      name: "deck.md",
+      createWritable: vi.fn(async () => ({ write: vi.fn(), close: vi.fn() })),
+    };
+    const picker = vi.fn();
+    // Stub the final window first so the registry map and the picker live on
+    // the same object.
+    vi.stubGlobal("window", { showSaveFilePicker: picker });
+    DeckLoader.fileHandleRegistry.set("deck", handle);
+    const prompt = vi.spyOn(Notification, "prompt");
+
+    const saved = await sm._saveMarkdownWithImages("# Hello", "deck.md");
+
+    expect(saved).toBe(true);
+    expect(handle.createWritable).toHaveBeenCalledTimes(1);
+    expect(picker).not.toHaveBeenCalled();
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("rejects an in-memory folder that does not contain the deck file", async () => {
+    const sm = createSaveManager();
+    const dir = {
+      queryPermission: async () => "granted",
+      getFileHandle: vi.fn(async () => {
+        throw new DOMException("not found", "NotFoundError");
+      }),
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(dir);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: null });
+
+    const result = await sm._restoreDeckDir("deck.md");
+
+    expect(result).toBeNull();
+    expect(dir.getFileHandle).toHaveBeenCalledWith("deck.md");
+  });
+
+  it("removes stale images during a silent directory re-save", async () => {
+    const sm = createSaveManager();
+    const removed = [];
+    const sidecar = {
+      removeEntry: vi.fn(async (name) => {
+        removed.push(name);
+      }),
+      entries: async function* () {
+        yield ["old.png", { kind: "file" }];
+        yield ["keep.png", { kind: "file" }];
+      },
+      getFileHandle: vi.fn(async () => ({
+        createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+      })),
+    };
+    const oldFile = {
+      getFile: async () => ({
+        text: async () => "![old](images/old.png)\n![keep](images/keep.png)",
+      }),
+    };
+    const mdHandle = {
+      createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+    };
+    const dir = {
+      getFileHandle: vi.fn(async (name, opts) => {
+        if (name === "deck.md" && !opts?.create) return oldFile;
+        return mdHandle;
+      }),
+      getDirectoryHandle: vi.fn(async () => sidecar),
+    };
+    vi.spyOn(DeckImagesResolver, "getImageFile").mockResolvedValue(new Blob(["x"]));
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    vi.spyOn(DirectoryHandleStore, "save").mockResolvedValue(undefined);
+
+    await sm._writeDeckToDir(dir, "deck.md", "# deck\n\n![keep](images/keep.png)", [
+      "images/keep.png",
+    ]);
+
+    expect(removed).toEqual(["old.png"]);
   });
 });

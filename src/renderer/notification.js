@@ -720,10 +720,10 @@ export class Notification {
       copy.className = "notification-modal__copy";
       copy.appendChild(titleEl);
       copy.appendChild(messageEl);
+      copy.appendChild(input);
 
       content.appendChild(icon);
       content.appendChild(copy);
-      content.appendChild(input);
 
       const actions = document.createElement("div");
       actions.className = "notification-modal__actions";
@@ -735,7 +735,7 @@ export class Notification {
         const value = input.value;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => backdrop.remove(), 200);
-        document.removeEventListener("keydown", keyHandler);
+        modal.removeEventListener("keydown", keyHandler);
         resolve({ ok, value });
       };
 
@@ -768,7 +768,9 @@ export class Notification {
       backdrop.appendChild(modal);
       this.getRootElement().appendChild(backdrop);
 
-      document.addEventListener("keydown", keyHandler);
+      // Scoped to the modal (not document) so other document-level key
+      // handlers cannot be affected while the prompt is open.
+      modal.addEventListener("keydown", keyHandler);
       requestAnimationFrame(() => {
         input.focus();
         input.select();

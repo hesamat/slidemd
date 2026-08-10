@@ -257,4 +257,34 @@ describe("Notification", () => {
       expect(onAction).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("prompt", () => {
+    it("places the input inside the copy column, below the message", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const input = document.querySelector(".notification-modal__input");
+      expect(input).not.toBeNull();
+      expect(input.closest(".notification-modal__copy")).not.toBeNull();
+
+      // Enter inside the input confirms via the modal-scoped handler.
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await expect(promise).resolves.toEqual({ ok: true, value: "deck.md" });
+    });
+
+    it("does not react to Escape pressed outside the modal", async () => {
+      let resolved = false;
+      Notification.prompt("Save deck as", "Choose a file name.").then(() => {
+        resolved = true;
+      });
+
+      // The keydown listener is scoped to the modal — a document-level
+      // Escape must not dismiss it.
+      document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+      expect(resolved).toBe(false);
+      expect(document.querySelector(".notification-modal__input")).toBeTruthy();
+    });
+  });
 });

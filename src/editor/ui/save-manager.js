@@ -7,7 +7,7 @@
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { Notification } from "../../renderer/notification.js";
 import { waitForImageUpload } from "../../core/image-upload-promise.js";
-import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+import { DirectoryHandleStore, findDeckFileInDir } from "../../core/directory-handle-store.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 
@@ -393,7 +393,16 @@ export class SaveManager {
     const inMemory = DeckImagesResolver.getDirectoryHandle();
     if (inMemory) {
       const usable = await check(inMemory);
-      if (usable) return usable;
+      // The in-memory handle is trusted only when it actually contains the
+      // deck file; a stale handle from a forgotten deck switch must not
+      // silently create the file in the wrong folder.
+      if (usable) {
+        try {
+          if (await findDeckFileInDir(usable, fileName)) return usable;
+        } catch {
+          // Permission or probe failure — fall through to the stored handle.
+        }
+      }
     }
     for (const name of candidates) {
       const stored = await DirectoryHandleStore.load(name);
@@ -435,6 +444,18 @@ export class SaveManager {
    * @returns {Promise<void>}
    */
   async _writeDeckToDir(dirHandle, safeFileName, markdown, imagePaths) {
+    // Capture the previous deck's image references before overwriting so
+    // cleanup below only removes images this deck no longer uses (scoped to
+    // the old .md's refs, leaving other decks sharing the folder untouched).
+    let oldImageNames = new Set();
+    try {
+      const oldFile = await dirHandle.getFileHandle(safeFileName);
+      const oldText = await (await oldFile.getFile()).text();
+      oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
+    } catch {
+      /* new file — nothing to clean up */
+    }
+
     const mdHandle = await dirHandle.getFileHandle(safeFileName, { create: true });
     const mdWritable = await mdHandle.createWritable();
     await mdWritable.write(markdown);
@@ -443,6 +464,9 @@ export class SaveManager {
     DeckLoader.fileHandleRegistry.set(safeFileName.replace(/\.(md|markdown)$/i, ""), mdHandle);
 
     const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+    if (oldImageNames.size > 0) {
+      await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
+    }
     const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
     if (failed > 0) {
       Notification.warning(
@@ -497,6 +521,9 @@ export class SaveManager {
   async _saveMarkdownWithImages(markdown, fileName) {
     const imagePaths = extractImagePaths(markdown);
     const safeFileName = sanitizeFileName(fileName);
+    // Hoisted so the .md-only fallback below reuses the name already chosen
+    // in the directory flow instead of prompting twice.
+    let chosenName = null;
 
     // Primary path when the deck has images: one directory picker writes
     // both the .md file and the images/ sidecar into the same chosen folder,
@@ -515,7 +542,7 @@ export class SaveManager {
       }
 
       // Fresh destination: let the user pick the file name before the folder.
-      const chosenName = await this._promptFileName(safeFileName);
+      chosenName = await this._promptFileName(safeFileName);
       let dirHandle;
       let mdWritten = false;
       let exists = false;
@@ -674,7 +701,7 @@ export class SaveManager {
         }
       }
 
-      const chosenName = await this._promptFileName(safeFileName);
+      chosenName ??= await this._promptFileName(safeFileName);
       try {
         const mdHandle = await window.showSaveFilePicker({
           suggestedName: chosenName,
@@ -688,9 +715,15 @@ export class SaveManager {
         const mdWritable = await mdHandle.createWritable();
         await mdWritable.write(markdown);
         await mdWritable.close();
+        // Remember the handle the native picker actually returned so the
+        // next save re-writes it silently, and record the written file name
+        // (the user may have renamed the file inside the picker).
+        const writtenName = mdHandle.name;
+        DeckLoader.fileHandleRegistry.set(writtenName, mdHandle);
+        DeckLoader.fileHandleRegistry.set(writtenName.replace(/\.(md|markdown)$/i, ""), mdHandle);
         localStorage.setItem(
           "webdeck_local_file_name",
-          chosenName.replace(/\.(md|markdown)$/i, ""),
+          writtenName.replace(/\.(md|markdown)$/i, ""),
         );
         return true;
       } catch (e) {
@@ -711,27 +744,31 @@ export class SaveManager {
     return true;
   }
 
-  async save() {
+  save() {
     // Ctrl+S is a global shortcut (fires in every window and even while a
     // modal is open); dedupe so a second keystroke cannot open a second
-    // file-name prompt or start a concurrent write.
-    if (this._saveInFlight) return;
-    this._saveInFlight = true;
-    try {
-      const { fullMarkdown } = await this._prepareSave();
+    // file-name prompt or start a concurrent write. Concurrent callers get
+    // the same in-flight promise so they observe the same result instead of
+    // a silently dropped request.
+    if (this._saveInFlight) return this._saveInFlight;
+    this._saveInFlight = (async () => {
       try {
-        const saved = await this._doMarkdownSave(fullMarkdown);
-        if (saved) this._markSaved(fullMarkdown);
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Failed to save file:", error);
-          Notification.error("Failed to save file: " + (error.message || error));
+        const { fullMarkdown } = await this._prepareSave();
+        try {
+          const saved = await this._doMarkdownSave(fullMarkdown);
+          if (saved) this._markSaved(fullMarkdown);
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            console.error("Failed to save file:", error);
+            Notification.error("Failed to save file: " + (error.message || error));
+          }
+          // AbortError means the user cancelled — leave the dirty state in place
+          // so the next save/reload prompt still works.
         }
-        // AbortError means the user cancelled — leave the dirty state in place
-        // so the next save/reload prompt still works.
+      } finally {
+        this._saveInFlight = null;
       }
-    } finally {
-      this._saveInFlight = false;
-    }
+    })();
+    return this._saveInFlight;
   }
 }
