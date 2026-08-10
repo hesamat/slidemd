@@ -117,10 +117,9 @@ export const CONFIG = {
   minDominantAreaRatio: 0.05,
   thinLineThresholdPoints: 15,
   microNoiseThresholdPoints: 150,
-  // Top strip (fraction of slide height): small images inside it are dropped
+  // Top band (fraction of slide height): small images inside it are dropped
   // only when a real header-like title is present. The same band is used for
   // small icons beside titles, keeping one source of truth for header height.
-  marginTopRatio: 0.1,
   marginBottomRatio: 0.9,
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,

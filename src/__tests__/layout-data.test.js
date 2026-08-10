@@ -84,6 +84,7 @@ describe("LayoutData", () => {
       expect(getMediaSpanSideFromGrid('"media main" "media footer"')).toBe("left");
       expect(getMediaSpanSideFromGrid('"main media" "footer media"')).toBe("right");
       expect(getMediaSpanSideFromGrid('"main media" "media main"')).toBeNull();
+      expect(getMediaSpanSideFromGrid('"main media"')).toBeNull();
     });
   });
 

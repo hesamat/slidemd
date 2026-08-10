@@ -418,5 +418,48 @@ describe("ImageInteractionHandler", () => {
       expect(syncToMarkdown).not.toHaveBeenCalled();
       expect(ImageDragController._dragMoved).toBe(false);
     });
+
+    it("does not move the previously selected image when a media-span fill drag is ignored", () => {
+      const label = { classList: { contains: (c) => c === "editor-area-label" } };
+      const slide = { dataset: { mediaSpan: "right" } };
+      const img = {
+        style: { position: "" },
+        classList: { contains: () => false },
+        closest: (sel) => (sel === ".slide__area--media" ? area : null),
+      };
+      const area = {
+        children: [label, img],
+        querySelectorAll: () => [img],
+        closest: (sel) => (sel === ".slide" ? slide : null),
+      };
+
+      const previouslySelected = {
+        style: { position: "relative", left: "10px", top: "20px" },
+        classList: { contains: () => false },
+      };
+      const prepareMdImgForDrag = vi.fn();
+      const syncToMarkdown = vi.fn();
+      ImageDragController._ctx = {
+        getSelectedImg: () => previouslySelected,
+        select: vi.fn(),
+        prepareMdImgForDrag,
+        syncToMarkdown,
+      };
+      ImageDragController._container = null;
+      ImageDragController._dropIndicator = null;
+      ImageDragController._dragMoved = false;
+      ImageDragController._dragPrepared = false;
+      ImageDragController._dragIgnored = false;
+
+      ImageDragController._onDragStart({ target: { closest: () => img }, clientX: 0, clientY: 0 });
+      ImageDragController._onDragMove({ dx: 50, dy: 0, clientX: 50, clientY: 0 });
+      ImageDragController._onDragEnd({ clientX: 50, clientY: 0 });
+
+      expect(prepareMdImgForDrag).not.toHaveBeenCalled();
+      expect(syncToMarkdown).not.toHaveBeenCalled();
+      expect(previouslySelected.style.left).toBe("10px");
+      expect(previouslySelected.style.top).toBe("20px");
+      expect(ImageDragController._dragIgnored).toBe(false);
+    });
   });
 });

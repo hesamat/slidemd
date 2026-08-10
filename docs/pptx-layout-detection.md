@@ -49,7 +49,9 @@ image-left layouts previously rendered the image in `@main` and the TEXT in
 `@media`. If neither side qualifies cleanly, the converter uses the historical
 right-side `media-span-right` variant as its deterministic tie-breaker; in the
 two-image-columns case, left-side images become `@media` and right-side images
-remain in `@main`.
+remain in `@main`. When the fallback picks the right side but all dominant
+images sit on the left, the render branch still emits the layout with `@media`
+on the right, so the slide mirrors the source geometry rather than matching it.
 
 ### Two-column pre-check
 

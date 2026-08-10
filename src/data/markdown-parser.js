@@ -180,8 +180,10 @@ export class MarkdownParser {
    * @returns {string}
    */
   _htmlToPlainText(line) {
+    // Decode &amp; last: decoding it first would turn an already-escaped
+    // sequence like "&amp;lt;" into "<" after two passes instead of the
+    // literal "&lt;" it represents.
     let s = line
-      .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
@@ -207,6 +209,8 @@ export class MarkdownParser {
         s = withoutTags;
       }
     }
+    // Decode &amp; after tag stripping so escaped entity text survives.
+    s = s.replace(/&amp;/g, "&");
     s = MarkdownParser.stripFormatting(s);
     return s.replace(/\s+/g, " ").trim();
   }

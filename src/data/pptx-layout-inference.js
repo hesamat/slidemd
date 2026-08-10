@@ -109,21 +109,19 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
     const isSmallImage = area < slideArea * CONFIG.maxLogoAreaRatio;
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
-      // Any small image starting inside the top strip is a template logo.
+      // Small images fully contained in the header band (the top 22%, which is
+      // also the body/header threshold) are decorative icons beside titles —
+      // dropped only when a heading is actually present. Images that start in
+      // the top strip but extend below the band are kept: they are too large
+      // to be a template logo.
       const isContainedInHeaderBand = el.top + (h || 0) <= slideHeight * CONFIG.bodyTopRatio;
-      const isInTopStrip =
-        hasHeaderLikeText &&
-        el.top < slideHeight * CONFIG.marginTopRatio &&
-        isContainedInHeaderBand;
-      // Small images fully contained in the wider header band are decorative
-      // icons beside titles — but only when a heading is actually present.
       const isInTopBand = hasHeaderLikeText && isContainedInHeaderBand;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
-      // Discard small elements placed inside either the top (header strip or
-      // band) or bottom margin bounds — they are decorative icons/logos
-      // beside titles, or footer ornaments, rather than content.
-      if (isInTopStrip || isInTopBand || isInBottomMargin) {
+      // Discard small elements placed inside the top band or the bottom margin
+      // bounds — they are decorative icons/logos beside titles, or footer
+      // ornaments, rather than content.
+      if (isInTopBand || isInBottomMargin) {
         return false;
       }
       // Small images not in the bands are kept — they are likely icons, badges,

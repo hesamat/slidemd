@@ -286,9 +286,16 @@ export class SlideRenderer {
         area.style.setProperty("--line-max", "none");
       }
 
-      // Footer spans full width when full-height areas exist
+      // Footer spans full width when full-height areas exist — unless the
+      // footer already shares its row with one (e.g. media-span grids where
+      // the footer row is "footer media" / "media footer"), in which case the
+      // forced span would overlap the full-height media column.
       if (fullHeightAreas.size > 0 && name === "footer") {
-        area.style.gridColumn = "1 / -1";
+        const footerRow = allRowCells.find((row) => row.includes("footer")) || [];
+        const sharesRowWithFullHeight = footerRow.some((cell) => fullHeightAreas.has(cell));
+        if (!sharesRowWithFullHeight) {
+          area.style.gridColumn = "1 / -1";
+        }
       }
 
       // Full-height areas meet the slide edge on their border side. This

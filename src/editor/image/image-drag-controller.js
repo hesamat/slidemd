@@ -30,6 +30,7 @@ export class ImageDragController {
   static _dragSnapped = false;
   static _dragMoved = false;
   static _dragPrepared = false;
+  static _dragIgnored = false;
   static _dragStartInsertBefore = null;
   static _dropInsertBeforeEl = null;
   static _dropTargetAreaEl = null;
@@ -82,12 +83,23 @@ export class ImageDragController {
     const img = e.target.closest("img");
     const ctx = this._ctx;
     if (!img || !ctx) return;
-    if (img.closest(".flex-row")) return;
+    // Ignored gestures (non-draggable images) must not fall through to
+    // whatever image was selected before: interact.js still fires move/end,
+    // and without an ignored marker the move handler would translate the
+    // previously selected image and rewrite its markdown on mouseup.
+    if (img.closest(".flex-row")) {
+      this._dragIgnored = true;
+      return;
+    }
     // Media-span fill images are positioned by the view (absolute fill); do
     // not convert them to inline-positioned images on drag — that would
     // reflow them below the area label and cause a visible jump on click.
     // Toggling freeflow (explicit inline position) re-enables dragging.
-    if (isMediaSpanFillImage(img)) return;
+    if (isMediaSpanFillImage(img)) {
+      this._dragIgnored = true;
+      return;
+    }
+    this._dragIgnored = false;
 
     if (ctx.getSelectedImg() && !ctx.getSelectedImg().isConnected) {
       this._selectedImg = null;
@@ -125,6 +137,7 @@ export class ImageDragController {
     const ctx = this._ctx;
     const img = ctx?.getSelectedImg();
     if (!img || !ctx) return;
+    if (this._dragIgnored) return;
 
     // interact.js emits dragstart on pointer-down. Do not convert a
     // markdown image until the pointer has actually moved; changing its
@@ -207,6 +220,13 @@ export class ImageDragController {
 
     this._clearDropTargetHighlight();
     this._hideDropGap();
+
+    // An ignored gesture (flex-row or media-span fill image) never selected
+    // or moved anything — skip markdown sync entirely.
+    if (this._dragIgnored) {
+      this._clearDragState();
+      return;
+    }
 
     // A pointer click still produces interact.js drag events. It should
     // only select the image, not rewrite its markdown or positioning.
@@ -305,6 +325,7 @@ export class ImageDragController {
     this._dropTargetAreaEl = null;
     this._dragMoved = false;
     this._dragPrepared = false;
+    this._dragIgnored = false;
   }
 
   // ── Resize (manual mouse events on overlay handles) ─────────────────────

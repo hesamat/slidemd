@@ -278,6 +278,13 @@ describe("slide title derivation from HTML-heavy slides", () => {
     expect(parser.parseDeckMarkdown(mdMention).slides[0].title).toBe("Write <div> tags here");
   });
 
+  it("does not double-decode escaped entities in titles", () => {
+    // "&amp;lt;" is the literal text "&lt;" — it must survive as text, not be
+    // decoded twice into "<".
+    const md = ["layout: header-content", "", "@main", "", "A &amp;lt; B &amp;gt; C"].join("\n");
+    expect(parser.parseDeckMarkdown(md).slides[0].title).toBe("A &lt; B &gt; C");
+  });
+
   it("titles image-first areas from the image alt text", () => {
     const mdMarkdown = [
       "layout: header-content",

@@ -279,6 +279,16 @@ describe("stripFrontmatter", () => {
     expect(result).toContain("@main");
   });
 
+  it("strips the internal media-span directive in both modes", () => {
+    const md = "layout: media-span-right\nmedia-span: right\n@media\nImage";
+    const fix = stripFrontmatter(md, "fix");
+    expect(fix).toContain("layout: media-span-right");
+    expect(fix).not.toContain("media-span:");
+    const generate = stripFrontmatter(md, "generate");
+    expect(generate).not.toContain("layout: media-span-right");
+    expect(generate).not.toContain("media-span:");
+  });
+
   it("generate mode strips layout, keeps background/theme", () => {
     const md = "layout: header-content\nbackground: #fff\ntheme: dark\n@main\n- Item";
     const result = stripFrontmatter(md, "generate");

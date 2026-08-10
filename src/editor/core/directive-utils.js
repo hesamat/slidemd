@@ -13,13 +13,25 @@ import { splitCssDeclarations } from "../../core/utils.js";
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
  *
+ * By default the internal `media-span:` intent directive is stripped, which is
+ * what the layout picker wants (changing layout clears the bleed intent).
+ * Callers that rewrite the layout while keeping media-span intent — e.g.
+ * "Span all rows" on a resized media-span slide — must pass
+ * `{ preserveMediaSpan: true }`.
+ *
  * @param {string} markdown       - The slide's full markdown source.
  * @param {string} newLayoutValue - The new layout value (spec string or preset name).
+ * @param {{ preserveMediaSpan?: boolean }} [opts]
  * @returns {string} Updated markdown with the `layout:` line replaced/inserted.
  */
-export function updateLayoutDirective(markdown, newLayoutValue) {
+export function updateLayoutDirective(
+  markdown,
+  newLayoutValue,
+  { preserveMediaSpan = false } = {},
+) {
   const parser = new MarkdownParser();
   const { markdown: stripped } = parser.extractDirective(markdown, "layout");
+  if (preserveMediaSpan) return `layout: ${newLayoutValue}\n${stripped}`;
   const { markdown: withoutMediaSpan } = parser.extractDirective(stripped, "media-span");
   return `layout: ${newLayoutValue}\n${withoutMediaSpan}`;
 }
@@ -295,7 +307,9 @@ export function makeAreaFullHeight(markdown, areaName) {
   }
   const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
 
-  return updateLayoutDirective(stripped, newLayout);
+  // "Span all rows" on a resized media-span slide must not drop the
+  // persisted media-span intent — the rewritten grid keeps the geometry.
+  return updateLayoutDirective(stripped, newLayout, { preserveMediaSpan: true });
 }
 
 /**

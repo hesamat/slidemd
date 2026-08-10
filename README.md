@@ -160,6 +160,17 @@ layout: "header header" "main media" / 2fr 1fr
 
 - Quoted rows define area names; column sizes follow the `/` separator.
 - Each `@area` marker must match a name in the grid. Unsupported areas are highlighted in edit mode with a one-click fix.
+
+### `media-span:` intent directive
+
+Resizing the media column of a `media-span-left`/`media-span-right` slide rewrites
+its `layout:` into a custom grid. To keep the full-bleed media treatment across
+the resize (and through AI editing), the editor records the intent in an
+internal `media-span: left|right` directive, and the renderer re-applies the
+bleed when the grid geometry still matches that side. It is an internal setting:
+you normally never need to write it by hand, and it is stripped when you pick a
+different layout.
+
 - Custom layouts can be saved in the **Layout Picker** (`Custom` tile) as named user preferences stored in `localStorage` and reused across decks.
 
 ## Edit Mode Tips

@@ -143,6 +143,12 @@ describe("makeAreaFullHeight", () => {
     expect(makeAreaFullHeight(md, "media")).toBe(md);
   });
 
+  it("preserves the persisted media-span intent when rewriting the grid", () => {
+    const md = 'layout: "header header" "main media" / 1fr 1fr\nmedia-span: right\n\n@media\nImage';
+    const result = makeAreaFullHeight(md, "media");
+    expect(result).toContain("media-span: right");
+  });
+
   it("is a no-op without a layout directive", () => {
     const md = "# Hello\nContent";
     expect(makeAreaFullHeight(md, "media")).toBe(md);
@@ -174,6 +180,14 @@ describe("updateLayoutDirective", () => {
     const md = "layout: media-span-right\nmedia-span: right\n# Title";
     const result = updateLayoutDirective(md, "two-column");
     expect(result).not.toContain("media-span:");
+  });
+
+  it("keeps media-span intent when preserveMediaSpan is set", () => {
+    const md = "layout: media-span-right\nmedia-span: right\n# Title";
+    const result = updateLayoutDirective(md, '"main media" / 1fr 1fr', {
+      preserveMediaSpan: true,
+    });
+    expect(result).toContain("media-span: right");
   });
 
   it("writes media-span intent for resized layouts", () => {

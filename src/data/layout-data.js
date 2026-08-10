@@ -27,7 +27,11 @@ export function getMediaSpanSideFromGrid(gridTemplateAreas) {
   const rows = String(gridTemplateAreas || "")
     .match(/"[^"]*"|'[^']*'/g)
     ?.map((row) => row.slice(1, -1).split(/\s+/).filter(Boolean));
-  if (!rows?.length || rows.some((row) => row.length !== rows[0].length)) return null;
+  // Align with the renderer's fullHeightAreas and areaSpansAllRows: a single
+  // row cannot make an area "full height", so it never implies the bleed.
+  if (!rows?.length || rows.length < 2 || rows.some((row) => row.length !== rows[0].length)) {
+    return null;
+  }
 
   const mediaColumn = rows[0].indexOf("media");
   if (mediaColumn < 0 || !rows.every((row) => row[mediaColumn] === "media")) return null;
