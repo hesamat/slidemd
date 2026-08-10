@@ -42,12 +42,12 @@ import { PanelResizer } from "../ui/panel-resizer.js";
 import { SaveManager } from "../ui/save-manager.js";
 import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
+import { StoreSyncController } from "./store-sync-controller.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
 import { ConflictModal } from "../ui/conflict-modal.js";
 import { AssetLoader } from "../../core/asset-loader.js";
-import { createEditPatch } from "../../data/store/slide-patch.js";
 
 export class EditController {
   constructor(deck, controller, elements, { deckStore = null } = {}) {
@@ -55,18 +55,6 @@ export class EditController {
     this.controller = controller;
     this.elements = elements;
     this.deckStore = deckStore;
-    this._offStoreChange = this.deckStore?.onStoreChange((slides) =>
-      this._handleStoreChange(slides),
-    );
-    // Clear the per-slide editor-state cache whenever the store's
-    // structural revision changes (add/delete/move/whole-deck load).
-    // EditController is only used when a DeckStore is present; if deckStore
-    // is null we are in a viewer/presenter/export window and there is no
-    // per-slide cache to invalidate.
-    this._lastStructuralRevision = this.deckStore?.getStructuralRevision() ?? 0;
-    this._offStructuralChange = this.deckStore?.onStructuralChange(() =>
-      this.markdownEditor?.clearSlideStateCache(),
-    );
 
     this.isEditMode = false;
     this.currentSlideIndex = controller.slideNavigator.currentIndex;
@@ -77,7 +65,6 @@ export class EditController {
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
-    this._suppressStoreChangeRestore = false;
     this._deckRestoreDepth = 0;
 
     this.placeholderDialogEl = null;
@@ -88,13 +75,60 @@ export class EditController {
     this._cachedSourceMarkdown = null;
     this._cachedOriginalSlides = [];
 
+    // Store-to-view sync module. Owns the store-change queue, suppress flag,
+    // and last structural revision. Subscribes to DeckStore changes on
+    // construction; unsubscribe via the returned disposer in destroy().
+    this.storeSync = new StoreSyncController({
+      getDeckStore: () => this.deckStore,
+      getController: () => this.controller,
+      getMarkdownEditor: () => this.markdownEditor,
+      getSaveManager: () => this.saveManager,
+      getPreviewUpdater: () => this.previewUpdater,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      setUnsavedMarkdown: (v) => {
+        this.unsavedMarkdown = v;
+      },
+      setHasUnsavedChanges: (v) => {
+        this.hasUnsavedChanges = v;
+      },
+      getCurrentSlideIndex: () => this.currentSlideIndex,
+      setCurrentSlideIndex: (v) => {
+        this.currentSlideIndex = v;
+      },
+      getIsEditMode: () => this.isEditMode,
+      isDestroyed: () => this._destroyed,
+      captureCurrentEditorMarkdown: () => this._captureCurrentEditorMarkdown(),
+      loadSlideIntoEditor: () => this.loadSlideIntoEditor(),
+      storeDiffersFromSource: () => this._storeDiffersFromSource(),
+      getLastEditorSlideIndex: () => this._lastEditorSlideIndex,
+      incrementDeckRestoreDepth: () => {
+        this._deckRestoreDepth++;
+      },
+      decrementDeckRestoreDepth: () => {
+        this._deckRestoreDepth--;
+      },
+      getPendingStructuralOperations: () => this._pendingStructuralOperations,
+      setPendingStructuralOperations: (v) => {
+        this._pendingStructuralOperations = v;
+      },
+    });
+    this._offStoreChange = this.storeSync.subscribe();
+    // Clear the per-slide editor-state cache whenever the store's
+    // structural revision changes (add/delete/move/whole-deck load).
+    // EditController is only used when a DeckStore is present; if deckStore
+    // is null we are in a viewer/presenter/export window and there is no
+    // per-slide cache to invalidate.
+    this._offStructuralChange = this.deckStore?.onStructuralChange(() =>
+      this.markdownEditor?.clearSlideStateCache(),
+    );
+
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       ImageInteractionHandler.deactivate();
       TextBlockHandler.deactivate();
       SlideStylePanel.hide();
       // Skip loading when a deck restore is in progress — the explicit
-      // loadSlideIntoEditor call at the end of _restoreStoreSnapshot
+      // loadSlideIntoEditor call at the end of storeSync.restoreStoreSnapshot
       // handles the load with the updated deck reference and correct index.
       if (!this._deckRestoreDepth) this.loadSlideIntoEditor();
     };
@@ -119,7 +153,7 @@ export class EditController {
       this.saveManager.updateButton();
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
       // Skip loadSlideIntoEditor during a deck restore — the explicit
-      // loadSlideIntoEditor call at the end of _restoreStoreSnapshot
+      // loadSlideIntoEditor call at the end of storeSync.restoreStoreSnapshot
       // handles the load at the correct (restored) index.
       if (!this._deckRestoreDepth) this.loadSlideIntoEditor();
       this.imageBg.deckDirectoryHandle = null;
@@ -655,40 +689,11 @@ export class EditController {
   }
 
   prepareStoreOperation(recordHistory = false) {
-    this._captureCurrentEditorMarkdown();
-    const storeSlides = this.deckStore.getSlides();
-    const storeSlideObjects = storeSlides.map((markdown, index) => ({ index, markdown }));
-    const fullSlides = this.saveManager
-      .getFullSlides(storeSlideObjects)
-      .map((slide) => slide.markdown ?? "");
-
-    if (recordHistory) {
-      const patches = [];
-      for (let i = 0; i < storeSlides.length; i++) {
-        if (storeSlides[i] !== fullSlides[i]) {
-          patches.push(createEditPatch(i, storeSlides[i], fullSlides[i], "user"));
-        }
-      }
-      if (patches.length > 0) {
-        const result = this.deckStore.applyPatches(patches, { emitStoreChange: false });
-        const succeeded = result === true || (result && result.success === true);
-        if (!succeeded) {
-          // Patches were rejected (drift / before mismatch); fall back to a
-          // silent full sync so the store stays in sync with the editor.
-          this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
-        }
-      }
-    } else {
-      this.deckStore.syncSlides(fullSlides, this.currentSlideIndex, { emitStoreChange: false });
-    }
-
-    this._reconcileUnsavedOverlays(this.deckStore.getSlides());
-    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
-    this.saveManager.updateButton();
+    this.storeSync.prepareStoreOperation(recordHistory);
   }
 
   recordStoreOperation() {
-    this._pendingStructuralOperations += 1;
+    this.storeSync.recordStoreOperation();
   }
 
   /**
@@ -697,74 +702,26 @@ export class EditController {
    * @param {string[]} source
    */
   _reconcileUnsavedOverlays(source) {
-    const next = new Map();
-    for (const [idx, value] of this.unsavedMarkdown) {
-      if (idx >= 0 && idx < source.length && value !== source[idx]) {
-        next.set(idx, value);
-      }
-    }
-    this.unsavedMarkdown = next;
-  }
-
-  async _restoreStoreSnapshot() {
-    if (!this.deckStore) return false;
-    const currentStructuralRevision = this.deckStore.getStructuralRevision();
-    let structuralRevisionChanged = currentStructuralRevision !== this._lastStructuralRevision;
-    this._lastStructuralRevision = currentStructuralRevision;
-
-    // Save the current editor state into the cache before the restore
-    // potentially replaces it, so the most recent undo history is preserved
-    // rather than a stale snapshot from the last navigation away.
-    // Skip this when the structural revision has changed (add/delete/move
-    // or whole-deck load) because the current editor state belongs to a
-    // pre-op slide at a pre-op index and would pollute the cache. The
-    // structural-change listener already cleared the cache.
-    if (!structuralRevisionChanged && this._lastEditorSlideIndex >= 0 && this.markdownEditor) {
-      this.markdownEditor.saveSlideState(this._lastEditorSlideIndex);
-    }
-    const markdown = this.deckStore.toMarkdown();
-    const restoredActiveIndex = this.deckStore.getActiveIndex();
-    await AssetLoader.ensureMarkdownItLoaded();
-    const deck = await DeckLoader.parseMarkdown(markdown);
-    // Use a depth counter instead of a boolean so concurrent restores
-    // don't clear the flag while an outer restore is still in progress.
-    this._deckRestoreDepth++;
-    try {
-      await this.controller.reloadManager.replaceDeck(deck, { syncStore: false });
-      // Navigate to the restored index while the depth is still > 0 so
-      // _onSlideChange is suppressed — the explicit loadSlideIntoEditor
-      // below is the single load at the correct index.
-      this.controller.slideNavigator.goTo(restoredActiveIndex, { broadcast: false });
-    } finally {
-      this._deckRestoreDepth--;
-    }
-    // Use the navigator's clamped index (which may differ from the store's
-    // raw active index if hidden-slide adjustment was applied) and load
-    // the editor at that index with the updated deck.
-    this.currentSlideIndex = this.controller.slideNavigator.currentIndex;
-    this.loadSlideIntoEditor();
-    return true;
+    this.storeSync.reconcileUnsavedOverlays(source);
   }
 
   /**
-   * Respond to a canonical DeckStore change by re-syncing the editor view.
-   * Preserves unsaved editor overlays that still differ from the store and
-   * re-renders thumbnails, the current slide, and the preview.
-   * @param {string[]} slides
+   * Chain an explicit store-to-view restore onto the store-change queue.
+   * @returns {Promise<boolean>}
    */
-  _handleStoreChange(slides) {
-    if (this._destroyed) return;
+  _chainStoreChangeRestore() {
+    return this.storeSync.chainStoreChangeRestore();
+  }
 
-    this._reconcileUnsavedOverlays([...slides]);
-    this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
-    this.saveManager.updateButton();
-
-    if (this.isEditMode && !this._suppressStoreChangeRestore) {
-      this._storeChangeQueue = this._chainStoreChangeRestore().catch((error) => {
-        Logger.error("Store-to-view sync failed:", error);
-        Notification.error("Failed to refresh the editor view.");
-      });
-    }
+  /**
+   * Run a synchronous store mutation with the queued store-change restore
+   * suppressed. The callback **must be synchronous**.
+   * @template T
+   * @param {() => T} fn
+   * @returns {T}
+   */
+  _withSuppressedStoreChange(fn) {
+    return this.storeSync.withSuppressedStoreChange(fn);
   }
 
   async undo() {
@@ -841,47 +798,6 @@ export class EditController {
       return false;
     } finally {
       this._historyOperation = null;
-    }
-  }
-
-  /**
-   * Chain an explicit store-to-view restore onto the store-change queue.
-   * This serializes the restore with any in-flight one so a stale restore
-   * from a previous operation cannot overwrite a newer store state.
-   * @returns {Promise<boolean>}
-   */
-  _chainStoreChangeRestore() {
-    const queue = (this._storeChangeQueue || Promise.resolve())
-      .catch(() => {})
-      .then(async () => {
-        await this._restoreStoreSnapshot();
-        this.previewUpdater?.update();
-        return true;
-      });
-    this._storeChangeQueue = queue;
-    return queue;
-  }
-
-  /**
-   * Run a synchronous store mutation with the queued store-change restore
-   * suppressed. Use this around any operation that immediately performs its
-   * own explicit view restore (undo, redo, AI patch, whole-deck replace) so
-   * the synchronous storeChange emit does not queue a duplicate restore.
-   *
-   * The callback **must be synchronous** — the flag is restored in a
-   * `finally` block, so an `async` callback would clear it at the first
-   * `await` and any later `storeChange` emit would not be suppressed.
-   * @template T
-   * @param {() => T} fn
-   * @returns {T}
-   */
-  _withSuppressedStoreChange(fn) {
-    const previous = this._suppressStoreChangeRestore;
-    this._suppressStoreChangeRestore = true;
-    try {
-      return fn();
-    } finally {
-      this._suppressStoreChangeRestore = previous;
     }
   }
 
@@ -1000,7 +916,7 @@ export class EditController {
         // If the rebased patch's `before` does not match the store, fast-forward
         // the store to the user's latest working markdown without history, then
         // apply the patch. Keep the queued store-change restore suppressed for
-        // the whole sequence so the explicit _restoreStoreSnapshot below is the
+        // the whole sequence so the explicit restoreStoreSnapshot below is the
         // single view refresh.
         const { applied, syncRan } = this._withSuppressedStoreChange(() => {
           let syncRan = false;
@@ -1032,7 +948,7 @@ export class EditController {
         }
 
         // The AI panel is non-blocking, so the user may have kept typing on
-        // other slides while it was open. _restoreStoreSnapshot() below
+        // other slides while it was open. restoreStoreSnapshot() below
         // reloads the deck from the store and clears unsavedMarkdown, which
         // would silently discard those edits. Snapshot everything except the
         // AI-patched slide (whose content is superseded by the patch) and
@@ -1044,7 +960,7 @@ export class EditController {
         const preservedEdits = new Map(this.unsavedMarkdown);
         preservedEdits.delete(targetSlide);
 
-        // Chain the restore onto _storeChangeQueue so it serializes with any
+        // Chain the restore onto the store-sync queue so it serializes with any
         // in-flight restore. The preserved-edits restoration and post-restore
         // UI updates run in the .then() continuation after the queued restore
         // completes, so they see the post-restore store state.
@@ -1158,14 +1074,15 @@ export class EditController {
             timestamp: Date.now(),
           }),
         );
-        // Keep _lastStructuralRevision in sync because we are not using
-        // _restoreStoreSnapshot() for this whole-deck mutation. Any future
-        // store mutation that suppresses the queued restore and does its own
-        // reload MUST also update _lastStructuralRevision here — otherwise the
-        // next _restoreStoreSnapshot will incorrectly believe the revision is
-        // unchanged and saveSlideState the current editor state for a stale
-        // slide index, silently corrupting the per-slide undo cache.
-        this._lastStructuralRevision = this.deckStore.getStructuralRevision();
+        // Keep the store-sync module's structural revision in sync because
+        // we are not using restoreStoreSnapshot() for this whole-deck
+        // mutation. Any future store mutation that suppresses the queued
+        // restore and does its own reload MUST also sync the revision here
+        // — otherwise the next restoreStoreSnapshot will incorrectly
+        // believe the revision is unchanged and saveSlideState the current
+        // editor state for a stale slide index, silently corrupting the
+        // per-slide undo cache.
+        this.storeSync.syncStructuralRevision();
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,

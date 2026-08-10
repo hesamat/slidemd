@@ -3,6 +3,47 @@ import { SaveManager } from "../editor/ui/save-manager.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { createEditPatch } from "../data/store/slide-patch.js";
 import { EditController } from "../editor/core/edit-controller.js";
+import { StoreSyncController } from "../editor/core/store-sync-controller.js";
+
+/**
+ * Wire a real StoreSyncController to a fake EditController-like object.
+ */
+function createStoreSync(fake) {
+  return new StoreSyncController({
+    getDeckStore: () => fake.deckStore,
+    getController: () => fake.controller,
+    getMarkdownEditor: () => fake.markdownEditor,
+    getSaveManager: () => fake.saveManager,
+    getPreviewUpdater: () => fake.previewUpdater,
+    getUnsavedMarkdown: () => fake.unsavedMarkdown,
+    setUnsavedMarkdown: (v) => {
+      fake.unsavedMarkdown = v;
+    },
+    setHasUnsavedChanges: (v) => {
+      fake.hasUnsavedChanges = v;
+    },
+    getCurrentSlideIndex: () => fake.currentSlideIndex,
+    setCurrentSlideIndex: (v) => {
+      fake.currentSlideIndex = v;
+    },
+    getIsEditMode: () => fake.isEditMode,
+    isDestroyed: () => fake._destroyed ?? false,
+    captureCurrentEditorMarkdown: () => fake._captureCurrentEditorMarkdown?.(),
+    loadSlideIntoEditor: () => fake.loadSlideIntoEditor?.(),
+    storeDiffersFromSource: () => fake._storeDiffersFromSource?.() ?? false,
+    getLastEditorSlideIndex: () => fake._lastEditorSlideIndex ?? -1,
+    incrementDeckRestoreDepth: () => {
+      fake._deckRestoreDepth = (fake._deckRestoreDepth ?? 0) + 1;
+    },
+    decrementDeckRestoreDepth: () => {
+      fake._deckRestoreDepth = (fake._deckRestoreDepth ?? 0) - 1;
+    },
+    getPendingStructuralOperations: () => fake._pendingStructuralOperations ?? 0,
+    setPendingStructuralOperations: (v) => {
+      fake._pendingStructuralOperations = v;
+    },
+  });
+}
 
 function createSaveManager(overrides = {}) {
   return new SaveManager({
@@ -94,13 +135,13 @@ describe("EditController mirror removal", () => {
         unsavedMarkdown: new Map(),
         hasUnsavedChanges: false,
         _captureCurrentEditorMarkdown: () => {},
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _storeDiffersFromSource: () => false,
         saveManager: {
           getFullSlides: () => [{ index: 0, markdown: "# A edited" }],
           updateButton: vi.fn(),
         },
       };
+      fake.storeSync = createStoreSync(fake);
 
       EditController.prototype.prepareStoreOperation.call(fake, false);
       expect(onStore).not.toHaveBeenCalled();

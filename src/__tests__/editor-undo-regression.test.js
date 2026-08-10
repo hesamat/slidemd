@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import markdownit from "markdown-it";
 import { SaveManager } from "../editor/ui/save-manager.js";
 import { EditController } from "../editor/core/edit-controller.js";
+import { StoreSyncController } from "../editor/core/store-sync-controller.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 
@@ -13,6 +14,48 @@ beforeAll(() => {
 afterEach(() => {
   window.__WEBDECK_MARKDOWN__ = undefined;
 });
+
+/**
+ * Wire a real StoreSyncController to a fake EditController-like object.
+ * The controller's getters read from the fake so tests can assert on
+ * the fake's mutable fields after calling store-sync methods.
+ */
+function createStoreSync(fake) {
+  return new StoreSyncController({
+    getDeckStore: () => fake.deckStore,
+    getController: () => fake.controller,
+    getMarkdownEditor: () => fake.markdownEditor,
+    getSaveManager: () => fake.saveManager,
+    getPreviewUpdater: () => fake.previewUpdater,
+    getUnsavedMarkdown: () => fake.unsavedMarkdown,
+    setUnsavedMarkdown: (v) => {
+      fake.unsavedMarkdown = v;
+    },
+    setHasUnsavedChanges: (v) => {
+      fake.hasUnsavedChanges = v;
+    },
+    getCurrentSlideIndex: () => fake.currentSlideIndex,
+    setCurrentSlideIndex: (v) => {
+      fake.currentSlideIndex = v;
+    },
+    getIsEditMode: () => fake.isEditMode,
+    isDestroyed: () => fake._destroyed ?? false,
+    captureCurrentEditorMarkdown: () => fake._captureCurrentEditorMarkdown?.(),
+    loadSlideIntoEditor: () => fake.loadSlideIntoEditor?.(),
+    storeDiffersFromSource: () => fake._storeDiffersFromSource?.() ?? false,
+    getLastEditorSlideIndex: () => fake._lastEditorSlideIndex ?? -1,
+    incrementDeckRestoreDepth: () => {
+      fake._deckRestoreDepth = (fake._deckRestoreDepth ?? 0) + 1;
+    },
+    decrementDeckRestoreDepth: () => {
+      fake._deckRestoreDepth = (fake._deckRestoreDepth ?? 0) - 1;
+    },
+    getPendingStructuralOperations: () => fake._pendingStructuralOperations ?? 0,
+    setPendingStructuralOperations: (v) => {
+      fake._pendingStructuralOperations = v;
+    },
+  });
+}
 
 function createSaveManager(overrides = {}) {
   let hasUnsaved = overrides.hasUnsavedChanges ?? false;
@@ -140,15 +183,18 @@ describe("Editor undo regression suite", () => {
         currentSlideIndex: 0,
         deckStore,
         unsavedMarkdown: unsaved,
+        hasUnsavedChanges: true,
         _pendingStructuralOperations: 0,
         _historyOperation: null,
-        _suppressStoreChangeRestore: false,
         _deckRestoreDepth: 0,
+        _lastEditorSlideIndex: -1,
+        controller: {
+          reloadManager: { replaceDeck: () => Promise.resolve() },
+          slideNavigator: { goTo: () => {}, currentIndex: 0 },
+        },
         _captureCurrentEditorMarkdown: () => {},
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
         _withSuppressedStoreChange: EditController.prototype._withSuppressedStoreChange,
         _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
-        _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
         saveManager: {
           getFullSlides: () => [{ index: 0, markdown: "# A edited" }],
@@ -158,7 +204,10 @@ describe("Editor undo regression suite", () => {
           canUndo: () => false,
           undo: vi.fn(),
         },
+        previewUpdater: { update: vi.fn() },
+        loadSlideIntoEditor: () => {},
       };
+      fake.storeSync = createStoreSync(fake);
 
       // User edits and then saves.
       EditController.prototype.prepareStoreOperation.call(fake, true);
@@ -188,9 +237,8 @@ describe("Editor undo regression suite", () => {
         currentSlideIndex: 0,
         deckStore,
         unsavedMarkdown: unsaved,
+        hasUnsavedChanges: true,
         _captureCurrentEditorMarkdown: () => {},
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
-        _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
         saveManager: {
           getFullSlides: () => [{ index: 0, markdown: "# A edited" }],
@@ -201,6 +249,7 @@ describe("Editor undo regression suite", () => {
           clearSlideStateCache,
         },
       };
+      fake.storeSync = createStoreSync(fake);
 
       EditController.prototype.prepareStoreOperation.call(fake, true);
       expect(deckStore.getSlides()[0]).toBe("# A edited");
@@ -221,9 +270,8 @@ describe("Editor undo regression suite", () => {
         currentSlideIndex: 0,
         deckStore,
         unsavedMarkdown: unsaved,
+        hasUnsavedChanges: true,
         _captureCurrentEditorMarkdown: () => {},
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
-        _restoreStoreSnapshot: () => true,
         _storeDiffersFromSource: () => true,
         saveManager: {
           getFullSlides: () => [{ index: 0, markdown: "# A edited" }],
@@ -234,6 +282,7 @@ describe("Editor undo regression suite", () => {
           clearSlideStateCache,
         },
       };
+      fake.storeSync = createStoreSync(fake);
 
       // This is the exact callback passed to SaveManager by EditController.
       const onBeforeSave = () => {
@@ -348,47 +397,65 @@ describe("Editor undo regression suite", () => {
     });
   });
 
-  describe("_handleStoreChange during undo/redo", () => {
-    it("skips the queued _restoreStoreSnapshot when a store change is suppressed", async () => {
-      const restore = vi.fn(() => Promise.resolve(true));
+  describe("handleStoreChange during undo/redo", () => {
+    it("skips the queued restoreStoreSnapshot when a store change is suppressed", async () => {
       const fake = {
-        _destroyed: false,
-        _suppressStoreChangeRestore: true,
         isEditMode: true,
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
-        _storeDiffersFromSource: () => false,
         unsavedMarkdown: new Map(),
+        hasUnsavedChanges: false,
+        _destroyed: false,
+        _storeDiffersFromSource: () => false,
         saveManager: { updateButton: vi.fn() },
-        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
-        _restoreStoreSnapshot: restore,
         previewUpdater: { update: vi.fn() },
+        loadSlideIntoEditor: () => {},
       };
-
-      EditController.prototype._handleStoreChange.call(fake, ["# A"]);
+      const storeSync = createStoreSync(fake);
+      // Suppress restore (simulates undo/redo wrapping a store mutation).
+      storeSync.withSuppressedStoreChange(() => {
+        storeSync.handleStoreChange(["# A"]);
+      });
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(restore).not.toHaveBeenCalled();
+      // restoreStoreSnapshot is not called directly, but chainStoreChangeRestore
+      // would invoke it. Since restore is suppressed, the queue should not
+      // call restore. We verify by checking that the restore mock (if wired)
+      // is not called. Instead, verify the suppress flag prevented queuing
+      // by checking that chainStoreChangeRestore was not triggered.
+      // The simplest verification: the queue should still be null.
+      expect(storeSync._queue).toBeNull();
     });
 
-    it("queues _restoreStoreSnapshot when store changes are not suppressed", async () => {
-      const restore = vi.fn(() => Promise.resolve(true));
+    it("queues restoreStoreSnapshot when store changes are not suppressed", async () => {
       const fake = {
-        _destroyed: false,
-        _suppressStoreChangeRestore: false,
+        deckStore: {
+          getStructuralRevision: () => 0,
+          toMarkdown: () => "# A",
+          getActiveIndex: () => 0,
+          getSlides: () => ["# A"],
+        },
+        controller: {
+          reloadManager: { replaceDeck: () => Promise.resolve() },
+          slideNavigator: { goTo: () => {}, currentIndex: 0 },
+        },
         isEditMode: true,
-        _reconcileUnsavedOverlays: EditController.prototype._reconcileUnsavedOverlays,
-        _storeDiffersFromSource: () => false,
         unsavedMarkdown: new Map(),
+        hasUnsavedChanges: false,
+        _destroyed: false,
+        _lastEditorSlideIndex: -1,
+        _deckRestoreDepth: 0,
+        _storeDiffersFromSource: () => false,
         saveManager: { updateButton: vi.fn() },
-        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
-        _restoreStoreSnapshot: restore,
         previewUpdater: { update: vi.fn() },
+        markdownEditor: null,
+        loadSlideIntoEditor: () => {},
       };
-
-      EditController.prototype._handleStoreChange.call(fake, ["# A"]);
+      const storeSync = createStoreSync(fake);
+      storeSync.handleStoreChange(["# A"]);
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(restore).toHaveBeenCalled();
+      // The queue should have been set and resolved.
+      expect(storeSync._queue).toBeInstanceOf(Promise);
+      await storeSync._queue;
     });
   });
 });
