@@ -9,6 +9,7 @@
  * tag snippet ready to be inserted into markdown.
  */
 import { DeckImagesResolver } from "./deck-images-resolver.js";
+import { Logger } from "../../core/logger.js";
 
 export class ImagePicker {
   static modal = null;
@@ -366,7 +367,7 @@ export class ImagePicker {
       this._availableImages = images;
       this._renderGrid();
     } catch (err) {
-      console.warn("Failed to load images:", err);
+      Logger.warn("Failed to load images:", err);
       this.grid.innerHTML = `<div class="image-picker-empty"><div class="image-picker-empty-icon">⚠</div>Could not load images.<br/><small>${escapeText(err.message)}</small></div>`;
     }
   }

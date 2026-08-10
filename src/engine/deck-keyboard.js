@@ -10,6 +10,7 @@ import { ThemeManager } from "../renderer/theme-manager.js";
 import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
 import { TextBlockHandler } from "../editor/text/text-block-handler.js";
 import { isEmbedded } from "../core/utils.js";
+import { Logger } from "../core/logger.js";
 
 /**
  * Create a configured KeyboardHandler with all action bindings.
@@ -57,7 +58,7 @@ export function createKeyboardHandler({
       try {
         edit()?.themeManager?.toggle?.();
       } catch (e) {
-        console.warn("Slide theme shortcut failed:", e);
+        Logger.warn("Slide theme shortcut failed:", e);
       }
     },
     styles: () => {
@@ -84,7 +85,7 @@ export function createKeyboardHandler({
         // keyboard handler skip preventDefault.
         return !window.__WEBDECK_EXPORTED__ && !isEmbedded();
       } catch (e) {
-        console.warn("Save shortcut failed:", e);
+        Logger.warn("Save shortcut failed:", e);
         return true;
       }
     },
@@ -92,88 +93,88 @@ export function createKeyboardHandler({
       try {
         edit()?.layoutManager?.showPicker?.();
       } catch (e) {
-        console.warn("New slide shortcut failed:", e);
+        Logger.warn("New slide shortcut failed:", e);
       }
     },
     duplicateSlide: () => {
       try {
         edit()?.slideOps?.duplicateSlide?.();
       } catch (e) {
-        console.warn("Duplicate slide shortcut failed:", e);
+        Logger.warn("Duplicate slide shortcut failed:", e);
       }
     },
     deleteSlide: () => {
       try {
         edit()?.slideOps?.deleteSlide?.();
       } catch (e) {
-        console.warn("Delete slide shortcut failed:", e);
+        Logger.warn("Delete slide shortcut failed:", e);
       }
     },
     insertImage: () => {
       try {
         edit()?.imageInserter?.pickAndInsert?.();
       } catch (e) {
-        console.warn("Insert image shortcut failed:", e);
+        Logger.warn("Insert image shortcut failed:", e);
       }
     },
     insertText: () => {
       try {
         TextBlockHandler.insertTextBlock();
       } catch (e) {
-        console.warn("Insert text shortcut failed:", e);
+        Logger.warn("Insert text shortcut failed:", e);
       }
     },
     openLayout: () => {
       try {
         edit()?.layoutManager?.showPickerForCurrentSlide?.();
       } catch (e) {
-        console.warn("Open layout shortcut failed:", e);
+        Logger.warn("Open layout shortcut failed:", e);
       }
     },
     toggleMermaid: () => {
       try {
         edit()?.mermaidHelper?.toggle?.();
       } catch (e) {
-        console.warn("Toggle Mermaid shortcut failed:", e);
+        Logger.warn("Toggle Mermaid shortcut failed:", e);
       }
     },
     adjustColumns: () => {
       try {
         edit()?.gridResizer?.toggle?.();
       } catch (e) {
-        console.warn("Adjust columns shortcut failed:", e);
+        Logger.warn("Adjust columns shortcut failed:", e);
       }
     },
     moveSlideUp: () => {
       try {
         edit()?.slideOps?.moveSlideUp?.();
       } catch (e) {
-        console.warn("Move slide up shortcut failed:", e);
+        Logger.warn("Move slide up shortcut failed:", e);
       }
     },
     moveSlideDown: () => {
       try {
         edit()?.slideOps?.moveSlideDown?.();
       } catch (e) {
-        console.warn("Move slide down shortcut failed:", e);
+        Logger.warn("Move slide down shortcut failed:", e);
       }
     },
     undo: () => {
       try {
         Promise.resolve(edit()?.undo?.()).catch((e) => {
-          console.warn("Undo shortcut failed:", e);
+          Logger.warn("Undo shortcut failed:", e);
         });
       } catch (e) {
-        console.warn("Undo shortcut failed:", e);
+        Logger.warn("Undo shortcut failed:", e);
       }
     },
     redo: () => {
       try {
         Promise.resolve(edit()?.redo?.()).catch((e) => {
-          console.warn("Redo shortcut failed:", e);
+          Logger.warn("Redo shortcut failed:", e);
         });
       } catch (e) {
-        console.warn("Redo shortcut failed:", e);
+        Logger.warn("Redo shortcut failed:", e);
       }
     },
     isEditMode: () => isEditMode(),

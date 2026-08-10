@@ -8,6 +8,8 @@ import { DeckLoader } from "../data/deck-loader.js";
 import LAYOUTS_JSON from "../data/layouts.json" with { type: "json" };
 import { buildMermaidScriptTag } from "../core/mermaid-config.js";
 import { Notification } from "./notification.js";
+import { JS_BUNDLE_ORDER } from "../data/bundle-order.js";
+import { Logger } from "../core/logger.js";
 
 export class HtmlExportManager {
   static _isExporting = false;
@@ -20,49 +22,6 @@ export class HtmlExportManager {
     mermaid: "11.14.0",
     dompurify: "3.4.12",
   };
-
-  // Order of JS source files (same as build.mjs)
-  static JS_BUNDLE_ORDER = [
-    // Core utilities and helpers
-    "src/core/utils.js",
-    "src/core/element-gatherer.js",
-    "src/core/mermaid-config.js",
-    "src/core/asset-loader.js",
-    // Data loading and parsing
-    "src/data/layout-data.js",
-    "src/data/markdown-parser.js",
-    "src/data/layout-parser.js",
-    "src/data/deck-loader.js",
-    // Renderer components
-    "src/renderer/notification.js",
-    "src/renderer/stage-scaler.js",
-    "src/renderer/content-enhancer.js",
-    "src/renderer/slide-renderer.js",
-    "src/renderer/theme-manager.js",
-    "src/renderer/print-manager.js",
-    // Engine components
-    "src/engine/keyboard-shortcuts.js",
-    "src/engine/keyboard-handler.js",
-    "src/engine/command-registry.js",
-    "src/engine/deck-keyboard.js",
-    "src/engine/wheel-handler.js",
-    "src/engine/freeze-manager.js",
-    "src/engine/role-manager.js",
-    "src/engine/slide-search.js",
-    "src/engine/slide-navigator.js",
-    "src/engine/break-manager.js",
-    "src/engine/reload-manager.js",
-    "src/engine/deck-events.js",
-    "src/engine/pptx-importer.js",
-    "src/engine/presentation-creator.js",
-    "src/engine/command-palette.js",
-    "src/engine/deck-controller.js",
-    // UI components
-    "src/ui/ui-actions.js",
-    "src/editor/ui/open-deck-modal.js",
-    // Entry point
-    "deck.js",
-  ];
 
   /**
    * Exports the current deck as a fully self-contained HTML file.
@@ -120,7 +79,7 @@ export class HtmlExportManager {
         return;
       }
       loading.dismiss();
-      console.warn("HTML export failed:", e);
+      Logger.warn("HTML export failed:", e);
       Notification.error(`HTML export failed: ${e.message || e}`);
     } finally {
       HtmlExportManager._isExporting = false;
@@ -398,7 +357,7 @@ ${escapedInitScript}
           if (r.ok) return await r.text();
         } catch (e) {
           if (e.name === "AbortError") throw e;
-          console.warn("Failed to fetch JS:", url);
+          Logger.warn("Failed to fetch JS:", url);
         }
       }
       return "";
@@ -425,7 +384,7 @@ ${escapedInitScript}
       /~~~[\s\S]*?\n/.test(deckHtmlText);
 
     if (needsPrism) {
-      console.log("HtmlExport: Inlining Prism.js library...");
+      Logger.info("HtmlExport: Inlining Prism.js library...");
       const cdnUrl = prismVersion
         ? `https://cdnjs.cloudflare.com/ajax/libs/prism/${prismVersion}/prism.min.js`
         : null;
@@ -449,7 +408,7 @@ ${escapedInitScript}
     // Check if we need KaTeX
     const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
     if (needsKatex) {
-      console.log("HtmlExport: Inlining KaTeX...");
+      Logger.info("HtmlExport: Inlining KaTeX...");
       const katexJsCdn = katexVersion
         ? `https://cdn.jsdelivr.net/npm/katex@${katexVersion}/dist/katex.min.js`
         : null;
@@ -473,9 +432,9 @@ ${escapedInitScript}
    */
   static async fetchAndBundleJs(signal = null) {
     const parts = [];
-    console.log("HtmlExport: Starting JS bundle...");
+    Logger.info("HtmlExport: Starting JS bundle...");
 
-    for (const filePath of HtmlExportManager.JS_BUNDLE_ORDER) {
+    for (const filePath of JS_BUNDLE_ORDER) {
       try {
         const response = await fetch(filePath, { signal });
         if (!response.ok) continue;
@@ -485,7 +444,7 @@ ${escapedInitScript}
         parts.push(processedSrc);
       } catch (e) {
         if (e.name === "AbortError") throw e;
-        console.error(`Could not load ${filePath}:`, e);
+        Logger.error(`Could not load ${filePath}:`, e);
       }
     }
     return parts.join("\n\n");
@@ -625,7 +584,7 @@ ${escapedInitScript}
           }
         }
       } catch (e) {
-        console.debug("CSS Access error:", e);
+        Logger.debug("CSS Access error:", e);
       }
     }
     return cssParts.join("\n\n");
@@ -710,7 +669,7 @@ ${escapedInitScript}
     if (!needsMermaid) return "";
     const version = await HtmlExportManager._getVendorVersion("mermaid", signal);
     if (!version) {
-      console.warn(
+      Logger.warn(
         "HtmlExport: Could not determine installed Mermaid version; skipping Mermaid script.",
       );
       return "";
@@ -776,7 +735,7 @@ ${escapedInitScript}
           return `/* ${name} CSS */\n${css}`;
         } catch (e) {
           if (e.name === "AbortError") throw e;
-          console.warn(`Error loading ${name} CSS`);
+          Logger.warn(`Error loading ${name} CSS`);
         }
       }
       return "";
@@ -997,7 +956,9 @@ ${escapedInitScript}
                 }
                 if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
                     ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
-                        .catch(e => console.warn('Enhancement error:', e));
+                        .catch(e => {
+                            if (typeof Logger !== 'undefined') Logger.warn('Enhancement error:', e);
+                        });
                 }
             };
             window.addEventListener('webdeck:ready', enhance, { once: true });

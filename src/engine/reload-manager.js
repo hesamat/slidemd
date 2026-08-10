@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from "../core/utils.js";
+import { Logger } from "../core/logger.js";
 import { DeckLoader } from "../data/deck-loader.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
@@ -108,7 +109,7 @@ export class ReloadManager extends EventEmitter {
           const deckId = this.getDeckId(this.deck);
           raw = await DeckLoader.reloadFromFileHandle(deckId);
         } catch (e) {
-          console.warn("[Reload] File handle check failed:", e.message);
+          Logger.warn("[Reload] File handle check failed:", e.message);
           raw = null;
         }
       }
@@ -148,7 +149,7 @@ export class ReloadManager extends EventEmitter {
               await this.replaceDeck(processed);
               return;
             } catch (e) {
-              console.warn("[Reload] Source URL fetch failed, falling back to cache:", e.message);
+              Logger.warn("[Reload] Source URL fetch failed, falling back to cache:", e.message);
             }
           }
         }
@@ -170,7 +171,7 @@ export class ReloadManager extends EventEmitter {
             if (fileInput) {
               fileInput.click();
             } else {
-              console.warn("[Reload] File input not found");
+              Logger.warn("[Reload] File input not found");
             }
             // Return early - don't reload from cache
             return;
@@ -194,7 +195,7 @@ export class ReloadManager extends EventEmitter {
       const newDeck = await DeckLoader.processRawData(raw);
       await this.replaceDeck(newDeck);
     } catch (err) {
-      console.error("Reload failed:", err);
+      Logger.error("Reload failed:", err);
       Notification.error("Failed to reload deck: " + err.message);
     }
   }

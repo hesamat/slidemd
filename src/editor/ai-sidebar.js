@@ -7,6 +7,7 @@
  */
 
 import { isVisionError } from "../data/ai/ai-orchestrator.js";
+import { Logger } from "../core/logger.js";
 
 const P = "ai-sidebar__";
 
@@ -416,8 +417,8 @@ export class AiSidebar {
     // warnings to the console so they remain visible for diagnosis instead
     // of being silently swallowed.
     const onLog = (message, level = "info") => {
-      if (level === "warn") console.warn(`[AI] ${message}`);
-      else if (level === "error") console.error(`[AI] ${message}`);
+      if (level === "warn") Logger.warn(`[AI] ${message}`);
+      else if (level === "error") Logger.error(`[AI] ${message}`);
     };
 
     try {

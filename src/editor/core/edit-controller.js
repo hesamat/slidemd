@@ -3,6 +3,7 @@
  * Manages edit mode with side-by-side markdown editor and live preview.
  */
 import { MarkdownParser } from "../../data/markdown-parser.js";
+import { Logger } from "../../core/logger.js";
 import { DeckLoader } from "../../data/deck-loader.js";
 import { Notification } from "../../renderer/notification.js";
 import { StageScaler } from "../../renderer/stage-scaler.js";
@@ -76,6 +77,7 @@ export class EditController {
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
     this._historyOperation = null;
+    this._suppressStoreChangeRestore = false;
     this._deckRestoreDepth = 0;
 
     this.placeholderDialogEl = null;
@@ -384,7 +386,7 @@ export class EditController {
       this._cachedOriginalSlides = parser.splitSlides(localFile);
       return this._cachedOriginalSlides;
     } catch (error) {
-      console.error("Failed to cache markdown:", error);
+      Logger.error("Failed to cache markdown:", error);
       this._cachedSourceMarkdown = null;
       this._cachedOriginalSlides = [];
       return [];
@@ -771,18 +773,11 @@ export class EditController {
     this.hasUnsavedChanges = this._storeDiffersFromSource() || this.unsavedMarkdown.size > 0;
     this.saveManager.updateButton();
 
-    if (this.isEditMode) {
-      this._storeChangeQueue = (this._storeChangeQueue || Promise.resolve())
-        .catch(() => {})
-        .then(async () => {
-          try {
-            await this._restoreStoreSnapshot();
-            this.previewUpdater?.update();
-          } catch (error) {
-            console.error("Store-to-view sync failed:", error);
-            Notification.error("Failed to refresh the editor view.");
-          }
-        });
+    if (this.isEditMode && !this._suppressStoreChangeRestore) {
+      this._storeChangeQueue = this._chainStoreChangeRestore().catch((error) => {
+        Logger.error("Store-to-view sync failed:", error);
+        Notification.error("Failed to refresh the editor view.");
+      });
     }
   }
 
@@ -807,12 +802,20 @@ export class EditController {
       this.markdownEditor.undo?.();
       return true;
     }
-    if (this._historyOperation || !this.deckStore.undo()) return false;
     this._historyOperation = "undo";
     try {
-      return await this._restoreStoreSnapshot();
+      const undoResult = this._withSuppressedStoreChange(() => this.deckStore.undo());
+      if (!undoResult) return false;
+
+      return await this._chainStoreChangeRestore();
     } catch (error) {
-      this.deckStore.redo();
+      // Roll the store back and then the view.
+      this._withSuppressedStoreChange(() => this.deckStore.redo());
+      try {
+        await this._chainStoreChangeRestore();
+      } catch (rollbackError) {
+        Logger.error("Failed to restore view after undo rollback:", rollbackError);
+      }
       Notification.error(`Undo failed: ${error.message || error}`);
       return false;
     } finally {
@@ -834,16 +837,65 @@ export class EditController {
       this.markdownEditor.redo?.();
       return true;
     }
-    if (!this.deckStore.redo()) return false;
     this._historyOperation = "redo";
     try {
-      return await this._restoreStoreSnapshot();
+      const redoResult = this._withSuppressedStoreChange(() => this.deckStore.redo());
+      if (!redoResult) return false;
+
+      return await this._chainStoreChangeRestore();
     } catch (error) {
-      this.deckStore.undo();
+      // Roll the store back and then the view.
+      this._withSuppressedStoreChange(() => this.deckStore.undo());
+      try {
+        await this._chainStoreChangeRestore();
+      } catch (rollbackError) {
+        Logger.error("Failed to restore view after redo rollback:", rollbackError);
+      }
       Notification.error(`Redo failed: ${error.message || error}`);
       return false;
     } finally {
       this._historyOperation = null;
+    }
+  }
+
+  /**
+   * Chain an explicit store-to-view restore onto the store-change queue.
+   * This serializes the restore with any in-flight one so a stale restore
+   * from a previous operation cannot overwrite a newer store state.
+   * @returns {Promise<boolean>}
+   */
+  _chainStoreChangeRestore() {
+    const queue = (this._storeChangeQueue || Promise.resolve())
+      .catch(() => {})
+      .then(async () => {
+        await this._restoreStoreSnapshot();
+        this.previewUpdater?.update();
+        return true;
+      });
+    this._storeChangeQueue = queue;
+    return queue;
+  }
+
+  /**
+   * Run a synchronous store mutation with the queued store-change restore
+   * suppressed. Use this around any operation that immediately performs its
+   * own explicit view restore (undo, redo, AI patch, whole-deck replace) so
+   * the synchronous storeChange emit does not queue a duplicate restore.
+   *
+   * The callback **must be synchronous** — the flag is restored in a
+   * `finally` block, so an `async` callback would clear it at the first
+   * `await` and any later `storeChange` emit would not be suppressed.
+   * @template T
+   * @param {() => T} fn
+   * @returns {T}
+   */
+  _withSuppressedStoreChange(fn) {
+    const previous = this._suppressStoreChangeRestore;
+    this._suppressStoreChangeRestore = true;
+    try {
+      return fn();
+    } finally {
+      this._suppressStoreChangeRestore = previous;
     }
   }
 
@@ -960,17 +1012,33 @@ export class EditController {
         }
 
         // If the rebased patch's `before` does not match the store, fast-forward
-        // the store to the user's latest working markdown without history.
-        if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
-          const synced = [...this.deckStore.getSlides()];
-          synced[targetSlide] = patchToApply.before;
-          this.deckStore.syncSlides(synced, targetSlide);
-        }
-
-        const applied = this.deckStore.applyPatch(patchToApply, baselineRevision);
+        // the store to the user's latest working markdown without history, then
+        // apply the patch. Keep the queued store-change restore suppressed for
+        // the whole sequence so the explicit _restoreStoreSnapshot below is the
+        // single view refresh.
+        const { applied, syncRan } = this._withSuppressedStoreChange(() => {
+          let syncRan = false;
+          if (patchToApply.before !== this.deckStore.getSlides()[targetSlide]) {
+            const synced = [...this.deckStore.getSlides()];
+            synced[targetSlide] = patchToApply.before;
+            this.deckStore.syncSlides(synced, targetSlide);
+            syncRan = true;
+          }
+          return { applied: this.deckStore.applyPatch(patchToApply, baselineRevision), syncRan };
+        });
         if (!applied || (typeof applied === "object" && !applied.success)) {
           const reason = typeof applied === "object" ? applied.reason : "the slide changed";
           this.saveManager.clearUnsavedEditorOverlay(targetSlide);
+          // syncSlides may have fast-forwarded the store; re-project that
+          // working state into the view since the queued restore is suppressed.
+          // Avoid a no-op restore when syncSlides did not run.
+          if (syncRan) {
+            try {
+              await this._chainStoreChangeRestore();
+            } catch (restoreError) {
+              Logger.error("Failed to refresh view after rejected AI patch:", restoreError);
+            }
+          }
           Notification.warning(
             `AI ${intent} could not be applied — ${reason || "the slide changed since the request started."}`,
           );
@@ -990,18 +1058,24 @@ export class EditController {
         const preservedEdits = new Map(this.unsavedMarkdown);
         preservedEdits.delete(targetSlide);
 
-        await this._restoreStoreSnapshot();
-        for (const [index, markdown] of preservedEdits) {
-          this.unsavedMarkdown.set(index, markdown);
-        }
-        this.updateUnsavedChangesFlag();
-        // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size; when
-        // the user had no other pending edits that drops to 0 and clears the
-        // dirty flag. The AI-applied store state has not been written to the
-        // file, so the deck is still unsaved and the reload guard must prompt.
-        this.hasUnsavedChanges = true;
-        this.saveManager.updateButton();
-        this.loadSlideIntoEditor();
+        // Chain the restore onto _storeChangeQueue so it serializes with any
+        // in-flight restore. The preserved-edits restoration and post-restore
+        // UI updates run in the .then() continuation after the queued restore
+        // completes, so they see the post-restore store state.
+        await this._chainStoreChangeRestore().then(() => {
+          for (const [index, markdown] of preservedEdits) {
+            this.unsavedMarkdown.set(index, markdown);
+          }
+          this.updateUnsavedChangesFlag();
+          // updateUnsavedChangesFlag() recomputes from unsavedMarkdown.size;
+          // when the user had no other pending edits that drops to 0 and
+          // clears the dirty flag. The AI-applied store state has not been
+          // written to the file, so the deck is still unsaved and the reload
+          // guard must prompt.
+          this.hasUnsavedChanges = true;
+          this.saveManager.updateButton();
+          this.loadSlideIntoEditor();
+        });
         Notification.success(`AI ${intent} applied. Press Ctrl+Z to undo.`);
       }
     } catch (err) {
@@ -1086,20 +1160,33 @@ export class EditController {
         const parser = new MarkdownParser();
         const newSlides = parser.splitSlides(enhanced);
         // Route through replaceDeck so the refine is undoable (Ctrl+Z)
-        // instead of loadFromMarkdown which clears history.
-        this.deckStore.replaceDeck(newSlides, 0, {
-          index: 0,
-          before: null,
-          after: enhanced,
-          source: "ai",
-          timestamp: Date.now(),
-        });
+        // instead of loadFromMarkdown which clears history. Suppress the
+        // queued store-change restore so the explicit reload below is the
+        // single view refresh.
+        this._withSuppressedStoreChange(() =>
+          this.deckStore.replaceDeck(newSlides, 0, {
+            index: 0,
+            before: null,
+            after: enhanced,
+            source: "ai",
+            timestamp: Date.now(),
+          }),
+        );
+        // Keep _lastStructuralRevision in sync because we are not using
+        // _restoreStoreSnapshot() for this whole-deck mutation. Any future
+        // store mutation that suppresses the queued restore and does its own
+        // reload MUST also update _lastStructuralRevision here — otherwise the
+        // next _restoreStoreSnapshot will incorrectly believe the revision is
+        // unchanged and saveSlideState the current editor state for a stale
+        // slide index, silently corrupting the per-slide undo cache.
+        this._lastStructuralRevision = this.deckStore.getStructuralRevision();
         await this.controller.reloadManager.replaceDeck(deck, {
           startAtFirstSlide: true,
           syncStore: false,
         });
         this.currentSlideIndex = 0;
         this.loadSlideIntoEditor();
+        this.previewUpdater?.update();
         this.saveManager?.updateButton();
         Notification.success("AI Refine all slides applied. Press Ctrl+Z to undo.");
       }
@@ -1131,7 +1218,14 @@ export class EditController {
     // _lastEditorSlideIndex before the upcoming state swap. Otherwise the
     // keystrokes are dropped when loadSlideState / setValue cancels the
     // debounce timer.
-    if (this._lastEditorSlideIndex !== this.currentSlideIndex && this._lastEditorSlideIndex >= 0) {
+    // Only flush when the underlying deck is unchanged; if the deck was
+    // rebuilt (undo, redo, whole-deck AI), the buffer belongs to the old
+    // deck and must not be written into the new slide at the same index.
+    if (
+      this._lastEditorSlideIndex !== this.currentSlideIndex &&
+      this._lastEditorSlideIndex >= 0 &&
+      this.deck === this._lastEditorDeck
+    ) {
       this._captureEditorMarkdown(this._lastEditorSlideIndex);
     }
     this.markdownEditor?.cancelOnChange?.();

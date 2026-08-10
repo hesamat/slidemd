@@ -1,4 +1,5 @@
 import { getDeckId, EventEmitter, escapeHtml } from "../core/utils.js";
+import { Logger } from "../core/logger.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../renderer/content-enhancer.js";
 import { DeckLoader } from "../data/deck-loader.js";
@@ -235,12 +236,12 @@ export class DeckController extends EventEmitter {
 
     loaderPromise
       .then((AssetLoader) => {
-        AssetLoader.ensureRichTextEnhancers().catch(console.warn);
+        AssetLoader.ensureRichTextEnhancers().catch((error) => Logger.warn(error));
         // Scan deck and warmup Mermaid if needed
         const { hasMermaid } = ContentEnhancer.scanDeck(this.deck);
-        if (hasMermaid) ContentEnhancer.initializeMermaid().catch(console.warn);
+        if (hasMermaid) ContentEnhancer.initializeMermaid().catch((error) => Logger.warn(error));
       })
-      .catch(console.warn);
+      .catch((error) => Logger.warn(error));
   }
 
   setupEventListeners() {
@@ -379,7 +380,7 @@ export class DeckController extends EventEmitter {
           `<div class="notes-content">${this._md.render(notes)}</div>`,
         );
       } catch (e) {
-        console.warn("Failed to render notes as markdown:", e);
+        Logger.warn("Failed to render notes as markdown:", e);
       }
     }
 

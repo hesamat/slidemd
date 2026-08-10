@@ -89,6 +89,24 @@ describe("MarkdownEditor suppression reset", () => {
     }
   });
 
+  it("teardown clears the slide state cache", () => {
+    const cache = new Map([[0, { state: {}, revision: 1 }]]);
+    const editor = {
+      debounceTimer: null,
+      view: {
+        destroy: vi.fn(),
+      },
+      _captureKeydown: null,
+      _onFocusOut: null,
+      _slideStateCache: cache,
+      _cacheCleared: true,
+    };
+
+    MarkdownEditor.prototype.teardown.call(editor);
+
+    expect(cache.size).toBe(0);
+  });
+
   it("toggles bold and italic layers without losing the other style", () => {
     const cases = [
       ["*word*", "**", 2, 1, 1, 5, "**word**"],

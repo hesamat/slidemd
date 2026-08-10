@@ -15,6 +15,7 @@ import { MarkdownParser } from "../../data/markdown-parser.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
+import { Logger } from "../../core/logger.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",
@@ -284,7 +285,7 @@ export class OpenDeckModal {
 
             const failedUploads = uniqueEntries.length - uploadedPaths.size;
             if (failedUploads > 0) {
-              console.warn(`${failedUploads} image(s) failed to upload and may not persist.`);
+              Logger.warn(`${failedUploads} image(s) failed to upload and may not persist.`);
             }
 
             let serverMarkdown = resolvedMarkdown;
@@ -315,7 +316,7 @@ export class OpenDeckModal {
             }
           })().catch((err) => {
             if (err.name === "AbortError") return;
-            console.warn("Background image upload failed:", err);
+            Logger.warn("Background image upload failed:", err);
           }),
         );
       }
@@ -324,7 +325,7 @@ export class OpenDeckModal {
       if (e.name === "AbortError") {
         Notification.info("Open .textpack cancelled");
       } else {
-        console.error("Failed to open .textpack file:", e);
+        Logger.error("Failed to open .textpack file:", e);
         Notification.error("Failed to open .textpack file");
       }
     }
@@ -415,7 +416,7 @@ export class OpenDeckModal {
       await DraftManager.clearDraft();
     } catch (e) {
       if (e.name !== "AbortError") {
-        console.error("Failed to open .md file:", e);
+        Logger.error("Failed to open .md file:", e);
         Notification.error("Failed to open .md file");
       }
     }
@@ -494,7 +495,7 @@ export class OpenDeckModal {
       return handle;
     } catch (e) {
       if (e.name !== "AbortError") {
-        console.warn("Deck folder selection failed:", e);
+        Logger.warn("Deck folder selection failed:", e);
       }
       return null;
     }

@@ -513,12 +513,11 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ### Undo & Redo
 
-| Task                                 | Details                                                                                                                       |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| [x] Define committed-operation undo  | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
-| [x] Complete global undo/redo        | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
-| [ ] Add undo/redo controls (stretch) | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts.           |
-| [x] Test history boundaries          | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
+| Task                                | Details                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [x] Define committed-operation undo | `DeckHistory` handles committed AI, structural, and whole-deck operations; CodeMirror retains local buffer undo until commit. |
+| [x] Complete global undo/redo       | `Ctrl+Z` / `Ctrl+Y` and `Ctrl+Shift+Z` operate consistently on the defined history boundary.                                  |
+| [x] Test history boundaries         | Cover AI edits, structural edits, refine-all, local typing, redo invalidation, reload, save, and new-deck loading.            |
 
 ### Editor Rewire
 
@@ -529,8 +528,6 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 | [x] Migrate external writers     | Open Deck and PPTX background image-upload paths update `DeckStore`, not `originalMarkdown`.                                                                                    |
 | [x] Remove boundary-sync mirror  | Delete `originalMarkdown` and `syncStoreFromSlides` after the store/view bridge and tests are complete.                                                                         |
 | [x] Preserve editor undo history | Per-slide `EditorState` cache in `MarkdownEditor`; clear on structural/deck changes; drop stale states on doc mismatch (history not preserved across external content changes). |
-| [ ] Decompose EditController     | Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                                                                  |
-| [ ] Split `ai-orchestrator.js`   | Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. Data-layer counterpart to the EditController decomposition.                      |
 
 ### Delivery Slices
 
@@ -553,30 +550,32 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ## Phase 14.5: Structural Cleanup & Test Infrastructure
 
-Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized.
+Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
 
 ### Refactoring
 
-| Task                                                     | Details                                                                                                             |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Extract shared bundle-order module                   | `HtmlExportManager` and `tools/build.mjs` duplicate `JS_BUNDLE_ORDER`; extract to a shared module to prevent drift. |
-| [ ] Split `ai-orchestrator.js` (if not done in Phase 14) | Carry over from Phase 14 if the editor rewire didn't reach it.                                                      |
+| Task                                   | Details                                                                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Extract shared bundle-order module | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. |
+| [ ] Decompose EditController           | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                         |
+| [ ] Split `ai-orchestrator.js`         | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes.                                         |
 
 ### Test Infrastructure
 
 | Task                                 | Details                                                                                                                                                       |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ ] Add Playwright E2E test harness  | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. |
-| [ ] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline. Prerequisite for the backlog `officeparser` switch.                             |
+| [x] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline and verify the output deck structure. (PR #191)                                  |
 
 ### Developer Experience
 
-| Task                                | Details                                                                                                                                                               |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. |
-| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                             |
-| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                   |
-| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                              |
+| Task                                | Details                                                                                                                                                                                                                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths.                                                                                                  |
+| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                                                                                                                              |
+| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                                                                                                                    |
+| [ ] Add `docs/ai-positioning.md`    | Document what the AI does (enhance, fix, remix, reimagine, speaker notes) vs. what the tool does (deterministic rendering, layout validation, export). Clarify the boundary for users and external AI agents. Complements `AGENTS.md` which targets coding assistants. |
+| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                                                                                                                               |
 
 ---
 
@@ -586,19 +585,23 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 
 ### Tokens & Themes
 
-| Task                            | Details                                                             |
-| ------------------------------- | ------------------------------------------------------------------- |
-| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.    |
-| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.       |
-| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry. |
+| Task                            | Details                                                                                                                                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.                                                                                                                                                                                    |
+| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.                                                                                                                                                                                       |
+| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry.                                                                                                                                                                                 |
+| [ ] Add `@import` directive     | Support `@import[theme.yaml]` for shared theme tokens and `@import[slides/section.md]` for reusable slide fragments. Recursive resolution, YAML merge into frontmatter, markdown splice into slide array. Enables repo-native multi-deck workflows. |
 
 ### Layout Governance
 
-| Task                           | Details                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------- |
-| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry. |
-| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.  |
-| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.               |
+| Task                           | Details                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry.                                       |
+| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.                                        |
+| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.                                                     |
+| [ ] Validate image paths       | Warn on unresolved `![...](images/...)` references in `SlideWarningManager` in real time.                           |
+| [ ] Detect empty slides        | Warn when a slide has no content areas filled, surfaced in `SlideWarningManager`.                                   |
+| [ ] Consolidate diagnostics    | Surface all layout, area, image-path, and empty-slide warnings through the existing `SlideWarningManager` pipeline. |
 
 ### Brand Defaults
 
@@ -628,11 +631,12 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 
 ### Print & PDF
 
-| Task                                    | Details                                                                       |
-| --------------------------------------- | ----------------------------------------------------------------------------- |
-| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                |
-| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`. |
-| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                       |
+| Task                                    | Details                                                                                                                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                                                                                                                                        |
+| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`.                                                                                                                         |
+| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                                                                                                                                               |
+| [ ] Add per-slide PNG export            | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Reuses the same `PrintAdapter` DOM preparation path. Useful for README embeds, visual QA, and regression diffing. |
 
 ### Contextual AI Commands
 
@@ -661,12 +665,13 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ### User-Facing Open Deck Workflow
 
-| Task                           | Details                                                             |
-| ------------------------------ | ------------------------------------------------------------------- |
-| [ ] Terminal (primary)         | `node tools/dev-server.mjs path/to/slides.md` opens browser         |
-| [ ] `GET /api/browse` endpoint | Browse local `.md` or `.textpack` paths from browser UI             |
-| [ ] Open Deck modal            | Path input or directory browser for switching decks without restart |
-| [ ] Drag-and-drop `.textpack`  | Unpack in-memory/temp storage on browser canvas                     |
+| Task                           | Details                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Terminal (primary)         | `node tools/dev-server.mjs path/to/slides.md` opens browser                                                                                                                                |
+| [ ] `--init` scaffold flag     | `node tools/dev-server.mjs --init [path]` creates a starter `slides.md` + `images/` folder with a chosen template (blank, standard, lecture), mirroring the in-app New Presentation modal. |
+| [ ] `GET /api/browse` endpoint | Browse local `.md` or `.textpack` paths from browser UI                                                                                                                                    |
+| [ ] Open Deck modal            | Path input or directory browser for switching decks without restart                                                                                                                        |
+| [ ] Drag-and-drop `.textpack`  | Unpack in-memory/temp storage on browser canvas                                                                                                                                            |
 
 ### User-Facing Save Deck Workflow
 
@@ -707,7 +712,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
 | Phase 13.1: Remix Planner                    | ✅ Complete |
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo         | In Progress |
+| Phase 14: Conflict Resolution & Undo         | ✅ Complete |
 | Phase 14.5: Structural Cleanup & Tests       | Planned     |
 | Phase 15: Design System & Theme Registry     | Planned     |
 | Phase 16: Presenter, Print & AI Commands     | Planned     |
@@ -716,7 +721,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
@@ -736,11 +741,6 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 
 | Task                                             | Details                                                        |
 | ------------------------------------------------ | -------------------------------------------------------------- |
-| [ ] Switch PPTX/ODP parser to `officeparser`     | Replace `pptxtojson` with `officeparser` for PPTX and ODP AST  |
-| [ ] Add `.odp` file type to import               | Update conversion modal to accept `.odp` uploads               |
-| [ ] Normalize `officeparser` AST                 | Adapt `PptxExtractor` to consume `officeparser` output         |
-| [ ] Preserve image extraction                    | Keep embedded image extraction for ODP like PPTX               |
-| [ ] Convert PPTX extraction directly to Markdown | Stream PPTX content directly into Markdown as it is extracted. |
 | [ ] Export PowerPoint shapes and diagrams (#117) | Convert PPTX shapes and diagrams to images during PPTX import. |
 
 ### Stepped Content & Motion
@@ -759,3 +759,9 @@ Items deferred from earlier phases; re-prioritize when the active phase is compl
 | [ ] Add error telemetry           | Capture runtime errors and failed operations in the UI. |
 | [ ] Add build/PDF runtime metrics | Track build time, PDF render time, and asset sizes.     |
 | [ ] Add optional log export       | Download logs for debugging without browser DevTools.   |
+
+### Editor UI
+
+| Task                   | Details                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Undo/redo controls | Optional editor buttons reflect `DeckStore.canUndo()` / `canRedo()` and follow the same semantics as the shortcuts. |

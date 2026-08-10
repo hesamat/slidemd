@@ -15,6 +15,7 @@ import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
 import { splitCssDeclarations } from "../../core/utils.js";
+import { Logger } from "../../core/logger.js";
 import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
@@ -98,7 +99,7 @@ export class SlidePreviewUpdater {
       try {
         cb(slideEl);
       } catch (err) {
-        console.warn("onReadyOnce callback failed:", err);
+        Logger.warn("onReadyOnce callback failed:", err);
       }
     }
   }
@@ -335,7 +336,7 @@ export class SlidePreviewUpdater {
             DeckImagesResolver.rewriteImgSrcs(newSlideEl).catch(() => {});
             DeckImagesResolver.rewriteBackgroundUrls(newSlideEl).catch(() => {});
           } catch (err) {
-            console.warn("Failed to enhance slide preview:", err);
+            Logger.warn("Failed to enhance slide preview:", err);
           }
 
           if (generation !== this._updateGeneration) return;
@@ -358,7 +359,7 @@ export class SlidePreviewUpdater {
         this._clearReadyCallbacks();
       }
     } catch (error) {
-      console.error("Failed to update preview:", error);
+      Logger.error("Failed to update preview:", error);
       Notification.error("Failed to parse markdown: " + (error.message || "Unknown error"));
       this._clearReadyCallbacks();
     }

@@ -4,6 +4,7 @@
  * Quick-access modal for triggering actions via fuzzy search.
  */
 import { escapeHtml } from "../core/utils.js";
+import { Logger } from "../core/logger.js";
 
 const PALETTE_PREFIX = "command-palette";
 const MAX_RESULTS = 50;
@@ -337,7 +338,7 @@ export class CommandPalette {
     try {
       cmd.action();
     } catch (e) {
-      console.warn(`Command "${cmd.name}" failed:`, e);
+      Logger.warn(`Command "${cmd.name}" failed:`, e);
     }
   }
 }

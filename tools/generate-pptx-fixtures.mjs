@@ -14,7 +14,7 @@
 import JSZip from "jszip";
 import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const OUT_DIR = fileURLToPath(new URL("../src/__tests__/fixtures/pptx/", import.meta.url));
@@ -551,7 +551,7 @@ const FIXTURES = [
   },
 ];
 
-function buildFixture({ name, slideBody, imageCount }) {
+function buildFixture({ slideBody, imageCount }) {
   const zip = new JSZip();
   const FIXED_DATE = new Date(0);
   // Pin the ZIP entry timestamps so regeneration is byte-identical.

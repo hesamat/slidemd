@@ -86,7 +86,7 @@ describe("buildDeckSummary", () => {
 
   it("detects code blocks, diagrams, and images", () => {
     const md =
-      "layout: header-content\n@main\n```\nconsole.log('hi')\n```\n\n---\n\nlayout: header-content\n@main\n[Diagram: A, B]\n\n---\n\nlayout: media-span\n@media\n<img src=\"pic.png\">";
+      "layout: header-content\n@main\n```\nconsole.log('hi')\n```\n\n---\n\nlayout: header-content\n@main\n[Diagram: A, B]\n\n---\n\nlayout: media-span-right\n@media\n<img src=\"pic.png\">";
     const summary = buildDeckSummary(md);
     expect(summary).toContain("Features: code blocks, diagrams, images");
   });

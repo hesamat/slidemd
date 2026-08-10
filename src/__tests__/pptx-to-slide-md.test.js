@@ -1098,7 +1098,7 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     // inferLayout returns two-column, but the media-span upgrade promotes it
     // because the right column has a single dominant image
-    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toMatch(/layout: (two-column|media-span-(?:left|right))/);
     expect(md).toContain("@main");
     expect(md).toContain("@media");
   });
@@ -1135,7 +1135,7 @@ describe("convertToSlideMd", () => {
     const md = convertToSlideMd(extraction);
     // inferLayout returns two-column for side-by-side images, but media-span
     // upgrade promotes it because the right column has a single dominant image
-    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toMatch(/layout: (two-column|media-span-(?:left|right))/);
     expect(md).toContain("@main");
     expect(md).toContain("@media");
   });
@@ -2101,7 +2101,7 @@ describe("convertToSlideMd", () => {
     ]);
     const md = convertToSlideMd(extraction);
     // media-span with overflowing body → upgraded to two-column
-    expect(md).toMatch(/layout: (two-column|media-span)/);
+    expect(md).toMatch(/layout: (two-column|media-span-(?:left|right))/);
     expect(md).toContain(longBody);
   });
 
@@ -2153,7 +2153,7 @@ describe("convertToSlideMd", () => {
     const weekIdx = md.indexOf("Week 3");
     expect(weekIdx).toBeGreaterThan(headerIdx);
     // No forced overflow upgrade — content stays in media-span
-    expect(md).toMatch(/layout: (media-span|two-column)/);
+    expect(md).toMatch(/layout: (media-span-(?:left|right)|two-column)/);
     expect(md).toContain("@media");
   });
 

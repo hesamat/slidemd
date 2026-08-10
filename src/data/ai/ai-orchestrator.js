@@ -11,6 +11,7 @@
  */
 
 import { AiOutputValidator } from "./ai-output-validator.js";
+import { Logger } from "../../core/logger.js";
 import { buildRepairMessage } from "./ai-repair-message.js";
 import {
   buildMessagesForIntent,
@@ -119,7 +120,7 @@ export class AiOrchestrator {
       if (onLog) {
         onLog(message, level);
       } else if (level === "warn" || level === "error") {
-        console.warn(message);
+        Logger.warn(message);
       }
     };
     const { intent, targetSlide, context } = operation;
