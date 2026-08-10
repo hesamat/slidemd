@@ -286,6 +286,14 @@ export class StoreSyncController {
    * own explicit view restore (undo, redo, AI patch, whole-deck replace) so
    * the synchronous storeChange emit does not queue a duplicate restore.
    *
+   * **Cross-module invariant:** if the suppressed operation mutates the
+   * deck's structural revision (add/delete/move/whole-deck replace) and
+   * performs its own reload rather than going through
+   * `restoreStoreSnapshot`, the caller MUST also call
+   * `syncStructuralRevision()` afterwards. Otherwise the next restore will
+   * `saveSlideState` the current editor state under a stale slide index and
+   * corrupt the per-slide undo cache.
+   *
    * The callback **must be synchronous** — the flag is restored in a
    * `finally` block, so an `async` callback would clear it at the first
    * `await` and any later `storeChange` emit would not be suppressed.
