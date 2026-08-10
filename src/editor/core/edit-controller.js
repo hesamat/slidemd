@@ -44,6 +44,7 @@ import { SlideStylePanel } from "../ui/slide-style-panel.js";
 import { SlidePreviewUpdater } from "./slide-preview-updater.js";
 import { StoreSyncController } from "./store-sync-controller.js";
 import { EditorBufferController } from "./editor-buffer-controller.js";
+import { HistoryController } from "./history-controller.js";
 import { StyleApplier } from "./style-applier.js";
 import { SourceJumpHandler } from "./source-jump-handler.js";
 import { resolveConflict } from "../../data/store/conflict-resolver.js";
@@ -65,7 +66,6 @@ export class EditController {
 
     this.unsavedMarkdown = new Map();
     this._pendingStructuralOperations = 0;
-    this._historyOperation = null;
     this._deckRestoreDepth = 0;
 
     this.placeholderDialogEl = null;
@@ -138,6 +138,18 @@ export class EditController {
       setHasUnsavedChanges: (v) => {
         this.hasUnsavedChanges = v;
       },
+    });
+
+    // History module. Owns the undo/redo guard and delegates to the
+    // editor's local stack or the store-level history with a chained
+    // view restore.
+    this.history = new HistoryController({
+      getMarkdownEditor: () => this.markdownEditor,
+      getDeckStore: () => this.deckStore,
+      getUnsavedMarkdown: () => this.unsavedMarkdown,
+      getPendingStructuralOperations: () => this._pendingStructuralOperations,
+      chainStoreChangeRestore: () => this.storeSync.chainStoreChangeRestore(),
+      withSuppressedStoreChange: (fn) => this.storeSync.withSuppressedStoreChange(fn),
     });
 
     // Clear the per-slide editor-state cache whenever the store's
@@ -739,80 +751,11 @@ export class EditController {
   }
 
   async undo() {
-    if (this._historyOperation) return false;
-    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
-      if (!this.markdownEditor) return false;
-      // Only delegate to the editor's undo if it actually has history.
-      // Otherwise fall through to store-level undo so the user can undo
-      // structural operations even with unsaved overlays on other slides.
-      // This is intentional UX: the keyboard handler already decided the
-      // *current* slide's editor stack is exhausted, so the next Ctrl+Z
-      // operates on the broader deck history. Unsaved overlays on other
-      // slides are preserved by _onDeckChange's _reconcileUnsavedOverlays.
-      if (this.markdownEditor.canUndo?.()) {
-        this.markdownEditor.undo?.();
-        return true;
-      }
-    }
-    if (!this.deckStore || !this.deckStore.canUndo()) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.undo?.();
-      return true;
-    }
-    this._historyOperation = "undo";
-    try {
-      const undoResult = this._withSuppressedStoreChange(() => this.deckStore.undo());
-      if (!undoResult) return false;
-
-      return await this._chainStoreChangeRestore();
-    } catch (error) {
-      // Roll the store back and then the view.
-      this._withSuppressedStoreChange(() => this.deckStore.redo());
-      try {
-        await this._chainStoreChangeRestore();
-      } catch (rollbackError) {
-        Logger.error("Failed to restore view after undo rollback:", rollbackError);
-      }
-      Notification.error(`Undo failed: ${error.message || error}`);
-      return false;
-    } finally {
-      this._historyOperation = null;
-    }
+    return this.history.undo();
   }
 
   async redo() {
-    if (this._historyOperation) return false;
-    if (this.unsavedMarkdown.size > 0 && this._pendingStructuralOperations === 0) {
-      if (!this.markdownEditor) return false;
-      if (this.markdownEditor.canRedo?.()) {
-        this.markdownEditor.redo?.();
-        return true;
-      }
-    }
-    if (!this.deckStore || !this.deckStore.canRedo()) {
-      if (!this.markdownEditor) return false;
-      this.markdownEditor.redo?.();
-      return true;
-    }
-    this._historyOperation = "redo";
-    try {
-      const redoResult = this._withSuppressedStoreChange(() => this.deckStore.redo());
-      if (!redoResult) return false;
-
-      return await this._chainStoreChangeRestore();
-    } catch (error) {
-      // Roll the store back and then the view.
-      this._withSuppressedStoreChange(() => this.deckStore.undo());
-      try {
-        await this._chainStoreChangeRestore();
-      } catch (rollbackError) {
-        Logger.error("Failed to restore view after redo rollback:", rollbackError);
-      }
-      Notification.error(`Redo failed: ${error.message || error}`);
-      return false;
-    } finally {
-      this._historyOperation = null;
-    }
+    return this.history.redo();
   }
 
   /**

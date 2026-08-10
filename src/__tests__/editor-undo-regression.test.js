@@ -5,6 +5,7 @@ import { SaveManager } from "../editor/ui/save-manager.js";
 import { EditController } from "../editor/core/edit-controller.js";
 import { StoreSyncController } from "../editor/core/store-sync-controller.js";
 import { EditorBufferController } from "../editor/core/editor-buffer-controller.js";
+import { HistoryController } from "../editor/core/history-controller.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
 
@@ -102,6 +103,20 @@ function createBuffer(fake) {
     setHasUnsavedChanges: (v) => {
       fake.hasUnsavedChanges = v;
     },
+  });
+}
+
+/**
+ * Wire a real HistoryController to a fake EditController-like object.
+ */
+function createHistory(fake) {
+  return new HistoryController({
+    getMarkdownEditor: () => fake.markdownEditor,
+    getDeckStore: () => fake.deckStore,
+    getUnsavedMarkdown: () => fake.unsavedMarkdown,
+    getPendingStructuralOperations: () => fake._pendingStructuralOperations ?? 0,
+    chainStoreChangeRestore: () => fake.storeSync.chainStoreChangeRestore(),
+    withSuppressedStoreChange: (fn) => fake.storeSync.withSuppressedStoreChange(fn),
   });
 }
 
@@ -214,7 +229,6 @@ describe("Editor undo regression suite", () => {
         unsavedMarkdown: unsaved,
         hasUnsavedChanges: true,
         _pendingStructuralOperations: 0,
-        _historyOperation: null,
         _deckRestoreDepth: 0,
         _lastEditorSlideIndex: -1,
         controller: {
@@ -222,8 +236,6 @@ describe("Editor undo regression suite", () => {
           slideNavigator: { goTo: () => {}, currentIndex: 0 },
         },
         _captureCurrentEditorMarkdown: () => {},
-        _withSuppressedStoreChange: EditController.prototype._withSuppressedStoreChange,
-        _chainStoreChangeRestore: EditController.prototype._chainStoreChangeRestore,
         _storeDiffersFromSource: () => true,
         saveManager: {
           getFullSlides: () => [{ index: 0, markdown: "# A edited" }],
@@ -237,6 +249,7 @@ describe("Editor undo regression suite", () => {
         loadSlideIntoEditor: () => {},
       };
       fake.storeSync = createStoreSync(fake);
+      fake.history = createHistory(fake);
 
       // User edits and then saves.
       EditController.prototype.prepareStoreOperation.call(fake, true);
@@ -246,7 +259,7 @@ describe("Editor undo regression suite", () => {
       expect(onStore).not.toHaveBeenCalled();
 
       // Immediately undo after the save.
-      await EditController.prototype.undo.call(fake);
+      await fake.history.undo();
       expect(deckStore.getSlides()[0]).toBe("# A");
 
       // The undo used store history, not the editor's local undo.
