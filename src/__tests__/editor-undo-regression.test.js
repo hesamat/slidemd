@@ -5,6 +5,10 @@ import { SaveManager } from "../editor/ui/save-manager.js";
 import { EditController } from "../editor/core/edit-controller.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
+import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
+import { TextBlockHandler } from "../editor/text/text-block-handler.js";
+import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
+import { StageScaler } from "../renderer/stage-scaler.js";
 
 beforeAll(() => {
   window.markdownit = markdownit;
@@ -338,6 +342,69 @@ describe("Editor undo regression suite", () => {
       EditController.prototype.prepareStoreOperation.call(fake, true);
 
       expect(fake.unsavedMarkdown.get(3)).toBe("# typed in the editor");
+    });
+  });
+
+  describe("toggleEditMode buffer capture on exit", () => {
+    it("captures the buffer against the hidden slide before onEditModeChanged navigates away", () => {
+      const deactivateImage = vi
+        .spyOn(ImageInteractionHandler, "deactivate")
+        .mockImplementation(() => {});
+      const deactivateText = vi.spyOn(TextBlockHandler, "deactivate").mockImplementation(() => {});
+      const hidePanel = vi.spyOn(SlideStylePanel, "hide").mockImplementation(() => {});
+      const applyScale = vi.spyOn(StageScaler, "applyStageScale").mockImplementation(() => {});
+
+      const deckStore = new DeckStore();
+      deckStore.loadFromMarkdown("# s0\n\n---\n\n# hidden\n\n---\n\n# s2\n\n---\n\n# s3");
+      const unsaved = new Map();
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 1, // the hidden slide currently in the editor
+        deckStore,
+        unsavedMarkdown: unsaved,
+        hasUnsavedChanges: false,
+        markdownEditor: {
+          getValue: () => "# hidden edited",
+          cancelOnChange: vi.fn(),
+        },
+        _getSourceMarkdown: () => "# s0\n\n---\n\n# hidden\n\n---\n\n# s2\n\n---\n\n# s3",
+        _captureCurrentEditorMarkdown: EditController.prototype._captureCurrentEditorMarkdown,
+        _captureEditorMarkdown: EditController.prototype._captureEditorMarkdown,
+        updateUnsavedChangesFlag: EditController.prototype.updateUnsavedChangesFlag,
+        controller: {
+          // Simulates SlideNavigator jumping to the next visible slide when
+          // the current one is hidden — before the flush runs in the buggy
+          // version, this moves currentSlideIndex away from the buffer.
+          onEditModeChanged: vi.fn(() => {
+            fake.currentSlideIndex = 2;
+          }),
+          roleManager: { isEditorWindow: false },
+        },
+        elements: {
+          editorPanel: { classList: { add: vi.fn(), remove: vi.fn() } },
+          toggleEditModeBtn: {
+            classList: { add: vi.fn(), remove: vi.fn() },
+            setAttribute: vi.fn(),
+          },
+          toggleEditModeLabel: { textContent: "" },
+          presenterPanel: { classList: { add: vi.fn(), remove: vi.fn() } },
+        },
+        mermaidHelper: { hide: vi.fn() },
+        placeholderDialogEl: null,
+        saveManager: { updateButton: vi.fn() },
+      };
+
+      EditController.prototype.toggleEditMode.call(fake);
+
+      // The hidden slide's buffer must be filed under the slide it belongs
+      // to (index 1), not the visible slide the app jumped to (index 2).
+      expect(unsaved.get(1)).toBe("# hidden edited");
+      expect(unsaved.has(2)).toBe(false);
+
+      deactivateImage.mockRestore();
+      deactivateText.mockRestore();
+      hidePanel.mockRestore();
+      applyScale.mockRestore();
     });
   });
 });

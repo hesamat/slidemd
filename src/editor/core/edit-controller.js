@@ -551,6 +551,16 @@ export class EditController {
       return;
     }
 
+    // Flush the pending debounced editor buffer BEFORE toggling edit mode:
+    // onEditModeChanged may navigate away from a hidden slide (updating
+    // currentSlideIndex), so capturing afterwards would attribute the
+    // buffer to the slide the app jumped to instead of the one it belongs
+    // to. At this point currentSlideIndex still matches the buffer.
+    if (this.isEditMode && this.markdownEditor) {
+      this._captureCurrentEditorMarkdown();
+      this.markdownEditor.cancelOnChange?.();
+    }
+
     this.isEditMode = !this.isEditMode;
 
     this.controller.onEditModeChanged?.();
@@ -575,10 +585,6 @@ export class EditController {
 
       this.loadSlideIntoEditor();
     } else {
-      // Flush the pending debounced editor buffer so the last keystrokes
-      // are captured before the editor becomes inactive.
-      this._captureCurrentEditorMarkdown();
-      this.markdownEditor?.cancelOnChange?.();
       this.elements.editorPanel?.classList.add("webdeck-hidden");
       this.elements.toggleEditModeBtn.classList.remove("active");
       if (this.elements.toggleEditModeLabel) this.elements.toggleEditModeLabel.textContent = "Edit";
