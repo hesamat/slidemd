@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const noOpen = rawArgs.includes("--no-open");
+const args = rawArgs.filter((arg) => arg !== "--no-open");
 
 // CLI server on port 8001
 const cliArgs = ["tools/dev-server.mjs", ...args, "--port", "8001"];
@@ -18,7 +20,9 @@ const cli = spawn(process.execPath, cliArgs, {
 });
 
 // Vite on port 8000 (proxies /api and /images to CLI server)
-const vite = spawn("npx", ["vite"], {
+const viteArgs = ["vite"];
+if (noOpen) viteArgs.push("--open=false");
+const vite = spawn("npx", viteArgs, {
   cwd: path.join(__dirname, ".."),
   stdio: "inherit",
   shell: true,

@@ -12,6 +12,8 @@ const LEVELS = Object.freeze({
   error: 3,
 });
 
+// The logger is a page-wide singleton. Tests and temporary callers should use
+// resetLevel() when they need to restore the environment-aware default.
 let configuredLevel = null;
 
 function isProductionBuild() {
@@ -31,8 +33,9 @@ function write(level, method, args) {
 /**
  * Set the minimum level emitted by the logger.
  *
- * Pass `null` to restore the environment-aware default. The default is
- * `debug` in development and `warn` in exported or bundled builds.
+ * This changes the page-wide logger singleton. Pass `null` to restore the
+ * environment-aware default. The default is `debug` in development and
+ * `warn` in exported or bundled builds.
  *
  * @param {"debug"|"info"|"warn"|"error"|null} level
  */

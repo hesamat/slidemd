@@ -42,14 +42,18 @@ npm run dev -- path/to/slides.md
 
 ## Quality Gates
 
-Run all four checks before opening a PR. They must pass.
+Run all five checks before opening a PR. They must pass.
 
 ```bash
 npm run lint
 npm run format:check
 npm test
+npm run test:e2e
 npm run build
 ```
+
+The Playwright E2E suite runs in CI and is required for pull requests. It starts
+its own dual-process dev server and installs Chromium in the CI workflow.
 
 If `npm run format:check` fails, run `npm run format` (or
 `npx prettier --write .`) and rerun the check.

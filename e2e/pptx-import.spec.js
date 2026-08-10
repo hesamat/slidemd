@@ -3,6 +3,7 @@ import { test, expect } from "./fixtures.js";
 import { loadExampleDeck, openMenu } from "./helpers.js";
 
 test("imports a PPTX fixture through the import flow", async ({ page }) => {
+  test.setTimeout(60_000);
   await loadExampleDeck(page);
   await openMenu(page);
   await page.locator("#menuConvertPptxBtn").click();

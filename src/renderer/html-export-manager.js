@@ -956,7 +956,9 @@ ${escapedInitScript}
                 }
                 if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
                     ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
-                        .catch(e => Logger.warn('Enhancement error:', e));
+                        .catch(e => {
+                            if (typeof Logger !== 'undefined') Logger.warn('Enhancement error:', e);
+                        });
                 }
             };
             window.addEventListener('webdeck:ready', enhance, { once: true });
