@@ -31,24 +31,30 @@ const vite = spawn(process.execPath, [viteScript], {
   stdio: "inherit",
 });
 
+let shutdownStarted = false;
+
+function terminate(child) {
+  if (!child.killed) child.kill("SIGTERM");
+}
+
+function shutdown(code) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  process.exitCode = typeof code === "number" ? code : 1;
+  terminate(cli);
+  terminate(vite);
+}
+
 cli.on("error", (error) => {
   console.error("Failed to start the CLI dev server:", error);
-  process.exitCode = 1;
+  shutdown(1);
 });
 vite.on("error", (error) => {
   console.error("Failed to start Vite:", error);
-  process.exitCode = 1;
+  shutdown(1);
 });
-cli.on("close", (code) => process.exit(code));
-vite.on("close", (code) => process.exit(code));
+cli.on("close", (code) => shutdown(code));
+vite.on("close", (code) => shutdown(code));
 
-process.on("SIGINT", () => {
-  cli.kill();
-  vite.kill();
-  process.exit();
-});
-process.on("SIGTERM", () => {
-  cli.kill();
-  vite.kill();
-  process.exit();
-});
+process.on("SIGINT", () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
