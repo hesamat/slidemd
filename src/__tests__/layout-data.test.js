@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LayoutData } from "../data/layout-data.js";
+import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
 
 describe("LayoutData", () => {
   describe("getTemplate", () => {
@@ -36,6 +36,8 @@ describe("LayoutData", () => {
       expect(layouts).toContain("two-column");
       expect(layouts).toContain("title-slide");
       expect(layouts).toContain("focus");
+      expect(layouts).toContain("media-span-left");
+      expect(layouts).toContain("media-span-right");
     });
   });
 
@@ -65,8 +67,24 @@ describe("LayoutData", () => {
       expect(grid).toContain('"');
     });
 
+    it("mirrors media-span grids around the midpoint", () => {
+      const right = LayoutData.getGridTemplate("media-span-right");
+      const left = LayoutData.getGridTemplate("media-span-left");
+      expect(right).toBe('"header media" "main media" "footer media" / 1.2fr 0.8fr');
+      expect(left).toBe('"media header" "media main" "media footer" / 0.8fr 1.2fr');
+    });
+
     it("returns null for unknown layout", () => {
       expect(LayoutData.getGridTemplate("nonexistent")).toBeNull();
+    });
+
+    it("derives media-span sides from grid geometry", () => {
+      expect(LayoutData.getMediaSpanSide("media-span-left")).toBe("left");
+      expect(LayoutData.getMediaSpanSide("media-span-right")).toBe("right");
+      expect(getMediaSpanSideFromGrid('"media main" "media footer"')).toBe("left");
+      expect(getMediaSpanSideFromGrid('"main media" "footer media"')).toBe("right");
+      expect(getMediaSpanSideFromGrid('"main media" "media main"')).toBeNull();
+      expect(getMediaSpanSideFromGrid('"main media"')).toBeNull();
     });
   });
 
@@ -93,6 +111,11 @@ describe("LayoutData", () => {
   describe("formatLayoutName", () => {
     it("formats hyphenated names", () => {
       expect(LayoutData.formatLayoutName("two-column")).toBe("Two Column");
+    });
+
+    it("replaces every hyphen in multi-hyphen names", () => {
+      expect(LayoutData.formatLayoutName("media-span-left")).toBe("Media Span Left");
+      expect(LayoutData.formatLayoutName("media-span-right")).toBe("Media Span Right");
     });
   });
 

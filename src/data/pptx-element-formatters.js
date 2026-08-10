@@ -5,7 +5,7 @@
  * Extracted from pptx-to-slide-md.js for clarity and reuse.
  */
 import { buildChartDataRows } from "./pptx-chart-data.js";
-import { stripHtml, escapeHtml } from "./pptx-html-to-markdown.js";
+import { stripHtml, escapeHtml, isDividerLine, isMarkerOnly } from "./pptx-html-to-markdown.js";
 import { sanitizeCssColor, isColorDark } from "./pptx-color-utils.js";
 import { CONVERSION, DEFAULTS, REGEX, CONFIG, MARKDOWN_TAGS } from "./pptx-slide-config.js";
 
@@ -30,7 +30,8 @@ export function formatTextElement(raw) {
       continue;
     }
 
-    if (trimmed === "```") {
+    if (/^```/.test(trimmed)) {
+      // Toggle on any fence line — bare or language-tagged ("```yaml").
       inFencedCode = !inFencedCode;
       result.push(trimmed);
       continue;
@@ -44,6 +45,22 @@ export function formatTextElement(raw) {
     const indentLevel =
       indent.length > 0 ? Math.floor(indent.length / CONVERSION.INDENT_DIVISOR) : 0;
     const prefix = "  ".repeat(indentLevel);
+
+    // Divider lines — three or more markers, adjacent or spaced ("---",
+    // "- - -", "***", "* * *", "•••"). A raw "---" line would terminate the
+    // slide in splitSlides, so emit "***" (which renders as a horizontal
+    // rule) instead of the original markers. Shared with htmlToMarkdown so
+    // the two modules cannot drift.
+    if (isDividerLine(trimmed)) {
+      result.push("***");
+      continue;
+    }
+
+    // Marker-only residue — one or two markers, adjacent or spaced ("-",
+    // "- -", "--", "• •") that PowerPoint leaves behind in empty sub-bullets.
+    // These have no content, so drop the line instead of emitting a dangling
+    // "- ".
+    if (isMarkerOnly(trimmed)) continue;
 
     const isProperBullet = /^(\s*[-*•])\s+\S/.test(trimmed) && !/^(\s*[-*•]\s*){2,}/.test(trimmed);
     const isNumberedList = /^\s*\d+[.)]\s+\S/.test(trimmed);
@@ -168,6 +185,9 @@ export function formatImage(
     .trim();
   const altText = caption || `Slide image ${baseAlt}`;
 
+  // fitColumn: media-span image — the media-span CSS fills the column via
+  // absolute insets and object-fit: contain; the inline style stays
+  // layout-agnostic so the image renders naturally if the layout changes.
   const style = fitColumn ? ' style="width: 100%; height: auto;"' : "";
 
   if (!omitDimensions) {

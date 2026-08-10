@@ -320,6 +320,7 @@ export class DeckLoader {
         title: safeString(s.title) || `Slide ${idx + 1}`,
         notes: safeString(s.notes),
         layout: safeString(s.layout),
+        mediaSpan: /^(left|right)$/i.test(s.mediaSpan) ? s.mediaSpan.toLowerCase() : "",
         // For backwards compatibility, accept but ignore align field
         ...(s.align !== undefined && { align: safeString(s.align) }),
         background: safeString(s.background),

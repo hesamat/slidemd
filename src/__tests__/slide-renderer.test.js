@@ -67,6 +67,70 @@ describe("SlideRenderer", () => {
     expect(html).toContain('class="mermaid"');
   });
 
+  it("keeps media-span intent when a resized custom grid is rendered", () => {
+    const slide = {
+      id: "resized-media",
+      layout: '"main media" "main media" / 3fr 2fr',
+      mediaSpan: "right",
+      areas: {
+        main: "<p>Body</p>",
+        media: '<img src="images/photo.png" alt="Photo" />',
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const area = el.querySelector('.slide__area[data-area-name="media"]');
+
+    expect(el.dataset.mediaSpan).toBe("right");
+    expect(area.style.paddingRight).toBe("0px");
+  });
+
+  it("removes border-side padding for custom span-all-rows grids without media bleed", () => {
+    const slide = {
+      id: "custom-full-height",
+      layout: '"main sidebar" "main sidebar" / 2fr 1fr',
+      areas: { main: "<p>Body</p>", sidebar: "<p>Aside</p>" },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const area = el.querySelector('.slide__area[data-area-name="sidebar"]');
+
+    expect(el.dataset.mediaSpan).toBeUndefined();
+    expect(area.style.paddingRight).toBe("0px");
+  });
+
+  it("keeps the footer in its named cell next to a full-height media column", () => {
+    const slide = {
+      id: "media-span-left-footer",
+      layout: "media-span-left",
+      areas: {
+        media: '<img src="images/photo.png" alt="Photo" />',
+        main: "<p>Body</p>",
+        footer: "<p>Footer</p>",
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const footer = el.querySelector('.slide__area[data-area-name="footer"]');
+
+    expect(el.dataset.mediaSpan).toBe("left");
+    expect(footer.style.gridColumn).toBe("");
+  });
+
+  it("ignores media-span intent when the layout geometry does not match", () => {
+    // A misplaced media-span directive (e.g. after positional AI injection)
+    // must be inert on a layout whose media column does not span every row.
+    const slide = {
+      id: "inert-intent",
+      layout: "two-column",
+      mediaSpan: "right",
+      areas: {
+        main: "<p>Body</p>",
+        media: "<p>Media</p>",
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+
+    expect(el.dataset.mediaSpan).toBeUndefined();
+  });
+
   it("sets data-layout to focus for the built-in focus preset", () => {
     const slide = {
       id: "focus-preset",

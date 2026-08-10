@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
 import { ImageDragController } from "../editor/image/image-drag-controller.js";
+import { ImagePropertiesPanel } from "../editor/image/image-properties-panel.js";
 
 /**
  * Create a mock img element with a mock slide parent.
@@ -271,55 +272,6 @@ describe("ImageInteractionHandler", () => {
     });
   });
 
-  describe("_convertMdImgToHtml", () => {
-    it("preserves width/height HTML attributes instead of using offsetWidth/offsetHeight", () => {
-      // Simulate an HTML img with explicit width/height attributes (e.g. from PPTX conversion)
-      // where the CSS-rendered offsetWidth/offsetHeight differ from the attribute values.
-      const md = '<img src="images/example.jpeg" width="384" height="720" alt="image6">';
-
-      const attrs = { width: "384", height: "720", alt: "image6" };
-      const allImgs = [];
-      const area = {
-        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
-        dataset: { areaName: "main" },
-        querySelectorAll: (sel) => (sel === "img" ? allImgs : []),
-      };
-      const slide = { querySelectorAll: () => allImgs };
-      const style = {};
-      const img = {
-        // offsetWidth/offsetHeight reflect the wrong CSS-rendered size
-        offsetWidth: 190,
-        offsetHeight: 357,
-        getAttribute: (name) => attrs[name] ?? null,
-        setAttribute: (name, val) => {
-          attrs[name] = val;
-        },
-        closest: (sel) => {
-          if (sel === ".slide__area") return area;
-          if (sel === ".slide") return slide;
-          return null;
-        },
-        getBoundingClientRect: () => ({ left: 760, top: 180, width: 400, height: 720 }),
-        style,
-      };
-      allImgs.push(img);
-
-      let saved = null;
-      ImageInteractionHandler._getMarkdown = () => md;
-      ImageInteractionHandler._setMarkdown = (updated) => {
-        saved = updated;
-      };
-      ImageInteractionHandler._convertMdImgToHtml(img);
-
-      // The generated inline style must use the attribute values (384×720),
-      // not the shrunk offsetWidth/offsetHeight (190×357).
-      expect(saved).toContain("width: 384px");
-      expect(saved).toContain("height: 720px");
-      expect(saved).not.toContain("width: 190px");
-      expect(saved).not.toContain("height: 357px");
-    });
-  });
-
   describe("_reorderImageInMarkdown", () => {
     it("preserves rotation, opacity, borderRadius, boxShadow in the output", () => {
       const md =
@@ -415,6 +367,231 @@ describe("ImageInteractionHandler", () => {
     it("does nothing when no gap element exists", () => {
       ImageDragController._dropIndicator = null;
       expect(() => ImageDragController._hideDropGap()).not.toThrow();
+    });
+  });
+
+  describe("_syncToMarkdown markdown-image conversion", () => {
+    function createMarkdownImgMock() {
+      const area = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 1920, height: 1080 }),
+        dataset: { areaName: "main" },
+        querySelectorAll: (sel) => (sel === "img" ? [img] : []),
+      };
+      const style = {
+        left: "",
+        top: "",
+        width: "",
+        height: "",
+        opacity: "",
+        borderRadius: "",
+        boxShadow: "",
+        transform: "",
+        zIndex: "",
+      };
+      const img = {
+        naturalWidth: 600,
+        naturalHeight: 200,
+        offsetWidth: 600,
+        offsetHeight: 200,
+        getBoundingClientRect: () => ({ left: 660, top: 440, width: 600, height: 200 }),
+        closest: (sel) => (sel === ".slide__area" ? area : null),
+        querySelectorAll: (sel) => (sel === "img" ? [img] : []),
+        dataset: { originalSrc: "images/test.png" },
+        classList: { contains: () => false },
+        getAttribute: () => null,
+        setAttribute: vi.fn(),
+        style,
+      };
+      return { img, area };
+    }
+
+    it("converts a markdown image to positioned HTML without moving it on first sync", () => {
+      const md = "layout: header-content\n@main\n\n![alt](images/test.png)";
+      const { img } = createMarkdownImgMock();
+      let saved = null;
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getMarkdown = () => md;
+      ImageInteractionHandler._setMarkdown = (updated) => {
+        saved = updated;
+      };
+      ImageInteractionHandler._slideContainer = null;
+      ImageInteractionHandler._overlay = { style: { display: "" }, remove: () => {} };
+
+      // getComputedStyle is not defined in the plain node test env.
+      const origGetCS = globalThis.getComputedStyle;
+      globalThis.getComputedStyle = () => ({
+        paddingLeft: "10px",
+        paddingTop: "10px",
+      });
+      try {
+        ImageInteractionHandler._syncToMarkdown();
+      } finally {
+        globalThis.getComputedStyle = origGetCS;
+      }
+
+      // Natural 600x200 clamped to the 1920x1080 area, centred at (950, 530)
+      // after subtracting the 10px padding → left 650, top 430.
+      expect(saved).toContain('src="images/test.png"');
+      expect(saved).not.toContain("![alt]");
+      expect(saved).toContain("position: relative");
+      expect(saved).toContain("left: 650px");
+      expect(saved).toContain("top: 430px");
+      expect(saved).toContain("width: 600px");
+      expect(saved).toContain("height: 200px");
+      // The live DOM element receives the same style so the picture stays put.
+      const appliedStyle = img.setAttribute.mock.calls.find(([name]) => name === "style")?.[1];
+      expect(appliedStyle).toContain("left: 650px");
+    });
+
+    it("does not convert when the image is already positioned", () => {
+      const md = "layout: header-content\n@main\n\n![alt](images/test.png)";
+      const { img } = createMarkdownImgMock();
+      img.style.position = "relative";
+      img.style.width = "120px";
+      img.style.height = "80px";
+      let saved = null;
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getMarkdown = () => md;
+      ImageInteractionHandler._setMarkdown = (updated) => {
+        saved = updated;
+      };
+
+      const origGetCS = globalThis.getComputedStyle;
+      globalThis.getComputedStyle = () => ({ paddingLeft: "0px", paddingTop: "0px" });
+      try {
+        ImageInteractionHandler._syncToMarkdown();
+      } finally {
+        globalThis.getComputedStyle = origGetCS;
+      }
+
+      // Positioned images sync through buildInlineStyleString — the markdown
+      // entry was already converted on a previous edit, so the tag keeps
+      // width/height as-is instead of the natural-size conversion.
+      expect(saved).not.toContain("![alt]");
+      expect(saved).toContain("width: 120px");
+    });
+
+    it("honors explicit size and position set by a preset in the same sync", () => {
+      const md = "layout: header-content\n@main\n\n![alt](images/test.png)";
+      const { img } = createMarkdownImgMock();
+      img.style.width = "960px";
+      img.style.height = "320px";
+      img.style.left = "0px";
+      img.style.top = "0px";
+      let saved = null;
+      ImageInteractionHandler._selectedImg = img;
+      ImageInteractionHandler._getMarkdown = () => md;
+      ImageInteractionHandler._setMarkdown = (updated) => {
+        saved = updated;
+      };
+
+      const origGetCS = globalThis.getComputedStyle;
+      globalThis.getComputedStyle = () => ({ paddingLeft: "10px", paddingTop: "10px" });
+      try {
+        ImageInteractionHandler._syncToMarkdown();
+      } finally {
+        globalThis.getComputedStyle = origGetCS;
+      }
+
+      // Fit-to-width applies width/height/left/top before sync — the
+      // conversion must keep those, not re-center at the visual centre.
+      expect(saved).toContain("width: 960px");
+      expect(saved).toContain("height: 320px");
+      expect(saved).toContain("left: 0px");
+      expect(saved).toContain("top: 0px");
+    });
+  });
+
+  describe("selection and drag lifecycle", () => {
+    it("does not convert or reposition a markdown image on selection", () => {
+      const img = {
+        style: {
+          left: "",
+          top: "",
+          width: "",
+          height: "",
+          opacity: "",
+          borderRadius: "",
+          boxShadow: "",
+          transform: "",
+          zIndex: "",
+        },
+        classList: {
+          add: vi.fn(),
+          remove: vi.fn(),
+          contains: () => false,
+        },
+        getAttribute: () => null,
+        isConnected: true,
+      };
+      const setMarkdown = vi.fn();
+      const showPanel = vi.spyOn(ImagePropertiesPanel, "show").mockImplementation(() => {});
+
+      ImageInteractionHandler._slideContainer = null;
+      ImageInteractionHandler._getMarkdown = () => "![image](image.png)";
+      ImageInteractionHandler._setMarkdown = setMarkdown;
+      ImageInteractionHandler.select(img);
+
+      expect(img.style.position).toBeUndefined();
+      expect(setMarkdown).not.toHaveBeenCalled();
+      expect(showPanel).toHaveBeenCalledWith(img, expect.any(Object));
+    });
+
+    it("does not sync markdown when interact.js ends a click without movement", () => {
+      const syncToMarkdown = vi.fn();
+      const img = { isConnected: true };
+      ImageDragController._ctx = { getSelectedImg: () => img, syncToMarkdown };
+      ImageDragController._container = null;
+      ImageDragController._dropIndicator = null;
+      ImageDragController._dragMoved = false;
+
+      ImageDragController._onDragEnd({});
+
+      expect(syncToMarkdown).not.toHaveBeenCalled();
+      expect(ImageDragController._dragMoved).toBe(false);
+    });
+
+    it("does not move the previously selected image when a media-span fill drag is ignored", () => {
+      const label = { classList: { contains: (c) => c === "editor-area-label" } };
+      const slide = { dataset: { mediaSpan: "right" } };
+      const img = {
+        style: { position: "" },
+        classList: { contains: () => false },
+        closest: (sel) => (sel === ".slide__area--media" ? area : null),
+      };
+      const area = {
+        children: [label, img],
+        querySelectorAll: () => [img],
+        closest: (sel) => (sel === ".slide" ? slide : null),
+      };
+
+      const previouslySelected = {
+        style: { position: "relative", left: "10px", top: "20px" },
+        classList: { contains: () => false },
+      };
+      const prepareMdImgForDrag = vi.fn();
+      const syncToMarkdown = vi.fn();
+      ImageDragController._ctx = {
+        getSelectedImg: () => previouslySelected,
+        select: vi.fn(),
+        prepareMdImgForDrag,
+        syncToMarkdown,
+      };
+      ImageDragController._container = null;
+      ImageDragController._dropIndicator = null;
+      ImageDragController._dragMoved = false;
+      ImageDragController._dragPrepared = false;
+      ImageDragController._dragIgnored = false;
+
+      ImageDragController._onDragStart({ target: { closest: () => img }, clientX: 0, clientY: 0 });
+      ImageDragController._onDragMove({ dx: 50, dy: 0, clientX: 50, clientY: 0 });
+      ImageDragController._onDragEnd({ clientX: 50, clientY: 0 });
+
+      expect(prepareMdImgForDrag).not.toHaveBeenCalled();
+      expect(syncToMarkdown).not.toHaveBeenCalled();
+      expect(previouslySelected.style.left).toBe("10px");
+      expect(previouslySelected.style.top).toBe("20px");
+      expect(ImageDragController._dragIgnored).toBe(false);
     });
   });
 });

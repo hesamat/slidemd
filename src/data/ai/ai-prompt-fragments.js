@@ -158,7 +158,8 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * Uses a per-layout line format (`layout: @area1, @area2, ...`) rather than a
  * wide cross-reference table. The table format (8 columns × 12 rows) was hard
  * for the AI to scan accurately — it frequently used `@secondary` for
- * `two-column` (which only has `@media`) or dropped `@main` from `media-span`.
+ * `two-column` (which only has `@media`) or dropped `@main` from
+ * `media-span-left`/`media-span-right`.
  * The per-layout format makes each layout's allowed areas unambiguous.
  *
  * @returns {string}
@@ -217,10 +218,10 @@ export function stripThemeAndBackground(markdown) {
 export function stripFrontmatter(markdown, mode) {
   if (mode === "generate") {
     // Generate mode: keep background and theme so AI sees the originals
-    return stripDirectives(markdown, /^(layout|hidden|code-font-size):\s*.*$/);
+    return stripDirectives(markdown, /^(layout|media-span|hidden|code-font-size):\s*.*$/);
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
-  return stripDirectives(markdown, /^(theme|background|hidden|code-font-size):\s*.*$/);
+  return stripDirectives(markdown, /^(theme|background|media-span|hidden|code-font-size):\s*.*$/);
 }
 
 function stripDirectives(markdown, pattern) {

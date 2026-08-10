@@ -143,7 +143,8 @@ Use preset names instead of full CSS grid strings:
 - `header-content` - Header, content, footer stacked
 - `focus` - Content-first layout with minimal header/footer (centered content)
 - `two-column` - Two equal columns with optional header and footer
-- `media-span` - Two columns with media spanning full height (1.2:0.8)
+- `media-span-right` - Full-height media on the right, content column on the left (1.2:0.8)
+- `media-span-left` - Full-height media on the left, content column on the right (0.8:1.2)
 - `left-heavy` - Two columns with left side larger (2:1)
 - `right-heavy` - Two columns with right side larger (1:2)
 - `three-column` - Three equal columns
@@ -159,6 +160,17 @@ layout: "header header" "main media" / 2fr 1fr
 
 - Quoted rows define area names; column sizes follow the `/` separator.
 - Each `@area` marker must match a name in the grid. Unsupported areas are highlighted in edit mode with a one-click fix.
+
+### `media-span:` intent directive
+
+Resizing the media column of a `media-span-left`/`media-span-right` slide rewrites
+its `layout:` into a custom grid. To keep the full-bleed media treatment across
+the resize (and through AI editing), the editor records the intent in an
+internal `media-span: left|right` directive, and the renderer re-applies the
+bleed when the grid geometry still matches that side. It is an internal setting:
+you normally never need to write it by hand, and it is stripped when you pick a
+different layout.
+
 - Custom layouts can be saved in the **Layout Picker** (`Custom` tile) as named user preferences stored in `localStorage` and reused across decks.
 
 ## Edit Mode Tips

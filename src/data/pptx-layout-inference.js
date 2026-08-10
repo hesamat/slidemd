@@ -40,6 +40,16 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
   const bodyThreshold = slideHeight * CONFIG.bodyTopRatio;
   const textElements = elements.filter((el) => el.type === "text" && el.content?.trim());
 
+  // The header band rule (below) only applies when the slide actually has a
+  // heading in the header region — a short, non-list text element near the
+  // top. Without one, small images higher up are content, not title icons.
+  const hasHeaderLikeText = textElements.some((el) =>
+    isHeaderLikeTextElement(el, slideHeight, {
+      requireTitleWidth: true,
+      slideWidth,
+    }),
+  );
+
   return elements.filter((el) => {
     // 1. Always keep text and rich content types
     if (el.type === ELEMENT_TYPES.TEXT) {
@@ -97,18 +107,25 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
     if (isThinHorizontalLine || isThinVerticalLine) return false;
 
     const isSmallImage = area < slideArea * CONFIG.maxLogoAreaRatio;
-
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
-      const isInTopMargin = el.top < slideHeight * CONFIG.marginTopRatio;
+      // Small images fully contained in the header band (the top 22%, which is
+      // also the body/header threshold) are decorative icons beside titles —
+      // dropped only when a heading is actually present. Images that start in
+      // the top strip but extend below the band are kept: they are too large
+      // to be a template logo.
+      const isContainedInHeaderBand = el.top + (h || 0) <= slideHeight * CONFIG.bodyTopRatio;
+      const isInTopBand = hasHeaderLikeText && isContainedInHeaderBand;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
-      // Discard small elements placed inside either the top or bottom margin bounds
-      if (isInTopMargin || isInBottomMargin) {
+      // Discard small elements placed inside the top band or the bottom margin
+      // bounds — they are decorative icons/logos beside titles, or footer
+      // ornaments, rather than content.
+      if (isInTopBand || isInBottomMargin) {
         return false;
       }
-      // Small images not in margins are kept — they are likely icons, badges, or
-      // inline decorations rather than background/border elements.
+      // Small images not in the bands are kept — they are likely icons, badges,
+      // or inline decorations rather than background/border elements.
       return true;
     }
 
@@ -152,6 +169,73 @@ export function findDominantImages(allEls, slideWidth, slideHeight) {
 
     return area >= slideArea * CONFIG.minDominantAreaRatio;
   });
+}
+
+/**
+ * Partition an element into the left or right half of the slide using
+ * area-overlap analysis. Elements that straddle the midpoint (no side has
+ * 1.5x more overlap than the other) are ambiguous and return null.
+ * Used by inferLayout's column partitioning; the two-column renderer keeps
+ * its own thresholds on top of this rule.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideWidth
+ * @param {number} slideHeight
+ * @returns {'left'|'right'|null}
+ */
+export function partitionByAreaOverlap(el, slideWidth, slideHeight) {
+  const midX = slideWidth / 2;
+  const overlapLeft = getOverlapArea(el, {
+    left: 0,
+    top: 0,
+    width: midX,
+    height: slideHeight,
+  });
+  const overlapRight = getOverlapArea(el, {
+    left: midX,
+    top: 0,
+    width: midX,
+    height: slideHeight,
+  });
+  if (overlapLeft > overlapRight * 1.5) return "left";
+  if (overlapRight > overlapLeft * 1.5) return "right";
+  return null; // truly ambiguous — don't force
+}
+
+/**
+ * True when a text element looks like a heading: it sits in the header
+ * region (top of the slide) and either carries a markdown heading marker or
+ * is a short, non-list element. Shared by filterMeaningfulElements (the
+ * header-band icon rule) and inferLayout (header detection) so the two
+ * predicates cannot drift apart.
+ *
+ * With {@link opts.requireTitleWidth}, the plain-title path additionally
+ * demands a wide, non-footer element — used only by the icon rule so narrow
+ * top labels, dates, and slide numbers do not count as titles; layout
+ * inference itself keeps accepting any short top text as a header.
+ * @param {import('./pptx-extractor.js').ExtractedElement} el
+ * @param {number} slideHeight
+ * @param {{ requireTitleWidth?: boolean, slideWidth?: number }} [opts]
+ * @returns {boolean}
+ */
+export function isHeaderLikeTextElement(
+  el,
+  slideHeight,
+  { requireTitleWidth = false, slideWidth = 0 } = {},
+) {
+  if (!el || el.top >= slideHeight * CONFIG.bodyTopRatio) return false;
+  // In requireTitleWidth mode the width/footer checks gate the heading-marker
+  // shortcut too — the extractor marks any >=34pt run as a heading, and a
+  // narrow such label must not enable the icon band filter.
+  if (requireTitleWidth) {
+    if (el.placeholderType === ELEMENT_TYPES.FOOTER) return false;
+    if ((el.width || 0) < slideWidth * CONFIG.minTitleWidthRatio) return false;
+  }
+  if (REGEX.HEADING_MARKER.test((el.content || "").trim())) return true;
+  // Extract plain text from HTML for length/bullet checks — raw HTML is
+  // often much longer than the visible text due to inline styles.
+  const text = stripHtml(el.content || "");
+  const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
+  return text.length <= CONFIG.maxHeaderLength && !hasBullet;
 }
 
 /**
@@ -200,6 +284,8 @@ export function inferLayout(
   const isHeader = (el) => {
     if (el.top >= bodyThreshold) return false;
 
+    // A box taller than the header limit is a body container; it only counts
+    // as a header when it is the slide's sole element and carries a marker.
     const isMassive = (el.height || 0) > slideHeight * CONFIG.maxHeaderHeightRatio;
     if (isMassive) {
       if (contentEls.length === 1 && allEls.length === 1 && isHeadingMarker(el)) {
@@ -208,13 +294,7 @@ export function inferLayout(
       return false;
     }
 
-    if (isHeadingMarker(el)) return true;
-
-    // Extract plain text from HTML for length/bullet checks — raw HTML is
-    // often much longer than the visible text due to inline styles.
-    const text = stripHtml(el.content || "");
-    const hasBullet = REGEX.BULLET.test(text) || REGEX.NUMBER.test(text);
-    return text.length <= CONFIG.maxHeaderLength && !hasBullet;
+    return isHeaderLikeTextElement(el, slideHeight);
   };
 
   const headerEl = contentEls.find(isHeader) || null;
@@ -313,21 +393,7 @@ export function inferLayout(
   // that straddle the midpoint.
   const partition = (el) => {
     if (el === headerEl || isCentered(el)) return null;
-    const overlapLeft = getOverlapArea(el, {
-      left: 0,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    const overlapRight = getOverlapArea(el, {
-      left: midX,
-      top: 0,
-      width: midX,
-      height: slideHeight,
-    });
-    if (overlapLeft > overlapRight * 1.5) return "left";
-    if (overlapRight > overlapLeft * 1.5) return "right";
-    return null; // truly ambiguous — don't force
+    return partitionByAreaOverlap(el, slideWidth, slideHeight);
   };
   const leftEls = allEls.filter((el) => partition(el) === "left");
   const rightEls = allEls.filter((el) => partition(el) === "right");
@@ -338,19 +404,27 @@ export function inferLayout(
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
-    // When the right column has only images (no text), media-span is a
-    // better fit — but only if there's actual body text beyond the header.
-    const rightHasText = rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
-    const hasBodyText = leftEls.some(
-      (el) =>
-        el !== headerEl &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
-        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-          el.type === ELEMENT_TYPES.TABLE ||
-          el.type === ELEMENT_TYPES.CHART ||
-          el.type === ELEMENT_TYPES.DIAGRAM),
-    );
-    if (!rightHasText && hasBodyText) return LAYOUT.MEDIA_SPAN;
+    // MEDIA_SPAN is a better fit when one column holds only images and the
+    // other holds text — regardless of which physical side each column is on.
+    // The header never lands in either column list, so a text-only column
+    // always contains real body content.
+    const isTextLike = (el) =>
+      (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
+    const leftHasText = leftEls.some(isTextLike);
+    const rightHasText = rightEls.some(isTextLike);
+    // The media-only column must contain a dominant image: the MEDIA_SPAN
+    // render branch fills @media exclusively from dominantImages, so without
+    // one the layout would emit an empty @media.
+    const mediaOnlySideHasDominant =
+      (!leftHasText && leftEls.some((el) => dominantImages.includes(el))) ||
+      (!rightHasText && rightEls.some((el) => dominantImages.includes(el)));
+    const oneSideIsMediaOnly =
+      leftHasText !== rightHasText &&
+      leftEls.length > 0 &&
+      rightEls.length > 0 &&
+      mediaOnlySideHasDominant;
+    if (oneSideIsMediaOnly) return LAYOUT.MEDIA_SPAN;
     return LAYOUT.TWO_COLUMN;
   }
 

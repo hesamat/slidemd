@@ -34,7 +34,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -157,7 +158,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -173,7 +175,7 @@ What to fix:
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.
 - Remove duplicate blank lines and trailing whitespace.
-- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Fix mismatched layouts: downgrade \`media-span-left\`, \`media-span-right\`, or \`two-column\` when there is no image or an empty second column.
 - Make sure the headers for slides are correctly set and the heading level is consistent as much as possible.
 - Do not add or remove slides.
 
@@ -323,7 +325,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -448,7 +451,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -464,7 +468,7 @@ What to fix:
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.
 - Remove duplicate blank lines and trailing whitespace.
-- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Fix mismatched layouts: downgrade \`media-span-left\`, \`media-span-right\`, or \`two-column\` when there is no image or an empty second column.
 - Make sure the headers for slides are correctly set and the heading level is consistent as much as possible.
 - Do not add or remove slides.
 
@@ -525,7 +529,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -655,7 +660,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -671,7 +677,7 @@ What to do:
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Remove duplicate blank lines and trailing whitespace.
-- Fix mismatched layouts: downgrade \`media-span\` or \`two-column\` when there is no image or an empty second column.
+- Fix mismatched layouts: downgrade \`media-span-left\`, \`media-span-right\`, or \`two-column\` when there is no image or an empty second column.
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content; use \`two-column\`, \`focus\`, or \`table\` layouts when they clarify the material.
 - Use tables for 2-3 item comparisons.
@@ -775,7 +781,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer
@@ -886,7 +893,8 @@ Allowed layouts and areas:
 title-slide: @title, @footer
 header-content: @header, @main, @footer
 two-column: @header, @main, @media, @footer
-media-span: @header, @main, @media, @footer
+media-span-right: @header, @main, @media, @footer
+media-span-left: @header, @main, @media, @footer
 left-heavy: @header, @main, @media, @footer
 right-heavy: @header, @main, @media, @footer
 three-column: @header, @main, @media, @secondary, @footer

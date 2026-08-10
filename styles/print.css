@@ -138,8 +138,15 @@
   /* Print-friendly spacing + code theme */
   /* Make all slides visible for print, not just the active one */
   .slide {
-    /* Slightly tighter padding for print (vs on-screen stage) */
-    padding: 92px 110px !important;
+    /* Slightly tighter padding for print (vs on-screen stage). The padding
+       is expressed through the same variables the media-span full-bleed
+       margins mirror, so the side image stays edge-to-edge in print/PDF. */
+    --slide-pad-top: 92px;
+    --slide-pad-right: 110px;
+    --slide-pad-bottom: 92px;
+    --slide-pad-left: 110px;
+    padding: var(--slide-pad-top) var(--slide-pad-right) var(--slide-pad-bottom)
+      var(--slide-pad-left) !important;
     display: grid !important;
     visibility: visible !important;
     position: relative !important;

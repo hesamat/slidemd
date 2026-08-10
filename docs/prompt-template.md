@@ -56,7 +56,7 @@ Conservative cleanup of a single slide that preserves content and slide count:
 - Fix broken links, lists, and tables
 - Remove duplicate blank lines and trailing whitespace
 - Convert `[Diagram: ...]` to Mermaid where appropriate
-- Fix mismatched layouts (downgrade `media-span`/`two-column` when no image/empty column)
+- Fix mismatched layouts (downgrade `media-span-left`/`media-span-right`/`two-column` when no image/empty column)
 - Does **not** change heading levels or add/remove slides
 
 ## Whole-Deck Modes
@@ -137,22 +137,24 @@ Adds speaker notes to a single slide:
 - Slides are separated by `---` (three dashes on a line by themselves)
 - Optional speaker notes: `<!-- notes: ... -->` at the very top of the slide
 - Each slide begins with frontmatter: `layout: preset-name` or `layout: "grid definition" / columns`
+- Internal setting `media-span: left|right` — records full-bleed intent on resized media-span grids; treated as a layout-related directive, not slide content
 - Content areas are marked with `@area-name` (e.g., `@header`, `@main`, `@media`, `@sidebar`)
 - Content before the first `@area` flows into `@main`
 
 ### Built-in Layouts
 
-| Layout           | Areas                                                 | Use Case                        |
-| ---------------- | ----------------------------------------------------- | ------------------------------- |
-| `title-slide`    | `@title`, `@footer`                                   | Title/cover slide               |
-| `header-content` | `@header`, `@main`, `@footer`                         | Standard content slide          |
-| `focus`          | `@header`, `@main`, `@footer`                         | Centered, minimal header/footer |
-| `two-column`     | `@header`, `@main`, `@media`, `@footer`               | Two equal columns               |
-| `left-heavy`     | `@header`, `@main`, `@media`, `@footer`               | Left column 2x wider            |
-| `right-heavy`    | `@header`, `@main`, `@media`, `@footer`               | Right column 2x wider           |
-| `three-column`   | `@header`, `@main`, `@media`, `@secondary`, `@footer` | Three equal columns             |
-| `media-span`     | `@header`, `@main`, `@media`, `@footer`               | Media spans full right height   |
-| `full-image`     | `@main`                                               | Full-bleed image, no text       |
+| Layout             | Areas                                                 | Use Case                        |
+| ------------------ | ----------------------------------------------------- | ------------------------------- |
+| `title-slide`      | `@title`, `@footer`                                   | Title/cover slide               |
+| `header-content`   | `@header`, `@main`, `@footer`                         | Standard content slide          |
+| `focus`            | `@header`, `@main`, `@footer`                         | Centered, minimal header/footer |
+| `two-column`       | `@header`, `@main`, `@media`, `@footer`               | Two equal columns               |
+| `left-heavy`       | `@header`, `@main`, `@media`, `@footer`               | Left column 2x wider            |
+| `right-heavy`      | `@header`, `@main`, `@media`, `@footer`               | Right column 2x wider           |
+| `three-column`     | `@header`, `@main`, `@media`, `@secondary`, `@footer` | Three equal columns             |
+| `media-span-left`  | `@header`, `@main`, `@media`, `@footer`               | Media spans full left height    |
+| `media-span-right` | `@header`, `@main`, `@media`, `@footer`               | Media spans full right height   |
+| `full-image`       | `@main`                                               | Full-bleed image, no text       |
 
 ### Custom Grid Layouts
 

@@ -73,6 +73,14 @@ describe("parseAiResponse (edge cases)", () => {
   it("returns null for object without slides key", () => {
     expect(parseAiResponse('{"notSlides":[{"a":1}]}')).toBeNull();
   });
+
+  it("extracts media-span from the markdown fallback instead of leaving it in content", () => {
+    const input = "layout: media-span-right\nmedia-span: right\n\n@media\nImage";
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides[0].mediaSpan).toBe("right");
+    expect(result.slides[0].content).not.toContain("media-span:");
+  });
 });
 
 describe("slidesToMarkdown", () => {
@@ -98,6 +106,12 @@ describe("slidesToMarkdown", () => {
     const slides = [{ layout: "title-slide", content: "# Hi" }];
     const md = slidesToMarkdown(slides);
     expect(md).not.toContain("background:");
+  });
+
+  it("emits media-span intent when present", () => {
+    const slides = [{ layout: "media-span-right", mediaSpan: "right", content: "@media\nImage" }];
+    const md = slidesToMarkdown(slides);
+    expect(md).toContain("media-span: right");
   });
 });
 

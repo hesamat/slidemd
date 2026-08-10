@@ -11,7 +11,9 @@ export const LAYOUT = {
   FOCUS: { type: "focus", spec: "focus" },
   HEADER_CONTENT: { type: "header-content", spec: "header-content" },
   TWO_COLUMN: { type: "two-column", spec: "two-column" },
-  MEDIA_SPAN: { type: "media-span", spec: "media-span" },
+  MEDIA_SPAN: { type: "media-span", spec: "media-span-right" },
+  MEDIA_SPAN_LEFT: { type: "media-span", spec: "media-span-left" },
+  MEDIA_SPAN_RIGHT: { type: "media-span", spec: "media-span-right" },
   THREE_COLUMN: { type: "three-column", spec: "three-column" },
   FULL_IMAGE: { type: "full-image", spec: "full-image" },
 };
@@ -105,6 +107,9 @@ export const CONFIG = {
   minSubstantialBodyLength: 80,
   maxHeaderLength: 150,
   maxHeaderLengthShort: 80,
+  // A plain (non-marker) title must span at least this fraction of the slide
+  // width — narrow top text (slide numbers, dates, labels) is not a title.
+  minTitleWidthRatio: 0.3,
   minMediaAreaRatio: 0.005,
   maxMediaAreaRatio: 0.85,
   maxLogoAreaRatio: 0.015,
@@ -112,7 +117,9 @@ export const CONFIG = {
   minDominantAreaRatio: 0.05,
   thinLineThresholdPoints: 15,
   microNoiseThresholdPoints: 150,
-  marginTopRatio: 0.1,
+  // Top band (fraction of slide height): small images inside it are dropped
+  // only when a real header-like title is present. The same band is used for
+  // small icons beside titles, keeping one source of truth for header height.
   marginBottomRatio: 0.9,
   aspectRatioUpperLimit: 8,
   aspectRatioLowerLimit: 0.125,
@@ -125,4 +132,17 @@ export const CONFIG = {
   fullScreenTableThreshold: 0.8,
   flexRowVerticalTolerance: 0.15,
   flexRowMinHorizontalGap: 0.1,
+  // Overflow detection, calibrated to the fixed 1920x1080 render geometry
+  // (not the source deck's page size, which varies between PowerPoint
+  // templates): the vertical space available to a slide's body area, and the
+  // rendered height (px) per content line. When the body of a single-column
+  // slide needs more space than the area provides, the layout is upgraded to
+  // two-column and content is split. Line heights reflect the renderer's
+  // typography: h3 32px x 1.3 + margins, body 24px x 1.4, code 22px, blank.
+  overflowBodyAreaHeight: 760,
+  overflowLineHeightHeading: 58,
+  overflowLineHeightBody: 34,
+  overflowLineHeightCode: 28,
+  overflowLineHeightBlank: 16,
+  overflowWrapLength: 60,
 };

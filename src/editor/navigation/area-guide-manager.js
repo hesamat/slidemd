@@ -153,9 +153,7 @@ export class AreaGuideManager {
         e.stopPropagation();
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
-        const canMakeFullHeight = this._canMakeFullHeight
-          ? this._canMakeFullHeight(name)
-          : name !== "main";
+        const canMakeFullHeight = this._canMakeFullHeight ? this._canMakeFullHeight(name) : false;
         const active = parseSingleColumnLayout(slideData?.layout);
         const canAlignMain = name === "main" && Boolean(active);
         const activeAlign = active?.align;

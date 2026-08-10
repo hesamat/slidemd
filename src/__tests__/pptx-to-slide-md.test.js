@@ -251,7 +251,7 @@ describe("convertToSlideMd", () => {
     const mediaIndex = md.indexOf("@media");
     const imageIndex = md.indexOf("dominant.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(md).not.toContain("@secondary");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
@@ -337,13 +337,65 @@ describe("convertToSlideMd", () => {
     const firstImageIndex = md.indexOf("dominant-1.png");
     const secondImageIndex = md.indexOf("dominant-2.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(mainIndex).toBeGreaterThan(-1);
     expect(mediaIndex).toBeGreaterThan(mainIndex);
     expect(textIndex).toBeGreaterThan(mainIndex);
     expect(textIndex).toBeLessThan(mediaIndex);
     expect(firstImageIndex).toBeGreaterThan(mediaIndex);
     expect(secondImageIndex).toBeGreaterThan(mediaIndex);
+  });
+
+  it("splits image-only slides with images on both halves between @media and @main", () => {
+    // Three dominant images (one left, two right): the media-span variant
+    // follows the media-only column (left), the left image goes to @media,
+    // and the remaining images render in @main — no empty areas.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Gallery",
+        notes: "",
+        elements: [
+          {
+            type: "image",
+            ref: "left.png",
+            base64: "abc",
+            left: 762000,
+            top: 1000000,
+            width: 3000000,
+            height: 3000000,
+          },
+          {
+            type: "image",
+            ref: "right1.png",
+            base64: "def",
+            left: 5200000,
+            top: 1000000,
+            width: 3000000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "right2.png",
+            base64: "ghi",
+            left: 5200000,
+            top: 3200000,
+            width: 3000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-left");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(md.indexOf("left.png")).toBeGreaterThan(mediaIdx);
+    expect(md.indexOf("right1.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("right2.png")).toBeGreaterThan(mainIdx);
   });
 
   it("keeps image-only slides in single-column layout", () => {
@@ -471,7 +523,7 @@ describe("convertToSlideMd", () => {
     const headingIdx = md.indexOf("escape sequences");
     const imageIdx = md.indexOf("code-example.png");
 
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     // Heading must appear in the @header section (between @header and @main)
     expect(headingIdx).toBeGreaterThan(headerIdx);
     expect(headingIdx).toBeLessThan(mainIdx);
@@ -1132,6 +1184,718 @@ describe("convertToSlideMd", () => {
     expect(md).not.toContain("layout: three-column");
   });
 
+  it("strips background/theme from full-image slides that carry speaker notes", () => {
+    // With notes, the directive lines are not at parts[0]/parts[1]; the
+    // full-image override must find and remove them wherever they sit. A
+    // footer keeps the slide from being pruned as empty (the full-image
+    // candidate itself is excluded from the content elements), and a dark
+    // slide fill makes convertSlide emit background:/theme: dark lines that
+    // the override must then remove.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Photo",
+        notes: "This slide has speaker notes.",
+        background: "#111111",
+        elements: [
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 0,
+            top: 0,
+            width: Math.round(DEFAULT_SIZE.width * 0.9),
+            height: Math.round(DEFAULT_SIZE.height * 0.9),
+          },
+          {
+            type: "text",
+            content: "Photo credit",
+            placeholderType: "footer",
+            left: 500000,
+            top: 4500000,
+            width: 4000000,
+            height: 300000,
+          },
+        ],
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: full-image");
+    expect(md).toContain("This slide has speaker notes.");
+    expect(md).not.toContain("background:");
+    expect(md).not.toContain("theme: dark");
+  });
+
+  it("uses media-span when body text straddles the midpoint", () => {
+    // A dominant image on the left plus body text whose box crosses the
+    // midpoint still yields media-span, with the image in @media and the
+    // straddling text in @main. Guards the layout decision (inferLayout
+    // treats the straddling box as body content rather than forcing
+    // two-column).
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Straddle",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 762000,
+            top: 1422400,
+            width: 2500000,
+            height: 3000000,
+          },
+          {
+            type: "text",
+            content: "Body text that straddles the midpoint of the slide",
+            left: 3000000,
+            top: 1422400,
+            width: 5600000,
+            height: 2000000,
+          },
+          {
+            type: "text",
+            content: "Supporting text on the right",
+            left: 5200000,
+            top: 1800000,
+            width: 2500000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // The dominant image sits on the left, so the left media-span variant is
+    // emitted and the image stays in @media (now the left column).
+    expect(md).toContain("layout: media-span-left");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("straddles the midpoint")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
+  });
+
+  it("splits overflowing slides with long wrapping headings into two columns", () => {
+    // Each ~70-char heading wraps to two rendered lines, so 8 headings need
+    // ~928px — over the 760px budget — and the body must be redistributed.
+    const headings = Array.from(
+      { length: 8 },
+      (_, i) =>
+        `### Topic number ${i + 1} with a long enough title to wrap over two rendered lines`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Wrap",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: headings,
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    for (let i = 1; i <= 8; i++) {
+      expect(md).toContain(`Topic number ${i}`);
+    }
+  });
+
+  it("treats a narrow top text box as a header for layout inference", () => {
+    // The 30% title-width rule applies only to the header-band icon filter;
+    // a short title in a narrow box must still count as a header so the
+    // slide renders header-content.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Narrow",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Short title",
+            left: 500000,
+            top: 200000,
+            width: 1905000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Body text below the title",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@header");
+    expect(md).toContain("Short title");
+  });
+
+  it("keeps a small top image when the slide has no heading", () => {
+    // The header-band rule only drops small top images beside an actual
+    // heading; a text-bearing slide without one keeps the image.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "No Header",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Body paragraph",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
+  it("keeps a small top image when the only top text is a narrow marked label", () => {
+    // The extractor turns any >=34pt run into a "## " marker, so a narrow
+    // marked label must not enable the header-band icon drop either.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Marked",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Q1",
+            left: 500000,
+            top: 400000,
+            width: 1524000,
+            height: 381000,
+          },
+          {
+            type: "text",
+            content: "Body paragraph below",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
+  it("keeps a small top image when the only top text is a narrow label", () => {
+    // A narrow label or date placeholder in the header region is not a
+    // title, so the header-band rule must not drop images beside it.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Label",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Course 101",
+            left: 500000,
+            top: 400000,
+            width: 1524000,
+            height: 381000,
+          },
+          {
+            type: "text",
+            content: "Body paragraph below",
+            left: 500000,
+            top: 2000000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "badge.png",
+            base64: "abc",
+            left: 7000000,
+            top: 600000,
+            width: 508000,
+            height: 508000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("badge.png");
+  });
+
+  it("renders all body content when the two-column split leaves one side empty", () => {
+    // Element A's overlap ratio (1.33) passes the 1.2x pre-check but not the
+    // renderer's 1.5x threshold, so the render split finds no left elements.
+    // The slide must downgrade to header-content AND render every element —
+    // not emit an empty slide.
+    const longA = "Element A text with enough words to be substantial. ".repeat(6);
+    const longB = "Element B text with enough words to be substantial. ".repeat(6);
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Split",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longA,
+            left: 2540000,
+            top: 1500000,
+            width: 3556000,
+            height: 1000000,
+          },
+          {
+            type: "text",
+            content: longB,
+            left: 6350000,
+            top: 1500000,
+            width: 2540000,
+            height: 1000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).toContain("@main");
+    expect(md).toContain("Element A text");
+    expect(md).toContain("Element B text");
+  });
+
+  it("keeps fenced code blocks intact when an overflowing body is split", () => {
+    // mid lands inside the fenced block; a blank line inside the fence must
+    // not override the fence-adjusted split point (which would leave an
+    // unterminated ``` in @main and a stray one in @media).
+    const body = Array.from(
+      { length: 16 },
+      (_, i) => `Body line number ${i + 1} of the slide`,
+    ).join("\n");
+    const fence = ["```", "first = 1", "second = 2", "", "third = 3", "```"].join("\n");
+    const tail = Array.from(
+      { length: 12 },
+      (_, i) => `Tail line number ${i + 1} of the slide`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Fence",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: [body, fence, tail].join("\n"),
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 3000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainSection = md.slice(md.indexOf("@main"), md.indexOf("@media"));
+    const mediaSection = md.slice(md.indexOf("@media"));
+    // Every fence line must be balanced within its section.
+    expect((mainSection.match(/^```/gm) || []).length % 2).toBe(0);
+    expect((mediaSection.match(/^```/gm) || []).length % 2).toBe(0);
+    expect(mediaSection).toContain("Tail line number 12");
+  });
+
+  it("patches the layout directive when the pre-check downgrades two-column", () => {
+    // Two overflowing body elements stacked on the left are forced into
+    // two-column by the overflow upgrade, but the pre-check finds no right
+    // column and downgrades — the emitted directive must match.
+    const longText = "Stacked body element with a lot of words. ".repeat(20);
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Stack",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: longText,
+            left: 1000000,
+            top: 1500000,
+            width: 6000000,
+            height: 1500000,
+          },
+          {
+            type: "text",
+            content: longText,
+            left: 1000000,
+            top: 3200000,
+            width: 6000000,
+            height: 1500000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: header-content");
+    expect(md).not.toContain("layout: two-column");
+    expect(md).toContain("@main");
+    expect(md).toContain("Stacked body element");
+  });
+
+  it("picks the media-span variant from the media-only column, not the first dominant image", () => {
+    // The text column also contains a dominant image, so dominantImages[0]
+    // (element order) is the illustration inside the text column. The variant
+    // must follow the picture-only column instead — media on the right.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Pics",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left column body text that carries the main content",
+            left: 762000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          // Illustration inside the text column — comes first in element order
+          {
+            type: "image",
+            ref: "illustration.png",
+            base64: "abc",
+            left: 1016000,
+            top: 2540000,
+            width: 2540000,
+            height: 1905000,
+          },
+          // The media-only column
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5334000,
+            top: 1270000,
+            width: 3556000,
+            height: 4318000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-right");
+    expect(md).not.toContain("layout: media-span-left");
+    // The illustration belongs to the text column: it stays in @main, and
+    // only the picture-only column's image moves to @media.
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(md.indexOf("illustration.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("illustration.png")).toBeLessThan(mediaIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
+  });
+
+  it("picks media-span-left when the picture-only column is on the left", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Two Pics L",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Right column body text that carries the main content",
+            left: 5334000,
+            top: 1524000,
+            width: 3556000,
+            height: 1016000,
+          },
+          // Illustration inside the text column — comes first among images,
+          // so dominantImages[0] would point at the wrong column
+          {
+            type: "image",
+            ref: "illustration.png",
+            base64: "abc",
+            left: 5588000,
+            top: 2540000,
+            width: 2540000,
+            height: 1905000,
+          },
+          // The media-only column (left)
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 762000,
+            top: 1270000,
+            width: 3556000,
+            height: 4318000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: media-span-left");
+    expect(md).not.toContain("layout: media-span-right");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(md.indexOf("illustration.png")).toBeGreaterThan(mainIdx);
+    expect(md.indexOf("illustration.png")).toBeLessThan(mediaIdx);
+    expect(md.indexOf("photo.png")).toBeGreaterThan(mediaIdx);
+  });
+
+  it("keeps divider lines typed in body text without splitting the slide", () => {
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Divider",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Before\n---\nAfter",
+            left: 500000,
+            top: 1500000,
+            width: 8000000,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    // The divider becomes a markdown horizontal rule; a raw "---" line would
+    // terminate the slide in splitSlides.
+    expect(md).toContain("Before\n***\nAfter");
+    expect(md).not.toMatch(/^---\s*$/m);
+    expect(md).not.toContain("\n- \n");
+  });
+
+  it("keeps two-column when the side image is not dominant (no empty @media)", () => {
+    // Image area 14000 pt² (~4.8% of slide) sits between the logo threshold
+    // (1.5%) and the dominant threshold (5%): it survives filtering but must
+    // not trigger media-span, whose @media is filled only by dominant images.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Small",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "## Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "image",
+            ref: "small.png",
+            base64: "abc",
+            left: 762000,
+            top: 1422400,
+            width: 1778000,
+            height: 1270000,
+          },
+          {
+            type: "text",
+            content: "Body text on the right",
+            left: 6858000,
+            top: 1422400,
+            width: 3657600,
+            height: 2000000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("layout: media-span");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    const imageIdx = md.indexOf("small.png");
+    const bodyIdx = md.indexOf("Body text on the right");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(imageIdx).toBeGreaterThan(-1);
+    expect(bodyIdx).toBeGreaterThan(-1);
+  });
+
+  it("uses two-column when a column mixes an image and a table", () => {
+    // A right column with both an image and a table counts as text-bearing
+    // (tables are content), so media-span is not inferred and the table keeps
+    // its column instead of being pushed across the divide into @main.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Mixed",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "Header",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "Left text content",
+            left: 500000,
+            top: 1500000,
+            width: 3500000,
+            height: 2000000,
+          },
+          {
+            type: "image",
+            ref: "photo.png",
+            base64: "abc",
+            left: 5500000,
+            top: 1500000,
+            width: 3000000,
+            height: 1800000,
+          },
+          {
+            type: "table",
+            rows: [
+              [{ text: "Name" }, { text: "Value" }],
+              [{ text: "A" }, { text: "1" }],
+            ],
+            left: 5500000,
+            top: 3600000,
+            width: 3000000,
+            height: 900000,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    expect(md).not.toContain("layout: media-span");
+    const mediaIdx = md.indexOf("@media");
+    const imageIdx = md.indexOf("photo.png");
+    const tableIdx = md.indexOf("| Name | Value |");
+    const mainIdx = md.indexOf("@main");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
+    // Image and table both stay in the right column (@media)
+    expect(imageIdx).toBeGreaterThan(mediaIdx);
+    expect(tableIdx).toBeGreaterThan(mediaIdx);
+  });
+
   it("uses media-span when right column has only an image", () => {
     const extraction = makeExtraction([
       {
@@ -1169,10 +1933,12 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    expect(md).toContain("layout: media-span");
+    expect(md).toContain("layout: media-span-right");
     expect(md).toContain("@header");
     expect(md).toContain("@main");
     expect(md).toContain("@media");
+    // The media-span image fills its column edge to edge (full-bleed media).
+    expect(md).toContain('style="width: 100%; height: auto;"');
   });
 
   it("uses two-column when right column has text and image", () => {
@@ -1208,14 +1974,16 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("Right text");
   });
 
-  it("upgrades header-content to two-column when body overflows", () => {
-    // A slide with a header and a long body (>500 chars) should auto-split
-    // into two columns so the content doesn't overflow a single column.
-    const longBody = "Word ".repeat(120).trim(); // ~600 chars
+  it("keeps header-content when a long paragraph still fits the column", () => {
+    // A ~400-char single paragraph wraps to ~7 rendered lines — well under
+    // the overflow budget — so the slide must stay in one column. This is the
+    // counterpart of the overflow-upgrade test below: the split only happens
+    // when the body genuinely cannot fit.
+    const longBody = "Word ".repeat(80).trim(); // ~400 chars
     const extraction = makeExtraction([
       {
         index: 0,
-        title: "Overflow",
+        title: "Fits",
         notes: "",
         elements: [
           {
@@ -1239,10 +2007,59 @@ describe("convertToSlideMd", () => {
       },
     ]);
     const md = convertToSlideMd(extraction);
-    // Long body stays in header-content — no forced overflow upgrade
     expect(md).toContain("layout: header-content");
     expect(md).toContain("@main");
     expect(md).toContain(longBody);
+  });
+
+  it("upgrades header-content to two-column when the body overflows", () => {
+    // Mirrors a real Week 04 slide ("Assert, assert, assert!"): a title and a
+    // single body box with 14 large-font (28pt) lines that cannot fit one
+    // column. The body box is only ~2/3 slide width, so the split must not
+    // depend on the wide-element heuristic.
+    const assertLines = Array.from(
+      { length: 14 },
+      (_, i) => `### assert case number ${i + 1}`,
+    ).join("\n");
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Asserts",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# Assert, assert, assert!",
+            left: 0,
+            top: 0,
+            width: 318 * 12700,
+            height: 540 * 12700,
+          },
+          {
+            type: "text",
+            content: assertLines,
+            left: 396 * 12700,
+            top: 18 * 12700,
+            width: 480 * 12700,
+            height: 482 * 12700,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: two-column");
+    const mainIdx = md.indexOf("@main");
+    const mediaIdx = md.indexOf("@media");
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    // Every line survives the split exactly once
+    for (let i = 1; i <= 14; i++) {
+      expect(md).toContain(`assert case number ${i}`);
+    }
+    expect((md.match(/assert case number/g) || []).length).toBe(14);
+    expect(md).toContain("### assert case number 1");
+    expect(md).toContain("### assert case number 14");
   });
 
   it("upgrades media-span to two-column when body overflows", () => {

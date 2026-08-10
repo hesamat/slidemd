@@ -11,8 +11,24 @@ describe("extractDirectives", () => {
       "layout: header-content\nbackground: #fff\n@header\n## Hi\n\n---\n\nlayout: two-column\ntheme: dark\n@main\n- Item";
     const result = extractDirectives(md);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ layout: "header-content", background: "#fff", theme: "" });
-    expect(result[1]).toEqual({ layout: "two-column", background: "", theme: "dark" });
+    expect(result[0]).toEqual({
+      layout: "header-content",
+      background: "#fff",
+      theme: "",
+      mediaSpan: "",
+    });
+    expect(result[1]).toEqual({
+      layout: "two-column",
+      background: "",
+      theme: "dark",
+      mediaSpan: "",
+    });
+  });
+
+  it("extracts the media-span intent directive", () => {
+    const md = "layout: media-span-right\nmedia-span: right\n@media\nImage";
+    const result = extractDirectives(md);
+    expect(result[0].mediaSpan).toBe("right");
   });
 
   it("is fence-aware — a --- inside a code block does not create a phantom slide", () => {
@@ -20,8 +36,18 @@ describe("extractDirectives", () => {
       "layout: header-content\nbackground: #fff\n@main\n```yaml\n---\n```\n\n---\n\nlayout: two-column\ntheme: dark\n@main\n- Item";
     const result = extractDirectives(md);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ layout: "header-content", background: "#fff", theme: "" });
-    expect(result[1]).toEqual({ layout: "two-column", background: "", theme: "dark" });
+    expect(result[0]).toEqual({
+      layout: "header-content",
+      background: "#fff",
+      theme: "",
+      mediaSpan: "",
+    });
+    expect(result[1]).toEqual({
+      layout: "two-column",
+      background: "",
+      theme: "dark",
+      mediaSpan: "",
+    });
   });
 
   it("accepts a pre-split slides array", () => {
@@ -31,8 +57,13 @@ describe("extractDirectives", () => {
     ];
     const result = extractDirectives("", slides);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ layout: "focus", background: "red", theme: "" });
-    expect(result[1]).toEqual({ layout: "header-content", background: "", theme: "light" });
+    expect(result[0]).toEqual({ layout: "focus", background: "red", theme: "", mediaSpan: "" });
+    expect(result[1]).toEqual({
+      layout: "header-content",
+      background: "",
+      theme: "light",
+      mediaSpan: "",
+    });
   });
 });
 
@@ -155,6 +186,22 @@ describe("injectDirectives", () => {
     expect(result).toContain("theme: dark");
   });
 
+  it("restores media-span intent in fix mode", () => {
+    const md = "layout: media-span-right\n\n@media\nImage";
+    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+    const result = injectDirectives(md, orig, "fix");
+    expect(result).toContain("media-span: right");
+  });
+
+  it("strips an AI-echoed media-span line and restores the original in fix mode", () => {
+    const md = "layout: media-span-right\nmedia-span: left\n\n@media\nImage";
+    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+    const result = injectDirectives(md, orig, "fix");
+    expect(result.match(/^media-span:/gm)).toHaveLength(1);
+    expect(result).toContain("media-span: right");
+    expect(result).not.toContain("media-span: left");
+  });
+
   describe("generate mode", () => {
     it("preserves an AI-chosen background instead of overwriting with the original", () => {
       const md = "layout: focus\nbackground: red\n\n@header\n## Title";
@@ -177,6 +224,13 @@ describe("injectDirectives", () => {
       const orig = [{ layout: "focus", background: "", theme: "" }];
       const result = injectDirectives(md, orig, "generate");
       expect(result).toBe(md);
+    });
+
+    it("fills in a media-span directive the AI dropped", () => {
+      const md = "layout: media-span-right\n\n@media\nImage";
+      const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("media-span: right");
     });
 
     it("leaves a background: line inside a code block untouched", () => {
