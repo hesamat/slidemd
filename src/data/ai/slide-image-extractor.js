@@ -8,9 +8,9 @@
  */
 
 import { splitSlides } from "../markdown-parser.js";
-import { parseAllImages } from "../../editor/image/image-markdown-utils.js";
-import { DeckImagesResolver } from "../../editor/image/deck-images-resolver.js";
+import { parseAllImages } from "../image-markdown-parser.js";
 import { estimateTotalImageTokens } from "./ai-vision-message.js";
+import { Logger } from "../../core/logger.js";
 
 /**
  * Extract background image URLs from a slide's `background:` directive.
@@ -183,9 +183,13 @@ function drawToDataUrl(img, width, height, quality) {
  * with what the model actually saw.
  *
  * @param {string} markdown — full deck markdown
+ * @param {(src: string) => Promise<string>} [resolveSrc] — resolves
+ *   `images/...` relative paths to fetchable URLs. Defaults to a no-op
+ *   pass-through. Editor callers should pass `DeckImagesResolver.resolvePreviewSrc`
+ *   so relative image paths resolve to the dev server or directory handle.
  * @returns {Promise<Array<Array<{src: string, dataUrl: string}>|null>>} per-slide image entries
  */
-export async function extractAll(markdown) {
+export async function extractAll(markdown, resolveSrc = (src) => Promise.resolve(src)) {
   const perSlideSrcs = extractAllImageSrcs(markdown);
   const results = await Promise.all(
     perSlideSrcs.map(async (srcs) => {
@@ -193,7 +197,16 @@ export async function extractAll(markdown) {
       const compressed = await Promise.all(
         srcs.map(async (src) => {
           // Resolve images/ paths to URLs the browser can fetch
-          const resolved = await DeckImagesResolver.resolvePreviewSrc(src);
+          const resolved = await resolveSrc(src);
+          // Warn when a relative images/ path was not resolved (caller
+          // forgot to inject a resolver) — compressImage will fail to
+          // fetch it and silently return null, degrading vision to
+          // text-only with no explanation.
+          if (src.startsWith("images/") && resolved === src) {
+            Logger.warn(
+              `extractAll: relative image "${src}" was not resolved — pass a resolveSrc callback`,
+            );
+          }
           const dataUrl = await compressImage(resolved);
           return dataUrl ? { src, dataUrl } : null;
         }),

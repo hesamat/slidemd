@@ -6,11 +6,15 @@
  * that file focused on DOM interaction.
  */
 
+import { parseAllImages } from "../../data/image-markdown-parser.js";
+
+// Re-export for backward compatibility — editor consumers can continue
+// importing parseAllImages from this module.
+export { parseAllImages };
+
 // ── Constants ────────────────────────────────────────────────────────────
 
 const AREA_MARKER_RE = /^\s*@([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/;
-const HTML_IMG_RE = /<img\b([^>]*?)>/gi;
-const MD_IMG_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
 const ALT_ATTR_RE = /alt=["']([^"']*)["']/i;
 const ALT_MD_RE = /!\[([^\]]*)\]/;
 const ROTATION_RE = /rotate\(([-\d.]+)deg\)/i;
@@ -50,48 +54,8 @@ export function isMediaSpanFillImage(imgElement) {
 
 // ── Image parsing ────────────────────────────────────────────────────────
 
-/**
- * Find all image entries (HTML `<img>` and markdown `![alt](src)`) in a
- * markdown string, sorted by position.
- *
- * @param {string} markdown
- * @returns {Array<{type: 'html'|'md', src: string, fullMatch: string, fullTag: string, start: number, end: number}>}
- */
-export function parseAllImages(markdown) {
-  const results = [];
-
-  // Reset lastIndex for global regexes
-  HTML_IMG_RE.lastIndex = 0;
-  MD_IMG_RE.lastIndex = 0;
-
-  let match;
-  while ((match = HTML_IMG_RE.exec(markdown)) !== null) {
-    const srcMatch = match[1].match(/src=["']([^"']*)["']/i);
-    if (!srcMatch) continue;
-    results.push({
-      type: "html",
-      src: srcMatch[1],
-      fullMatch: match[0],
-      fullTag: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  while ((match = MD_IMG_RE.exec(markdown)) !== null) {
-    results.push({
-      type: "md",
-      src: match[2],
-      fullMatch: match[0],
-      fullTag: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    });
-  }
-
-  results.sort((a, b) => a.start - b.start);
-  return results;
-}
+// parseAllImages is now imported from ../../data/image-markdown-parser.js
+// and re-exported above. The following functions depend on it.
 
 /**
  * Find all image entries within a specific area of a slide markdown string.
