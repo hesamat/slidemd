@@ -236,12 +236,12 @@ export class DeckController extends EventEmitter {
 
     loaderPromise
       .then((AssetLoader) => {
-        AssetLoader.ensureRichTextEnhancers().catch(Logger.warn);
+        AssetLoader.ensureRichTextEnhancers().catch((error) => Logger.warn(error));
         // Scan deck and warmup Mermaid if needed
         const { hasMermaid } = ContentEnhancer.scanDeck(this.deck);
-        if (hasMermaid) ContentEnhancer.initializeMermaid().catch(Logger.warn);
+        if (hasMermaid) ContentEnhancer.initializeMermaid().catch((error) => Logger.warn(error));
       })
-      .catch(Logger.warn);
+      .catch((error) => Logger.warn(error));
   }
 
   setupEventListeners() {

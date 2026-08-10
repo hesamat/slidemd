@@ -3,6 +3,10 @@
 import { expect } from "@playwright/test";
 
 export async function loadExampleDeck(page) {
+  const response = await page.request.get("/api/deck");
+  await expect(response).toBeOK();
+  expect(await response.text()).toContain("# Welcome to SlideMD");
+
   await page.addInitScript(() => {
     delete window.showOpenFilePicker;
     delete window.showDirectoryPicker;

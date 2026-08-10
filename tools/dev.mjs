@@ -31,6 +31,14 @@ const vite = spawn(process.execPath, [viteScript], {
   stdio: "inherit",
 });
 
+cli.on("error", (error) => {
+  console.error("Failed to start the CLI dev server:", error);
+  process.exitCode = 1;
+});
+vite.on("error", (error) => {
+  console.error("Failed to start Vite:", error);
+  process.exitCode = 1;
+});
 cli.on("close", (code) => process.exit(code));
 vite.on("close", (code) => process.exit(code));
 

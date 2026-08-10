@@ -673,6 +673,8 @@ html = html.replace(
 // Trigger the shared enhancer for dist builds after deck.js has rendered the
 // slides. ContentEnhancer is exposed by the bundled source.
 if (usesKatex || usesPrism || usesMermaid) {
+    // This bootstrap is a separate script from the esbuild IIFE, so the
+    // module-scoped Logger is unavailable here. Keep the failure visible.
     const enhanceInitScript = '<script>(function(){let done=false;function enhance(){if(done)return;done=true;if(typeof ContentEnhancer!=="undefined"&&ContentEnhancer.enhanceRenderedContent){ContentEnhancer.enhanceRenderedContent(document.body,{renderAllSlides:!0,force:!0}).catch(function(e){if(typeof Logger!=="undefined")Logger.warn("Enhancement error:",e)});}}window.addEventListener("webdeck:ready",enhance,{once:true});if(window.__WEBDECK_READY__)enhance();})();</script>';
     html = html.replace(/<\/head>/i, `${enhanceInitScript}</head>`);
     console.log(`Added shared content enhancer initialization for ${[usesPrism && "Prism", usesKatex && "KaTeX", usesMermaid && "Mermaid"].filter(Boolean).join(", ")}`);

@@ -78,7 +78,7 @@ The logger is foundational for the E2E specs (structured failure output). Bundli
 - **Files:** `src/core/logger.js` (new), all `src/` files with `console.*` calls, `playwright.config.js` (new), `e2e/` directory (new), `package.json` (add `test:e2e` script)
 - **Blast radius:** Medium — the logger swap is mechanical but touches many files. E2E specs are test-only additions.
 - **Dependencies:** Can start in parallel with PR 1 (logger work is in `src/`, not `tools/`). Should land before PR 3 so the E2E safety net catches refactor regressions.
-- **Verification:** Full quality gate (`npm run lint`, `npm run format:check`, `npm test`, `npm run build`). `npx playwright test` and `npm run test:e2e` pass. Confirm logger output is visible in dev mode and silenced appropriately in production builds.
+- **Verification:** Full quality gate (`npm run lint`, `npm run format:check`, `npm test`, `npm run test:e2e`, `npm run build`). Confirm logger output is visible in dev mode and silenced appropriately in production builds.
 
 ### PR 3 — `refactor/phase-14-5-structural`
 
