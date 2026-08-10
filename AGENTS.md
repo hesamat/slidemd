@@ -411,7 +411,7 @@ When a PR touches `EditController`, `SaveManager`, `SlideOperations`, `StyleAppl
 ### Source Structure (`src`)
 
 - **core/** — Core utilities (asset-loader, element-gatherer, utils, directory-handle-store, mermaid-config)
-- **data/** — Data parsing (layout-data, layout-parser, markdown-parser, deck-loader, layouts.json)
+- **data/** — Data parsing (layout-data, layout-parser, markdown-parser, image-markdown-parser, deck-loader, layouts.json)
 - **editor/** — Live editing features
 
   - **core/** — Edit controller, markdown editor, slide thumbnails, slide operations, slide preview updater, style applier, source jump handler, directive utils, edit state manager
@@ -470,6 +470,10 @@ Themes can be set per-slide via `theme:` frontmatter.
 ## When Working with Editor Features
 
 - Edit controller: `src/editor/core/edit-controller.js` — orchestrator, delegates to sub-modules
+- Store sync controller: `src/editor/core/store-sync-controller.js` — store-to-view sync, prepare/restore, suppressed-change queue
+- Editor buffer controller: `src/editor/core/editor-buffer-controller.js` — slide loading, editor capture, input, unsaved flag
+- History controller: `src/editor/core/history-controller.js` — undo/redo with editor-vs-store delegation
+- AI edit controller: `src/editor/core/ai-edit-controller.js` — single-slide and whole-deck AI edit flows
 - Slide preview updater: `src/editor/core/slide-preview-updater.js` — parses markdown and re-renders slide preview
 - Style applier: `src/editor/core/style-applier.js` — applies style directives to all slides
 - Source jump handler: `src/editor/core/source-jump-handler.js` — click-to-jump markdown source
@@ -578,24 +582,28 @@ The following sections are reference material for specific subsystems and known 
 
 The `ai-enhancer.js` facade has been deleted. AI utilities now live in focused modules under `src/data/ai/`:
 
-| Module                     | Purpose                                                                  |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `ai-orchestrator.js`       | Entry point: context selection, LLM call, validation, repair             |
-| `ai-operation.js`          | `AiOperation` type and `createOperation()` factory                       |
-| `ai-intent-registry.js`    | Maps intent names to prompt fragments                                    |
-| `ai-prompt-fragments.js`   | Fragment imports, frontmatter stripping, layout list, variant extraction |
-| `ai-prompt-builder.js`     | Deck summaries, message/batch building                                   |
-| `ai-response-parser.js`    | JSON parsing, slides-to-markdown, areas-to-markdown                      |
-| `ai-directive-utils.js`    | Extract/restore/inject per-slide directives                              |
-| `ai-token-estimator.js`    | Token count and max_tokens estimation                                    |
-| `ai-output-validator.js`   | Validate AI output against schema                                        |
-| `ai-output-schema.js`      | Per-intent schemas                                                       |
-| `ai-prompt-composer.js`    | Strict placeholder composition from fragments                            |
-| `ai-repair-message.js`     | Build repair messages for validation failures                            |
-| `ai-provider-client.js`    | OpenAI-compatible API client with retry and error sanitization           |
-| `ai-provider-factory.js`   | Provider client factory                                                  |
-| `ai-vision-message.js`     | Multi-modal message builder, provider mappings, token estimation         |
-| `slide-image-extractor.js` | Extract content images, filter backgrounds, compress to <40KB            |
+| Module                            | Purpose                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| `ai-orchestrator.js`              | Facade: delegates to single-slide, whole-deck, and remix/reimagine       |
+| `orchestrator-shared.js`          | Shared utilities: `buildReasoningBody`, `isVisionError`                  |
+| `single-slide-orchestrator.js`    | Single-slide AI operations + repair loop                                 |
+| `whole-deck-orchestrator.js`      | Whole-deck generate/polish (single-call + batched)                       |
+| `remix-reimagine-orchestrator.js` | Remix and reimagine plan→execute flows                                   |
+| `ai-operation.js`                 | `AiOperation` type and `createOperation()` factory                       |
+| `ai-intent-registry.js`           | Maps intent names to prompt fragments                                    |
+| `ai-prompt-fragments.js`          | Fragment imports, frontmatter stripping, layout list, variant extraction |
+| `ai-prompt-builder.js`            | Deck summaries, message/batch building                                   |
+| `ai-response-parser.js`           | JSON parsing, slides-to-markdown, areas-to-markdown                      |
+| `ai-directive-utils.js`           | Extract/restore/inject per-slide directives                              |
+| `ai-token-estimator.js`           | Token count and max_tokens estimation                                    |
+| `ai-output-validator.js`          | Validate AI output against schema                                        |
+| `ai-output-schema.js`             | Per-intent schemas                                                       |
+| `ai-prompt-composer.js`           | Strict placeholder composition from fragments                            |
+| `ai-repair-message.js`            | Build repair messages for validation failures                            |
+| `ai-provider-client.js`           | OpenAI-compatible API client with retry and error sanitization           |
+| `ai-provider-factory.js`          | Provider client factory                                                  |
+| `ai-vision-message.js`            | Multi-modal message builder, provider mappings, token estimation         |
+| `slide-image-extractor.js`        | Extract content images, filter backgrounds, compress to <40KB            |
 
 ---
 

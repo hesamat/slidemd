@@ -1,6 +1,34 @@
 import { describe, it, expect, vi } from "vitest";
 import { MarkdownEditor } from "../editor/core/markdown-editor.js";
-import { EditController } from "../editor/core/edit-controller.js";
+import { EditorBufferController } from "../editor/core/editor-buffer-controller.js";
+
+/**
+ * Wire a real EditorBufferController to a fake EditController-like object.
+ */
+function createBuffer(fake) {
+  return new EditorBufferController({
+    getMarkdownEditor: () => fake.markdownEditor,
+    getDeckStore: () => fake.deckStore,
+    getDeck: () => fake.deck,
+    getUnsavedMarkdown: () => fake.unsavedMarkdown,
+    getCurrentSlideIndex: () => fake.currentSlideIndex,
+    getIsEditMode: () => fake.isEditMode,
+    getSaveManager: () => fake.saveManager,
+    getPreviewUpdater: () => fake.previewUpdater,
+    getAreaGuides: () => fake.areaGuides,
+    getLastEditorSlideIndex: () => fake._lastEditorSlideIndex,
+    setLastEditorSlideIndex: (v) => {
+      fake._lastEditorSlideIndex = v;
+    },
+    getLastEditorDeck: () => fake._lastEditorDeck,
+    setLastEditorDeck: (v) => {
+      fake._lastEditorDeck = v;
+    },
+    setHasUnsavedChanges: (v) => {
+      fake.hasUnsavedChanges = v;
+    },
+  });
+}
 
 describe("Per-slide editor undo history", () => {
   describe("MarkdownEditor slide state cache", () => {
@@ -193,8 +221,9 @@ describe("Per-slide editor undo history", () => {
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
+      const buffer = createBuffer(fake);
 
-      EditController.prototype.loadSlideIntoEditor.call(fake);
+      buffer.loadSlideIntoEditor();
 
       // Should save the outgoing slide (index 0) before loading the new one.
       expect(saveSlideState).toHaveBeenCalledWith(0);
@@ -228,8 +257,9 @@ describe("Per-slide editor undo history", () => {
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
+      const buffer = createBuffer(fake);
 
-      EditController.prototype.loadSlideIntoEditor.call(fake);
+      buffer.loadSlideIntoEditor();
 
       // Same slide — should use setValue, not the cache.
       expect(saveSlideState).not.toHaveBeenCalled();
@@ -261,8 +291,9 @@ describe("Per-slide editor undo history", () => {
         saveManager: { updateButton: vi.fn() },
         areaGuides: { refresh: vi.fn() },
       };
+      const buffer = createBuffer(fake);
 
-      EditController.prototype.loadSlideIntoEditor.call(fake);
+      buffer.loadSlideIntoEditor();
       expect(setValue).not.toHaveBeenCalled();
     });
   });
