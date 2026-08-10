@@ -3,6 +3,7 @@
  * Provides static methods for enhancing slide content, including diagram rendering (Mermaid), syntax highlighting (Prism), and math typesetting (KaTeX).
  */
 import { normalizeCodeLanguage, escapeHtml, base64Encode, base64Decode } from "../core/utils.js";
+import { Logger } from "../core/logger.js";
 
 const EMOJI_SEQUENCE_RE =
   /(?:[0-9#*]\uFE0F?\u20E3|\p{Regional_Indicator}{2}|(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?(?:\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|\p{Emoji}\uFE0F)(?:\p{Emoji_Modifier})?)*)/gu;
@@ -226,7 +227,7 @@ contain: layout paint style;
         const loader = window.AssetLoader || (await import("../core/asset-loader.js")).AssetLoader;
         await loader.ensureRichTextEnhancers();
       } catch (e) {
-        console.warn("Enhancer load error", e);
+        Logger.warn("Enhancer load error", e);
       }
     }
 
@@ -263,7 +264,7 @@ contain: layout paint style;
         if (window.Prism.highlightAllUnder) window.Prism.highlightAllUnder(rootEl);
         else codeNodes.forEach((c) => window.Prism.highlightElement(c));
       } catch (e) {
-        console.warn("Prism error:", e);
+        Logger.warn("Prism error:", e);
       }
     }
 
@@ -281,7 +282,7 @@ contain: layout paint style;
           throwOnError: false,
         });
       } catch (e) {
-        console.warn("KaTeX error:", e);
+        Logger.warn("KaTeX error:", e);
       }
     }
 

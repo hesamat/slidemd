@@ -19,6 +19,8 @@ Thumbs.db
 decks/out.md
 
 # Test files
+test-results/
+playwright-report/
 test-embed.html
   
 # Compose skill outputs

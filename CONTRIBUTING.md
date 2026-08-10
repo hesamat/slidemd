@@ -79,9 +79,12 @@ Prettier enforces formatting. Do not hand-format code; let Prettier do it.
 
 ```bash
 npm test
+npm run test:e2e
 ```
 
-Tests run on Vitest. The default environment is `node`; specs that need a DOM
+`npm test` runs the Vitest unit suite. `npm run test:e2e` runs the Playwright
+Chromium suite and starts the dual-process dev server automatically. Unit tests
+run on Vitest with the default environment set to `node`; specs that need a DOM
 add a `// @vitest-environment jsdom` pragma at the top of the file. Specs live
 under `src/__tests__/**/*.test.js` (the config's `include` glob is
 `src/**/*.test.js`, but all current specs are under `__tests__/`). Snapshot

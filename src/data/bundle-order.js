@@ -18,6 +18,7 @@
 
 export const JS_BUNDLE_ORDER = [
   // Core utilities and helpers
+  "src/core/logger.js",
   "src/core/utils.js",
   "src/core/element-gatherer.js",
   "src/core/mermaid-config.js",

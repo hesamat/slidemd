@@ -7,6 +7,8 @@
  * large deck degrades one batch at a time instead of failing as a whole.
  */
 
+import { Logger } from "./logger.js";
+
 /** Maximum number of files sent in a single request. */
 export const UPLOAD_BATCH_MAX_FILES = 20;
 
@@ -62,7 +64,7 @@ export async function uploadImagesInBatches(entries, { signal, onProgress, pptx 
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }));
-        console.warn(`Image upload batch failed (HTTP ${res.status}):`, body.error);
+        Logger.warn(`Image upload batch failed (HTTP ${res.status}):`, body.error);
         return;
       }
       const result = await res.json();
@@ -72,7 +74,7 @@ export async function uploadImagesInBatches(entries, { signal, onProgress, pptx 
       }
     } catch (e) {
       if (e.name === "AbortError") throw e;
-      console.warn("Image upload batch failed:", e);
+      Logger.warn("Image upload batch failed:", e);
     } finally {
       processed += sending.length;
       onProgress?.(processed, total);

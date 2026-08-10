@@ -11,6 +11,7 @@
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { formatShortcut } from "../../engine/keyboard-shortcuts.js";
+import { Logger } from "../../core/logger.js";
 
 // Touch long-press: how long (in ms) the user must hold a thumbnail
 // before the context menu opens, and how long the optional haptic
@@ -244,7 +245,7 @@ export class SlideThumbnails {
    */
   _addNewSlide(afterIndex) {
     if (!this._onAddSlide) {
-      console.warn("Add-slide action not wired");
+      Logger.warn("Add-slide action not wired");
       return;
     }
     if (typeof afterIndex === "number") {

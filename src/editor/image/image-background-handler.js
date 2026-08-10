@@ -5,6 +5,8 @@
  * All uploads go through POST /api/upload-image which saves to disk.
  */
 
+import { Logger } from "../../core/logger.js";
+
 export class ImageBackgroundHandler {
   /**
    * Whether local file upload is supported.
@@ -26,13 +28,13 @@ export class ImageBackgroundHandler {
       formData.append("image", file);
       const res = await fetch("/api/upload-image", { method: "POST", body: formData });
       if (!res.ok) {
-        console.error("Upload failed:", res.status);
+        Logger.error("Upload failed:", res.status);
         return null;
       }
       const result = await res.json();
       return result.path || null;
     } catch (e) {
-      console.error("Upload error:", e);
+      Logger.error("Upload error:", e);
       return null;
     }
   }

@@ -7,6 +7,8 @@
  *
  * @class
  */
+import { Logger } from "./logger.js";
+
 /**
  * Check that a deck file exists in a directory. Deck names stored by
  * PPTX/textpack imports have no extension (e.g. "MyDeck"), while the
@@ -90,7 +92,7 @@ export class DirectoryHandleStore {
         tx.objectStore(this.STORE).put(mode, modeKey);
       });
     } catch (err) {
-      console.warn("DirectoryHandleStore.save failed:", err);
+      Logger.warn("DirectoryHandleStore.save failed:", err);
     }
   }
 
@@ -143,7 +145,7 @@ export class DirectoryHandleStore {
           }
         } catch (err) {
           if (err && err.name === "NotFoundError") {
-            console.warn(
+            Logger.warn(
               `[DirHandleStore] load: "${fileName}" not found in dir="${result.handle.name}" — clearing stale handle`,
             );
             result.handle = null;
@@ -151,7 +153,7 @@ export class DirectoryHandleStore {
           } else {
             // Permission or transient error — keep the handle; it may become
             // usable once the user grants read permission later in init.
-            console.warn(
+            Logger.warn(
               `[DirHandleStore] load: verification of "${fileName}" deferred (${err?.name || err})`,
             );
           }
@@ -160,7 +162,7 @@ export class DirectoryHandleStore {
 
       return result;
     } catch (err) {
-      console.warn("DirectoryHandleStore.load failed:", err);
+      Logger.warn("DirectoryHandleStore.load failed:", err);
       return { handle: null, mode: "parent" };
     }
   }
@@ -183,7 +185,7 @@ export class DirectoryHandleStore {
         tx.objectStore(this.STORE).delete(modeKey);
       });
     } catch (err) {
-      console.warn("DirectoryHandleStore.clear failed:", err);
+      Logger.warn("DirectoryHandleStore.clear failed:", err);
     }
   }
 }

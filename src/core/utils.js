@@ -3,6 +3,8 @@
  * Shared helpers for string manipulation, events, and async control flow.
  */
 
+import { Logger } from "./logger.js";
+
 export const DESIGN_SIZE = Object.freeze({ width: 1920, height: 1080 });
 
 /**
@@ -15,7 +17,7 @@ export class EventEmitter {
 
   addEventListener(event, callback) {
     if (typeof callback !== "function") {
-      console.warn("EventEmitter: callback must be a function", { event });
+      Logger.warn("EventEmitter: callback must be a function", { event });
       return;
     }
     if (!this._listeners.has(event)) {
@@ -38,7 +40,7 @@ export class EventEmitter {
         try {
           cb(detail);
         } catch (e) {
-          console.error(`Error in listener "${event}":`, e);
+          Logger.error(`Error in listener "${event}":`, e);
         }
       });
     }

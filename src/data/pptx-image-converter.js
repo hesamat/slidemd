@@ -5,6 +5,8 @@
  * browsers can render natively.
  */
 
+import { Logger } from "../core/logger.js";
+
 /**
  * Convert EMF/WMF images to PNG data URLs using emf-converter.
  * Modifies slides and images arrays in place.
@@ -17,7 +19,7 @@ export async function convertEmfImages(slides, images) {
   try {
     emfConverter = await import("emf-converter");
   } catch (err) {
-    console.warn("emf-converter not available, skipping EMF conversion:", err);
+    Logger.warn("emf-converter not available, skipping EMF conversion:", err);
     return;
   }
 
@@ -37,7 +39,7 @@ export async function convertEmfImages(slides, images) {
       try {
         binary = atob(padded);
       } catch {
-        console.warn(`Could not decode base64 for ${img.ref} (sample: ${padded.slice(0, 60)})`);
+        Logger.warn(`Could not decode base64 for ${img.ref} (sample: ${padded.slice(0, 60)})`);
         continue;
       }
       const bytes = new Uint8Array(binary.length);
@@ -47,7 +49,7 @@ export async function convertEmfImages(slides, images) {
       let dataUrl = await convert(bytes.buffer, 1920, 1080);
 
       if (!dataUrl) {
-        console.warn(
+        Logger.warn(
           `EMF conversion returned null for ${img.ref} (size: ${bytes.length} bytes) — browser may lack Canvas API or file is invalid`,
         );
         continue;
@@ -68,7 +70,7 @@ export async function convertEmfImages(slides, images) {
         }
       }
     } catch (err) {
-      console.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
+      Logger.warn(`Could not convert ${img.ref} from ${img.mimeType}:`, err);
     }
   }
 }
@@ -86,7 +88,7 @@ export async function convertTiffImages(slides, images) {
   try {
     Utif = await import("utif2");
   } catch (err) {
-    console.warn("utif2 not available, skipping TIFF conversion:", err);
+    Logger.warn("utif2 not available, skipping TIFF conversion:", err);
     return;
   }
 
@@ -104,9 +106,7 @@ export async function convertTiffImages(slides, images) {
       try {
         binary = atob(padded);
       } catch {
-        console.warn(
-          `Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`,
-        );
+        Logger.warn(`Could not decode base64 for TIFF ${img.ref} (sample: ${padded.slice(0, 60)})`);
         continue;
       }
       const bytes = new Uint8Array(binary.length);
@@ -114,7 +114,7 @@ export async function convertTiffImages(slides, images) {
 
       const ifds = Utif.decode(bytes.buffer);
       if (!ifds || ifds.length === 0) {
-        console.warn(`TIFF decode returned no pages for ${img.ref}`);
+        Logger.warn(`TIFF decode returned no pages for ${img.ref}`);
         continue;
       }
       const firstPage = ifds[0];
@@ -124,7 +124,7 @@ export async function convertTiffImages(slides, images) {
       const h = firstPage.height;
 
       if (typeof document === "undefined" || !document.createElement) {
-        console.warn("Canvas API not available, skipping TIFF conversion for", img.ref);
+        Logger.warn("Canvas API not available, skipping TIFF conversion for", img.ref);
         continue;
       }
 
@@ -152,7 +152,7 @@ export async function convertTiffImages(slides, images) {
         }
       }
     } catch (err) {
-      console.warn(`Could not convert ${img.ref} from TIFF:`, err);
+      Logger.warn(`Could not convert ${img.ref} from TIFF:`, err);
     }
   }
 }
@@ -214,7 +214,7 @@ async function trimTransparentMargins(dataUrl) {
       .drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
     return cropped.toDataURL("image/png");
   } catch (err) {
-    console.warn("trimTransparentMargins failed:", err);
+    Logger.warn("trimTransparentMargins failed:", err);
     return null;
   }
 }

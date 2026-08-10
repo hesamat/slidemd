@@ -9,6 +9,7 @@ import LAYOUTS_JSON from "../data/layouts.json" with { type: "json" };
 import { buildMermaidScriptTag } from "../core/mermaid-config.js";
 import { Notification } from "./notification.js";
 import { JS_BUNDLE_ORDER } from "../data/bundle-order.js";
+import { Logger } from "../core/logger.js";
 
 export class HtmlExportManager {
   static _isExporting = false;
@@ -78,7 +79,7 @@ export class HtmlExportManager {
         return;
       }
       loading.dismiss();
-      console.warn("HTML export failed:", e);
+      Logger.warn("HTML export failed:", e);
       Notification.error(`HTML export failed: ${e.message || e}`);
     } finally {
       HtmlExportManager._isExporting = false;
@@ -356,7 +357,7 @@ ${escapedInitScript}
           if (r.ok) return await r.text();
         } catch (e) {
           if (e.name === "AbortError") throw e;
-          console.warn("Failed to fetch JS:", url);
+          Logger.warn("Failed to fetch JS:", url);
         }
       }
       return "";
@@ -383,7 +384,7 @@ ${escapedInitScript}
       /~~~[\s\S]*?\n/.test(deckHtmlText);
 
     if (needsPrism) {
-      console.log("HtmlExport: Inlining Prism.js library...");
+      Logger.info("HtmlExport: Inlining Prism.js library...");
       const cdnUrl = prismVersion
         ? `https://cdnjs.cloudflare.com/ajax/libs/prism/${prismVersion}/prism.min.js`
         : null;
@@ -407,7 +408,7 @@ ${escapedInitScript}
     // Check if we need KaTeX
     const needsKatex = /(\$|\$\$|\\\(|\\\[|\\begin)/.test(deckHtmlText);
     if (needsKatex) {
-      console.log("HtmlExport: Inlining KaTeX...");
+      Logger.info("HtmlExport: Inlining KaTeX...");
       const katexJsCdn = katexVersion
         ? `https://cdn.jsdelivr.net/npm/katex@${katexVersion}/dist/katex.min.js`
         : null;
@@ -431,7 +432,7 @@ ${escapedInitScript}
    */
   static async fetchAndBundleJs(signal = null) {
     const parts = [];
-    console.log("HtmlExport: Starting JS bundle...");
+    Logger.info("HtmlExport: Starting JS bundle...");
 
     for (const filePath of JS_BUNDLE_ORDER) {
       try {
@@ -443,7 +444,7 @@ ${escapedInitScript}
         parts.push(processedSrc);
       } catch (e) {
         if (e.name === "AbortError") throw e;
-        console.error(`Could not load ${filePath}:`, e);
+        Logger.error(`Could not load ${filePath}:`, e);
       }
     }
     return parts.join("\n\n");
@@ -583,7 +584,7 @@ ${escapedInitScript}
           }
         }
       } catch (e) {
-        console.debug("CSS Access error:", e);
+        Logger.debug("CSS Access error:", e);
       }
     }
     return cssParts.join("\n\n");
@@ -668,7 +669,7 @@ ${escapedInitScript}
     if (!needsMermaid) return "";
     const version = await HtmlExportManager._getVendorVersion("mermaid", signal);
     if (!version) {
-      console.warn(
+      Logger.warn(
         "HtmlExport: Could not determine installed Mermaid version; skipping Mermaid script.",
       );
       return "";
@@ -734,7 +735,7 @@ ${escapedInitScript}
           return `/* ${name} CSS */\n${css}`;
         } catch (e) {
           if (e.name === "AbortError") throw e;
-          console.warn(`Error loading ${name} CSS`);
+          Logger.warn(`Error loading ${name} CSS`);
         }
       }
       return "";
@@ -955,7 +956,7 @@ ${escapedInitScript}
                 }
                 if (typeof ContentEnhancer !== "undefined" && ContentEnhancer.enhanceRenderedContent) {
                     ContentEnhancer.enhanceRenderedContent(document.body, { renderAllSlides: true, force: true })
-                        .catch(e => console.warn('Enhancement error:', e));
+                        .catch(e => Logger.warn('Enhancement error:', e));
                 }
             };
             window.addEventListener('webdeck:ready', enhance, { once: true });

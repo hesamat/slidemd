@@ -14,6 +14,7 @@ import { ElementGatherer } from "./src/core/element-gatherer.js";
 import { UiActions } from "./src/ui/ui-actions.js";
 import { OpenDeckModal } from "./src/editor/ui/open-deck-modal.js";
 import { DeckStore } from "./src/data/store/deck-store.js";
+import { Logger } from "./src/core/logger.js";
 (() => {
   "use strict";
 
@@ -67,7 +68,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
 
   function showBootError(err) {
     // Log full error (including stack) to aid debugging
-    console.error("Deck initialization failed:", err);
+    Logger.error("Deck initialization failed:", err);
 
     const message = err instanceof Error ? err.message : String(err);
     const stackOrMessage = err instanceof Error && err.stack ? err.stack : message;
@@ -168,7 +169,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
           editController.destroy();
         });
       } catch (e) {
-        console.error("EditController initialization failed:", e);
+        Logger.error("EditController initialization failed:", e);
       }
     }
 
@@ -178,13 +179,13 @@ import { DeckStore } from "./src/data/store/deck-store.js";
     const features = ContentEnhancer.scanDeck(deck);
 
     if (features.hasMath || features.hasCode) {
-      AssetLoader.ensureRichTextEnhancers().catch((e) => console.warn(e));
+      AssetLoader.ensureRichTextEnhancers().catch((e) => Logger.warn(e));
     }
 
     if (features.hasMermaid) {
       // This starts the Mermaid initialization immediately so it's ready when we reach the slide
       ContentEnhancer.initializeMermaid().catch((e) =>
-        console.warn("Mermaid initialization failed:", e),
+        Logger.warn("Mermaid initialization failed:", e),
       );
     }
 
@@ -198,9 +199,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
     ContentEnhancer.normalizeEmojiText(elements.slidesContainer);
     const needsEnhancement = features.hasMermaid || features.hasMath || features.hasCode;
     if (!isExported && needsEnhancement) {
-      ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch((e) =>
-        console.warn(e),
-      );
+      ContentEnhancer.enhanceRenderedContent(elements.slidesContainer).catch((e) => Logger.warn(e));
     } else if (!needsEnhancement) {
       elements.slidesContainer.dataset.webdeckEnhanced = "1";
     }
@@ -274,7 +273,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
         connectLiveReload();
       })
       .catch((e) => {
-        console.error("Deck init failed:", e);
+        Logger.error("Deck init failed:", e);
         showBootError(e);
       });
   });
@@ -290,7 +289,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
       const evtSource = new EventSource("/api/events");
       evtSource.onmessage = (event) => {
         if (event.data === "reload") {
-          console.log("[LiveReload] Change detected, reloading...");
+          Logger.info("[LiveReload] Change detected, reloading...");
           window.location.reload();
         }
       };
@@ -300,7 +299,7 @@ import { DeckStore } from "./src/data/store/deck-store.js";
         // then stop reporting to avoid console noise.
         if (!evtSource._reconnectWarned) {
           evtSource._reconnectWarned = true;
-          console.info("[LiveReload] Disconnected — will retry automatically");
+          Logger.info("[LiveReload] Disconnected — will retry automatically");
         }
       };
     } catch {

@@ -7,6 +7,7 @@
 
 import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
+import { Logger } from "../core/logger.js";
 
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";
@@ -176,7 +177,7 @@ export class ConversionModal {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (raw) savedDefaults = JSON.parse(raw);
           } catch (e) {
-            console.warn("Corrupted conversion defaults in localStorage, clearing:", e);
+            Logger.warn("Corrupted conversion defaults in localStorage, clearing:", e);
             localStorage.removeItem(STORAGE_KEY);
           }
           // Load saved defaults
