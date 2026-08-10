@@ -10,8 +10,7 @@ layout: title-slide
 
 ---
 
-layout: two-column
-
+layout: media-span-right
 @header
 
 # What is SlideMD?
@@ -32,7 +31,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 5px; width: 720px; height: 696px; border-radius: 19px; box-shadow: rgba(120, 120, 120, 0.4) 0px 6px 20px; border: none; object-fit: contain; cursor: move" />
+<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 0px; width: 796px; height: 796px; border-radius: 19px; border: none; object-fit: contain; cursor: move" />
 
 ---
 
@@ -69,24 +68,23 @@ layout: two-column
 
 ---
 
-layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 1.8755fr 1.1245fr
+layout: "header header" auto "main media" minmax(0, 1fr) "footer footer" auto / 2.1872fr 0.8128fr
 @header
 
 # Slide Structure & Syntax
 
 @main
 
-| Layout           | Areas                                             |
-| ---------------- | ------------------------------------------------- |
-| `header-content` | `@header` `@main` `@footer`                       |
-| `title-slide`    | `@title`                                          |
-| `focus`          | `@header` `@main` `@footer`                       |
-| `full-image`     | `@main`                                           |
-| `two-column`     | `@header` `@main` `@media` `@footer`              |
-| `media-span`     | `@header` `@main` `@media` `@footer`              |
-| `left-heavy`     | `@header` `@main` `@media` `@footer`              |
-| `right-heavy`    | `@header` `@main` `@media` `@footer`              |
-| `three-column`   | `@header` `@main` `@media` `@secondary` `@footer` |
+| Layout                                 | Areas                                             |
+| -------------------------------------- | ------------------------------------------------- |
+| `header-content`                       | `@header` `@main` `@footer`                       |
+| `title-slide`                          | `@title`                                          |
+| `focus`                                | `@header` `@main` `@footer`                       |
+| `full-image`                           | `@main`                                           |
+| `two-column`                           | `@header` `@main` `@media` `@footer`              |
+| `media-span-left` / `media-span-right` | `@header` `@main` `@media` `@footer`              |
+| `left-heavy` / `right-heavy`           | `@header` `@main` `@media` `@footer`              |
+| `three-column`                         | `@header` `@main` `@media` `@secondary` `@footer` |
 
 @media
 
@@ -110,7 +108,7 @@ Right column content.
 
 @footer
 
-- `hidden: true` or `hide: true` skips a slide by default. Add `?showHidden=1` in the URL to override.
+`hidden: true` or `hide: true` skips a slide by default. Add `?showHidden=1` in the URL to override.
 
 ---
 
@@ -330,7 +328,7 @@ Let the AI handle the busywork so you can focus on the message.
 - **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
 - **Add speaker notes** — generate speaker notes without touching the slide
 
-<img src="images/image-3e14.png" alt="image-3e14" style="position: relative; left: 138px; top: 19px; width: 543px; height: 365px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
+<img src="images/image-a199.png" alt="image-3e14" style="position: relative; left: 239px; top: 8px; width: 342px; height: 346px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 
 @media
 

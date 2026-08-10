@@ -290,7 +290,7 @@ export class AiOutputValidator {
       errors.push({
         slide: index,
         code: "NO_HEADER_ON_MULTI_IMAGE",
-        message: `Slide ${index + 1} has ${imgCount} images but uses header-content (use media-span, two-column, or full-image instead)`,
+        message: `Slide ${index + 1} has ${imgCount} images but uses header-content (use media-span-left, media-span-right, two-column, or full-image instead)`,
       });
     }
   }

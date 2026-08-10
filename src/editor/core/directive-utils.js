@@ -13,14 +13,57 @@ import { splitCssDeclarations } from "../../core/utils.js";
 /**
  * Replace (or insert) the `layout:` directive in a slide's markdown text.
  *
+ * By default the internal `media-span:` intent directive is stripped, which is
+ * what the layout picker wants (changing layout clears the bleed intent).
+ * Callers that rewrite the layout while keeping media-span intent — e.g.
+ * "Span all rows" on a resized media-span slide — must pass
+ * `{ preserveMediaSpan: true }`.
+ *
  * @param {string} markdown       - The slide's full markdown source.
  * @param {string} newLayoutValue - The new layout value (spec string or preset name).
+ * @param {{ preserveMediaSpan?: boolean }} [opts]
  * @returns {string} Updated markdown with the `layout:` line replaced/inserted.
  */
-export function updateLayoutDirective(markdown, newLayoutValue) {
+export function updateLayoutDirective(
+  markdown,
+  newLayoutValue,
+  { preserveMediaSpan = false } = {},
+) {
   const parser = new MarkdownParser();
   const { markdown: stripped } = parser.extractDirective(markdown, "layout");
-  return `layout: ${newLayoutValue}\n${stripped}`;
+  if (preserveMediaSpan) return `layout: ${newLayoutValue}\n${stripped}`;
+  const { markdown: withoutMediaSpan } = parser.extractDirective(stripped, "media-span");
+  return `layout: ${newLayoutValue}\n${withoutMediaSpan}`;
+}
+
+/**
+ * Replace (or remove) the internal media-span intent directive.
+ * @param {string} markdown
+ * @param {string} side - "left", "right", or empty to remove
+ * @returns {string}
+ */
+export function updateMediaSpanDirective(markdown, side) {
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "media-span");
+  const normalized = String(side || "")
+    .trim()
+    .toLowerCase();
+  if (normalized !== "left" && normalized !== "right") return stripped;
+  return `media-span: ${normalized}\n${stripped}`;
+}
+
+/**
+ * Read the persisted media-span intent directive from slide markdown.
+ * @param {string} markdown
+ * @returns {"left"|"right"|""}
+ */
+export function readMediaSpanDirective(markdown) {
+  const parser = new MarkdownParser();
+  const { value } = parser.extractDirective(markdown, "media-span");
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "left" || normalized === "right" ? normalized : "";
 }
 
 /**
@@ -158,12 +201,48 @@ export function describeBackground(css) {
 }
 
 /**
- * Make an area span all rows by rewriting the layout to a custom grid.
- * The target area is placed in the last column of every row, keeping
- * header/footer in column 1 only.
+ * Check whether an area already spans every row of the slide's layout grid
+ * (i.e. it appears in the same column of every row). Mirrors the renderer's
+ * full-height detection so the "Span all rows" action is only offered when
+ * it would change anything.
  *
  * @param {string} markdown  — slide markdown source
- * @param {string} areaName  — area to make full-height (e.g. "media")
+ * @param {string} areaName  — area to check (e.g. "media")
+ * @returns {boolean} true when the area spans all rows
+ */
+export function areaSpansAllRows(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name) return false;
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) return false;
+
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) return false;
+
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+  if (rows.length < 2) return false;
+  const firstRow = rows[0];
+  const colIdx = firstRow.indexOf(name);
+  if (colIdx === -1) return false;
+  return rows.every((row) => row[colIdx] === name);
+}
+
+/**
+ * Make an area span every grid row by rewriting the layout to a custom grid.
+ * The target area is placed in its column of every row, keeping the other
+ * areas in their original columns and shifting header/footer content left.
+ * The area reaches the slide edge on its border side because the renderer
+ * zeroes the border-side padding for full-height areas, but stays inside the
+ * slide's top/bottom padding — hence "span all rows", not "full height".
+ *
+ * @param {string} markdown  — slide markdown source
+ * @param {string} areaName  — area to make span all rows (e.g. "media")
  * @returns {string} updated markdown with custom layout grid
  */
 export function makeAreaFullHeight(markdown, areaName) {
@@ -175,6 +254,10 @@ export function makeAreaFullHeight(markdown, areaName) {
   const parser = new MarkdownParser();
   const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
   if (!layoutValue) return markdown;
+
+  // The area already spans every row (e.g. media in a media-span layout) —
+  // the rewrite would produce an equivalent grid, so leave the source alone.
+  if (areaSpansAllRows(markdown, name)) return markdown;
 
   const resolved = LayoutParser.resolvePreset(layoutValue);
   const layout = LayoutParser.parse(resolved);
@@ -190,17 +273,26 @@ export function makeAreaFullHeight(markdown, areaName) {
   if (!contentRow) return markdown;
   const colIdx = contentRow.indexOf(name);
 
-  // Rebuild every row: put the target in colIdx, others shifted left
+  // Rows may have different lengths (e.g. a single-cell footer in a
+  // two-column grid); normalize every row to the widest row so the rebuilt
+  // template stays a valid grid.
+  const maxLen = Math.max(...rows.map((row) => row.length));
+
+  // Rebuild every row: put the target in colIdx, shifting all other cells
+  // around it. This also repairs rows that already contain the target in a
+  // different column; leaving those rows untouched would create a
+  // non-rectangular grid-template-areas value that CSS rejects entirely.
   const newRows = rows.map((row) => {
-    if (row.includes(name)) return row;
-    const otherCells = row.filter((c) => c !== name);
+    const padded = [...row];
+    while (padded.length < maxLen) padded.push(".");
+    const otherCells = padded.filter((c) => c !== name);
     const result = [];
-    for (let i = 0; i < row.length; i++) {
+    let otherIndex = 0;
+    for (let i = 0; i < maxLen; i++) {
       if (i === colIdx) {
         result.push(name);
       } else {
-        const cellIdx = i < colIdx ? i : i - 1;
-        result.push(otherCells[cellIdx] || ".");
+        result.push(otherCells[otherIndex++] || ".");
       }
     }
     return result;
@@ -215,7 +307,9 @@ export function makeAreaFullHeight(markdown, areaName) {
   }
   const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
 
-  return updateLayoutDirective(stripped, newLayout);
+  // "Span all rows" on a resized media-span slide must not drop the
+  // persisted media-span intent — the rewritten grid keeps the geometry.
+  return updateLayoutDirective(stripped, newLayout, { preserveMediaSpan: true });
 }
 
 /**

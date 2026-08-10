@@ -8,7 +8,7 @@
 import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
-import { LayoutData } from "../data/layout-data.js";
+import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
 
 const SAFE_URI_REGEXP =
@@ -191,8 +191,30 @@ export class SlideRenderer {
     });
     const layoutAreaNames = new Set(layout.orderedAreas);
 
+    // Auto-detect full-height areas: areas that appear in every row at the
+    // same column. Used for full-height row sizing.
+    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+    const fullHeightAreas = new Set();
+    if (allRowCells.length > 1) {
+      const numCols = allRowCells[0]?.length || 0;
+      for (let col = 0; col < numCols; col++) {
+        const areaName = allRowCells[0][col];
+        if (!areaName || areaName === ".") continue;
+        const spansAll = allRowCells.every((row) => row[col] === areaName);
+        if (spansAll) fullHeightAreas.add(areaName);
+      }
+    }
+
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
+    const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
+    const declaredMediaSide = safeString(slide?.mediaSpan).toLowerCase();
+    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
+      ? LayoutData.getMediaSpanSide(layoutKey)
+      : null;
+    const mediaSpanSide = declaredMediaSide || namedMediaSide;
+
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;
     let isCustomFocus = false;
@@ -209,6 +231,9 @@ export class SlideRenderer {
     if (dataLayout) {
       wrapper.setAttribute("data-layout", dataLayout);
     }
+    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
+      wrapper.setAttribute("data-media-span", geometryMediaSide);
+    }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
     grid.style.gridTemplateColumns = layout.gridTemplateColumns;
@@ -221,20 +246,6 @@ export class SlideRenderer {
 
     const areaStyle = safeString(slide?.areaStyle);
     const perAreaStyles = slide?.areaStyles || {};
-
-    // Auto-detect full-height areas: areas that appear in every row at the same column
-    const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
-    const allRowCells = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
-    const fullHeightAreas = new Set();
-    if (allRowCells.length > 1) {
-      const numCols = allRowCells[0]?.length || 0;
-      for (let col = 0; col < numCols; col++) {
-        const areaName = allRowCells[0][col];
-        if (!areaName || areaName === ".") continue;
-        const spansAll = allRowCells.every((row) => row[col] === areaName);
-        if (spansAll) fullHeightAreas.add(areaName);
-      }
-    }
 
     if (fullHeightAreas.size > 0) {
       grid.classList.add("slide__grid--full-height");
@@ -287,13 +298,26 @@ export class SlideRenderer {
         area.style.setProperty("--line-max", "none");
       }
 
-      // Footer spans full width when full-height areas exist
+      // Footer spans full width when full-height areas exist — unless the
+      // footer already shares its row with one (e.g. media-span grids where
+      // the footer row is "footer media" / "media footer"), in which case the
+      // forced span would overlap the full-height media column.
       if (fullHeightAreas.size > 0 && name === "footer") {
-        area.style.gridColumn = "1 / -1";
+        const footerRow = allRowCells.find((row) => row.includes("footer")) || [];
+        const sharesRowWithFullHeight = footerRow.some((cell) => fullHeightAreas.has(cell));
+        if (!sharesRowWithFullHeight) {
+          area.style.gridColumn = "1 / -1";
+        }
       }
-      // Full-height areas touch the right slide border
+
+      // Full-height areas meet the slide edge on their border side. This
+      // applies to both named media-span layouts and custom grids created by
+      // the Span all rows action; media bleed itself remains intent-gated by
+      // data-media-span above.
       if (fullHeightAreas.has(name)) {
-        area.style.paddingRight = "0";
+        const colIdx = allRowCells[0].indexOf(name);
+        if (colIdx === 0) area.style.paddingLeft = "0";
+        else if (colIdx === allRowCells[0].length - 1) area.style.paddingRight = "0";
       }
 
       area.innerHTML = this.sanitizeAreaHtml(html);

@@ -63,7 +63,13 @@
 .slide {
   position: absolute;
   inset: 0;
-  padding: 105px 125px 80px 105px;
+  /* Slide container padding, as variables so full-bleed areas (media-span)
+     can mirror them exactly. */
+  --slide-pad-top: 105px;
+  --slide-pad-right: 125px;
+  --slide-pad-bottom: 80px;
+  --slide-pad-left: 105px;
+  padding: var(--slide-pad-top) var(--slide-pad-right) var(--slide-pad-bottom) var(--slide-pad-left);
   visibility: hidden;
   display: grid;
   background: var(--slide-bg);
@@ -714,7 +720,6 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 .slide__area img.img-positioned,
 .slide__area img[style*="position: relative"] {
   margin: 0;
-  border-radius: 0;
   max-width: none !important;
   height: auto;
   align-self: flex-start;
@@ -783,6 +788,97 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   object-fit: cover;
   border: none;
   margin: 0;
+}
+
+/* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
+
+/* The media column of a media-span layout always bleeds to the slide edges
+   while the content column keeps the slide padding — the layout itself
+   implies bleed, independent of the media area's content (image, mermaid,
+   text, table). The negative margins mirror the --slide-pad-* variables
+   above, so the bleed tracks the container exactly and survives editor
+   column resizing (the area stays a grid item).
+
+   The editor injects an @media label button as the area's first child; the
+   image-fill rules below therefore match both the plain viewer structure
+   (direct <img> or <p>-wrapped) and the editor structure (button + content).
+   A single image fills the area absolutely — as a flex item its height: 100%
+   would share the column with the label button and leave a gap at the top.
+   Multiple images and other content keep flowing normally inside the
+   bleeding column. */
+.slide[data-media-span="right"] .slide__area--media {
+  /* max-width: 100% (from .slide__area) is relative to the grid cell and
+     would neutralize the negative right margin — drop it so the area can
+     extend past the cell to the slide edge. */
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) calc(-1 * var(--slide-pad-right))
+    calc(-1 * var(--slide-pad-bottom)) 0;
+}
+
+.slide[data-media-span="left"] .slide__area--media {
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  margin: calc(-1 * var(--slide-pad-top)) 0 calc(-1 * var(--slide-pad-bottom))
+    calc(-1 * var(--slide-pad-left));
+}
+
+/* The image fills the area edge to edge; it is removed from the flex column
+   so the editor's @media label button does not push it down. */
+.slide[data-media-span]
+  .slide__area--media:has(
+    > img:only-child,
+    > button.editor-area-label + img:last-child,
+    > p:only-child > img:only-child,
+    > button.editor-area-label + p:last-child > img:only-child
+  )
+  > button.editor-area-label {
+  position: relative;
+  z-index: 2;
+}
+
+.slide[data-media-span] .slide__area--media:has(> img:only-child) > img:not([style*="position"]),
+.slide[data-media-span]
+  .slide__area--media:has(> button.editor-area-label + img:last-child)
+  > img:not([style*="position"]) {
+  /* Fill the media column: absolute insets plus forced width/height. The
+      imported inline style ("height: auto") must stay layout-agnostic so the
+      image renders naturally if the layout changes, hence !important. Fixed
+      fill images have their resize handles disabled so saved dimensions
+      cannot diverge from the view-managed size. */
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  max-height: none;
+  display: block;
+}
+
+.slide[data-media-span] .slide__area--media:has(> p:only-child > img:only-child) > p,
+.slide[data-media-span]
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
+  > p {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.slide[data-media-span]
+  .slide__area--media:has(> p:only-child > img:only-child)
+  > p
+  > img:not([style*="position"]),
+.slide[data-media-span]
+  .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
+  > p
+  > img:not([style*="position"]) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: none;
+  display: block;
 }
 
 /* Flex-row container for horizontally adjacent PPTX elements */

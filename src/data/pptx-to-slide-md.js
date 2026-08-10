@@ -23,6 +23,7 @@ import {
   filterMeaningfulElements,
   findDominantImages,
   inferLayout,
+  partitionByAreaOverlap,
 } from "./pptx-layout-inference.js";
 import {
   LAYOUT,
@@ -34,6 +35,51 @@ import {
   REGEX,
   CONFIG,
 } from "./pptx-slide-config.js";
+
+/**
+ * Rewrite the layout directive already pushed into parts, wherever it sits
+ * (speaker notes may precede it). No-op when the directive has not been
+ * pushed yet.
+ * @param {string[]} parts
+ * @param {{ spec: string }} layout
+ */
+function setLayoutDirective(parts, layout) {
+  const idx = parts.findIndex((p) => p.startsWith("layout:"));
+  if (idx !== -1) parts[idx] = `layout: ${layout.spec}`;
+}
+
+/**
+ * Estimate whether the body content of a slide overflows the vertical space
+ * available to a single column. Line heights and the available area are
+ * constants calibrated to the fixed 1920x1080 render geometry, so the result
+ * does not depend on the source deck's page size. Long lines (body and
+ * headings) are assumed to wrap. Only text elements are measured — tables,
+ * charts, diagrams, and images size themselves.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyElements
+ * @returns {boolean}
+ */
+function estimateBodyOverflow(bodyElements) {
+  const available = CONFIG.overflowBodyAreaHeight;
+  let required = 0;
+  for (const el of bodyElements) {
+    if (el.type !== ELEMENT_TYPES.TEXT || !el.content) continue;
+    for (const line of el.content.split("\n")) {
+      const t = line.trim();
+      if (!t) {
+        required += CONFIG.overflowLineHeightBlank;
+      } else if (t === "```") {
+        required += CONFIG.overflowLineHeightCode;
+      } else if (/^#{1,3}\s/.test(t)) {
+        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+        required += CONFIG.overflowLineHeightHeading * wrappedLines;
+      } else {
+        const wrappedLines = Math.max(1, Math.ceil(line.length / CONFIG.overflowWrapLength));
+        required += CONFIG.overflowLineHeightBody * wrappedLines;
+      }
+    }
+  }
+  return required > available;
+}
 
 /**
  * Convert English Metric Units (EMUs) to standard slide points.
@@ -316,40 +362,6 @@ function convertSlide(
     return "";
   };
 
-  // --- MEDIA-SPAN UPGRADE ---
-  // If we have a two-column layout and the right column contains exactly one
-  // image, upgrade to media-span so the image spans the full slide height.
-  if (layout.type === LAYOUT.TWO_COLUMN.type) {
-    const { header, bodyElements } = extractHeader(textElements, allElements, slideHeight, false);
-    const midX = slideWidth / 2;
-    const centerTol = slideWidth * CONFIG.centerToleranceRatio;
-    const isCentered = (el) => Math.abs(el.left + el.width / 2 - midX) < centerTol;
-
-    const rightEls = bodyElements.filter((el) => {
-      if (isCentered(el)) return false;
-      if (header && el === header) return false;
-      return (el.left || 0) + (el.width || 0) / 2 >= midX;
-    });
-
-    const singleImageOnRight =
-      rightEls.length === 1 && rightEls[0].type === ELEMENT_TYPES.IMAGE && rightEls[0].ref;
-
-    // Only upgrade to media-span if there's actual body content beyond the
-    // header. Otherwise @main would be empty — header-content handles this.
-    const hasBodyContent = bodyElements.some(
-      (el) =>
-        el !== header &&
-        el.type !== ELEMENT_TYPES.IMAGE &&
-        ((el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
-          el.type === ELEMENT_TYPES.TABLE ||
-          el.type === ELEMENT_TYPES.CHART ||
-          el.type === ELEMENT_TYPES.DIAGRAM),
-    );
-    if (singleImageOnRight && hasBodyContent) {
-      layout = { type: LAYOUT.MEDIA_SPAN.type, spec: LAYOUT.MEDIA_SPAN.spec };
-    }
-  }
-
   // Compute extractHeader once — reused by pre-check and all render branches.
   const { header, isHeaderValid, bodyElements } = extractHeader(
     textElements,
@@ -358,6 +370,18 @@ function convertSlide(
     false,
   );
   const midX = slideWidth / 2;
+  const centerTol = slideWidth * CONFIG.centerToleranceRatio;
+
+  // Overflow upgrade: a single-column slide whose body needs more vertical
+  // space than the area provides is redistributed into two columns.
+  // NOTE: only a single body element can be content-split (see the pre-check
+  // and renderer below), so multi-element bodies that overflow are upgraded
+  // and then downgraded back to header-content — the heuristic does not fix
+  // multi-box overflow, it only avoids regressing it.
+  const bodyOverflows = estimateBodyOverflow(bodyElements);
+  if (bodyOverflows && bodyElements.length > 0 && layout.type === LAYOUT.HEADER_CONTENT.type) {
+    layout = { type: LAYOUT.TWO_COLUMN.type, spec: LAYOUT.TWO_COLUMN.spec };
+  }
 
   // Pre-check: if two-column split would leave one side empty, downgrade now
   // so the layout spec matches the actual rendered content.
@@ -375,11 +399,49 @@ function convertSlide(
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.2,
     );
     if (leftEls.length === 0 || rightEls.length === 0) {
-      // Keep TWO_COLUMN if there's a single wide element (merged code from PPTX)
+      // Keep TWO_COLUMN if there's a single element that can be content-split:
+      // a wide element (merged code from PPTX) or an overflowing body. The
+      // layout directive is not pushed yet — it picks up the new spec below.
       const hasWideElement = bodyElements.some((el) => (el.width || 0) > slideWidth * 0.8);
-      if (!(bodyElements.length === 1 && hasWideElement)) {
+      if (!(bodyElements.length === 1 && (hasWideElement || bodyOverflows))) {
         layout = LAYOUT.HEADER_CONTENT;
       }
+    }
+  }
+
+  // Pick the media-span variant from the media-only column — the column that
+  // holds dominant images and no body text — so the rendered media column
+  // matches the source slide (image-left slides keep the image on the left).
+  // The text column may itself contain a dominant image (e.g. an illustration
+  // beside the body), so the first dominant image is not a reliable signal.
+  // Centered elements and the header are excluded from the TEXT partition
+  // (mirroring inferLayout); images are partitioned with the bare area rule,
+  // consistent with the @media population below. When no column qualifies,
+  // default to the right — the historical behavior.
+  if (layout.type === LAYOUT.MEDIA_SPAN.type) {
+    const isTextLike = (el) =>
+      (el.type === ELEMENT_TYPES.TEXT && el.content?.trim()) ||
+      [ELEMENT_TYPES.TABLE, ELEMENT_TYPES.CHART, ELEMENT_TYPES.DIAGRAM].includes(el.type);
+    const isBodyElement = (el) => {
+      if (Math.abs((el.left || 0) + (el.width || 0) / 2 - midX) < centerTol) return false;
+      if (header && el === header) return false;
+      return true;
+    };
+    const onSide = (side) => (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === side;
+    const leftHasText = bodyElements.some(
+      (el) => isTextLike(el) && isBodyElement(el) && onSide("left")(el),
+    );
+    const rightHasText = bodyElements.some(
+      (el) => isTextLike(el) && isBodyElement(el) && onSide("right")(el),
+    );
+    const leftHasDominant = dominantImages.some(onSide("left"));
+    const rightHasDominant = dominantImages.some(onSide("right"));
+    if (!leftHasText && leftHasDominant) {
+      layout = LAYOUT.MEDIA_SPAN_LEFT;
+    } else if (!rightHasText && rightHasDominant) {
+      layout = LAYOUT.MEDIA_SPAN_RIGHT;
+    } else {
+      layout = LAYOUT.MEDIA_SPAN_RIGHT; // default: historical behavior
     }
   }
 
@@ -397,10 +459,13 @@ function convertSlide(
   // the image as an <img> tag in @main instead of using CSS background.
   if (fullImageCandidate) {
     layout = LAYOUT.FULL_IMAGE;
-    parts[0] = `layout: ${layout.spec}`;
-    // Remove background/theme if they were set — not needed for full-image
-    if (parts[1]?.startsWith("background:")) parts.splice(1, 1);
-    if (parts[1] === "theme: dark") parts.splice(1, 1);
+    setLayoutDirective(parts, layout);
+    // Remove background/theme if they were set — not needed for full-image.
+    // Locate them by content: speaker notes may precede the directives.
+    const bgIdx = parts.findIndex((p) => p.startsWith("background:"));
+    if (bgIdx !== -1) parts.splice(bgIdx, 1);
+    const themeIdx = parts.findIndex((p) => p === "theme: dark");
+    if (themeIdx !== -1) parts.splice(themeIdx, 1);
     parts.push("");
     parts.push(MARKDOWN_TAGS.MAIN);
     parts.push("");
@@ -409,6 +474,9 @@ function convertSlide(
   }
 
   // --- RENDER SECTIONS ---
+  // INVARIANT: every branch below pushes an area marker (usually @main) or
+  // returns early. There is no late fallback anymore — a future downgrade
+  // added after the dispatch must render its content inline itself.
   if (layout.type === LAYOUT.TITLE_SLIDE.type) {
     parts.push("");
     parts.push(MARKDOWN_TAGS.TITLE);
@@ -460,13 +528,22 @@ function convertSlide(
         getOverlapArea(el, { left: midX, top: 0, width: midX, height: slideHeight }) >
         getOverlapArea(el, { left: 0, top: 0, width: midX, height: slideHeight }) * 1.5,
     );
-    // If the position split leaves one side empty, check for a single wide element
-    // that spans both columns (merged code from PPTX extraction). Split its content
-    // at a safe boundary — not inside a fenced code block.
+    // If the position split leaves one side empty, check for a single element
+    // that spans both columns (merged code from PPTX extraction) or overflows
+    // the column area. Split its content at a safe boundary — not inside a
+    // fenced code block.
     if (leftEls.length === 0 || rightEls.length === 0) {
       const wideEl = bodyElements.find((el) => (el.width || 0) > slideWidth * 0.8);
-      if (wideEl && bodyElements.length === 1) {
-        const rawContent = wideEl.content || "";
+      // Only a single TEXT element can be content-split — a wide image or
+      // table has no lines to split and would otherwise be dropped.
+      const splitEl =
+        bodyElements.length === 1 &&
+        bodyElements[0].type === ELEMENT_TYPES.TEXT &&
+        (wideEl || bodyOverflows)
+          ? bodyElements[0]
+          : null;
+      if (splitEl) {
+        const rawContent = splitEl.content || "";
         const lines = rawContent.split("\n");
         const mid = Math.ceil(lines.length / 2);
 
@@ -474,6 +551,7 @@ function convertSlide(
         // Scan outward from mid to find the nearest blank line or fence boundary.
         let splitAt = mid;
         let inFence = false;
+        let fenceAdjusted = false;
         for (let i = 0; i < lines.length; i++) {
           if (/^\s*```/.test(lines[i].trim())) inFence = !inFence;
         }
@@ -487,16 +565,21 @@ function convertSlide(
           for (let i = mid; i < lines.length; i++) {
             if (/^\s*```/.test(lines[i].trim())) {
               splitAt = i + 1;
+              fenceAdjusted = true;
               break;
             }
           }
         }
-        // Also prefer splitting at blank lines for cleaner output
-        const searchRange = Math.min(lines.length, mid + 5);
-        for (let i = mid; i < searchRange; i++) {
-          if (lines[i].trim() === "") {
-            splitAt = i + 1;
-            break;
+        // Also prefer splitting at blank lines for cleaner output — but never
+        // override a fence-adjusted split: a blank line inside the fence
+        // would leave an unterminated ``` in @main.
+        if (!fenceAdjusted) {
+          const searchRange = Math.min(lines.length, mid + 5);
+          for (let i = mid; i < searchRange; i++) {
+            if (lines[i].trim() === "") {
+              splitAt = i + 1;
+              break;
+            }
           }
         }
 
@@ -505,8 +588,7 @@ function convertSlide(
         // If right side is empty after split, fall back to single-column rendering
         if (!rightContent) {
           // Replace the layout directive in parts (already pushed as two-column)
-          const layoutIdx = parts.findIndex((p) => p.startsWith("layout:"));
-          if (layoutIdx !== -1) parts[layoutIdx] = `layout: ${LAYOUT.HEADER_CONTENT.spec}`;
+          setLayoutDirective(parts, LAYOUT.HEADER_CONTENT);
           parts.push("");
           if (isHeaderValid) {
             parts.push(MARKDOWN_TAGS.HEADER);
@@ -534,7 +616,41 @@ function convertSlide(
           parts.push(formatTextElement(rightContent));
         }
       } else {
+        // No single element to content-split (multiple body elements landed
+        // on one side). Downgrade to header-content and render the body
+        // immediately — the late fallback must not be the only renderer.
         layout = LAYOUT.HEADER_CONTENT;
+        setLayoutDirective(parts, layout);
+        const singleImage =
+          bodyElements.length === 1 &&
+          bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
+          bodyElements[0].ref;
+        parts.push("");
+        if (isHeaderValid) {
+          parts.push(MARKDOWN_TAGS.HEADER);
+          parts.push("");
+          parts.push(formatTextElement(header.content));
+          parts.push("");
+        }
+        parts.push(MARKDOWN_TAGS.MAIN);
+        parts.push("");
+        if (singleImage) {
+          // Mirror the late fallback's single-image handling so the two
+          // downgrade paths cannot drift.
+          const el = bodyElements[0];
+          const hasExplicitDims = el.width && el.height;
+          parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
+        } else {
+          parts.push(
+            renderElementsWithFlex(
+              bodyElements,
+              slideWidth,
+              slideHeight,
+              deckName,
+              formatSingleElement,
+            ),
+          );
+        }
       }
     } else {
       // Overlap-based split
@@ -563,7 +679,7 @@ function convertSlide(
       if (rightEls.length === 0) {
         // No elements on the right — downgrade to header-content
         layout = LAYOUT.HEADER_CONTENT;
-        parts[0] = `layout: ${layout.spec}`;
+        setLayoutDirective(parts, layout);
         parts.push("");
         if (isHeaderValid) {
           parts.push(MARKDOWN_TAGS.HEADER);
@@ -602,18 +718,31 @@ function convertSlide(
       }
     }
   } else if (layout.type === LAYOUT.MEDIA_SPAN.type) {
-    // Put all dominant images in @media, everything else in @main.
-    // Compute first so we can guard against empty @main BEFORE any rendering.
-    const mediaEls = dominantImages.filter(
-      (el) => bodyElements.includes(el) || el === dominantImages[0],
+    // Only the dominant images on the media-only column go to @media;
+    // dominant images inside the text column (illustrations beside the body)
+    // stay in @main with the text they belong to. The media side is the
+    // variant chosen above; images are partitioned without the centered/header
+    // exclusions (those apply to text). Compute first so we can guard against
+    // empty @main BEFORE any rendering.
+    const mediaSide = layout.spec === LAYOUT.MEDIA_SPAN_LEFT.spec ? "left" : "right";
+    let mediaEls = dominantImages.filter(
+      (el) => partitionByAreaOverlap(el, slideWidth, slideHeight) === mediaSide,
     );
+    // Fallback: when no dominant image lands on the media side (ambiguous
+    // placement), keep the images that would otherwise render with @main
+    // empty.
+    if (mediaEls.length === 0) {
+      mediaEls = dominantImages.filter(
+        (el) => bodyElements.includes(el) || el === dominantImages[0],
+      );
+    }
     const leftEls = bodyElements.filter((el) => !mediaEls.includes(el));
 
     // Guard: if no non-media body elements, @main would be empty.
     // Downgrade to header-content and put the image(s) in @main instead.
     if (leftEls.length === 0) {
       layout = LAYOUT.HEADER_CONTENT;
-      parts[0] = `layout: ${layout.spec}`;
+      setLayoutDirective(parts, layout);
       parts.push("");
       if (isHeaderValid) {
         parts.push(MARKDOWN_TAGS.HEADER);
@@ -715,47 +844,6 @@ function convertSlide(
     parts.push(
       renderElementsWithFlex(allElements, slideWidth, slideHeight, deckName, formatSingleElement),
     );
-  }
-
-  // If two-column was downgraded to header-content, render it now
-  if (
-    layout.type === LAYOUT.HEADER_CONTENT.type &&
-    parts.length > 0 &&
-    !parts.includes(MARKDOWN_TAGS.MAIN)
-  ) {
-    const { header, isHeaderValid, bodyElements } = extractHeader(
-      textElements,
-      allElements,
-      slideHeight,
-      false,
-    );
-    const singleImage =
-      bodyElements.length === 1 &&
-      bodyElements[0].type === ELEMENT_TYPES.IMAGE &&
-      bodyElements[0].ref;
-    if (isHeaderValid) {
-      parts.push(MARKDOWN_TAGS.HEADER);
-      parts.push("");
-      parts.push(formatTextElement(header.content));
-      parts.push("");
-    }
-    parts.push(MARKDOWN_TAGS.MAIN);
-    parts.push("");
-    if (singleImage) {
-      const el = bodyElements[0];
-      const hasExplicitDims = el.width && el.height;
-      parts.push(formatImage(el, deckName, { omitDimensions: !hasExplicitDims }));
-    } else {
-      parts.push(
-        renderElementsWithFlex(
-          bodyElements,
-          slideWidth,
-          slideHeight,
-          deckName,
-          formatSingleElement,
-        ),
-      );
-    }
   }
 
   if (footerElements.length > 0) {

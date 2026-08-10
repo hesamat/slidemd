@@ -137,6 +137,84 @@ export class MarkdownParser {
     return s.trim();
   }
 
+  /**
+   * Derive a readable slide title from raw area markdown: scan lines for the
+   * first one that yields text once HTML tags are removed, decode entities,
+   * strip markdown formatting, collapse whitespace, and truncate. Lines that
+   * are pure markup (e.g. the flex-row/fullpage-grid wrappers emitted by PPTX
+   * imports) are skipped so the title never shows raw HTML.
+   * Returns "" when no line carries readable text.
+   * @param {string} raw
+   * @returns {string}
+   */
+  _deriveFallbackTitle(raw) {
+    for (const line of safeString(raw).split("\n")) {
+      // An area that opens with an image titles from the image's alt text —
+      // but only when the line is entirely that image (markdown or HTML).
+      // A line that also carries readable text (e.g. a flex-row with an
+      // image plus a caption) must title from that text, not from the
+      // auto-generated "Slide image N" alt.
+      const mdImg = line.trim().match(/^!\[([^\]]*)\]\([^)]*\)\s*$/);
+      if (mdImg && mdImg[1].trim()) return mdImg[1].trim().slice(0, 80);
+      const htmlImg = line.match(/^\s*<img\b[^>]*>\s*$/i);
+      if (htmlImg) {
+        const htmlAlt = line.match(/<img[^>]*\salt=["']([^"']*)["']/i);
+        if (htmlAlt && htmlAlt[1].trim()) return htmlAlt[1].trim().slice(0, 80);
+      }
+      const text = this._htmlToPlainText(line);
+      if (text) {
+        return text.length > 80 ? text.slice(0, 80).trim() + "…" : text;
+      }
+    }
+    return "";
+  }
+
+  /**
+   * Strip HTML tags (replacing them with spaces so cell/wrapper content keeps
+   * word boundaries), decode common entities, and remove markdown formatting.
+   * Complete open/close tag pairs are removed anywhere in the line with their
+   * inner text preserved (so wrapper markup keeps its cell content); stray
+   * single tags are left untouched, so prose that merely mentions a tag
+   * ("write &lt;div&gt; tags") keeps it.
+   * @param {string} line
+   * @returns {string}
+   */
+  _htmlToPlainText(line) {
+    // Decode &amp; last: decoding it first would turn an already-escaped
+    // sequence like "&amp;lt;" into "<" after two passes instead of the
+    // literal "&lt;" it represents.
+    let s = line
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, " ");
+    // Comments may be unterminated in user content — strip to end of line.
+    s = s.replace(/<!--[\s\S]*?(?:-->|$)/g, " ");
+    // Void elements (no closing tag) are removed anywhere — an <img> inside a
+    // flex-row line must not survive into the derived title.
+    s = s.replace(
+      /<(img|br|hr|input|meta|link|wbr|source|embed|area|base|col|param|track)\b[^>]*>/gi,
+      " ",
+    );
+    // Stray tags are either wrapper openers (a
+    // flex-row <div> whose close lives on another line) or prose mentions.
+    // Strip them when they leave no text OR when an opening tag leads the
+    // line (a wrapper opener with text on the same line); keep the line when
+    // a tag is merely mentioned mid-sentence ("write <div> tags").
+    if (/<[a-zA-Z]/.test(s)) {
+      const withoutTags = s.replace(/<\/?[a-zA-Z][^>]*>/gi, " ");
+      const hasCompletePair = /<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>[\s\S]*?<\/\1>/i.test(s);
+      if (hasCompletePair || !withoutTags.trim() || /^<\s*[a-zA-Z]/.test(s.trimStart())) {
+        s = withoutTags;
+      }
+    }
+    // Decode &amp; after tag stripping so escaped entity text survives.
+    s = s.replace(/&amp;/g, "&");
+    s = MarkdownParser.stripFormatting(s);
+    return s.replace(/\s+/g, " ").trim();
+  }
+
   extractTitle(markdownText) {
     const lines = safeString(markdownText).replace(/\r\n?/g, "\n").split("\n");
     const fence = new FenceTracker();
@@ -644,7 +722,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+      /^\s*(layout|media-span|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
         line,
       );
 
@@ -746,6 +824,12 @@ export class MarkdownParser {
       // Extract all directives
       const { value: layout, markdown: withoutLayout } = this.extractDirective(cleaned, "layout");
       cleaned = withoutLayout;
+
+      const { value: mediaSpan, markdown: withoutMediaSpan } = this.extractDirective(
+        cleaned,
+        "media-span",
+      );
+      cleaned = withoutMediaSpan;
 
       // For backwards compatibility, extract but ignore align directive
       const { markdown: withoutAlign } = this.extractDirective(cleaned, "align");
@@ -856,12 +940,8 @@ export class MarkdownParser {
         if (headerHeading) {
           slideTitle = MarkdownParser.stripFormatting(headerHeading[1]);
         } else {
-          // Fallback: first non-empty line of @header, truncated
-          const firstHeaderLine = headerText.split("\n").find((l) => l.trim() !== "");
-          if (firstHeaderLine) {
-            slideTitle = MarkdownParser.stripFormatting(firstHeaderLine);
-            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
-          }
+          // Fallback: first line of @header that yields readable text
+          slideTitle = this._deriveFallbackTitle(headerText);
         }
       }
 
@@ -871,12 +951,8 @@ export class MarkdownParser {
         if (mainHeading) {
           slideTitle = MarkdownParser.stripFormatting(mainHeading[1]);
         } else {
-          // Fallback: first non-empty line of @main, truncated
-          const firstMainLine = mainText.split("\n").find((l) => l.trim() !== "");
-          if (firstMainLine) {
-            slideTitle = MarkdownParser.stripFormatting(firstMainLine);
-            if (slideTitle.length > 80) slideTitle = slideTitle.slice(0, 80).trim() + "…";
-          }
+          // Fallback: first line of @main that yields readable text
+          slideTitle = this._deriveFallbackTitle(mainText);
         }
       }
 
@@ -897,6 +973,7 @@ export class MarkdownParser {
         title: slideTitle,
         notes,
         layout: layout || "",
+        mediaSpan: /^(left|right)$/i.test(mediaSpan) ? mediaSpan.toLowerCase() : "",
         background: background || "",
         theme: themeNormalized,
         headerStyle: safeString(headerStyle).toLowerCase() || "",

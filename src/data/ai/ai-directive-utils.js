@@ -19,7 +19,7 @@ import { splitSlides } from "../markdown-parser.js";
  *
  * @param {string} markdown
  * @param {string[]} [slides] — pre-split fence-aware slide texts
- * @returns {Array<{layout: string, background: string, theme: string}>}
+ * @returns {Array<{layout: string, background: string, theme: string, mediaSpan: string}>}
  */
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
@@ -27,10 +27,12 @@ export function extractDirectives(markdown, slides) {
     const layoutMatch = slide.match(/^layout:\s*(.+)$/m);
     const bgMatch = slide.match(/^background:\s*(.+)$/m);
     const themeMatch = slide.match(/^theme:\s*(.+)$/m);
+    const mediaSpanMatch = slide.match(/^media-span:\s*(.+)$/m);
     return {
       layout: layoutMatch?.[1]?.trim() || "",
       background: bgMatch?.[1]?.trim() || "",
       theme: themeMatch?.[1]?.trim() || "",
+      mediaSpan: mediaSpanMatch?.[1]?.trim() || "",
     };
   });
 }
@@ -38,8 +40,8 @@ export function extractDirectives(markdown, slides) {
 /**
  * Restore original layout, backgrounds, and themes onto AI-produced slides.
  * In fix mode, the AI often changes layouts despite instructions — restore originals.
- * @param {{ layout: string, background?: string, theme?: string, content: string }[]} slides
- * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @param {{ layout: string, background?: string, theme?: string, mediaSpan?: string, content: string }[]} slides
+ * @param {{ layout: string, background: string, theme: string, mediaSpan: string }[]} origDirectives
  * @returns {typeof slides}
  */
 export function restoreDirectives(slides, origDirectives) {
@@ -50,6 +52,7 @@ export function restoreDirectives(slides, origDirectives) {
       layout: orig.layout || slide.layout || "header-content",
       background: orig.background || slide.background || "",
       theme: orig.theme || slide.theme || "",
+      mediaSpan: orig.mediaSpan || slide.mediaSpan || "",
     };
   });
 }
@@ -66,7 +69,7 @@ export function restoreDirectives(slides, origDirectives) {
  *   literal `background:` line inside a code block is left untouched.
  *
  * @param {string} markdown - AI-produced markdown
- * @param {{ layout: string, background: string, theme: string }[]} origDirectives
+ * @param {{ layout: string, background: string, theme: string, mediaSpan: string }[]} origDirectives
  * @param {"fix"|"generate"} [mode="fix"]
  * @returns {string} Markdown with background/theme directives re-injected
  */
@@ -92,21 +95,29 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
       if (orig.theme && !hasTopLevelDirective(lines, "theme")) {
         insertAfter.push(`theme: ${orig.theme}`);
       }
+      if (orig.mediaSpan && !hasTopLevelDirective(lines, "media-span")) {
+        insertAfter.push(`media-span: ${orig.mediaSpan}`);
+      }
       if (insertAfter.length === 0) return section;
 
       lines.splice(layoutIdx + 1, 0, ...insertAfter);
       return lines.join("\n");
     }
 
-    // fix mode: strip any background:/theme: the AI echoed back from the
-    // leading directive block, then restore the originals. Fence-aware so
-    // code-block contents are preserved.
-    const lines = stripLeadingDirectives(section.split("\n"), ["background", "theme"]);
+    // fix mode: strip any background:/theme:/media-span: the AI echoed back
+    // from the leading directive block, then restore the originals.
+    // Fence-aware so code-block contents are preserved.
+    const lines = stripLeadingDirectives(section.split("\n"), [
+      "background",
+      "theme",
+      "media-span",
+    ]);
     const layoutIdx = findTopLevelDirectiveIdx(lines, "layout");
 
     const insertAfter = [];
     if (orig.background) insertAfter.push(`background: ${orig.background}`);
     if (orig.theme) insertAfter.push(`theme: ${orig.theme}`);
+    if (orig.mediaSpan) insertAfter.push(`media-span: ${orig.mediaSpan}`);
 
     if (insertAfter.length === 0) return lines.join("\n");
 

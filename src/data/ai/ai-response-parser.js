@@ -20,6 +20,7 @@ export function slidesToMarkdown(slides) {
       if (slide.layout) parts.push(`layout: ${slide.layout}`);
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
+      if (slide.mediaSpan) parts.push(`media-span: ${slide.mediaSpan}`);
       parts.push("");
       // Strip SLIDE INDEX comments from content
       const content = (slide.content || "").replace(
@@ -45,6 +46,7 @@ export function areasToMarkdown(slides) {
       if (slide.layout) parts.push(`layout: ${slide.layout}`);
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
+      if (slide.mediaSpan) parts.push(`media-span: ${slide.mediaSpan}`);
       parts.push("");
       // Convert areas object back to markdown with area markers
       const areas = slide.areas || {};
@@ -175,7 +177,7 @@ export function parseAiResponse(text) {
     const looksLikeSlide = slideTexts.some((text) => {
       const t = text.trim();
       return (
-        /^(layout|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
+        /^(layout|media-span|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
           t,
         ) ||
         /^@\w+/m.test(t) ||
@@ -193,7 +195,17 @@ export function parseAiResponse(text) {
           withoutBackground,
           "theme",
         );
-        return { layout, background, theme, content: withoutTheme };
+        const { value: mediaSpan, markdown: withoutMediaSpan } = parser.extractDirective(
+          withoutTheme,
+          "media-span",
+        );
+        return {
+          layout,
+          background,
+          theme,
+          mediaSpan: /^(left|right)$/i.test(mediaSpan) ? mediaSpan.toLowerCase() : "",
+          content: withoutMediaSpan,
+        };
       });
       return { slides };
     }

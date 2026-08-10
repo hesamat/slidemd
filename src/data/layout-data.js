@@ -18,6 +18,28 @@ const HIDDEN_PRESETS = new Set([
 ]);
 const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/**
+ * Return the edge occupied by a media area that spans every grid row.
+ * @param {string} gridTemplateAreas
+ * @returns {"left"|"right"|null}
+ */
+export function getMediaSpanSideFromGrid(gridTemplateAreas) {
+  const rows = String(gridTemplateAreas || "")
+    .match(/"[^"]*"|'[^']*'/g)
+    ?.map((row) => row.slice(1, -1).split(/\s+/).filter(Boolean));
+  // Align with the renderer's fullHeightAreas and areaSpansAllRows: a single
+  // row cannot make an area "full height", so it never implies the bleed.
+  if (!rows?.length || rows.length < 2 || rows.some((row) => row.length !== rows[0].length)) {
+    return null;
+  }
+
+  const mediaColumn = rows[0].indexOf("media");
+  if (mediaColumn < 0 || !rows.every((row) => row[mediaColumn] === "media")) return null;
+  if (mediaColumn === 0) return "left";
+  if (mediaColumn === rows[0].length - 1) return "right";
+  return null;
+}
+
 export class LayoutData {
   static _customMap = null;
 
@@ -185,6 +207,15 @@ export class LayoutData {
   }
 
   /**
+   * Get the media-span edge for a named layout, if it has one.
+   * @param {string} layoutName
+   * @returns {"left"|"right"|null}
+   */
+  static getMediaSpanSide(layoutName) {
+    return getMediaSpanSideFromGrid(this.getGridTemplate(layoutName));
+  }
+
+  /**
    * Get ordered area names for a layout.
    */
   static getAreaNames(layoutName) {
@@ -220,10 +251,11 @@ export class LayoutData {
   }
 
   /**
-   * Format layout name for display (e.g., "two-column" -> "Two Column")
+   * Format layout name for display (e.g., "two-column" -> "Two Column",
+   * "media-span-left" -> "Media Span Left").
    */
   static formatLayoutName(layoutName) {
-    return layoutName.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    return layoutName.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   /**

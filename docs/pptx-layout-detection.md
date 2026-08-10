@@ -20,9 +20,9 @@ How the PPTX importer decides which layout to use for each slide.
    └─ otherwise                       → HEADER_CONTENT
 3. Header detected? (top 22%, ≤150 chars, no bullets, not massive)
 4. Has media (images/tables/charts)?
-   ├─ header + two columns + text     → check right column:
-   │   ├─ right has only images       → MEDIA_SPAN
-   │   └─ right has text              → TWO_COLUMN
+   ├─ header + two columns + text     → check both columns:
+   │   ├─ one side image-only (with a dominant image) → MEDIA_SPAN (image side becomes @media)
+   │   └─ both sides have text        → TWO_COLUMN
    ├─ no header + ≥2 dominant images  → MEDIA_SPAN
    ├─ 1 dominant image + text body    → MEDIA_SPAN
    └─ header present                  → HEADER_CONTENT
@@ -40,18 +40,26 @@ How the PPTX importer decides which layout to use for each slide.
 
 After `inferLayout` returns, the renderer applies several corrections:
 
-### MEDIA_SPAN upgrade (lines ~320–349)
+### MEDIA_SPAN decision (in `inferLayout`)
 
-If `inferLayout` returned `TWO_COLUMN` but the right column has exactly one
-dominant image and there is body text, upgrade to `MEDIA_SPAN`.
+The side-agnostic `MEDIA_SPAN` decision lives entirely in `inferLayout`: when
+one column holds only images (with a dominant image) and the other holds body
+text, the layout is `MEDIA_SPAN` regardless of which side the image is on —
+image-left layouts previously rendered the image in `@main` and the TEXT in
+`@media`. If neither side qualifies cleanly, the converter uses the historical
+right-side `media-span-right` variant as its deterministic tie-breaker; in the
+two-image-columns case, left-side images become `@media` and right-side images
+remain in `@main`. When the fallback picks the right side but all dominant
+images sit on the left, the render branch still emits the layout with `@media`
+on the right, so the slide mirrors the source geometry rather than matching it.
 
-### Two-column pre-check (lines ~364–382)
+### Two-column pre-check
 
 If `TWO_COLUMN` split would leave one side empty, downgrade to `HEADER_CONTENT`.
 Exception: a single wide element (>80% of slide width) is kept as `TWO_COLUMN`
 because it likely represents merged two-column content from PPTX.
 
-### Empty-@main guard (MEDIA_SPAN rendering, lines ~640–680)
+### Empty-@main guard (MEDIA_SPAN rendering)
 
 If MEDIA_SPAN rendering would produce an empty `@main` (all body elements are
 dominant images), downgrade to `HEADER_CONTENT` and put images in `@main`.
@@ -68,11 +76,13 @@ inline code in numbered lists (e.g., `1. print("hello")`).
 
 ## Edge cases
 
-| Scenario                                               | Problem                                       | Fix                                              |
-| ------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------ |
-| MEDIA_SPAN with only header + image                    | `@main` would be empty                        | Empty-@main guard downgrades to HEADER_CONTENT   |
-| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN          | Requires ≥2 matching lines                       |
-| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT   | Wide-element exception keeps TWO_COLUMN          |
-| Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                  |
-| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                   |
-| Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column |
+| Scenario                                               | Problem                                       | Fix                                                                     |
+| ------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------- |
+| MEDIA_SPAN with only header + image                    | `@main` would be empty                        | Empty-@main guard downgrades to HEADER_CONTENT                          |
+| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN          | Requires ≥2 matching lines                                              |
+| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT   | Wide-element exception keeps TWO_COLUMN                                 |
+| Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                                         |
+| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                                          |
+| Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column                        |
+| Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`                      |
+| Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images in the shared `bodyTopRatio` band |

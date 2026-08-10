@@ -297,6 +297,151 @@ describe("PptxExtractor.htmlToMarkdown heading detection by font-size", () => {
   });
 });
 
+describe("PptxExtractor.htmlToMarkdown bullet, divider, and whitespace edge cases", () => {
+  it("promotes numbered titles to headings", () => {
+    // A large-font title that starts with a number must keep its heading size
+    // instead of being emitted as an ordered-list item.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 44pt;">3. Data Structures</span></p>',
+    );
+    expect(result).toContain("## 3. Data Structures");
+  });
+
+  it("does not promote bullet lines to headings", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 32pt;">• First item</span></p>',
+    );
+    expect(result).toContain("- First item");
+    expect(result).not.toContain("###");
+  });
+
+  it("preserves content inside language-tagged fences", () => {
+    // The fence guard must toggle on "```yaml" too, or code lines like "---"
+    // inside the fence would be rewritten as dividers.
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-family: Consolas;">```yaml</span></p>' +
+        '<p><span style="font-family: Consolas;">---</span></p>' +
+        '<p><span style="font-family: Consolas;">key: value</span></p>' +
+        '<p><span style="font-family: Consolas;">```</span></p>',
+    );
+    expect(result).toContain("---");
+  });
+
+  it("normalizes glyphs without a following space", () => {
+    // "•item" (no space) must become a markdown bullet, not leak "### •item".
+    const spaced = PptxExtractor.htmlToMarkdown(
+      '<p><span style="font-size: 32pt;">•item</span></p>',
+    );
+    expect(spaced).toContain("- item");
+    expect(spaced).not.toContain("•");
+    expect(spaced).not.toContain("###");
+  });
+
+  it("keeps divider lines typed in slides", () => {
+    expect(PptxExtractor.htmlToMarkdown("<p>---</p>")).toContain("---");
+    expect(PptxExtractor.htmlToMarkdown("<p>***</p>")).toContain("***");
+    // Spaced three-marker dividers survive too (mergeAdjacentMarkers would
+    // otherwise mangle "* * *" into a marker-only residue)
+    expect(PptxExtractor.htmlToMarkdown("<p>- - -</p>")).toContain("- - -");
+    expect(PptxExtractor.htmlToMarkdown("<p>* * *</p>")).toContain("* * *");
+  });
+
+  it("drops two-marker dash runs as residue", () => {
+    // "--" is a double-hyphen artifact, not a divider — it must not become a
+    // horizontal rule, and it must not leak a dangling "- ".
+    expect(PptxExtractor.htmlToMarkdown("<p>--</p>")).toBe("");
+  });
+
+  it("keeps divider content inside list items", () => {
+    // A divider typed as a bullet item is preserved as a list item, with the
+    // markers escaped so formatTextElement does not misread the item as a
+    // page-wide divider; "* * *" is not mangled by marker merging.
+    const result = PptxExtractor.htmlToMarkdown(
+      "<ul><li>before</li><li>---</li><li>after</li></ul>",
+    );
+    expect(result).toContain("- before");
+    expect(result).toContain("- \\-\\-\\-");
+    expect(result).toContain("- after");
+    expect(result).not.toContain("- ---");
+
+    const stars = PptxExtractor.htmlToMarkdown("<ul><li>* * *</li></ul>");
+    expect(stars).toContain("- \\* \\* \\*");
+    expect(stars).not.toContain("- * * *");
+
+    // Non-ASCII glyphs need no backslash escape — CommonMark only honours
+    // escapes before ASCII punctuation, so "\•" would stay visible.
+    const glyphs = PptxExtractor.htmlToMarkdown("<ul><li>• • •</li></ul>");
+    expect(glyphs).toContain("- • • •");
+    expect(glyphs).not.toContain("\\");
+  });
+
+  it("drops a lone bullet marker (empty text box residue)", () => {
+    expect(PptxExtractor.htmlToMarkdown("<p>•</p>")).toBe("");
+    expect(PptxExtractor.htmlToMarkdown("<p>-</p>")).toBe("");
+  });
+
+  it("preserves whitespace inside inline code that sits mid-line", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p>Use <span style="font-family: Courier New;">x  =  1</span> here</p>',
+    );
+    expect(result).toContain("Use `x  =  1` here");
+  });
+
+  it("collapses whitespace between two inline-code spans", () => {
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p>Use <span style="font-family: Courier New;">a</span>    <span style="font-family: Courier New;">b</span> here</p>',
+    );
+    expect(result).toContain("`a` `b`");
+    expect(result).not.toContain("`a`    `b`");
+  });
+
+  it("drops a marker-only CSS-bullet item without a dangling dash", () => {
+    // A hanging-indent paragraph containing only a hyphen becomes a
+    // standalone <li>; the residue must vanish instead of "- -".
+    const result = PptxExtractor.htmlToMarkdown(
+      '<p style="text-indent: -24pt; margin-left: 24pt">-</p>',
+    );
+    expect(result).toBe("");
+  });
+
+  it("joins real and glyph bullets into one tight list", () => {
+    // Mixed bullet sources (buChar <li> + hand-typed glyphs) in one text box
+    // must not get a blank line between the two groups.
+    const liThenGlyph = PptxExtractor.htmlToMarkdown(
+      "<ul><li>real item</li></ul><p>\u2022 glyph item</p>",
+    );
+    expect(liThenGlyph).toContain("- real item\n- glyph item");
+    expect(liThenGlyph).not.toContain("- real item\n\n- glyph item");
+
+    const glyphThenLi = PptxExtractor.htmlToMarkdown(
+      "<p>\u2022 glyph item</p><ul><li>real item</li></ul>",
+    );
+    expect(glyphThenLi).toContain("- glyph item\n- real item");
+    expect(glyphThenLi).not.toContain("- glyph item\n\n- real item");
+
+    const liThenLi = PptxExtractor.htmlToMarkdown("<ul><li>a</li></ul><ul><li>b</li></ul>");
+    expect(liThenLi).toContain("- a\n- b");
+  });
+
+  it("drops spaced marker residue from empty sub-bullets", () => {
+    // PowerPoint leaves "- -" / "• •" behind in empty sub-bullets; they must
+    // not fall through to a dangling "- " bullet.
+    expect(PptxExtractor.htmlToMarkdown("<p>- -</p>")).toBe("");
+    expect(PptxExtractor.htmlToMarkdown("<p>• •</p>")).toBe("");
+    expect(
+      PptxExtractor.htmlToMarkdown('<p style="text-indent: -24pt; margin-left: 24pt">- -</p>'),
+    ).toBe("");
+  });
+
+  it("renders consecutive literal-glyph bullets as a tight list", () => {
+    const result = PptxExtractor.htmlToMarkdown("<p>• one</p><p>• two</p><p>• three</p>");
+    expect(result).toContain("- one\n- two\n- three");
+    // No blank lines between the items — markdown-it would render a loose
+    // list (each item wrapped in <p>) otherwise.
+    expect(result).not.toContain("- one\n\n- two");
+  });
+});
+
 describe("PptxExtractor.htmlToMarkdown indentation preservation", () => {
   it("preserves indentation in monospace code", () => {
     const result = PptxExtractor.htmlToMarkdown(

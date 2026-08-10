@@ -21,6 +21,141 @@ const HEADING_BANDS = [
 const MONOSPACE_PATTERN =
   /font-family:\s*(?:consolas|courier\s*new|courier|lucida\s*console|monaco|monospace)/i;
 
+// Bullet glyphs PowerPoint authors sometimes type as literal text runs.
+// Matches a leading glyph followed by whitespace, end of line, or any other
+// character — so "•item" (no space) normalizes to "- item" as well.
+const BULLET_GLYPH_START = /^([•◦‣▪●○■])(?:\s+|$|(?=\S))/;
+
+/**
+ * Convert a leading bullet glyph ("• item") into a markdown bullet ("- item").
+ * Used for plain paragraphs where the glyph is the only list signal.
+ * @param {string} text
+ * @returns {string}
+ */
+function normalizeBulletGlyphs(text) {
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trimStart();
+      const m = trimmed.match(BULLET_GLYPH_START);
+      if (!m) return line;
+      const indent = line.slice(0, line.length - trimmed.length);
+      return indent + "- " + trimmed.slice(m[0].length);
+    })
+    .join("\n");
+}
+
+/**
+ * Strip a leading bullet glyph from text that already carries a list marker
+ * (used inside <li> items so "- • item" collapses to "- item").
+ * @param {string} text
+ * @returns {string}
+ */
+function stripBulletGlyphs(text) {
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trimStart();
+      const m = trimmed.match(BULLET_GLYPH_START);
+      if (!m) return line;
+      const indent = line.slice(0, line.length - trimmed.length);
+      return indent + trimmed.slice(m[0].length);
+    })
+    .join("\n");
+}
+
+/**
+ * True when the line contains only one or two bullet markers ("-", "- -",
+ * "--", "• •") and no content. This is the residue of an empty text box or
+ * sub-bullet. Divider lines (three or more markers) are preserved.
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isMarkerOnly(text) {
+  return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■])?)\s*$/.test(text.trim());
+}
+
+/**
+ * True when the line is a divider — three or more bullet markers, adjacent
+ * or spaced ("---", "- - -", "***", "• • •"). formatTextElement converts it
+ * to a markdown horizontal rule ("***").
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isDividerLine(text) {
+  return /^([-*•◦‣▪●○■](?:\s*[-*•◦‣▪●○■]){2,})\s*$/.test(text.trim());
+}
+
+/**
+ * True when a line starts with a bullet marker — used to keep heading
+ * detection from turning bullet lines into headings. Numbered lines ("3.
+ * Data Structures") are real headings when they are large-font titles.
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isBulletLine(text) {
+  return /^[-*•]\s/.test(text.trimStart());
+}
+
+/**
+ * Drop the previous bullet's trailing blank line so a new bullet (or list)
+ * joins it tightly. Handles both the single-entry form (paragraph ending in
+ * "\n\n") and the split-entry form (<ul>/<ol> push their trailing
+ * separator as a separate "\n" entry).
+ * @param {string[]} out
+ * @param {boolean} lastOutputWasBullet
+ */
+function tightenPreviousBullet(out, lastOutputWasBullet) {
+  if (!lastOutputWasBullet) return;
+  const last = out[out.length - 1];
+  if (typeof last === "string" && last.endsWith("\n\n")) {
+    out[out.length - 1] = last.slice(0, -2) + "\n";
+  } else if (last === "\n") {
+    out.pop();
+  }
+}
+
+/**
+ * Collapse duplicate whitespace (multiple spaces, tabs, nbsp) outside fenced
+ * code blocks and backtick-wrapped inline code, and strip trailing spaces.
+ * Leading indentation (nested list markers) is preserved.
+ * @param {string} md
+ * @returns {string}
+ */
+function collapseDuplicateWhitespace(md) {
+  const lines = md.split("\n");
+  let inFence = false;
+  const collapseSegment = (segment) =>
+    segment.replace(/(?<=\S)[ \t\u00a0]{2,}(?=\S)/g, " ").replace(/(?<=\S)\t(?=\S)/g, " ");
+  return lines
+    .map((line) => {
+      // Fence lines (opening and closing) are returned untouched.
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      // Preserve inline code spans exactly; collapse whitespace only in the
+      // plain-text segments between them. Trailing whitespace is stripped
+      // once from the whole line, not per segment, so the space before an
+      // inline code snippet survives.
+      const parts = line.split(/(`[^`]+`)/);
+      const collapsed = parts
+        .map((part, i) => {
+          if (i % 2 === 1) return part;
+          // A whitespace-only segment between two inline-code spans (e.g.
+          // "`a`    `b`") collapses to a single space so code stays
+          // separated but not padded. Leading/trailing line whitespace is
+          // not touched here.
+          if (/^[ \t\u00a0]+$/.test(part) && i > 0 && i < parts.length - 1) return " ";
+          return collapseSegment(part);
+        })
+        .join("");
+      return collapsed.replace(/[ \t\u00a0]+$/g, "");
+    })
+    .join("\n");
+}
+
 /**
  * Extract the largest font size from a DOM element's child spans.
  * Returns 0 if no font-size is found.
@@ -138,6 +273,10 @@ export function htmlToMarkdown(html) {
   }
   md = grouped.join("\n");
 
+  // Collapse duplicate whitespace (trailing spaces, tabs, nbsp runs) outside
+  // fenced code blocks and backtick-wrapped inline code.
+  md = collapseDuplicateWhitespace(md);
+
   // Escape < and > characters, but preserve content inside backticks and
   // fenced code blocks. Split by backtick-wrapped content and fenced code
   // blocks, escape only the non-code parts.
@@ -203,11 +342,18 @@ function processBlockNodes(nodes, out) {
   // detection.  Items with margin-left significantly larger than the minimum
   // are indented as sub-bullets.
   let minMarginLeft = Infinity;
+  // True when the last pushed paragraph was a literal-glyph bullet line.
+  // Consecutive glyph bullets are joined without a blank line so markdown-it
+  // renders them as a tight list, like real PowerPoint bullets.
+  let lastOutputWasBullet = false;
 
   for (const node of nodes) {
     if (node.nodeType === 3) {
       const text = node.textContent;
-      if (text.trim()) out.push(text);
+      if (text.trim()) {
+        lastOutputWasBullet = false;
+        out.push(text);
+      }
       continue;
     }
     if (node.nodeType !== 1) continue;
@@ -221,8 +367,11 @@ function processBlockNodes(nodes, out) {
       // instead of restarting. A list continues only when the immediately
       // preceding top-level block was a list of the same type.
       const reset = !(lastListType && lastListType === tag);
+      // Join the list tightly onto a preceding bullet paragraph or list.
+      tightenPreviousBullet(out, lastOutputWasBullet);
       processList(node, 0, out, counters, { reset });
       out.push("\n");
+      lastOutputWasBullet = true;
       lastListType = tag;
       lastWasOl = tag === "OL";
       minMarginLeft = Infinity;
@@ -240,8 +389,17 @@ function processBlockNodes(nodes, out) {
     if (tag === "LI") {
       const inline = [];
       processInlineNodes(node.childNodes, inline);
-      const merged = mergeAdjacentMarkers(inline.join("").trim());
-      if (merged) {
+      // The <li> provides the "- " marker, so drop any literal bullet glyph
+      // that the author also typed ("- • item" -> "- item"), and skip items
+      // whose remaining content is marker-only ("- -" residue). Divider items
+      // ("---") are kept as list items with their markers escaped — kept
+      // verbatim they would be misread as a divider by formatTextElement,
+      // and mergeAdjacentMarkers would mangle "* * *".
+      const rawItem = inline.join("").trim();
+      const merged = isDividerLine(rawItem)
+        ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
+        : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
+      if (merged && !isMarkerOnly(merged)) {
         // Determine nesting depth from margin-left on the inner <p>.
         // Items with margin-left significantly larger than the minimum are
         // sub-bullets (e.g. "Thursdays" at margin-left 54pt under "Lectures"
@@ -261,12 +419,16 @@ function processBlockNodes(nodes, out) {
             }
           }
         }
+        // Join the item tightly onto a preceding bullet paragraph or list.
+        tightenPreviousBullet(out, lastOutputWasBullet);
         out.push(indent + "- " + merged + "\n");
+        lastOutputWasBullet = true;
       }
       continue;
     }
 
     if (tag === "TABLE") {
+      lastOutputWasBullet = false;
       continue;
     }
 
@@ -275,18 +437,30 @@ function processBlockNodes(nodes, out) {
       if (text.trim()) {
         out.push("```\n" + text + "\n```\n\n");
       }
+      lastOutputWasBullet = false;
       continue;
     }
 
     if (tag === "P" || tag === "DIV") {
       const inline = [];
       processInlineNodes(node.childNodes, inline);
-      let merged = mergeAdjacentMarkers(inline.join(""));
-      if (merged.trim()) {
+      // Turn literal bullet glyphs into markdown bullets, and skip paragraphs
+      // that contain only a leftover marker (empty text boxes). Divider lines
+      // ("---", "- - -", "* * *") are kept verbatim — mergeAdjacentMarkers
+      // would mangle "* * *" — and converted to "***" by formatTextElement.
+      const rawJoined = inline.join("");
+      const isDivider = isDividerLine(rawJoined.trim());
+      let merged = isDivider
+        ? rawJoined.trim()
+        : normalizeBulletGlyphs(mergeAdjacentMarkers(rawJoined));
+      const trimmed = merged.trim();
+      const isResidue = isMarkerOnly(trimmed) && !isDivider;
+      if (trimmed && !isResidue) {
         // Skip heading detection if all content is monospace code —
         // these paragraphs should be treated as code, not headings.
         const allMono = isAllMonospace(node);
         if (allMono) {
+          lastOutputWasBullet = false;
           out.push(merged + "\n\n");
         } else {
           // Detect headings by font size — use band-specific heading level
@@ -295,8 +469,9 @@ function processBlockNodes(nodes, out) {
           // escaped and would otherwise leak a backslash into the heading.
           const fontSize = getLargestFontSize(node);
           const headingBand = HEADING_BANDS.find((b) => fontSize >= b.min);
-          if (headingBand && merged.trim().length <= 80) {
-            out.push(`${headingBand.prefix}${merged.trim()}\n\n`);
+          if (headingBand && !isBulletLine(trimmed) && trimmed.length <= 80) {
+            lastOutputWasBullet = false;
+            out.push(`${headingBand.prefix}${trimmed}\n\n`);
             continue;
           }
           // Escape # at start of lines so PPTX text like "# Print using..."
@@ -315,13 +490,20 @@ function processBlockNodes(nodes, out) {
               return line.replace(/^#/gm, "\\#");
             })
             .join("\n");
+          const isGlyphBullet = isBulletLine(trimmed) && !isDivider;
+          // Consecutive glyph-bullet paragraphs must form a tight list: drop
+          // the previous bullet's trailing blank line so markdown-it does not
+          // wrap every item in <p> like real PowerPoint bullets would.
+          if (isGlyphBullet) tightenPreviousBullet(out, lastOutputWasBullet);
           out.push(merged + "\n\n");
+          lastOutputWasBullet = isGlyphBullet;
         }
       }
       continue;
     }
 
     if (tag === "BR") {
+      lastOutputWasBullet = false;
       out.push("\n");
       continue;
     }
@@ -330,6 +512,7 @@ function processBlockNodes(nodes, out) {
     processInlineNodes(node.childNodes, inline);
     const merged = mergeAdjacentMarkers(inline.join(""));
     if (merged.trim()) {
+      lastOutputWasBullet = false;
       out.push(merged + "\n\n");
     }
   }
@@ -403,8 +586,16 @@ function processList(listNode, depth, out, counters, { reset = true } = {}) {
         processInlineNodes([cn], inline);
       }
     }
-    const merged = mergeAdjacentMarkers(inline.join("").trim());
-    if (merged) {
+    // The list marker is provided by the <li>, so drop literal bullet glyphs
+    // the author typed as text, and skip items with no content left. Divider
+    // items ("---") are kept as list items with their markers escaped — kept
+    // verbatim they would be misread as a divider by formatTextElement, and
+    // mergeAdjacentMarkers would mangle "* * *".
+    const rawItem = inline.join("").trim();
+    const merged = isDividerLine(rawItem)
+      ? rawItem.replace(/[-*]/g, (marker) => `\\${marker}`)
+      : stripBulletGlyphs(mergeAdjacentMarkers(rawItem));
+    if (merged && !isMarkerOnly(merged)) {
       if (isOrdered) {
         counters[depth]++;
         // Top-level ordered lists use numbers; nested ordered lists use

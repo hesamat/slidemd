@@ -9,10 +9,10 @@ import { StageScaler } from "../../renderer/stage-scaler.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { ImageInteractionHandler } from "../image/image-interaction-handler.js";
 import { ImagePropertiesPanel } from "../image/image-properties-panel.js";
-import { fitToWidth, getStageScale } from "../image/image-position-presets.js";
 import { SlideOperations } from "./slide-operations.js";
 import { ImageBackgroundHandler } from "../image/image-background-handler.js";
 import { ImageInserter } from "../image/image-inserter.js";
+import { fitToWidth, getStageScale } from "../image/image-position-presets.js";
 import { TextBlockHandler } from "../text/text-block-handler.js";
 import { AreaNavigation } from "../navigation/area-navigation.js";
 import { MarkdownEditor } from "./markdown-editor.js";
@@ -28,6 +28,7 @@ import { MermaidHelperManager } from "../ui/mermaid-helper-manager.js";
 import { LayoutManager } from "../layout/layout-manager.js";
 import { ThemeManager } from "../ui/theme-manager.js";
 import {
+  areaSpansAllRows,
   buildSingleColumnCustomLayout,
   makeAreaFullHeight,
   parseSingleColumnLayout,
@@ -1273,22 +1274,29 @@ export class EditController {
     const name = String(areaName || "")
       .trim()
       .toLowerCase();
-    if (!name) return false;
+    if (!name || name === "main") return false;
     if (!this.markdownEditor) return false;
 
-    // Only allow full-height on the right-most column area
-    const slide = this.deck?.slides?.[this.currentSlideIndex];
-    const resolvedLayout = LayoutParser.resolvePreset(slide?.layout);
-    if (parseSingleColumnLayout(resolvedLayout)) return false;
-    const layout = LayoutParser.parse(resolvedLayout);
+    const markdown = this.markdownEditor.getValue();
+    const parser = new MarkdownParser();
+    const { value: layoutValue = "" } = parser.extractDirective(markdown, "layout");
+    if (parseSingleColumnLayout(layoutValue)) return false;
+
+    // Only offer the action on the right-most column area, and only when it
+    // does not already span every grid row (e.g. the media column of a
+    // media-span layout, which is full height by design).
+    if (areaSpansAllRows(markdown, name)) return false;
+
+    const resolved = LayoutParser.resolvePreset(layoutValue);
+    const layout = LayoutParser.parse(resolved);
     const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
-    if (rowMatches.length === 0) return false;
+    if (rowMatches.length < 2) return false;
     const contentRow = rowMatches.find((q) => {
-      const cells = q.slice(1, -1).split(/\s+/);
+      const cells = q.slice(1, -1).split(/\s+/).filter(Boolean);
       return cells.some((c) => c !== "header" && c !== "footer" && c !== "title");
     });
     if (!contentRow) return false;
-    const cells = contentRow.slice(1, -1).split(/\s+/);
+    const cells = contentRow.slice(1, -1).split(/\s+/).filter(Boolean);
     const rightMostCol = cells[cells.length - 1];
     return name === rightMostCol;
   }
@@ -1393,7 +1401,7 @@ export class EditController {
       }
       if (this._canMakeFullHeight(name)) {
         items.push({
-          label: "Make full height",
+          label: "Span all rows",
           action: () => this._makeAreaFullHeight(name),
         });
       }

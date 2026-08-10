@@ -10,7 +10,7 @@
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData } from "../../data/layout-data.js";
+import { LayoutData, getMediaSpanSideFromGrid } from "../../data/layout-data.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
@@ -109,6 +109,32 @@ export class SlidePreviewUpdater {
    */
   _clearReadyCallbacks() {
     this._pendingReadyCallbacks = [];
+  }
+
+  /**
+   * Refresh the full-bleed media marker on the in-place fast path, mirroring
+   * SlideRenderer.createSlideElement. Editing only the media-span directive
+   * keeps layout and area names identical, so without this the previously
+   * rendered data-media-span attribute would go stale.
+   * @param {HTMLElement} slideEl
+   * @param {object} slideData
+   * @param {object} layout - Parsed layout (LayoutParser.parse output)
+   */
+  _syncMediaSpanFlag(slideEl, slideData, layout) {
+    const layoutKey = String(slideData?.layout || "")
+      .trim()
+      .toLowerCase();
+    const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
+    const declaredMediaSide = String(slideData?.mediaSpan || "").toLowerCase();
+    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
+      ? LayoutData.getMediaSpanSide(layoutKey)
+      : null;
+    const mediaSpanSide = declaredMediaSide || namedMediaSide;
+    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
+      slideEl.setAttribute("data-media-span", geometryMediaSide);
+    } else {
+      slideEl.removeAttribute("data-media-span");
+    }
   }
 
   async update() {
@@ -234,6 +260,7 @@ export class SlidePreviewUpdater {
             grid.style.gridTemplateAreas = layout.gridTemplateAreas;
             grid.style.gridTemplateColumns = layout.gridTemplateColumns;
             grid.style.gridTemplateRows = layout.gridTemplateRows;
+            this._syncMediaSpanFlag(slideEl, slideData, layout);
           }
 
           // Enhance new HTML off-screen, then patch innerHTML once with

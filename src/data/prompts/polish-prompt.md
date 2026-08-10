@@ -7,7 +7,7 @@ What to do:
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Remove duplicate blank lines and trailing whitespace.
-- Fix mismatched layouts: downgrade `media-span` or `two-column` when there is no image or an empty second column.
+- Fix mismatched layouts: downgrade `media-span-left`, `media-span-right`, or `two-column` when there is no image or an empty second column.
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content; use `two-column`, `focus`, or `table` layouts when they clarify the material.
 - Use tables for 2-3 item comparisons.
