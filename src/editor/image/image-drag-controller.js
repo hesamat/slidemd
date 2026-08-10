@@ -12,7 +12,7 @@ import interact from "interactjs";
 import { ImagePropertiesPanel } from "./image-properties-panel.js";
 import { ImageInteractionHandler } from "./image-interaction-handler.js";
 import { getStageScale } from "./image-position-presets.js";
-import { readImageSettings } from "./image-markdown-utils.js";
+import { isMediaSpanFillImage, readImageSettings } from "./image-markdown-utils.js";
 
 const MIN_RESIZE_DIM = 50;
 const CROSS_AREA_RESELECT_MS = 400;
@@ -87,11 +87,7 @@ export class ImageDragController {
     // not convert them to inline-positioned images on drag — that would
     // reflow them below the area label and cause a visible jump on click.
     // Toggling freeflow (explicit inline position) re-enables dragging.
-    if (
-      !img.style.position &&
-      img.closest(".slide[data-layout='media-span-left'], .slide[data-layout='media-span-right']")
-    )
-      return;
+    if (isMediaSpanFillImage(img)) return;
 
     if (ctx.getSelectedImg() && !ctx.getSelectedImg().isConnected) {
       this._selectedImg = null;
@@ -327,6 +323,7 @@ export class ImageDragController {
 
       const img = ctx.getSelectedImg();
       if (!img) return;
+      if (isMediaSpanFillImage(img)) return;
 
       this._resizeState = {
         edge: handle.dataset.edge,

@@ -8,7 +8,7 @@
 import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
-import { LayoutData } from "../data/layout-data.js";
+import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
 
 const SAFE_URI_REGEXP =
@@ -205,6 +205,12 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
+    const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
+    const declaredMediaSide = safeString(slide?.mediaSpan).toLowerCase();
+    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
+      ? LayoutData.getMediaSpanSide(layoutKey)
+      : null;
+    const mediaSpanSide = declaredMediaSide || namedMediaSide;
 
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;
@@ -221,6 +227,9 @@ export class SlideRenderer {
     }
     if (dataLayout) {
       wrapper.setAttribute("data-layout", dataLayout);
+    }
+    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
+      wrapper.setAttribute("data-media-span", geometryMediaSide);
     }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
@@ -280,6 +289,16 @@ export class SlideRenderer {
       // Footer spans full width when full-height areas exist
       if (fullHeightAreas.size > 0 && name === "footer") {
         area.style.gridColumn = "1 / -1";
+      }
+
+      // Full-height areas meet the slide edge on their border side. This
+      // applies to both named media-span layouts and custom grids created by
+      // the Span all rows action; media bleed itself remains intent-gated by
+      // data-media-span above.
+      if (fullHeightAreas.has(name)) {
+        const colIdx = allRowCells[0].indexOf(name);
+        if (colIdx === 0) area.style.paddingLeft = "0";
+        else if (colIdx === allRowCells[0].length - 1) area.style.paddingRight = "0";
       }
 
       area.innerHTML = this.sanitizeAreaHtml(html);

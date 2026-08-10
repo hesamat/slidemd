@@ -17,7 +17,9 @@ import {
   findMarkdownPositionOfElement,
   readImageSettings,
   buildInlineStyleString,
+  buildMediaSpanStyleString,
   buildRepositionedImgTag,
+  isMediaSpanFillImage,
 } from "./image-markdown-utils.js";
 import {
   centerOnSlide,
@@ -153,6 +155,7 @@ export class ImageInteractionHandler {
     overlay.style.top = `${top - OVERLAY_BORDER}px`;
     overlay.style.width = `${w + OVERLAY_BORDER_DOUBLE}px`;
     overlay.style.height = `${h + OVERLAY_BORDER_DOUBLE}px`;
+    overlay.classList?.toggle("image-overlay--fixed-size", isMediaSpanFillImage(img));
   }
 
   // ── Selection ───────────────────────────────────────────────────────────
@@ -530,7 +533,9 @@ export class ImageInteractionHandler {
     // throwaway blob URL into the saved markdown.
     const src = img.dataset.originalSrc || entry.src || img.getAttribute("src") || "";
 
-    const style = buildInlineStyleString(img);
+    const style = isMediaSpanFillImage(img)
+      ? buildMediaSpanStyleString(img)
+      : buildInlineStyleString(img);
     const classAttr = img.classList.contains("img-freeflow") ? ' class="img-freeflow"' : "";
     const newTag = `<img${classAttr} src="${src}" alt="${alt}" style="${style}" />`;
     this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
@@ -607,7 +612,12 @@ export class ImageInteractionHandler {
   static applySettings(settings) {
     const img = this._selectedImg;
     if (!img) return;
-    const s = settings || {};
+    const s = { ...(settings || {}) };
+    if (isMediaSpanFillImage(img)) {
+      // The media column owns the fill image's geometry. Ignore direct size
+      // edits instead of writing dimensions that CSS !important will hide.
+      for (const key of ["left", "top", "width", "height"]) delete s[key];
+    }
 
     if (s.left != null) img.style.left = `${Math.round(s.left)}px`;
     if (s.top != null) img.style.top = `${Math.round(s.top)}px`;

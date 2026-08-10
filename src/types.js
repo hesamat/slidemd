@@ -8,6 +8,7 @@
  * @property {string} title - Display title (from heading or auto-generated).
  * @property {string} notes - Speaker notes (HTML comments stripped from content).
  * @property {string} layout - Layout spec string or preset name (e.g. "two-column").
+ * @property {'left'|'right'|''} mediaSpan - Persisted media-span intent for resized presets.
  * @property {string} background - CSS background value for the slide.
  * @property {'dark'|'light'|''} theme - Theme override for this slide.
  * @property {string} headerStyle - Header style override (e.g. "thick", "none").

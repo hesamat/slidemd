@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   updateLayoutDirective,
+  updateMediaSpanDirective,
   updateBackgroundDirective,
   updateThemeDirective,
   updateAreaStyleDirective,
@@ -126,6 +127,12 @@ describe("makeAreaFullHeight", () => {
     expect(result).toContain('"header media" "main media" "footer media" / 1fr 1fr');
   });
 
+  it("repairs rows that place the target area in a different column", () => {
+    const md = 'layout: "header media" "media main" / 1fr 1fr';
+    const result = makeAreaFullHeight(md, "media");
+    expect(result).toContain('"header media" "main media" / 1fr 1fr');
+  });
+
   it("is a no-op when the area is not in the layout", () => {
     const md = "layout: two-column\n\n@main\nContent";
     expect(makeAreaFullHeight(md, "sidebar")).toBe(md);
@@ -161,6 +168,17 @@ describe("updateLayoutDirective", () => {
     const md = "layout: old-value\n# Title";
     const result = updateLayoutDirective(md, "new-value");
     expect(result).not.toContain("layout: old-value");
+  });
+
+  it("clears stale media-span intent when changing layouts", () => {
+    const md = "layout: media-span-right\nmedia-span: right\n# Title";
+    const result = updateLayoutDirective(md, "two-column");
+    expect(result).not.toContain("media-span:");
+  });
+
+  it("writes media-span intent for resized layouts", () => {
+    const result = updateMediaSpanDirective("layout: custom\n# Title", "left");
+    expect(result).toMatch(/^media-span: left\nlayout: custom\n/);
   });
 });
 

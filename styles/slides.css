@@ -805,7 +805,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    would share the column with the label button and leave a gap at the top.
    Multiple images and other content keep flowing normally inside the
    bleeding column. */
-.slide[data-layout="media-span-right"] .slide__area--media {
+.slide[data-media-span="right"] .slide__area--media {
   /* max-width: 100% (from .slide__area) is relative to the grid cell and
      would neutralize the negative right margin — drop it so the area can
      extend past the cell to the slide edge. */
@@ -816,7 +816,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     calc(-1 * var(--slide-pad-bottom)) 0;
 }
 
-.slide[data-layout="media-span-left"] .slide__area--media {
+.slide[data-media-span="left"] .slide__area--media {
   max-width: none;
   padding: 0;
   overflow: hidden;
@@ -826,7 +826,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* The image fills the area edge to edge; it is removed from the flex column
    so the editor's @media label button does not push it down. */
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
+.slide[data-media-span]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
@@ -838,17 +838,15 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   z-index: 2;
 }
 
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
-  .slide__area--media:has(> img:only-child)
-  > img:not([style*="position"]),
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
+.slide[data-media-span] .slide__area--media:has(> img:only-child) > img:not([style*="position"]),
+.slide[data-media-span]
   .slide__area--media:has(> button.editor-area-label + img:last-child)
   > img:not([style*="position"]) {
   /* Fill the media column: absolute insets plus forced width/height. The
-     imported inline style ("height: auto") must stay layout-agnostic so the
-     image renders naturally if the layout changes, hence !important. The
-     guard yields to the editor's inline position when the user drags or
-     resizes the image in edit mode. */
+      imported inline style ("height: auto") must stay layout-agnostic so the
+      image renders naturally if the layout changes, hence !important. Fixed
+      fill images have their resize handles disabled so saved dimensions
+      cannot diverge from the view-managed size. */
   position: absolute;
   inset: 0;
   width: 100% !important;
@@ -858,10 +856,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   display: block;
 }
 
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
-  .slide__area--media:has(> p:only-child > img:only-child)
-  > p,
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
+.slide[data-media-span] .slide__area--media:has(> p:only-child > img:only-child) > p,
+.slide[data-media-span]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p {
   position: absolute;
@@ -869,11 +865,11 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
+.slide[data-media-span]
   .slide__area--media:has(> p:only-child > img:only-child)
   > p
   > img:not([style*="position"]),
-.slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
+.slide[data-media-span]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p
   > img:not([style*="position"]) {

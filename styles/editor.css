@@ -1124,11 +1124,13 @@
 
 /* Media-span fill images — the view positions them; not draggable unless
    the user explicitly toggles freeflow (which writes an inline position). */
-[data-edit-mode="true"]
-  .slide:is([data-layout="media-span-left"], [data-layout="media-span-right"])
-  .slide__area--media
-  img:not([style*="position"]) {
+[data-edit-mode="true"] .slide[data-media-span] .slide__area--media img:not([style*="position"]) {
   cursor: default;
+}
+
+.image-overlay--fixed-size [data-edge] {
+  display: none;
+  pointer-events: none;
 }
 
 /* ── Click-to-jump: clickable text in edit mode ──────────────────────────── */

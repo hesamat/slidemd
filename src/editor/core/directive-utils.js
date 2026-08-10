@@ -20,7 +20,38 @@ import { splitCssDeclarations } from "../../core/utils.js";
 export function updateLayoutDirective(markdown, newLayoutValue) {
   const parser = new MarkdownParser();
   const { markdown: stripped } = parser.extractDirective(markdown, "layout");
-  return `layout: ${newLayoutValue}\n${stripped}`;
+  const { markdown: withoutMediaSpan } = parser.extractDirective(stripped, "media-span");
+  return `layout: ${newLayoutValue}\n${withoutMediaSpan}`;
+}
+
+/**
+ * Replace (or remove) the internal media-span intent directive.
+ * @param {string} markdown
+ * @param {string} side - "left", "right", or empty to remove
+ * @returns {string}
+ */
+export function updateMediaSpanDirective(markdown, side) {
+  const parser = new MarkdownParser();
+  const { markdown: stripped } = parser.extractDirective(markdown, "media-span");
+  const normalized = String(side || "")
+    .trim()
+    .toLowerCase();
+  if (normalized !== "left" && normalized !== "right") return stripped;
+  return `media-span: ${normalized}\n${stripped}`;
+}
+
+/**
+ * Read the persisted media-span intent directive from slide markdown.
+ * @param {string} markdown
+ * @returns {"left"|"right"|""}
+ */
+export function readMediaSpanDirective(markdown) {
+  const parser = new MarkdownParser();
+  const { value } = parser.extractDirective(markdown, "media-span");
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "left" || normalized === "right" ? normalized : "";
 }
 
 /**
@@ -194,8 +225,8 @@ export function areaSpansAllRows(markdown, areaName) {
  * Make an area span every grid row by rewriting the layout to a custom grid.
  * The target area is placed in its column of every row, keeping the other
  * areas in their original columns and shifting header/footer content left.
- * The area reaches the slide edge on its border side (the renderer zeroes
- * the border-side padding for full-height areas), but stays inside the
+ * The area reaches the slide edge on its border side because the renderer
+ * zeroes the border-side padding for full-height areas, but stays inside the
  * slide's top/bottom padding — hence "span all rows", not "full height".
  *
  * @param {string} markdown  — slide markdown source
@@ -235,20 +266,21 @@ export function makeAreaFullHeight(markdown, areaName) {
   // template stays a valid grid.
   const maxLen = Math.max(...rows.map((row) => row.length));
 
-  // Rebuild every row: put the target in colIdx, others shifted left.
-  // A row that already contains the target is kept but padded to width.
+  // Rebuild every row: put the target in colIdx, shifting all other cells
+  // around it. This also repairs rows that already contain the target in a
+  // different column; leaving those rows untouched would create a
+  // non-rectangular grid-template-areas value that CSS rejects entirely.
   const newRows = rows.map((row) => {
     const padded = [...row];
     while (padded.length < maxLen) padded.push(".");
-    if (padded.includes(name)) return padded;
     const otherCells = padded.filter((c) => c !== name);
     const result = [];
+    let otherIndex = 0;
     for (let i = 0; i < maxLen; i++) {
       if (i === colIdx) {
         result.push(name);
       } else {
-        const cellIdx = i < colIdx ? i : i - 1;
-        result.push(otherCells[cellIdx] || ".");
+        result.push(otherCells[otherIndex++] || ".");
       }
     }
     return result;

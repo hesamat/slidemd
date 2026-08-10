@@ -97,10 +97,6 @@ export const REGEX = {
 
 export const CONFIG = {
   bodyTopRatio: 0.22,
-  // Top band (fraction of slide height) in which small images are treated as
-  // decorative (icons/logos beside headings) and dropped. Covers the header
-  // zone below the pure top-margin strip.
-  maxHeaderBandRatio: 0.22,
   rowMaxVerticalDiffRatio: 0.1,
   minColumnSpreadRatio: 0.15,
   maxTitleLength: 300,
@@ -121,10 +117,9 @@ export const CONFIG = {
   minDominantAreaRatio: 0.05,
   thinLineThresholdPoints: 15,
   microNoiseThresholdPoints: 150,
-  // Top strip (fraction of slide height): any small image starting inside it
-  // is dropped (template logos). The wider header band below it (see
-  // maxHeaderBandRatio) additionally drops small images fully contained in
-  // the header zone, i.e. icons beside titles.
+  // Top strip (fraction of slide height): small images inside it are dropped
+  // only when a real header-like title is present. The same band is used for
+  // small icons beside titles, keeping one source of truth for header height.
   marginTopRatio: 0.1,
   marginBottomRatio: 0.9,
   aspectRatioUpperLimit: 8,

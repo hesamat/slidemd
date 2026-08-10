@@ -4,7 +4,9 @@ import {
   extractAltText,
   getAreaContentRange,
   buildInlineStyleString,
+  buildMediaSpanStyleString,
   buildRepositionedImgTag,
+  isMediaSpanFillImage,
 } from "../editor/image/image-markdown-utils.js";
 
 describe("parseAllImages", () => {
@@ -166,6 +168,53 @@ describe("buildInlineStyleString", () => {
       createMockImg({ width: "100px", height: "50px", transform: "rotate(45deg)" }),
     );
     expect(result).toContain("rotate(45deg)");
+  });
+});
+
+describe("media-span fill images", () => {
+  it("identifies an unpositioned single image managed by the media column", () => {
+    const label = { classList: { contains: (name) => name === "editor-area-label" } };
+    const area = {
+      children: [label, null],
+      querySelectorAll: () => [img],
+      closest: (selector) => (selector === ".slide" ? slide : null),
+    };
+    const slide = { dataset: { mediaSpan: "right" } };
+    const img = {
+      style: { position: "" },
+      classList: { contains: () => false },
+      closest: (selector) =>
+        selector === ".slide__area--media" ? area : selector === ".slide" ? slide : null,
+    };
+    area.children[1] = img;
+
+    expect(isMediaSpanFillImage(img)).toBe(true);
+    img.style.position = "relative";
+    expect(isMediaSpanFillImage(img)).toBe(false);
+  });
+
+  it("serializes visual styles without adding positioning", () => {
+    const img = {
+      style: {
+        left: "",
+        top: "",
+        width: "",
+        height: "",
+        opacity: "0.8",
+        borderRadius: "12px",
+        boxShadow: "",
+        transform: "",
+        zIndex: "",
+      },
+      getAttribute: () => null,
+      offsetWidth: 100,
+      offsetHeight: 80,
+    };
+    const style = buildMediaSpanStyleString(img);
+
+    expect(style).toContain("border-radius: 12px");
+    expect(style).not.toContain("position:");
+    expect(style).not.toContain("width:");
   });
 });
 

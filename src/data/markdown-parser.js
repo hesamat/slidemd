@@ -195,29 +195,17 @@ export class MarkdownParser {
       /<(img|br|hr|input|meta|link|wbr|source|embed|area|base|col|param|track)\b[^>]*>/gi,
       " ",
     );
-    // Remove complete tag pairs (innermost first), keeping the inner text
-    // and surrounding it with spaces so adjacent cell content keeps word
-    // boundaries. Inner content that itself contains "<" (e.g. "<<" operator
-    // cells) is handled by a tolerant second pass — by then every inner pair
-    // is gone, so a non-greedy match lands on the correct closing tag.
-    let prev = null;
-    while (prev !== s) {
-      prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([^<]*)<\/\1>/gi, " $2 ");
-    }
-    prev = null;
-    while (prev !== s) {
-      prev = s;
-      s = s.replace(/<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>([\s\S]*?)<\/\1>/gi, " $2 ");
-    }
-    // Stray tags left after pair removal are either wrapper openers (a
+    // Stray tags are either wrapper openers (a
     // flex-row <div> whose close lives on another line) or prose mentions.
     // Strip them when they leave no text OR when an opening tag leads the
     // line (a wrapper opener with text on the same line); keep the line when
     // a tag is merely mentioned mid-sentence ("write <div> tags").
     if (/<[a-zA-Z]/.test(s)) {
       const withoutTags = s.replace(/<\/?[a-zA-Z][^>]*>/gi, " ");
-      if (!withoutTags.trim() || /^<\s*[a-zA-Z]/.test(s.trimStart())) s = withoutTags;
+      const hasCompletePair = /<([a-zA-Z][a-zA-Z0-9-]*)[^>]*>[\s\S]*?<\/\1>/i.test(s);
+      if (hasCompletePair || !withoutTags.trim() || /^<\s*[a-zA-Z]/.test(s.trimStart())) {
+        s = withoutTags;
+      }
     }
     s = MarkdownParser.stripFormatting(s);
     return s.replace(/\s+/g, " ").trim();
@@ -730,7 +718,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+      /^\s*(layout|media-span|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
         line,
       );
 
@@ -832,6 +820,12 @@ export class MarkdownParser {
       // Extract all directives
       const { value: layout, markdown: withoutLayout } = this.extractDirective(cleaned, "layout");
       cleaned = withoutLayout;
+
+      const { value: mediaSpan, markdown: withoutMediaSpan } = this.extractDirective(
+        cleaned,
+        "media-span",
+      );
+      cleaned = withoutMediaSpan;
 
       // For backwards compatibility, extract but ignore align directive
       const { markdown: withoutAlign } = this.extractDirective(cleaned, "align");
@@ -975,6 +969,7 @@ export class MarkdownParser {
         title: slideTitle,
         notes,
         layout: layout || "",
+        mediaSpan: /^(left|right)$/i.test(mediaSpan) ? mediaSpan.toLowerCase() : "",
         background: background || "",
         theme: themeNormalized,
         headerStyle: safeString(headerStyle).toLowerCase() || "",

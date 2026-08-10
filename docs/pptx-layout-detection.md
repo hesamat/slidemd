@@ -46,7 +46,10 @@ The side-agnostic `MEDIA_SPAN` decision lives entirely in `inferLayout`: when
 one column holds only images (with a dominant image) and the other holds body
 text, the layout is `MEDIA_SPAN` regardless of which side the image is on —
 image-left layouts previously rendered the image in `@main` and the TEXT in
-`@media`.
+`@media`. If neither side qualifies cleanly, the converter uses the historical
+right-side `media-span-right` variant as its deterministic tie-breaker; in the
+two-image-columns case, left-side images become `@media` and right-side images
+remain in `@main`.
 
 ### Two-column pre-check
 
@@ -71,13 +74,13 @@ inline code in numbered lists (e.g., `1. print("hello")`).
 
 ## Edge cases
 
-| Scenario                                               | Problem                                       | Fix                                                          |
-| ------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------ |
-| MEDIA_SPAN with only header + image                    | `@main` would be empty                        | Empty-@main guard downgrades to HEADER_CONTENT               |
-| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN          | Requires ≥2 matching lines                                   |
-| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT   | Wide-element exception keeps TWO_COLUMN                      |
-| Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                              |
-| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                               |
-| Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column             |
-| Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`           |
-| Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images (`maxHeaderBandRatio`) |
+| Scenario                                               | Problem                                       | Fix                                                                     |
+| ------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------- |
+| MEDIA_SPAN with only header + image                    | `@main` would be empty                        | Empty-@main guard downgrades to HEADER_CONTENT                          |
+| `print()` in a numbered list                           | Triggers code detection → TWO_COLUMN          | Requires ≥2 matching lines                                              |
+| Wide element spanning both columns                     | Pre-check would downgrade to HEADER_CONTENT   | Wide-element exception keeps TWO_COLUMN                                 |
+| Footer text in body area                               | Would affect layout inference                 | Footer elements always excluded                                         |
+| `extractHeader` disagrees with `inferLayout` on header | Body text disappears from @main               | Empty-@main guard catches this                                          |
+| Middle image straddling midpoint in two-column         | Element unclassified by 1.2x threshold → lost | Unclassified elements assigned to nearest column                        |
+| Image on the LEFT column with text on the right        | Image in `@main`, text in `@media`            | Side-agnostic MEDIA_SPAN decision in `inferLayout`                      |
+| Small icon/logo beside the heading                     | Treated as content image                      | Header-band filter drops small images in the shared `bodyTopRatio` band |

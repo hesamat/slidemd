@@ -110,11 +110,14 @@ export function filterMeaningfulElements(elements, slideWidth, slideHeight, domi
     // 5. Margin Filter (Catches template logos, headers, and footers close to top/bottom edges)
     if (isSmallImage) {
       // Any small image starting inside the top strip is a template logo.
-      const isInTopStrip = el.top < slideHeight * CONFIG.marginTopRatio;
+      const isContainedInHeaderBand = el.top + (h || 0) <= slideHeight * CONFIG.bodyTopRatio;
+      const isInTopStrip =
+        hasHeaderLikeText &&
+        el.top < slideHeight * CONFIG.marginTopRatio &&
+        isContainedInHeaderBand;
       // Small images fully contained in the wider header band are decorative
       // icons beside titles — but only when a heading is actually present.
-      const isInTopBand =
-        hasHeaderLikeText && el.top + (h || 0) <= slideHeight * CONFIG.maxHeaderBandRatio;
+      const isInTopBand = hasHeaderLikeText && isContainedInHeaderBand;
       const isInBottomMargin = el.top + h > slideHeight * CONFIG.marginBottomRatio;
 
       // Discard small elements placed inside either the top (header strip or

@@ -18,6 +18,24 @@ const HIDDEN_PRESETS = new Set([
 ]);
 const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/**
+ * Return the edge occupied by a media area that spans every grid row.
+ * @param {string} gridTemplateAreas
+ * @returns {"left"|"right"|null}
+ */
+export function getMediaSpanSideFromGrid(gridTemplateAreas) {
+  const rows = String(gridTemplateAreas || "")
+    .match(/"[^"]*"|'[^']*'/g)
+    ?.map((row) => row.slice(1, -1).split(/\s+/).filter(Boolean));
+  if (!rows?.length || rows.some((row) => row.length !== rows[0].length)) return null;
+
+  const mediaColumn = rows[0].indexOf("media");
+  if (mediaColumn < 0 || !rows.every((row) => row[mediaColumn] === "media")) return null;
+  if (mediaColumn === 0) return "left";
+  if (mediaColumn === rows[0].length - 1) return "right";
+  return null;
+}
+
 export class LayoutData {
   static _customMap = null;
 
@@ -182,6 +200,15 @@ export class LayoutData {
     const key = this._normalizeName(layoutName);
     if (!key) return null;
     return this.getCustomLayout(key) || LAYOUTS.layouts[key]?.gridTemplate || null;
+  }
+
+  /**
+   * Get the media-span edge for a named layout, if it has one.
+   * @param {string} layoutName
+   * @returns {"left"|"right"|null}
+   */
+  static getMediaSpanSide(layoutName) {
+    return getMediaSpanSideFromGrid(this.getGridTemplate(layoutName));
   }
 
   /**

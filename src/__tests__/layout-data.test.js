@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LayoutData } from "../data/layout-data.js";
+import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
 
 describe("LayoutData", () => {
   describe("getTemplate", () => {
@@ -76,6 +76,14 @@ describe("LayoutData", () => {
 
     it("returns null for unknown layout", () => {
       expect(LayoutData.getGridTemplate("nonexistent")).toBeNull();
+    });
+
+    it("derives media-span sides from grid geometry", () => {
+      expect(LayoutData.getMediaSpanSide("media-span-left")).toBe("left");
+      expect(LayoutData.getMediaSpanSide("media-span-right")).toBe("right");
+      expect(getMediaSpanSideFromGrid('"media main" "media footer"')).toBe("left");
+      expect(getMediaSpanSideFromGrid('"main media" "footer media"')).toBe("right");
+      expect(getMediaSpanSideFromGrid('"main media" "media main"')).toBeNull();
     });
   });
 

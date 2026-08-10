@@ -66,4 +66,34 @@ describe("SlideRenderer", () => {
     expect(html).toContain(`data-mermaid-source="${encoded}"`);
     expect(html).toContain('class="mermaid"');
   });
+
+  it("keeps media-span intent when a resized custom grid is rendered", () => {
+    const slide = {
+      id: "resized-media",
+      layout: '"main media" "main media" / 3fr 2fr',
+      mediaSpan: "right",
+      areas: {
+        main: "<p>Body</p>",
+        media: '<img src="images/photo.png" alt="Photo" />',
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const area = el.querySelector('.slide__area[data-area-name="media"]');
+
+    expect(el.dataset.mediaSpan).toBe("right");
+    expect(area.style.paddingRight).toBe("0px");
+  });
+
+  it("removes border-side padding for custom span-all-rows grids without media bleed", () => {
+    const slide = {
+      id: "custom-full-height",
+      layout: '"main sidebar" "main sidebar" / 2fr 1fr',
+      areas: { main: "<p>Body</p>", sidebar: "<p>Aside</p>" },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+    const area = el.querySelector('.slide__area[data-area-name="sidebar"]');
+
+    expect(el.dataset.mediaSpan).toBeUndefined();
+    expect(area.style.paddingRight).toBe("0px");
+  });
 });

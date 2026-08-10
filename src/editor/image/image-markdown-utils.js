@@ -23,6 +23,31 @@ export const AREA_DEFAULT_H = 1080;
 const FALLBACK_IMG_NATURAL_W = 320;
 const FALLBACK_IMG_NATURAL_H = 240;
 
+/**
+ * Whether the image is the view-managed, full-column image in a media-span
+ * area. Explicitly positioned images are editor-owned and remain editable.
+ *
+ * @param {HTMLElement|null} imgElement
+ * @returns {boolean}
+ */
+export function isMediaSpanFillImage(imgElement) {
+  if (!imgElement || imgElement.style?.position) return false;
+  const area = imgElement.closest?.(".slide__area--media");
+  const slide = area?.closest?.(".slide");
+  if (!area || !slide?.dataset?.mediaSpan) return false;
+  if (area.querySelectorAll("img").length !== 1) return false;
+
+  const content = [...area.children].filter(
+    (child) => !child.classList.contains("editor-area-label"),
+  );
+  const onlyImage =
+    content[0] === imgElement ||
+    (content[0]?.tagName === "P" &&
+      content[0].children.length === 1 &&
+      content[0].querySelector("img") === imgElement);
+  return content.length === 1 && onlyImage;
+}
+
 // ── Image parsing ────────────────────────────────────────────────────────
 
 /**
@@ -292,6 +317,28 @@ export function buildInlineStyleString(imgElement) {
     "cursor: move",
   ];
   return parts.filter(Boolean).join("; ");
+}
+
+/**
+ * Build supported visual styles without positioning an image. Used for
+ * media-span fill images whose geometry is controlled by the layout CSS.
+ * @param {HTMLElement} imgElement
+ * @returns {string}
+ */
+export function buildMediaSpanStyleString(imgElement) {
+  const s = readImageSettings(imgElement);
+  return [
+    s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
+    s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
+    s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
+    s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+    s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
+    "border: none",
+    "object-fit: contain",
+    "cursor: move",
+  ]
+    .filter(Boolean)
+    .join("; ");
 }
 
 /**
