@@ -219,9 +219,13 @@ export class KeyboardHandler {
     // browser's native default through — e.g. Ctrl+S in exported decks or
     // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
-    // Preserve native input behavior for Ctrl+S outside CodeMirror. The
-    // editor surface may save; unrelated modal/property inputs should not.
-    if (globalAction === "save" && isEditable && !inCodeMirror) return;
+    // Preserve CodeMirror's editor behavior, but keep Ctrl+S suppressed in
+    // every other app input. Otherwise the browser's Save Page dialog can
+    // appear over the save-name prompt or another app modal.
+    if (globalAction === "save" && isEditable && !inCodeMirror) {
+      e.preventDefault();
+      return;
+    }
     if (globalAction && this.actions[globalAction]) {
       const handled = this.actions[globalAction]();
       if (handled !== false) {

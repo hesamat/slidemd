@@ -529,10 +529,11 @@ export class SaveManager {
    * @param {FileSystemDirectoryHandle} dirHandle
    * @param {string} safeFileName
    * @param {string} markdown
-   * @param {string[]} imagePaths
+   * @param {string[]} directoryRefs — all image references used by the deck
    * @returns {Promise<void>}
    */
   async _writeDeckToDir(dirHandle, safeFileName, markdown, imagePaths) {
+    const directoryRefs = DeckImagesResolver.extractImageRefs(markdown);
     // Capture the previous deck's image references so the user can be warned
     // (but never silently deleted) about files the deck no longer uses.
     // Removal only happens in the explicitly confirmed overwrite flow, where
@@ -618,7 +619,7 @@ export class SaveManager {
     // The .md and any new images are on disk. Record the session afterward
     // so cross-folder saves copy images from the old resolver source before
     // switching it to the new destination.
-    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
+    await this._recordSavedSession(dirHandle, safeFileName, directoryRefs);
   }
 
   /**
@@ -630,14 +631,16 @@ export class SaveManager {
    * @param {string[]} imagePaths
    * @returns {Promise<void>}
    */
-  async _recordSavedSession(dirHandle, safeFileName, imagePaths) {
+  async _recordSavedSession(dirHandle, safeFileName, directoryRefs) {
     try {
       localStorage.setItem(
         "webdeck_local_file_name",
         safeFileName.replace(/\.(md|markdown)$/i, ""),
       );
       localStorage.setItem("webdeck_opened_from_picker", "1");
-      DeckImagesResolver.setDirectoryHandle(dirHandle, imagePaths);
+      if (!DeckImagesResolver.hasSameDirectoryRegistration(dirHandle, directoryRefs)) {
+        DeckImagesResolver.setDirectoryHandle(dirHandle, directoryRefs);
+      }
       await DirectoryHandleStore.save(dirHandle, "parent", safeFileName);
     } catch (err) {
       console.warn("Failed to update session state after save:", err);
@@ -754,6 +757,7 @@ export class SaveManager {
         }
 
         if (mdWritten) {
+          const directoryRefs = DeckImagesResolver.extractImageRefs(markdown);
           try {
             if (imagePaths.length > 0) {
               const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
@@ -782,7 +786,7 @@ export class SaveManager {
           }
           // Record after image copying so a cross-folder save still reads
           // source images through the old directory resolver.
-          await this._recordSavedSession(dirHandle, chosenName, imagePaths);
+          await this._recordSavedSession(dirHandle, chosenName, directoryRefs);
           return true;
         }
       }

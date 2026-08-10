@@ -97,6 +97,25 @@ export class DeckImagesResolver {
   }
 
   /**
+   * Whether the resolver already has the same folder registration.
+   * Save paths use this to avoid invalidating image caches on every save;
+   * reload paths still call setDirectoryHandle directly to force refresh.
+   * @param {FileSystemDirectoryHandle|null} handle
+   * @param {string[]|null} deckRefs
+   * @returns {boolean}
+   */
+  static hasSameDirectoryRegistration(handle, deckRefs = null) {
+    const refs = deckRefs ? new Set(deckRefs) : null;
+    if (this._directoryHandle !== handle) return false;
+    if (this._deckRefs === refs) return true;
+    if (!this._deckRefs || !refs || this._deckRefs.size !== refs.size) return false;
+    for (const ref of this._deckRefs) {
+      if (!refs.has(ref)) return false;
+    }
+    return true;
+  }
+
+  /**
    * Extract the `images/...` references from markdown.
    * @param {string} markdown
    * @returns {string[]}
