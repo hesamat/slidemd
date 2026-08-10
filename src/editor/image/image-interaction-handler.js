@@ -19,7 +19,11 @@ import {
   buildInlineStyleString,
   buildMediaSpanStyleString,
   buildRepositionedImgTag,
+  getNaturalDimensions,
+  clampToAreaDimensions,
   isMediaSpanFillImage,
+  AREA_DEFAULT_W,
+  AREA_DEFAULT_H,
 } from "./image-markdown-utils.js";
 import {
   centerOnSlide,
@@ -533,6 +537,18 @@ export class ImageInteractionHandler {
     // throwaway blob URL into the saved markdown.
     const src = img.dataset.originalSrc || entry.src || img.getAttribute("src") || "";
 
+    // First property edit on a markdown image that was never dragged:
+    // convert the entry to an inline-positioned HTML img without moving the
+    // picture — natural dimensions clamped to the area plus offsets that
+    // keep the pre-conversion visual centre in place. Media-span fill images
+    // stay view-managed.
+    if (entry.type === "md" && !img.style.position && !isMediaSpanFillImage(img)) {
+      const style = this._convertMdImgForEdit(img);
+      const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
+      this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
+      return;
+    }
+
     const style = isMediaSpanFillImage(img)
       ? buildMediaSpanStyleString(img)
       : buildInlineStyleString(img);
@@ -542,6 +558,94 @@ export class ImageInteractionHandler {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  /**
+   * Convert a markdown image (rendered flex-centred inside a `<p>` at
+   * width:100%/height:100%) to an inline-positioned HTML img for the first
+   * property edit. Uses natural dimensions (or an explicit size the user
+   * already set in the properties panel) clamped to the area, with left/top
+   * offsets that keep the visual centre fixed, so opacity/radius/alt edits
+   * do not shift or resize the picture. The style is applied to the live DOM
+   * element too, because markdown sync does not re-render the preview.
+   *
+   * @param {HTMLElement} img
+   * @returns {string} inline style string
+   */
+  static _convertMdImgForEdit(img) {
+    const area = img.closest(".slide__area");
+    const scale = getStageScale();
+    const areaW = area ? Math.max(1, area.getBoundingClientRect().width / scale) : AREA_DEFAULT_W;
+    const areaH = area ? Math.max(1, area.getBoundingClientRect().height / scale) : AREA_DEFAULT_H;
+
+    let padL;
+    let padT;
+    let visualCenterX = areaW / 2;
+    let visualCenterY = areaH / 2;
+    if (area) {
+      const cs = getComputedStyle(area);
+      padL = parseFloat(cs.paddingLeft) || 0;
+      padT = parseFloat(cs.paddingTop) || 0;
+      const areaRect = area.getBoundingClientRect();
+      const imgRect = img.getBoundingClientRect();
+      visualCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale - padL / scale;
+      visualCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale - padT / scale;
+    }
+
+    // Honor an explicit width/height the user set in the panel before this
+    // sync; otherwise use natural dimensions clamped to the area.
+    const explicitW = parseFloat(img.style.width);
+    const explicitH = parseFloat(img.style.height);
+    let w;
+    let h;
+    if (Number.isFinite(explicitW) || Number.isFinite(explicitH)) {
+      w = Number.isFinite(explicitW) ? Math.max(1, Math.round(explicitW)) : null;
+      h = Number.isFinite(explicitH) ? Math.max(1, Math.round(explicitH)) : null;
+      if (w === null)
+        w = Math.max(1, Math.round((h * img.naturalWidth) / (img.naturalHeight || 1)));
+      if (h === null)
+        h = Math.max(1, Math.round((w * img.naturalHeight) / (img.naturalWidth || 1)));
+    } else {
+      const { naturalWidth: natW, naturalHeight: natH } = getNaturalDimensions(img);
+      const clamped = clampToAreaDimensions(natW, natH, areaW, areaH);
+      w = clamped.width;
+      h = clamped.height;
+    }
+
+    // Offset from the visual centre by default (opacity/radius/alt edits must
+    // not move the picture), but honor explicit left/top already set in this
+    // sync round — position presets (Fit, Align Left) apply them deliberately.
+    const explicitLeft = parseFloat(img.style.left);
+    const explicitTop = parseFloat(img.style.top);
+    const left = Number.isFinite(explicitLeft)
+      ? Math.round(explicitLeft)
+      : Math.round(visualCenterX - w / 2);
+    const top = Number.isFinite(explicitTop)
+      ? Math.round(explicitTop)
+      : Math.round(visualCenterY - h / 2);
+
+    const s = readImageSettings(img);
+    const style = [
+      "position: relative",
+      `left: ${left}px`,
+      `top: ${top}px`,
+      `width: ${w}px`,
+      `height: ${h}px`,
+      s.opacity != null && s.opacity !== 1 ? `opacity: ${s.opacity}` : "",
+      s.borderRadius ? `border-radius: ${s.borderRadius}px` : "",
+      s.boxShadow && s.boxShadow !== "none" ? `box-shadow: ${s.boxShadow}` : "",
+      s.rotation ? `transform: rotate(${Math.round(s.rotation)}deg)` : "",
+      s.zIndex ? `z-index: ${Math.round(s.zIndex)}` : "",
+      "border: none",
+      "object-fit: contain",
+      "cursor: move",
+    ]
+      .filter(Boolean)
+      .join("; ");
+
+    // Apply to the live DOM element so the picture stays put immediately.
+    img.setAttribute("style", style);
+    return style;
+  }
 
   /**
    * Apply inline positioning styles to a markdown-rendered image **without**

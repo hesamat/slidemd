@@ -114,6 +114,23 @@ describe("SlideRenderer", () => {
     expect(footer.style.gridColumn).toBe("");
   });
 
+  it("ignores media-span intent when the layout geometry does not match", () => {
+    // A misplaced media-span directive (e.g. after positional AI injection)
+    // must be inert on a layout whose media column does not span every row.
+    const slide = {
+      id: "inert-intent",
+      layout: "two-column",
+      mediaSpan: "right",
+      areas: {
+        main: "<p>Body</p>",
+        media: "<p>Media</p>",
+      },
+    };
+    const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
+
+    expect(el.dataset.mediaSpan).toBeUndefined();
+  });
+
   it("sets data-layout to focus for the built-in focus preset", () => {
     const slide = {
       id: "focus-preset",

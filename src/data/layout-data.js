@@ -251,10 +251,11 @@ export class LayoutData {
   }
 
   /**
-   * Format layout name for display (e.g., "two-column" -> "Two Column")
+   * Format layout name for display (e.g., "two-column" -> "Two Column",
+   * "media-span-left" -> "Media Span Left").
    */
   static formatLayoutName(layoutName) {
-    return layoutName.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    return layoutName.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   /**

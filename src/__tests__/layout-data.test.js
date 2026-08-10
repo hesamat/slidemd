@@ -112,6 +112,11 @@ describe("LayoutData", () => {
     it("formats hyphenated names", () => {
       expect(LayoutData.formatLayoutName("two-column")).toBe("Two Column");
     });
+
+    it("replaces every hyphen in multi-hyphen names", () => {
+      expect(LayoutData.formatLayoutName("media-span-left")).toBe("Media Span Left");
+      expect(LayoutData.formatLayoutName("media-span-right")).toBe("Media Span Right");
+    });
   });
 
   describe("hasLayout", () => {
