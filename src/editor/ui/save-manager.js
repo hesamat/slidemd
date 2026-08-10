@@ -188,6 +188,9 @@ export class SaveManager {
     this._onBeforeSave = onBeforeSave;
     this._onSaveStateReset = onSaveStateReset;
     this._unsavedEditorOverlays = new Map();
+    // Destinations already warned about kept (stale) images this session,
+    // so the informational toast does not repeat on every silent re-save.
+    this._staleWarnedDestinations = new Set();
   }
 
   get deck() {
@@ -420,8 +423,13 @@ export class SaveManager {
       }
     };
 
+    // The persisted handle is very often the same object as the in-memory
+    // one; once it has been checked (and its permission requested) it must
+    // not be re-checked below, which would issue a second permission prompt.
+    const rejectedHandles = new Set();
     const inMemory = DeckImagesResolver.getDirectoryHandle();
     if (inMemory) {
+      rejectedHandles.add(inMemory);
       const usable = await check(inMemory);
       // The in-memory handle is trusted only when it actually contains the
       // deck file; a stale handle from a forgotten deck switch must not
@@ -443,6 +451,7 @@ export class SaveManager {
       seenKeys.add(key);
       const stored = await DirectoryHandleStore.load(name);
       if (!stored.handle) continue;
+      if (rejectedHandles.has(stored.handle)) continue;
       const usable = await check(stored.handle);
       if (!usable) continue;
       // Same containment check as the in-memory handle above: the stored
@@ -507,7 +516,7 @@ export class SaveManager {
     // Only warn about files that actually exist in the images/ sidecar:
     // the old .md's references may point at images the dev server served,
     // which were never written into the folder.
-    let staleCount = staleCandidates.length;
+    let staleNames = staleCandidates;
     if (staleCandidates.length > 0) {
       try {
         const sidecarDir = await dirHandle.getDirectoryHandle("images");
@@ -515,9 +524,9 @@ export class SaveManager {
         for await (const [name, entry] of sidecarDir.entries()) {
           if (entry.kind === "file") onDisk.add(name);
         }
-        staleCount = staleCandidates.filter((name) => onDisk.has(name)).length;
+        staleNames = staleCandidates.filter((name) => onDisk.has(name));
       } catch {
-        // No sidecar (or permission lost) — keep the reference-based count.
+        // No sidecar (or permission lost) — keep the reference-based set.
       }
     }
 
@@ -534,12 +543,19 @@ export class SaveManager {
     // the IndexedDB handle write completes before save() reports success.
     await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
 
-    if (staleCount > 0) {
-      Notification.warning(
-        `${staleCount} image(s) from the previous version of this deck are no longer ` +
-          `referenced and were kept in the folder.`,
-        6000,
-      );
+    if (staleNames.length > 0) {
+      // The silent path never deletes, so the same stale set stays on disk;
+      // warn once per destination to avoid repeating the toast on every
+      // Ctrl+S (the warning only reappears if the stale set changes).
+      const warnKey = `${dirHandle.name || ""}/${safeFileName}:${[...staleNames].sort().join(",")}`;
+      if (!this._staleWarnedDestinations.has(warnKey)) {
+        this._staleWarnedDestinations.add(warnKey);
+        Notification.warning(
+          `${staleNames.length} image(s) from the previous version of this deck are no longer ` +
+            `referenced and were kept in the folder.`,
+          6000,
+        );
+      }
     }
 
     try {
@@ -779,6 +795,23 @@ export class SaveManager {
         : null;
       if (existingHandle) {
         try {
+          // The registry is keyed only by file name and survives deck
+          // switches (a same-named file opened earlier stays registered),
+          // so verify the handle still points at THIS deck's file before
+          // silently overwriting it: the file's content must match the
+          // deck's source baseline. A stale handle falls through to the
+          // picker instead of destroying an unrelated document.
+          const baseline =
+            this._getSourceMarkdown?.() ||
+            localStorage.getItem("webdeck_local_file") ||
+            window.__WEBDECK_MARKDOWN__;
+          if (!baseline) {
+            throw new DOMException("no source baseline", "SecurityError");
+          }
+          const onDisk = await (await existingHandle.getFile()).text();
+          if (onDisk !== baseline) {
+            throw new DOMException("stale handle", "SecurityError");
+          }
           const mdWritable = await existingHandle.createWritable();
           await mdWritable.write(markdown);
           await mdWritable.close();
@@ -793,7 +826,8 @@ export class SaveManager {
           localStorage.setItem("webdeck_opened_from_picker", "1");
           return true;
         } catch (err) {
-          // Handle no longer writable — fall through to the picker.
+          // Handle missing, stale, or no longer writable — fall through to
+          // the picker so the user always sees the target file.
           console.warn("Silent .md re-save failed, prompting for a file:", err);
         }
       }
@@ -841,9 +875,10 @@ export class SaveManager {
     const url = URL.createObjectURL(mdBlob);
     const a = document.createElement("a");
     a.href = url;
-    // Prefer the name the user chose in the save dialog; fall back to the
-    // stored name only when no picker flow ran (no name was ever offered).
-    a.download = chosenName ?? safeFileName;
+    // The prompt above (or the directory flow) guarantees a chosen name;
+    // it throws AbortError on cancel, so the download is never reached
+    // without one.
+    a.download = chosenName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

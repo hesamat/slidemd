@@ -202,6 +202,7 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     const sm = createSaveManager();
     const handle = {
       name: "deck.md",
+      getFile: async () => ({ text: async () => "# Hello" }),
       createWritable: vi.fn(async () => ({ write: vi.fn(), close: vi.fn() })),
     };
     const picker = vi.fn();
@@ -210,6 +211,12 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     vi.stubGlobal("window", { showSaveFilePicker: picker });
     DeckLoader.fileHandleRegistry.set("deck", handle);
     const prompt = vi.spyOn(Notification, "prompt");
+    vi.stubGlobal("localStorage", {
+      // The deck's source baseline — must match the handle's file content.
+      getItem: vi.fn(() => "# Hello"),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
 
     const saved = await sm._saveMarkdownWithImages("# Hello", "deck.md");
 
@@ -217,6 +224,34 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(handle.createWritable).toHaveBeenCalledTimes(1);
     expect(picker).not.toHaveBeenCalled();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not silently overwrite a registered handle that belongs to a different file", async () => {
+    const sm = createSaveManager();
+    const handle = {
+      name: "notes.md",
+      getFile: async () => ({ text: async () => "unrelated content" }),
+      createWritable: vi.fn(async () => ({ write: vi.fn(), close: vi.fn() })),
+    };
+    DeckLoader.fileHandleRegistry.set("notes", handle);
+    const picker = vi.fn().mockResolvedValue({
+      name: "notes.md",
+      createWritable: async () => ({ write: vi.fn(), close: vi.fn() }),
+    });
+    vi.stubGlobal("window", { showSaveFilePicker: picker });
+    vi.stubGlobal("localStorage", {
+      // The current deck's baseline differs from the registered file's
+      // content, so the stale handle must not be written through.
+      getItem: vi.fn(() => "# my deck"),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+
+    const saved = await sm._saveMarkdownWithImages("# my deck", "notes.md");
+
+    expect(saved).toBe(true);
+    expect(handle.createWritable).not.toHaveBeenCalled();
+    expect(picker).toHaveBeenCalled();
   });
 
   it("does not overwrite the previous file when a new name was chosen", async () => {

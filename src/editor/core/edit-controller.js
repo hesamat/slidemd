@@ -593,11 +593,10 @@ export class EditController {
         this.elements.presenterPanel?.classList.remove("webdeck-hidden");
       }
 
-      // Discard unsaved changes when exiting edit mode
-      if (this.hasUnsavedChanges) {
-        this.hasUnsavedChanges = false;
-        this.saveManager.updateButton();
-      }
+      // Keep the dirty state on exit: the edits stay live in unsavedMarkdown
+      // and the editor buffer, and save now works outside edit mode (Ctrl+S,
+      // menu, command palette), so resetting the flag here would silently
+      // discard the user's work while pretending it was dropped.
     }
 
     // Re-scale the stage to fit the new layout after toggling edit mode

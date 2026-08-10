@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { JSDOM } from "jsdom";
 import { KeyboardHandler } from "../engine/keyboard-handler.js";
 import { createKeyboardHandler } from "../engine/deck-keyboard.js";
+import { buildPaletteCommands } from "../engine/command-registry.js";
 
 function setupDom() {
   const { window } = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -95,5 +96,30 @@ describe("createKeyboardHandler save action", () => {
     const handler = makeHandler();
 
     expect(handler.actions.save()).toBe(true);
+  });
+});
+
+describe("command palette save enablement", () => {
+  beforeEach(() => setupDom());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("enables Save when an editor window is active, regardless of edit mode", () => {
+    const commands = buildPaletteCommands(
+      { roleManager: { isEditorWindow: true }, isEditMode: () => false },
+      { save: () => {} },
+    );
+    const save = commands.find((c) => c.id === "save");
+
+    expect(save.isEnabled()).toBe(true);
+  });
+
+  it("disables Save in viewer/presenter windows without an editor", () => {
+    const commands = buildPaletteCommands(
+      { roleManager: { isEditorWindow: false }, isEditMode: () => false },
+      { save: () => {} },
+    );
+    const save = commands.find((c) => c.id === "save");
+
+    expect(save.isEnabled()).toBe(false);
   });
 });
