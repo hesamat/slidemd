@@ -56,13 +56,8 @@ export class WholeDeckOrchestrator {
    * @param {(message: string, level?: "info"|"warn"|"error") => void} [callbacks.onLog]
    * @returns {Promise<string|null>}
    */
-  async runWholeDeckOperation(operation, signal, callbacksArg = {}) {
-    const callbacks =
-      typeof callbacksArg === "function" ? { onProgress: callbacksArg } : callbacksArg || {};
-    const { intent, context } = operation;
-    if (intent !== "generate") {
-      throw new Error(`Whole-deck operation only supports "generate" intent, got "${intent}"`);
-    }
+  async runWholeDeckOperation(operation, signal, callbacks = {}) {
+    const { context } = operation;
 
     const allSlides = splitSlidesForAi(context, "generate");
     const totalSlides = allSlides.length;

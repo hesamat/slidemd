@@ -122,7 +122,7 @@ export class StoreSyncController {
     this._setHasUnsavedChanges(
       this._storeDiffersFromSource() || this._getUnsavedMarkdown().size > 0,
     );
-    this._getSaveManager().updateButton();
+    this._getSaveManager()?.updateButton();
 
     if (this._getIsEditMode() && !this._suppressRestore) {
       this._queue = this.chainStoreChangeRestore().catch((error) => {
@@ -180,7 +180,7 @@ export class StoreSyncController {
     this._setHasUnsavedChanges(
       this._storeDiffersFromSource() || this._getUnsavedMarkdown().size > 0,
     );
-    this._getSaveManager().updateButton();
+    this._getSaveManager()?.updateButton();
   }
 
   /**
