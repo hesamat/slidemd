@@ -1,4 +1,4 @@
-/* ── AI Reimagine Outline Modal (chapter-grouped plan + outline editor) ── */
+/* ── AI Reimagine Outline Modal (chapter-grouped plan + inline chapter editor) ── */
 .ai-reimagine-outline-modal__backdrop {
   position: fixed;
   inset: 0;
@@ -95,28 +95,11 @@
   color: var(--text-medium, #6b7280);
 }
 
-.ai-reimagine-outline-modal__textarea {
-  width: 100%;
-  min-height: 84px;
-  padding: 11px 14px;
-  border: 1px solid var(--border-medium, #cbd5e1);
-  border-radius: 10px;
+.ai-reimagine-outline-modal__plan-text {
+  margin: 0;
   font-size: 14px;
-  font-family: inherit;
   line-height: 1.55;
-  background: var(--surface-bg, #ffffff);
   color: var(--text-high, #111827);
-  resize: vertical;
-  box-sizing: border-box;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.ai-reimagine-outline-modal__textarea:focus {
-  outline: none;
-  border-color: var(--accent, #6366f1);
-  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
 }
 
 .ai-reimagine-outline-modal__stats {
@@ -177,7 +160,7 @@
   gap: 10px;
 }
 
-/* ── Read-only chapter view ── */
+/* ── Chapter card (inline editing) ── */
 .ai-reimagine-outline-modal__chapter {
   border: 1px solid var(--border-medium, #e2e8f0);
   border-radius: 12px;
@@ -201,8 +184,6 @@
   gap: 10px;
   padding: 13px 16px;
   background: var(--surface-elevated, #f8fafc);
-  cursor: pointer;
-  user-select: none;
   transition: background 0.15s ease;
 }
 
@@ -210,14 +191,33 @@
   background: var(--surface-hover, #f1f5f9);
 }
 
-.ai-reimagine-outline-modal__chapter-title {
+.ai-reimagine-outline-modal__chapter-title-input {
   min-width: 0;
   font-size: 15px;
   font-weight: 700;
   color: var(--text-high, #111827);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ai-reimagine-outline-modal__chapter-title-input:hover {
+  border-color: var(--border-medium, #cbd5e1);
+  background: var(--surface-bg, #ffffff);
+}
+
+.ai-reimagine-outline-modal__chapter-title-input:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  background: var(--surface-bg, #ffffff);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
 }
 
 .ai-reimagine-outline-modal__chapter-count {
@@ -228,16 +228,24 @@
   white-space: nowrap;
 }
 
+.ai-reimagine-outline-modal__chapter-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .ai-reimagine-outline-modal__chapter-chevron {
   flex-shrink: 0;
   font-size: 12px;
   color: var(--text-medium, #6b7280);
   width: 18px;
   text-align: center;
+  cursor: pointer;
   transition: color 0.15s ease;
 }
 
-.ai-reimagine-outline-modal__chapter-header:hover .ai-reimagine-outline-modal__chapter-chevron {
+.ai-reimagine-outline-modal__chapter-chevron:hover {
   color: var(--text-high, #111827);
 }
 
@@ -250,12 +258,34 @@
   display: none;
 }
 
-.ai-reimagine-outline-modal__chapter-summary {
-  margin: 0 0 14px;
+.ai-reimagine-outline-modal__chapter-summary-input {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   font-size: 13px;
-  color: var(--text-medium, #4b5563);
   font-style: italic;
-  line-height: 1.5;
+  font-family: inherit;
+  color: var(--text-medium, #4b5563);
+  background: transparent;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ai-reimagine-outline-modal__chapter-summary-input:hover {
+  border-color: var(--border-medium, #cbd5e1);
+  background: var(--surface-elevated, #f8fafc);
+}
+
+.ai-reimagine-outline-modal__chapter-summary-input:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  background: var(--surface-bg, #ffffff);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
 }
 
 .ai-reimagine-outline-modal__slides-readonly {
@@ -353,127 +383,7 @@
   background: #9ca3af;
 }
 
-/* ── Edit mode ── */
-.ai-reimagine-outline-modal__chapter-edit {
-  border: 1px solid var(--border-medium, #e2e8f0);
-  border-radius: 12px;
-  padding: 16px;
-  background: var(--surface-elevated, #f8fafc);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.ai-reimagine-outline-modal__chapter-edit-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-medium, #e2e8f0);
-}
-
-.ai-reimagine-outline-modal__flow-tag-select {
-  flex-shrink: 0;
-  width: 112px;
-  padding: 7px 10px;
-  border: 1px solid var(--border-medium, #cbd5e1);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: capitalize;
-  background: var(--surface-bg, #ffffff);
-  color: var(--text-high, #111827);
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.ai-reimagine-outline-modal__flow-tag-select:focus {
-  outline: none;
-  border-color: var(--accent, #6366f1);
-  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
-}
-
-.ai-reimagine-outline-modal__chapter-title-input,
-.ai-reimagine-outline-modal__chapter-summary-input,
-.ai-reimagine-outline-modal__slide-title-input,
-.ai-reimagine-outline-modal__slide-intent-input {
-  padding: 8px 12px;
-  border: 1px solid var(--border-medium, #cbd5e1);
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-  background: var(--surface-bg, #ffffff);
-  color: var(--text-high, #111827);
-  box-sizing: border-box;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.ai-reimagine-outline-modal__chapter-title-input:focus,
-.ai-reimagine-outline-modal__chapter-summary-input:focus,
-.ai-reimagine-outline-modal__slide-title-input:focus,
-.ai-reimagine-outline-modal__slide-intent-input:focus,
-.ai-reimagine-outline-modal__flow-tag-select:focus {
-  outline: none;
-  border-color: var(--accent, #6366f1);
-  box-shadow: 0 0 0 3px var(--accent-bg, rgba(99, 102, 241, 0.12));
-}
-
-.ai-reimagine-outline-modal__chapter-title-input {
-  flex: 1 1 0;
-  min-width: 0;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.ai-reimagine-outline-modal__chapter-summary-input {
-  width: 100%;
-  margin-top: 12px;
-  font-style: italic;
-  color: var(--text-medium, #4b5563);
-}
-
-.ai-reimagine-outline-modal__chapter-actions,
-.ai-reimagine-outline-modal__slide-actions {
-  flex-shrink: 0;
-  display: flex;
-  gap: 6px;
-}
-
-.ai-reimagine-outline-modal__slides-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-medium, #e2e8f0);
-}
-
-.ai-reimagine-outline-modal__slide-edit {
-  display: grid;
-  grid-template-columns: 140px 1fr auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.ai-reimagine-outline-modal__slide-title-input {
-  width: 100%;
-  min-width: 0;
-  font-weight: 600;
-}
-
-.ai-reimagine-outline-modal__slide-intent-input {
-  width: 100%;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--text-medium, #4b5563);
-}
-
-.ai-reimagine-outline-modal__slide-intent-input::placeholder {
-  color: var(--text-muted, #9ca3af);
-}
-
+/* ── Icon buttons (reorder, remove) ── */
 .ai-reimagine-outline-modal__icon-btn {
   width: 28px;
   height: 28px;
@@ -507,7 +417,7 @@
 }
 
 .ai-reimagine-outline-modal__add-chapter-btn {
-  margin-top: 10px;
+  margin-top: 4px;
   padding: 8px 14px;
   background: var(--surface-elevated, #f8fafc);
   border: 1px dashed var(--border-medium, #cbd5e1);
