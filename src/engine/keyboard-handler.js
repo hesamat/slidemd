@@ -3,6 +3,7 @@
  * Maps keyboard keys to actions and delegates to appropriate controllers.
  */
 import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
+import { Logger } from "../core/logger.js";
 
 export class KeyboardHandler {
   static #buildPlainKeyMap() {
@@ -102,6 +103,14 @@ export class KeyboardHandler {
    * @param {Function} actions.isEditorWindow - Callback to check if current window is editor
    * @param {Function} actions.isEmbedded - Callback to check if running in an iframe
    * @param {Function} actions.getMarkdownEditor - Callback to get the MarkdownEditor instance (used for pre-keystroke undo/redo depth checks)
+   *
+   * Global (Layer 0) action contract: the action may return exactly
+   * `false` to decline handling, in which case the browser's default for
+   * the key event is NOT prevented (e.g. Ctrl+S in exported decks or
+   * embedded iframes where there is nothing to save). Any other return
+   * value (including `undefined`) means the action handled the event and
+   * the default is suppressed. If the action throws, the handler logs the
+   * failure and treats it as handled so the browser default stays suppressed.
    */
   constructor(actions) {
     this.actions = actions;
@@ -206,12 +215,40 @@ export class KeyboardHandler {
     const isEditorWindow = !!this.actions.isEditorWindow?.();
 
     // ── Layer 0: Global shortcuts ───────────────────────────────────────
-    // These work in both edit and presentation modes.  Only prevent the
-    // default and fire if an action callback is actually wired up.
+    // These work in both edit and presentation modes.  The action runs
+    // first so it can decline handling (return false) and let the
+    // browser's native default through — e.g. Ctrl+S in exported decks or
+    // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
-    if (globalAction && this.actions[globalAction]) {
+    // Preserve CodeMirror's editor behavior. For Ctrl+S in other app inputs
+    // when an editor exists, suppress the browser's Save Page dialog but
+    // still run the app save (the re-entrancy guard dedupes if a save is
+    // already in flight, e.g. inside the file-name prompt). In
+    // exported/embedded decks (no editor wired), the browser's save is the
+    // only useful behavior.
+    if (
+      globalAction === "save" &&
+      isEditable &&
+      !inCodeMirror &&
+      window.__WEBDECK_EDIT_CONTROLLER__
+    ) {
       e.preventDefault();
-      this.actions[globalAction]();
+      this.actions.save?.();
+      return;
+    }
+    if (globalAction && this.actions[globalAction]) {
+      let handled = true;
+      try {
+        handled = this.actions[globalAction]();
+      } catch (error) {
+        // A throwing action is still treated as handled: the failure must
+        // not leak the browser's native default (search/save dialog) on top
+        // of the app, and must not propagate out of the document listener.
+        Logger.warn(`Global keyboard action failed (${globalAction}):`, error);
+      }
+      if (handled !== false) {
+        e.preventDefault();
+      }
       return;
     }
 

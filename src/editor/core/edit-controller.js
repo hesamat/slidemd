@@ -96,7 +96,11 @@ export class EditController {
       },
       getIsEditMode: () => this.isEditMode,
       isDestroyed: () => this._destroyed,
-      captureCurrentEditorMarkdown: () => this.buffer.captureCurrentEditorMarkdown(),
+      // Use the guarded capture: outside edit mode the buffer is never
+      // refreshed on slide navigation, so it still holds a previously
+      // edited slide's text and must not be attributed to the current
+      // slide (save can now run outside edit mode).
+      captureCurrentEditorMarkdown: () => this.buffer.captureCurrentEditorState(),
       loadSlideIntoEditor: () => this.buffer.loadSlideIntoEditor(),
       storeDiffersFromSource: () => this._storeDiffersFromSource(),
       getLastEditorSlideIndex: () => this._lastEditorSlideIndex,
@@ -652,6 +656,16 @@ export class EditController {
       return;
     }
 
+    // Flush the pending debounced editor buffer BEFORE toggling edit mode:
+    // onEditModeChanged may navigate away from a hidden slide (updating
+    // currentSlideIndex), so capturing afterwards would attribute the
+    // buffer to the slide the app jumped to instead of the one it belongs
+    // to. At this point currentSlideIndex still matches the buffer.
+    if (this.isEditMode && this.markdownEditor) {
+      this._captureCurrentEditorMarkdown();
+      this.markdownEditor.cancelOnChange?.();
+    }
+
     this.isEditMode = !this.isEditMode;
 
     this.controller.onEditModeChanged?.();
@@ -694,11 +708,10 @@ export class EditController {
         this.elements.presenterPanel?.classList.remove("webdeck-hidden");
       }
 
-      // Discard unsaved changes when exiting edit mode
-      if (this.hasUnsavedChanges) {
-        this.hasUnsavedChanges = false;
-        this.saveManager.updateButton();
-      }
+      // Keep the dirty state on exit: the edits stay live in unsavedMarkdown
+      // and the editor buffer, and save now works outside edit mode (Ctrl+S,
+      // menu, command palette), so resetting the flag here would silently
+      // discard the user's work while pretending it was dropped.
     }
 
     // Re-scale the stage to fit the new layout after toggling edit mode

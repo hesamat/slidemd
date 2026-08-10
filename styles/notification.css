@@ -240,6 +240,7 @@
 }
 
 .notification-modal__copy {
+  flex: 1;
   min-width: 0;
 }
 
@@ -255,6 +256,27 @@
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--text-medium);
+}
+
+.notification-modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--text-high);
+  /* Themed surface so the input stays readable in dark mode (--surface-bg
+     flips to a dark value under [data-theme="dark"]). */
+  background: var(--surface-bg, #fff);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.notification-modal__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-decoration, rgba(2, 132, 199, 0.25));
 }
 
 .notification-modal__actions {

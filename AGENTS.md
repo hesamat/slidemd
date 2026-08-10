@@ -47,6 +47,8 @@ For most tasks, use this loop:
 - [AI Prompt Engineering](#ai-prompt-engineering)
 - [Reference](#reference)
 
+Release process and versioning conventions live in **`docs/RELEASING.md`**.
+
 ## Hard Rules — Always On
 
 1. **Git history and git commands are off-limits unless the user explicitly says so.**
@@ -527,6 +529,7 @@ export class NewModule {
 - **Change build input:** Update argument in `tools/build.mjs`
 - **Add a rendering feature:** Enhance `src/renderer/content-enhancer.js` or `src/renderer/slide-renderer.js`
 - **Add or change a keyboard shortcut:** Update `src/engine/keyboard-shortcuts.js`, then run the quality gates.
+- **Release a version:** Follow `docs/RELEASING.md`. Feature branches stay code-only (no `package.json` version bump, no `CHANGELOG.md` edit); release content (version, changelog, `npm update` lockfile) goes on a `release/X.Y.Z` branch off `main` merged via its own PR, then tagged `vX.Y.Z`.
 
 ---
 

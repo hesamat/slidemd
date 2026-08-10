@@ -268,7 +268,6 @@ export class DeckController extends EventEmitter {
       breakManager: this.breakManager,
       freezeManager: this.freezeManager,
       reloadManager: this.reloadManager,
-      isEditMode: () => this.isEditMode(),
     });
     this._deckEvents.setup();
   }

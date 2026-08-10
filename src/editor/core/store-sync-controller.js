@@ -144,6 +144,9 @@ export class StoreSyncController {
    * @param {boolean} recordHistory
    */
   prepareStoreOperation(recordHistory = false) {
+    // The injected capture callback is guarded (captureCurrentEditorState):
+    // outside edit mode the stale buffer is not attributed to the current
+    // slide, and inside edit mode the pending edits are flushed first.
     this._captureCurrentEditorMarkdown();
     const deckStore = this._getDeckStore();
     const storeSlides = deckStore.getSlides();

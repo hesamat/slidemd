@@ -70,9 +70,23 @@ export function createKeyboardHandler({
     },
     save: () => {
       try {
-        edit()?.saveManager?.save?.();
+        // Save whenever an edit controller exists, in edit mode or not: a
+        // user who toggled out of edit mode with pending changes must still
+        // get Ctrl+S to work instead of a silent no-op.
+        const saveManager = edit()?.saveManager;
+        if (saveManager) {
+          saveManager.save?.();
+          return true;
+        }
+        // No editor in this window. Keep suppressing the browser's Ctrl+S
+        // in app windows (presenter/viewer, opened from the editor), but
+        // let standalone exported decks and embedded iframes keep the
+        // browser's native save-page behavior — returning false makes the
+        // keyboard handler skip preventDefault.
+        return !window.__WEBDECK_EXPORTED__ && !isEmbedded();
       } catch (e) {
         Logger.warn("Save shortcut failed:", e);
+        return true;
       }
     },
     newSlide: () => {

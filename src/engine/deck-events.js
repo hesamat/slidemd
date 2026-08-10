@@ -32,7 +32,6 @@ export class DeckEvents {
    * @param {object} opts.breakManager - Break manager
    * @param {object} opts.freezeManager - Freeze manager
    * @param {object} opts.reloadManager - Reload manager
-   * @param {Function} opts.isEditMode - Check edit mode callback
    */
   constructor({
     elements,
@@ -57,7 +56,6 @@ export class DeckEvents {
     breakManager,
     freezeManager,
     reloadManager,
-    isEditMode,
   }) {
     this._elements = elements;
     this._handleKeyboard = handleKeyboard;
@@ -81,7 +79,6 @@ export class DeckEvents {
     this._breakManager = breakManager;
     this._freezeManager = freezeManager;
     this._reloadManager = reloadManager;
-    this._isEditMode = isEditMode;
 
     // Store bound handlers for cleanup
     this._boundHandlers = [];
@@ -125,10 +122,13 @@ export class DeckEvents {
     });
     listen(this._elements.menuSaveBtn, "click", () => {
       const editCtrl = window.__WEBDECK_EDIT_CONTROLLER__;
-      if (this._isEditMode() && editCtrl?.saveManager) {
+      // Saving works whenever an editor exists — edit mode on or off —
+      // mirroring the Ctrl+S shortcut. Only windows without an editor
+      // (viewer/presenter) cannot save.
+      if (editCtrl?.saveManager) {
         editCtrl.saveManager.save();
       } else {
-        Notification.info("Open edit mode (E) to save changes");
+        Notification.info("Saving is only available in the editor window");
       }
       this._closeMenu();
     });

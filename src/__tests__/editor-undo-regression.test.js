@@ -8,6 +8,10 @@ import { EditorBufferController } from "../editor/core/editor-buffer-controller.
 import { HistoryController } from "../editor/core/history-controller.js";
 import { DeckStore } from "../data/store/deck-store.js";
 import { MarkdownParser } from "../data/markdown-parser.js";
+import { ImageInteractionHandler } from "../editor/image/image-interaction-handler.js";
+import { TextBlockHandler } from "../editor/text/text-block-handler.js";
+import { SlideStylePanel } from "../editor/ui/slide-style-panel.js";
+import { StageScaler } from "../renderer/stage-scaler.js";
 
 beforeAll(() => {
   window.markdownit = markdownit;
@@ -513,6 +517,140 @@ describe("Editor undo regression suite", () => {
 
       // The restore path should have run and called replaceDeck.
       expect(replaceDeck).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("prepareStoreOperation buffer capture", () => {
+    function makeFake({ isEditMode, currentSlideIndex, bufferValue, unsaved = new Map() }) {
+      const deckStore = new DeckStore();
+      deckStore.loadFromMarkdown("# s0\n\n---\n\n# s1\n\n---\n\n# s2\n\n---\n\n# s3");
+      return {
+        isEditMode,
+        currentSlideIndex,
+        deckStore,
+        unsavedMarkdown: unsaved,
+        _pendingStructuralOperations: 0,
+        markdownEditor: {
+          // The buffer may be stale when the editor is not active.
+          getValue: () => bufferValue,
+        },
+        // Mirrors EditController's wiring: the injected capture routes to a
+        // guarded capture that skips outside edit mode (stale buffer).
+        _captureCurrentEditorMarkdown: () => {
+          if (!isEditMode) return;
+          const markdown = bufferValue;
+          const original = deckStore.getSlides()[currentSlideIndex] ?? "";
+          if (markdown !== original && markdown !== unsaved.get(currentSlideIndex)) {
+            unsaved.set(currentSlideIndex, markdown);
+          }
+        },
+        _storeDiffersFromSource: () => false,
+        saveManager: {
+          getFullSlides: (slides) => slides.map((s) => ({ markdown: s.markdown })),
+          updateButton: vi.fn(),
+        },
+      };
+    }
+
+    it("does not attribute the stale editor buffer to the current slide outside edit mode", () => {
+      const fake = makeFake({
+        isEditMode: false,
+        currentSlideIndex: 3,
+        bufferValue: "# stale slide 0 text",
+      });
+      fake.storeSync = createStoreSync(fake);
+
+      fake.storeSync.prepareStoreOperation(true);
+
+      // Slide 3 keeps its own content; the stale buffer must not leak into
+      // unsavedMarkdown (and from there into the written file).
+      expect(fake.deckStore.getSlides()[3]).toBe("# s3");
+      expect(fake.unsavedMarkdown.has(3)).toBe(false);
+    });
+
+    it("captures the live buffer when the editor is active", () => {
+      const fake = makeFake({
+        isEditMode: true,
+        currentSlideIndex: 3,
+        bufferValue: "# typed in the editor",
+      });
+      fake.storeSync = createStoreSync(fake);
+
+      fake.storeSync.prepareStoreOperation(true);
+
+      expect(fake.unsavedMarkdown.get(3)).toBe("# typed in the editor");
+    });
+  });
+
+  describe("toggleEditMode buffer capture on exit", () => {
+    it("captures the buffer against the hidden slide before onEditModeChanged navigates away", () => {
+      const deactivateImage = vi
+        .spyOn(ImageInteractionHandler, "deactivate")
+        .mockImplementation(() => {});
+      const deactivateText = vi.spyOn(TextBlockHandler, "deactivate").mockImplementation(() => {});
+      const hidePanel = vi.spyOn(SlideStylePanel, "hide").mockImplementation(() => {});
+      const applyScale = vi.spyOn(StageScaler, "applyStageScale").mockImplementation(() => {});
+
+      const deckStore = new DeckStore();
+      deckStore.loadFromMarkdown("# s0\n\n---\n\n# hidden\n\n---\n\n# s2\n\n---\n\n# s3");
+      const unsaved = new Map();
+      const fake = {
+        isEditMode: true,
+        currentSlideIndex: 1, // the hidden slide currently in the editor
+        deckStore,
+        unsavedMarkdown: unsaved,
+        hasUnsavedChanges: false,
+        markdownEditor: {
+          getValue: () => "# hidden edited",
+          cancelOnChange: vi.fn(),
+        },
+        _getSourceMarkdown: () => "# s0\n\n---\n\n# hidden\n\n---\n\n# s2\n\n---\n\n# s3",
+        _captureCurrentEditorMarkdown: () => fake.buffer.captureCurrentEditorMarkdown(),
+        // EditController._captureCurrentEditorMarkdown delegates to the
+        // buffer controller, which captures against the current slide index.
+        buffer: {
+          captureCurrentEditorMarkdown: () => {
+            const markdown = "# hidden edited";
+            const original = deckStore.getSlides()[fake.currentSlideIndex] ?? "";
+            if (markdown !== original && markdown !== unsaved.get(fake.currentSlideIndex)) {
+              unsaved.set(fake.currentSlideIndex, markdown);
+            }
+          },
+        },
+        controller: {
+          // Simulates SlideNavigator jumping to the next visible slide when
+          // the current one is hidden — before the flush runs in the buggy
+          // version, this moves currentSlideIndex away from the buffer.
+          onEditModeChanged: vi.fn(() => {
+            fake.currentSlideIndex = 2;
+          }),
+          roleManager: { isEditorWindow: false },
+        },
+        elements: {
+          editorPanel: { classList: { add: vi.fn(), remove: vi.fn() } },
+          toggleEditModeBtn: {
+            classList: { add: vi.fn(), remove: vi.fn() },
+            setAttribute: vi.fn(),
+          },
+          toggleEditModeLabel: { textContent: "" },
+          presenterPanel: { classList: { add: vi.fn(), remove: vi.fn() } },
+        },
+        mermaidHelper: { hide: vi.fn() },
+        placeholderDialogEl: null,
+        saveManager: { updateButton: vi.fn() },
+      };
+
+      EditController.prototype.toggleEditMode.call(fake);
+
+      // The hidden slide's buffer must be filed under the slide it belongs
+      // to (index 1), not the visible slide the app jumped to (index 2).
+      expect(unsaved.get(1)).toBe("# hidden edited");
+      expect(unsaved.has(2)).toBe(false);
+
+      deactivateImage.mockRestore();
+      deactivateText.mockRestore();
+      hidePanel.mockRestore();
+      applyScale.mockRestore();
     });
   });
 });
