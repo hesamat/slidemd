@@ -28,6 +28,8 @@ export class ImageDragController {
   static _dragStartX = 0;
   static _dragStartY = 0;
   static _dragSnapped = false;
+  static _dragMoved = false;
+  static _dragPrepared = false;
   static _dragStartInsertBefore = null;
   static _dropInsertBeforeEl = null;
   static _dropTargetAreaEl = null;
@@ -95,10 +97,6 @@ export class ImageDragController {
       this._selectedImg = null;
     }
 
-    if (!img.style.position) {
-      ctx.prepareMdImgForDrag(img);
-      img.classList.add("img-positioned");
-    }
     ctx.select(img);
     ImagePropertiesPanel.hide();
     const sourceArea = img.closest(".slide__area");
@@ -107,6 +105,8 @@ export class ImageDragController {
     this._dragStartX = e.clientX;
     this._dragStartY = e.clientY;
     this._dragSnapped = false;
+    this._dragMoved = false;
+    this._dragPrepared = false;
 
     const areaEl = img.closest(".slide__area");
     if (areaEl) {
@@ -129,6 +129,17 @@ export class ImageDragController {
     const ctx = this._ctx;
     const img = ctx?.getSelectedImg();
     if (!img || !ctx) return;
+
+    // interact.js emits dragstart on pointer-down. Do not convert a
+    // markdown image until the pointer has actually moved; changing its
+    // positioning mode during a plain click changes the surrounding flex
+    // layout and makes the image jump before it is selected.
+    if (!this._dragPrepared && !img.style.position) {
+      ctx.prepareMdImgForDrag(img);
+      img.classList.add("img-positioned");
+      this._dragPrepared = true;
+    }
+    this._dragMoved = true;
 
     const isFreeflow = ImageInteractionHandler.isFreeflow(img);
     this._updateDragTarget(e.clientX, e.clientY);
@@ -200,6 +211,13 @@ export class ImageDragController {
 
     this._clearDropTargetHighlight();
     this._hideDropGap();
+
+    // A pointer click still produces interact.js drag events. It should
+    // only select the image, not rewrite its markdown or positioning.
+    if (!this._dragMoved) {
+      this._clearDragState();
+      return;
+    }
 
     const fromArea = this._dragSourceArea;
     const toArea = this._dragTargetArea;
@@ -289,6 +307,8 @@ export class ImageDragController {
     this._dragStartInsertBefore = null;
     this._dropInsertBeforeEl = null;
     this._dropTargetAreaEl = null;
+    this._dragMoved = false;
+    this._dragPrepared = false;
   }
 
   // ── Resize (manual mouse events on overlay handles) ─────────────────────

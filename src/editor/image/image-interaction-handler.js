@@ -18,8 +18,6 @@ import {
   readImageSettings,
   buildInlineStyleString,
   buildRepositionedImgTag,
-  getNaturalDimensions,
-  clampToAreaDimensions,
 } from "./image-markdown-utils.js";
 import {
   centerOnSlide,
@@ -29,7 +27,6 @@ import {
   rotateBy,
   getStageScale,
 } from "./image-position-presets.js";
-import { AREA_DEFAULT_W, AREA_DEFAULT_H } from "./image-markdown-utils.js";
 
 const OVERLAY_BORDER = 2;
 const OVERLAY_BORDER_DOUBLE = OVERLAY_BORDER * 2;
@@ -173,23 +170,6 @@ export class ImageInteractionHandler {
       if (this._overlay) this._overlay.style.display = "none";
     } else {
       this.deselect();
-    }
-
-    // If this is a markdown image (no position style), convert to HTML
-    // in the markdown source and apply styles to the existing DOM element.
-    // Existing HTML <img> tags (from PPTX import) already have correct
-    // dimensions and position — skip conversion to avoid layout shift.
-    // Media-span fill images are skipped too: the view fills them
-    // absolutely, and converting them would reflow the layout on select.
-    const isExistingHtmlImg =
-      img.getAttribute("width") && img.getAttribute("height") && !img.style.position;
-    if (
-      !img.style.position &&
-      !isExistingHtmlImg &&
-      !img.closest(".slide[data-layout='media-span-left'], .slide[data-layout='media-span-right']")
-    ) {
-      this._convertMdImgToHtml(img);
-      img.classList.add("img-positioned");
     }
 
     this._selectedImg = img;
@@ -560,9 +540,8 @@ export class ImageInteractionHandler {
 
   /**
    * Apply inline positioning styles to a markdown-rendered image **without**
-   * writing markdown.  Used by the drag-start handler so that the
-   * interact.js drag session is not disrupted by a CodeMirror transaction
-   * mid-drag.
+   * writing markdown. Used on the first drag move so a click never changes
+   * the image's layout or starts a CodeMirror transaction mid-drag.
    */
   static _prepareMdImgForDrag(img) {
     const md = this._getMarkdown?.();
@@ -575,6 +554,7 @@ export class ImageInteractionHandler {
     if (idx < 0 || idx >= entries.length) return;
 
     const scale = getStageScale();
+    const current = readImageSettings(img);
 
     // Use rendered bounding rect so the image keeps its visual size
     // during drag (naturalWidth can be 0 if unloaded; offsetWidth can
@@ -602,71 +582,18 @@ export class ImageInteractionHandler {
         `top: ${top}px`,
         `width: ${w}px`,
         `height: ${h}px`,
+        current.opacity !== 1 ? `opacity: ${current.opacity}` : "",
+        current.borderRadius ? `border-radius: ${current.borderRadius}px` : "",
+        current.boxShadow && current.boxShadow !== "none" ? `box-shadow: ${current.boxShadow}` : "",
+        current.rotation ? `transform: rotate(${Math.round(current.rotation)}deg)` : "",
+        current.zIndex ? `z-index: ${Math.round(current.zIndex)}` : "",
         "border: none",
         "object-fit: contain",
         "cursor: move",
-      ].join("; "),
+      ]
+        .filter(Boolean)
+        .join("; "),
     );
-  }
-
-  static _convertMdImgToHtml(img) {
-    const md = this._getMarkdown?.();
-    if (!md) return;
-
-    const area = img.closest(".slide__area");
-    const areaName = area?.dataset.areaName || "main";
-    const entries = parseImagesInArea(md, areaName);
-    const idx = getImageOrdinalIndexInArea(img);
-    if (idx < 0 || idx >= entries.length) return;
-
-    const entry = entries[idx];
-
-    // Capture the image's pre-conversion visual centre. Markdown images
-    // are flex-centred by `.slide__area p > img:only-child`; once we swap
-    // to a fixed-size HTML img they lose that centring and jump to the
-    // area's top-left. We compute left/top offsets that keep the centre
-    // at the same point so the picture appears stationary.
-    const scale = getStageScale();
-    const areaW = area ? Math.max(1, area.getBoundingClientRect().width / scale) : AREA_DEFAULT_W;
-    const areaH = area ? Math.max(1, area.getBoundingClientRect().height / scale) : AREA_DEFAULT_H;
-    let visualCenterX = areaW / 2;
-    let visualCenterY = areaH / 2;
-    if (area) {
-      const areaRect = area.getBoundingClientRect();
-      const imgRect = img.getBoundingClientRect();
-      visualCenterX = (imgRect.left + imgRect.width / 2 - areaRect.left) / scale;
-      visualCenterY = (imgRect.top + imgRect.height / 2 - areaRect.top) / scale;
-    }
-
-    // Use natural dimensions for markdown images (offsetWidth would be
-    // the full area size). For existing HTML img tags (e.g. PPTX import)
-    // with explicit width/height attributes, read those directly.
-    const isExistingHtmlImg =
-      entry.type === "html" && img.getAttribute("width") && img.getAttribute("height");
-    const { naturalWidth: natW, naturalHeight: natH } = getNaturalDimensions(img);
-    const { width: w, height: h } = clampToAreaDimensions(natW, natH, areaW, areaH);
-
-    const left = isExistingHtmlImg ? 0 : Math.round(visualCenterX - w / 2);
-    const top = isExistingHtmlImg ? 0 : Math.round(visualCenterY - h / 2);
-
-    const alt = extractAltText(entry);
-    const src = entry.src;
-    const style = [
-      "position: relative",
-      `left: ${left}px`,
-      `top: ${top}px`,
-      `width: ${w}px`,
-      `height: ${h}px`,
-      "border: none",
-      "object-fit: contain",
-      "cursor: move",
-    ].join("; ");
-
-    const newTag = `<img src="${src}" alt="${alt}" style="${style}" />`;
-    this._setMarkdown?.(md.slice(0, entry.start) + newTag + md.slice(entry.end));
-
-    // Apply the same styles to the DOM element directly (no re-render).
-    img.setAttribute("style", style);
   }
 
   // ── Settings API (used by ImagePropertiesPanel) ─────────────────────────────────
