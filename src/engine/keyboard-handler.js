@@ -108,7 +108,8 @@ export class KeyboardHandler {
    * the key event is NOT prevented (e.g. Ctrl+S in exported decks or
    * embedded iframes where there is nothing to save). Any other return
    * value (including `undefined`) means the action handled the event and
-   * the default is suppressed.
+   * the default is suppressed. If the action throws, the handler logs the
+   * failure and treats it as handled so the browser default stays suppressed.
    */
   constructor(actions) {
     this.actions = actions;
@@ -218,6 +219,9 @@ export class KeyboardHandler {
     // browser's native default through — e.g. Ctrl+S in exported decks or
     // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
+    // Preserve native input behavior for Ctrl+S outside CodeMirror. The
+    // editor surface may save; unrelated modal/property inputs should not.
+    if (globalAction === "save" && isEditable && !inCodeMirror) return;
     if (globalAction && this.actions[globalAction]) {
       const handled = this.actions[globalAction]();
       if (handled !== false) {

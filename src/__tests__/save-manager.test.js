@@ -254,6 +254,30 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     expect(picker).toHaveBeenCalled();
   });
 
+  it("does not open a second picker when post-write bookkeeping fails", async () => {
+    const sm = createSaveManager();
+    const handle = {
+      name: "deck.md",
+      getFile: async () => ({ text: async () => "# Hello" }),
+      createWritable: vi.fn(async () => ({ write: vi.fn(), close: vi.fn() })),
+    };
+    const picker = vi.fn();
+    vi.stubGlobal("window", { showSaveFilePicker: picker });
+    DeckLoader.fileHandleRegistry.set("deck", handle);
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key) => (key === "webdeck_local_file" ? "# Hello" : null)),
+      setItem: vi.fn(() => {
+        throw new DOMException("quota exceeded", "QuotaExceededError");
+      }),
+      removeItem: vi.fn(),
+    });
+
+    await expect(sm._saveMarkdownWithImages("# Hello", "deck.md")).resolves.toBe(true);
+
+    expect(handle.createWritable).toHaveBeenCalledTimes(1);
+    expect(picker).not.toHaveBeenCalled();
+  });
+
   it("does not overwrite the previous file when a new name was chosen", async () => {
     const sm = createSaveManager();
     const oldHandle = {
@@ -310,10 +334,15 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     const stored = {
       queryPermission: vi.fn(async () => "prompt"),
       requestPermission,
-      getFileHandle: vi.fn(async () => ({})),
+      getFileHandle: vi.fn(async () => ({
+        getFile: async () => ({ text: async () => "# deck" }),
+      })),
     };
     vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
     vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+    localStorage.getItem.mockImplementation((key) =>
+      key === "webdeck_local_file" ? "# deck" : null,
+    );
 
     const result = await sm._restoreDeckDir("deck.md");
 
@@ -324,10 +353,15 @@ describe("SaveManager save() dedup and file-name prompt", () => {
   it("treats a stored folder handle without queryPermission as usable", async () => {
     const sm = createSaveManager();
     const stored = {
-      getFileHandle: vi.fn(async () => ({})),
+      getFileHandle: vi.fn(async () => ({
+        getFile: async () => ({ text: async () => "# deck" }),
+      })),
     };
     vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
     vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+    localStorage.getItem.mockImplementation((key) =>
+      key === "webdeck_local_file" ? "# deck" : null,
+    );
 
     const result = await sm._restoreDeckDir("deck.md");
 
@@ -363,6 +397,23 @@ describe("SaveManager save() dedup and file-name prompt", () => {
 
     expect(result).toBeNull();
     expect(stored.getFileHandle).toHaveBeenCalledWith("deck.md");
+  });
+
+  it("rejects a stored folder whose deck file belongs to another deck", async () => {
+    const sm = createSaveManager();
+    const stored = {
+      queryPermission: vi.fn(async () => "granted"),
+      getFileHandle: vi.fn(async () => ({
+        getFile: async () => ({ text: async () => "# unrelated deck" }),
+      })),
+    };
+    vi.spyOn(DeckImagesResolver, "getDirectoryHandle").mockReturnValue(null);
+    vi.spyOn(DirectoryHandleStore, "load").mockResolvedValue({ handle: stored });
+    localStorage.getItem.mockImplementation((key) =>
+      key === "webdeck_local_file" ? "# current deck" : null,
+    );
+
+    await expect(sm._restoreDeckDir("deck.md")).resolves.toBeNull();
   });
 
   it("names the fallback blob download with the name chosen in the dialog", async () => {
@@ -411,7 +462,11 @@ describe("SaveManager save() dedup and file-name prompt", () => {
     const saveSpy = vi.spyOn(DirectoryHandleStore, "save").mockResolvedValue(undefined);
     const warning = vi.spyOn(Notification, "warning").mockImplementation(() => {});
 
-    await expect(sm._writeDeckToDir(dir, "deck.md", "# deck", [])).resolves.toBeUndefined();
+    await expect(
+      sm._writeDeckToDir(dir, "deck.md", "# deck\n\n![image](images/image.png)", [
+        "images/image.png",
+      ]),
+    ).resolves.toBeUndefined();
 
     // The .md is on disk, so the session must be recorded before the
     // sidecar failure is reported — a reload must find the new folder.

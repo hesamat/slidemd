@@ -57,11 +57,20 @@ function sanitizeFileName(name, fallback = "deck.md") {
  * @param {string[]} relPaths — relative paths like "images/foo.png"
  * @returns {Promise<{saved: number, failed: number}>}
  */
-async function writeImagesToDir(dirHandle, relPaths) {
+async function writeImagesToDir(dirHandle, relPaths, { skipExisting = false } = {}) {
   let saved = 0;
   let failed = 0;
   for (const relPath of relPaths) {
     try {
+      const imgName = relPath.split("/").pop();
+      if (skipExisting) {
+        try {
+          await dirHandle.getFileHandle(imgName);
+          continue;
+        } catch (error) {
+          if (error?.name !== "NotFoundError") throw error;
+        }
+      }
       let blob = await DeckImagesResolver.getImageFile(relPath);
       if (!blob) {
         const res = await fetch(`/${relPath}`);
@@ -71,7 +80,6 @@ async function writeImagesToDir(dirHandle, relPaths) {
         }
         blob = await res.blob();
       }
-      const imgName = relPath.split("/").pop();
       const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
       const imgWritable = await imgHandle.createWritable();
       await imgWritable.write(blob);
@@ -345,9 +353,10 @@ export class SaveManager {
     // identity check correct on the next silent .md re-save. Only the
     // dirty-flag and overlay clearing are gated on whether the deck
     // changed during the save.
+    const isCurrent = this._currentFullMarkdown() === fullMarkdown;
     this._setSourceMarkdown?.(fullMarkdown);
+    if (!isCurrent) return;
     this._onSaveStateReset?.();
-    if (this._currentFullMarkdown() !== fullMarkdown) return;
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
     this.updateButton();
@@ -402,6 +411,20 @@ export class SaveManager {
    */
   async _restoreDeckDir(fileName) {
     const candidates = [fileName, fileName.replace(/\.(md|markdown)$/i, "")];
+    const matchesCurrentDeck = async (handle) => {
+      const baseline =
+        this._getSourceMarkdown?.() ||
+        localStorage.getItem("webdeck_local_file") ||
+        window.__WEBDECK_MARKDOWN__;
+      if (!baseline) return false;
+      try {
+        const fileHandle = await handle.getFileHandle(fileName);
+        const text = await (await fileHandle.getFile()).text();
+        return text === baseline;
+      } catch {
+        return false;
+      }
+    };
     const check = async (handle) => {
       if (!handle) return null;
       try {
@@ -443,7 +466,9 @@ export class SaveManager {
       // silently create the file in the wrong folder.
       if (usable) {
         try {
-          if (await findDeckFileInDir(usable, fileName)) return usable;
+          if ((await findDeckFileInDir(usable, fileName)) && (await matchesCurrentDeck(usable))) {
+            return usable;
+          }
         } catch {
           // Permission or probe failure — fall through to the stored handle.
         }
@@ -468,7 +493,9 @@ export class SaveManager {
       // this probe a stale handle could silently create the file in the
       // wrong folder.
       try {
-        if (await findDeckFileInDir(usable, fileName)) return usable;
+        if ((await findDeckFileInDir(usable, fileName)) && (await matchesCurrentDeck(usable))) {
+          return usable;
+        }
       } catch {
         // Permission or probe failure — fall through to the next candidate.
       }
@@ -544,12 +571,6 @@ export class SaveManager {
     DeckLoader.fileHandleRegistry.set(safeFileName, mdHandle);
     DeckLoader.fileHandleRegistry.set(safeFileName.replace(/\.(md|markdown)$/i, ""), mdHandle);
 
-    // The .md is on disk — record the session before saving images, so a
-    // sidecar failure cannot fall through to the picker flow and write the
-    // deck a second time to a different folder. Awaiting also guarantees
-    // the IndexedDB handle write completes before save() reports success.
-    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
-
     if (staleNames.length > 0) {
       // The silent path never deletes, so the same stale set stays on disk;
       // warn once per destination (folder handle + file name + stale set)
@@ -569,13 +590,20 @@ export class SaveManager {
     }
 
     try {
-      const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
-      const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
-      if (failed > 0) {
-        Notification.warning(
-          `Saved ${safeFileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
-          6000,
-        );
+      if (imagePaths.length > 0) {
+        const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+        const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths, {
+          // A silent directory re-save targets this same folder. Existing
+          // images are already the source of truth; only new references need
+          // to be copied, avoiding a byte-for-byte rewrite on every Ctrl+S.
+          skipExisting: true,
+        });
+        if (failed > 0) {
+          Notification.warning(
+            `Saved ${safeFileName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+            6000,
+          );
+        }
       }
     } catch (err) {
       // The .md was already written; report the missing images instead of
@@ -586,6 +614,11 @@ export class SaveManager {
         6000,
       );
     }
+
+    // The .md and any new images are on disk. Record the session afterward
+    // so cross-folder saves copy images from the old resolver source before
+    // switching it to the new destination.
+    await this._recordSavedSession(dirHandle, safeFileName, imagePaths);
   }
 
   /**
@@ -639,8 +672,10 @@ export class SaveManager {
     // Primary path when the deck has images: one directory picker writes
     // both the .md file and the images/ sidecar into the same chosen folder,
     // so the relative images/... references always resolve.
-    if (imagePaths.length > 0 && window.showDirectoryPicker) {
-      // Silent re-save: reuse the folder handle from the previous save.
+    if (window.showDirectoryPicker) {
+      // Silent re-save: reuse the folder handle from the previous save. This
+      // also covers image-less decks saved through the directory flow; after
+      // reload their persisted directory handle is the only silent path.
       const savedDir = await this._restoreDeckDir(safeFileName);
       if (savedDir) {
         try {
@@ -652,102 +687,104 @@ export class SaveManager {
         }
       }
 
-      // Fresh destination: let the user pick the file name before the folder.
-      chosenName = await this._promptFileName(safeFileName);
-      let dirHandle;
-      let mdWritten = false;
-      let exists = false;
-      let oldImageNames = new Set();
+      if (imagePaths.length > 0) {
+        // Fresh destination: let the user pick the file name before the folder.
+        chosenName = await this._promptFileName(safeFileName);
+        let dirHandle;
+        let mdWritten = false;
+        let exists = false;
+        let oldImageNames = new Set();
 
-      try {
-        dirHandle = await pickDeckSaveFolder();
-
-        // Restore the native overwrite confirmation the previous single-file
-        // flow provided: if a file with the same name already exists, ask
-        // before replacing it.
         try {
-          await dirHandle.getFileHandle(chosenName);
-          exists = true;
-        } catch (err) {
-          if (err?.name !== "NotFoundError") {
-            console.warn("Failed to check for an existing deck file:", err);
-          }
-          /* new file */
-        }
-        if (exists) {
-          // Remember which images the old deck referenced so cleanup below
-          // only touches this deck's own files, never another deck's images
-          // that happen to share the folder.
+          dirHandle = await pickDeckSaveFolder();
+
+          // Restore the native overwrite confirmation the previous single-file
+          // flow provided: if a file with the same name already exists, ask
+          // before replacing it.
           try {
-            const oldFile = await dirHandle.getFileHandle(chosenName);
-            const oldText = await (await oldFile.getFile()).text();
-            oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
-          } catch {
-            console.warn("Could not read the existing deck file to scope image cleanup.");
+            await dirHandle.getFileHandle(chosenName);
+            exists = true;
+          } catch (err) {
+            if (err?.name !== "NotFoundError") {
+              console.warn("Failed to check for an existing deck file:", err);
+            }
+            /* new file */
           }
-          const overwrite = await Notification.showModal({
-            title: "Overwrite existing file?",
-            message:
-              `A file named "${chosenName}" already exists in this folder. ` +
-              `Overwriting replaces it and removes the previous deck's images that are no longer used.`,
-            type: "warning",
-            blockBackdrop: true,
-            buttons: [
-              { label: "Cancel", resolvesTo: "cancel" },
-              { label: "Overwrite", isPrimary: true, resolvesTo: "ok" },
-            ],
-          });
-          if (overwrite !== "ok") {
-            throw new DOMException("Save cancelled", "AbortError");
+          if (exists) {
+            // Remember which images the old deck referenced so cleanup below
+            // only touches this deck's own files, never another deck's images
+            // that happen to share the folder.
+            try {
+              const oldFile = await dirHandle.getFileHandle(chosenName);
+              const oldText = await (await oldFile.getFile()).text();
+              oldImageNames = new Set(extractImagePaths(oldText).map((p) => p.split("/").pop()));
+            } catch {
+              console.warn("Could not read the existing deck file to scope image cleanup.");
+            }
+            const overwrite = await Notification.showModal({
+              title: "Overwrite existing file?",
+              message:
+                `A file named "${chosenName}" already exists in this folder. ` +
+                `Overwriting replaces it and removes the previous deck's images that are no longer used.`,
+              type: "warning",
+              blockBackdrop: true,
+              buttons: [
+                { label: "Cancel", resolvesTo: "cancel" },
+                { label: "Overwrite", isPrimary: true, resolvesTo: "ok" },
+              ],
+            });
+            if (overwrite !== "ok") {
+              throw new DOMException("Save cancelled", "AbortError");
+            }
           }
+
+          const mdHandle = await dirHandle.getFileHandle(chosenName, { create: true });
+          const mdWritable = await mdHandle.createWritable();
+          await mdWritable.write(markdown);
+          await mdWritable.close();
+          // Keep the reload file-handle registry aligned with the extension-
+          // less stored deck name so reloads re-read from disk (freshness).
+          DeckLoader.fileHandleRegistry.set(chosenName, mdHandle);
+          DeckLoader.fileHandleRegistry.set(chosenName.replace(/\.(md|markdown)$/i, ""), mdHandle);
+          mdWritten = true;
+        } catch (e) {
+          if (e.name === "AbortError") throw e;
+          // Pre-write failure (picker or .md write) — fall through to the
+          // modal warning + simple download below.
         }
 
-        const mdHandle = await dirHandle.getFileHandle(chosenName, { create: true });
-        const mdWritable = await mdHandle.createWritable();
-        await mdWritable.write(markdown);
-        await mdWritable.close();
-        // Keep the reload file-handle registry aligned with the extension-
-        // less stored deck name so reloads re-read from disk (freshness).
-        DeckLoader.fileHandleRegistry.set(chosenName, mdHandle);
-        DeckLoader.fileHandleRegistry.set(chosenName.replace(/\.(md|markdown)$/i, ""), mdHandle);
-        mdWritten = true;
-      } catch (e) {
-        if (e.name === "AbortError") throw e;
-        // Pre-write failure (picker or .md write) — fall through to the
-        // modal warning + simple download below.
-      }
-
-      if (mdWritten) {
-        // The .md is on disk, so the session must point at the new name and
-        // folder even if saving images fails afterwards — otherwise a reload
-        // cannot find the just-saved deck's folder.
-        await this._recordSavedSession(dirHandle, chosenName, imagePaths);
-
-        try {
-          const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
-          // Overwriting an existing deck: drop the previous deck's images
-          // that this deck no longer uses (scoped to the old .md's refs so
-          // other decks sharing the folder are untouched).
-          if (exists) {
-            await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
-          }
-          const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
-          if (failed > 0) {
+        if (mdWritten) {
+          try {
+            if (imagePaths.length > 0) {
+              const sidecarDir = await dirHandle.getDirectoryHandle("images", { create: true });
+              // Overwriting an existing deck: drop the previous deck's images
+              // that this deck no longer uses (scoped to the old .md's refs so
+              // other decks sharing the folder are untouched).
+              if (exists) {
+                await removeStaleImages(sidecarDir, imagePaths, oldImageNames);
+              }
+              const { saved, failed } = await writeImagesToDir(sidecarDir, imagePaths);
+              if (failed > 0) {
+                Notification.warning(
+                  `Saved ${chosenName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+                  6000,
+                );
+              }
+            }
+          } catch (err) {
+            // The .md was already written; report the missing images instead
+            // of prompting for a second save dialog.
+            console.warn("Failed to save images alongside the .md file:", err);
             Notification.warning(
-              `Saved ${chosenName} with ${saved} image(s). ${failed} image(s) could not be saved.`,
+              `${chosenName} was saved, but images could not be saved: ${err?.message || err}`,
               6000,
             );
           }
-        } catch (err) {
-          // The .md was already written; report the missing images instead
-          // of prompting for a second save dialog.
-          console.warn("Failed to save images alongside the .md file:", err);
-          Notification.warning(
-            `${chosenName} was saved, but images could not be saved: ${err?.message || err}`,
-            6000,
-          );
+          // Record after image copying so a cross-folder save still reads
+          // source images through the old directory resolver.
+          await this._recordSavedSession(dirHandle, chosenName, imagePaths);
+          return true;
         }
-        return true;
       }
     }
 
@@ -804,6 +841,7 @@ export class SaveManager {
           DeckLoader.fileHandleRegistry.get(safeFileName.replace(/\.(md|markdown)$/i, ""))
         : null;
       if (existingHandle) {
+        let wroteExistingHandle = false;
         try {
           // The registry is keyed only by file name and survives deck
           // switches (a same-named file opened earlier stays registered),
@@ -825,20 +863,30 @@ export class SaveManager {
           const mdWritable = await existingHandle.createWritable();
           await mdWritable.write(markdown);
           await mdWritable.close();
-          // Mirror the picker branch's session bookkeeping so a locally
-          // written deck is never treated as server-backed on the next save
-          // (the stored name also feeds the reload handle lookup).
-          const writtenName = existingHandle.name;
-          localStorage.setItem(
-            "webdeck_local_file_name",
-            writtenName.replace(/\.(md|markdown)$/i, ""),
-          );
-          localStorage.setItem("webdeck_opened_from_picker", "1");
-          return true;
+          wroteExistingHandle = true;
         } catch (err) {
           // Handle missing, stale, or no longer writable — fall through to
           // the picker so the user always sees the target file.
           console.warn("Silent .md re-save failed, prompting for a file:", err);
+        }
+
+        if (wroteExistingHandle) {
+          // Mirror the picker branch's session bookkeeping so a locally
+          // written deck is never treated as server-backed on the next save
+          // (the stored name also feeds the reload handle lookup).
+          try {
+            const writtenName = existingHandle.name;
+            localStorage.setItem(
+              "webdeck_local_file_name",
+              writtenName.replace(/\.(md|markdown)$/i, ""),
+            );
+            localStorage.setItem("webdeck_opened_from_picker", "1");
+          } catch (err) {
+            // The file was already written. Bookkeeping failure must not
+            // cause a second write through the picker.
+            console.warn("Saved .md file but failed to update save state:", err);
+          }
+          return true;
         }
       }
 
