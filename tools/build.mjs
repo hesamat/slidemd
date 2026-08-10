@@ -7,7 +7,6 @@ const root = process.cwd();
 const distDir = path.join(root, "dist");
 const inIndex = path.join(root, "index.html");
 const inCss = path.join(root, "styles.css");
-const inJs = path.join(root, "deck.js");
 const prismCssPath = path.join(root, "node_modules", "prismjs", "themes", "prism.css");
 
 const args = process.argv.slice(2);
@@ -125,7 +124,7 @@ function inlineKatexFonts(cssText) {
     if (!cssText) return cssText;
 
     // katex.min.css uses url(fonts/<file>) relative references.
-    return cssText.replace(/url\((?:'|")?fonts\/([^'"\)]+)(?:'|")?\)/g, (match, fileName) => {
+    return cssText.replace(/url\((?:'|")?fonts\/([^'")]+)(?:'|")?\)/g, (match, fileName) => {
         const abs = path.join(root, "node_modules", "katex", "dist", "fonts", fileName);
         if (!fs.existsSync(abs)) return match;
         const mime = fontMimeForExt(path.extname(fileName));
@@ -309,12 +308,10 @@ if (fs.existsSync(prismCssPath)) {
         // keep going without prism theme
     }
 }
-const js = fs.readFileSync(inJs, "utf8");
 
 // Load and parse the deck (.md file with optional images/ directory)
 let deck;
 let embeddedImages = null;
-const ext = path.extname(inDeck).toLowerCase();
 
 const deckMd = fs.readFileSync(inDeck, "utf8");
 deck = parseDeckMarkdown(deckMd);
@@ -457,7 +454,7 @@ function prismDependencies(component) {
 
 function detectPrismComponentsFromDeck(htmlText) {
     const langs = [];
-    const re = /(?:lang|language)-([a-zA-Z0-9_+\-]+)/g;
+    const re = /(?:lang|language)-([a-zA-Z0-9_+-]+)/g;
     let m;
     while ((m = re.exec(htmlText))) {
         const comp = prismComponentForLang(m[1]);
@@ -624,7 +621,6 @@ function removeElementById(htmlText, elementId) {
 
             if (nextClose === -1) {
                 // No closing tag found, skip this element
-                depth = 0;
                 break;
             }
 

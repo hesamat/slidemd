@@ -66,7 +66,8 @@ try {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("Executable doesn't exist") || message.includes("executable doesn't exist")) {
         throw new Error(
-            `${message}\n\nPlaywright Chromium is not installed. Run: npx playwright install chromium\nThen re-run: npm run pdf`
+            `${message}\n\nPlaywright Chromium is not installed. Run: npx playwright install chromium\nThen re-run: npm run pdf`,
+            { cause: err },
         );
     }
 
@@ -113,6 +114,9 @@ try {
 // but PDF needs all slides to be highlighted.
 // Also need to render Mermaid diagrams and remove emojis for PDF.js compatibility.
 console.log("Enhancing all slides for PDF output...");
+// ContentEnhancer is a browser global exposed by the rendered deck page; the
+// evaluate callback below runs in the page context, not Node.
+/* global ContentEnhancer */
 const enhancementAvailable = await page.evaluate(async () => {
     const slides = Array.from(document.querySelectorAll('.slide'));
 
