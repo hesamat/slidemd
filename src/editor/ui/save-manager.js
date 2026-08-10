@@ -515,8 +515,13 @@ export class SaveManager {
       "Choose a file name for the saved deck.",
       { defaultValue: currentName, placeholder: "deck.md" },
     );
-    if (!chosen.ok || !chosen.value.trim()) {
+    if (!chosen.ok) {
       throw new DOMException("Save cancelled", "AbortError");
+    }
+    if (!chosen.value.trim()) {
+      // Keep the suggested name when the user clears the input and presses
+      // OK — silently aborting with no feedback is unfriendly.
+      return currentName;
     }
     const cleaned = sanitizeFileName(chosen.value.trim(), currentName);
     return /\.(md|markdown)$/i.test(cleaned) ? cleaned : `${cleaned}.md`;
@@ -529,7 +534,7 @@ export class SaveManager {
    * @param {FileSystemDirectoryHandle} dirHandle
    * @param {string} safeFileName
    * @param {string} markdown
-   * @param {string[]} directoryRefs — all image references used by the deck
+   * @param {string[]} imagePaths — `images/...` paths to write into the sidecar
    * @returns {Promise<void>}
    */
   async _writeDeckToDir(dirHandle, safeFileName, markdown, imagePaths) {
@@ -628,7 +633,7 @@ export class SaveManager {
    * handle registry at the new location.
    * @param {FileSystemDirectoryHandle} dirHandle
    * @param {string} safeFileName
-   * @param {string[]} imagePaths
+   * @param {string[]} directoryRefs — broad `images/...` references for the image resolver
    * @returns {Promise<void>}
    */
   async _recordSavedSession(dirHandle, safeFileName, directoryRefs) {

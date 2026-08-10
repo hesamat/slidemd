@@ -220,9 +220,16 @@ export class KeyboardHandler {
     // embedded iframes where there is nothing to save.
     const globalAction = this.#findModifierAction(e, KeyboardHandler.#GLOBAL_ACTIONS);
     // Preserve CodeMirror's editor behavior, but keep Ctrl+S suppressed in
-    // every other app input. Otherwise the browser's Save Page dialog can
-    // appear over the save-name prompt or another app modal.
-    if (globalAction === "save" && isEditable && !inCodeMirror) {
+    // every other app input when an editor exists. This prevents the
+    // browser's Save Page dialog from appearing over the save-name prompt
+    // or another app modal. In exported/embedded decks (no editor wired),
+    // the browser's save is the only useful behavior.
+    if (
+      globalAction === "save" &&
+      isEditable &&
+      !inCodeMirror &&
+      window.__WEBDECK_EDIT_CONTROLLER__
+    ) {
       e.preventDefault();
       return;
     }

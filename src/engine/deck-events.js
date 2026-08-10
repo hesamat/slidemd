@@ -57,7 +57,6 @@ export class DeckEvents {
     breakManager,
     freezeManager,
     reloadManager,
-    isEditMode,
   }) {
     this._elements = elements;
     this._handleKeyboard = handleKeyboard;
@@ -81,7 +80,6 @@ export class DeckEvents {
     this._breakManager = breakManager;
     this._freezeManager = freezeManager;
     this._reloadManager = reloadManager;
-    this._isEditMode = isEditMode;
 
     // Store bound handlers for cleanup
     this._boundHandlers = [];
