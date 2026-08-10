@@ -217,6 +217,7 @@ body[data-edit-mode="true"] .slide[data-has-borders] .slide__area {
   justify-content: center;
   align-items: center;
   text-align: left;
+  --line-max: none;
 }
 
 .slide[data-layout="focus"] .slide__area--main p,
@@ -1470,4 +1471,27 @@ body[data-edit-mode="true"] .slide__area .text-block[contenteditable="true"] {
   cursor: text;
   outline: 2px solid var(--accent);
   user-select: text;
+}
+
+@keyframes text-block-pulse {
+  0% {
+    box-shadow:
+      0 0 0 4px rgba(2, 132, 199, 0.5),
+      0 0 16px 4px rgba(2, 132, 199, 0.3);
+  }
+  60% {
+    box-shadow:
+      0 0 0 4px rgba(2, 132, 199, 0.25),
+      0 0 12px 2px rgba(2, 132, 199, 0.15);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 0 0 transparent;
+  }
+}
+
+body[data-edit-mode="true"] .slide__area .text-block--just-inserted {
+  animation: text-block-pulse 2.5s ease-out forwards;
+  border-radius: 4px;
 }
