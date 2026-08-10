@@ -245,7 +245,7 @@ export class WholeDeckOrchestrator {
         if (signal?.aborted) return;
         const batch = queue.shift();
 
-        const batchResult = await this.processBatch({
+        const batchResult = await this.#processBatch({
           markdown: context,
           allSlides,
           batch,
@@ -396,7 +396,7 @@ export class WholeDeckOrchestrator {
    * @param {object} params
    * @returns {Promise<{slides: Array, duration: number}|{error: object}|null>}
    */
-  async processBatch({
+  async #processBatch({
     markdown,
     allSlides,
     batch,

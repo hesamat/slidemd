@@ -111,7 +111,6 @@ export class EditController {
         this._pendingStructuralOperations = v;
       },
     });
-    this._offStoreChange = this.storeSync.subscribe();
 
     // Editor buffer module. Owns slide loading, editor-to-overlay capture,
     // input handling, and the per-slide EditorState cache lifecycle.
@@ -182,6 +181,11 @@ export class EditController {
     this._offStructuralChange = this.deckStore?.onStructuralChange(() =>
       this.markdownEditor?.clearSlideStateCache(),
     );
+
+    // Subscribe to store changes last, after all sub-controllers exist.
+    // Every cross-reference is a lazy getter, but subscribing earlier
+    // would be a hazard if onStoreChange ever replayed state synchronously.
+    this._offStoreChange = this.storeSync.subscribe();
 
     this._onSlideChange = () => {
       this.currentSlideIndex = this.controller.slideNavigator.currentIndex;

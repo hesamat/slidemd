@@ -475,7 +475,10 @@ describe("Editor undo regression suite", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       // The restore path calls reloadManager.replaceDeck; suppression should
-      // prevent that call entirely.
+      // prevent that call entirely. The companion positive test below
+      // asserts replaceDeck *was* called, proving the restore chain itself
+      // doesn't throw — so a pass here cannot be explained by a swallowed
+      // error in restoreStoreSnapshot.
       expect(replaceDeck).not.toHaveBeenCalled();
     });
 

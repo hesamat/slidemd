@@ -10,6 +10,7 @@
 import { splitSlides } from "../markdown-parser.js";
 import { parseAllImages } from "../image-markdown-parser.js";
 import { estimateTotalImageTokens } from "./ai-vision-message.js";
+import { Logger } from "../../core/logger.js";
 
 /**
  * Extract background image URLs from a slide's `background:` directive.
@@ -197,6 +198,15 @@ export async function extractAll(markdown, resolveSrc = (src) => Promise.resolve
         srcs.map(async (src) => {
           // Resolve images/ paths to URLs the browser can fetch
           const resolved = await resolveSrc(src);
+          // Warn when a relative images/ path was not resolved (caller
+          // forgot to inject a resolver) — compressImage will fail to
+          // fetch it and silently return null, degrading vision to
+          // text-only with no explanation.
+          if (src.startsWith("images/") && resolved === src) {
+            Logger.warn(
+              `extractAll: relative image "${src}" was not resolved — pass a resolveSrc callback`,
+            );
+          }
           const dataUrl = await compressImage(resolved);
           return dataUrl ? { src, dataUrl } : null;
         }),
