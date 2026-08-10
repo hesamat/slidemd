@@ -569,12 +569,13 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ### Developer Experience
 
-| Task                                | Details                                                                                                                                                               |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. |
-| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                             |
-| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                   |
-| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                              |
+| Task                                | Details                                                                                                                                                                                                                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths.                                                                                                  |
+| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                                                                                                                              |
+| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                                                                                                                    |
+| [ ] Add `docs/ai-positioning.md`    | Document what the AI does (enhance, fix, remix, reimagine, speaker notes) vs. what the tool does (deterministic rendering, layout validation, export). Clarify the boundary for users and external AI agents. Complements `AGENTS.md` which targets coding assistants. |
+| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                                                                                                                               |
 
 ---
 
@@ -584,19 +585,23 @@ Goal: Centralize tokens, themes, and layout governance for consistent and predic
 
 ### Tokens & Themes
 
-| Task                            | Details                                                             |
-| ------------------------------- | ------------------------------------------------------------------- |
-| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.    |
-| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.       |
-| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry. |
+| Task                            | Details                                                                                                                                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.                                                                                                                                                                                    |
+| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.                                                                                                                                                                                       |
+| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry.                                                                                                                                                                                 |
+| [ ] Add `@import` directive     | Support `@import[theme.yaml]` for shared theme tokens and `@import[slides/section.md]` for reusable slide fragments. Recursive resolution, YAML merge into frontmatter, markdown splice into slide array. Enables repo-native multi-deck workflows. |
 
 ### Layout Governance
 
-| Task                           | Details                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------- |
-| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry. |
-| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.  |
-| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.               |
+| Task                           | Details                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry.                                       |
+| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.                                        |
+| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.                                                     |
+| [ ] Validate image paths       | Warn on unresolved `![...](images/...)` references in `SlideWarningManager` in real time.                           |
+| [ ] Detect empty slides        | Warn when a slide has no content areas filled, surfaced in `SlideWarningManager`.                                   |
+| [ ] Consolidate diagnostics    | Surface all layout, area, image-path, and empty-slide warnings through the existing `SlideWarningManager` pipeline. |
 
 ### Brand Defaults
 
@@ -626,11 +631,12 @@ Goal: Build out the presenter experience, simplify print/PDF preparation, and ex
 
 ### Print & PDF
 
-| Task                                    | Details                                                                       |
-| --------------------------------------- | ----------------------------------------------------------------------------- |
-| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                |
-| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`. |
-| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                       |
+| Task                                    | Details                                                                                                                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add `PrintAdapter`                  | Single DOM preparation path for print and PDF.                                                                                                                                                        |
+| [ ] Unify Mermaid/Prism/KaTeX rendering | One `ContentEnhancer` path used by runtime, HTML export, and `tools/pdf.mjs`.                                                                                                                         |
+| [ ] Support speaker notes in PDF        | Optional page-per-slide or notes section in PDF output.                                                                                                                                               |
+| [ ] Add per-slide PNG export            | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Reuses the same `PrintAdapter` DOM preparation path. Useful for README embeds, visual QA, and regression diffing. |
 
 ### Contextual AI Commands
 
@@ -659,12 +665,13 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ### User-Facing Open Deck Workflow
 
-| Task                           | Details                                                             |
-| ------------------------------ | ------------------------------------------------------------------- |
-| [ ] Terminal (primary)         | `node tools/dev-server.mjs path/to/slides.md` opens browser         |
-| [ ] `GET /api/browse` endpoint | Browse local `.md` or `.textpack` paths from browser UI             |
-| [ ] Open Deck modal            | Path input or directory browser for switching decks without restart |
-| [ ] Drag-and-drop `.textpack`  | Unpack in-memory/temp storage on browser canvas                     |
+| Task                           | Details                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Terminal (primary)         | `node tools/dev-server.mjs path/to/slides.md` opens browser                                                                                                                                |
+| [ ] `--init` scaffold flag     | `node tools/dev-server.mjs --init [path]` creates a starter `slides.md` + `images/` folder with a chosen template (blank, standard, lecture), mirroring the in-app New Presentation modal. |
+| [ ] `GET /api/browse` endpoint | Browse local `.md` or `.textpack` paths from browser UI                                                                                                                                    |
+| [ ] Open Deck modal            | Path input or directory browser for switching decks without restart                                                                                                                        |
+| [ ] Drag-and-drop `.textpack`  | Unpack in-memory/temp storage on browser canvas                                                                                                                                            |
 
 ### User-Facing Save Deck Workflow
 
