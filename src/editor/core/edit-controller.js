@@ -575,6 +575,9 @@ export class EditController {
 
       this.loadSlideIntoEditor();
     } else {
+      // Flush the pending debounced editor buffer so the last keystrokes
+      // are captured before the editor becomes inactive.
+      this._captureCurrentEditorMarkdown();
       this.elements.editorPanel?.classList.add("webdeck-hidden");
       this.elements.toggleEditModeBtn.classList.remove("active");
       if (this.elements.toggleEditModeLabel) this.elements.toggleEditModeLabel.textContent = "Edit";

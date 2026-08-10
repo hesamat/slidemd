@@ -191,7 +191,8 @@ export class SaveManager {
     // Destinations already warned about kept (stale) images this session,
     // keyed by the folder handle object (identity, not basename — two
     // distinct folders with the same name must not share a warning key).
-    this._staleWarnedDestinations = new Map();
+    // WeakMap ensures folder handles are not kept alive longer than needed.
+    this._staleWarnedDestinations = new WeakMap();
   }
 
   get deck() {
@@ -339,11 +340,16 @@ export class SaveManager {
    * @param {string} fullMarkdown
    */
   _markSaved(fullMarkdown) {
+    // Always update the source baseline so that the file-on-disk state
+    // stays in sync with what was just written — this keeps the handle
+    // identity check correct on the next silent .md re-save. Only the
+    // dirty-flag and overlay clearing are gated on whether the deck
+    // changed during the save.
+    this._setSourceMarkdown?.(fullMarkdown);
+    this._onSaveStateReset?.();
     if (this._currentFullMarkdown() !== fullMarkdown) return;
     this.unsavedMarkdown.clear();
     this.hasUnsavedChanges = false;
-    this._onSaveStateReset?.();
-    this._setSourceMarkdown?.(fullMarkdown);
     this.updateButton();
   }
 
