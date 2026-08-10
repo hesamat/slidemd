@@ -366,10 +366,13 @@ export function buildSingleColumnCustomLayout(baseLayout, width, align, rowSizes
 
   let w = Math.min(100, Math.max(0, Number(width) || 0)) / 100;
   // Return the preset name when the requested width/align matches what
-  // the preset actually renders.  This avoids directive churn on no-op
-  // interactions (e.g. re-centering an already-centered focus slide).
+  // the preset actually renders AND no custom row sizes were supplied.
+  // This avoids directive churn on no-op interactions (e.g. re-centering
+  // an already-centered focus slide) while preserving hand-tuned row heights.
   const presetParsed = parseSingleColumnLayout(base);
+  const hasCustomRowSizes = String(rowSizes || "").trim().length > 0;
   if (
+    !hasCustomRowSizes &&
     presetParsed &&
     presetParsed.align === align &&
     presetParsed.width === Math.round(Number(width) || 0)

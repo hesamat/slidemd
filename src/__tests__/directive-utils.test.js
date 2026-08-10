@@ -125,6 +125,12 @@ describe("single-column layout helpers", () => {
     expect(buildSingleColumnCustomLayout("focus", 70, "center")).toBe("focus");
   });
 
+  it("emits an explicit grid when custom row sizes are supplied, even at matching width", () => {
+    const result = buildSingleColumnCustomLayout("focus", 70, "center", "0.2fr 1fr 0.08fr");
+    expect(result).not.toBe("focus");
+    expect(result).toContain("0.2fr");
+  });
+
   it("emits an explicit full-width grid for focus at 100% (preset renders at 70%)", () => {
     const result = buildSingleColumnCustomLayout("focus", 100, "center");
     expect(result).not.toBe("focus");
