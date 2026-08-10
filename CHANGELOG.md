@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.9.2 (Unreleased)
+
+### Silent Re-Save
+
+- **Silent directory re-save** — `SaveManager._restoreDeckDir` reuses the in-memory or IndexedDB directory handle when Chromium still grants readwrite permission (requesting it when needed after a reload); `_writeDeckToDir` writes the `.md` and any new images without prompting; `_recordSavedSession` keeps the session state pointing at the new location.
+- **Silent file-handle re-save** — the `.md`-only path reuses `DeckLoader.fileHandleRegistry` entries when the on-disk content matches the source baseline, so image-less decks saved through a file picker also get silent re-save.
+- **File-name chooser** — `Notification.prompt` shows a single-input modal for the deck name on fresh saves; clearing the input and pressing OK falls back to the suggested name.
+- **Re-entrancy guard** — `save()` dedupes concurrent invocations so a second Ctrl+S while a prompt is open cannot stack another modal or start a parallel write.
+
+### Global Ctrl+S
+
+- **Global Ctrl+S** — the shortcut binding is now `global: true`; the browser's save dialog never appears in any editor window. In exported decks or embedded iframes the browser's native save is preserved. Ctrl+S is suppressed in non-CodeMirror text inputs to prevent the browser Save Page dialog from appearing over the save-name prompt.
+- **Menu / palette save outside edit mode** — the menu save button, command palette entry, and Ctrl+S shortcut all save whenever an editor exists (edit mode on or off).
+
+### Save-Flow Hardening
+
+- **Handle identity check** — silent `.md`-only re-save verifies the registered handle's content matches the deck's source baseline before writing; a stale same-named handle falls through to the native picker.
+- **Directory handle verification** — `_restoreDeckDir` applies the same source-baseline content check to stored IndexedDB handles, preventing a handle from a different same-named deck from silently overwriting files.
+- **No unconfirmed image deletion** — `_writeDeckToDir` never deletes images the deck no longer references; instead it warns (once per destination) about stale files kept in the folder. Deletion only happens in the confirmed overwrite flow.
+- **Duplicate IndexedDB key dedup** — `_restoreDeckDir` skips stored candidates that map to the same IndexedDB key, avoiding a redundant permission prompt.
+- **Cross-folder image copy ordering** — `_recordSavedSession` now runs after image copying so the resolver still reads source images from the old folder when copying to a new destination.
+- **Same-folder image write optimization** — silent directory re-saves skip rewriting images that already exist in the sidecar, avoiding byte-for-byte rewrites on every Ctrl+S.
+- **Stale-image warning accuracy** — the warning enumerates the `images/` sidecar and counts only files that actually exist on disk.
+- **WeakMap for warned destinations** — folder handles are not held alive longer than needed.
+- **Session bookkeeping in `.md`-only path** — the file-handle branch now records the written name and picker flag, matching the directory flow.
+- **Image-less decks after reload** — `_restoreDeckDir` is now consulted for all decks (not just those with images), so image-less decks saved through the directory flow get silent re-save after reload.
+
+### Editor Behaviour
+
+- **Buffer flush on exit** — `toggleEditMode`'s exit branch flushes the pending debounced editor buffer and cancels the timer, closing the sub-300 ms window where the last keystrokes could be lost on an immediate Ctrl+S.
+- **Dirty flag kept on exit** — leaving edit mode no longer resets the dirty flag; edits stay live, consistent with the save-anywhere rule.
+- **Source baseline always updated** — `_markSaved` updates the source snapshot and resets the structural-operation counter unconditionally, even when the dirty guard trips, so the handle identity check stays correct.
+- **Layer 0 exception safety** — global keyboard actions are wrapped in try/catch so an exception does not let the browser default through unexpectedly.
+- **Unused `isEditMode` removed** — the `DeckEvents` constructor no longer carries an unused edit-mode dependency.
+
+### UI / Styling
+
+- **Dark-mode readable input** — the save-dialog file-name input uses the themed `--surface-bg` variable instead of a hardcoded near-white background.
+- **Escape on Cancel works** — the file-name prompt's key handler is document-scoped so Escape dismisses the dialog even after a click moves focus out of the modal. Enter only confirms when it originates from the text input; buttons keep native activation.
+- **Empty name prompt falls back** — clearing the file-name input and pressing OK now keeps the suggested name instead of silently aborting.
+
+### Testing
+
+- Total tests now **1107**.
+
 ## 0.9.1 (Unreleased)
 
 ### Whole-Deck Modes (Polish, Remix, Reimagine)
