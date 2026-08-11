@@ -95,11 +95,69 @@
   color: var(--text-medium, #6b7280);
 }
 
-.ai-reimagine-outline-modal__plan-text {
-  margin: 0;
+.ai-reimagine-outline-modal__plan-input {
+  width: 100%;
+  min-height: 70px;
+  padding: 8px 10px;
+  font-family: inherit;
   font-size: 14px;
   line-height: 1.55;
   color: var(--text-high, #111827);
+  background: var(--surface-high, #ffffff);
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ai-reimagine-outline-modal__plan-input:focus {
+  outline: none;
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* ── Visual system summary ── */
+.ai-reimagine-outline-modal__visual-system {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-reimagine-outline-modal__swatches {
+  display: flex;
+  gap: 4px;
+}
+
+.ai-reimagine-outline-modal__swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+}
+
+.ai-reimagine-outline-modal__palette-select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
+  border-radius: 4px;
+  background: var(--surface-high, #ffffff);
+  color: var(--text-high, #111827);
+  cursor: pointer;
+}
+
+.ai-reimagine-outline-modal__palette-select:focus {
+  outline: none;
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ai-reimagine-outline-modal__visual-system-detail {
+  font-size: 12px;
+  color: var(--text-medium, #4b5563);
+  line-height: 1.4;
 }
 
 .ai-reimagine-outline-modal__stats {
@@ -268,7 +326,7 @@
   background: transparent;
   box-sizing: border-box;
   resize: vertical;
-  min-height: 60px;
+  min-height: 110px;
   line-height: 1.5;
   transition:
     background 0.15s ease,

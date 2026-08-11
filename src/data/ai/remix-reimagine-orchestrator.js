@@ -23,11 +23,14 @@ import {
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
+  serializeVisualSystemForBreakdown,
 } from "./ai-prompt-fragments.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAllImages } from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
+import { parseVisualSystem } from "./visual-system-schema.js";
+import { normalizeBeats } from "./beat-normalizer.js";
 
 /**
  * @typedef {Object} ReimagineOutlineChapter
@@ -41,12 +44,18 @@ import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
  * @typedef {Object} ReimagineOutline
  * @property {string} plan
  * @property {ReimagineOutlineChapter[]} chapters
+ * @property {import("./visual-system-schema.js").VisualSystem|null} visualSystem
  */
 
 /**
  * @typedef {Object} ReimagineBreakdownSlide
  * @property {string} title
  * @property {string} intent
+ * @property {('continuation'|'transition'|'punctuation'|'emotional'|'divider')} visualBeat
+ * @property {('low'|'medium'|'high')} energy
+ * @property {('subtle'|'moderate'|'strong')} contrast
+ * @property {('continue'|'break')} relationship
+ * @property {string} [imageQuery]
  */
 
 /**
@@ -335,10 +344,16 @@ export class RemixReimagineOrchestrator {
 
     // ── Phase 4: Execute via existing single-call/batched path ──
     // Clear mode so the inner call doesn't recurse into the reimagine flow.
+    // Pass the visual system through so the generate prompt receives the
+    // design language + beat→treatment mapping via the options suffix.
     const execOp = {
       ...operation,
       context: virtualDeck,
-      opts: { ...operation.opts, mode: undefined },
+      opts: {
+        ...operation.opts,
+        mode: undefined,
+        visualSystem: editedOutline.visualSystem ?? null,
+      },
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
 
@@ -392,14 +407,16 @@ export class RemixReimagineOrchestrator {
         summary: ch.summary || "",
         suggestedSlideCount: ch.suggestedSlideCount || 1,
       })),
+      visualSystem: outline.visualSystem ?? null,
     };
   }
 
   /**
    * Flatten a breakdown (chapters with slide briefs) into virtual slide briefs.
-   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) -->`.
+   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) | beat: {visualBeat}, energy: {energy}, contrast: {contrast}, relationship: {relationship} -->`.
    * Slides with no title or intent fall back to their chapter context, and
-   * slides with no context at all are dropped.
+   * slides with no context at all are dropped. `imageQuery` is stored on the
+   * virtual slide metadata but not included in the serialized brief.
    * @param {ReimagineOutline} outline — the finalized outline (for chapter context)
    * @param {ReimagineBreakdownChapter[]} breakdown — the breakdown with slide briefs
    * @returns {string[]}
@@ -425,10 +442,24 @@ export class RemixReimagineOrchestrator {
             ? `${brief} (chapter: ${chapterContext})`
             : brief
           : chapterContext;
-        slides.push(`<!-- brief: ${text} -->`);
+        const beatSuffix = this.#formatBeatSuffix(slide);
+        slides.push(`<!-- brief: ${text}${beatSuffix} -->`);
       }
     }
     return slides;
+  }
+
+  /**
+   * Format the beat metadata as a `| beat: ...` suffix for the brief comment.
+   * @param {ReimagineBreakdownSlide} slide
+   * @returns {string}
+   */
+  #formatBeatSuffix(slide) {
+    const beat = slide.visualBeat || "continuation";
+    const energy = slide.energy || "medium";
+    const contrast = slide.contrast || "moderate";
+    const relationship = slide.relationship || "continue";
+    return ` | beat: ${beat}, energy: ${energy}, contrast: ${contrast}, relationship: ${relationship}`;
   }
 
   /**
@@ -589,9 +620,14 @@ export class RemixReimagineOrchestrator {
       };
     });
 
+    // Best-effort visualSystem parse: fall back to DEFAULT_VISUAL_SYSTEM if
+    // missing or invalid. Outline validation (plan/chapters) still throws.
+    const visualSystem = parseVisualSystem(parsed.visualSystem);
+
     return {
       plan: parsed.plan,
       chapters,
+      visualSystem,
     };
   }
 
@@ -616,10 +652,12 @@ export class RemixReimagineOrchestrator {
       })),
     });
 
+    const visualSystemInput = serializeVisualSystemForBreakdown(outline.visualSystem);
+
     const { system, user } = composeMessages(
       getFragment("system-prompt.md"),
       getFragment("reimagine-breakdown-prompt.md"),
-      { chapters: chaptersInput },
+      { chapters: chaptersInput, visualSystem: visualSystemInput },
     );
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";
@@ -715,10 +753,24 @@ export class RemixReimagineOrchestrator {
         if (typeof s.title !== "string" || typeof s.intent !== "string") {
           throw new Error(`Breakdown chapter ${i} slide ${j} missing 'title' or 'intent' string`);
         }
-        return { title: s.title, intent: s.intent };
+        return {
+          title: s.title,
+          intent: s.intent,
+          visualBeat: typeof s.visualBeat === "string" ? s.visualBeat : "continuation",
+          energy: typeof s.energy === "string" ? s.energy : "medium",
+          contrast: typeof s.contrast === "string" ? s.contrast : "moderate",
+          relationship: typeof s.relationship === "string" ? s.relationship : "continue",
+          ...(typeof s.imageQuery === "string" && s.imageQuery.trim()
+            ? { imageQuery: s.imageQuery.trim() }
+            : {}),
+        };
       });
       return { title: ch.title, slides };
     });
+
+    // Normalize beats across the entire deck (flatten, normalize, re-nest).
+    const allSlides = chapters.flatMap((ch) => ch.slides);
+    normalizeBeats(allSlides);
 
     return { chapters };
   }

@@ -571,7 +571,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain(
-        "<!-- brief: Hook \u2014 Open with a statistic. (chapter: Rewritten chapter \u2014 Rewritten summary.) -->",
+        "<!-- brief: Hook \u2014 Open with a statistic. (chapter: Rewritten chapter \u2014 Rewritten summary.) | beat: continuation, energy: medium, contrast: moderate, relationship: continue -->",
       );
     });
 
@@ -752,6 +752,197 @@ describe("AiOrchestrator", () => {
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
         "Breakdown has 1 chapters, expected 2",
       );
+    });
+
+    it("reimagine threads visualSystem from outline through breakdown to generate", async () => {
+      const visualSystem = {
+        palette: {
+          base: "#1a1a2e",
+          surface: "#16213e",
+          accent: "#e94560",
+          contrast: "#0f3460",
+          highlight: "#ffffff",
+        },
+        typography: { character: "cinematic", headline: "bold", body: "clean" },
+        composition: { density: "spacious", whitespace: "expansive", alignment: "centered" },
+        imagery: { role: "atmospheric", mood: "dramatic", treatment: "full-bleed" },
+        motifs: ["red accent lines"],
+        contrastRules: ["Use white slides for key reveals"],
+      };
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        visualSystem,
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                visualBeat: "punctuation",
+                energy: "high",
+                contrast: "strong",
+                relationship: "break",
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      // visualSystem is passed through the onOutline callback
+      expect(outlines).toHaveLength(1);
+      expect(outlines[0].visualSystem).not.toBeNull();
+      expect(outlines[0].visualSystem.palette.base).toBe("#1a1a2e");
+      expect(outlines[0].visualSystem.palette.accent).toBe("#e94560");
+
+      // Breakdown prompt receives the visual system
+      const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(breakdownUser).toContain("#1a1a2e");
+      expect(breakdownUser).toContain("cinematic");
+
+      // Generate prompt receives the visual system brief
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain("Visual system");
+      expect(execUser).toContain("#1a1a2e");
+      expect(execUser).toContain("beat:");
+      expect(execUser).toContain("punctuation");
+
+      // Brief includes the beat suffix (punctuation on slide 1 is normalized
+      // to continuation by the beat normalizer)
+      expect(execUser).toContain(
+        "| beat: continuation, energy: high, contrast: strong, relationship: break",
+      );
+    });
+
+    it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when outline omits visualSystem", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      // Falls back to default visual system
+      expect(outlines[0].visualSystem).not.toBeNull();
+      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+
+      // Generate prompt still receives the visual system brief (from default)
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain("Visual system");
+      expect(execUser).toContain("#0f172a");
+    });
+
+    it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        visualSystem: { palette: { base: "not-a-hex" } },
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+    });
+
+    it("reimagine includes imageQuery in breakdown parse but not in brief serialization", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                imageQuery: "stormy ocean dark moody",
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await orchestrator.runWholeDeckOperation(op);
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      // imageQuery should NOT appear in the serialized brief
+      expect(execUser).not.toContain("stormy ocean");
+      expect(execUser).not.toContain("imageQuery");
     });
 
     it("throws on invalid plan action", async () => {

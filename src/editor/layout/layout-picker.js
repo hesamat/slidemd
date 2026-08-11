@@ -7,6 +7,7 @@
 import { escapeHtml } from "../../core/utils.js";
 import { LayoutData } from "../../data/layout-data.js";
 import { LayoutParser } from "../../data/layout-parser.js";
+import { modalOpened, modalClosed } from "../ui/modal-state.js";
 
 export class LayoutPicker {
   static modal = null;
@@ -298,6 +299,7 @@ export class LayoutPicker {
 
     this.onSelectCallback = onSelectCallback;
     this.modal.classList.remove("webdeck-hidden");
+    modalOpened();
     this._hideCustomForm();
 
     // Focus first layout option
@@ -311,6 +313,7 @@ export class LayoutPicker {
   static hide() {
     if (this.modal) {
       this.modal.classList.add("webdeck-hidden");
+      modalClosed();
     }
     this._hideCustomForm();
     this.onSelectCallback = null;

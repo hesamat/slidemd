@@ -7,6 +7,7 @@ import {
   getImageOrdinalIndex,
   isMediaSpanFillImage,
 } from "./image-markdown-utils.js";
+import { modalOpened, modalClosed } from "../ui/modal-state.js";
 
 /**
  * ImagePropertiesPanel
@@ -71,6 +72,7 @@ export class ImagePropertiesPanel {
     this._syncFixedSizeUI();
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
+    modalOpened();
 
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
@@ -95,7 +97,10 @@ export class ImagePropertiesPanel {
   }
 
   static hide() {
-    if (this.el) this.el.classList.add("webdeck-hidden");
+    if (this.el) {
+      this.el.classList.add("webdeck-hidden");
+      modalClosed();
+    }
   }
 
   static isVisible() {

@@ -12,11 +12,56 @@ The presentation flow is **{{flow}}**. Choose storytelling techniques that fit t
 - **Cause → Effect** — trace consequences from a root cause.
 - **Layered reveal** — start simple, add complexity layer by layer.
 
+## Visual system
+
+Alongside the narrative outline, design a **visual system** — a deck-wide design language that defines the visual identity of the presentation. This is not a slide-by-slide progression. Do not design a linear "slide 1 dark, slide 2 slightly lighter" ramp. Instead, define a **grammar** with:
+
+- A palette of 5 colors with distinct roles (base, surface, accent, contrast, highlight).
+- Typography character (the personality of the type), headline style, and body style.
+- Composition preferences: density, whitespace, alignment.
+- Imagery: what role images play, their mood, and how they should be treated.
+- Recurring motifs (visual elements that create cohesion across slides).
+- Contrast rules (when and how to deliberately break the visual pattern for emphasis).
+
+The visual system is a **design language**, not a progression. The same deck may have a dark slide right after a light slide because the content demands contrast, not because the deck is "progressing" from dark to light.
+
 Output format:
 
 ```json
 {
   "plan": "1-3 sentence statement of the deck's core message, the fresh editorial angle, and the narrative structure you chose (e.g. 'Reframe the deck around outcomes. Open with historical context, build tension around the current gap, present the approach with evidence, close with a call to action.').",
+  "visualSystem": {
+    "palette": {
+      "base": "#0f172a",
+      "surface": "#1e293b",
+      "accent": "#06b6d4",
+      "contrast": "#f59e0b",
+      "highlight": "#ffffff"
+    },
+    "typography": {
+      "character": "bold editorial",
+      "headline": "large, compact, high contrast",
+      "body": "clean, restrained"
+    },
+    "composition": {
+      "density": "medium",
+      "whitespace": "generous",
+      "alignment": "left-dominant"
+    },
+    "imagery": {
+      "role": "emotional punctuation and chapter transitions",
+      "mood": "moody, atmospheric",
+      "treatment": "full-bleed, minimal overlays"
+    },
+    "motifs": [
+      "thin accent divider lines between chapters",
+      "oversized chapter numbers in accent color"
+    ],
+    "contrastRules": [
+      "Use stark white slides for major takeaways",
+      "Avoid more than 3 consecutive visually identical slides"
+    ]
+  },
   "chapters": [
     {
       "title": "Where we were",
@@ -38,6 +83,19 @@ Rules:
 
 - Return only valid JSON. No explanations, markdown fences, or surrounding text.
 - `plan` — 1-3 sentences combining: the deck's core message, the fresh angle you propose, and the narrative structure you chose with a brief justification.
+- `visualSystem` — the deck-wide visual design language:
+  - `palette` — 5 hex colors (`#rrggbb`):
+    - `base` — primary background color.
+    - `surface` — secondary background (cards, panels, slightly elevated from base).
+    - `accent` — the main highlight color for emphasis and interactive elements.
+    - `contrast` — a secondary accent for deliberate visual contrast.
+    - `highlight` — the lightest color (often white or near-white) for inversion/punctuation slides.
+  - `typography` — `character` (1-3 word personality description), `headline` (style description), `body` (style description).
+  - `composition` — `density` (`compact` | `medium` | `spacious`), `whitespace` (`restrained` | `generous` | `expansive`), `alignment` (`left-dominant` | `centered` | `asymmetric`).
+  - `imagery` — `role` (what purpose images serve), `mood` (emotional tone), `treatment` (how images are presented).
+  - `motifs` — 1-3 recurring visual elements that create cohesion.
+  - `contrastRules` — 1-3 rules for when and how to break the visual pattern.
+  - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Design a system with rules, motifs, and deliberate contrast.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
   - `title` — short chapter title.
   - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`.
@@ -49,6 +107,7 @@ Rules:
 Success criteria:
 
 - The plan captures the deck's core message, the fresh angle, and the chosen narrative structure.
+- The visual system defines a cohesive design language with a palette, typography, composition, imagery, motifs, and contrast rules — not a linear progression.
 - The chapters form a clear narrative arc from opening to close.
 - The total suggested slide count is within {{minSlides}}-{{maxSlides}} ({{sourceCount}} source slides).
 - Each chapter summary is specific enough to guide slide generation without the user needing to see individual slides.

@@ -5,6 +5,7 @@
 
 import { EventEmitter } from "../core/utils.js";
 import { SlideSearch } from "./slide-search.js";
+import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
 
 export class SlideNavigator extends EventEmitter {
   /**
@@ -292,6 +293,7 @@ export class SlideNavigator extends EventEmitter {
     const fullscreenElement = document.fullscreenElement;
     const targetParent = fullscreenElement || document.body;
     targetParent.appendChild(modal);
+    modalOpened();
 
     // Focus input and select existing value
     input.focus();
@@ -322,6 +324,7 @@ export class SlideNavigator extends EventEmitter {
     const modal = document.getElementById("go-to-slide-modal");
     if (modal) {
       modal.remove();
+      modalClosed();
     }
     if (this._goToModalEscapeHandler) {
       document.removeEventListener("keydown", this._goToModalEscapeHandler);

@@ -16,6 +16,7 @@ import {
   getFragment,
   hasVariant,
   stripFrontmatter,
+  buildVisualSystemBrief,
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
@@ -35,6 +36,10 @@ export {
  * @param {string} [opts.mode] — "polish" | "remix" | "reimagine"
  * @param {boolean} [opts.addSpeakerNotes]
  * @param {boolean} [opts.preserveVisualIdentity]
+ * @param {import("./visual-system-schema.js").VisualSystem|null} [opts.visualSystem]
+ *   When present, a visual system brief + beat→treatment mapping is appended,
+ *   overriding the generate prompt's generic "Pick ONE coherent visual theme"
+ *   instruction with specific design-language guidance.
  * @returns {string}
  */
 export function buildGenerateOptionsSuffix(opts = {}) {
@@ -59,6 +64,9 @@ export function buildGenerateOptionsSuffix(opts = {}) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "preserve")}`);
   } else if (opts.preserveVisualIdentity === false) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
+  }
+  if (opts.visualSystem) {
+    parts.push(buildVisualSystemBrief(opts.visualSystem));
   }
   return parts.join("");
 }

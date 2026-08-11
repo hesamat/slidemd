@@ -199,6 +199,11 @@ export class KeyboardHandler {
    * @param {KeyboardEvent} e - The keyboard event
    */
   handleKeyboard(e) {
+    // Suppress all shortcuts while any modal is open. The modal's own
+    // keydown handler (Escape, etc.) still fires because it's a separate
+    // listener on document.
+    if (document.body?.hasAttribute?.("data-modal-open")) return;
+
     const isEditable = this.#isEditableTarget(e);
     const inCodeMirror = this.#isInCodeMirror(e);
     const inCodeMirrorContent = this.#isInCodeMirrorContent(e);

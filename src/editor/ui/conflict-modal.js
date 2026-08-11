@@ -9,6 +9,8 @@
  * if the modal is cancelled.
  */
 
+import { modalOpened, modalClosed } from "./modal-state.js";
+
 const P = "conflict-modal__";
 
 const INTENT_LABELS = {
@@ -67,9 +69,11 @@ export class ConflictModal {
 
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
+      modalOpened();
 
       const close = (result) => {
         backdrop.remove();
+        modalClosed();
         document.removeEventListener("keydown", onKeydown);
         resolve(result);
       };

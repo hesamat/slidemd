@@ -8,6 +8,7 @@
 import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 import { Logger } from "../core/logger.js";
+import { modalOpened, modalClosed } from "./ui/modal-state.js";
 
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";
@@ -31,6 +32,7 @@ export class ConversionModal {
       document.body.style.overflow = "";
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
+      modalClosed();
     }
   }
 
@@ -44,6 +46,7 @@ export class ConversionModal {
       const backdrop = this.#createDom();
       document.body.appendChild(backdrop);
       this._currentBackdrop = backdrop;
+      modalOpened();
 
       // Prevent background scroll while modal is open
       const prevOverflow = document.body.style.overflow;

@@ -10,6 +10,7 @@
  */
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { Logger } from "../../core/logger.js";
+import { modalOpened, modalClosed } from "../ui/modal-state.js";
 
 export class ImagePicker {
   static modal = null;
@@ -326,6 +327,7 @@ export class ImagePicker {
     this._syncInsertButton();
     this._syncPresetActive();
     this.modal.classList.remove("webdeck-hidden");
+    modalOpened();
     // Default to "Existing" tab
     this.tabButtons.forEach((b) => b.classList.toggle("active", b.dataset.tab === "existing"));
     this.tabPanels.forEach((p) => p.classList.toggle("active", p.dataset.panel === "existing"));
@@ -333,7 +335,10 @@ export class ImagePicker {
   }
 
   static hide() {
-    if (this.modal) this.modal.classList.add("webdeck-hidden");
+    if (this.modal) {
+      this.modal.classList.add("webdeck-hidden");
+      modalClosed();
+    }
   }
 
   /**

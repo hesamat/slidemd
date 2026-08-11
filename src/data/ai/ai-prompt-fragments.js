@@ -152,6 +152,67 @@ export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
   );
 }
 
+/**
+ * Build a compact JSON serialization of the visual system for the breakdown
+ * prompt's `{{visualSystem}}` placeholder.
+ * @param {import("./visual-system-schema.js").VisualSystem|null} vs
+ * @returns {string}
+ */
+export function serializeVisualSystemForBreakdown(vs) {
+  if (!vs) return "{}";
+  return JSON.stringify(vs);
+}
+
+/**
+ * Build the visual system brief + beat→treatment mapping for the generate
+ * prompt's options suffix. When a visual system is present, this overrides
+ * the generate prompt's generic "Pick ONE coherent visual theme" instruction
+ * with specific design-language guidance.
+ *
+ * Returns an empty string when no visual system is provided so the existing
+ * generic visual-styling guidance applies.
+ *
+ * @param {import("./visual-system-schema.js").VisualSystem|null} vs
+ * @returns {string}
+ */
+export function buildVisualSystemBrief(vs) {
+  if (!vs) return "";
+
+  const paletteLines = [
+    `  - base: ${vs.palette.base}`,
+    `  - surface: ${vs.palette.surface}`,
+    `  - accent: ${vs.palette.accent}`,
+    `  - contrast: ${vs.palette.contrast}`,
+    `  - highlight: ${vs.palette.highlight}`,
+  ].join("\n");
+
+  const motifs = vs.motifs.length > 0 ? `\n- Motifs: ${vs.motifs.join("; ")}` : "";
+  const contrastRules =
+    vs.contrastRules.length > 0 ? `\n- Contrast rules: ${vs.contrastRules.join("; ")}` : "";
+
+  return `
+Visual system — follow this design language instead of choosing your own:
+
+- Palette:
+${paletteLines}
+- Typography: ${vs.typography.character}; headlines: ${vs.typography.headline}; body: ${vs.typography.body}
+- Composition: ${vs.composition.density} density, ${vs.composition.whitespace} whitespace, ${vs.composition.alignment} alignment
+- Imagery: ${vs.imagery.role}; mood: ${vs.imagery.mood}; treatment: ${vs.imagery.treatment}${motifs}${contrastRules}
+
+Each slide brief includes a \`| beat: ...\` suffix that defines the slide's visual role within this design language. Apply the beat→treatment mapping:
+
+- continuation: maintain established composition, motifs, palette, and density
+- transition: visually shift toward the next chapter; reduce content density and emphasize hierarchy
+- punctuation: strong focal point, minimal competing content, deliberately contrasting treatment (consider theme inversion — e.g. stark highlight background with inverted text on an otherwise dark deck)
+- emotional: let imagery/atmosphere dominate; restrained text
+- divider: minimal content, clear section marker, strong chapter identity
+
+For \`relationship: break\`, deliberately allow a noticeable departure from the preceding slide while remaining consistent with the overall visual system. For \`relationship: continue\`, preserve visual continuity.
+
+Use the palette colors directly in \`background:\` directives. Set \`theme: dark\` when the background is dark (base/surface tones) and \`theme: light\` when the background is light (highlight tone) so text remains readable.
+`;
+}
+
 const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
 
 /**

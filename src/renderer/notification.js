@@ -3,6 +3,8 @@
  * Modern toast notification system to replace native alerts
  */
 
+import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+
 export class Notification {
   static container = null;
   static toastId = 0;
@@ -380,6 +382,7 @@ export class Notification {
       setTimeout(() => {
         if (backdrop.parentNode) backdrop.remove();
       }, 200);
+      modalClosed();
       if (escapeHandler) {
         document.removeEventListener("keydown", escapeHandler);
         escapeHandler = null;
@@ -414,6 +417,7 @@ export class Notification {
     document.addEventListener("keydown", escapeHandler);
 
     this.getRootElement().appendChild(backdrop);
+    modalOpened();
 
     return {
       dismiss: cleanup,
@@ -691,6 +695,7 @@ export class Notification {
       });
 
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       const buttonToFocus =
@@ -707,6 +712,7 @@ export class Notification {
             backdrop.remove();
           }
         }, 200);
+        modalClosed();
         // Remove escape handler on any close
         if (escapeHandler) {
           document.removeEventListener("keydown", escapeHandler);

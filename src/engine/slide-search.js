@@ -7,6 +7,7 @@
 
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { escapeHtml, safeString } from "../core/utils.js";
+import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
 
 const SEARCH_DELAY_MS = 100;
 const MAX_SNIPPET_LENGTH = 120;
@@ -358,6 +359,7 @@ export class SlideSearch {
     const fullscreenElement = document.fullscreenElement;
     const targetParent = fullscreenElement || document.body;
     targetParent.appendChild(this._modal);
+    modalOpened();
 
     this._boundKeydown = (e) => this._handleModalKeydown(e);
     this._boundDocumentKeydown = (e) => this._handleDocumentKeydown(e);
@@ -389,6 +391,7 @@ export class SlideSearch {
     }
 
     this._modal?.remove();
+    modalClosed();
     this._modal = null;
     this._input = null;
     this._list = null;

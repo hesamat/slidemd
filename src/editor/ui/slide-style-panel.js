@@ -26,6 +26,7 @@ import {
   getDefaultBorderColor,
 } from "./style-helpers.js";
 import { buildSingleColumnCustomLayout, parseSingleColumnLayout } from "../core/directive-utils.js";
+import { modalOpened, modalClosed } from "./modal-state.js";
 
 const STORAGE_KEY_AREA_STYLE = "webdeck:default-area-style";
 const STORAGE_KEY_HEADER_STYLE = "webdeck:default-header-style";
@@ -210,6 +211,7 @@ export class SlideStylePanel {
     if (!this.el) this._buildDom();
     this._syncUI();
     this.el.classList.remove("webdeck-hidden");
+    modalOpened();
   }
 
   static hide() {
@@ -217,7 +219,10 @@ export class SlideStylePanel {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
     }
-    if (this.el) this.el.classList.add("webdeck-hidden");
+    if (this.el) {
+      this.el.classList.add("webdeck-hidden");
+      modalClosed();
+    }
   }
 
   static isVisible() {

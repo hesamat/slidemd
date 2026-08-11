@@ -13,6 +13,8 @@
  * Returns a promise that resolves to the edited outline, or null if cancelled.
  */
 
+import { modalOpened, modalClosed } from "./modal-state.js";
+
 const P = "ai-reimagine-outline-modal__";
 
 const FLOW_TAGS = [
@@ -38,9 +40,29 @@ const FLOW_TAGS = [
  */
 
 /**
+ * @typedef {Object} VisualSystemPalette
+ * @property {string} base
+ * @property {string} surface
+ * @property {string} accent
+ * @property {string} contrast
+ * @property {string} highlight
+ */
+
+/**
+ * @typedef {Object} VisualSystem
+ * @property {VisualSystemPalette} palette
+ * @property {{character: string, headline: string, body: string}} typography
+ * @property {{density: string, whitespace: string, alignment: string}} composition
+ * @property {{role: string, mood: string, treatment: string}} imagery
+ * @property {string[]} motifs
+ * @property {string[]} contrastRules
+ */
+
+/**
  * @typedef {Object} ReimagineOutline
  * @property {string} plan
  * @property {OutlineChapter[]} chapters
+ * @property {VisualSystem|null} [visualSystem]
  */
 
 export class AiReimagineOutlineModal {
@@ -68,9 +90,10 @@ export class AiReimagineOutlineModal {
 
         <div class="${P}summary-section">
           <div class="${P}field">
-            <label class="${P}label">Plan</label>
-            <p class="${P}plan-text">${escapeHtml(outline.plan)}</p>
+            <label class="${P}label" for="${P}plan-input">Plan</label>
+            <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
           </div>
+          ${renderVisualSystemSummary(outline.visualSystem)}
           <div id="${P}stats" class="${P}stats"></div>
         </div>
 
@@ -89,10 +112,32 @@ export class AiReimagineOutlineModal {
 
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
+      modalOpened();
 
       const chaptersList = dialog.querySelector(`#${P}chapters-list`);
       const statsEl = dialog.querySelector(`#${P}stats`);
       const errorEl = dialog.querySelector(`.${P}error`);
+      const planInput = dialog.querySelector(`#${P}plan-input`);
+      const paletteSelect = dialog.querySelector(`#${P}palette-select`);
+      const swatchesEl = dialog.querySelector(`#${P}swatches`);
+
+      // Palette dropdown: update the visual system's palette when a preset is picked.
+      if (paletteSelect && outline.visualSystem) {
+        paletteSelect.addEventListener("change", () => {
+          const name = paletteSelect.value;
+          const preset = PALETTE_PRESETS.find((p) => p.name === name);
+          if (!preset) return; // "Custom" — no change
+          outline.visualSystem.palette = { ...preset.palette };
+          if (swatchesEl) {
+            swatchesEl.innerHTML = Object.entries(preset.palette)
+              .map(
+                ([role, color]) =>
+                  `<span class="${P}swatch" title="${escapeAttr(role)}: ${escapeAttr(color)}" style="background: ${escapeAttr(color)};"></span>`,
+              )
+              .join("");
+          }
+        });
+      }
 
       /** @type {OutlineChapter[]} */
       const chapters = outline.chapters.map((ch) => ({
@@ -215,6 +260,7 @@ export class AiReimagineOutlineModal {
 
       const close = (result) => {
         backdrop.remove();
+        modalClosed();
         document.removeEventListener("keydown", onKeydown);
         resolve(result);
       };
@@ -254,14 +300,16 @@ export class AiReimagineOutlineModal {
         }
 
         errorEl.textContent = "";
+        const planText = planInput.value.trim() || outline.plan;
         close({
-          plan: outline.plan,
+          plan: planText,
           chapters: filteredChapters.map((ch) => ({
             title: ch.title.trim() || "Untitled chapter",
             flowTag: ch.flowTag,
             summary: ch.summary.trim(),
             suggestedSlideCount: ch.suggestedSlideCount || 1,
           })),
+          visualSystem: outline.visualSystem ?? null,
         });
       });
 
@@ -286,4 +334,150 @@ function escapeHtml(s) {
  */
 function escapeAttr(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+/**
+ * Predefined color palettes the user can pick from the dropdown.
+ * Each palette has 5 hex colors matching the visual system palette shape.
+ * @type {Array<{name: string, palette: VisualSystemPalette}>}
+ */
+const PALETTE_PRESETS = [
+  {
+    name: "Midnight",
+    palette: {
+      base: "#0f172a",
+      surface: "#1e293b",
+      accent: "#06b6d4",
+      contrast: "#f59e0b",
+      highlight: "#ffffff",
+    },
+  },
+  {
+    name: "Slate",
+    palette: {
+      base: "#1e293b",
+      surface: "#334155",
+      accent: "#38bdf8",
+      contrast: "#fb7185",
+      highlight: "#f8fafc",
+    },
+  },
+  {
+    name: "Ocean",
+    palette: {
+      base: "#0c4a6e",
+      surface: "#075985",
+      accent: "#22d3ee",
+      contrast: "#fbbf24",
+      highlight: "#f0f9ff",
+    },
+  },
+  {
+    name: "Forest",
+    palette: {
+      base: "#14532d",
+      surface: "#166534",
+      accent: "#84cc16",
+      contrast: "#f97316",
+      highlight: "#f7fee7",
+    },
+  },
+  {
+    name: "Warm Earth",
+    palette: {
+      base: "#451a03",
+      surface: "#7c2d12",
+      accent: "#f59e0b",
+      contrast: "#dc2626",
+      highlight: "#fffbeb",
+    },
+  },
+  {
+    name: "Clean Light",
+    palette: {
+      base: "#f8fafc",
+      surface: "#e2e8f0",
+      accent: "#2563eb",
+      contrast: "#db2777",
+      highlight: "#0f172a",
+    },
+  },
+  {
+    name: "Minimal",
+    palette: {
+      base: "#ffffff",
+      surface: "#f5f5f5",
+      accent: "#171717",
+      contrast: "#dc2626",
+      highlight: "#262626",
+    },
+  },
+  {
+    name: "Plum",
+    palette: {
+      base: "#2e1065",
+      surface: "#4c1d95",
+      accent: "#a78bfa",
+      contrast: "#facc15",
+      highlight: "#faf5ff",
+    },
+  },
+];
+
+/**
+ * Find the name of the preset that matches a palette, or "Custom" if none match.
+ * @param {VisualSystemPalette} palette
+ * @returns {string}
+ */
+function findPresetName(palette) {
+  for (const preset of PALETTE_PRESETS) {
+    const p = preset.palette;
+    if (
+      p.base === palette.base &&
+      p.surface === palette.surface &&
+      p.accent === palette.accent &&
+      p.contrast === palette.contrast &&
+      p.highlight === palette.highlight
+    ) {
+      return preset.name;
+    }
+  }
+  return "Custom";
+}
+
+/**
+ * Render a compact visual system summary with an editable palette dropdown.
+ * Shows palette swatches, a preset dropdown, typography character, composition,
+ * imagery mood, and motifs. Returns an empty string when no visual system is present.
+ * @param {VisualSystem|null} vs
+ * @returns {string}
+ */
+function renderVisualSystemSummary(vs) {
+  if (!vs) return "";
+  const swatches = Object.entries(vs.palette)
+    .map(
+      ([role, color]) =>
+        `<span class="${P}swatch" title="${escapeAttr(role)}: ${escapeAttr(color)}" style="background: ${escapeAttr(color)};"></span>`,
+    )
+    .join("");
+  const motifs = vs.motifs.length > 0 ? vs.motifs.join("; ") : "";
+  const currentPresetName = findPresetName(vs.palette);
+  const presetOptions = [
+    `<option value="Custom"${currentPresetName === "Custom" ? " selected" : ""}>Custom</option>`,
+    ...PALETTE_PRESETS.map(
+      (preset) =>
+        `<option value="${escapeAttr(preset.name)}"${currentPresetName === preset.name ? " selected" : ""}>${escapeHtml(preset.name)}</option>`,
+    ),
+  ].join("");
+  return `
+    <div class="${P}field">
+      <label class="${P}label">Visual system</label>
+      <div class="${P}visual-system">
+        <div class="${P}swatches" id="${P}swatches">${swatches}</div>
+        <select id="${P}palette-select" class="${P}palette-select">${presetOptions}</select>
+        <span class="${P}visual-system-detail">${escapeHtml(vs.typography.character)} \u00b7 ${escapeHtml(vs.composition.density)} density \u00b7 ${escapeHtml(vs.imagery.mood)}</span>
+        ${motifs ? `<span class="${P}visual-system-detail">${escapeHtml(motifs)}</span>` : ""}
+      </div>
+    </div>
+  `;
 }
