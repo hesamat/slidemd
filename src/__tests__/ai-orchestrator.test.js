@@ -495,6 +495,53 @@ describe("AiOrchestrator", () => {
       expect(execUser).toContain("Brand new slide");
     });
 
+    it("reimagine feeds chapter title/summary into the briefs and fills blank slides", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Original plan.",
+        chapters: [
+          {
+            title: "Opening",
+            flowTag: "hook",
+            summary: "Hook the audience.",
+            slides: [{ title: "Hook", intent: "Open with a statistic." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## One\n\n@main\n- A" },
+          { layout: "header-content", content: "@header\n## Two\n\n@main\n- B" },
+        ],
+      });
+      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async () => ({
+          plan: "Edited plan.",
+          chapters: [
+            {
+              title: "Rewritten chapter",
+              flowTag: "solution",
+              summary: "Rewritten summary.",
+              slides: [
+                { title: "Hook", intent: "Open with a statistic." },
+                { title: "", intent: "" },
+              ],
+            },
+          ],
+        }),
+      });
+      const execUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain(
+        "<!-- brief: Hook \u2014 Open with a statistic. (chapter: Rewritten chapter \u2014 Rewritten summary.) -->",
+      );
+      expect(execUser).toContain("<!-- brief: Rewritten chapter \u2014 Rewritten summary. -->");
+      expect(execUser).not.toContain("<!-- brief:  \u2014  -->");
+    });
+
     it("reimagine returns null when onOutline resolves null (user cancelled)", async () => {
       const outlineResponse = JSON.stringify({
         plan: "Plan.",

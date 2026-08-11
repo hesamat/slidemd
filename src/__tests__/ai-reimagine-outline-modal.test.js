@@ -159,6 +159,30 @@ describe("AiReimagineOutlineModal", () => {
     expect(result.chapters[1].title).toBe("The problem");
   });
 
+  it("escapes a malicious flow tag instead of injecting markup", async () => {
+    const outline = {
+      plan: "Plan.",
+      chapters: [
+        {
+          title: "Chapter",
+          flowTag: '"><img src=x onerror=alert(1)>',
+          summary: "Summary.",
+          slides: [{ title: "S", intent: "I" }],
+        },
+      ],
+    };
+    const promise = AiReimagineOutlineModal.show(outline);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const badge = dialog.querySelector(".ai-reimagine-outline-modal__flow-badge");
+    expect(dialog.querySelector("img")).toBeNull();
+    expect(badge.textContent).toBe('"><img src=x onerror=alert(1)>');
+    expect(badge.className).toBe(
+      "ai-reimagine-outline-modal__flow-badge ai-reimagine-outline-modal__flow-badge--imgsrcxonerroralert1",
+    );
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
   it("filters out empty chapters on generate", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");

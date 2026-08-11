@@ -388,15 +388,30 @@ export class RemixReimagineOrchestrator {
 
   /**
    * Flatten a Reimagine outline into virtual slide briefs.
-   * Each slide becomes `<!-- brief: {title} — {intent} -->`.
+   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) -->`.
+   * Slides with no title or intent fall back to their chapter context, and
+   * slides with no context at all are dropped.
    * @param {ReimagineOutline} outline
    * @returns {string[]}
    */
   #outlineToVirtualSlides(outline) {
     const slides = [];
+    const join = (...parts) =>
+      parts
+        .map((p) => (p || "").trim())
+        .filter(Boolean)
+        .join(" \u2014 ");
     for (const chapter of outline.chapters) {
+      const chapterContext = join(chapter.title, chapter.summary);
       for (const slide of chapter.slides) {
-        slides.push(`<!-- brief: ${slide.title} \u2014 ${slide.intent} -->`);
+        const brief = join(slide.title, slide.intent);
+        if (!brief && !chapterContext) continue;
+        const text = brief
+          ? chapterContext
+            ? `${brief} (chapter: ${chapterContext})`
+            : brief
+          : chapterContext;
+        slides.push(`<!-- brief: ${text} -->`);
       }
     }
     return slides;

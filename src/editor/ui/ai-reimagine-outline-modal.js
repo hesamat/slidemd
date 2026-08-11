@@ -114,7 +114,7 @@ export class AiReimagineOutlineModal {
           chapterEl.className = `${P}chapter`;
           chapterEl.innerHTML = `
             <div class="${P}chapter-header">
-              <span class="${P}flow-badge ${P}flow-badge--${chapter.flowTag || "default"}">${chapter.flowTag || "\u2014"}</span>
+              <span class="${P}flow-badge ${P}flow-badge--${escapeAttr(flowTagToken(chapter.flowTag))}">${escapeHtml(chapter.flowTag) || "\u2014"}</span>
               <input type="text" class="${P}chapter-title-input" placeholder="Chapter title" value="${escapeAttr(chapter.title)}" />
               <span class="${P}chapter-count">${chapter.slides.length} slide${chapter.slides.length === 1 ? "" : "s"}</span>
               <div class="${P}chapter-actions">
@@ -173,10 +173,15 @@ export class AiReimagineOutlineModal {
           chapter.slides.forEach((slide, si) => {
             const slideEl = document.createElement("div");
             slideEl.className = `${P}slide-readonly`;
+            const described = slide.title.trim() || slide.intent.trim();
             slideEl.innerHTML = `
               <span class="${P}slide-index">${si + 1}</span>
-              <span class="${P}slide-title-readonly">${escapeHtml(slide.title)}</span>
-              <span class="${P}slide-intent-readonly">${escapeHtml(slide.intent)}</span>
+              ${
+                described
+                  ? `<span class="${P}slide-title-readonly">${escapeHtml(slide.title)}</span>
+              <span class="${P}slide-intent-readonly">${escapeHtml(slide.intent)}</span>`
+                  : `<span class="${P}slide-intent-readonly">Generated from the chapter title and summary</span>`
+              }
             `;
             slidesContainer.appendChild(slideEl);
           });
@@ -254,6 +259,15 @@ export class AiReimagineOutlineModal {
  */
 function escapeHtml(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Reduce a flow tag to a safe CSS class token.
+ * @param {string} s
+ * @returns {string}
+ */
+function flowTagToken(s) {
+  return (s || "").toLowerCase().replace(/[^a-z0-9_-]/g, "") || "default";
 }
 
 /**
