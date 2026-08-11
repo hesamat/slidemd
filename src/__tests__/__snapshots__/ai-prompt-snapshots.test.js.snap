@@ -26,6 +26,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -150,6 +152,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -184,7 +188,7 @@ Success criteria:
 - Output is valid JSON with a \`slides\` array.
 - Each slide has a layout and non-empty content.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling.
+- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling. Text-block attributes use \`key=value\` syntax (not \`key: value\`); supported attributes are \`id\`, \`float\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\`, \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown\`, \`bold\`, \`italic\`, \`underline\`, \`strikethrough\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`) is not supported.
 
 Input markdown:
 <!-- CONTEXT SLIDE — DO NOT INCLUDE IN OUTPUT (index 0) -->
@@ -317,6 +321,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -443,6 +449,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -477,7 +485,7 @@ Success criteria:
 - Output is valid JSON with a \`slides\` array.
 - Each slide has a layout and non-empty content.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling.
+- No raw \`<div style="...">\` blocks (unless it already exists); use \`::: text-block { ... }\` for custom styling. Text-block attributes use \`key=value\` syntax (not \`key: value\`); supported attributes are \`id\`, \`float\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\`, \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown\`, \`bold\`, \`italic\`, \`underline\`, \`strikethrough\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`) is not supported.
 
 Input markdown:
 layout: title-slide
@@ -521,6 +529,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -652,6 +662,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -773,6 +785,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.
@@ -853,6 +867,7 @@ Output format:
       "Avoid more than 3 consecutive visually identical slides"
     ]
   },
+  "keepImages": [0, 2],
   "chapters": [
     {
       "title": "Where we were",
@@ -887,6 +902,7 @@ Rules:
   - \`motifs\` — 1-3 recurring visual elements that create cohesion.
   - \`contrastRules\` — 1-3 rules for when and how to break the visual pattern.
   - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Design a system with rules, motifs, and deliberate contrast.
+- \`keepImages\` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - \`chapters\` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
   - \`title\` — short chapter title.
   - \`flowTag\` — one of: \`hook\`, \`context\`, \`problem\`, \`tension\`, \`solution\`, \`evidence\`, \`comparison\`, \`example\`, \`transition\`, \`climax\`, \`cta\`.
@@ -938,6 +954,8 @@ Rules:
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`.
+- Text block attribute syntax: \`key=value\` or \`key="value"\` (NOT \`key: value\`). Supported attributes: \`id\`, \`float=true\`, \`x\`, \`y\`, \`fontSize\`, \`color\`, \`backgroundColor\`, \`align\` (left|center|right), \`opacity\`, \`z\`, \`rotate\`, \`column-count\`, \`markdown=true\`, \`bold=true\`, \`italic=true\`, \`underline=true\`, \`strikethrough=true\`. Freeform CSS (\`style\`, \`padding\`, \`margin\`, \`border-radius\`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set \`column-count=N\` (for multi-column flow) or \`markdown=true\` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing \`::: text-block\` blocks exactly, including all attributes and inner text.
 - Convert \`[Diagram: ...]\` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle \`<img>\` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use \`style="position: relative; left: Npx; top: Npx; width: Npx;"\` on the \`<img>\` tag for custom placement.

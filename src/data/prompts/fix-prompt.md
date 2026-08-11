@@ -16,7 +16,7 @@ Success criteria:
 - Output is valid JSON with a `slides` array.
 - Each slide has a layout and non-empty content.
 - Speaker notes are preserved and placed at the end of the slide content.
-- No raw `<div style="...">` blocks (unless it already exists); use `::: text-block { ... }` for custom styling.
+- No raw `<div style="...">` blocks (unless it already exists); use `::: text-block { ... }` for custom styling. Text-block attributes use `key=value` syntax (not `key: value`); supported attributes are `id`, `float`, `x`, `y`, `fontSize`, `color`, `backgroundColor`, `align`, `opacity`, `z`, `rotate`, `column-count`, `markdown`, `bold`, `italic`, `underline`, `strikethrough`. Freeform CSS (`style`, `padding`, `margin`) is not supported.
 
 Input markdown:
 {{markdown}}

@@ -4,6 +4,7 @@ import {
   buildTextBlockHtml,
   parseTextBlockDirectives,
   updateTextBlockDirective,
+  KNOWN_TEXT_BLOCK_ATTRIBUTES,
 } from "../core/text-block-directive.js";
 
 describe("text block directive round trip", () => {
@@ -102,5 +103,68 @@ describe("text block html escaping", () => {
     const html = buildTextBlockHtml({ columnCount: 2 }, "- <img src=x onerror=alert(1)>");
     expect(html).not.toContain("<img");
     expect(html).toContain("&lt;img");
+  });
+});
+
+describe("text block unknown attributes", () => {
+  it("surfaces unknown attributes on parsed blocks", () => {
+    const md = '::: text-block { style: "background: red;" padding=20 color="#333" }\nHi\n:::';
+    const [parsed] = parseTextBlockDirectives(md);
+    expect(parsed.unknownAttrs).toContain("style");
+    expect(parsed.unknownAttrs).toContain("padding");
+    // `color` is known and should NOT appear in unknownAttrs
+    expect(parsed.unknownAttrs).not.toContain("color");
+  });
+
+  it("returns an empty unknownAttrs array when all attributes are known", () => {
+    const md = '::: text-block { color="#333" column-count=2 }\nHi\n:::';
+    const [parsed] = parseTextBlockDirectives(md);
+    expect(parsed.unknownAttrs).toEqual([]);
+  });
+
+  it("exports the known attributes set", () => {
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES).toBeInstanceOf(Set);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("color")).toBe(true);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("column-count")).toBe(true);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("markdown")).toBe(true);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("style")).toBe(false);
+    expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("padding")).toBe(false);
+  });
+});
+
+describe("text block markdown flag", () => {
+  it("renders markdown content when markdown=true is set", () => {
+    const html = buildTextBlockHtml({ markdown: true }, "### Heading\n\n1. First\n2. Second\n");
+    expect(html).toMatch(/<h3[^>]*>Heading<\/h3>/);
+    expect(html).toMatch(/<ol[^>]*>/);
+    expect(html).toMatch(/<li[^>]*>First<\/li>/);
+    expect(html).toContain("text-block--multi-column");
+  });
+
+  it("escapes content as plain text when markdown is not set", () => {
+    const html = buildTextBlockHtml({}, "### Heading");
+    expect(html).not.toMatch(/<h3/);
+    expect(html).toContain("### Heading");
+    expect(html).toContain("white-space:pre-wrap");
+  });
+
+  it("does not add white-space:pre-wrap when markdown=true", () => {
+    const html = buildTextBlockHtml({ markdown: true }, "Plain text");
+    expect(html).not.toContain("white-space:pre-wrap");
+  });
+
+  it("round-trips the markdown flag through directive build and parse", () => {
+    const directive = buildTextBlockDirective(
+      { id: "tb-md", markdown: true, backgroundColor: "#1e293b" },
+      "### Heading\n\n- item",
+    );
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.markdown).toBe(true);
+    expect(parsed.settings.backgroundColor).toBe("#1e293b");
+  });
+
+  it("does not emit markdown=true when not set", () => {
+    const directive = buildTextBlockDirective({ id: "tb-plain" }, "Text");
+    expect(directive).not.toContain("markdown");
   });
 });

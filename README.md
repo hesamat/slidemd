@@ -116,7 +116,7 @@ The AI behavior is defined in [src/data/prompts/](src/data/prompts/) — see [do
 - Each slide supports: `layout:`, `background:`, `theme:`, `hidden:`, `<!-- notes: ... -->`, and `@area` markers to route content.
 - Text before the first `@area` marker flows into `@main`.
 - Hidden slides: set `hidden: true`; add `?showHidden=1` to the URL to include them when reviewing.
-- Text blocks: `::: text-block { column-count=2 }` wraps content in a styled, positioned, or multi-column block.
+- Text blocks: `::: text-block { ... }` wraps content in a styled, positioned, or multi-column block. Attributes use `key=value` syntax (not `key: value`); supported attributes include `color`, `backgroundColor`, `align`, `fontSize`, `column-count`, `markdown`, `float`, `x`, `y`, `rotate`, `bold`, `italic`. Set `column-count=N` or `markdown=true` to render markdown content; without either, content is plain escaped text. Freeform CSS (`style`, `padding`, `margin`) is not supported.
 
 Minimal example:
 

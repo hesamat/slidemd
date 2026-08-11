@@ -22,6 +22,8 @@ Rules:
 - The first heading in `@header` must be `#` (h1), not `##` or lower.
 - Speaker notes go at the very end: `<!-- notes: ... -->`.
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`.
+- Text block attribute syntax: `key=value` or `key="value"` (NOT `key: value`). Supported attributes: `id`, `float=true`, `x`, `y`, `fontSize`, `color`, `backgroundColor`, `align` (left|center|right), `opacity`, `z`, `rotate`, `column-count`, `markdown=true`, `bold=true`, `italic=true`, `underline=true`, `strikethrough=true`. Freeform CSS (`style`, `padding`, `margin`, `border-radius`) is NOT supported — use the attributes above.
+- To render markdown (headings, lists, bold) inside a text-block, set `column-count=N` (for multi-column flow) or `markdown=true` (for a single styled block). Without either, content is treated as plain escaped text.
 - Preserve any existing `::: text-block` blocks exactly, including all attributes and inner text.
 - Convert `[Diagram: ...]` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle `<img>` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag for custom placement.

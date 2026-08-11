@@ -1,6 +1,7 @@
-import { MarkdownParser } from "../markdown-parser.js";
+import { MarkdownParser, splitSlides } from "../markdown-parser.js";
 import { LayoutData } from "../layout-data.js";
 import { LayoutParser } from "../layout-parser.js";
+import { parseTextBlockDirectives } from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -110,6 +111,11 @@ export class AiOutputValidator {
       }
     }
 
+    // Split raw markdown into per-slide text for text-block directive checks.
+    // The parsed `slides` array has already converted text-block directives to
+    // HTML, so we re-split the raw input to inspect directive attributes.
+    const rawSlideTexts = splitSlides(outputMarkdown);
+
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
 
@@ -141,6 +147,11 @@ export class AiOutputValidator {
           }
         }
       }
+
+      // Check text-block directives for unknown attributes (e.g. `style:`,
+      // `padding`, `margin` — these are silently dropped by the parser).
+      const rawSlide = rawSlideTexts[i] || "";
+      this._checkTextBlockAttributes(rawSlide, i, errors);
 
       if (schema.checkContentRules) {
         this._checkContentRules(slide, i, errors, warnings);
@@ -257,6 +268,29 @@ export class AiOutputValidator {
       }
     }
     return LayoutData.getAreaNames(layoutName);
+  }
+
+  /**
+   * Check text-block directives for unknown attributes.  The text-block parser
+   * silently drops attributes it doesn't recognise (e.g. `style:`, `padding`,
+   * `margin`), which means the AI can produce a directive that looks correct but
+   * renders with none of the intended styling.  Flagging these as errors gives
+   * the repair loop a chance to fix them.
+   * @param {string} rawSlide - raw slide markdown (before text-block conversion)
+   * @param {number} index - 0-based slide index
+   * @param {ValidationError[]} errors
+   */
+  _checkTextBlockAttributes(rawSlide, index, errors) {
+    const blocks = parseTextBlockDirectives(rawSlide);
+    for (const block of blocks) {
+      if (block.unknownAttrs && block.unknownAttrs.length > 0) {
+        errors.push({
+          slide: index,
+          code: "UNKNOWN_TEXT_BLOCK_ATTR",
+          message: `Slide ${index + 1} text-block uses unsupported attributes: ${block.unknownAttrs.join(", ")}. Supported: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
+        });
+      }
+    }
   }
 
   /**

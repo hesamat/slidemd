@@ -37,7 +37,7 @@ The system prompt (`system-prompt.md`) defines:
 - **Output format**: JSON object with a `slides` array, each slide having `layout` and `content` fields
 - **JSON-only output**: no explanations, markdown fences, or surrounding text
 - **Area markers**: `@area-name` syntax, blank lines around markers
-- **Text blocks**: `::: text-block { ... }` for styled/multi-column text
+- **Text blocks**: `::: text-block { ... }` for styled/multi-column text. Attributes use `key=value` or `key="value"` syntax (not `key: value`). Supported: `id`, `float`, `x`, `y`, `fontSize`, `color`, `backgroundColor`, `align`, `opacity`, `z`, `rotate`, `column-count`, `markdown`, `bold`, `italic`, `underline`, `strikethrough`. Freeform CSS (`style`, `padding`, `margin`) is not supported. Set `column-count=N` or `markdown=true` to render markdown content inside a text-block; without either, content is plain escaped text.
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
 - **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
@@ -190,7 +190,7 @@ The `layout:` value follows CSS `grid-template` shorthand syntax. Quoted rows li
 - **Diagrams**: Mermaid syntax in `mermaid` fenced blocks
 - **Markdown**: Bold, italic, lists, blockquotes, tables, links
 - **HTML**: Inline styles for custom formatting
-- **Text blocks**: `::: text-block { ... }` for styled, positioned, or multi-column text; use `column-count=N` to flow long lists across N columns
+- **Text blocks**: `::: text-block { ... }` for styled, positioned, or multi-column text. Attributes use `key=value` or `key="value"` syntax (not `key: value`). Supported: `id`, `float`, `x`, `y`, `fontSize`, `color`, `backgroundColor`, `align`, `opacity`, `z`, `rotate`, `column-count`, `markdown`, `bold`, `italic`, `underline`, `strikethrough`. Freeform CSS (`style`, `padding`, `margin`) is not supported. Use `column-count=N` to flow long lists across N columns, or `markdown=true` to render markdown in a single styled block. Without either, content is treated as plain escaped text.
 
 ## Content Capacity
 

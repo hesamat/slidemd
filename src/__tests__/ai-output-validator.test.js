@@ -115,6 +115,38 @@ layout: header-content
     expect(result.errors[0].code).toBe("PRESERVE_MULTI_COLUMN_LIST");
   });
 
+  it("errors when a text-block uses unknown attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block { style: "background: red; padding: 20px;" }
+
+### Heading
+
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("style");
+    expect(err.message).toContain("padding");
+  });
+
+  it("passes when a text-block uses only known attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block { backgroundColor="#1e293b" markdown=true column-count=1 }
+
+### Heading
+
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.errors.filter((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR")).toHaveLength(0);
+  });
+
   it("returns a parse error when the parser cannot initialize", () => {
     const original = window.markdownit;
     window.markdownit = () => {
