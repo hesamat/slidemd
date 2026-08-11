@@ -1,33 +1,40 @@
 /**
  * AiReimagineOutlineModal
  *
- * Shown between the outline and generate phases of Reimagine mode. The AI
- * has proposed a brief + flow summary + chapter-grouped outline; the user
- * reviews the high-level structure, can expand chapters to see slides, and
- * make inline edits to chapters (title, summary, reorder, remove, add)
- * before generation proceeds.
+ * Shown between the outline and breakdown phases of Reimagine mode. The AI
+ * has proposed a plan + chapter outline; the user reviews the high-level
+ * structure and makes inline edits to chapters (title, flow tag, summary,
+ * reorder, remove, add) before the slide breakdown and generation proceed.
  *
- * Per-slide editing is intentionally not exposed — the slide titles and
- * intents are brief descriptions, not content, and the meaningful levers
- * are at the chapter level (narrative arc, ordering, summaries).
+ * Individual slides are not shown — they are produced by a separate AI call
+ * after the user finalizes the chapters. The meaningful levers at this stage
+ * are the chapter-level narrative arc, ordering, and objectives.
  *
  * Returns a promise that resolves to the edited outline, or null if cancelled.
  */
 
 const P = "ai-reimagine-outline-modal__";
 
-/**
- * @typedef {Object} OutlineSlide
- * @property {string} title
- * @property {string} intent
- */
+const FLOW_TAGS = [
+  { value: "hook", label: "Hook — grab attention" },
+  { value: "context", label: "Context — set the scene" },
+  { value: "problem", label: "Problem — identify the gap" },
+  { value: "tension", label: "Tension — raise the stakes" },
+  { value: "solution", label: "Solution — present the approach" },
+  { value: "evidence", label: "Evidence — back it up" },
+  { value: "comparison", label: "Comparison — contrast alternatives" },
+  { value: "example", label: "Example — show it in action" },
+  { value: "transition", label: "Transition — bridge to the next point" },
+  { value: "climax", label: "Climax — the key moment" },
+  { value: "cta", label: "Call to action — tell them what to do" },
+];
 
 /**
  * @typedef {Object} OutlineChapter
  * @property {string} title
  * @property {string} flowTag
  * @property {string} summary
- * @property {OutlineSlide[]} slides
+ * @property {number} suggestedSlideCount
  */
 
 /**
@@ -50,10 +57,8 @@ export class AiReimagineOutlineModal {
       backdrop.className = `${P}backdrop`;
 
       const sourceCount = opts.sourceCount || 0;
-      const totalSlides = outline.chapters.reduce((sum, ch) => sum + (ch.slides?.length || 0), 0);
       const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
       const maxTarget = Math.round(sourceCount * 1.2);
-      const inRange = sourceCount === 0 || (totalSlides >= minTarget && totalSlides <= maxTarget);
 
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
@@ -66,15 +71,7 @@ export class AiReimagineOutlineModal {
             <label class="${P}label">Plan</label>
             <p class="${P}plan-text">${escapeHtml(outline.plan)}</p>
           </div>
-          <div class="${P}stats">
-            <span class="${P}stat">${outline.chapters.length} chapters</span>
-            <span class="${P}stat">${totalSlides} slides</span>
-            ${
-              sourceCount > 0
-                ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
-                : ""
-            }
-          </div>
+          <div id="${P}stats" class="${P}stats"></div>
         </div>
 
         <div class="${P}chapters-header">
@@ -94,6 +91,7 @@ export class AiReimagineOutlineModal {
       document.body.appendChild(backdrop);
 
       const chaptersList = dialog.querySelector(`#${P}chapters-list`);
+      const statsEl = dialog.querySelector(`#${P}stats`);
       const errorEl = dialog.querySelector(`.${P}error`);
 
       /** @type {OutlineChapter[]} */
@@ -101,33 +99,59 @@ export class AiReimagineOutlineModal {
         title: ch.title,
         flowTag: ch.flowTag || "",
         summary: ch.summary || "",
-        slides: ch.slides.map((s) => ({ title: s.title, intent: s.intent })),
+        suggestedSlideCount: ch.suggestedSlideCount || 1,
       }));
+
+      /**
+       * Recompute and render the stats line from the current chapters.
+       * Called after every mutation so the soft slide-count warning stays honest.
+       */
+      const renderStats = () => {
+        const totalSuggested = chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
+        const inRange =
+          sourceCount === 0 || (totalSuggested >= minTarget && totalSuggested <= maxTarget);
+        statsEl.innerHTML = `
+          <span class="${P}stat">${chapters.length} chapter${chapters.length === 1 ? "" : "s"}</span>
+          <span class="${P}stat">${totalSuggested} slide${totalSuggested === 1 ? "" : "s"} planned</span>
+          ${
+            sourceCount > 0
+              ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
+              : ""
+          }
+        `;
+      };
+
+      /**
+       * Build the flow-tag <select> element for a chapter.
+       * @param {string} selectedTag
+       * @returns {string}
+       */
+      const flowTagOptions = (selectedTag) =>
+        FLOW_TAGS.map(
+          ({ value, label }) =>
+            `<option value="${escapeAttr(value)}"${value === selectedTag ? " selected" : ""}>${escapeHtml(label)}</option>`,
+        ).join("");
 
       /**
        * Render the chapters list with inline editing.
        */
       const renderChapters = () => {
+        renderStats();
         chaptersList.innerHTML = "";
         chapters.forEach((chapter, ci) => {
           const chapterEl = document.createElement("div");
           chapterEl.className = `${P}chapter`;
           chapterEl.innerHTML = `
             <div class="${P}chapter-header">
-              <span class="${P}flow-badge ${P}flow-badge--${escapeAttr(flowTagToken(chapter.flowTag))}">${escapeHtml(chapter.flowTag) || "\u2014"}</span>
+              <select class="${P}flow-tag-select" aria-label="Flow tag">${flowTagOptions(chapter.flowTag)}</select>
               <input type="text" class="${P}chapter-title-input" placeholder="Chapter title" value="${escapeAttr(chapter.title)}" />
-              <span class="${P}chapter-count">${chapter.slides.length} slide${chapter.slides.length === 1 ? "" : "s"}</span>
               <div class="${P}chapter-actions">
-                <button type="button" class="${P}icon-btn" data-action="chapter-up" ${ci === 0 ? "disabled" : ""}>\u2191</button>
-                <button type="button" class="${P}icon-btn" data-action="chapter-down" ${ci === chapters.length - 1 ? "disabled" : ""}>\u2193</button>
-                <button type="button" class="${P}icon-btn" data-action="chapter-remove">\u00D7</button>
-                <span class="${P}chapter-chevron">\u25B6</span>
+                <button type="button" class="${P}icon-btn" data-action="chapter-up" ${ci === 0 ? "disabled" : ""} aria-label="Move chapter up">\u2191</button>
+                <button type="button" class="${P}icon-btn" data-action="chapter-down" ${ci === chapters.length - 1 ? "disabled" : ""} aria-label="Move chapter down">\u2193</button>
+                <button type="button" class="${P}icon-btn" data-action="chapter-remove" aria-label="Remove chapter">\u00D7</button>
               </div>
             </div>
-            <div class="${P}chapter-body" hidden>
-              <input type="text" class="${P}chapter-summary-input" placeholder="Chapter summary" value="${escapeAttr(chapter.summary)}" />
-              <div class="${P}slides-readonly"></div>
-            </div>
+            <textarea class="${P}chapter-summary-input" placeholder="Chapter objective \u2014 describe what this chapter covers and how it connects to the narrative arc." rows="3">${escapeHtml(chapter.summary)}</textarea>
           `;
 
           const titleInput = chapterEl.querySelector(`.${P}chapter-title-input`);
@@ -135,18 +159,14 @@ export class AiReimagineOutlineModal {
             chapters[ci].title = e.target.value;
           });
 
+          const flowTagSelect = chapterEl.querySelector(`.${P}flow-tag-select`);
+          flowTagSelect.addEventListener("change", (e) => {
+            chapters[ci].flowTag = e.target.value;
+          });
+
           const summaryInput = chapterEl.querySelector(`.${P}chapter-summary-input`);
           summaryInput.addEventListener("input", (e) => {
             chapters[ci].summary = e.target.value;
-          });
-
-          // Expand/collapse on chevron click
-          const chevron = chapterEl.querySelector(`.${P}chapter-chevron`);
-          const body = chapterEl.querySelector(`.${P}chapter-body`);
-          chevron.addEventListener("click", () => {
-            const expanded = !body.hidden;
-            body.hidden = expanded;
-            chevron.textContent = expanded ? "\u25B6" : "\u25BC";
           });
 
           chapterEl.querySelector('[data-action="chapter-up"]').addEventListener("click", () => {
@@ -168,24 +188,6 @@ export class AiReimagineOutlineModal {
               renderChapters();
             });
 
-          // Read-only slide list
-          const slidesContainer = chapterEl.querySelector(`.${P}slides-readonly`);
-          chapter.slides.forEach((slide, si) => {
-            const slideEl = document.createElement("div");
-            slideEl.className = `${P}slide-readonly`;
-            const described = slide.title.trim() || slide.intent.trim();
-            slideEl.innerHTML = `
-              <span class="${P}slide-index">${si + 1}</span>
-              ${
-                described
-                  ? `<span class="${P}slide-title-readonly">${escapeHtml(slide.title)}</span>
-              <span class="${P}slide-intent-readonly">${escapeHtml(slide.intent)}</span>`
-                  : `<span class="${P}slide-intent-readonly">Generated from the chapter title and summary</span>`
-              }
-            `;
-            slidesContainer.appendChild(slideEl);
-          });
-
           chaptersList.appendChild(chapterEl);
         });
 
@@ -199,13 +201,17 @@ export class AiReimagineOutlineModal {
             title: "",
             flowTag: "context",
             summary: "",
-            slides: [{ title: "", intent: "" }],
+            suggestedSlideCount: 1,
           });
           renderChapters();
         });
         chaptersList.appendChild(addBtn);
       };
       renderChapters();
+
+      // Focus the first chapter title input so keyboard users have an entry point.
+      const firstTitleInput = dialog.querySelector(`.${P}chapter-title-input`);
+      if (firstTitleInput) firstTitleInput.focus();
 
       const close = (result) => {
         backdrop.remove();
@@ -214,7 +220,21 @@ export class AiReimagineOutlineModal {
       };
 
       const onKeydown = (e) => {
-        if (e.key === "Escape") close(null);
+        if (e.key !== "Escape") return;
+        // Don't close the modal while the user is editing an inline input or textarea;
+        // let Escape blur the field first so in-progress edits aren't discarded.
+        const active = document.activeElement;
+        if (
+          active &&
+          dialog.contains(active) &&
+          (active.tagName === "INPUT" ||
+            active.tagName === "TEXTAREA" ||
+            active.tagName === "SELECT")
+        ) {
+          active.blur();
+          return;
+        }
+        close(null);
       };
 
       backdrop.addEventListener("click", (e) => {
@@ -225,8 +245,9 @@ export class AiReimagineOutlineModal {
       dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => close(null));
 
       dialog.querySelector('[data-action="generate"]').addEventListener("click", () => {
-        // Filter out empty chapters
-        const filteredChapters = chapters.filter((ch) => ch.title.trim());
+        // Keep a chapter if it has a title or a summary.
+        const hasContent = (ch) => ch.title.trim() !== "" || ch.summary.trim() !== "";
+        const filteredChapters = chapters.filter(hasContent);
         if (filteredChapters.length === 0) {
           errorEl.textContent = "Please add at least one chapter before generating.";
           return;
@@ -236,13 +257,10 @@ export class AiReimagineOutlineModal {
         close({
           plan: outline.plan,
           chapters: filteredChapters.map((ch) => ({
-            title: ch.title.trim(),
+            title: ch.title.trim() || "Untitled chapter",
             flowTag: ch.flowTag,
             summary: ch.summary.trim(),
-            slides: ch.slides.map((s) => ({
-              title: s.title.trim(),
-              intent: s.intent.trim(),
-            })),
+            suggestedSlideCount: ch.suggestedSlideCount || 1,
           })),
         });
       });
@@ -259,15 +277,6 @@ export class AiReimagineOutlineModal {
  */
 function escapeHtml(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Reduce a flow tag to a safe CSS class token.
- * @param {string} s
- * @returns {string}
- */
-function flowTagToken(s) {
-  return (s || "").toLowerCase().replace(/[^a-z0-9_-]/g, "") || "default";
 }
 
 /**

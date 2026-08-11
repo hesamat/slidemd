@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { AiReimagineOutlineModal } from "../editor/ui/ai-reimagine-outline-modal.js";
 
 const SAMPLE_OUTLINE = {
@@ -9,22 +9,22 @@ const SAMPLE_OUTLINE = {
     {
       title: "The problem",
       flowTag: "problem",
-      summary: "Why current approaches fail.",
-      slides: [
-        { title: "Hook", intent: "Open with a surprising statistic." },
-        { title: "Stakes", intent: "What we lose by ignoring this." },
-      ],
+      summary: "Why current approaches fail. Explain the core limitation and why it matters now.",
+      suggestedSlideCount: 2,
     },
     {
       title: "The approach",
       flowTag: "solution",
-      summary: "The proposed solution.",
-      slides: [{ title: "Approach", intent: "Introduce the solution." }],
+      summary: "The proposed solution. Introduce the approach and how it addresses the gap.",
+      suggestedSlideCount: 1,
     },
   ],
 };
 
 describe("AiReimagineOutlineModal", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
   it("returns the outline unchanged when generated immediately", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
@@ -34,7 +34,7 @@ describe("AiReimagineOutlineModal", () => {
     expect(result.chapters).toHaveLength(2);
     expect(result.chapters[0].title).toBe("The problem");
     expect(result.chapters[0].flowTag).toBe("problem");
-    expect(result.chapters[0].slides).toHaveLength(2);
+    expect(result.chapters[0].suggestedSlideCount).toBe(2);
     expect(result.chapters[1].title).toBe("The approach");
   });
 
@@ -65,27 +65,40 @@ describe("AiReimagineOutlineModal", () => {
     await promise;
   });
 
-  it("shows chapters with flow badges", async () => {
+  it("shows chapters with flow-tag selects", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
     const chapterHeaders = dialog.querySelectorAll(".ai-reimagine-outline-modal__chapter-header");
     expect(chapterHeaders).toHaveLength(2);
-    const badges = dialog.querySelectorAll(".ai-reimagine-outline-modal__flow-badge");
-    expect(badges[0].textContent).toBe("problem");
-    expect(badges[1].textContent).toBe("solution");
+    const selects = dialog.querySelectorAll(".ai-reimagine-outline-modal__flow-tag-select");
+    expect(selects).toHaveLength(2);
+    expect(selects[0].value).toBe("problem");
+    expect(selects[0].textContent).toContain("Problem — identify the gap");
+    expect(selects[1].value).toBe("solution");
+    expect(selects[1].textContent).toContain("Solution — present the approach");
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
 
-  it("expands a chapter to show its slides", async () => {
+  it("does not render individual slides or slide-count badges", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const chevron = dialog.querySelector(".ai-reimagine-outline-modal__chapter-chevron");
-    chevron.click();
-    const body = dialog.querySelector(".ai-reimagine-outline-modal__chapter-body");
-    expect(body.hidden).toBe(false);
-    const slides = body.querySelectorAll(".ai-reimagine-outline-modal__slide-readonly");
-    expect(slides).toHaveLength(2);
+    expect(dialog.querySelector(".ai-reimagine-outline-modal__slide-readonly")).toBeNull();
+    expect(dialog.querySelector(".ai-reimagine-outline-modal__chapter-count")).toBeNull();
+    expect(dialog.querySelector(".ai-reimagine-outline-modal__flow-badge")).toBeNull();
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows summary as a textarea (multi-line)", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const summaryInputs = dialog.querySelectorAll(
+      ".ai-reimagine-outline-modal__chapter-summary-input",
+    );
+    expect(summaryInputs).toHaveLength(2);
+    expect(summaryInputs[0].tagName).toBe("TEXTAREA");
+    expect(summaryInputs[0].value).toContain("Why current approaches fail");
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
   });
@@ -99,6 +112,28 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
     expect(result.chapters[0].title).toBe("New Chapter Title");
+  });
+
+  it("edits a chapter flow tag via select", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const select = dialog.querySelector(".ai-reimagine-outline-modal__flow-tag-select");
+    select.value = "solution";
+    select.dispatchEvent(new Event("change"));
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    expect(result.chapters[0].flowTag).toBe("solution");
+  });
+
+  it("edits a chapter summary inline", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const summaryInput = dialog.querySelector(".ai-reimagine-outline-modal__chapter-summary-input");
+    summaryInput.value = "New summary text.";
+    summaryInput.dispatchEvent(new Event("input"));
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    expect(result.chapters[0].summary).toBe("New summary text.");
   });
 
   it("removes a chapter", async () => {
@@ -136,13 +171,13 @@ describe("AiReimagineOutlineModal", () => {
     expect(SAMPLE_OUTLINE).toEqual(original);
   });
 
-  it("shows slide count stats with source count", async () => {
+  it("shows stats with source count", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { sourceCount: 10 });
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
     const stats = dialog.querySelectorAll(".ai-reimagine-outline-modal__stat");
     expect(stats.length).toBeGreaterThanOrEqual(2);
     expect(stats[0].textContent).toContain("2 chapters");
-    expect(stats[1].textContent).toContain("3 slides");
+    expect(stats[1].textContent).toContain("3 slides planned");
     expect(stats[2].textContent).toContain("target");
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
@@ -159,40 +194,65 @@ describe("AiReimagineOutlineModal", () => {
     expect(result.chapters[1].title).toBe("The problem");
   });
 
-  it("escapes a malicious flow tag instead of injecting markup", async () => {
-    const outline = {
-      plan: "Plan.",
-      chapters: [
-        {
-          title: "Chapter",
-          flowTag: '"><img src=x onerror=alert(1)>',
-          summary: "Summary.",
-          slides: [{ title: "S", intent: "I" }],
-        },
-      ],
-    };
-    const promise = AiReimagineOutlineModal.show(outline);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const badge = dialog.querySelector(".ai-reimagine-outline-modal__flow-badge");
-    expect(dialog.querySelector("img")).toBeNull();
-    expect(badge.textContent).toBe('"><img src=x onerror=alert(1)>');
-    expect(badge.className).toBe(
-      "ai-reimagine-outline-modal__flow-badge ai-reimagine-outline-modal__flow-badge--imgsrcxonerroralert1",
-    );
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
-  it("filters out empty chapters on generate", async () => {
+  it("keeps a chapter with a summary even when its title is blank", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    // Clear the title of the first chapter
     const titleInput = dialog.querySelector(".ai-reimagine-outline-modal__chapter-title-input");
     titleInput.value = "";
     titleInput.dispatchEvent(new Event("input"));
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
-    expect(result.chapters).toHaveLength(1);
-    expect(result.chapters[0].title).toBe("The approach");
+    // Both chapters are kept — the unnamed one gets a fallback title
+    expect(result.chapters).toHaveLength(2);
+    expect(result.chapters[0].title).toBe("Untitled chapter");
+    expect(result.chapters[1].title).toBe("The approach");
+  });
+
+  it("filters out a truly empty chapter (no title and no summary)", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    // Add a new chapter (empty title, empty summary) and generate
+    dialog.querySelector(".ai-reimagine-outline-modal__add-chapter-btn").click();
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    // The empty added chapter is filtered out
+    expect(result.chapters).toHaveLength(2);
+  });
+
+  it("re-renders stats after removing a chapter", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { sourceCount: 10 });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    // Remove the first chapter (had suggestedSlideCount: 2)
+    dialog.querySelector('[data-action="chapter-remove"]').click();
+    const stats = dialog.querySelectorAll(".ai-reimagine-outline-modal__stat");
+    expect(stats[0].textContent).toContain("1 chapter");
+    expect(stats[1].textContent).toContain("1 slide planned");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("does not close on Escape while an input is focused", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const titleInput = dialog.querySelector(".ai-reimagine-outline-modal__chapter-title-input");
+    titleInput.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    // Modal should still be open
+    expect(document.querySelector(".ai-reimagine-outline-modal__dialog")).not.toBeNull();
+    // Now Escape with no input focused should close
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    const result = await promise;
+    expect(result).toBeNull();
+  });
+
+  it("sets initial focus on the first chapter title input", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const firstTitleInput = dialog.querySelector(
+      ".ai-reimagine-outline-modal__chapter-title-input",
+    );
+    expect(document.activeElement).toBe(firstTitleInput);
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
   });
 });

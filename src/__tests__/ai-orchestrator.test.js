@@ -398,6 +398,20 @@ describe("AiOrchestrator", () => {
             title: "The problem",
             flowTag: "problem",
             summary: "Why current approaches fail.",
+            suggestedSlideCount: 2,
+          },
+          {
+            title: "The approach",
+            flowTag: "solution",
+            summary: "The proposed solution.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "The problem",
             slides: [
               { title: "Hook", intent: "Open with a surprising statistic." },
               { title: "Stakes", intent: "What we lose by ignoring this." },
@@ -405,8 +419,6 @@ describe("AiOrchestrator", () => {
           },
           {
             title: "The approach",
-            flowTag: "solution",
-            summary: "The proposed solution.",
             slides: [{ title: "Approach", intent: "Introduce the solution." }],
           },
         ],
@@ -418,7 +430,12 @@ describe("AiOrchestrator", () => {
           { layout: "header-content", content: "@header\n## Approach\n\n@main\n- The solution" },
         ],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const result = await orchestrator.runWholeDeckOperation(op);
@@ -431,8 +448,8 @@ describe("AiOrchestrator", () => {
       expect(outlineUser).toContain("rethink the topic, examples, notes, and visuals");
       expect(outlineUser).toContain("Do not preserve the original theme");
       expect(outlineUser).toContain("storytelling techniques");
-      // At least 2 calls: outline + execute (may retry on validation)
-      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // At least 3 calls: outline + breakdown + execute (may retry on validation)
+      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 
     it("reimagine invokes onOutline callback and uses the edited outline", async () => {
@@ -443,9 +460,18 @@ describe("AiOrchestrator", () => {
             title: "Opening",
             flowTag: "hook",
             summary: "Hook the audience.",
+            suggestedSlideCount: 2,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Edited chapter",
             slides: [
-              { title: "Hook", intent: "Open with a surprising statistic." },
-              { title: "Approach", intent: "Introduce the solution." },
+              { title: "Edited Hook", intent: "Edited intent 1." },
+              { title: "Edited Approach", intent: "Edited intent 2." },
+              { title: "New Slide", intent: "Brand new slide." },
             ],
           },
         ],
@@ -457,7 +483,12 @@ describe("AiOrchestrator", () => {
           { layout: "header-content", content: "@header\n## New Slide\n\n@main\n- New" },
         ],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const outlines = [];
@@ -471,11 +502,7 @@ describe("AiOrchestrator", () => {
                 title: "Edited chapter",
                 flowTag: "solution",
                 summary: "Edited summary.",
-                slides: [
-                  { title: "Edited Hook", intent: "Edited intent 1." },
-                  { title: "Edited Approach", intent: "Edited intent 2." },
-                  { title: "New Slide", intent: "Brand new slide." },
-                ],
+                suggestedSlideCount: 3,
               },
             ],
           };
@@ -484,18 +511,19 @@ describe("AiOrchestrator", () => {
       expect(outlines).toHaveLength(1);
       expect(outlines[0].plan).toBe("Original plan.");
       expect(outlines[0].chapters).toHaveLength(1);
-      expect(outlines[0].chapters[0].slides).toHaveLength(2);
+      expect(outlines[0].chapters[0].title).toBe("Opening");
+      expect(outlines[0].chapters[0].suggestedSlideCount).toBe(2);
       expect(result).toContain("Edited Hook");
       expect(result).toContain("New Slide");
-      // The execute call's context should carry the edited outline briefs
-      const execUser = provider.chat.mock.calls[1][0].messages.find(
+      // The execute call's context should carry the breakdown briefs
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Edited Hook");
       expect(execUser).toContain("Brand new slide");
     });
 
-    it("reimagine feeds chapter title/summary into the briefs and fills blank slides", async () => {
+    it("reimagine feeds chapter title/summary into the briefs from breakdown", async () => {
       const outlineResponse = JSON.stringify({
         plan: "Original plan.",
         chapters: [
@@ -503,17 +531,27 @@ describe("AiOrchestrator", () => {
             title: "Opening",
             flowTag: "hook",
             summary: "Hook the audience.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Rewritten chapter",
             slides: [{ title: "Hook", intent: "Open with a statistic." }],
           },
         ],
       });
       const executeResponse = JSON.stringify({
-        slides: [
-          { layout: "header-content", content: "@header\n## One\n\n@main\n- A" },
-          { layout: "header-content", content: "@header\n## Two\n\n@main\n- B" },
-        ],
+        slides: [{ layout: "header-content", content: "@header\n## One\n\n@main\n- A" }],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       await orchestrator.runWholeDeckOperation(op, undefined, {
@@ -524,22 +562,17 @@ describe("AiOrchestrator", () => {
               title: "Rewritten chapter",
               flowTag: "solution",
               summary: "Rewritten summary.",
-              slides: [
-                { title: "Hook", intent: "Open with a statistic." },
-                { title: "", intent: "" },
-              ],
+              suggestedSlideCount: 1,
             },
           ],
         }),
       });
-      const execUser = provider.chat.mock.calls[1][0].messages.find(
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain(
         "<!-- brief: Hook \u2014 Open with a statistic. (chapter: Rewritten chapter \u2014 Rewritten summary.) -->",
       );
-      expect(execUser).toContain("<!-- brief: Rewritten chapter \u2014 Rewritten summary. -->");
-      expect(execUser).not.toContain("<!-- brief:  \u2014  -->");
     });
 
     it("reimagine returns null when onOutline resolves null (user cancelled)", async () => {
@@ -550,7 +583,7 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [{ title: "Hook", intent: "Open." }],
+            suggestedSlideCount: 1,
           },
         ],
       });
@@ -572,6 +605,14 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
             slides: [{ title: "Hook", intent: "Open." }],
           },
         ],
@@ -579,15 +620,20 @@ describe("AiOrchestrator", () => {
       const executeResponse = JSON.stringify({
         slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const result = await orchestrator.runWholeDeckOperation(op);
       expect(result).toContain("Hook");
     });
 
-    it("reimagine warns when slide count is outside 70-120% target", async () => {
-      // 2 source slides; target is 1-2 (70-120%). Return 5 slides → outside range.
+    it("reimagine warns when suggested slide count is outside 70-120% target", async () => {
+      // 2 source slides; target is 1-2 (70-120%). Suggest 5 → outside range.
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
         chapters: [
@@ -595,13 +641,15 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [
-              { title: "S1", intent: "I1." },
-              { title: "S2", intent: "I2." },
-              { title: "S3", intent: "I3." },
-              { title: "S4", intent: "I4." },
-              { title: "S5", intent: "I5." },
-            ],
+            suggestedSlideCount: 5,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: Array(5).fill({ title: "S", intent: "I." }),
           },
         ],
       });
@@ -611,7 +659,12 @@ describe("AiOrchestrator", () => {
           content: "@header\n## S\n\n@main\n- x",
         }),
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const logs = [];
@@ -629,14 +682,22 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [{ title: "Hook", intent: "Open." }],
+            suggestedSlideCount: 1,
           },
         ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "Hook", intent: "Open." }] }],
       });
       const executeResponse = JSON.stringify({
         slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, {
         mode: "reimagine",
@@ -674,17 +735,22 @@ describe("AiOrchestrator", () => {
       );
     });
 
-    it("reimagine throws on chapter with empty slides", async () => {
-      const provider = mockProviderSequence([
-        JSON.stringify({
-          plan: "B.",
-          chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", slides: [] }],
-        }),
-      ]);
+    it("reimagine throws on breakdown with mismatched chapter count", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          { title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 },
+          { title: "Ch2", flowTag: "solution", summary: "S2.", suggestedSlideCount: 1 },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const provider = mockProviderSequence([outlineResponse, breakdownResponse]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
-        "missing non-empty 'slides' array",
+        "Breakdown has 1 chapters, expected 2",
       );
     });
 

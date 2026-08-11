@@ -16,6 +16,7 @@ import polishPrompt from "../prompts/polish-prompt.md?raw";
 import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
+import reimagineBreakdownPrompt from "../prompts/reimagine-breakdown-prompt.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
 import visualIdentityGuidance from "../prompts/visual-identity-guidance.md?raw";
@@ -33,6 +34,7 @@ export const FRAGMENTS = {
   "add-speaker-notes-prompt.md": addSpeakerNotesPrompt,
   "remix-plan-prompt.md": remixPlanPrompt,
   "reimagine-outline-prompt.md": reimagineOutlinePrompt,
+  "reimagine-breakdown-prompt.md": reimagineBreakdownPrompt,
   "flow-guidance.md": flowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
   "visual-identity-guidance.md": visualIdentityGuidance,

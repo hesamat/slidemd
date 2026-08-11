@@ -30,23 +30,29 @@ import { parseAllImages } from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 
 /**
- * @typedef {Object} ReimagineOutlineSlide
- * @property {string} title
- * @property {string} intent
- */
-
-/**
  * @typedef {Object} ReimagineOutlineChapter
  * @property {string} title
  * @property {string} flowTag — one of: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta
  * @property {string} summary
- * @property {ReimagineOutlineSlide[]} slides
+ * @property {number} suggestedSlideCount
  */
 
 /**
  * @typedef {Object} ReimagineOutline
  * @property {string} plan
  * @property {ReimagineOutlineChapter[]} chapters
+ */
+
+/**
+ * @typedef {Object} ReimagineBreakdownSlide
+ * @property {string} title
+ * @property {string} intent
+ */
+
+/**
+ * @typedef {Object} ReimagineBreakdownChapter
+ * @property {string} title
+ * @property {ReimagineBreakdownSlide[]} slides
  */
 
 export class RemixReimagineOrchestrator {
@@ -283,13 +289,13 @@ export class RemixReimagineOrchestrator {
     );
     if (!outline) return null;
 
-    // Slide-count guard: soft warn if the outline is outside 70-120% of source.
-    const totalSlides = this.#countOutlineSlides(outline);
+    // Slide-count guard: soft warn if the suggested total is outside 70-120%.
+    const totalSuggested = this.#countSuggestedSlides(outline);
     const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
     const maxTarget = Math.round(sourceCount * 1.2);
-    if (totalSlides < minTarget || totalSlides > maxTarget) {
+    if (totalSuggested < minTarget || totalSuggested > maxTarget) {
       onLog?.(
-        `Warning: outline has ${totalSlides} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
+        `Warning: outline suggests ${totalSuggested} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
         "warn",
       );
     }
@@ -308,17 +314,20 @@ export class RemixReimagineOrchestrator {
       editedOutline = edited;
     }
 
-    // ── Phase 3: Build virtual deck from the chapter outline ──
-    // Each slide entry becomes a virtual slide carrying only a brief
-    // comment. The generate prompt sees the brief and produces the slide
-    // content fresh — no source markdown is sent, so the AI is free to
-    // rewrite examples, visuals, and structure.
-    const virtualSlides = this.#outlineToVirtualSlides(editedOutline);
+    // ── Phase 3: Slide breakdown ──
+    // Now that the chapters are finalized, call the AI to break each chapter
+    // into individual slide briefs. This ensures the slide structure matches
+    // the user's edits, not the original outline draft.
+    onLog?.("Breaking chapters into slides\u2026");
+    const breakdown = await this.#runSlideBreakdown(editedOutline, signal, callbacks);
+    if (!breakdown) return null;
+
+    const virtualSlides = this.#breakdownToVirtualSlides(editedOutline, breakdown);
     const virtualDeck = virtualSlides.join("\n\n---\n\n");
     const virtualCount = virtualSlides.length;
 
     onLog?.(
-      `Reimagine outline: ${virtualCount} slide(s) across ${editedOutline.chapters.length} chapter(s).`,
+      `Reimagine: ${virtualCount} slide(s) across ${editedOutline.chapters.length} chapter(s).`,
     );
 
     // Carry the plan as a log line for sidebar visibility.
@@ -361,12 +370,12 @@ export class RemixReimagineOrchestrator {
   }
 
   /**
-   * Count total slides across all chapters in a Reimagine outline.
+   * Count total suggested slides across all chapters in a Reimagine outline.
    * @param {ReimagineOutline} outline
    * @returns {number}
    */
-  #countOutlineSlides(outline) {
-    return outline.chapters.reduce((sum, ch) => sum + (ch.slides?.length || 0), 0);
+  #countSuggestedSlides(outline) {
+    return outline.chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
   }
 
   /**
@@ -381,29 +390,34 @@ export class RemixReimagineOrchestrator {
         title: ch.title,
         flowTag: ch.flowTag || "",
         summary: ch.summary || "",
-        slides: ch.slides.map((s) => ({ title: s.title, intent: s.intent })),
+        suggestedSlideCount: ch.suggestedSlideCount || 1,
       })),
     };
   }
 
   /**
-   * Flatten a Reimagine outline into virtual slide briefs.
+   * Flatten a breakdown (chapters with slide briefs) into virtual slide briefs.
    * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) -->`.
    * Slides with no title or intent fall back to their chapter context, and
    * slides with no context at all are dropped.
-   * @param {ReimagineOutline} outline
+   * @param {ReimagineOutline} outline — the finalized outline (for chapter context)
+   * @param {ReimagineBreakdownChapter[]} breakdown — the breakdown with slide briefs
    * @returns {string[]}
    */
-  #outlineToVirtualSlides(outline) {
+  #breakdownToVirtualSlides(outline, breakdown) {
     const slides = [];
     const join = (...parts) =>
       parts
         .map((p) => (p || "").trim())
         .filter(Boolean)
         .join(" \u2014 ");
-    for (const chapter of outline.chapters) {
-      const chapterContext = join(chapter.title, chapter.summary);
-      for (const slide of chapter.slides) {
+    for (let ci = 0; ci < breakdown.chapters.length; ci++) {
+      const bdChapter = breakdown.chapters[ci];
+      const outlineChapter = outline.chapters[ci];
+      const chapterContext = outlineChapter
+        ? join(outlineChapter.title, outlineChapter.summary)
+        : "";
+      for (const slide of bdChapter.slides) {
         const brief = join(slide.title, slide.intent);
         if (!brief && !chapterContext) continue;
         const text = brief
@@ -563,23 +577,15 @@ export class RemixReimagineOrchestrator {
       if (typeof ch.title !== "string") {
         throw new Error(`Chapter ${i} missing 'title' string`);
       }
-      if (!Array.isArray(ch.slides) || ch.slides.length === 0) {
-        throw new Error(`Chapter ${i} missing non-empty 'slides' array`);
-      }
-      const slides = ch.slides.map((s, j) => {
-        if (typeof s !== "object" || s === null) {
-          throw new Error(`Chapter ${i} slide ${j} is not an object`);
-        }
-        if (typeof s.title !== "string" || typeof s.intent !== "string") {
-          throw new Error(`Chapter ${i} slide ${j} missing 'title' or 'intent' string`);
-        }
-        return { title: s.title, intent: s.intent };
-      });
+      const suggestedSlideCount =
+        typeof ch.suggestedSlideCount === "number" && ch.suggestedSlideCount > 0
+          ? Math.round(ch.suggestedSlideCount)
+          : 1;
       return {
         title: ch.title,
         flowTag: typeof ch.flowTag === "string" ? ch.flowTag : "",
         summary: typeof ch.summary === "string" ? ch.summary : "",
-        slides,
+        suggestedSlideCount,
       };
     });
 
@@ -587,6 +593,134 @@ export class RemixReimagineOrchestrator {
       plan: parsed.plan,
       chapters,
     };
+  }
+
+  /**
+   * Run the slide-breakdown phase: call the LLM with the finalized chapters
+   * and parse per-slide briefs for each chapter.
+   * @param {ReimagineOutline} outline — finalized outline from user review
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @returns {Promise<{chapters: ReimagineBreakdownChapter[]}|null>}
+   */
+  async #runSlideBreakdown(outline, signal, callbacks = {}) {
+    const { onLog } = callbacks;
+
+    // Serialize the chapters into a compact JSON for the prompt.
+    const chaptersInput = JSON.stringify({
+      chapters: outline.chapters.map((ch) => ({
+        title: ch.title,
+        flowTag: ch.flowTag,
+        summary: ch.summary,
+        suggestedSlideCount: ch.suggestedSlideCount,
+      })),
+    });
+
+    const { system, user } = composeMessages(
+      getFragment("system-prompt.md"),
+      getFragment("reimagine-breakdown-prompt.md"),
+      { chapters: chaptersInput },
+    );
+
+    const reasoningEffort = this._useReasoning ? this._effort : "none";
+    const maxTokens = estimateMaxTokens(chaptersInput, "generate", {
+      modelMaxOutput: this._modelMaxOutput,
+      reasoningEffort,
+    });
+
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ];
+
+    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    onLog?.(
+      `[Tokens] Breakdown request \u2014 estimated input: ~${textTokenEstimate.toLocaleString()} text. Output cap (estimated): ${maxTokens.toLocaleString()}.`,
+    );
+
+    const response = await this._provider.chat(
+      {
+        messages,
+        maxTokens,
+        responseFormat: null,
+        reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
+      },
+      signal,
+    );
+
+    if (response.usage) {
+      const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+      onLog?.(
+        `[Tokens] Breakdown response \u2014 provider usage: ${prompt_tokens ?? "?"} prompt + ${completion_tokens ?? "?"} completion = ${total_tokens ?? "?"} total.`,
+      );
+    }
+
+    return this.#parseBreakdownResponse(response.content, outline);
+  }
+
+  /**
+   * Parse the slide-breakdown JSON from an LLM response.
+   * Validates that the breakdown chapters match the outline chapters.
+   * @param {string} text
+   * @param {ReimagineOutline} outline
+   * @returns {{chapters: ReimagineBreakdownChapter[]}|null}
+   */
+  #parseBreakdownResponse(text, outline) {
+    if (!text || typeof text !== "string") return null;
+
+    let cleaned = text.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("Breakdown response did not contain JSON");
+    }
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error("Breakdown response was not valid JSON");
+    }
+
+    if (!Array.isArray(parsed.chapters) || parsed.chapters.length === 0) {
+      throw new Error("Breakdown response missing 'chapters' array");
+    }
+
+    if (parsed.chapters.length !== outline.chapters.length) {
+      throw new Error(
+        `Breakdown has ${parsed.chapters.length} chapters, expected ${outline.chapters.length}`,
+      );
+    }
+
+    const chapters = parsed.chapters.map((ch, i) => {
+      if (typeof ch !== "object" || ch === null) {
+        throw new Error(`Breakdown chapter ${i} is not an object`);
+      }
+      if (typeof ch.title !== "string") {
+        throw new Error(`Breakdown chapter ${i} missing 'title' string`);
+      }
+      if (!Array.isArray(ch.slides) || ch.slides.length === 0) {
+        throw new Error(`Breakdown chapter ${i} missing non-empty 'slides' array`);
+      }
+      const slides = ch.slides.map((s, j) => {
+        if (typeof s !== "object" || s === null) {
+          throw new Error(`Breakdown chapter ${i} slide ${j} is not an object`);
+        }
+        if (typeof s.title !== "string" || typeof s.intent !== "string") {
+          throw new Error(`Breakdown chapter ${i} slide ${j} missing 'title' or 'intent' string`);
+        }
+        return { title: s.title, intent: s.intent };
+      });
+      return { title: ch.title, slides };
+    });
+
+    return { chapters };
   }
 
   /**
