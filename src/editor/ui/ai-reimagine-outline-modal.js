@@ -63,6 +63,7 @@ const FLOW_TAGS = [
  * @property {string} plan
  * @property {OutlineChapter[]} chapters
  * @property {VisualSystem|null} [visualSystem]
+ * @property {number[]} [keepImages]
  */
 
 export class AiReimagineOutlineModal {
@@ -71,6 +72,9 @@ export class AiReimagineOutlineModal {
    * @param {ReimagineOutline} outline
    * @param {object} [opts]
    * @param {number} [opts.sourceCount] — original slide count for the guard display
+   * @param {(plan: string) => Promise<ReimagineOutline|null>} [opts.onRegenerate] —
+   *   when provided, a "Regenerate chapters" button is shown that re-runs the
+   *   outline AI with the edited plan and replaces the chapters
    * @returns {Promise<ReimagineOutline|null>}
    */
   static show(outline, opts = {}) {
@@ -91,7 +95,14 @@ export class AiReimagineOutlineModal {
         <div class="${P}summary-section">
           <div class="${P}field">
             <label class="${P}label" for="${P}plan-input">Plan</label>
-            <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
+            <div class="${P}plan-row">
+              <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
+              ${
+                opts.onRegenerate
+                  ? `<button type="button" class="${P}btn ${P}btn--secondary" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
+                  : ""
+              }
+            </div>
           </div>
           ${renderVisualSystemSummary(outline.visualSystem)}
           <div id="${P}stats" class="${P}stats"></div>
@@ -120,6 +131,49 @@ export class AiReimagineOutlineModal {
       const planInput = dialog.querySelector(`#${P}plan-input`);
       const paletteSelect = dialog.querySelector(`#${P}palette-select`);
       const swatchesEl = dialog.querySelector(`#${P}swatches`);
+      const regenerateBtn = dialog.querySelector(`#${P}regenerate-btn`);
+
+      // Regenerate chapters: re-run the outline AI with the edited plan.
+      if (regenerateBtn && opts.onRegenerate) {
+        regenerateBtn.addEventListener("click", async () => {
+          const newPlan = planInput.value.trim();
+          if (!newPlan) {
+            errorEl.textContent = "Enter a plan before regenerating.";
+            return;
+          }
+          errorEl.textContent = "";
+          regenerateBtn.disabled = true;
+          regenerateBtn.textContent = "Regenerating\u2026";
+          try {
+            const newOutline = await opts.onRegenerate(newPlan);
+            if (newOutline) {
+              // Replace the outline's chapters and plan with the regenerated ones.
+              outline.plan = newOutline.plan;
+              outline.chapters = newOutline.chapters;
+              if (newOutline.visualSystem) outline.visualSystem = newOutline.visualSystem;
+              if (newOutline.keepImages) outline.keepImages = newOutline.keepImages;
+              // Re-render chapters and stats
+              chapters.length = 0;
+              for (const ch of outline.chapters) {
+                chapters.push({
+                  title: ch.title,
+                  flowTag: ch.flowTag || "",
+                  summary: ch.summary || "",
+                  suggestedSlideCount: ch.suggestedSlideCount || 1,
+                });
+              }
+              renderChapters();
+              renderStats();
+              planInput.value = outline.plan;
+            }
+          } catch (err) {
+            errorEl.textContent = err?.message || "Regeneration failed.";
+          } finally {
+            regenerateBtn.disabled = false;
+            regenerateBtn.textContent = "Regenerate chapters";
+          }
+        });
+      }
 
       // Palette dropdown: update the visual system's palette when a preset is picked.
       if (paletteSelect && outline.visualSystem) {

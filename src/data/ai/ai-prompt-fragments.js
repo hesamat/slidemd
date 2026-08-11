@@ -164,6 +164,34 @@ export function serializeVisualSystemForBreakdown(vs) {
 }
 
 /**
+ * Build the `{{keptImages}}` section for the breakdown prompt.
+ * Lists the kept image paths from the original deck so the breakdown AI
+ * can reference them via `reuse:<path>` in `imageQuery`.
+ * @param {string[]} keptImageSrcs — original markdown src paths of kept images
+ * @returns {string}
+ */
+export function buildKeptImagesList(keptImageSrcs) {
+  if (!keptImageSrcs || keptImageSrcs.length === 0) {
+    return "No images from the original deck were kept. Use normal search queries for all imageQuery fields.";
+  }
+  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
+  return `Kept images from the original deck (reference with \`reuse:<path>\` in imageQuery):\n${lines}`;
+}
+
+/**
+ * Build the available-images brief for the generate prompt's options suffix.
+ * Lists the kept image paths so the Generate AI can insert them where
+ * appropriate. Returns an empty string when no images are available.
+ * @param {string[]} keptImageSrcs — original markdown src paths of kept images
+ * @returns {string}
+ */
+export function buildAvailableImagesBrief(keptImageSrcs) {
+  if (!keptImageSrcs || keptImageSrcs.length === 0) return "";
+  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
+  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${lines}\n`;
+}
+
+/**
  * Build the visual system brief + beat→treatment mapping for the generate
  * prompt's options suffix. When a visual system is present, this overrides
  * the generate prompt's generic "Pick ONE coherent visual theme" instruction

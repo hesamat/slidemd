@@ -24,6 +24,8 @@ import {
   composeMessages,
   getFragment,
   serializeVisualSystemForBreakdown,
+  buildKeptImagesList,
+  buildAvailableImagesBrief,
 } from "./ai-prompt-fragments.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
@@ -45,6 +47,7 @@ import { normalizeBeats } from "./beat-normalizer.js";
  * @property {string} plan
  * @property {ReimagineOutlineChapter[]} chapters
  * @property {import("./visual-system-schema.js").VisualSystem|null} visualSystem
+ * @property {number[]} keepImages — 0-based indices into the flattened sent image list
  */
 
 /**
@@ -261,7 +264,7 @@ export class RemixReimagineOrchestrator {
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
    * @param {object} callbacks
-   * @param {(outline: ReimagineOutline) => Promise<ReimagineOutline|null>} [callbacks.onOutline]
+   * @param {(outline: ReimagineOutline, regenerate: (plan: string) => Promise<ReimagineOutline|null>) => Promise<ReimagineOutline|null>} [callbacks.onOutline]
    * @returns {Promise<string|null>}
    */
   async runReimagine(operation, signal, callbacks = {}) {
@@ -311,11 +314,23 @@ export class RemixReimagineOrchestrator {
 
     // ── Phase 2: User review ──
     // Pass a deep copy so the callback can't mutate the original before we
-    // apply the edited version.
+    // apply the edited version. Also pass a `regenerate` function that the
+    // callback can call to re-run the outline AI with an edited plan.
     let editedOutline = outline;
     if (typeof onOutline === "function") {
       onLog?.("Waiting for outline review\u2026");
-      const edited = await onOutline(this.#cloneOutline(outline));
+      const regenerate = async (newPlan) => {
+        onLog?.("Regenerating outline with edited plan\u2026");
+        return this.#runReimagineOutline(
+          operation,
+          signal,
+          callbacks,
+          sourceCount,
+          slideImages,
+          newPlan,
+        );
+      };
+      const edited = await onOutline(this.#cloneOutline(outline), regenerate);
       if (!edited) {
         onLog?.("Reimagine cancelled during outline review.");
         return null;
@@ -327,8 +342,23 @@ export class RemixReimagineOrchestrator {
     // Now that the chapters are finalized, call the AI to break each chapter
     // into individual slide briefs. This ensures the slide structure matches
     // the user's edits, not the original outline draft.
+
+    // Compute kept images from the outline's keepImages indices.
+    // slideImages is a per-slide array; flatten it to get a 0-based list
+    // matching the indices the outline AI used.
+    const keptImageEntries = this.#extractKeptImages(slideImages, editedOutline.keepImages);
+    const keptImageSrcs = keptImageEntries.map((e) => e.src);
+    if (keptImageSrcs.length > 0) {
+      onLog?.(`Keeping ${keptImageSrcs.length} image(s) from original deck for reuse.`);
+    }
+
     onLog?.("Breaking chapters into slides\u2026");
-    const breakdown = await this.#runSlideBreakdown(editedOutline, signal, callbacks);
+    const breakdown = await this.#runSlideBreakdown(
+      editedOutline,
+      signal,
+      callbacks,
+      keptImageSrcs,
+    );
     if (!breakdown) return null;
 
     const virtualSlides = this.#breakdownToVirtualSlides(editedOutline, breakdown);
@@ -346,6 +376,9 @@ export class RemixReimagineOrchestrator {
     // Clear mode so the inner call doesn't recurse into the reimagine flow.
     // Pass the visual system through so the generate prompt receives the
     // design language + beat→treatment mapping via the options suffix.
+    // Pass kept images as vision content (first batch/single call only) and
+    // as a text list in the suffix (all batches).
+    const keptImagesForVision = keptImageEntries.length > 0 ? [keptImageEntries] : null;
     const execOp = {
       ...operation,
       context: virtualDeck,
@@ -355,7 +388,8 @@ export class RemixReimagineOrchestrator {
         visualSystem: editedOutline.visualSystem ?? null,
       },
     };
-    const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
+    const execSuffix =
+      buildGenerateOptionsSuffix(execOp.opts) + buildAvailableImagesBrief(keptImageSrcs);
 
     onLog?.(`Generating ${virtualCount} slide(s) for reimagine\u2026`);
     const result =
@@ -366,6 +400,7 @@ export class RemixReimagineOrchestrator {
             execSuffix,
             callbacks,
             virtualCount,
+            keptImagesForVision,
           )
         : await this._wholeDeck.runWholeDeckBatched(
             execOp,
@@ -374,6 +409,7 @@ export class RemixReimagineOrchestrator {
             virtualCount,
             splitSlidesForAi(virtualDeck, "generate"),
             callbacks,
+            keptImagesForVision,
           );
 
     if (!result) return result;
@@ -394,6 +430,36 @@ export class RemixReimagineOrchestrator {
   }
 
   /**
+   * Extract the kept image entries from the per-slide slideImages array
+   * using the outline's keepImages indices.
+   *
+   * `slideImages` is `Array<Array<{src, dataUrl}>|null>` — one entry per
+   * slide. `keepImages` is a flat array of 0-based indices into the
+   * flattened list of all images across all slides (in slide order, then
+   * in-image order within each slide).
+   *
+   * @param {Array<Array<{src: string, dataUrl: string}>|null>|null} slideImages
+   * @param {number[]} keepImages — 0-based indices into the flattened image list
+   * @returns {Array<{src: string, dataUrl: string}>} kept image entries
+   */
+  #extractKeptImages(slideImages, keepImages) {
+    if (!slideImages || !keepImages || keepImages.length === 0) return [];
+    const keepSet = new Set(keepImages);
+    const result = [];
+    let flatIdx = 0;
+    for (const imgs of slideImages) {
+      if (!imgs) continue;
+      for (const entry of imgs) {
+        if (keepSet.has(flatIdx)) {
+          result.push(entry);
+        }
+        flatIdx++;
+      }
+    }
+    return result;
+  }
+
+  /**
    * Deep-clone a Reimagine outline for passing to the onOutline callback.
    * @param {ReimagineOutline} outline
    * @returns {ReimagineOutline}
@@ -408,6 +474,7 @@ export class RemixReimagineOrchestrator {
         suggestedSlideCount: ch.suggestedSlideCount || 1,
       })),
       visualSystem: outline.visualSystem ?? null,
+      keepImages: outline.keepImages ? [...outline.keepImages] : [],
     };
   }
 
@@ -470,9 +537,18 @@ export class RemixReimagineOrchestrator {
    * @param {object} callbacks
    * @param {number} sourceCount — number of source slides for the slide-count guard
    * @param {Array<string[]|null>} [slideImages] — per-slide compressed image data URLs for vision
+   * @param {string} [planOverride] — when set, the user edited the plan and wants
+   *   the AI to regenerate chapters based on this new plan direction
    * @returns {Promise<ReimagineOutline|null>}
    */
-  async #runReimagineOutline(operation, signal, callbacks = {}, sourceCount, slideImages = null) {
+  async #runReimagineOutline(
+    operation,
+    signal,
+    callbacks = {},
+    sourceCount,
+    slideImages = null,
+    planOverride = null,
+  ) {
     const { context } = operation;
     const { onLog } = callbacks;
 
@@ -494,6 +570,13 @@ export class RemixReimagineOrchestrator {
       },
     );
 
+    // When regenerating with an edited plan, append the user's new plan as
+    // additional guidance so the AI generates chapters aligned with it.
+    const userWithPlan = planOverride
+      ? user +
+        `\n\nThe user has revised the plan direction. Generate chapters that align with this plan:\n"${planOverride}"`
+      : user;
+
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const maxTokens = estimateMaxTokens(deckSummary, "generate", {
       modelMaxOutput: this._modelMaxOutput,
@@ -501,14 +584,14 @@ export class RemixReimagineOrchestrator {
     });
 
     // Build the user content — either a multi-modal array (vision) or plain text.
-    const userContent = slideImages ? buildVisionMessage(user, slideImages) : user;
+    const userContent = slideImages ? buildVisionMessage(userWithPlan, slideImages) : userWithPlan;
 
     const messages = [
       { role: "system", content: system },
       { role: "user", content: userContent },
     ];
 
-    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    const textTokenEstimate = Math.ceil((system.length + userWithPlan.length) / 4);
     const imageCount = slideImages
       ? slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0)
       : 0;
@@ -624,10 +707,20 @@ export class RemixReimagineOrchestrator {
     // missing or invalid. Outline validation (plan/chapters) still throws.
     const visualSystem = parseVisualSystem(parsed.visualSystem);
 
+    // Parse keepImages: optional array of non-negative integers (0-based
+    // indices into the flattened sent image list). Invalid entries are
+    // filtered out; if absent or empty, no images are kept.
+    const keepImages = Array.isArray(parsed.keepImages)
+      ? parsed.keepImages.filter(
+          (idx) => typeof idx === "number" && idx >= 0 && Number.isInteger(idx),
+        )
+      : [];
+
     return {
       plan: parsed.plan,
       chapters,
       visualSystem,
+      keepImages,
     };
   }
 
@@ -639,7 +732,7 @@ export class RemixReimagineOrchestrator {
    * @param {object} callbacks
    * @returns {Promise<{chapters: ReimagineBreakdownChapter[]}|null>}
    */
-  async #runSlideBreakdown(outline, signal, callbacks = {}) {
+  async #runSlideBreakdown(outline, signal, callbacks = {}, keptImageSrcs = []) {
     const { onLog } = callbacks;
 
     // Serialize the chapters into a compact JSON for the prompt.
@@ -653,11 +746,12 @@ export class RemixReimagineOrchestrator {
     });
 
     const visualSystemInput = serializeVisualSystemForBreakdown(outline.visualSystem);
+    const keptImagesInput = buildKeptImagesList(keptImageSrcs);
 
     const { system, user } = composeMessages(
       getFragment("system-prompt.md"),
       getFragment("reimagine-breakdown-prompt.md"),
-      { chapters: chaptersInput, visualSystem: visualSystemInput },
+      { chapters: chaptersInput, visualSystem: visualSystemInput, keptImages: keptImagesInput },
     );
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";

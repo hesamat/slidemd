@@ -30,6 +30,10 @@ Do not apply rigid mathematical quotas. Optimize for visual rhythm rather than s
 
 If a slide would benefit from an image, include an `imageQuery` — a short search query describing the desired image. Make image queries consistent with the visual system's imagery mood. Do not force literal repetition of mood words if that makes the query unnatural. If no image is needed, omit `imageQuery`.
 
+If kept images from the original deck are listed below, you can reference one by setting `imageQuery` to `reuse:<path>` (e.g. `reuse:images/team-photo.jpg`). Use this when a kept image fits the slide's content. If no kept image fits, use a normal search query instead.
+
+{{keptImages}}
+
 Output format:
 
 ```json

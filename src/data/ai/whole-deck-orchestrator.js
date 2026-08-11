@@ -21,7 +21,8 @@ import {
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
-import { buildReasoningBody } from "./orchestrator-shared.js";
+import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
+import { buildVisionMessage } from "./ai-vision-message.js";
 
 export class WholeDeckOrchestrator {
   /**
@@ -110,6 +111,8 @@ export class WholeDeckOrchestrator {
    * @param {string} optionsSuffix
    * @param {object} callbacks
    * @param {number} [expectedSlideCount] — when set, the output must have exactly this many slides
+   * @param {Array<Array<{src: string, dataUrl: string}>|null>} [visionImages] —
+   *   per-slide kept images to send as vision content (reimagine image reuse)
    * @returns {Promise<string|null>}
    */
   async runWholeDeckSingleCall(
@@ -118,6 +121,7 @@ export class WholeDeckOrchestrator {
     optionsSuffix = "",
     callbacks = {},
     expectedSlideCount = null,
+    visionImages = null,
   ) {
     const { intent, context } = operation;
     const { onLog } = callbacks;
@@ -130,9 +134,13 @@ export class WholeDeckOrchestrator {
       operation.opts?.mode === "polish"
         ? buildPolishMessages(context)
         : buildMessagesForIntent(intent, { markdown: context });
+    const userText = user + optionsSuffix;
+    // When vision images are provided, build multi-modal content so the AI
+    // can see the kept images and decide where to insert them.
+    const userContent = visionImages ? buildVisionMessage(userText, visionImages) : userText;
     let messages = [
       { role: "system", content: system },
-      { role: "user", content: user + optionsSuffix },
+      { role: "user", content: userContent },
     ];
 
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -141,15 +149,30 @@ export class WholeDeckOrchestrator {
         reasoningEffort,
       });
 
-      const response = await this._provider.chat(
-        {
-          messages,
-          maxTokens,
-          responseFormat: null,
-          reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
-        },
-        signal,
-      );
+      let response;
+      try {
+        response = await this._provider.chat(
+          {
+            messages,
+            maxTokens,
+            responseFormat: null,
+            reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
+          },
+          signal,
+        );
+      } catch (err) {
+        // Vision error → retry once with text-only content
+        if (visionImages && isVisionError(err) && attempt === 1) {
+          onLog?.("Vision not supported — retrying without images", "warn");
+          messages = [
+            { role: "system", content: system },
+            { role: "user", content: userText },
+          ];
+          visionImages = null;
+          continue;
+        }
+        throw err;
+      }
 
       const contentText = response.content;
       const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;
@@ -203,6 +226,10 @@ export class WholeDeckOrchestrator {
    * @param {string} optionsSuffix
    * @param {number} totalSlides
    * @param {object} callbacks
+   * @param {Array<Array<{src: string, dataUrl: string}>|null>} [visionImages] —
+   *   kept images to send as vision content with the first batch only (reimagine
+   *   image reuse). Later batches receive the image src paths as text in the
+   *   options suffix but not the actual image data.
    * @returns {Promise<string|null>}
    */
   async runWholeDeckBatched(
@@ -212,6 +239,7 @@ export class WholeDeckOrchestrator {
     totalSlides,
     allSlides,
     callbacks = {},
+    visionImages = null,
   ) {
     const { context } = operation;
     const reasoningEffort = this._useReasoning ? this._effort : "none";
@@ -251,6 +279,9 @@ export class WholeDeckOrchestrator {
           signal,
           repairMessages: repairMessages.get(batch.batchKey) || [],
           mode: operation.opts?.mode,
+          // Only the first batch gets vision images — subsequent batches
+          // know the paths from the options suffix text.
+          visionImages: batch.index === 0 ? visionImages : null,
         });
 
         if (batchResult === null) {
@@ -402,6 +433,7 @@ export class WholeDeckOrchestrator {
     signal,
     repairMessages = [],
     mode,
+    visionImages = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
 
@@ -415,27 +447,59 @@ export class WholeDeckOrchestrator {
       mode,
     );
 
+    const userText = user + optionsSuffix;
+    const userContent = visionImages ? buildVisionMessage(userText, visionImages) : userText;
     const messages = [
       { role: "system", content: system },
-      { role: "user", content: user + optionsSuffix },
+      { role: "user", content: userContent },
       ...repairMessages,
     ];
 
     const startTime = performance.now();
 
     try {
-      const response = await this._provider.chat(
-        {
-          messages,
-          maxTokens: estimateMaxTokens(batchMarkdown, "generate", {
-            modelMaxOutput: this._modelMaxOutput,
-            reasoningEffort,
-          }),
-          responseFormat: null,
-          reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
-        },
-        signal,
-      );
+      let response;
+      try {
+        response = await this._provider.chat(
+          {
+            messages,
+            maxTokens: estimateMaxTokens(batchMarkdown, "generate", {
+              modelMaxOutput: this._modelMaxOutput,
+              reasoningEffort,
+            }),
+            responseFormat: null,
+            reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
+          },
+          signal,
+        );
+      } catch (visionErr) {
+        // Vision error → retry this batch without images
+        if (visionImages && isVisionError(visionErr)) {
+          const textMessages = [
+            { role: "system", content: system },
+            { role: "user", content: userText },
+            ...repairMessages,
+          ];
+          response = await this._provider.chat(
+            {
+              messages: textMessages,
+              maxTokens: estimateMaxTokens(batchMarkdown, "generate", {
+                modelMaxOutput: this._modelMaxOutput,
+                reasoningEffort,
+              }),
+              responseFormat: null,
+              reasoning: buildReasoningBody(
+                this._useReasoning,
+                this._effort,
+                this._effortSupported,
+              ),
+            },
+            signal,
+          );
+        } else {
+          throw visionErr;
+        }
+      }
 
       const contentText = response.content;
       const finishReason = response.raw?.finish_reason ?? response.raw?.choices?.[0]?.finish_reason;

@@ -95,15 +95,21 @@
   color: var(--text-medium, #6b7280);
 }
 
+.ai-reimagine-outline-modal__plan-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .ai-reimagine-outline-modal__plan-input {
-  width: 100%;
-  min-height: 70px;
+  flex: 1;
+  min-height: 100px;
   padding: 8px 10px;
   font-family: inherit;
   font-size: 14px;
   line-height: 1.55;
   color: var(--text-high, #111827);
-  background: var(--surface-high, #ffffff);
+  background: var(--surface-elevated, #ffffff);
   border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
   border-radius: 6px;
   resize: vertical;
@@ -143,7 +149,7 @@
   padding: 3px 6px;
   border: 1px solid var(--border-medium, rgba(0, 0, 0, 0.15));
   border-radius: 4px;
-  background: var(--surface-high, #ffffff);
+  background: var(--surface-elevated, #ffffff);
   color: var(--text-high, #111827);
   cursor: pointer;
 }
@@ -152,6 +158,11 @@
   outline: none;
   border-color: var(--accent, #2563eb);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ai-reimagine-outline-modal__palette-select option {
+  background: var(--surface-elevated, #ffffff);
+  color: var(--text-high, #111827);
 }
 
 .ai-reimagine-outline-modal__visual-system-detail {
@@ -439,4 +450,16 @@
 
 .ai-reimagine-outline-modal__btn:active {
   transform: translateY(1px);
+}
+
+.ai-reimagine-outline-modal__btn--secondary {
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ai-reimagine-outline-modal__btn--secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

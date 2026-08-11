@@ -62,6 +62,7 @@ Output format:
       "Avoid more than 3 consecutive visually identical slides"
     ]
   },
+  "keepImages": [0, 2],
   "chapters": [
     {
       "title": "Where we were",
@@ -96,6 +97,7 @@ Rules:
   - `motifs` — 1-3 recurring visual elements that create cohesion.
   - `contrastRules` — 1-3 rules for when and how to break the visual pattern.
   - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Design a system with rules, motifs, and deliberate contrast.
+- `keepImages` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
   - `title` — short chapter title.
   - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`.

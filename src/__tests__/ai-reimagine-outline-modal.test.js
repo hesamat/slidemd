@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AiReimagineOutlineModal } from "../editor/ui/ai-reimagine-outline-modal.js";
 
 const SAMPLE_OUTLINE = {
@@ -443,5 +443,109 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
     expect(result.visualSystem.palette.base).toBe(originalBase);
+  });
+
+  it("does not show regenerate button when onRegenerate is not provided", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    expect(dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn")).toBeNull();
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows regenerate button when onRegenerate is provided", async () => {
+    const onRegenerate = vi.fn();
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { onRegenerate });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const btn = dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn");
+    expect(btn).not.toBeNull();
+    expect(btn.textContent).toContain("Regenerate chapters");
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("calls onRegenerate with the edited plan and replaces chapters", async () => {
+    const newOutline = {
+      plan: "New plan from AI.",
+      chapters: [
+        {
+          title: "New chapter A",
+          flowTag: "hook",
+          summary: "New summary A.",
+          suggestedSlideCount: 3,
+        },
+        {
+          title: "New chapter B",
+          flowTag: "solution",
+          summary: "New summary B.",
+          suggestedSlideCount: 2,
+        },
+      ],
+      visualSystem: SAMPLE_OUTLINE.visualSystem,
+    };
+    const onRegenerate = vi.fn().mockResolvedValue(newOutline);
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { onRegenerate });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+
+    // Edit the plan
+    const planInput = dialog.querySelector(".ai-reimagine-outline-modal__plan-input");
+    planInput.value = "A revised plan direction.";
+
+    // Click regenerate
+    const btn = dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn");
+    btn.click();
+
+    // Wait for the regenerate promise to resolve
+    await vi.waitFor(() => expect(onRegenerate).toHaveBeenCalledWith("A revised plan direction."));
+
+    // Wait for the chapters to be replaced
+    await vi.waitFor(() => {
+      const titles = dialog.querySelectorAll(".ai-reimagine-outline-modal__chapter-title-input");
+      expect(titles).toHaveLength(2);
+    });
+
+    // Check the new chapter titles
+    const titles = dialog.querySelectorAll(".ai-reimagine-outline-modal__chapter-title-input");
+    expect(titles[0].value).toBe("New chapter A");
+    expect(titles[1].value).toBe("New chapter B");
+
+    // Plan should be updated to the AI's new plan
+    expect(planInput.value).toBe("New plan from AI.");
+
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows error message when regeneration fails", async () => {
+    const onRegenerate = vi.fn().mockRejectedValue(new Error("AI service unavailable"));
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { onRegenerate });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const btn = dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn");
+    btn.click();
+
+    await vi.waitFor(() => {
+      const errorEl = dialog.querySelector(".ai-reimagine-outline-modal__error");
+      expect(errorEl.textContent).toContain("AI service unavailable");
+    });
+
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
+  });
+
+  it("shows error when regenerating with an empty plan", async () => {
+    const onRegenerate = vi.fn();
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE, { onRegenerate });
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    const planInput = dialog.querySelector(".ai-reimagine-outline-modal__plan-input");
+    planInput.value = "   ";
+    const btn = dialog.querySelector("#ai-reimagine-outline-modal__regenerate-btn");
+    btn.click();
+
+    const errorEl = dialog.querySelector(".ai-reimagine-outline-modal__error");
+    expect(errorEl.textContent).toContain("Enter a plan");
+    expect(onRegenerate).not.toHaveBeenCalled();
+
+    dialog.querySelector('[data-action="cancel"]').click();
+    await promise;
   });
 });

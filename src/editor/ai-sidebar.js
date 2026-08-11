@@ -71,11 +71,14 @@ export class AiSidebar {
     // Reimagine outline review: the orchestrator calls onOutline between
     // the outline and generate phases. We dynamically import the modal so
     // it's only loaded when needed, and show it over the sidebar.
-    const onOutline = async (outline) => {
+    const onOutline = async (outline, regenerate) => {
       const { AiReimagineOutlineModal } = await import("./ui/ai-reimagine-outline-modal.js");
       const { splitSlidesForAi } = await import("../data/ai/ai-prompt-builder.js");
       const sourceCount = splitSlidesForAi(operation.context, "generate").length;
-      const edited = await AiReimagineOutlineModal.show(outline, { sourceCount });
+      const edited = await AiReimagineOutlineModal.show(outline, {
+        sourceCount,
+        onRegenerate: regenerate,
+      });
       if (!edited) cancelled = true;
       return edited;
     };
