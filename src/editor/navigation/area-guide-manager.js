@@ -25,6 +25,9 @@ export class AreaGuideManager {
    * @param {(areaName: string) => boolean} opts.canSwapArea
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string) => boolean} opts.canMakeFullHeight
+   * @param {(areaName: string) => void} opts.onToggleFullBleed
+   * @param {(areaName: string) => boolean} opts.canFullBleed
+   * @param {(areaName: string) => string} opts.getFullBleedLabel
    * @param {(areaName: string, align: string) => void} [opts.onAlignMain]
    * @param {(areaName: string, color: string) => void} [opts.onSetBackground]
    * @param {() => object} opts.getWarnings
@@ -43,6 +46,9 @@ export class AreaGuideManager {
     canSwapArea,
     onMakeFullHeight,
     canMakeFullHeight,
+    onToggleFullBleed,
+    canFullBleed,
+    getFullBleedLabel,
     onAlignMain,
     onSetBackground,
     getWarnings,
@@ -60,6 +66,9 @@ export class AreaGuideManager {
     this._canSwapArea = canSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._canMakeFullHeight = canMakeFullHeight;
+    this._onToggleFullBleed = onToggleFullBleed;
+    this._canFullBleed = canFullBleed;
+    this._getFullBleedLabel = getFullBleedLabel;
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
     this._getWarnings = getWarnings;
@@ -69,6 +78,7 @@ export class AreaGuideManager {
       onDeleteArea: (areaName) => this._onDeleteArea?.(areaName),
       onSwapArea: (areaName) => this._onSwapArea?.(areaName),
       onMakeFullHeight: (areaName) => this._onMakeFullHeight?.(areaName),
+      onToggleFullBleed: (areaName) => this._onToggleFullBleed?.(areaName),
       onAlignMain: (areaName, align) => this._onAlignMain?.(areaName, align),
       onSetBackground: (areaName, color) => this._onSetBackground?.(areaName, color),
     });
@@ -154,6 +164,8 @@ export class AreaGuideManager {
         const canDelete = this._canDeleteArea ? this._canDeleteArea(name) : name !== "main";
         const canSwap = this._canSwapArea ? this._canSwapArea(name) : false;
         const canMakeFullHeight = this._canMakeFullHeight ? this._canMakeFullHeight(name) : false;
+        const canFullBleed = this._canFullBleed ? this._canFullBleed(name) : false;
+        const fullBleedLabel = this._getFullBleedLabel ? this._getFullBleedLabel(name) : "";
         const active = parseSingleColumnLayout(slideData?.layout);
         const canAlignMain = name === "main" && Boolean(active);
         const activeAlign = active?.align;
@@ -170,6 +182,8 @@ export class AreaGuideManager {
           canDelete,
           canSwap,
           canMakeFullHeight,
+          canFullBleed,
+          fullBleedLabel,
           canAlignMain,
           canSetBackground: name !== "footer",
           activeAlign,

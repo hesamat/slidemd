@@ -101,6 +101,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "media-span-left-footer",
       layout: "media-span-left",
+      mediaSpan: "left",
       areas: {
         media: '<img src="images/photo.png" alt="Photo" />',
         main: "<p>Body</p>",

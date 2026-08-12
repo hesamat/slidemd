@@ -31,7 +31,9 @@ import { ThemeManager } from "../ui/theme-manager.js";
 import {
   areaSpansAllRows,
   buildSingleColumnCustomLayout,
+  getMediaFullBleedInfo,
   makeAreaFullHeight,
+  makeMediaFullBleed,
   parseSingleColumnLayout,
   removeAreaFromLayout,
   updateAreaStyleForAreaDirective,
@@ -354,6 +356,9 @@ export class EditController {
       canSwapArea: (name) => this._canSwapArea(name),
       onMakeFullHeight: (name) => this._makeAreaFullHeight(name),
       canMakeFullHeight: (name) => this._canMakeFullHeight(name),
+      onToggleFullBleed: (name) => this._toggleFullBleed(name),
+      canFullBleed: (name) => this._canFullBleed(name),
+      getFullBleedLabel: (name) => this._getFullBleedLabel(name),
       onAlignMain: (name, align) => this._alignMainInMarkdown(name, align),
       onSetBackground: (name, color) => this._setAreaBackground(name, color),
       getWarnings: () => this.warnings,
@@ -979,6 +984,27 @@ export class EditController {
       }
     });
 
+    this.markdownEditor.setValue(updated, { suppressOnChange: false });
+    this.markdownEditor.focus();
+  }
+
+  _canFullBleed(areaName) {
+    if (!this.markdownEditor) return false;
+    const markdown = this.markdownEditor.getValue();
+    return getMediaFullBleedInfo(markdown, areaName).can;
+  }
+
+  _getFullBleedLabel(areaName) {
+    if (!this.markdownEditor) return "";
+    const markdown = this.markdownEditor.getValue();
+    return getMediaFullBleedInfo(markdown, areaName).label || "";
+  }
+
+  _toggleFullBleed(areaName) {
+    if (!this.markdownEditor) return;
+    const markdown = this.markdownEditor.getValue();
+    const updated = makeMediaFullBleed(markdown, areaName);
+    if (updated === markdown) return;
     this.markdownEditor.setValue(updated, { suppressOnChange: false });
     this.markdownEditor.focus();
   }

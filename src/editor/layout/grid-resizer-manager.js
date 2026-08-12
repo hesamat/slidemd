@@ -5,7 +5,6 @@
  * Extracted from EditController.
  */
 import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData } from "../../data/layout-data.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
 import {
   updateLayoutDirective,
@@ -93,7 +92,7 @@ export class GridResizerManager {
     btn.classList.toggle("active", this._gridResizerVisible);
   }
 
-  _onGridResize(change, layoutInfo, layoutSpec) {
+  _onGridResize(change, layoutInfo, _layoutSpec) {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
     let newSpec;
@@ -108,13 +107,9 @@ export class GridResizerManager {
     // from the named preset being resized; updateLayoutDirective strips the
     // directive, so it must be re-added here or the bleed would be lost.
     const existingSide = readMediaSpanDirective(markdown);
-    const namedSide = LayoutData.isBuiltIn(layoutSpec)
-      ? LayoutData.getMediaSpanSide(layoutSpec)
-      : null;
-    const mediaSpanSide = existingSide || namedSide;
     let newMarkdown = updateLayoutDirective(markdown, newSpec);
-    if (mediaSpanSide) {
-      newMarkdown = updateMediaSpanDirective(newMarkdown, mediaSpanSide);
+    if (existingSide) {
+      newMarkdown = updateMediaSpanDirective(newMarkdown, existingSide);
     }
     this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
   }

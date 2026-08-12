@@ -313,6 +313,138 @@ export function makeAreaFullHeight(markdown, areaName) {
 }
 
 /**
+ * Determine whether the @media area can be full-bleed on the side of
+ * `areaName`, and describe the resulting action. The side is taken from the
+ * column the clicked area occupies in the layout, so the menu stays a single
+ * toggle without "left/right" options.
+ *
+ * @param {string} markdown
+ * @param {string} areaName
+ * @returns {{ can: boolean, targetSide?: "left"|"right", targetCol?: number, mediaOnTarget?: boolean, currentSide?: "left"|"right"|"", label?: string }}
+ */
+export function getMediaFullBleedInfo(markdown, areaName) {
+  const name = String(areaName || "")
+    .trim()
+    .toLowerCase();
+  if (!name || !markdown) {
+    return { can: false };
+  }
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue } = parser.extractDirective(markdown, "layout");
+  if (!layoutValue) {
+    return { can: false };
+  }
+
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  if (rowMatches.length === 0) {
+    return { can: false };
+  }
+
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+  const maxLen = Math.max(...rows.map((row) => row.length), 1);
+
+  const sampleRow = rows.find((row) => row.includes(name));
+  if (!sampleRow) {
+    return { can: false };
+  }
+  const targetCol = sampleRow.indexOf(name);
+  if (targetCol !== 0 && targetCol !== maxLen - 1) {
+    return { can: false };
+  }
+  const targetSide = targetCol === 0 ? "left" : "right";
+
+  const mediaRow = rows.find((row) => row.includes("media"));
+  if (!mediaRow) {
+    return { can: false };
+  }
+
+  const mediaColIdx = mediaRow.indexOf("media");
+  const mediaSpansAll = rows.every((row) => row[mediaColIdx] === "media");
+  const mediaOnTarget = mediaSpansAll && mediaColIdx === targetCol;
+
+  const currentSide = readMediaSpanDirective(markdown);
+  const willMove = !mediaOnTarget;
+  const willEnable = !mediaOnTarget || currentSide !== targetSide;
+  const label = willMove
+    ? "Make @media full-bleed on this side"
+    : willEnable
+      ? "Make full-bleed"
+      : "Remove full-bleed";
+
+  return {
+    can: true,
+    targetSide,
+    targetCol,
+    mediaOnTarget,
+    currentSide,
+    willMove,
+    willEnable,
+    label,
+  };
+}
+
+/**
+ * Toggle full-bleed for the @media area on the side of the clicked area.
+ * Rewrites the layout to put @media in that column and spans it over every
+ * row, then writes or removes the `media-span:` intent. If the media is
+ * already on that side and already bleeding, the bleed is removed.
+ *
+ * @param {string} markdown
+ * @param {string} areaName
+ * @returns {string}
+ */
+export function makeMediaFullBleed(markdown, areaName) {
+  const info = getMediaFullBleedInfo(markdown, areaName);
+  if (!info.can) return markdown;
+
+  const { targetSide, targetCol, mediaOnTarget, currentSide } = info;
+  if (mediaOnTarget) {
+    return updateMediaSpanDirective(markdown, currentSide === targetSide ? "" : targetSide);
+  }
+
+  const parser = new MarkdownParser();
+  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
+  const resolved = LayoutParser.resolvePreset(layoutValue);
+  const layout = LayoutParser.parse(resolved);
+
+  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
+  const maxLen = Math.max(...rows.map((row) => row.length), 1);
+
+  const newRows = rows.map((row) => {
+    const padded = [...row];
+    while (padded.length < maxLen) padded.push(".");
+    const others = padded.filter((c) => c !== "media");
+    const result = new Array(maxLen).fill(".");
+    result[targetCol] = "media";
+    let otherIdx = 0;
+    for (let i = 0; i < maxLen; i++) {
+      if (i === targetCol) continue;
+      const next = others[otherIdx] ?? others[others.length - 1] ?? ".";
+      result[i] = next;
+      otherIdx++;
+    }
+    return result;
+  });
+
+  const parts = [];
+  for (let i = 0; i < newRows.length; i++) {
+    parts.push(`"${newRows[i].join(" ")}"`);
+    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
+      parts.push(layout.rowSizes[i]);
+    }
+  }
+  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
+
+  let newMarkdown = updateLayoutDirective(stripped, newLayout, { preserveMediaSpan: true });
+  newMarkdown = updateMediaSpanDirective(newMarkdown, targetSide);
+  return newMarkdown;
+}
+
+/**
  * Split a CSS grid track list into individual track tokens without
  * breaking on spaces inside functional notations (minmax, repeat, etc.).
  */

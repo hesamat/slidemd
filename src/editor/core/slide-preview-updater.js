@@ -122,15 +122,8 @@ export class SlidePreviewUpdater {
    * @param {object} layout - Parsed layout (LayoutParser.parse output)
    */
   _syncMediaSpanFlag(slideEl, slideData, layout) {
-    const layoutKey = String(slideData?.layout || "")
-      .trim()
-      .toLowerCase();
     const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const declaredMediaSide = String(slideData?.mediaSpan || "").toLowerCase();
-    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
-      ? LayoutData.getMediaSpanSide(layoutKey)
-      : null;
-    const mediaSpanSide = declaredMediaSide || namedMediaSide;
+    const mediaSpanSide = String(slideData?.mediaSpan || "").toLowerCase();
     if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
       slideEl.setAttribute("data-media-span", geometryMediaSide);
     } else {
