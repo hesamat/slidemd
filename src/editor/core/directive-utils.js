@@ -61,13 +61,11 @@ export function readMediaFullBleedDirective(markdown) {
   const parser = new MarkdownParser();
   const { value: fullBleed } = parser.extractDirective(markdown, "media-full-bleed");
   const { value: legacy } = parser.extractDirective(markdown, "media-span");
-  const fullBleedTrim = String(fullBleed || "")
-    .trim()
-    .toLowerCase();
+  const parsedFullBleed = parser.parseBooleanDirectiveValue(fullBleed);
   const legacyTrim = String(legacy || "")
     .trim()
     .toLowerCase();
-  return fullBleedTrim === "true" || /^(left|right)$/i.test(legacyTrim);
+  return parsedFullBleed === true || /^(left|right)$/i.test(legacyTrim);
 }
 
 /**

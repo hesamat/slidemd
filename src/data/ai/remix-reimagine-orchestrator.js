@@ -1167,6 +1167,17 @@ export class RemixReimagineOrchestrator {
           coveredSources.add(idx);
         }
       }
+
+      // Detect duplicates within this entry (e.g. an off-by-one clamp that
+      // collapsed two distinct indices to the same slide). Duplicates in a
+      // merge would paste the same slide twice; in a keep/rewrite they are
+      // equally nonsensical.
+      const unique = new Set(normalized);
+      if (unique.size !== normalized.length) {
+        errors.push(
+          `${prefix}: source contains duplicate indices after normalization: [${normalized.join(", ")}]`,
+        );
+      }
       entry.source = normalized;
 
       if ((entry.action === "rewrite" || entry.action === "keep") && entry.source.length !== 1) {

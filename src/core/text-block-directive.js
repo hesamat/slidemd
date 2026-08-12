@@ -127,13 +127,25 @@ function parseAttributes(attrString) {
     while (i < s.length && !/\s/.test(s[i])) value += s[i++];
     return value;
   };
-  const skipValue = () => {
+
+  /**
+   * Skip a colon-style value. For quoted values, the quoted string is
+   * consumed and parsing continues. For unquoted values, the syntax is
+   * ambiguous (CSS property names like `background` collide with known
+   * text-block attribute names), so we skip to the end of the attribute
+   * string. This means subsequent valid `key=value` attributes after an
+   * unquoted colon-style value are not parsed — but colon-style is an
+   * error case flagged for repair, so losing them is acceptable.
+   */
+  const skipColonValue = () => {
     skipSpaces();
     if (i < s.length && s[i] === '"') {
       readQuoted();
-    } else {
-      readUnquoted();
+      return;
     }
+    // Skip to end of attribute string — unquoted colon-style values
+    // are ambiguous and unsupported.
+    i = s.length;
   };
 
   while (true) {
@@ -150,7 +162,7 @@ function parseAttributes(attrString) {
       // Colon-style is unsupported; record only the key and ignore the value.
       unknown.push(key);
       i++;
-      skipValue();
+      skipColonValue();
     } else {
       attrs[key] = "true";
       if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);

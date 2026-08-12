@@ -116,6 +116,25 @@ describe("text block unknown attributes", () => {
     expect(parsed.unknownAttrs).not.toContain("color");
   });
 
+  it("does not leak value fragments from unquoted colon-style attributes", () => {
+    const md = "::: text-block { style: background: red; padding: 20px }\nHi\n:::";
+    const [parsed] = parseTextBlockDirectives(md);
+    expect(parsed.unknownAttrs).toContain("style");
+    // Value fragments should NOT appear as unknown attributes
+    expect(parsed.unknownAttrs).not.toContain("background");
+    expect(parsed.unknownAttrs).not.toContain("padding");
+    expect(parsed.unknownAttrs).not.toContain("red");
+    expect(parsed.unknownAttrs).not.toContain("20px");
+  });
+
+  it("still parses known attributes after a quoted colon-style value", () => {
+    const md = '::: text-block { style: "background: red;" markdown=true }\nHi\n:::';
+    const [parsed] = parseTextBlockDirectives(md);
+    expect(parsed.unknownAttrs).toContain("style");
+    expect(parsed.unknownAttrs).not.toContain("markdown");
+    expect(parsed.settings.markdown).toBe(true);
+  });
+
   it("returns an empty unknownAttrs array when all attributes are known", () => {
     const md = '::: text-block { color="#333" column-count=2 }\nHi\n:::';
     const [parsed] = parseTextBlockDirectives(md);

@@ -710,7 +710,10 @@ export class Notification {
       requestAnimationFrame(() => buttonToFocus?.focus());
 
       let escapeHandler;
+      let dismissed = false;
       const cleanup = () => {
+        if (dismissed) return;
+        dismissed = true;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => {
           if (backdrop.parentNode) {

@@ -12,6 +12,7 @@ import {
   parseSingleColumnLayout,
   makeAreaFullHeight,
   areaSpansAllRows,
+  readMediaFullBleedDirective,
 } from "../editor/core/directive-utils.js";
 
 describe("removeAreaFromLayout", () => {
@@ -276,6 +277,17 @@ describe("updateLayoutDirective", () => {
       false,
     );
     expect(result).not.toContain("media-full-bleed:");
+  });
+
+  it("readMediaFullBleedDirective accepts yes/1/on in addition to true", () => {
+    expect(readMediaFullBleedDirective("media-full-bleed: yes\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: 1\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: on\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: true\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: false\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("media-full-bleed: no\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("media-full-bleed: 0\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("# Title")).toBe(false);
   });
 });
 

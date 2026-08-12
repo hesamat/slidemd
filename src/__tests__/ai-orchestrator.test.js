@@ -1039,6 +1039,20 @@ describe("AiOrchestrator", () => {
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
     });
 
+    it("throws on duplicate source indices after off-by-one clamp", async () => {
+      // sourceCount = 2; index 2 is clamped to 1, producing [1, 1]
+      const badPlan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", title: "S1" },
+          { action: "merge", source: [1, 2], brief: "merge last two", title: "M" },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(/duplicate indices/);
+    });
+
     it("throws on uncovered source slide", async () => {
       const badPlan = JSON.stringify({
         plan: [{ action: "keep", source: [0], brief: "", title: "S1" }],

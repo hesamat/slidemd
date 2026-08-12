@@ -257,4 +257,28 @@ describe("Notification", () => {
       expect(onAction).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("showModal idempotent cleanup", () => {
+    it("does not decrement modal counter twice on double-click", async () => {
+      const { resetModalState, isModalOpen } = await import("../core/modal-state.js");
+      resetModalState();
+
+      const promise = Notification.showBlocking("Test", {
+        title: "Test",
+        buttons: [{ label: "OK", resolvesTo: true }],
+      });
+
+      const backdrop = document.querySelector(".notification-modal-backdrop");
+      const btn = document.querySelector(".notification-modal__actions button");
+
+      // Click the button (first cleanup)
+      btn?.click();
+      // Immediately click the backdrop (second cleanup — should be a no-op)
+      backdrop?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+      await promise;
+      // The modal counter should be 0 (not -1) — one open, one close
+      expect(isModalOpen()).toBe(false);
+    });
+  });
 });
