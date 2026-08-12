@@ -3,7 +3,6 @@ Fix the provided SlideMD markdown. Return the result as JSON.
 What to fix:
 
 - Rejoin split code lines and add language tags where the language is clear.
-- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.

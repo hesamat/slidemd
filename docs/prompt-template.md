@@ -38,6 +38,7 @@ The system prompt (`system-prompt.md`) defines:
 - **JSON-only output**: no explanations, markdown fences, or surrounding text
 - **Area markers**: `@area-name` syntax, blank lines around markers
 - **Text blocks**: `::: text-block { ... }` for styled/multi-column text. Attributes use `key=value` or `key="value"` syntax (not `key: value`). Supported: `id`, `float`, `x`, `y`, `fontSize`, `color`, `backgroundColor`, `align`, `opacity`, `z`, `rotate`, `column-count`, `markdown`, `bold`, `italic`, `underline`, `strikethrough`. Freeform CSS (`style`, `padding`, `margin`) is not supported. Set `column-count=N` or `markdown=true` to render markdown content inside a text-block; without either, content is plain escaped text.
+- **Code blocks**: review and fix fenced code blocks (syntax errors, broken logic, placeholder code); restore indentation and line breaks in code collapsed to a single line; remove stray inline code markers; add language tags; split lumped code blocks from PPTX import into separate fenced blocks
 - **Speaker notes**: `<!-- notes: ... -->` at the end of slide content
 - **Diagrams**: `[Diagram: ...]` converted to Mermaid only for true flowcharts/hierarchies
 - **Header headings**: the first heading in `@header` must be `#` (h1), not `##` or lower
@@ -51,6 +52,7 @@ Conservative cleanup of a single slide that preserves content and slide count:
 - Rejoin split code lines, add language tags
 - Fix code blocks collapsed to a single line — restore proper newlines and indentation
 - Remove stray backtick markers inside code blocks (e.g. `` `43` `` wrapping numbers/identifiers)
+- Split lumped code blocks from PPTX import into separate fenced blocks (global system-prompt rule)
 - Restore blank lines between sections
 - Remove bold wrapping from headings
 - Fix broken links, lists, and tables
@@ -68,15 +70,16 @@ The whole-deck AI flow is selected in the pre-flight modal and passed to the orc
 Refines the whole deck while preserving structure and visual identity:
 
 - Fix formatting, links, lists, tables, code blocks, and layout mismatches
-- Improve wording: concise headers, tightened bullet points, specific statements
+- Improve wording: concise human-facing headlines, tightened bullet points, specific statements, remove textbook-style repetition
 - Pick the best layout per slide (two-column, focus, table) over defaulting to header-content
 - Use tables for 2-3 item comparisons; two-column for diagrams, code, or dense content
+- Handle crowded slides: move supporting detail to speaker notes and choose a clearer layout (rough budgets: `header-content` ~10-14 lines, `focus` ~4-5 lines, `two-column` ~6-10 per column, `media-span` ~8-12 lines)
 - Preserve `theme:` directives and keep `background:` unless it no longer fits
 - Preserve `<img>` tags; reposition with `position: relative` + `left`/`top`/`width` for custom placement
 - Drop low-quality, redundant, or misplaced images
 - PPTX imports: fix mismatched layouts, reposition misplaced images, tighten verbose text
 - Keep the same slide count and order
-- Speaker notes are preserved; new notes are only added when the user opts in
+- Speaker notes are preserved unless explicitly instructed to add new ones
 
 ### Remix (plan → execute)
 
