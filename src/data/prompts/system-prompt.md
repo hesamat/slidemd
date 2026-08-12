@@ -19,6 +19,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. `` `43` ``) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in `@header` must be `#` (h1), not `##` or lower.
 - Speaker notes go at the very end: `<!-- notes: ... -->`.
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`. Attributes MUST be inside `{ }` braces. Example: `::: text-block { column-count=2 markdown=true }\n### Heading\n- item\n:::`. Blank lines inside the directive are optional.

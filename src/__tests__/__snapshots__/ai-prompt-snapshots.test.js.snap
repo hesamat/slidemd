@@ -23,6 +23,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -152,6 +153,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -181,6 +183,7 @@ full-image: @main
 What to fix:
 
 - Rejoin split code lines and add language tags where the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.
@@ -324,6 +327,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -370,6 +374,7 @@ Content strategy:
 - Add speaker notes where helpful: \`<!-- notes: ... -->\`.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
+- Split lumped code blocks: PPTX import cannot detect separate code snippets on a slide and often merges them into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
@@ -485,6 +490,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -514,6 +520,7 @@ full-image: @main
 What to fix:
 
 - Rejoin split code lines and add language tags where the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Fix broken links, lists, and tables.
@@ -568,6 +575,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -608,6 +616,7 @@ Content strategy:
 - Add speaker notes where helpful: \`<!-- notes: ... -->\`.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
+- Split lumped code blocks: PPTX import cannot detect separate code snippets on a slide and often merges them into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - If a slide has a \`<!-- brief: ... -->\` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - The brief may include \`| image: <query>\` at the end. Only honor the query if it is a \`reuse:<path>\` directive (e.g. \`reuse:images/team-photo.jpg\`). In that case, insert \`<img src="path">\` on that slide using the exact path. If the query is anything other than \`reuse:<path>\` (a search term, a description, etc.), ignore it — do not insert an image.
 - If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's \`@footer\` area (not in \`@main\`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
@@ -734,6 +743,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -765,24 +775,26 @@ What to do:
 - Fix formatting, links, lists, tables, code blocks, and layout mismatches.
 - Review code blocks and fix issues beyond indentation: correct syntax errors, broken logic, nonsensical code, and placeholders.
 - Rejoin split code lines and add language tags where the language is clear.
+- Split lumped code blocks: PPTX import cannot detect separate code snippets on a slide and often merges them into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
 - Remove duplicate blank lines and trailing whitespace.
 - Fix mismatched layouts: downgrade \`media-span-left\`, \`media-span-right\`, or \`two-column\` when there is no image or an empty second column.
-- Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
+- Improve wording: make headlines concise and human-facing, tighten bullet points, replace vague text with specific statements, and remove textbook-style repetition. Do not add content indiscriminately — tighten, do not inflate.
 - Pick the best layout for each slide's content; use \`two-column\`, \`focus\`, or \`table\` layouts when they clarify the material.
 - Use tables for 2-3 item comparisons.
 - Preserve each slide's \`theme:\` and \`background:\` directives and the existing color scheme. Do not add new \`theme:\`/\`background:\` values, colored text, or \`color\`/\`backgroundColor\` attributes.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
+- Handle crowded slides: when a slide has too much content for its layout, move supporting detail to speaker notes and choose a clearer layout. Do not change the slide sequence — keep the same slide count and order.
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
 
 - Keep the same slide count and order.
 - Keep the same overall narrative flow.
-- Preserve existing speaker notes unless asked to add new ones.
+- Preserve existing speaker notes unless asked to add new ones. Do not add new notes when the preserve mode is active.
 - Preserve the existing \`theme:\`, \`background:\`, and color scheme. Do not add new \`theme:\`/\`background:\` values, colored text, or \`color\`/\`backgroundColor\` attributes.
 
 Success criteria:
@@ -793,6 +805,7 @@ Success criteria:
 - The output is visibly different from the input (better formatting, wording, or layout).
 - All \`[Diagram:]\` markers are addressed.
 - Speaker notes are preserved and placed at the end of the slide content.
+- No slide exceeds its layout's density budget; crowded slides have been trimmed or moved to notes.
 
 Input markdown:
 background: #1a1a2e
@@ -865,6 +878,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
@@ -1042,6 +1056,7 @@ Rules:
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
 - Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. \`\` \`43\` \`\`) that don't belong in code, and add a language tag when the language is clear.
+- Split lumped code blocks: PPTX import often merges separate code snippets into one fenced block. When a single fenced block contains two or more distinct code snippets (different languages, unrelated examples, or separated by comments/blank lines that signal a boundary), split them into separate fenced blocks with their own language tags.
 - The first heading in \`@header\` must be \`#\` (h1), not \`##\` or lower.
 - Speaker notes go at the very end: \`<!-- notes: ... -->\`.
 - Use \`::: text-block { ... }\` for styled or multi-column text. Never use raw \`<div style="...">\`. Attributes MUST be inside \`{ }\` braces. Example: \`::: text-block { column-count=2 markdown=true }\\n### Heading\\n- item\\n:::\`. Blank lines inside the directive are optional.
