@@ -395,4 +395,200 @@ Footer`;
       expect(result.errors).toHaveLength(0);
     });
   });
+
+  describe("Polish-quality fixtures", () => {
+    it("passes a dense header-content slide within the line budget", () => {
+      // header-content's @main budget is well above 12 lines, so a dense
+      // but reasonable bullet list should not be flagged.
+      const bullets = Array.from({ length: 12 }, (_, i) => `- Point ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Dense Slide
+
+@main
+${bullets}`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("flags a header-content slide with 20 lines in @main as overflow", () => {
+      const bullets = Array.from({ length: 20 }, (_, i) => `- Point ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Too Dense
+
+@main
+${bullets}`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(false);
+      const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+      expect(err).toBeDefined();
+      expect(err.message).toContain("@main");
+    });
+
+    it("passes a code-heavy two-column slide within budget", () => {
+      // A code block in @main with an explanation in @media, both sized to
+      // fit their respective area budgets.
+      const code = Array.from({ length: 7 }, (_, i) => `line${i + 1} = ${i + 1}`).join("\n");
+      const output = `layout: two-column
+
+@header
+# Code Walkthrough
+
+@main
+\`\`\`python
+${code}
+\`\`\`
+
+@media
+Explanation of the code shown on the left.
+
+@footer
+Footer`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes a header-content slide with a comparison table", () => {
+      const output = `layout: header-content
+
+@header
+# Feature Comparison
+
+@main
+| Feature | Plan A | Plan B |
+| --- | --- | --- |
+| Speed | Fast | Slow |
+| Cost | Low | High |
+| Support | Yes | No |
+| Storage | 10GB | 100GB |
+| Uptime | 99% | 99.9% |`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes a media-span-left slide with a Mermaid diagram in @media", () => {
+      const output = `layout: media-span-left
+
+@header
+# Process Flow
+
+@main
+A short summary of the process.
+
+@media
+\`\`\`mermaid
+graph TD
+A[Start] --> B[Process]
+B --> C[End]
+\`\`\`
+
+@footer
+Footer`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes a PPTX-imported slide with two distinct snippets lumped into one code block", () => {
+      // The validator does not split fenced code blocks into separate
+      // snippets — that responsibility belongs to the AI, not the
+      // validator. This documents the expected (lenient) behavior: a
+      // single fenced block containing two logically distinct snippets
+      // still passes as long as it fits the area's line budget.
+      const output = `layout: header-content
+
+@header
+# Two Snippets
+
+@main
+\`\`\`python
+def foo():
+    return 1
+
+
+def bar():
+    return 2
+\`\`\``;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("does not count speaker notes lines toward the @main area budget", () => {
+      const bullets = Array.from({ length: 12 }, (_, i) => `- Point ${i + 1}`).join("\n");
+      const output = `layout: header-content
+
+@header
+# Title
+
+@main
+${bullets}
+
+<!-- notes: This speaker note is long enough that it would push the slide over budget if it were incorrectly counted toward the @main area. It should be entirely excluded. -->`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors.filter((e) => e.code === "SLIDE_CONTENT_OVERFLOW")).toHaveLength(0);
+    });
+
+    it("passes an already-polished, well-structured slide with no false positives", () => {
+      const output = `layout: header-content
+
+@header
+# Clean Slide
+
+@main
+- Point one
+- Point two
+- Point three
+
+@footer
+Footer`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it("passes a media-span-right slide with an image in @media and text in @main", () => {
+      const output = `layout: media-span-right
+
+@header
+# Title
+
+@main
+- Point one
+- Point two
+
+@media
+<img src="chart.png" alt="Chart">
+
+@footer
+Footer`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("does not flag theme/background directives as errors or count them toward content budgets", () => {
+      const output = `layout: header-content
+theme: dark
+background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Item one
+- Item two`;
+      const result = validate("", output, "generate");
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });
