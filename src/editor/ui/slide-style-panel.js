@@ -209,9 +209,10 @@ export class SlideStylePanel {
 
   static show() {
     if (!this.el) this._buildDom();
+    const wasVisible = this.isVisible();
     this._syncUI();
     this.el.classList.remove("webdeck-hidden");
-    modalOpened();
+    if (!wasVisible) modalOpened();
   }
 
   static hide() {
@@ -219,7 +220,7 @@ export class SlideStylePanel {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
     }
-    if (this.el) {
+    if (this.el && this.isVisible()) {
       this.el.classList.add("webdeck-hidden");
       modalClosed();
     }

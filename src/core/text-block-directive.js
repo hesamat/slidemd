@@ -229,7 +229,8 @@ export function buildTextBlockHtml(settings, content, sourceLine = 0) {
   const cls = [
     "text-block",
     settings.float ? "text-block--float" : "",
-    renderMarkdown ? "text-block--multi-column" : "",
+    isColumn ? "text-block--multi-column" : "",
+    settings.markdown ? "text-block--markdown" : "",
   ]
     .filter(Boolean)
     .join(" ");

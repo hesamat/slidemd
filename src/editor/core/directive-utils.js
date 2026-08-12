@@ -423,7 +423,7 @@ export function makeMediaFullBleed(markdown, areaName) {
     let otherIdx = 0;
     for (let i = 0; i < maxLen; i++) {
       if (i === targetCol) continue;
-      const next = others[otherIdx] ?? others[others.length - 1] ?? ".";
+      const next = others[otherIdx] ?? ".";
       result[i] = next;
       otherIdx++;
     }

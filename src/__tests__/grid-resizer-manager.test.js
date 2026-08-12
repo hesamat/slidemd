@@ -18,7 +18,7 @@ function createManager(editor) {
 }
 
 describe("GridResizerManager media-span intent", () => {
-  it("does not add media-span intent when resizing a named media-span preset without one", () => {
+  it("adds media-span intent when resizing a named media-span preset without one", () => {
     const editor = {
       getValue: () => "layout: media-span-right\n\n@media\nImage",
       setValue: vi.fn(),
@@ -33,7 +33,7 @@ describe("GridResizerManager media-span intent", () => {
 
     const [md] = editor.setValue.mock.calls[0];
     expect(md).toContain("layout: ");
-    expect(md).not.toContain("media-span:");
+    expect(md).toContain("media-span: right");
   });
 
   it("preserves media-span intent across consecutive resizes of the custom grid", () => {

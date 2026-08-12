@@ -227,7 +227,7 @@ Do not force literal repetition of mood words if that makes the query unnatural.
 
 ### `imageQuery` disposition in this PR
 
-`imageQuery` is parsed and validated, but **not passed to the generate AI yet**. There is no image-search infrastructure in this PR, and injecting raw query strings into the generate prompt would encourage the AI to fabricate image URLs. The field is forward infrastructure for a later image-search PR. The orchestrator should store it on the virtual slide metadata but omit it from the `<!-- brief: ... -->` serialization.
+`imageQuery` is parsed, validated, and passed to the generate AI as `| image: <query>` inside the `<!-- brief: ... -->` slide separator. Only `reuse:<path>` queries are honored; any other query is ignored by the generate AI. This keeps the reuse path explicit and prevents the model from fabricating image URLs.
 
 ---
 

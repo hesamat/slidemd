@@ -138,7 +138,8 @@ describe("text block markdown flag", () => {
     expect(html).toMatch(/<h3[^>]*>Heading<\/h3>/);
     expect(html).toMatch(/<ol[^>]*>/);
     expect(html).toMatch(/<li[^>]*>First<\/li>/);
-    expect(html).toContain("text-block--multi-column");
+    expect(html).toContain("text-block--markdown");
+    expect(html).not.toContain("text-block--multi-column");
   });
 
   it("escapes content as plain text when markdown is not set", () => {

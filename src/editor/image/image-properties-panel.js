@@ -64,6 +64,7 @@ export class ImagePropertiesPanel {
    */
   static show(img, settings) {
     if (!this.el) this._buildDom();
+    const wasVisible = this.isVisible();
     this._currentImg = img;
     this._computeAreaWidth(img);
     this._syncUI(settings);
@@ -72,7 +73,7 @@ export class ImagePropertiesPanel {
     this._syncFixedSizeUI();
     this._activateTab("size");
     this.el.classList.remove("webdeck-hidden");
-    modalOpened();
+    if (!wasVisible) modalOpened();
 
     const rect = img.getBoundingClientRect();
     const panelH = this.el.offsetHeight || 220;
@@ -97,8 +98,9 @@ export class ImagePropertiesPanel {
   }
 
   static hide() {
-    if (this.el) {
+    if (this.el && this.isVisible()) {
       this.el.classList.add("webdeck-hidden");
+      this._currentImg = null;
       modalClosed();
     }
   }

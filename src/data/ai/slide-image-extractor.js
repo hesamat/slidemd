@@ -85,11 +85,12 @@ export function countContentImages(markdown) {
  * @param {string} src — image URL or data URI
  * @param {number} [maxBytes=40000] — max base64 size of the output data URL
  * @param {number} [maxWidth=768] — max width in pixels
+ * @param {HTMLImageElement|null} [preloadedImg=null] — an already-loaded image to reuse instead of fetching `src` again
  * @returns {Promise<string|null>} compressed JPEG data URL, or null on failure
  */
-export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
+export async function compressImage(src, maxBytes = 40000, maxWidth = 768, preloadedImg = null) {
   try {
-    const img = await loadImage(src);
+    const img = preloadedImg || (await loadImage(src));
     if (!img || !img.width || !img.height) return null;
 
     let width = Math.min(img.naturalWidth || img.width, maxWidth);
@@ -141,7 +142,7 @@ export async function compressImageWithMeta(src, maxBytes = 40000, maxWidth = 76
 
     const naturalWidth = img.naturalWidth || img.width;
     const naturalHeight = img.naturalHeight || img.height;
-    const dataUrl = await compressImage(src, maxBytes, maxWidth);
+    const dataUrl = await compressImage(src, maxBytes, maxWidth, img);
     if (!dataUrl) return null;
     return { dataUrl, width: naturalWidth, height: naturalHeight };
   } catch {

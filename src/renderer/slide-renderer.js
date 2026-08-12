@@ -210,7 +210,9 @@ export class SlideRenderer {
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
     const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const mediaSpanSide = safeString(slide?.mediaSpan).toLowerCase();
+    const mediaSpanSide = safeString(
+      slide?.mediaSpan || LayoutData.getMediaSpanSide(layoutKey),
+    ).toLowerCase();
 
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;

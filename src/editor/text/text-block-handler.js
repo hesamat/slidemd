@@ -331,11 +331,16 @@ export class TextBlockHandler {
   }
 
   /**
-   * Multi-column text blocks are rendered markdown layout wrappers, not
-   * free-form text, and must not be edited as text blocks.
+   * Rendered-markdown text blocks (multi-column or explicitly marked as
+   * markdown) are layout wrappers, not free-form text, and must not be edited
+   * as text blocks.
    */
   static isMultiColumn(el) {
-    return !!el && el.classList.contains("text-block--multi-column");
+    if (!el) return false;
+    return (
+      el.classList.contains("text-block--multi-column") ||
+      el.classList.contains("text-block--markdown")
+    );
   }
 
   static _ensureId(el) {

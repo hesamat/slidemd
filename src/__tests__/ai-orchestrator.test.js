@@ -1542,7 +1542,7 @@ describe("AiOrchestrator", () => {
           .mockResolvedValueOnce({ content: OUTLINE_WITH_KEEP, raw: { finish_reason: "stop" } })
           .mockResolvedValueOnce({ content: BREAKDOWN_RESPONSE, raw: { finish_reason: "stop" } })
           .mockRejectedValueOnce(visionError) // generate with images fails
-          .mockResolvedValueOnce({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }), // text-only retry
+          .mockResolvedValue({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }), // text-only retry and any repair
       };
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {

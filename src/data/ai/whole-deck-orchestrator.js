@@ -152,29 +152,41 @@ export class WholeDeckOrchestrator {
         reasoningEffort,
       });
 
+      // Retry provider chat once if vision content is rejected, without
+      // consuming a validation/repair attempt.
       let response;
-      try {
-        response = await this._provider.chat(
-          {
-            messages,
-            maxTokens,
-            responseFormat: null,
-            reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
-          },
-          signal,
-        );
-      } catch (err) {
-        // Vision error → retry once with text-only content
-        if (visionImages && isVisionError(err) && attempt === 1) {
-          onLog?.("Vision not supported — retrying without images", "warn");
-          messages = [
-            { role: "system", content: system },
-            { role: "user", content: userText },
-          ];
-          visionImages = null;
-          continue;
+      let visionRetried = false;
+      while (true) {
+        try {
+          response = await this._provider.chat(
+            {
+              messages,
+              maxTokens,
+              responseFormat: null,
+              reasoning: buildReasoningBody(
+                this._useReasoning,
+                this._effort,
+                this._effortSupported,
+              ),
+            },
+            signal,
+          );
+          break;
+        } catch (err) {
+          // Vision error → retry once with text-only content without consuming a
+          // validation attempt.
+          if (visionImages && isVisionError(err) && !visionRetried) {
+            onLog?.("Vision not supported — retrying without images", "warn");
+            messages = [
+              { role: "system", content: system },
+              { role: "user", content: userText },
+            ];
+            visionImages = null;
+            visionRetried = true;
+            continue;
+          }
+          throw err;
         }
-        throw err;
       }
 
       const contentText = response.content;
@@ -223,9 +235,10 @@ export class WholeDeckOrchestrator {
 
   /**
    * Build batches for whole-deck generation. If `<!-- brief: ... (chapter: ...) -->`
-   * markers are present, batches are aligned to chapter boundaries; long chapters
-   * are split into chunks of up to `BATCH_SIZE`. Otherwise, fall back to fixed
-   * `BATCH_SIZE`-slide chunks.
+   * markers are present, batches are aligned to chapter boundaries while merging
+   * consecutive short chapters to fill `BATCH_SIZE`; long chapters are split into
+   * chunks of up to `BATCH_SIZE`. Otherwise, fall back to fixed `BATCH_SIZE`-slide
+   * chunks.
    * @param {string[]} allSlides
    * @returns {Array<{start: number, end: number}>}
    */
@@ -254,10 +267,31 @@ export class WholeDeckOrchestrator {
       chapters.push({ start: 0, end: slideChapters.length });
     }
     const batches = [];
+    let batchStart = -1;
+    let batchEnd = -1;
     for (const { start, end } of chapters) {
-      for (let i = start; i < end; i += BATCH_SIZE) {
-        batches.push({ start: i, end: Math.min(i + BATCH_SIZE, end) });
+      const chapterLen = end - start;
+      if (batchStart === -1) {
+        batchStart = start;
+        batchEnd = end;
+      } else if (batchEnd - batchStart + chapterLen <= BATCH_SIZE) {
+        batchEnd = end;
+      } else {
+        while (batchEnd - batchStart > BATCH_SIZE) {
+          batches.push({ start: batchStart, end: batchStart + BATCH_SIZE });
+          batchStart += BATCH_SIZE;
+        }
+        batches.push({ start: batchStart, end: batchEnd });
+        batchStart = start;
+        batchEnd = end;
       }
+    }
+    if (batchStart !== -1) {
+      while (batchEnd - batchStart > BATCH_SIZE) {
+        batches.push({ start: batchStart, end: batchStart + BATCH_SIZE });
+        batchStart += BATCH_SIZE;
+      }
+      batches.push({ start: batchStart, end: batchEnd });
     }
     return batches;
   }

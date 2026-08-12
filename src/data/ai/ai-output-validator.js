@@ -294,9 +294,17 @@ export class AiOutputValidator {
     // Detect malformed text-block directives: the opening line must use
     // braces around attributes (::: text-block { ... }). Without braces the
     // directive is silently not parsed and passes through as raw text.
-    const malformedRe = /^:::\s*text-block\s*[^\s{]/gim;
-    const malformed = rawSlide.match(malformedRe);
-    if (malformed && malformed.length > 0) {
+    const malformedRe = /^:::\s*text-block(?:[ \t]+([^\n]*?))?[ \t]*$/gim;
+    let match;
+    let hasMalformed = false;
+    while ((match = malformedRe.exec(rawSlide)) !== null) {
+      const rest = (match[1] || "").trim();
+      if (rest && !rest.startsWith("{")) {
+        hasMalformed = true;
+        break;
+      }
+    }
+    if (hasMalformed) {
       errors.push({
         slide: index,
         code: "MALFORMED_TEXT_BLOCK",
