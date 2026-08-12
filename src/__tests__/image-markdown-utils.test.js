@@ -179,7 +179,7 @@ describe("media-span fill images", () => {
       querySelectorAll: () => [img],
       closest: (selector) => (selector === ".slide" ? slide : null),
     };
-    const slide = { dataset: { mediaSpan: "right" } };
+    const slide = { dataset: { mediaFullBleed: "right" } };
     const img = {
       style: { position: "" },
       classList: { contains: () => false },

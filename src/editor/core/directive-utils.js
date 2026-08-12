@@ -396,48 +396,7 @@ export function makeMediaFullBleed(markdown, areaName) {
   const info = getMediaFullBleedInfo(markdown, areaName);
   if (!info.can) return markdown;
 
-  const { targetCol, mediaOnTarget, willEnable } = info;
-  if (mediaOnTarget) {
-    return updateMediaFullBleedDirective(markdown, willEnable);
-  }
-
-  const parser = new MarkdownParser();
-  const { value: layoutValue, markdown: stripped } = parser.extractDirective(markdown, "layout");
-  const resolved = LayoutParser.resolvePreset(layoutValue);
-  const layout = LayoutParser.parse(resolved);
-
-  const rowMatches = layout.gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
-  const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
-  const maxLen = Math.max(...rows.map((row) => row.length), 1);
-
-  const newRows = rows.map((row) => {
-    const padded = [...row];
-    while (padded.length < maxLen) padded.push(".");
-    const others = padded.filter((c) => c !== "media");
-    const result = new Array(maxLen).fill(".");
-    result[targetCol] = "media";
-    let otherIdx = 0;
-    for (let i = 0; i < maxLen; i++) {
-      if (i === targetCol) continue;
-      const next = others[otherIdx] ?? ".";
-      result[i] = next;
-      otherIdx++;
-    }
-    return result;
-  });
-
-  const parts = [];
-  for (let i = 0; i < newRows.length; i++) {
-    parts.push(`"${newRows[i].join(" ")}"`);
-    if (layout.hasExplicitRowSizes && i < layout.rowSizes.length) {
-      parts.push(layout.rowSizes[i]);
-    }
-  }
-  const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
-
-  let newMarkdown = updateLayoutDirective(stripped, newLayout, { preserveMediaSpan: true });
-  newMarkdown = updateMediaFullBleedDirective(newMarkdown, willEnable);
-  return newMarkdown;
+  return updateMediaFullBleedDirective(markdown, info.willEnable);
 }
 
 /**

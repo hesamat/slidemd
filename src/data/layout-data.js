@@ -23,7 +23,7 @@ const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
  * @param {string} gridTemplateAreas
  * @returns {"left"|"right"|null}
  */
-export function getMediaSpanSideFromGrid(gridTemplateAreas) {
+export function getMediaFullBleedSideFromGrid(gridTemplateAreas) {
   const rows = String(gridTemplateAreas || "")
     .match(/"[^"]*"|'[^']*'/g)
     ?.map((row) => row.slice(1, -1).split(/\s+/).filter(Boolean));
@@ -212,7 +212,7 @@ export class LayoutData {
    * @returns {"left"|"right"|null}
    */
   static getMediaSpanSide(layoutName) {
-    return getMediaSpanSideFromGrid(this.getGridTemplate(layoutName));
+    return getMediaFullBleedSideFromGrid(this.getGridTemplate(layoutName));
   }
 
   /**

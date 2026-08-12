@@ -553,7 +553,7 @@ describe("ImageInteractionHandler", () => {
 
     it("does not move the previously selected image when a media-span fill drag is ignored", () => {
       const label = { classList: { contains: (c) => c === "editor-area-label" } };
-      const slide = { dataset: { mediaSpan: "right" } };
+      const slide = { dataset: { mediaFullBleed: "right" } };
       const img = {
         style: { position: "" },
         classList: { contains: () => false },

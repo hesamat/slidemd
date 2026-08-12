@@ -1124,7 +1124,10 @@
 
 /* Media-span fill images — the view positions them; not draggable unless
    the user explicitly toggles freeflow (which writes an inline position). */
-[data-edit-mode="true"] .slide[data-media-span] .slide__area--media img:not([style*="position"]) {
+[data-edit-mode="true"]
+  .slide[data-media-full-bleed]
+  .slide__area--media
+  img:not([style*="position"]) {
   cursor: default;
 }
 
