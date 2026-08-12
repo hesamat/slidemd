@@ -548,7 +548,7 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ---
 
-## Phase 14.5: Structural Cleanup & Test Infrastructure
+## Phase 14.5: Structural Cleanup & Test Infrastructure ✅
 
 Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
 
