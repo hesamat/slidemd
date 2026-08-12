@@ -348,6 +348,8 @@ export class NewPresentationModal {
 
       cancelBtn.addEventListener("click", dismiss);
 
+      backdrop.querySelector(`.${P}close`).addEventListener("click", dismiss);
+
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) dismiss();
       });
@@ -429,8 +431,6 @@ export class NewPresentationModal {
         </div>
       </div>
     `;
-
-    el.querySelector(`.${P}close`).onclick = () => el.remove();
 
     return el;
   }

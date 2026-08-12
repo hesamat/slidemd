@@ -63,7 +63,7 @@
 .slide {
   position: absolute;
   inset: 0;
-  /* Slide container padding, as variables so full-bleed areas (media-span)
+  /* Slide container padding, as variables so full-bleed areas (media-full-bleed)
      can mirror them exactly. */
   --slide-pad-top: 105px;
   --slide-pad-right: 125px;
@@ -783,9 +783,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-/* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
+/* --- MEDIA-FULL-BLEED EDGE-TO-EDGE MEDIA --- */
 
-/* The media column of a media-span layout always bleeds to the slide edges
+/* The media column of a media-full-bleed layout always bleeds to the slide edges
    while the content column keeps the slide padding — the layout itself
    implies bleed, independent of the media area's content (image, mermaid,
    text, table). The negative margins mirror the --slide-pad-* variables

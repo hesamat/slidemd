@@ -3,6 +3,8 @@
  * Handles mouse wheel events for slide navigation with debouncing.
  */
 
+import { isModalOpen } from "../core/modal-state.js";
+
 export class WheelHandler {
   /**
    * Creates a new WheelHandler.
@@ -24,19 +26,7 @@ export class WheelHandler {
    * @returns {boolean} True if a modal is open
    */
   isModalOpen() {
-    // Check for main modals (layout picker, go-to-slide, etc.)
-    const modal = document.querySelector(".modal:not(.webdeck-hidden)");
-    if (modal) return true;
-
-    // Check for notification modal
-    const notificationModal = document.querySelector(".notification-modal-backdrop");
-    if (notificationModal) return true;
-
-    // Check for AI generate modal and other backdrop-based modals
-    const backdrop = document.querySelector('[class*="modal__backdrop"]');
-    if (backdrop) return true;
-
-    return false;
+    return isModalOpen();
   }
 
   /**
