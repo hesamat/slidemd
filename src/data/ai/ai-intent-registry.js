@@ -10,7 +10,12 @@
  * applies per-intent input transforms (e.g. frontmatter stripping).
  */
 
-import { composeMessages, getFragment, stripFrontmatter } from "./ai-prompt-fragments.js";
+import {
+  composeMessages,
+  getFragment,
+  stripFrontmatter,
+  buildVisualStylingNote,
+} from "./ai-prompt-fragments.js";
 
 const INTENTS = {
   // Single-slide intents — the slide markdown is sent as-is (frontmatter
@@ -63,13 +68,7 @@ function composeForIntent(intent, ctx) {
   // brief in the options suffix provides the specific palette. Otherwise,
   // include the generic guidance.
   if (intent === "generate") {
-    if (ctx.hasVisualSystem) {
-      substitutions.visualStylingNote ??=
-        "- A visual system with a specific palette and design language is provided in the instructions below. Follow it exclusively — do not invent your own colors or theme.";
-    } else {
-      substitutions.visualStylingNote ??=
-        "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
-    }
+    substitutions.visualStylingNote = buildVisualStylingNote(ctx.hasVisualSystem);
   }
   return composeMessages(getFragment(def.system), getFragment(def.user), substitutions);
 }

@@ -16,7 +16,7 @@ import {
   buildTitlePanelHtml,
   syncBgState,
 } from "../editor/ui/style-helpers.js";
-import { modalOpened, modalClosed } from "./ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const TEMPLATES = [
   {

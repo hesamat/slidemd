@@ -14,7 +14,7 @@
 // SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
 import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
-import { modalOpened, modalClosed } from "./ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";

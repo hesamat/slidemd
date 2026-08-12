@@ -9,7 +9,7 @@
  * if the modal is cancelled.
  */
 
-import { modalOpened, modalClosed } from "./modal-state.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "conflict-modal__";
 

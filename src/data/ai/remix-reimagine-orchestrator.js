@@ -559,7 +559,7 @@ export class RemixReimagineOrchestrator {
     const { context } = operation;
     const { onLog } = callbacks;
 
-    const deckSummary = buildDeckSummary(context);
+    const deckSummary = buildDeckSummary(context, true);
 
     const flow = operation.opts?.flow || "story";
     const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
@@ -847,8 +847,8 @@ export class RemixReimagineOrchestrator {
     }
 
     const rawChapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];
+    const { onLog } = callbacks || {};
     if (rawChapters.length !== outline.chapters.length) {
-      const { onLog } = callbacks || {};
       onLog?.(
         `Breakdown returned ${rawChapters.length} chapter(s), expected ${outline.chapters.length} — aligning to outline.`,
         "warn",
@@ -862,6 +862,12 @@ export class RemixReimagineOrchestrator {
       const title =
         typeof ch.title === "string" && ch.title.trim() ? ch.title.trim() : outlineChapter.title;
       const rawSlides = Array.isArray(ch.slides) ? ch.slides : [];
+      if (rawSlides.length === 0) {
+        onLog?.(
+          `Breakdown chapter "${title}" has no slides; synthesizing a placeholder from the chapter summary.`,
+          "warn",
+        );
+      }
       const slides =
         rawSlides.length > 0
           ? rawSlides.map((s, _j) => {

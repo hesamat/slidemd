@@ -5,7 +5,7 @@
  */
 import { escapeHtml } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
-import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const PALETTE_PREFIX = "command-palette";
 const MAX_RESULTS = 50;

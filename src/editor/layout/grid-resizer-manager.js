@@ -61,7 +61,7 @@ export class GridResizerManager {
       slideEl,
       layoutInfo,
       this._deckStage,
-      (change) => this._onGridResize(change, layoutInfo, layoutSpec),
+      (change) => this._onGridResize(change, layoutInfo),
       layoutSpec,
     );
 
@@ -92,7 +92,7 @@ export class GridResizerManager {
     btn.classList.toggle("active", this._gridResizerVisible);
   }
 
-  _onGridResize(change, layoutInfo, _layoutSpec) {
+  _onGridResize(change, layoutInfo) {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
     let newSpec;

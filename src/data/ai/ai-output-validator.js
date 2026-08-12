@@ -115,6 +115,7 @@ export class AiOutputValidator {
     // The parsed `slides` array has already converted text-block directives to
     // HTML, so we re-split the raw input to inspect directive attributes.
     const rawSlideTexts = splitSlides(outputMarkdown);
+    const inputRawSlideTexts = this._inputMarkdown ? splitSlides(this._inputMarkdown) : [];
 
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
@@ -151,7 +152,8 @@ export class AiOutputValidator {
       // Check text-block directives for unknown attributes (e.g. `style:`,
       // `padding`, `margin` — these are silently dropped by the parser).
       const rawSlide = rawSlideTexts[i] || "";
-      this._checkTextBlockAttributes(rawSlide, i, errors);
+      const inputRawSlide = inputRawSlideTexts[i] || "";
+      this._checkTextBlockAttributes(rawSlide, inputRawSlide, i, errors, intent);
 
       if (schema.checkContentRules) {
         this._checkContentRules(slide, i, errors, warnings);
@@ -274,20 +276,34 @@ export class AiOutputValidator {
    * Check text-block directives for unknown attributes.  The text-block parser
    * silently drops attributes it doesn't recognise (e.g. `style:`, `padding`,
    * `margin`), which means the AI can produce a directive that looks correct but
-   * renders with none of the intended styling.  Flagging these as errors gives
-   * the repair loop a chance to fix them.
+   * renders with none of the intended styling.  For generate intents this is a
+   * hard error; for preserve-oriented intents (fix/polish/etc.) only unknown
+   * attributes that were not already present in the input are flagged, so the
+   * model can obey the "preserve existing text-block blocks" instruction.
    * @param {string} rawSlide - raw slide markdown (before text-block conversion)
+   * @param {string} inputRawSlide - raw input slide markdown for comparison
    * @param {number} index - 0-based slide index
    * @param {ValidationError[]} errors
+   * @param {string} intent
    */
-  _checkTextBlockAttributes(rawSlide, index, errors) {
+  _checkTextBlockAttributes(rawSlide, inputRawSlide, index, errors, intent) {
     const blocks = parseTextBlockDirectives(rawSlide);
+    const inputBlocks = parseTextBlockDirectives(inputRawSlide);
+    const inputUnknownSet = new Set(inputBlocks.flatMap((b) => b.unknownAttrs || []));
+    const isPreserve = intent !== "generate";
+
     for (const block of blocks) {
-      if (block.unknownAttrs && block.unknownAttrs.length > 0) {
+      const unknownAttrs = block.unknownAttrs || [];
+      if (unknownAttrs.length === 0) continue;
+
+      const newUnknowns = isPreserve
+        ? unknownAttrs.filter((a) => !inputUnknownSet.has(a))
+        : unknownAttrs;
+      if (newUnknowns.length > 0) {
         errors.push({
           slide: index,
           code: "UNKNOWN_TEXT_BLOCK_ATTR",
-          message: `Slide ${index + 1} text-block uses unsupported attributes: ${block.unknownAttrs.join(", ")}. Supported: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
+          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
         });
       }
     }

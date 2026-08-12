@@ -21,6 +21,7 @@ import flowGuidance from "../prompts/flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
 import visualIdentityGuidance from "../prompts/visual-identity-guidance.md?raw";
 import remixVisualIdentityGuidance from "../prompts/remix-visual-identity-guidance.md?raw";
+import visualStylingNote from "../prompts/visual-styling-note.md?raw";
 import imagesGuidance from "../prompts/images-guidance.md?raw";
 import batchPagination from "../prompts/batch-pagination.md?raw";
 import creativeGuidance from "../prompts/creative-guidance.md?raw";
@@ -39,6 +40,7 @@ export const FRAGMENTS = {
   "speaker-notes-guidance.md": speakerNotesGuidance,
   "visual-identity-guidance.md": visualIdentityGuidance,
   "remix-visual-identity-guidance.md": remixVisualIdentityGuidance,
+  "visual-styling-note.md": visualStylingNote,
   "images-guidance.md": imagesGuidance,
   "batch-pagination.md": batchPagination,
   "creative-guidance.md": creativeGuidance,
@@ -149,6 +151,21 @@ export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
   return extractVariant(
     getFragment("remix-visual-identity-guidance.md"),
     preserveVisualIdentity ? "preserve" : "discard",
+  );
+}
+
+/**
+ * Build the {{visualStylingNote}} substitution for generate prompts.
+ * When a visual system is present, the note points the model at the design
+ * language while telling it explicitly not to use the palette colors, so it
+ * does not contradict `buildVisualSystemBrief`.
+ * @param {boolean} hasVisualSystem
+ * @returns {string}
+ */
+export function buildVisualStylingNote(hasVisualSystem) {
+  return extractVariant(
+    getFragment("visual-styling-note.md"),
+    hasVisualSystem ? "present" : "absent",
   );
 }
 

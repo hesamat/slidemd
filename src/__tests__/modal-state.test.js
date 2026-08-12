@@ -1,11 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  modalOpened,
-  modalClosed,
-  isModalOpen,
-  _resetModalState,
-} from "../editor/ui/modal-state.js";
+import { modalOpened, modalClosed, isModalOpen, _resetModalState } from "../core/modal-state.js";
 
 describe("modal-state", () => {
   beforeEach(() => {

@@ -8,7 +8,7 @@
 import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 import { Logger } from "../core/logger.js";
-import { modalOpened, modalClosed } from "./ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";

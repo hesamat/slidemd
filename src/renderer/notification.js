@@ -3,7 +3,7 @@
  * Modern toast notification system to replace native alerts
  */
 
-import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 export class Notification {
   static container = null;
@@ -468,6 +468,7 @@ export class Notification {
             backdrop.remove();
           }
         }, 200);
+        modalClosed();
       };
 
       const handleCancel = async () => {
@@ -510,6 +511,7 @@ export class Notification {
       backdrop = bd;
 
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       requestAnimationFrame(() => primaryButton?.element?.focus());

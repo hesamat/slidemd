@@ -7,7 +7,7 @@
 
 import { MarkdownParser } from "../data/markdown-parser.js";
 import { escapeHtml, safeString } from "../core/utils.js";
-import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const SEARCH_DELAY_MS = 100;
 const MAX_SNIPPET_LENGTH = 120;

@@ -12,7 +12,7 @@
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 import { countContentImages } from "../../data/ai/slide-image-extractor.js";
 import { escapeHtml } from "../../core/utils.js";
-import { modalOpened, modalClosed } from "./modal-state.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "ai-generate-modal__";
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import { KeyboardHandler } from "../engine/keyboard-handler.js";
-import { _resetModalState, modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+import { _resetModalState, modalOpened, modalClosed } from "../core/modal-state.js";
 
 function createHandler() {
   const calls = [];

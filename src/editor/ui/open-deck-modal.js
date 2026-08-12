@@ -16,7 +16,7 @@ import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 import { Logger } from "../../core/logger.js";
-import { modalOpened, modalClosed } from "./modal-state.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",

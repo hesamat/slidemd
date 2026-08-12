@@ -17,6 +17,7 @@ import {
   hasVariant,
   stripFrontmatter,
   buildVisualSystemBrief,
+  buildVisualStylingNote,
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
@@ -83,8 +84,7 @@ export function buildMessages(markdown, mode) {
     mode === "fix" ? getFragment("fix-prompt.md") : getFragment("generate-prompt.md");
   const substitutions = { markdown: cleaned };
   if (mode !== "fix") {
-    substitutions.visualStylingNote =
-      "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
+    substitutions.visualStylingNote = buildVisualStylingNote(false);
   }
   return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
 }
@@ -92,9 +92,12 @@ export function buildMessages(markdown, mode) {
 /**
  * Generate a lightweight deck summary for batch context.
  * @param {string} markdown - The original markdown.
+ * @param {boolean} [includeFirstSlide=false] - When true, appends the full raw
+ *   text of the first slide so the reimagine outline prompt can extract
+ *   identifying information for the first slide's footer.
  * @returns {string}
  */
-export function buildDeckSummary(markdown) {
+export function buildDeckSummary(markdown, includeFirstSlide = false) {
   // Fence-aware split so `---` inside code blocks doesn't create phantom
   // slides and misalign the outline (same fix as buildBatchMessages /
   // extractDirectives / injectDirectives).
@@ -129,7 +132,7 @@ export function buildDeckSummary(markdown) {
   // Include the full text of the first slide so the outline AI can preserve
   // identifying information (course code, week number, author, event name)
   // that may live in the footer or body rather than the title heading.
-  if (slides.length > 0) {
+  if (includeFirstSlide && slides.length > 0) {
     parts.push("First slide (preserve its identifying info):", slides[0].trim());
   }
   parts.push("Outline:", titles.join("\n"));
@@ -203,9 +206,7 @@ export function buildBatchMessages(
   // Only provide visualStylingNote for the generate fragment (which has the
   // {{visualStylingNote}} placeholder).
   if (isGenerateFragment) {
-    substitutions.visualStylingNote = hasVisualSystem
-      ? "- A visual system with a specific palette and design language is provided in the instructions below. Follow it exclusively — do not invent your own colors or theme."
-      : "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
+    substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
   }
   const { system, user } = composeMessages(
     getFragment("system-prompt.md"),

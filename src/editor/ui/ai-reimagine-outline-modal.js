@@ -13,7 +13,7 @@
  * Returns a promise that resolves to the edited outline, or null if cancelled.
  */
 
-import { modalOpened, modalClosed } from "./modal-state.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "ai-reimagine-outline-modal__";
 
@@ -130,6 +130,12 @@ export class AiReimagineOutlineModal {
       const planInput = dialog.querySelector(`#${P}plan-input`);
       const regenerateBtn = dialog.querySelector(`#${P}regenerate-btn`);
 
+      // Working copies of outline metadata so the original outline object is
+      // never mutated (regenerate may replace chapters, but not the caller's).
+      let visualSystem = outline.visualSystem ?? null;
+      let keepImages = outline.keepImages ? [...outline.keepImages] : [];
+      let firstSlideIdentity = outline.firstSlideIdentity ?? "";
+
       // Regenerate chapters: re-run the outline AI with the edited plan.
       if (regenerateBtn && opts.onRegenerate) {
         regenerateBtn.addEventListener("click", async () => {
@@ -144,16 +150,14 @@ export class AiReimagineOutlineModal {
           try {
             const newOutline = await opts.onRegenerate(newPlan);
             if (newOutline) {
-              // Replace the outline's chapters and plan with the regenerated ones.
-              outline.plan = newOutline.plan;
-              outline.chapters = newOutline.chapters;
-              if (newOutline.visualSystem) outline.visualSystem = newOutline.visualSystem;
-              if (newOutline.keepImages) outline.keepImages = newOutline.keepImages;
+              // Apply regenerated values to working copies, not the original outline.
+              if (newOutline.visualSystem) visualSystem = newOutline.visualSystem;
+              if (newOutline.keepImages) keepImages = [...newOutline.keepImages];
               if (newOutline.firstSlideIdentity !== undefined)
-                outline.firstSlideIdentity = newOutline.firstSlideIdentity;
+                firstSlideIdentity = newOutline.firstSlideIdentity;
               // Re-render chapters and stats
               chapters.length = 0;
-              for (const ch of outline.chapters) {
+              for (const ch of newOutline.chapters) {
                 chapters.push({
                   title: ch.title,
                   flowTag: ch.flowTag || "",
@@ -163,7 +167,7 @@ export class AiReimagineOutlineModal {
               }
               renderChapters();
               renderStats();
-              planInput.value = outline.plan;
+              planInput.value = newOutline.plan;
             }
           } catch (err) {
             errorEl.textContent = err?.message || "Regeneration failed.";
@@ -344,9 +348,9 @@ export class AiReimagineOutlineModal {
             summary: ch.summary.trim(),
             suggestedSlideCount: ch.suggestedSlideCount || 1,
           })),
-          visualSystem: outline.visualSystem ?? null,
-          keepImages: outline.keepImages ?? [],
-          firstSlideIdentity: outline.firstSlideIdentity ?? "",
+          visualSystem,
+          keepImages,
+          firstSlideIdentity,
         });
       });
 

@@ -5,7 +5,7 @@
 
 import { EventEmitter } from "../core/utils.js";
 import { SlideSearch } from "./slide-search.js";
-import { modalOpened, modalClosed } from "../editor/ui/modal-state.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 export class SlideNavigator extends EventEmitter {
   /**
