@@ -207,15 +207,6 @@ export class LayoutData {
   }
 
   /**
-   * Get the media-span edge for a named layout, if it has one.
-   * @param {string} layoutName
-   * @returns {"left"|"right"|null}
-   */
-  static getMediaSpanSide(layoutName) {
-    return getMediaFullBleedSideFromGrid(this.getGridTemplate(layoutName));
-  }
-
-  /**
    * Get ordered area names for a layout.
    */
   static getAreaNames(layoutName) {

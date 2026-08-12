@@ -79,8 +79,6 @@ describe("LayoutData", () => {
     });
 
     it("derives media-span sides from grid geometry", () => {
-      expect(LayoutData.getMediaSpanSide("media-span-left")).toBe("left");
-      expect(LayoutData.getMediaSpanSide("media-span-right")).toBe("right");
       expect(getMediaFullBleedSideFromGrid('"media main" "media footer"')).toBe("left");
       expect(getMediaFullBleedSideFromGrid('"main media" "footer media"')).toBe("right");
       expect(getMediaFullBleedSideFromGrid('"main media" "media main"')).toBeNull();

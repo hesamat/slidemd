@@ -206,6 +206,7 @@ export class WholeDeckOrchestrator {
       const enhancedMarkdown = slidesToMarkdown(parsed.slides);
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedSlideCount ?? undefined,
+        skipOverflow: operation.opts?.mode === "polish",
       });
 
       if (result.ok) {
@@ -653,6 +654,7 @@ export class WholeDeckOrchestrator {
       const expectedCount = batch.end - batch.start;
       const result = validator.validate(enhancedMarkdown, "generate", {
         expectedSlideCount: expectedCount,
+        skipOverflow: mode === "polish",
       });
 
       if (!result.ok) {

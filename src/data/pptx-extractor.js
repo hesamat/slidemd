@@ -105,17 +105,26 @@ export class PptxExtractor {
     // can reorder slides in the UI without renaming the XML files — the true
     // order is defined by <p:sldIdLst> in presentation.xml. Re-sort the parsed
     // slides to match the author's intended order.
-    const slideOrder = await this.#extractSlideOrder(buffer);
-    const orderedRawSlides = slideOrder
-      ? slideOrder.map((slideNum) => raw.slides[slideNum - 1]).filter((s) => s != null)
+    //
+    // #extractSlideOrder returns { order, fileNumToIndex } where:
+    //   order[i] = file number of the i-th slide in presentation order
+    //   fileNumToIndex.get(fileNum) = index into raw.slides for that file
+    // This handles gaps in file numbering (e.g. slide1, slide2, slide4 after
+    // a deletion) — raw.slides is indexed by position in the sorted file list,
+    // not by file number.
+    const slideOrderInfo = await this.#extractSlideOrder(buffer);
+    const orderedRawSlides = slideOrderInfo
+      ? slideOrderInfo.order
+          .map((fileNum) => raw.slides[slideOrderInfo.fileNumToIndex.get(fileNum)])
+          .filter((s) => s != null)
       : raw.slides;
 
     const images = [];
     const slides = (orderedRawSlides || []).map((slide, index) => {
-      // olStartValues is keyed by 0-based filename index (slideN → N-1).
+      // olStartValues is keyed by 0-based filename number (slideN → N-1).
       // When slides are reordered, look up by the original filename number,
       // not the new presentation position.
-      const olKey = slideOrder ? slideOrder[index] - 1 : index;
+      const olKey = slideOrderInfo ? slideOrderInfo.order[index] - 1 : index;
       return this.#processSlide(slide, index, images, olStartValues.get(olKey) || []);
     });
 
@@ -627,18 +636,22 @@ export class PptxExtractor {
    * `ppt/presentation.xml`. Each `<p:sldId>` entry has an `r:id` attribute that
    * maps to a slide file via `ppt/_rels/presentation.xml.rels`. The XML file
    * names (slide1.xml, slide2.xml, …) do NOT necessarily match this order —
-   * PowerPoint can reorder slides in the UI without renaming the files.
+   * PowerPoint can reorder slides in the UI without renaming the files, and
+   * deletions can leave gaps in the numbering (e.g. slide1, slide2, slide4).
    *
-   * `pptxtojson` sorts by filename, which is usually correct but breaks when
-   * slides have been reordered. This method returns the correct order as an
-   * array of slide numbers (1-based), e.g. [1, 3, 2] means the presentation
-   * order is slide1.xml, then slide3.xml, then slide2.xml.
+   * `pptxtojson` sorts by filename, so `raw.slides[k]` is the k-th file in
+   * sorted order, NOT `slide(k+1).xml`. This method returns both the
+   * presentation order (as file numbers) and a mapping from file number to
+   * array index, so the caller can correctly index into `raw.slides` even
+   * when there are gaps.
    *
    * @static
    * @param {ArrayBuffer} buffer - PPTX file buffer.
-   * @returns {Promise<number[]|null>} Array of 1-based slide numbers in
-   *   presentation order, or null if the order could not be determined (in
-   *   which case the caller should fall back to filename order).
+   * @returns {Promise<{order: number[], fileNumToIndex: Map<number, number>}|null>}
+   *   `order[i]` is the 1-based file number of the i-th slide in presentation
+   *   order. `fileNumToIndex.get(fileNum)` is the index into `raw.slides` for
+   *   that file. Returns null if the order could not be determined (in which
+   *   case the caller should fall back to filename order).
    */
   static async #extractSlideOrder(buffer) {
     try {
@@ -677,13 +690,35 @@ export class PptxExtractor {
         }
       }
 
-      // 4. Validate: every slide must be accounted for, and the count must
-      //    match. If validation fails, return null to fall back to filename order.
+      // 4. Validate: no duplicates, no empty list.
       if (order.length === 0) return null;
       const unique = new Set(order);
       if (unique.size !== order.length) return null; // duplicate slide numbers
 
-      return order;
+      // 5. Build fileNum → arrayIndex mapping from the sorted slide files.
+      //    pptxtojson sorts by filename, so raw.slides[k] is the k-th file in
+      //    sorted order. We replicate that sort here to build the mapping.
+      const slideFiles = Object.keys(zip.files).filter(
+        (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
+      );
+      slideFiles.sort((a, b) => {
+        const na = Number(a.match(/slide(\d+)\.xml/)[1]);
+        const nb = Number(b.match(/slide(\d+)\.xml/)[1]);
+        return na - nb;
+      });
+      const fileNumToIndex = new Map();
+      for (let i = 0; i < slideFiles.length; i++) {
+        const num = Number(slideFiles[i].match(/slide(\d+)\.xml/)[1]);
+        fileNumToIndex.set(num, i);
+      }
+
+      // 6. Validate: every file number in `order` must have a matching file.
+      //    If any is missing, fall back to filename order.
+      for (const fileNum of order) {
+        if (!fileNumToIndex.has(fileNum)) return null;
+      }
+
+      return { order, fileNumToIndex };
     } catch {
       // If anything fails (corrupted ZIP, missing files, etc.), return null
       // so the caller falls back to pptxtojson's filename-sorted order.

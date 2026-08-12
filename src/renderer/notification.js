@@ -748,6 +748,7 @@ export class Notification {
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => backdrop.remove(), 200);
         document.removeEventListener("keydown", keyHandler);
+        modalClosed();
         resolve({ ok, value });
       };
 
@@ -788,6 +789,7 @@ export class Notification {
       modal.appendChild(actions);
       backdrop.appendChild(modal);
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       // Document-scoped so Escape/Enter keep working even when a click
       // inside the dialog moved focus out of the modal (a keydown on body

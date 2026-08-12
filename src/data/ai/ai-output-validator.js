@@ -124,12 +124,15 @@ export class AiOutputValidator {
    * @param {string} intent
    * @param {object} [opts]
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
+   * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
+   *   (used by polish, which must preserve existing content rather than trim it)
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
     const schema = getSchema(intent);
     const errors = [];
     const warnings = [];
+    this._skipOverflow = !!opts.skipOverflow;
 
     let deckData;
     try {
@@ -443,8 +446,10 @@ export class AiOutputValidator {
     // Only enforce for the generate intent — fix/enhance are conservative
     // modes whose purpose is to preserve the user's existing content, so
     // flagging an already-dense slide as overflow would pressure the AI to
-    // delete content the user asked it to keep.
-    if (intent === "generate") {
+    // delete content the user asked it to keep. Polish also uses the
+    // generate validation path but sets skipOverflow because it must
+    // preserve the same slide count and content.
+    if (intent === "generate" && !this._skipOverflow) {
       this._checkContentVolume(slide, rawSlide, index, errors);
     }
   }
