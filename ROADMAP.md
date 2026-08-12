@@ -687,7 +687,7 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 
 ## Phase 15: Editor Diagnostics & Polish
 
-Goal: Surface real deck-quality problems in the editor, close the one visible gap in deck creation, and upgrade the area-background feature from a native color input to the full background picker. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
+Goal: Surface real deck-quality problems in the editor and polish existing editor features that are too simplistic in their current form — area backgrounds, background image sizing, text block styling, and mermaid drag. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
 
 ### Layout Governance
 
@@ -700,10 +700,13 @@ Goal: Surface real deck-quality problems in the editor, close the one visible ga
 
 ### Editor Polish
 
-| Task                          | Details                                                                                                                                                                                                                         |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Upgrade area background picker | Replace the native color input in the `@area` right-click "Set background..." menu with the full background panel from `style-helpers.js` — color swatches, custom color, image picker, overlay slider, and live preview. Reuses existing slide-level background infrastructure (`buildBackgroundPanelHtml()`, `buildImageBackground()`, `parseBackgroundValue()`). Updates `area-style-<name>:` directives to support gradients and image URLs, not just solid hex colors. |
-| [ ] Add theme preview         | Render a mini slide preview for light/dark + the selected accent in the New Presentation modal so users see the result before creating a deck. No registry required — uses the existing two themes.                              |
+| Task                                                     | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Upgrade area background picker (#151)                | Replace the native color input in the `@area` right-click "Set background..." menu with the full background panel from `style-helpers.js` — color swatches, custom color, image picker, overlay slider, and live preview. Reuses existing slide-level background infrastructure (`buildBackgroundPanelHtml()`, `buildImageBackground()`, `parseBackgroundValue()`). Updates `area-style-<name>:` directives to support gradients and image URLs, not just solid hex colors. |
+| [ ] Add background image sizing/position (#194)          | Add `background-size` (cover, contain, fit, custom), `background-position` (center, top, bottom, left, right, combinations), and `background-repeat` controls to both the slide-level and area-level background pickers. `buildImageBackground()` currently hardcodes `center / cover no-repeat`. Existing decks keep default behavior.                                                                                                                                     |
+| [ ] Add text block styling presets (#196)                | Add preset styles (quote, callout, highlight, warning) and fine-grained border controls (width, style, color, radius, padding, shadow) to the text block properties panel. Extends `src/core/text-block-directive.js` to persist new attributes. Presets render in editor, HTML export, and PDF.                                                                                                                                                                            |
+| [ ] Allow dragging mermaid diagrams between areas (#123) | Extend the interact.js cross-area drag system (currently images-only) to mermaid diagrams. Detect `.mermaid` containers as drag sources, support drop-target snapping, and move the mermaid fenced block between `@area` markers in markdown on drop. Reuses `ImageDragController` patterns.                                                                                                                                                                                |
+| [ ] Add theme preview                                    | Render a mini slide preview for light/dark + the selected accent in the New Presentation modal so users see the result before creating a deck. No registry required — uses the existing two themes.                                                                                                                                                                                                                                                                         |
 
 ### Deferred / Dropped
 
@@ -715,6 +718,8 @@ Goal: Surface real deck-quality problems in the editor, close the one visible ga
 | Motion / transition tokens                           | No transition system exists to tokenize. A slide-transition feature is a Phase 16 (Presenter) concern at minimum.                                                                                                             |
 | Brand defaults                                       | The New Presentation modal already lets users pick colors, fonts, accent, header style, borders, and radius per deck. A localStorage default profile is a small follow-up if demand appears.                                  |
 | Enforce `layout` / `@area` whitelist                 | Already implemented: `LayoutData.hasLayout()` / `getAreaNames()` validate in `SlidePreviewUpdater`, `AreaGuideManager` (with click-to-fix and header/title alias normalization), and `AiOutputValidator`. No new work needed. |
+| Image properties style tab UI (#126)                 | Too vague to be actionable — "The UI controls and their placements need to be reviewed and improved." No specifics or acceptance criteria. Revisit when concrete requirements are defined.                                    |
+| Export PowerPoint shapes as images (#117)            | PPTX import improvement, not editor polish. Belongs with Phase 7 follow-up work or a dedicated PPTX-quality phase. High priority but wrong scope for Phase 15.                                                                |
 
 ---
 
@@ -724,40 +729,40 @@ Goal: Fill the real competitive gaps in the presenter experience, make existing 
 
 ### Presenter Core
 
-| Task                                   | Details                                                                                                                                                                                                              |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Auto-exit edit mode on present     | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI.                     |
-| [ ] Add elapsed-time timer and clock   | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                                     |
-| [ ] Add visual next-slide preview      | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                                             |
-| [ ] Add slide grid overview            | Grid view of all slides for quick jumping during Q&A.                                                                                                                                                                |
+| Task                                 | Details                                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Auto-exit edit mode on present   | Switch off edit mode automatically when the user starts presenting, so the editor chrome drops away and the presenter panel gets full window space. Re-entering edit mode restores the editor UI. |
+| [ ] Add elapsed-time timer and clock | Display elapsed presentation time and wall-clock time in the presenter panel. Extends the existing `BreakManager` timer pattern.                                                                  |
+| [ ] Add visual next-slide preview    | Render a scaled-down preview of the upcoming slide in the presenter panel, replacing the current text-only title. Reuses `SlideRenderer` + `ContentEnhancer` off-screen.                          |
+| [ ] Add slide grid overview          | Grid view of all slides for quick jumping during Q&A.                                                                                                                                             |
 
 ### AI Command Discoverability
 
-| Task                              | Details                                                                                                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [ ] Add AI category to palette    | Add an "AI" category to the existing command palette (`src/engine/command-palette.js`) and wire the existing intents (`enhanceSlide`, `addSpeakerNotes`, `polish`) as palette commands. |
-| [ ] Target current slide or deck  | Single-slide intents target the current slide; whole-deck intents target the deck. Uses the existing `AiOrchestrator.runOperation()` path — no new execution logic.                  |
+| Task                             | Details                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add AI category to palette   | Add an "AI" category to the existing command palette (`src/engine/command-palette.js`) and wire the existing intents (`enhanceSlide`, `addSpeakerNotes`, `polish`) as palette commands. |
+| [ ] Target current slide or deck | Single-slide intents target the current slide; whole-deck intents target the deck. Uses the existing `AiOrchestrator.runOperation()` path — no new execution logic.                     |
 
 ### PDF Notes & Visual QA
 
-| Task                       | Details                                                                                                                                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Speaker notes in PDF   | Optional page-per-slide or notes section in PDF output via `tools/pdf.mjs`. Useful for handout-style PDFs.                                                                                               |
-| [ ] Per-slide PNG export   | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Builds on the existing Playwright harness. Justified as a visual-QA / regression-diffing tool, not a user presentation feature. |
+| Task                     | Details                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Speaker notes in PDF | Optional page-per-slide or notes section in PDF output via `tools/pdf.mjs`. Useful for handout-style PDFs.                                                                                                          |
+| [ ] Per-slide PNG export | Playwright screenshots of each slide on the 1920x1080 stage; output to a directory. Builds on the existing Playwright harness. Justified as a visual-QA / regression-diffing tool, not a user presentation feature. |
 
 ### Deferred / Dropped
 
-| Item                                         | Reason                                                                                                                                                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Item                                         | Reason                                                                                                                                                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Separate presenter window (PowerPoint-style) | The existing two-window model (editor + viewer) works and is lower-risk. A third window adds window-management and sync surface area (AGENTS.md flags history/broadcasts as cross-cutting). Panel components are reusable if a dedicated window is ever needed. |
-| `PrintAdapter` class                         | Technical-debt refactor consolidating `PrintManager` and `tools/pdf.mjs` DOM prep. No user-facing delta. Defer unless the duplicated emoji-removal logic causes bugs.                                              |
-| Unify Mermaid/Prism/KaTeX rendering          | Already done. `ContentEnhancer.enhanceRenderedContent()` is the single path used by runtime, HTML export (via runtime), and `tools/pdf.mjs`.                                                                         |
-| Laser pointer / drawing overlay              | Explicitly stretch in the original roadmap. High blast radius (touches renderer and event handling), low demand. Drop.                                                                                              |
-| "Summarize for executive" AI intent          | Niche, no demonstrated demand. The existing AI modes (enhance, fix, polish, remix, reimagine, addSpeakerNotes) cover the main use cases.                                                                            |
-| "Convert bullets to metric cards" AI intent  | Very specific, no demonstrated demand. Same reasoning as above.                                                                                                                                                     |
-| `PresenterModel` class                       | The presenter state is already spread across `DeckController`, `BreakManager`, and `RoleManager` and works. A dedicated model class is optional refactoring, not a user-facing gap. Keep the state where it is.     |
-| Speaker notes panel (as new work)            | Already implemented: `DeckController.renderNotes()` renders notes as markdown into the existing presenter panel. Not a new task.                                                                                     |
-| Go-to-slide search                           | Already implemented: `SlideSearch` (`src/engine/slide-search.js`) provides full-text search across slides with a modal UI. Not a new task.                                                                          |
+| `PrintAdapter` class                         | Technical-debt refactor consolidating `PrintManager` and `tools/pdf.mjs` DOM prep. No user-facing delta. Defer unless the duplicated emoji-removal logic causes bugs.                                                                                           |
+| Unify Mermaid/Prism/KaTeX rendering          | Already done. `ContentEnhancer.enhanceRenderedContent()` is the single path used by runtime, HTML export (via runtime), and `tools/pdf.mjs`.                                                                                                                    |
+| Laser pointer / drawing overlay              | Explicitly stretch in the original roadmap. High blast radius (touches renderer and event handling), low demand. Drop.                                                                                                                                          |
+| "Summarize for executive" AI intent          | Niche, no demonstrated demand. The existing AI modes (enhance, fix, polish, remix, reimagine, addSpeakerNotes) cover the main use cases.                                                                                                                        |
+| "Convert bullets to metric cards" AI intent  | Very specific, no demonstrated demand. Same reasoning as above.                                                                                                                                                                                                 |
+| `PresenterModel` class                       | The presenter state is already spread across `DeckController`, `BreakManager`, and `RoleManager` and works. A dedicated model class is optional refactoring, not a user-facing gap. Keep the state where it is.                                                 |
+| Speaker notes panel (as new work)            | Already implemented: `DeckController.renderNotes()` renders notes as markdown into the existing presenter panel. Not a new task.                                                                                                                                |
+| Go-to-slide search                           | Already implemented: `SlideSearch` (`src/engine/slide-search.js`) provides full-text search across slides with a modal UI. Not a new task.                                                                                                                      |
 
 ---
 
@@ -808,32 +813,32 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ## Summary
 
-| Phase                                          | Status      |
-| ---------------------------------------------- | ----------- |
-| Phase 1: Safety Net                            | ✅ Complete |
-| Phase 2: Build Modernization                   | ✅ Complete |
-| Phase 3: Distribution                          | ✅ Complete |
-| Phase 4: New Presentation                      | ✅ Complete |
-| Phase 5: Quick Fixes                           | ✅ Complete |
-| Phase 6: Testing & Polish                      | ✅ Complete |
-| Phase 7: PPTX Conversion                       | ✅ Complete |
-| Phase 7.5: CLI Dev Server                      | ✅ Complete |
-| Phase 8: AI Post-Processing                    | ✅ Complete |
-| Phase 9: Text Insertion & Editor UX            | ✅ Complete |
-| Phase 10: Renderer Hardening                   | ✅ Complete |
-| Phase 11: AI Operations Foundation             | ✅ Complete |
-| Phase 12: Deck Store & Patches                 | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide       | ✅ Complete |
-| Phase 13.1: Remix Planner                      | ✅ Complete |
-| Phase 13.2: Vision-Enabled Remix & Hardening   | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo           | ✅ Complete |
-| Phase 14.5: Structural Cleanup & Tests         | ✅ Complete |
-| Phase 14.6: Polish Quality & Presentation      | Planned     |
-| Phase 14.7: Remix Quality & Visual Identity    | Planned     |
-| Phase 14.8: Reimagine Creative Direction       | Planned     |
-| Phase 15: Editor Diagnostics & Polish          | Planned   |
-| Phase 16: Presenter, Print & AI Commands       | Planned     |
-| Phase 17: Cloud Mode                           | Planned     |
+| Phase                                        | Status      |
+| -------------------------------------------- | ----------- |
+| Phase 1: Safety Net                          | ✅ Complete |
+| Phase 2: Build Modernization                 | ✅ Complete |
+| Phase 3: Distribution                        | ✅ Complete |
+| Phase 4: New Presentation                    | ✅ Complete |
+| Phase 5: Quick Fixes                         | ✅ Complete |
+| Phase 6: Testing & Polish                    | ✅ Complete |
+| Phase 7: PPTX Conversion                     | ✅ Complete |
+| Phase 7.5: CLI Dev Server                    | ✅ Complete |
+| Phase 8: AI Post-Processing                  | ✅ Complete |
+| Phase 9: Text Insertion & Editor UX          | ✅ Complete |
+| Phase 10: Renderer Hardening                 | ✅ Complete |
+| Phase 11: AI Operations Foundation           | ✅ Complete |
+| Phase 12: Deck Store & Patches               | ✅ Complete |
+| Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
+| Phase 13.1: Remix Planner                    | ✅ Complete |
+| Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
+| Phase 14: Conflict Resolution & Undo         | ✅ Complete |
+| Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
+| Phase 14.6: Polish Quality & Presentation    | Planned     |
+| Phase 14.7: Remix Quality & Visual Identity  | Planned     |
+| Phase 14.8: Reimagine Creative Direction     | Planned     |
+| Phase 15: Editor Diagnostics & Polish        | Planned     |
+| Phase 16: Presenter, Print & AI Commands     | Planned     |
+| Phase 17: Cloud Mode                         | Planned     |
 
 ### Priority Order
 
@@ -843,7 +848,7 @@ Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → 
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
 
-Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 14.6-14.8 improve the existing AI modes and Phases 15-17 (Editor Diagnostics & Polish, Presenter/Print/AI Commands, Cloud Mode) build new platform features on top. Phase 15 was rescoped from its original "Design System & Theme Registry" plan after review found no demonstrated user need for a `DesignSystem` JS module, `ThemeRegistry`, custom themes, or the `@import` directive — the existing light/dark + accent + layout presets cover actual usage, and CSS custom properties already serve as the token system. The rescoped phase keeps the layout-governance warnings (real deck-quality pain), upgrades the area-background picker from a native color input to the full background panel (reusing existing slide-level infrastructure), and adds a theme preview to the New Presentation modal (a real UX gap), while deferring the speculative architecture. Phase 16 was rescoped to drop already-done work (ContentEnhancer unification, speaker-notes panel, go-to-slide search), technical-debt refactors (`PrintAdapter`), and speculative items (laser pointer, "summarize for executive" and "convert bullets to metric cards" AI intents, `PresenterModel` class). The rescoped phase extends the existing two-window presenter panel (auto-exit edit mode on present, elapsed-time timer, visual next-slide preview, slide grid overview), wires existing AI intents into the command palette for discoverability, and adds speaker-notes-in-PDF plus per-slide PNG export for visual QA. A separate PowerPoint-style presenter window was considered and deferred — the existing editor + viewer model is lower-risk and the panel components are reusable if a dedicated window is ever needed.
+Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 14.6-14.8 improve the existing AI modes and Phases 15-17 (Editor Diagnostics & Polish, Presenter/Print/AI Commands, Cloud Mode) build new platform features on top. Phase 15 was rescoped from its original "Design System & Theme Registry" plan after review found no demonstrated user need for a `DesignSystem` JS module, `ThemeRegistry`, custom themes, or the `@import` directive — the existing light/dark + accent + layout presets cover actual usage, and CSS custom properties already serve as the token system. The rescoped phase keeps the layout-governance warnings (real deck-quality pain), upgrades the area-background picker from a native color input to the full background panel (reusing existing slide-level infrastructure), adds background image sizing/position controls (#194), text block styling presets (#196), mermaid cross-area drag (#123), and a theme preview to the New Presentation modal (a real UX gap), while deferring the speculative architecture. Open issues #126 (image properties UI — too vague) and #117 (PPTX shape export — wrong scope) were considered and left out. Phase 16 was rescoped to drop already-done work (ContentEnhancer unification, speaker-notes panel, go-to-slide search), technical-debt refactors (`PrintAdapter`), and speculative items (laser pointer, "summarize for executive" and "convert bullets to metric cards" AI intents, `PresenterModel` class). The rescoped phase extends the existing two-window presenter panel (auto-exit edit mode on present, elapsed-time timer, visual next-slide preview, slide grid overview), wires existing AI intents into the command palette for discoverability, and adds speaker-notes-in-PDF plus per-slide PNG export for visual QA. A separate PowerPoint-style presenter window was considered and deferred — the existing editor + viewer model is lower-risk and the panel components are reusable if a dedicated window is ever needed.
 
 ## Backlog
 
