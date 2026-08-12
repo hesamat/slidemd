@@ -5,7 +5,6 @@
  * Extracted from EditController.
  */
 import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData } from "../../data/layout-data.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
 import {
   updateLayoutDirective,
@@ -107,8 +106,7 @@ export class GridResizerManager {
     // already-written media-span directive (previous resize) or derive it
     // from the named preset being resized; updateLayoutDirective strips the
     // directive, so it must be re-added here or the bleed would be lost.
-    const existingSide =
-      readMediaSpanDirective(markdown) || LayoutData.getMediaSpanSide(_layoutSpec);
+    const existingSide = readMediaSpanDirective(markdown);
     let newMarkdown = updateLayoutDirective(markdown, newSpec);
     if (existingSide) {
       newMarkdown = updateMediaSpanDirective(newMarkdown, existingSide);
