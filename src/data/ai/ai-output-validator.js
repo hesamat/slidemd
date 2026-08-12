@@ -531,11 +531,22 @@ export class AiOutputValidator {
     let codeLineCount = 0;
     let tableRowCount = 0;
     let inCode = false;
+    let inComment = false;
 
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (line.length === 0) continue;
-      if (line.startsWith("<!--")) continue; // speaker notes / HTML comments
+
+      // Track multi-line HTML comments (<!-- notes: ... --> spanning lines)
+      if (inComment) {
+        if (line.includes("-->")) inComment = false;
+        continue;
+      }
+      if (line.startsWith("<!--")) {
+        if (!line.includes("-->")) inComment = true;
+        continue;
+      }
+
       if (line === ":::" || /^:::\s+/.test(line)) continue; // text-block directive markers
       if (
         /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
@@ -562,7 +573,10 @@ export class AiOutputValidator {
         continue;
       }
 
+      // Table rows: must contain a pipe and have content on both sides.
+      // Skip separator-only rows (|---|---|) — they carry no content.
       if (line.includes("|") && !line.startsWith("\\")) {
+        if (/^\|?[\s-]*-{2,}[\s|:-]*$/.test(line)) continue; // separator row
         tableRowCount++;
         lineCount++;
         continue;

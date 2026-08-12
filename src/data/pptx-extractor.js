@@ -119,12 +119,31 @@ export class PptxExtractor {
           .filter((s) => s != null)
       : raw.slides;
 
+    // Build a fallback fileNum→index map for the OL start value lookup when
+    // #extractSlideOrder returned null. This keeps the olKey consistent: the
+    // OL start values are keyed by file number minus one, not array position,
+    // so without this map a deck with file-number gaps would misalign OL starts
+    // in the fallback path.
+    let fallbackFileNums = null;
+    if (!slideOrderInfo) {
+      const zip = await JSZip.loadAsync(buffer);
+      const slideFiles = Object.keys(zip.files)
+        .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir)
+        .map((name) => Number(name.match(/slide(\d+)\.xml/)[1]))
+        .sort((a, b) => a - b);
+      fallbackFileNums = slideFiles;
+    }
+
     const images = [];
     const slides = (orderedRawSlides || []).map((slide, index) => {
       // olStartValues is keyed by 0-based filename number (slideN → N-1).
       // When slides are reordered, look up by the original filename number,
-      // not the new presentation position.
-      const olKey = slideOrderInfo ? slideOrderInfo.order[index] - 1 : index;
+      // not the new presentation position. In the fallback path, use the
+      // file number from the sorted file list (not the array index) so that
+      // file-number gaps don't misalign the lookup.
+      const olKey = slideOrderInfo
+        ? slideOrderInfo.order[index] - 1
+        : (fallbackFileNums?.[index] ?? index + 1) - 1;
       return this.#processSlide(slide, index, images, olStartValues.get(olKey) || []);
     });
 
