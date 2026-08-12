@@ -123,8 +123,8 @@ export class SlidePreviewUpdater {
    */
   _syncMediaSpanFlag(slideEl, slideData, layout) {
     const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const mediaSpanSide = String(slideData?.mediaSpan || "").toLowerCase();
-    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
+    const mediaFullBleed = Boolean(slideData?.mediaFullBleed);
+    if (geometryMediaSide && mediaFullBleed) {
       slideEl.setAttribute("data-media-span", geometryMediaSide);
     } else {
       slideEl.removeAttribute("data-media-span");

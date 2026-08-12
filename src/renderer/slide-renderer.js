@@ -210,7 +210,7 @@ export class SlideRenderer {
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
     const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const mediaSpanSide = safeString(slide?.mediaSpan).toLowerCase();
+    const mediaFullBleed = Boolean(slide?.mediaFullBleed);
 
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;
@@ -228,7 +228,7 @@ export class SlideRenderer {
     if (dataLayout) {
       wrapper.setAttribute("data-layout", dataLayout);
     }
-    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
+    if (geometryMediaSide && mediaFullBleed) {
       wrapper.setAttribute("data-media-span", geometryMediaSide);
     }
 

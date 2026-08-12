@@ -137,7 +137,7 @@ Adds speaker notes to a single slide:
 - Slides are separated by `---` (three dashes on a line by themselves)
 - Optional speaker notes: `<!-- notes: ... -->` at the very top of the slide
 - Each slide begins with frontmatter: `layout: preset-name` or `layout: "grid definition" / columns`
-- Internal setting `media-span: left|right` — records full-bleed intent on resized media-span grids; treated as a layout-related directive, not slide content
+- Internal setting `media-full-bleed: true` — records full-bleed intent on resized media-span grids; treated as a layout-related directive, not slide content
 - Content areas are marked with `@area-name` (e.g., `@header`, `@main`, `@media`, `@sidebar`)
 - Content before the first `@area` flows into `@main`
 

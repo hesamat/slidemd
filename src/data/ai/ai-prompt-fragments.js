@@ -288,10 +288,16 @@ export function stripThemeAndBackground(markdown) {
 export function stripFrontmatter(markdown, mode) {
   if (mode === "generate") {
     // Generate mode: keep background and theme so AI sees the originals
-    return stripDirectives(markdown, /^(layout|media-span|hidden|code-font-size):\s*.*$/);
+    return stripDirectives(
+      markdown,
+      /^(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+    );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
-  return stripDirectives(markdown, /^(theme|background|media-span|hidden|code-font-size):\s*.*$/);
+  return stripDirectives(
+    markdown,
+    /^(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+  );
 }
 
 function stripDirectives(markdown, pattern) {

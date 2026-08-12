@@ -78,7 +78,7 @@ describe("parseAiResponse (edge cases)", () => {
     const input = "layout: media-span-right\nmedia-span: right\n\n@media\nImage";
     const result = parseAiResponse(input);
     expect(result).not.toBeNull();
-    expect(result.slides[0].mediaSpan).toBe("right");
+    expect(result.slides[0].mediaFullBleed).toBe(true);
     expect(result.slides[0].content).not.toContain("media-span:");
   });
 });
@@ -109,9 +109,9 @@ describe("slidesToMarkdown", () => {
   });
 
   it("emits media-span intent when present", () => {
-    const slides = [{ layout: "media-span-right", mediaSpan: "right", content: "@media\nImage" }];
+    const slides = [{ layout: "media-span-right", mediaFullBleed: true, content: "@media\nImage" }];
     const md = slidesToMarkdown(slides);
-    expect(md).toContain("media-span: right");
+    expect(md).toContain("media-full-bleed: true");
   });
 });
 

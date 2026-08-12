@@ -71,7 +71,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "resized-media",
       layout: '"main media" "main media" / 3fr 2fr',
-      mediaSpan: "right",
+      mediaFullBleed: true,
       areas: {
         main: "<p>Body</p>",
         media: '<img src="images/photo.png" alt="Photo" />',
@@ -101,7 +101,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "media-span-left-footer",
       layout: "media-span-left",
-      mediaSpan: "left",
+      mediaFullBleed: true,
       areas: {
         media: '<img src="images/photo.png" alt="Photo" />',
         main: "<p>Body</p>",
@@ -121,7 +121,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "inert-intent",
       layout: "two-column",
-      mediaSpan: "right",
+      mediaFullBleed: true,
       areas: {
         main: "<p>Body</p>",
         media: "<p>Media</p>",

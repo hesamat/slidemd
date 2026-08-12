@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   updateLayoutDirective,
-  updateMediaSpanDirective,
+  updateMediaFullBleedDirective,
   updateBackgroundDirective,
   updateThemeDirective,
   updateAreaStyleDirective,
@@ -265,9 +265,17 @@ describe("updateLayoutDirective", () => {
     expect(result).toContain("media-span: right");
   });
 
-  it("writes media-span intent for resized layouts", () => {
-    const result = updateMediaSpanDirective("layout: custom\n# Title", "left");
-    expect(result).toMatch(/^media-span: left\nlayout: custom\n/);
+  it("writes media-full-bleed: true when enabled", () => {
+    const result = updateMediaFullBleedDirective("layout: custom\n# Title", true);
+    expect(result).toMatch(/^media-full-bleed: true\nlayout: custom\n/);
+  });
+
+  it("removes the media-full-bleed directive when disabled", () => {
+    const result = updateMediaFullBleedDirective(
+      "media-full-bleed: true\nlayout: custom\n# Title",
+      false,
+    );
+    expect(result).not.toContain("media-full-bleed:");
   });
 });
 

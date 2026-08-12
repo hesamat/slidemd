@@ -21,7 +21,7 @@ These paths never call an LLM. They are stable, repeatable, and unit-tested.
 
 - **Markdown parsing** — `src/data/markdown-parser.js` splits the deck into
   slides, parses frontmatter (`layout:`, `theme:`, `background:`, `hidden:`,
-  `media-span:`), and routes content to grid areas via `@area` markers.
+  `media-full-bleed:`), and routes content to grid areas via `@area` markers.
 - **Layout validation** — `src/data/layout-data.js` and `src/data/layout-parser.js`
   resolve preset names and custom CSS grid templates, validate that every
   `@area` marker has a matching grid cell, and surface warnings for mismatches.

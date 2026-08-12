@@ -8,8 +8,8 @@ import { LayoutParser } from "../../data/layout-parser.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
 import {
   updateLayoutDirective,
-  updateMediaSpanDirective,
-  readMediaSpanDirective,
+  updateMediaFullBleedDirective,
+  readMediaFullBleedDirective,
 } from "../core/directive-utils.js";
 
 export class GridResizerManager {
@@ -103,13 +103,13 @@ export class GridResizerManager {
     }
     // A resized media-span preset becomes a custom grid spec, so on later
     // resizes the original layout name is gone. Preserve the intent from an
-    // already-written media-span directive (previous resize) or derive it
+    // already-written media-full-bleed directive (previous resize) or derive it
     // from the named preset being resized; updateLayoutDirective strips the
     // directive, so it must be re-added here or the bleed would be lost.
-    const existingSide = readMediaSpanDirective(markdown);
+    const existingFullBleed = readMediaFullBleedDirective(markdown);
     let newMarkdown = updateLayoutDirective(markdown, newSpec);
-    if (existingSide) {
-      newMarkdown = updateMediaSpanDirective(newMarkdown, existingSide);
+    if (existingFullBleed) {
+      newMarkdown = updateMediaFullBleedDirective(newMarkdown, true);
     }
     this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
   }

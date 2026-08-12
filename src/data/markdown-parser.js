@@ -722,7 +722,7 @@ export class MarkdownParser {
     let current = "main";
     const fence = new FenceTracker();
     const isDirective = (line) =>
-      /^\s*(layout|media-span|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
+      /^\s*(layout|media-full-bleed|media-span|background|theme|hidden|hide|align|header-style|area-style(?:-[a-zA-Z0-9_-]+)?|code-font-size)\s*:/i.test(
         line,
       );
 
@@ -825,11 +825,22 @@ export class MarkdownParser {
       const { value: layout, markdown: withoutLayout } = this.extractDirective(cleaned, "layout");
       cleaned = withoutLayout;
 
-      const { value: mediaSpan, markdown: withoutMediaSpan } = this.extractDirective(
+      const { value: mediaFullBleed, markdown: withoutMediaFullBleed } = this.extractDirective(
+        cleaned,
+        "media-full-bleed",
+      );
+      cleaned = withoutMediaFullBleed;
+
+      // Extract the legacy media-span: left|right directive for backwards compatibility
+      const { value: legacyMediaSpan, markdown: withoutMediaSpan } = this.extractDirective(
         cleaned,
         "media-span",
       );
       cleaned = withoutMediaSpan;
+
+      const parsedMediaFullBleed = this.parseBooleanDirectiveValue(mediaFullBleed);
+      const mediaFullBleedValue =
+        parsedMediaFullBleed === true || /^(left|right)$/i.test(legacyMediaSpan);
 
       // For backwards compatibility, extract but ignore align directive
       const { markdown: withoutAlign } = this.extractDirective(cleaned, "align");
@@ -973,7 +984,7 @@ export class MarkdownParser {
         title: slideTitle,
         notes,
         layout: layout || "",
-        mediaSpan: /^(left|right)$/i.test(mediaSpan) ? mediaSpan.toLowerCase() : "",
+        mediaFullBleed: Boolean(mediaFullBleedValue),
         background: background || "",
         theme: themeNormalized,
         headerStyle: safeString(headerStyle).toLowerCase() || "",

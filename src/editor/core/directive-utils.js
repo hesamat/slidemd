@@ -32,38 +32,42 @@ export function updateLayoutDirective(
   const parser = new MarkdownParser();
   const { markdown: stripped } = parser.extractDirective(markdown, "layout");
   if (preserveMediaSpan) return `layout: ${newLayoutValue}\n${stripped}`;
-  const { markdown: withoutMediaSpan } = parser.extractDirective(stripped, "media-span");
-  return `layout: ${newLayoutValue}\n${withoutMediaSpan}`;
+  let { markdown: withoutMedia } = parser.extractDirective(stripped, "media-full-bleed");
+  withoutMedia = parser.extractDirective(withoutMedia, "media-span").markdown;
+  return `layout: ${newLayoutValue}\n${withoutMedia}`;
 }
 
 /**
- * Replace (or remove) the internal media-span intent directive.
+ * Replace (or remove) the internal media-full-bleed intent directive.
  * @param {string} markdown
- * @param {string} side - "left", "right", or empty to remove
+ * @param {boolean} enable - whether to enable full-bleed
  * @returns {string}
  */
-export function updateMediaSpanDirective(markdown, side) {
+export function updateMediaFullBleedDirective(markdown, enable) {
   const parser = new MarkdownParser();
-  const { markdown: stripped } = parser.extractDirective(markdown, "media-span");
-  const normalized = String(side || "")
-    .trim()
-    .toLowerCase();
-  if (normalized !== "left" && normalized !== "right") return stripped;
-  return `media-span: ${normalized}\n${stripped}`;
+  let { markdown: stripped } = parser.extractDirective(markdown, "media-full-bleed");
+  stripped = parser.extractDirective(stripped, "media-span").markdown;
+  if (!enable) return stripped;
+  return `media-full-bleed: true\n${stripped}`;
 }
 
 /**
- * Read the persisted media-span intent directive from slide markdown.
+ * Read the persisted media-full-bleed intent directive from slide markdown.
+ * Also recognises legacy `media-span: left|right` for backwards compatibility.
  * @param {string} markdown
- * @returns {"left"|"right"|""}
+ * @returns {boolean}
  */
-export function readMediaSpanDirective(markdown) {
+export function readMediaFullBleedDirective(markdown) {
   const parser = new MarkdownParser();
-  const { value } = parser.extractDirective(markdown, "media-span");
-  const normalized = String(value || "")
+  const { value: fullBleed } = parser.extractDirective(markdown, "media-full-bleed");
+  const { value: legacy } = parser.extractDirective(markdown, "media-span");
+  const fullBleedTrim = String(fullBleed || "")
     .trim()
     .toLowerCase();
-  return normalized === "left" || normalized === "right" ? normalized : "";
+  const legacyTrim = String(legacy || "")
+    .trim()
+    .toLowerCase();
+  return fullBleedTrim === "true" || /^(left|right)$/i.test(legacyTrim);
 }
 
 /**
@@ -362,8 +366,8 @@ export function getMediaFullBleedInfo(markdown, areaName) {
     return { can: false };
   }
 
-  const currentSide = readMediaSpanDirective(markdown);
-  const willEnable = currentSide !== targetSide;
+  const currentFullBleed = readMediaFullBleedDirective(markdown);
+  const willEnable = !currentFullBleed;
   const label = willEnable ? "Make media column full-bleed" : "Remove media column full-bleed";
 
   return {
@@ -371,7 +375,7 @@ export function getMediaFullBleedInfo(markdown, areaName) {
     targetSide,
     targetCol,
     mediaOnTarget: true,
-    currentSide,
+    currentFullBleed,
     willMove: false,
     willEnable,
     label,
@@ -381,7 +385,7 @@ export function getMediaFullBleedInfo(markdown, areaName) {
 /**
  * Toggle full-bleed for the @media area on the side of the clicked area.
  * Rewrites the layout to put @media in that column and spans it over every
- * row, then writes or removes the `media-span:` intent. If the media is
+ * row, then writes or removes the `media-full-bleed:` intent. If the media is
  * already on that side and already bleeding, the bleed is removed.
  *
  * @param {string} markdown
@@ -392,9 +396,9 @@ export function makeMediaFullBleed(markdown, areaName) {
   const info = getMediaFullBleedInfo(markdown, areaName);
   if (!info.can) return markdown;
 
-  const { targetSide, targetCol, mediaOnTarget, currentSide } = info;
+  const { targetCol, mediaOnTarget, willEnable } = info;
   if (mediaOnTarget) {
-    return updateMediaSpanDirective(markdown, currentSide === targetSide ? "" : targetSide);
+    return updateMediaFullBleedDirective(markdown, willEnable);
   }
 
   const parser = new MarkdownParser();
@@ -432,7 +436,7 @@ export function makeMediaFullBleed(markdown, areaName) {
   const newLayout = `${parts.join(" ")} / ${layout.gridTemplateColumns}`;
 
   let newMarkdown = updateLayoutDirective(stripped, newLayout, { preserveMediaSpan: true });
-  newMarkdown = updateMediaSpanDirective(newMarkdown, targetSide);
+  newMarkdown = updateMediaFullBleedDirective(newMarkdown, willEnable);
   return newMarkdown;
 }
 
