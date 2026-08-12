@@ -4,6 +4,7 @@ import {
   slidesToMarkdown,
   areasToMarkdown,
   extractHeadings,
+  extractJsonObject,
 } from "../data/ai/ai-response-parser.js";
 
 describe("parseAiResponse", () => {
@@ -168,5 +169,87 @@ describe("extractHeadings", () => {
     const headings = extractHeadings(md);
     expect(headings).toHaveLength(1);
     expect(headings[0]).toBe("");
+  });
+});
+
+describe("extractJsonObject", () => {
+  it("parses direct JSON", () => {
+    const input = '{"chapters":[{"title":"Ch1","slides":[]}]}';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toHaveLength(1);
+  });
+
+  it("extracts JSON from a code fence", () => {
+    const input =
+      'Here is the breakdown:\n```json\n{"chapters":[{"title":"Ch1","slides":[]}]}\n```\nDone.';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toHaveLength(1);
+  });
+
+  it("extracts JSON from prose with stray braces", () => {
+    const input =
+      "Sure! Here {is} the breakdown you requested:\n" +
+      '{"chapters":[{"title":"Ch1","slides":[{"title":"S1","intent":"Do X"}]}]}\n' +
+      "Let me know if {you} need changes.";
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toHaveLength(1);
+    expect(result.parsed.chapters[0].slides).toHaveLength(1);
+  });
+
+  it("handles braces inside JSON string values", () => {
+    const input =
+      "Here is the plan:\n" +
+      '{"plan":[{"source":0,"action":"merge","note":"Use {curly} braces in code"}]}\n' +
+      "Done.";
+    const result = extractJsonObject(input, "plan");
+    expect(result).not.toBeNull();
+    expect(result.parsed.plan).toHaveLength(1);
+    expect(result.parsed.plan[0].note).toContain("{curly}");
+  });
+
+  it("handles escaped quotes inside JSON string values", () => {
+    const input =
+      '{"chapters":[{"title":"Ch \\"quoted\\"","slides":[{"title":"S1","intent":"Say \\"hi\\""}]}]}';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters[0].title).toBe('Ch "quoted"');
+  });
+
+  it("finds the last occurrence when key appears multiple times", () => {
+    const input =
+      'I considered {"chapters":[]} but decided on this:\n' +
+      '{"chapters":[{"title":"Real","slides":[]}]}';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters[0].title).toBe("Real");
+  });
+
+  it("returns null for text without JSON", () => {
+    expect(extractJsonObject("Just prose, no JSON here.", "chapters")).toBeNull();
+  });
+
+  it("returns null for empty or non-string input", () => {
+    expect(extractJsonObject(null, "chapters")).toBeNull();
+    expect(extractJsonObject(undefined, "chapters")).toBeNull();
+    expect(extractJsonObject(42, "chapters")).toBeNull();
+  });
+
+  it("extracts slides key (used by parseAiResponse)", () => {
+    const input =
+      'Here are your slides:\n```json\n{"slides":[{"layout":"header-content","content":"# Hi"}]}\n```';
+    const result = extractJsonObject(input, "slides");
+    expect(result).not.toBeNull();
+    expect(result.parsed.slides).toHaveLength(1);
+  });
+
+  it("handles nested objects with braces in values", () => {
+    const input =
+      '{"chapters":[{"title":"Ch1","slides":[{"title":"S1","intent":"Use {a: 1, b: 2} syntax"}]}]}';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters[0].slides[0].intent).toContain("{a: 1, b: 2}");
   });
 });

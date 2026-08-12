@@ -777,7 +777,7 @@ describe("AiOrchestrator", () => {
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
-        "Outline response did not contain JSON",
+        "Outline response did not contain valid JSON",
       );
     });
 

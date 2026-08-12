@@ -33,6 +33,7 @@ import { parseAllImages } from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 import { parseVisualSystem } from "./visual-system-schema.js";
 import { normalizeBeats } from "./beat-normalizer.js";
+import { extractJsonObject } from "./ai-response-parser.js";
 
 /**
  * @typedef {Object} ReimagineOutlineChapter
@@ -657,32 +658,18 @@ export class RemixReimagineOrchestrator {
 
   /**
    * Parse the chapter-grouped outline JSON from an LLM response.
-   * Robust to code fences and prose wrappers (same patterns as parseAiResponse).
+   * Uses the shared robust JSON extractor (string-aware brace tracking).
    * @param {string} text
    * @returns {ReimagineOutline|null}
    */
   #parseOutlineResponse(text) {
     if (!text || typeof text !== "string") return null;
 
-    let cleaned = text.trim();
-    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) {
-      cleaned = fenceMatch[1].trim();
+    const extracted = extractJsonObject(text, "chapters");
+    if (!extracted) {
+      throw new Error("Outline response did not contain valid JSON");
     }
-
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("Outline response did not contain JSON");
-    }
-    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new Error("Outline response was not valid JSON");
-    }
+    const parsed = extracted.parsed;
 
     if (typeof parsed.plan !== "string") {
       throw new Error("Outline response missing 'plan' string");
@@ -809,7 +796,33 @@ export class RemixReimagineOrchestrator {
       );
     }
 
-    return this.#parseBreakdownResponse(response.content, outline, callbacks);
+    try {
+      return this.#parseBreakdownResponse(response.content, outline, callbacks);
+    } catch (err) {
+      // Retry once with a repair message — the model may have wrapped JSON
+      // in prose or produced a truncated response.
+      onLog?.(
+        `Breakdown parse failed (${err.message}) — retrying with repair message\u2026`,
+        "warn",
+      );
+      const repairMsg =
+        'Your previous response was not valid JSON. Return ONLY the JSON object with a "chapters" array, no surrounding text or code fences.';
+      const repairMessages = [
+        ...messages,
+        { role: "assistant", content: response.content },
+        { role: "user", content: repairMsg },
+      ];
+      const retryResponse = await this._provider.chat(
+        {
+          messages: repairMessages,
+          maxTokens,
+          responseFormat: null,
+          reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
+        },
+        signal,
+      );
+      return this.#parseBreakdownResponse(retryResponse.content, outline, callbacks);
+    }
   }
 
   /**
@@ -822,25 +835,11 @@ export class RemixReimagineOrchestrator {
   #parseBreakdownResponse(text, outline, callbacks = {}) {
     if (!text || typeof text !== "string") return null;
 
-    let cleaned = text.trim();
-    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) {
-      cleaned = fenceMatch[1].trim();
+    const extracted = extractJsonObject(text, "chapters");
+    if (!extracted) {
+      throw new Error("Breakdown response did not contain valid JSON");
     }
-
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("Breakdown response did not contain JSON");
-    }
-    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new Error("Breakdown response was not valid JSON");
-    }
+    const parsed = extracted.parsed;
 
     if (!Array.isArray(parsed.chapters) || parsed.chapters.length === 0) {
       throw new Error("Breakdown response missing 'chapters' array");
@@ -1078,34 +1077,18 @@ export class RemixReimagineOrchestrator {
 
   /**
    * Parse the plan JSON from an LLM response.
-   * Robust to code fences and prose wrappers (same patterns as parseAiResponse).
+   * Uses the shared robust JSON extractor (string-aware brace tracking).
    * @param {string} text
    * @returns {Array<object>}
    */
   #parsePlanResponse(text) {
     if (!text || typeof text !== "string") return [];
 
-    // Strip code fences if present
-    let cleaned = text.trim();
-    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) {
-      cleaned = fenceMatch[1].trim();
+    const extracted = extractJsonObject(text, "plan");
+    if (!extracted) {
+      throw new Error("Plan response did not contain valid JSON");
     }
-
-    // Find the first { and last } to extract JSON from prose
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("Plan response did not contain JSON");
-    }
-    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new Error("Plan response was not valid JSON");
-    }
+    const parsed = extracted.parsed;
 
     if (!parsed.plan || !Array.isArray(parsed.plan)) {
       throw new Error("Plan response missing 'plan' array");

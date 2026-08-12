@@ -73,39 +73,55 @@ export function areasToMarkdown(slides) {
 }
 
 /**
- * Parse the AI's JSON response, handling common issues.
- * @param {string} text - Raw AI response.
- * @returns {{ slides: Array }|null}
+ * Extract a top-level JSON object from raw LLM text, robust to code fences,
+ * prose wrappers, and stray braces in surrounding text.
+ *
+ * Tries in order:
+ * 1. Direct JSON.parse of the trimmed text.
+ * 2. Extract from a ```json code fence.
+ * 3. Locate the top-level key (`key` param, e.g. "slides" or "chapters"),
+ *    walk backwards to the enclosing `{`, then walk forwards with
+ *    string-aware brace-depth tracking to find the matching `}`.
+ *
+ * @param {string} text - Raw AI response text.
+ * @param {string} key - Top-level key to locate (e.g. "slides", "chapters").
+ * @returns {{ parsed: object, raw: string }|null} Parsed object and the raw
+ *   JSON substring, or null if no valid JSON was found.
  */
-export function parseAiResponse(text) {
+export function extractJsonObject(text, key) {
+  if (!text || typeof text !== "string") return null;
   const trimmed = text.trim();
 
-  // Try direct JSON parse
+  // 1. Direct parse
   try {
     const parsed = JSON.parse(trimmed);
-    if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+    if (parsed && typeof parsed === "object") return { parsed, raw: trimmed };
   } catch {
     /* not valid JSON */
   }
 
-  // Try extracting JSON from code fence
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  // 2. Code fence
+  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
+    const inner = fenceMatch[1].trim();
     try {
-      const parsed = JSON.parse(fenceMatch[1]);
-      if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
+      const parsed = JSON.parse(inner);
+      if (parsed && typeof parsed === "object") return { parsed, raw: inner };
     } catch {
       /* not valid JSON */
     }
   }
 
-  // Find JSON by locating "slides": — try last occurrence first (real JSON is usually at the end)
+  // 3. Locate the key and walk braces to extract the enclosing object.
+  // Try last occurrence first (the real JSON is usually at the end).
   let searchPos = trimmed.length;
+  const keyNeedle = `"${key}"`;
   while (true) {
-    const slidesIdx = trimmed.lastIndexOf('"slides":', searchPos);
-    if (slidesIdx < 0) break;
-    // Walk backwards to find the opening { (skip braces inside JSON strings)
-    let start = slidesIdx;
+    const keyIdx = trimmed.lastIndexOf(keyNeedle, searchPos - 1);
+    if (keyIdx < 0) break;
+
+    // Walk backwards from the key to find the opening {
+    let start = keyIdx;
     let inString = false;
     let escaped = false;
     while (start > 0) {
@@ -125,44 +141,64 @@ export function parseAiResponse(text) {
       }
       if (!inString && ch === "{") break;
     }
-    if (trimmed[start] === "{" && !inString) {
-      // Walk forwards to find the matching closing }
-      let depth = 0;
-      let end = start;
-      inString = false;
-      escaped = false;
-      for (; end < trimmed.length; end++) {
-        const ch = trimmed[end];
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === '"') {
-          inString = !inString;
-          continue;
-        }
-        if (inString) continue;
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-          depth--;
-          if (depth === 0) break;
-        }
+    if (trimmed[start] !== "{" || inString) {
+      searchPos = keyIdx - 1;
+      continue;
+    }
+
+    // Walk forwards to find the matching closing }
+    let depth = 0;
+    let end = start;
+    inString = false;
+    escaped = false;
+    for (; end < trimmed.length; end++) {
+      const ch = trimmed[end];
+      if (escaped) {
+        escaped = false;
+        continue;
       }
-      if (depth === 0) {
-        try {
-          const parsed = JSON.parse(trimmed.slice(start, end + 1));
-          if (parsed.slides && Array.isArray(parsed.slides)) return parsed;
-        } catch {
-          /* not valid JSON */
-        }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) break;
       }
     }
-    // Try the next occurrence further back
-    searchPos = slidesIdx - 1;
+    if (depth === 0) {
+      const raw = trimmed.slice(start, end + 1);
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return { parsed, raw };
+      } catch {
+        /* not valid JSON */
+      }
+    }
+    searchPos = keyIdx - 1;
+  }
+
+  return null;
+}
+
+/**
+ * Parse the AI's JSON response, handling common issues.
+ * @param {string} text - Raw AI response.
+ * @returns {{ slides: Array }|null}
+ */
+export function parseAiResponse(text) {
+  const trimmed = text.trim();
+
+  // Use the robust extractor with the "slides" key.
+  const extracted = extractJsonObject(trimmed, "slides");
+  if (extracted && extracted.parsed.slides && Array.isArray(extracted.parsed.slides)) {
+    return extracted.parsed;
   }
 
   // Final fallback: parse the response as SlideMD markdown.
