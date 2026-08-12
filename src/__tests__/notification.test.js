@@ -281,4 +281,91 @@ describe("Notification", () => {
       expect(isModalOpen()).toBe(false);
     });
   });
+
+  describe("prompt", () => {
+    it("places the input inside the copy column, below the message", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const input = document.querySelector(".notification-modal__input");
+      expect(input).not.toBeNull();
+      expect(input.closest(".notification-modal__copy")).not.toBeNull();
+
+      // Enter inside the input confirms via the document-scoped handler.
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await expect(promise).resolves.toEqual({ ok: true, value: "deck.md" });
+    });
+
+    it("closes the prompt with Escape even when focus is outside the modal", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.");
+
+      // A click inside the dialog (title, message, backdrop) moves focus to
+      // body; the keydown then targets body, not the modal. The handler is
+      // document-scoped so Escape still dismisses.
+      document.body.dispatchEvent(
+        new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+
+      await expect(promise).resolves.toEqual({ ok: false, value: "" });
+    });
+
+    it("removes the document key handler once the prompt is finished", async () => {
+      const removeSpy = vi.spyOn(document, "removeEventListener");
+      const promise = Notification.prompt("Save deck as", "Choose a file name.");
+
+      const okBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "OK",
+      );
+      okBtn.click();
+
+      await expect(promise).resolves.toEqual({ ok: true, value: "" });
+      expect(removeSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
+    });
+
+    it("does not confirm when Enter is pressed on the Cancel button", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const cancelBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "Cancel",
+      );
+      cancelBtn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+      // The keydown must not resolve the prompt as a confirmation. jsdom
+      // does not synthesize the browser's native button activation on
+      // Enter, so drive the click the browser would have fired.
+      let settled = false;
+      promise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      cancelBtn.click();
+      await expect(promise).resolves.toEqual({ ok: false, value: "deck.md" });
+    });
+
+    it("still confirms via native activation when Enter is pressed on the OK button", async () => {
+      const promise = Notification.prompt("Save deck as", "Choose a file name.", {
+        defaultValue: "deck.md",
+      });
+
+      const okBtn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (btn) => btn.textContent === "OK",
+      );
+      okBtn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+      let settled = false;
+      promise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      okBtn.click();
+      await expect(promise).resolves.toEqual({ ok: true, value: "deck.md" });
+    });
+  });
 });

@@ -254,7 +254,7 @@ There are two distinct themes and two distinct shortcuts:
 - **`T` (single key)** toggles the global **app theme** — the light/dark chrome around the slides (top bar, editor, footer). The top-bar theme toggle button is an alternative.
 - **`Alt+T` (modifier)** toggles the current **slide's theme** — the `theme:` directive on the current slide, which controls the slide's own light/dark background. This is the same as the "Theme" item in the Format dropdown.
 
-**Saving changes** is done from the main app menu (top-bar dropdown, under "Toggle Edit Mode"). The menu also shows the `Ctrl+S` shortcut. Save is only meaningful in edit mode — clicking it from viewing mode shows a notification asking you to enter edit mode first.
+**Saving changes** is available from the main app menu (top-bar dropdown, under "Toggle Edit Mode") and via the `Ctrl+S` shortcut. Saving works whenever an editor is open — in edit mode or not, e.g. while presenting from the editor window. Viewer/presenter windows have no editor, so saving is not available there.
 
 Structural (work even while typing in the editor):
 

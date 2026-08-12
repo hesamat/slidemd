@@ -26,7 +26,9 @@ const IS_ENABLED = {
   viewer: (ctx) => ctx.roleManager?.isEditorWindow && !ctx.isEditMode(),
   break: (ctx) => ctx.roleManager?.isEditorWindow && !ctx.isEditMode(),
   reload: (ctx) => ctx.roleManager?.isEditorWindow,
-  save: (ctx) => ctx.isEditMode(),
+  // Saving works whenever an editor exists, in edit mode or not — mirroring
+  // the Ctrl+S shortcut and the menu save button.
+  save: (ctx) => ctx.roleManager?.isEditorWindow,
   newSlide: (ctx) => ctx.isEditMode(),
   duplicateSlide: (ctx) => ctx.isEditMode(),
   deleteSlide: (ctx) => ctx.isEditMode(),
