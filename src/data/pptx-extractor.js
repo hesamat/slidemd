@@ -741,7 +741,11 @@ export class PptxExtractor {
       const slideFiles = Object.keys(zip.files).filter(
         (name) => /^ppt\/slides\/slide\d+\.xml$/.test(name) && !zip.files[name].dir,
       );
-      slideFiles.sort();
+      slideFiles.sort((a, b) => {
+        const na = Number(a.match(/slide(\d+)\.xml/)[1]);
+        const nb = Number(b.match(/slide(\d+)\.xml/)[1]);
+        return na - nb;
+      });
 
       for (const slideFile of slideFiles) {
         const match = slideFile.match(/slide(\d+)\.xml/);

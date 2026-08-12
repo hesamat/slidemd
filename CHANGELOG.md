@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.3 (2026-08-12)
+## 0.9.3 (Unreleased)
 
 ### Phase 14.5 Structural Cleanup (from main)
 
