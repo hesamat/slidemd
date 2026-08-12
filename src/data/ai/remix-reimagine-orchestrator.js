@@ -796,11 +796,14 @@ export class RemixReimagineOrchestrator {
       );
     }
 
+    // Try to parse the breakdown. Only retry on JSON *extraction* failures
+    // (the model wrapped JSON in prose or returned non-JSON). Validation
+    // errors (missing chapters array, etc.) are thrown as-is — a repair
+    // message saying "not valid JSON" would be misleading for those.
     try {
       return this.#parseBreakdownResponse(response.content, outline, callbacks);
     } catch (err) {
-      // Retry once with a repair message — the model may have wrapped JSON
-      // in prose or produced a truncated response.
+      if (err.message !== "Breakdown response did not contain valid JSON") throw err;
       onLog?.(
         `Breakdown parse failed (${err.message}) — retrying with repair message\u2026`,
         "warn",
@@ -828,6 +831,8 @@ export class RemixReimagineOrchestrator {
   /**
    * Parse the slide-breakdown JSON from an LLM response.
    * Validates that the breakdown chapters match the outline chapters.
+   * Throws "Breakdown response did not contain valid JSON" for extraction
+   * failures (retryable) and other messages for validation failures.
    * @param {string} text
    * @param {ReimagineOutline} outline
    * @returns {{chapters: ReimagineBreakdownChapter[]}|null}

@@ -80,25 +80,27 @@ export function areasToMarkdown(slides) {
  * 1. Direct JSON.parse of the trimmed text.
  * 2. Extract from a ```json code fence.
  * 3. Locate the top-level key (`key` param, e.g. "slides" or "chapters"),
- *    walk backwards to the enclosing `{`, then walk forwards with
- *    string-aware brace-depth tracking to find the matching `}`.
+ *    walk backwards to the enclosing `{` (tracking brace depth so sibling
+ *    objects are skipped), then walk forwards with string-aware brace-depth
+ *    tracking to find the matching `}`.
  *
  * @param {string} text - Raw AI response text.
  * @param {string} key - Top-level key to locate (e.g. "slides", "chapters").
+ * @param {function} [validate] - Optional validator; if it returns false the
+ *   search continues to an earlier occurrence of the key.
  * @returns {{ parsed: object, raw: string }|null} Parsed object and the raw
  *   JSON substring, or null if no valid JSON was found.
  */
-export function extractJsonObject(text, key) {
+export function extractJsonObject(text, key, validate) {
   if (!text || typeof text !== "string") return null;
   const trimmed = text.trim();
+  const ok = (obj) => obj && typeof obj === "object" && key in obj && (!validate || validate(obj));
 
   // 1. Direct parse — only accept if the parsed object contains the key,
   // otherwise fall through to the brace walk (the key may be nested).
   try {
     const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === "object" && key in parsed) {
-      return { parsed, raw: trimmed };
-    }
+    if (ok(parsed)) return { parsed, raw: trimmed };
   } catch {
     /* not valid JSON */
   }
@@ -109,9 +111,7 @@ export function extractJsonObject(text, key) {
     const inner = fenceMatch[1].trim();
     try {
       const parsed = JSON.parse(inner);
-      if (parsed && typeof parsed === "object" && key in parsed) {
-        return { parsed, raw: inner };
-      }
+      if (ok(parsed)) return { parsed, raw: inner };
     } catch {
       /* not valid JSON */
     }
@@ -125,37 +125,60 @@ export function extractJsonObject(text, key) {
     const keyIdx = trimmed.lastIndexOf(keyNeedle, searchPos - 1);
     if (keyIdx < 0) break;
 
-    // Walk backwards from the key to find the opening {
+    // Walk backwards from the key to find the *enclosing* { — not just the
+    // first { we see. We track brace depth: every } we pass increases depth,
+    // every { decreases it. When depth goes negative, that { is the
+    // enclosing one. This correctly skips sibling objects that appear before
+    // the key (e.g. visualSystem.imagery before "chapters" in an outline).
     let start = keyIdx;
+    let depth = 0;
     let inString = false;
-    let escaped = false;
     while (start > 0) {
       start--;
       const ch = trimmed[start];
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escaped = true;
+      if (inString) {
+        // Count consecutive backslashes ending at this position to determine
+        // whether the quote that follows (in backward order) is escaped.
+        // In JSON, `\` escapes the *following* char, so when scanning
+        // backwards we need to count how many backslashes precede a `"` to
+        // know if that `"` is escaped.
+        if (ch === '"') {
+          let backslashes = 0;
+          let p = start - 1;
+          while (p >= 0 && trimmed[p] === "\\") {
+            backslashes++;
+            p--;
+          }
+          if (backslashes % 2 === 0) inString = false;
+        }
         continue;
       }
       if (ch === '"') {
-        inString = !inString;
+        let backslashes = 0;
+        let p = start - 1;
+        while (p >= 0 && trimmed[p] === "\\") {
+          backslashes++;
+          p--;
+        }
+        if (backslashes % 2 === 0) inString = true;
         continue;
       }
-      if (!inString && ch === "{") break;
+      if (ch === "}") depth++;
+      else if (ch === "{") {
+        depth--;
+        if (depth < 0) break;
+      }
     }
-    if (trimmed[start] !== "{" || inString) {
-      searchPos = keyIdx - 1;
+    if (trimmed[start] !== "{" || depth >= 0) {
+      searchPos = keyIdx;
       continue;
     }
 
     // Walk forwards to find the matching closing }
-    let depth = 0;
+    let braceDepth = 0;
     let end = start;
     inString = false;
-    escaped = false;
+    let escaped = false;
     for (; end < trimmed.length; end++) {
       const ch = trimmed[end];
       if (escaped) {
@@ -171,19 +194,17 @@ export function extractJsonObject(text, key) {
         continue;
       }
       if (inString) continue;
-      if (ch === "{") depth++;
+      if (ch === "{") braceDepth++;
       else if (ch === "}") {
-        depth--;
-        if (depth === 0) break;
+        braceDepth--;
+        if (braceDepth === 0) break;
       }
     }
-    if (depth === 0) {
+    if (braceDepth === 0) {
       const raw = trimmed.slice(start, end + 1);
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object" && key in parsed) {
-          return { parsed, raw };
-        }
+        if (ok(parsed)) return { parsed, raw };
       } catch {
         /* not valid JSON */
       }
@@ -202,9 +223,11 @@ export function extractJsonObject(text, key) {
 export function parseAiResponse(text) {
   const trimmed = text.trim();
 
-  // Use the robust extractor with the "slides" key.
-  const extracted = extractJsonObject(trimmed, "slides");
-  if (extracted && extracted.parsed.slides && Array.isArray(extracted.parsed.slides)) {
+  // Use the robust extractor with the "slides" key. Pass a validator so the
+  // search continues to earlier occurrences when a matched object has a
+  // non-array `slides` value (e.g. {"slides": "..."}).
+  const extracted = extractJsonObject(trimmed, "slides", (obj) => Array.isArray(obj.slides));
+  if (extracted) {
     return extracted.parsed;
   }
 

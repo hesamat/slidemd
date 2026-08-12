@@ -291,4 +291,62 @@ describe("extractJsonObject", () => {
     expect(result).not.toBeNull();
     expect(result.parsed.chapters).toEqual([]);
   });
+
+  it("finds enclosing brace when nested objects appear before the key (outline shape)", () => {
+    // This is the exact outline schema shape: visualSystem with nested
+    // palette/imagery objects BEFORE the "chapters" key, wrapped in prose.
+    // The backward brace walk must skip the sibling { } objects and find
+    // the enclosing top-level {.
+    const outline = {
+      plan: "Reimagined plan.",
+      visualSystem: {
+        palette: { base: "#0f172a", accent: "#3b82f6" },
+        typography: { heading: "Inter", body: "Inter" },
+        composition: { grid: "12-col" },
+        imagery: { role: "supporting", mood: "professional" },
+      },
+      keepImages: [0],
+      firstSlideIdentity: "COMP 1510 202630",
+      chapters: [{ title: "Chapter 1", summary: "Hook.", suggestedSlideCount: 3 }],
+    };
+    const input = `Here is the outline:\n${JSON.stringify(outline)}\nHope this helps!`;
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toHaveLength(1);
+    expect(result.parsed.plan).toBe("Reimagined plan.");
+    expect(result.parsed.visualSystem.imagery.mood).toBe("professional");
+  });
+
+  it("finds enclosing brace with deeply nested objects before the key", () => {
+    const payload = {
+      a: { b: { c: { d: "deep" } } },
+      chapters: [{ title: "Ch1" }],
+    };
+    const input = `Sure!\n${JSON.stringify(payload)}\nDone.`;
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toHaveLength(1);
+    expect(result.parsed.a.b.c.d).toBe("deep");
+  });
+
+  it("handles escaped quotes in string values during backward scan", () => {
+    const payload = {
+      visualSystem: { imagery: { mood: 'say "hi"' } },
+      chapters: [{ title: 'Ch "quoted"' }],
+    };
+    const input = `Here:\n${JSON.stringify(payload)}\nDone.`;
+    const result = extractJsonObject(input, "chapters");
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters[0].title).toBe('Ch "quoted"');
+  });
+
+  it("continues search when a matched object has non-array slides value", () => {
+    // parseAiResponse should skip {"slides": "..."} and keep looking.
+    const input =
+      '{"slides": "not an array"}\n---\n{"slides": [{"layout": "header-content", "content": "# Hi"}]}';
+    const result = parseAiResponse(input);
+    expect(result).not.toBeNull();
+    expect(result.slides).toHaveLength(1);
+    expect(result.slides[0].layout).toBe("header-content");
+  });
 });
