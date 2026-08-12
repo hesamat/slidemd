@@ -92,21 +92,26 @@ export function extractJsonObject(text, key) {
   if (!text || typeof text !== "string") return null;
   const trimmed = text.trim();
 
-  // 1. Direct parse
+  // 1. Direct parse — only accept if the parsed object contains the key,
+  // otherwise fall through to the brace walk (the key may be nested).
   try {
     const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === "object") return { parsed, raw: trimmed };
+    if (parsed && typeof parsed === "object" && key in parsed) {
+      return { parsed, raw: trimmed };
+    }
   } catch {
     /* not valid JSON */
   }
 
-  // 2. Code fence
+  // 2. Code fence — same guard: only accept if the key is present.
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
     const inner = fenceMatch[1].trim();
     try {
       const parsed = JSON.parse(inner);
-      if (parsed && typeof parsed === "object") return { parsed, raw: inner };
+      if (parsed && typeof parsed === "object" && key in parsed) {
+        return { parsed, raw: inner };
+      }
     } catch {
       /* not valid JSON */
     }
@@ -116,7 +121,7 @@ export function extractJsonObject(text, key) {
   // Try last occurrence first (the real JSON is usually at the end).
   let searchPos = trimmed.length;
   const keyNeedle = `"${key}"`;
-  while (true) {
+  while (searchPos > 0) {
     const keyIdx = trimmed.lastIndexOf(keyNeedle, searchPos - 1);
     if (keyIdx < 0) break;
 
@@ -176,12 +181,14 @@ export function extractJsonObject(text, key) {
       const raw = trimmed.slice(start, end + 1);
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") return { parsed, raw };
+        if (parsed && typeof parsed === "object" && key in parsed) {
+          return { parsed, raw };
+        }
       } catch {
         /* not valid JSON */
       }
     }
-    searchPos = keyIdx - 1;
+    searchPos = keyIdx;
   }
 
   return null;

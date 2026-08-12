@@ -252,4 +252,43 @@ describe("extractJsonObject", () => {
     expect(result).not.toBeNull();
     expect(result.parsed.chapters[0].slides[0].intent).toContain("{a: 1, b: 2}");
   });
+
+  it("does not infinite-loop when the key is at position 0 without an opening brace", () => {
+    // A truncated reply starting with a bare key — no opening { before it.
+    // This used to spin forever because searchPos went to -1, then
+    // lastIndexOf clamped to 0 and matched the same key again.
+    const input = '"chapters": [{"title":"Ch1","slides":[]}]}';
+    const result = extractJsonObject(input, "chapters");
+    // Should either find the JSON (if the brace walk succeeds from the
+    // { after "chapters":) or return null — but must NOT hang.
+    expect(typeof result).toBe("object");
+  });
+
+  it("does not infinite-loop on a bare key with no braces at all", () => {
+    const input = '"chapters" is what you asked for but I have no JSON';
+    const result = extractJsonObject(input, "chapters");
+    expect(result).toBeNull();
+  });
+
+  it("finds nested slides inside a wrapper object", () => {
+    // Some models wrap the response: {"response": {"slides": [...]}}
+    // The direct parse succeeds but the key is not at the top level,
+    // so the brace walk must dig it out.
+    const input = JSON.stringify({
+      response: { slides: [{ layout: "header-content", content: "# Hi" }] },
+    });
+    const result = extractJsonObject(input, "slides");
+    expect(result).not.toBeNull();
+    expect(result.parsed.slides).toHaveLength(1);
+    expect(result.parsed.slides[0].layout).toBe("header-content");
+  });
+
+  it("does not accept a direct parse that lacks the requested key", () => {
+    const input = '{"response": {"chapters": []}}';
+    const result = extractJsonObject(input, "chapters");
+    // The direct parse succeeds but "chapters" is not at the top level.
+    // The brace walk should find the inner object.
+    expect(result).not.toBeNull();
+    expect(result.parsed.chapters).toEqual([]);
+  });
 });
