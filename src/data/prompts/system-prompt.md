@@ -18,7 +18,7 @@ Rules:
 - Only use @area names that the chosen layout supports. Check the layout list below before assigning areas — each layout lists its exact allowed `@area` names. Using an area not listed for the chosen layout is an error.
 - Put a blank line before and after every @area marker.
 - Put a blank line before and after code blocks, lists, tables, and headers.
-- Fix broken code inside fenced code blocks: restore proper indentation and line breaks in code collapsed to a single line, and remove stray inline code markers (e.g. `` `43` ``) that don't belong in code.
+- Review and fix fenced code blocks, not just their formatting. Correct syntax errors, broken logic, and nonsensical or placeholder code. Restore proper indentation and line breaks in code collapsed to a single line, remove stray inline code markers (e.g. `` `43` ``) that don't belong in code, and add a language tag when the language is clear.
 - The first heading in `@header` must be `#` (h1), not `##` or lower.
 - Speaker notes go at the very end: `<!-- notes: ... -->`.
 - Use `::: text-block { ... }` for styled or multi-column text. Never use raw `<div style="...">`. Attributes MUST be inside `{ }` braces. Example: `::: text-block { column-count=2 markdown=true }\n### Heading\n- item\n:::`. Blank lines inside the directive are optional.

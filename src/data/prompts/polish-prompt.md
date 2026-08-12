@@ -3,6 +3,7 @@ Polish this SlideMD presentation. Return the result as JSON.
 What to do:
 
 - Fix formatting, links, lists, tables, code blocks, and layout mismatches.
+- Review code blocks and fix issues beyond indentation: correct syntax errors, broken logic, nonsensical code, and placeholders.
 - Rejoin split code lines and add language tags where the language is clear.
 - Restore blank lines between functions, classes, and logical sections.
 - Remove bold wrapping from headings.
