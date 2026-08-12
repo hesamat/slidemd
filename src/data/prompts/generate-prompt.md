@@ -4,8 +4,8 @@ Content strategy:
 
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
-- Vary layouts across the deck. If three consecutive slides use the same layout, reconsider at least one. Use `focus` for a single key takeaway, `two-column` for balanced code+explanation, `media-span-left`/`media-span-right` for images or Mermaid diagrams, `full-image` for atmospheric/visual slides, and `title-slide` for the deck's opening slide.
-- Match the layout to the content. Do not use `focus` for dense tables, long code blocks, or Mermaid diagrams; `focus` has limited height and diagrams overflow. Use `header-content` or `two-column` for diagrams. Do not use `two-column` when one column would be empty or contain only a single long diagram. Use `media-span-left` or `media-span-right` for any slide that has a content image; other layouts do not reserve adequate spacing around the image, so do not place images in `header-content`, `focus`, or `two-column`.
+- Vary layouts across the deck. If three consecutive slides use the same layout, reconsider at least one. Use `focus` for a single key takeaway, `two-column` for balanced code+explanation, `media-span-left`/`media-span-right` ONLY when the `@media` area contains an image or Mermaid diagram, `full-image` for atmospheric/visual slides, and `title-slide` for the deck's opening slide.
+- Match the layout to the content. Do not use `focus` for dense tables, long code blocks, or Mermaid diagrams; `focus` has limited height and diagrams overflow. Use `header-content` or `two-column` for diagrams. Do not use `two-column` when one column would be empty or contain only a single long diagram. Do not use `media-span-left` or `media-span-right` unless the `@media` area is an image or a Mermaid diagram; tables, text, and code do not belong in the `@media` area.
 - If the first slide's brief says "Title slide", use `layout: title-slide` with the topic as `@title` and the identity text as `@footer`. Do not add body content to a title slide. Keep the footer to one or two short lines of identifying information (e.g. course code and term).
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
@@ -25,7 +25,7 @@ Visual styling:
 
 - Do not introduce custom color themes, backgrounds, or colored text. Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, or `::: text-block { color="..." backgroundColor="..." }` for theming.
 - Do not use `<span style="...">`, `color`, or `backgroundColor` to color text. Use bold, headings, and layout to create emphasis, not color.
-- Place content images using `<img>` tags. For `media-span-left`/`media-span-right`, put the image in the `@media` area and make it fill the column: use `width: 100%; height: 100%; object-fit: cover;` (or `object-fit: contain;` for logos/diagrams that must not be cropped) on the `<img>`. Do not use `position`, `left`, or `top` to nudge a media-span image — the layout already positions it. For custom placement in non-media-span layouts, use `position: relative` + `left`/`top`/`width`.
+- Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
 
 Diagrams:
