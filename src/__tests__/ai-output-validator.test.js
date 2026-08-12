@@ -163,6 +163,88 @@ layout: header-content
     expect(err.message).toContain("braces");
   });
 
+  it("errors when a focus slide has too much content", () => {
+    const output = `layout: focus
+
+@header
+# Title
+
+@main
+A headline claim
+- Supporting point one
+- Supporting point two
+- Supporting point three
+- Supporting point four
+- Supporting point five
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
+  it("errors when a header-content slide exceeds its line budget", () => {
+    const bullets = Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n");
+    const output = `layout: header-content
+
+@header
+# Title
+
+@main
+${bullets}
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+    expect(err.message).toContain("16 lines");
+  });
+
+  it("errors when a code block pushes a header-content slide over its line budget", () => {
+    const code = Array.from({ length: 15 }, (_, i) => `    line${i + 1} = ${i + 1}`).join("\n");
+    const output = `layout: header-content
+
+@header
+# Title
+
+@main
+\`\`\`python
+${code}
+\`\`\`
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
+  it("errors when a title-slide has @main content", () => {
+    const output = `layout: title-slide
+
+@title
+# Title
+
+@main
+This should not be here
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
   it("returns a parse error when the parser cannot initialize", () => {
     const original = window.markdownit;
     window.markdownit = () => {

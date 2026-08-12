@@ -45,6 +45,19 @@ Content depth:
 - All code must be syntactically valid in its language and use consistent, meaningful identifiers. Do not include placeholder tokens, foreign words, or malformed syntax unless the slide explicitly labels it as a deliberate mistake and explains the fix.
 - Speaker notes should add teaching value — not just restate the slide. Include suggested questions to ask the audience, common misconceptions, or transitions to the next slide.
 
+Slide density and overflow prevention:
+
+- One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
+- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+  - `title-slide`: `@title` only (one or two short lines) and `@footer` only (one or two short lines). No `@main` content.
+  - `focus`: `@main` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+  - `header-content`: `@header` is one line; `@main` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
+  - `two-column`: `@header` is one line; each column (`@main` and `@media`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
+  - `media-span-left` / `media-span-right`: `@header` is one line; `@main` should hold about 8–12 lines; `@media` holds one image or one Mermaid diagram.
+  - `full-image`: `@main` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
+- Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
+- Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in `<!-- notes: ... -->`, not on the slide.
+
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
@@ -52,6 +65,7 @@ Success criteria:
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
+- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
 - The JSON is valid and parseable.
 
 Input markdown:

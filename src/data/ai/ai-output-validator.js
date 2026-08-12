@@ -5,6 +5,79 @@ import { parseTextBlockDirectives } from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
+ * Per-area content limits used to detect likely slide overflow before the
+ * deck is rendered. These are conservative heuristics, not exact pixel
+ * measurements — they catch the most common overflow cases.
+ */
+const AREA_CONTENT_LIMITS = {
+  "title-slide": {
+    title: { maxLines: 6 },
+    main: { maxLines: 0 },
+  },
+  "header-content": {
+    header: { maxLines: 2 },
+    main: { maxLines: 14 },
+  },
+  focus: {
+    header: { maxLines: 2 },
+    main: { maxLines: 5 },
+  },
+  "two-column": {
+    header: { maxLines: 2 },
+    main: { maxLines: 10 },
+    media: { maxLines: 10 },
+  },
+  "media-span-left": {
+    header: { maxLines: 2 },
+    main: { maxLines: 12 },
+    media: { maxLines: 20 },
+  },
+  "media-span-right": {
+    header: { maxLines: 2 },
+    main: { maxLines: 12 },
+    media: { maxLines: 20 },
+  },
+  "full-image": {
+    main: { maxLines: 2 },
+  },
+  "three-column": {
+    header: { maxLines: 2 },
+    main: { maxLines: 10 },
+    media: { maxLines: 10 },
+    secondary: { maxLines: 10 },
+  },
+  "left-heavy": {
+    header: { maxLines: 2 },
+    main: { maxLines: 14 },
+    media: { maxLines: 10 },
+  },
+  "right-heavy": {
+    header: { maxLines: 2 },
+    main: { maxLines: 10 },
+    media: { maxLines: 14 },
+  },
+  "header-two-column": {
+    header: { maxLines: 2 },
+    main: { maxLines: 10 },
+    media: { maxLines: 10 },
+  },
+  "sidebar-content": {
+    header: { maxLines: 2 },
+    sidebar: { maxLines: 10 },
+    main: { maxLines: 14 },
+  },
+  "content-sidebar": {
+    header: { maxLines: 2 },
+    sidebar: { maxLines: 10 },
+    main: { maxLines: 14 },
+  },
+  default: {
+    header: { maxLines: 2 },
+    main: { maxLines: 16 },
+  },
+};
+
+/**
  * Validates AI-generated Markdown against an output schema.
  * Reuses MarkdownParser and LayoutData — does not reinvent parsing.
  *
@@ -156,7 +229,8 @@ export class AiOutputValidator {
       this._checkTextBlockAttributes(rawSlide, inputRawSlide, i, errors, intent);
 
       if (schema.checkContentRules) {
-        this._checkContentRules(slide, i, errors, warnings);
+        const rawSlide = rawSlideTexts[i] || "";
+        this._checkContentRules(slide, rawSlide, i, errors, warnings);
       }
 
       // Intent-specific constraints (compare against input slide)
@@ -333,8 +407,9 @@ export class AiOutputValidator {
    * Per-slide content rules (#150):
    * - header-default-h1: if a slide has a header area, its first heading should be h1 (warning, not error)
    * - no-header-on-multi-image: if a slide has >1 image, layout must not be header-content (error)
+   * - content volume: detect slides that are likely to overflow their layout areas
    */
-  _checkContentRules(slide, index, errors, warnings) {
+  _checkContentRules(slide, rawSlide, index, errors, warnings) {
     // header-default-h1
     const headerHtml = (slide.areas && slide.areas.header) || "";
     const firstHeading = headerHtml.match(/<h([1-6])\b[^>]*>/i);
@@ -363,6 +438,126 @@ export class AiOutputValidator {
         message: `Slide ${index + 1} has ${imgCount} images but uses header-content (use media-span-left, media-span-right, two-column, or full-image instead)`,
       });
     }
+
+    // content volume / likely overflow
+    this._checkContentVolume(slide, rawSlide, index, errors);
+  }
+
+  /**
+   * Detect slide content that is likely to overflow its layout areas based on
+   * per-area line/bullet/code/table limits. These are conservative heuristics
+   * meant to catch overflows before rendering, not exact pixel checks.
+   * @param {object} slide - parsed slide
+   * @param {string} rawSlide - raw markdown for the slide
+   * @param {number} index - 0-based slide index
+   * @param {ValidationError[]} errors
+   */
+  _checkContentVolume(slide, rawSlide, index, errors) {
+    const layout = slide.layout || "default";
+    const limits = AREA_CONTENT_LIMITS[layout] || AREA_CONTENT_LIMITS.default;
+    const areaContents = this._extractAreaContents(rawSlide);
+
+    for (const [areaName, content] of Object.entries(areaContents)) {
+      const areaLimits = limits[areaName];
+      if (!areaLimits) continue;
+
+      const metrics = this._measureAreaContent(content);
+
+      if (areaLimits.maxLines != null && metrics.lineCount > areaLimits.maxLines) {
+        errors.push({
+          slide: index,
+          code: "SLIDE_CONTENT_OVERFLOW",
+          message: `Slide ${index + 1} @${areaName} has too much content (${metrics.lineCount} lines, max ${areaLimits.maxLines}). Trim to one key idea, move detail to speaker notes, or split into multiple slides.`,
+        });
+      }
+    }
+  }
+
+  /**
+   * Split raw slide markdown into content keyed by @area marker.
+   * @param {string} rawSlide
+   * @returns {Record<string, string>}
+   */
+  _extractAreaContents(rawSlide) {
+    const areas = {};
+    const lines = rawSlide.split("\n");
+    let currentArea = null;
+    const buffer = [];
+
+    const flush = () => {
+      if (currentArea) {
+        areas[currentArea] = buffer.join("\n");
+      }
+    };
+
+    for (const line of lines) {
+      const markerMatch = line.trim().match(/^@([a-zA-Z0-9_-]+)$/);
+      if (markerMatch) {
+        flush();
+        currentArea = markerMatch[1];
+        buffer.length = 0;
+      } else {
+        buffer.push(line);
+      }
+    }
+    flush();
+    return areas;
+  }
+
+  /**
+   * Count visible content lines, bullets, code lines, and table rows in an
+   * area's raw markdown.
+   * @param {string} content
+   * @returns {{lineCount: number, bulletCount: number, codeLineCount: number, tableRowCount: number}}
+   */
+  _measureAreaContent(content) {
+    const lines = content.split("\n");
+    let lineCount = 0;
+    let bulletCount = 0;
+    let codeLineCount = 0;
+    let tableRowCount = 0;
+    let inCode = false;
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (line.length === 0) continue;
+      if (line.startsWith("<!--")) continue; // speaker notes / HTML comments
+      if (line === ":::" || /^:::\s+/.test(line)) continue; // text-block directive markers
+      if (
+        /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
+          line,
+        )
+      ) {
+        continue;
+      }
+
+      if (line.startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+
+      if (inCode) {
+        codeLineCount++;
+        lineCount++;
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+        bulletCount++;
+        lineCount++;
+        continue;
+      }
+
+      if (line.includes("|") && !line.startsWith("\\")) {
+        tableRowCount++;
+        lineCount++;
+        continue;
+      }
+
+      lineCount++;
+    }
+
+    return { lineCount, bulletCount, codeLineCount, tableRowCount };
   }
 }
 
