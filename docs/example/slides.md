@@ -565,7 +565,6 @@ Use `::: text-block { ... }` to wrap content with custom styling. Attributes are
 
 :::
 
-
 ---
 
 layout: focus
