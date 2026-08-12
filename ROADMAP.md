@@ -550,7 +550,7 @@ Goal: Make the current working deck safe under asynchronous AI edits and undoabl
 
 ## Phase 14.5: Structural Cleanup & Test Infrastructure ✅
 
-Goal: Pay down structural debt and close test gaps before building new features on top of Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
+Goal: Pay down structural debt and close test gaps before improving the existing AI modes in Phases 14.6-14.8 and building new platform features in Phases 15-17. These tasks are independent of each other and can be parallelized. Two structural refactors (EditController decomposition and `ai-orchestrator.js` split) are carried over from Phase 14.
 
 ### Refactoring
 
@@ -579,37 +579,141 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ---
 
-## Phase 15: Design System & Theme Registry
+## Phase 14.6: Polish Quality & Presentation Readiness
 
-Goal: Centralize tokens, themes, and layout governance for consistent and predictable decks.
+Goal: Make Polish a reliable conservative pass that improves presentation quality without changing the deck's identity, narrative, slide count, or order.
 
-### Tokens & Themes
+### Content & Layout Quality
 
-| Task                            | Details                                                                                                                                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add `DesignSystem`          | Define and expose color, spacing, typography, and radius tokens.                                                                                                                                                                                    |
-| [ ] Add `ThemeRegistry`         | Register light, dark, and any custom themes as named presets.                                                                                                                                                                                       |
-| [ ] Map themes to CSS variables | Drive `theme-manager.js` and `styles/slides.css` from the registry.                                                                                                                                                                                 |
-| [ ] Add `@import` directive     | Support `@import[theme.yaml]` for shared theme tokens and `@import[slides/section.md]` for reusable slide fragments. Recursive resolution, YAML merge into frontmatter, markdown splice into slide array. Enables repo-native multi-deck workflows. |
+| Task                              | Details                                                                                                                                                                                                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Improve presentation prose    | Make headlines concise and human-facing, tighten bullets, replace vague wording, and remove textbook-style repetition without adding content indiscriminately.                                                                                                                 |
+| [ ] Improve density handling      | Detect crowded slides, move supporting detail to notes where appropriate, and choose clearer layouts without changing the slide sequence.                                                                                                                                      |
+| [ ] Split lumped PPTX code blocks | PPTX import cannot detect separate code blocks on a slide and often merges them into one fenced block. Instruct all AI modes (Polish, Fix, Generate, Remix, Reimagine) to detect and split lumped code blocks back into separate fenced blocks with appropriate language tags. |
+| [ ] Improve imported-deck polish  | Continue addressing PPTX-import artifacts: mismatched layouts, misplaced images, verbose text boxes, broken code, and weak hierarchy.                                                                                                                                          |
+| [ ] Preserve speaker notes        | Keep existing notes unchanged unless the user explicitly enables note generation.                                                                                                                                                                                              |
+
+### Preservation & Validation
+
+| Task                             | Details                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Harden identity preservation | Preserve existing `theme:`, `background:`, color scheme, slide count, slide order, and narrative flow.                                              |
+| [ ] Improve repair feedback      | Make validation and repair messages specific to overflow, malformed layouts, broken diagrams, and formatting failures.                              |
+| [ ] Add quality fixtures         | Cover dense slides, code, tables, Mermaid, PPTX conversions, notes, images, and already-polished slides that should not be rewritten unnecessarily. |
+
+### Acceptance Criteria
+
+- Polish produces a visibly cleaner deck without changing slide count or order.
+- Existing visual identity and speaker notes are preserved.
+- Crowded, malformed, and PPTX-imported slides improve without introducing new overflow.
+- Polish does not introduce new themes, backgrounds, or arbitrary colors.
+
+---
+
+## Phase 14.7: Remix Quality & Visual Identity
+
+Goal: Make Remix a dependable plan→execute restructuring mode between conservative Polish and fully creative Reimagine.
+
+### Restructuring Plan
+
+| Task                           | Details                                                                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Improve editorial planning | Produce clearer keep/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides. |
+| [ ] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                           |
+| [ ] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                  |
+| [ ] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                               |
+
+### Visual Identity & Assets
+
+| Task                          | Details                                                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Define preserve behavior  | When visual identity preservation is enabled, retain original themes, backgrounds, layouts, and overall visual language while improving structure and wording. |
+| [ ] Define discard behavior   | When preservation is disabled, remove the old identity deliberately without inventing unsupported styling or changing the conservative behavior of Polish/Fix. |
+| [ ] Improve image reuse       | Use vision and exact source paths consistently; keep valuable source images and avoid fabricated or external image references.                                 |
+| [ ] Validate output alignment | Ensure rewritten and merged slides follow their briefs, preserve required identity, and remain within layout and density constraints.                          |
+
+### Acceptance Criteria
+
+- Remix produces a clearer structure without becoming a full reimagining.
+- Keep/rewrite/merge decisions are explainable and cover the source deck.
+- Preserve-identity mode does not drift into a new theme.
+- Discard-identity mode does not accidentally preserve stale visual directives.
+- Images, layouts, and source content remain aligned with the restructuring plan.
+
+---
+
+## Phase 14.8: Reimagine Creative Direction & Presentation Quality
+
+Goal: Make Reimagine feel like a guided editorial art director: surprising in its thinking, reassuring in its structure, and coherent in its execution.
+
+The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](docs/plans/reimagine-improvements.md).
+
+### Creative Direction & Review
+
+| Task                              | Details                                                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Strengthen the creative brief | Make the outline state the core message, fresh editorial angle, narrative structure, and inferred audience or desired outcome.                         |
+| [ ] Show visual direction         | Add a compact read-only visual-system summary to the outline review: palette, typography, composition, imagery, motifs, and preserved identity/assets. |
+| [ ] Preserve user control         | Keep plan/chapter editing and regeneration; do not turn the outline modal into a per-slide design editor.                                              |
+
+### Visual Rhythm & Voice
+
+| Task                              | Details                                                                                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Pass full visual-system brief | Thread the complete visual system to the generate prompt: palette roles, typography character, composition, imagery mood/treatment, motifs, and contrast rules — not just theme/background choices. |
+| [ ] Activate bounded visual style | For Reimagine only, allow renderer-native `theme:` and `background:` choices from the visual system; keep other AI modes conservative and avoid a post-generation token pass.                       |
+| [ ] Use visual beats              | Make continuation, transition, punctuation, emotional, and divider beats affect density, hierarchy, imagery, and contrast.                                                                          |
+| [ ] Improve presentation voice    | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
+| [ ] Validate image reuse          | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
+
+### Validation & Test Coverage
+
+| Task                             | Details                                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Add visual-system validation | Warn on invalid theme values, malformed styling directives, and Reimagine results that completely ignore the visual direction. Do not flag individual slides merely for missing `background:` or `theme:`.   |
+| [ ] Add Reimagine test fixtures  | Cover visual-system generation/normalization, review modal display, beat-to-treatment mapping, image reuse validation, conditional styling guidance, and no-regression for Polish/Fix/Remix prompt behavior. |
+
+### Acceptance Criteria
+
+- The user can understand and approve the new editorial and visual direction before generation.
+- The generated deck is meaningfully different in thesis, structure, and rhythm—not just wording.
+- Visual styling is active only for Reimagine and remains bounded by existing renderer capabilities.
+- Beat metadata produces visibly different density and hierarchy.
+- Headlines, body content, and speaker notes are presentation-ready.
+- Kept source images are placed when requested and never fabricated.
+- The output remains valid, repairable, undoable, and within density limits.
+
+---
+
+## Phase 15: Editor Diagnostics & Creation Polish
+
+Goal: Surface real deck-quality problems in the editor and close the one visible gap in deck creation. Drops the planned `DesignSystem` / `ThemeRegistry` / custom-theme / `@import` work — no demonstrated user need, and the existing light/dark + accent + layout presets cover the actual distribution of what users want. CSS custom properties in `styles/slides.css` already serve as the token system where they belong.
 
 ### Layout Governance
 
-| Task                           | Details                                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| [ ] Enforce `layout` whitelist | Allow only the layouts defined in the `LayoutData` / `DesignSystem` registry.                                       |
-| [ ] Enforce `@area` whitelist  | Validate that every `@area` marker is an allowed area for the chosen layout.                                        |
-| [ ] Add style lint to warnings | Surface off-token values in `SlideWarningManager` in real time.                                                     |
-| [ ] Validate image paths       | Warn on unresolved `![...](images/...)` references in `SlideWarningManager` in real time.                           |
-| [ ] Detect empty slides        | Warn when a slide has no content areas filled, surfaced in `SlideWarningManager`.                                   |
-| [ ] Consolidate diagnostics    | Surface all layout, area, image-path, and empty-slide warnings through the existing `SlideWarningManager` pipeline. |
+| Task                         | Details                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Wire image-path warnings | `DeckImagesResolver` already detects unresolved `images/...` paths; surface them as real-time warnings via `SlideWarningManager` instead of silent failures. |
+| [ ] Detect empty slides      | Warn when a slide has no content areas filled; route through `SlideWarningManager`. Covers the editor hot path (debounced).                                  |
+| [ ] Add style-lint warnings  | Surface off-token values in `area-style:`, `background:`, etc. through `SlideWarningManager`. Advisory only — never blocks rendering.                        |
+| [ ] Consolidate diagnostics  | Confirm layout, `@area`, image-path, empty-slide, overflow, and style-lint warnings all flow through the existing `SlideWarningManager` pipeline.            |
 
-### Brand Defaults
+### Creation Polish
 
-| Task                               | Details                                                             |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| [ ] Add brand defaults             | Default colors, fonts, and accent palette for new decks.            |
-| [ ] Add theme preview              | Render a small preview of each theme in the New Presentation modal. |
-| [ ] Add motion / transition tokens | Define default transition, duration, and easing per theme.          |
+| Task                  | Details                                                                                                                                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ ] Add theme preview | Render a mini slide preview for light/dark + the selected accent in the New Presentation modal so users see the result before creating a deck. No registry required — uses the existing two themes. |
+
+### Deferred / Dropped
+
+| Item                                                 | Reason                                                                                                                                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DesignSystem` JS module                             | CSS custom properties in `styles/slides.css` already are the token system. A JS registry adds indirection with no user-facing delta.                                                                                          |
+| `ThemeRegistry` + custom themes                      | No demonstrated user need. Light/dark + accent covers actual usage. Custom themes pull in a theme editor UI, portability problems, and export inlining that aren't worth the cost.                                            |
+| `@import[theme.yaml]` / `@import[slides/section.md]` | Multi-deck composition, not theming. Belongs with Phase 17 (Cloud Mode / repo-native workflows) if it's ever needed. High parser blast radius.                                                                                |
+| Motion / transition tokens                           | No transition system exists to tokenize. A slide-transition feature is a Phase 16 (Presenter) concern at minimum.                                                                                                             |
+| Brand defaults                                       | The New Presentation modal already lets users pick colors, fonts, accent, header style, borders, and radius per deck. A localStorage default profile is a small follow-up if demand appears.                                  |
+| Enforce `layout` / `@area` whitelist                 | Already implemented: `LayoutData.hasLayout()` / `getAreaNames()` validate in `SlidePreviewUpdater`, `AreaGuideManager` (with click-to-fix and header/title alias normalization), and `AiOutputValidator`. No new work needed. |
 
 ---
 
@@ -694,39 +798,42 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 
 ## Summary
 
-| Phase                                        | Status      |
-| -------------------------------------------- | ----------- |
-| Phase 1: Safety Net                          | ✅ Complete |
-| Phase 2: Build Modernization                 | ✅ Complete |
-| Phase 3: Distribution                        | ✅ Complete |
-| Phase 4: New Presentation                    | ✅ Complete |
-| Phase 5: Quick Fixes                         | ✅ Complete |
-| Phase 6: Testing & Polish                    | ✅ Complete |
-| Phase 7: PPTX Conversion                     | ✅ Complete |
-| Phase 7.5: CLI Dev Server                    | ✅ Complete |
-| Phase 8: AI Post-Processing                  | ✅ Complete |
-| Phase 9: Text Insertion & Editor UX          | ✅ Complete |
-| Phase 10: Renderer Hardening                 | ✅ Complete |
-| Phase 11: AI Operations Foundation           | ✅ Complete |
-| Phase 12: Deck Store & Patches               | ✅ Complete |
-| Phase 13: AI Orchestrator & Single-Slide     | ✅ Complete |
-| Phase 13.1: Remix Planner                    | ✅ Complete |
-| Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
-| Phase 14: Conflict Resolution & Undo         | ✅ Complete |
-| Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
-| Phase 15: Design System & Theme Registry     | Planned     |
-| Phase 16: Presenter, Print & AI Commands     | Planned     |
-| Phase 17: Cloud Mode                         | Planned     |
+| Phase                                          | Status      |
+| ---------------------------------------------- | ----------- |
+| Phase 1: Safety Net                            | ✅ Complete |
+| Phase 2: Build Modernization                   | ✅ Complete |
+| Phase 3: Distribution                          | ✅ Complete |
+| Phase 4: New Presentation                      | ✅ Complete |
+| Phase 5: Quick Fixes                           | ✅ Complete |
+| Phase 6: Testing & Polish                      | ✅ Complete |
+| Phase 7: PPTX Conversion                       | ✅ Complete |
+| Phase 7.5: CLI Dev Server                      | ✅ Complete |
+| Phase 8: AI Post-Processing                    | ✅ Complete |
+| Phase 9: Text Insertion & Editor UX            | ✅ Complete |
+| Phase 10: Renderer Hardening                   | ✅ Complete |
+| Phase 11: AI Operations Foundation             | ✅ Complete |
+| Phase 12: Deck Store & Patches                 | ✅ Complete |
+| Phase 13: AI Orchestrator & Single-Slide       | ✅ Complete |
+| Phase 13.1: Remix Planner                      | ✅ Complete |
+| Phase 13.2: Vision-Enabled Remix & Hardening   | ✅ Complete |
+| Phase 14: Conflict Resolution & Undo           | ✅ Complete |
+| Phase 14.5: Structural Cleanup & Tests         | ✅ Complete |
+| Phase 14.6: Polish Quality & Presentation      | Planned     |
+| Phase 14.7: Remix Quality & Visual Identity    | Planned     |
+| Phase 14.8: Reimagine Creative Direction       | Planned     |
+| Phase 15: Editor Diagnostics & Creation Polish | Planned     |
+| Phase 16: Presenter, Print & AI Commands       | Planned     |
+| Phase 17: Cloud Mode                           | Planned     |
 
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 15 → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 14.6 → Phase 14.7 → Phase 14.8 → Phase 15 → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.
 
-Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 15-17 (Design System, Presenter/Print/AI Commands, Cloud Mode) build new features on top.
+Phases 11-14 form the AI/state track and were reordered from their original sequence after planning determined that single-slide AI edits need undoable patches: Phase 11 (AI Operations Foundation) builds the pure-logic layer — OpenAI-compatible provider client (#148), output schema/validator, content rules (#150), prompt composer, and repair message builder — and wires them into the existing whole-deck flow. Phase 12 (Deck Store & Patches) adds the canonical `DeckStore`, `SlidePatch`, snapshot-based `DeckHistory`, and an `EditController` boundary-sync wiring. Phase 13 (AI Orchestrator & Single-Slide Editing) adds the operation model, intent registry, orchestrator entry point, and per-slide AI editing that writes back through `DeckStore`. Phase 14 (Conflict Resolution & Global Undo) adds working-state capture, stale-operation guards, `ConflictResolver`, committed-operation `Ctrl+Z`/`Ctrl+Y`, store-to-view synchronization, and the full `EditController` rewire. Phase 14 is delivered in two slices: 14.1 state safety and conflicts, then 14.2 undo semantics and editor rewire. Phase 14.5 (Structural Cleanup & Test Infrastructure) pays down debt accumulated during the AI/state track — shared bundle-order extraction, E2E and PPTX integration tests, a client-side logging utility, contributor documentation, and lint coverage for build scripts — before Phases 14.6-14.8 improve the existing AI modes and Phases 15-17 (Editor Diagnostics & Creation Polish, Presenter/Print/AI Commands, Cloud Mode) build new platform features on top. Phase 15 was rescoped from its original "Design System & Theme Registry" plan after review found no demonstrated user need for a `DesignSystem` JS module, `ThemeRegistry`, custom themes, or the `@import` directive — the existing light/dark + accent + layout presets cover actual usage, and CSS custom properties already serve as the token system. The rescoped phase keeps the layout-governance warnings (real deck-quality pain) and adds a theme preview to the New Presentation modal (a real UX gap), while deferring the speculative architecture.
 
 ## Backlog
 
