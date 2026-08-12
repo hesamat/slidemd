@@ -1075,7 +1075,7 @@ export class EditController {
       }
       if (this._canMakeFullHeight(name)) {
         items.push({
-          label: "Span all rows",
+          label: "Make column full height",
           action: () => this._makeAreaFullHeight(name),
         });
       }

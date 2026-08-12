@@ -58,7 +58,7 @@ export class AreaContextMenu {
    * @param {object} [opts]
    * @param {boolean} [opts.canDelete=true]
    * @param {boolean} [opts.canSwap=false]  — show swap option
-   * @param {boolean} [opts.canMakeFullHeight=false]  — show "Span all rows" option
+   * @param {boolean} [opts.canMakeFullHeight=false]  — show "Make column full height" option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
    * @param {boolean} [opts.canSetBackground=false]  — show background color picker
    * @param {boolean} [opts.canFullBleed=false]  — show the media full-bleed toggle
@@ -141,7 +141,7 @@ export class AreaContextMenu {
       btn.type = "button";
       btn.className = "area-context-menu__item";
       btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Span all rows</span>`;
+      btn.innerHTML = `<span class="area-context-menu__label">Make column full height</span>`;
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.close();

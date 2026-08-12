@@ -326,7 +326,7 @@ export function getMediaFullBleedInfo(markdown, areaName) {
   const name = String(areaName || "")
     .trim()
     .toLowerCase();
-  if (!name || !markdown) {
+  if (!name || !markdown || name !== "media") {
     return { can: false };
   }
 
@@ -356,31 +356,23 @@ export function getMediaFullBleedInfo(markdown, areaName) {
   }
   const targetSide = targetCol === 0 ? "left" : "right";
 
-  const mediaRow = rows.find((row) => row.includes("media"));
-  if (!mediaRow) {
+  const mediaColIdx = targetCol;
+  const mediaSpansAll = rows.every((row) => row[mediaColIdx] === "media");
+  if (!mediaSpansAll) {
     return { can: false };
   }
 
-  const mediaColIdx = mediaRow.indexOf("media");
-  const mediaSpansAll = rows.every((row) => row[mediaColIdx] === "media");
-  const mediaOnTarget = mediaSpansAll && mediaColIdx === targetCol;
-
   const currentSide = readMediaSpanDirective(markdown);
-  const willMove = !mediaOnTarget;
-  const willEnable = !mediaOnTarget || currentSide !== targetSide;
-  const label = willMove
-    ? "Make @media full-bleed on this side"
-    : willEnable
-      ? "Make full-bleed"
-      : "Remove full-bleed";
+  const willEnable = currentSide !== targetSide;
+  const label = willEnable ? "Make media column full-bleed" : "Remove media column full-bleed";
 
   return {
     can: true,
     targetSide,
     targetCol,
-    mediaOnTarget,
+    mediaOnTarget: true,
     currentSide,
-    willMove,
+    willMove: false,
     willEnable,
     label,
   };
