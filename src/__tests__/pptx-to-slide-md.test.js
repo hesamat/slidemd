@@ -1913,7 +1913,9 @@ describe("convertToSlideMd", () => {
           },
           {
             type: "text",
-            content: "Left text content",
+            content:
+              "Left column carries the main body text with enough substance\n" +
+              "to read as content rather than a caption for the image",
             left: 500000,
             top: 1500000,
             width: 4000000,
@@ -1939,6 +1941,58 @@ describe("convertToSlideMd", () => {
     expect(md).toContain("@media");
     // The media-span image fills its column edge to edge (full-bleed media).
     expect(md).toContain('style="width: 100%; height: auto;"');
+  });
+
+  it("uses focus when the body is a single short caption beside one dominant image", () => {
+    // A one-line caption that introduces an image is not a real content
+    // column — media-span would shrink the image into a side column and leave
+    // @main nearly empty. The image is the main content, so focus puts the
+    // header, caption, and image together in @main.
+    const extraction = makeExtraction([
+      {
+        index: 0,
+        title: "Argparse In Action",
+        notes: "",
+        elements: [
+          {
+            type: "text",
+            content: "# argparse — in action",
+            left: 500000,
+            top: 200000,
+            width: 8000000,
+            height: 500000,
+          },
+          {
+            type: "text",
+            content: "- Real output from using_argparse.py:",
+            left: 500000,
+            top: 1500000,
+            width: 4000000,
+            height: 600000,
+          },
+          {
+            type: "image",
+            ref: "output.png",
+            base64: "abc",
+            left: 5500000,
+            top: 1000000,
+            width: DEFAULT_SIZE.width * 0.5,
+            height: DEFAULT_SIZE.height * 0.7,
+          },
+        ],
+        background: "",
+      },
+    ]);
+    const md = convertToSlideMd(extraction);
+    expect(md).toContain("layout: focus");
+    expect(md).not.toContain("layout: media-span");
+    // Everything renders in @main — no @header/@media split.
+    expect(md).toContain("@main");
+    expect(md).not.toContain("@header");
+    expect(md).not.toContain("@media");
+    expect(md).toContain("argparse — in action");
+    expect(md).toContain("Real output from using_argparse.py:");
+    expect(md).toContain("output.png");
   });
 
   it("uses two-column when right column has text and image", () => {
