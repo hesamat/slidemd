@@ -77,6 +77,21 @@
 - Patch dompurify from 3.4.12 to 3.4.13 (moderate XSS vulnerability, GHSA-55q2-fjhq-7xh7).
 - Total tests now **1218**.
 
+### PPTX, Polish, and Modal Fixes (from branch)
+
+- **Fix PPTX import with file-number gaps** — PowerPoint does not renumber `slideN.xml` after deletions, so a deck can contain `slide1.xml, slide2.xml, slide4.xml` while `pptxtojson` returns 3 slides sorted by name. The previous code used `raw.slides[slideNum - 1]`, which silently dropped or scrambled slides when the numbering had gaps. `#extractSlideOrder` now builds a `fileNum → arrayIndex` map from the actual sorted slide files and validates that every file number in the presentation order has a matching file, falling back to filename order if not.
+- **Skip overflow check for polish mode** — whole-deck polish was validated under the `generate` intent, so the content-volume/overflow check flagged already-dense decks and pushed the AI to trim content that polish is supposed to preserve. The validator now accepts a `skipOverflow` option, and the orchestrator passes it when `mode === "polish"`.
+- **Remove dead `LayoutData.getMediaSpanSide`** — the method had no production callers after the full-bleed refactor; removed it and its test assertions.
+- **Fix `Notification.prompt` modal-state counter** — the file-name chooser prompt was the only modal that did not call `modalOpened()`/`modalClosed()`, so `isModalOpen()` stayed false while it was visible and keyboard shortcuts were not suppressed. The prompt now participates in the counter like every other modal.
+- **Split README into focused docs** — rewrote the 360-line README as a concise landing page and moved authoring, AI editing, keyboard shortcuts, and import/export reference into `docs/authoring.md`, `docs/ai-editing.md`, `docs/keyboard-shortcuts.md`, and `docs/import-export.md`.
+- **Update example deck for Phase 14.5** — added text-block attributes, auto-save, Ctrl+S, vision, editable outline, media-full-bleed, and PPTX slide-order preservation to `docs/example/slides.md`.
+- **Fix HTML tags inside fenced code blocks** — `escapeBareHtmlTags` was escaping `<`/`>` inside fenced code blocks because it only split on inline backticks. Added `splitCodeAware()` which protects fenced and inline code segments before escaping.
+- **Fix PPTX import slide order** — slides were appearing out of order after import because `pptxtojson` sorts by filename, not presentation order. Added `#extractSlideOrder` to read `<p:sldIdLst>` from `presentation.xml` and re-sort slides to match the author's intended order.
+- **Remove slideIn animation** — the `slideIn` CSS animation on `.slide.active` started at `opacity: 0`, causing a visible white flash on dark backgrounds. Removed the animation and the unused `@keyframes slideIn`.
+- **Use focus layout for caption-only body** — a caption + single dominant image was being forced into media-span, shrinking the image into a side column. `isCaptionOnlyBody` now detects this case and uses the focus layout instead.
+- **Balance remix merge guidance** — the remix plan prompt now uses `merge` instead of `prefer merge`, and explicitly tells the AI not to merge slides with distinct topics, key takeaways, or strong standalone value.
+- Total tests now **1225**.
+
 ## 0.9.1 (2026-08-10)
 
 ### Whole-Deck Modes (Polish, Remix, Reimagine)
