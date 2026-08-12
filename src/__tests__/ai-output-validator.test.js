@@ -147,6 +147,21 @@ layout: header-content
     expect(result.errors.filter((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR")).toHaveLength(0);
   });
 
+  it("errors when a text-block directive is missing braces", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block backgroundColor="#00c2a8" markdown=true
+**key → value**
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "MALFORMED_TEXT_BLOCK");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("braces");
+  });
+
   it("returns a parse error when the parser cannot initialize", () => {
     const original = window.markdownit;
     window.markdownit = () => {

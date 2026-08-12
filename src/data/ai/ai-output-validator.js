@@ -291,6 +291,18 @@ export class AiOutputValidator {
         });
       }
     }
+    // Detect malformed text-block directives: the opening line must use
+    // braces around attributes (::: text-block { ... }). Without braces the
+    // directive is silently not parsed and passes through as raw text.
+    const malformedRe = /^:::\s*text-block\s*[^\s{]/gim;
+    const malformed = rawSlide.match(malformedRe);
+    if (malformed && malformed.length > 0) {
+      errors.push({
+        slide: index,
+        code: "MALFORMED_TEXT_BLOCK",
+        message: `Slide ${index + 1} has a text-block directive without braces. Use ::: text-block { ... } with attributes inside { }.`,
+      });
+    }
   }
 
   /**
