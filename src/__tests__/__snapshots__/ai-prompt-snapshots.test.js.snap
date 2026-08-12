@@ -1111,7 +1111,7 @@ Rules:
 - Cover every source slide. Reorder freely if a different order tells the story better.
 - Use \`keep\` for slides that are already clear, well-structured, and in the right place.
 - Use \`rewrite\` when the topic is right but the content or layout could be improved.
-- Prefer \`merge\` when adjacent slides are thin, overlapping, or redundant. Also merge when combining slides tightens the narrative or removes repetition. Avoid merging slides with clearly distinct topics or strong standalone value.
+- Use \`merge\` when adjacent slides are thin, overlapping, or redundant, and combining them clearly improves the deck. Do not merge slides with distinct topics, key takeaways, or strong standalone value.
 
 Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.
 
