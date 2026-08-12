@@ -554,28 +554,28 @@ Goal: Pay down structural debt and close test gaps before building new features 
 
 ### Refactoring
 
-| Task                                   | Details                                                                                                                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Extract shared bundle-order module | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. |
-| [ ] Decompose EditController           | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules.                                         |
-| [ ] Split `ai-orchestrator.js`         | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes.                                         |
+| Task                                   | Details                                                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [x] Extract shared bundle-order module | `HtmlExportManager` manually maintains `JS_BUNDLE_ORDER`; extract to a shared module so the build script and any future bundler can share one source of truth. (PR #200) |
+| [x] Decompose EditController           | Deferred from Phase 14. Split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules. (PR #202)                                         |
+| [x] Split `ai-orchestrator.js`         | Deferred from Phase 14. Separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. (PR #202)                                         |
 
 ### Test Infrastructure
 
-| Task                                 | Details                                                                                                                                                       |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Add Playwright E2E test harness  | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. |
-| [x] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline and verify the output deck structure. (PR #191)                                  |
+| Task                                 | Details                                                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add Playwright E2E test harness  | Playwright is already a dev dependency (PDF generation); add E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. (PR #201) |
+| [x] Add PPTX import integration test | Feed a real `.pptx` fixture through the full extract→convert→render pipeline and verify the output deck structure. (PR #191)                                            |
 
 ### Developer Experience
 
-| Task                                | Details                                                                                                                                                                                                                                                                |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [x] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. (PR #205)                                                                                        |
-| [ ] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors.                                                                                                                                                              |
-| [ ] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose.                                                                                                                    |
-| [ ] Add `docs/ai-positioning.md`    | Document what the AI does (enhance, fix, remix, reimagine, speaker notes) vs. what the tool does (deterministic rendering, layout validation, export). Clarify the boundary for users and external AI agents. Complements `AGENTS.md` which targets coding assistants. |
-| [ ] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting.                                                                                                                                                                               |
+| Task                                | Details                                                                                                                                                                                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Add client-side logging utility | Replace ad-hoc `console.*` calls with a level-based logger. Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. (PR #201)                                                                                                  |
+| [x] Add `CONTRIBUTING.md`           | Document setup, quality gates, branch/PR conventions, and testing instructions for external contributors. (PR #200)                                                                                                                                                              |
+| [x] Add ADR template                | Lightweight Architecture Decision Record template and `docs/adr/` directory to capture design rationale that currently lives only in roadmap prose. (PR #200)                                                                                                                    |
+| [x] Add `docs/ai-positioning.md`    | Document what the AI does (enhance, fix, remix, reimagine, speaker notes) vs. what the tool does (deterministic rendering, layout validation, export). Clarify the boundary for users and external AI agents. Complements `AGENTS.md` which targets coding assistants. (PR #200) |
+| [x] Lint `tools/` and `*.mjs`       | Add a Node-specific ESLint config for build/dev scripts currently excluded from linting. (PR #200)                                                                                                                                                                               |
 
 ---
 
@@ -713,7 +713,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13.1: Remix Planner                    | ✅ Complete |
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
 | Phase 14: Conflict Resolution & Undo         | ✅ Complete |
-| Phase 14.5: Structural Cleanup & Tests       | Planned     |
+| Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
 | Phase 15: Design System & Theme Registry     | Planned     |
 | Phase 16: Presenter, Print & AI Commands     | Planned     |
 | Phase 17: Cloud Mode                         | Planned     |

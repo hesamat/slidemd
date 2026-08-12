@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.9.2 (2026-08-12)
+## 0.9.3 (2026-08-12)
+
+### Phase 14.5 Structural Cleanup (from main)
+
+- **Lint `tools/` and `*.mjs`** — add a Node-specific ESLint config for build/dev scripts previously excluded from linting. (PR #200)
+- **Extract shared bundle-order module** — `HtmlExportManager` no longer manually maintains `JS_BUNDLE_ORDER`; extracted to a shared module so the build script and any future bundler can share one source of truth. (PR #200)
+- **Add DX docs** — `CONTRIBUTING.md`, ADR template (`docs/adr/`), and `docs/ai-positioning.md` documenting what the AI does vs. what the tool does. (PR #200)
+- **Add client-side logging utility** — replace ad-hoc `console.*` calls with a level-based logger (`src/core/logger.js`). Foundational for systematic error handling across AI failures, PPTX import, and DOMPurify fallback paths. (PR #201)
+- **Add Playwright E2E test harness** — E2E specs for critical UI flows: open deck, edit slide, switch layout, export HTML, PPTX import. (PR #201)
+- **Decompose EditController** — split store-to-view sync, editor buffer, history, and AI edit flows into dedicated DI modules (`store-sync-controller.js`, etc.). (PR #202)
+- **Split `ai-orchestrator.js`** — separate single-slide coordination from whole-deck/Remix/Reimagine flows into focused classes. (PR #202)
+
+### Silent Re-Save, File-Name Chooser & Global Ctrl+S (from main)
+
+- **Silent re-save** — debounced auto-save writes directly to disk without a visible "Saved" toast on every cycle. (PR #199)
+- **File-name chooser** — `Notification.prompt` modal for choosing a file name when saving a new deck or exporting. Input is placed inside the copy column below the message; Enter confirms, Escape cancels. (PR #199)
+- **Global Ctrl+S** — `Ctrl+S` / `Cmd+S` triggers an instant save from anywhere in the app, not just the editor. (PR #199)
+- **Command registry** — centralized `command-registry.js` and `keyboard-shortcuts.js` so shortcuts are defined in one place and can be queried by the command palette. (PR #199)
 
 ### Reimagine Outline Simplification
 
@@ -57,7 +74,8 @@
 - Avoid double-sending vision images when a truncated batch is split in the whole-deck orchestrator.
 - Update beat-normalizer documentation to reflect that `emotional` is also downgraded on the first slide.
 - Move the reimagine outline regenerate handler registration after its dependencies are declared.
-- Total tests now **1182**.
+- Patch dompurify from 3.4.12 to 3.4.13 (moderate XSS vulnerability, GHSA-55q2-fjhq-7xh7).
+- Total tests now **1218**.
 
 ## 0.9.1 (2026-08-10)
 
