@@ -561,6 +561,7 @@ layout: focus
 @main
 
 # Ready to Present?
+
 <br>
 
 **Press `E`** – Validate slide flow and fit
