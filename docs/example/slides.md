@@ -530,8 +530,7 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: header-content
-
+layout: focus
 @header
 
 # Multi-Column Text Blocks
@@ -559,11 +558,10 @@ Use `::: text-block { column-count=2 }` to wrap long lists so they flow across m
 
 layout: focus
 
-@header
+@main
 
 # Ready to Present?
-
-@main
+<br>
 
 **Press `E`** – Validate slide flow and fit
 **Press `P`** – Open viewer on your presentation display

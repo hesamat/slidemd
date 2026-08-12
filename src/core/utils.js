@@ -109,16 +109,68 @@ const ALWAYS_OK_BARE = new Set(["br", "hr"]);
 
 const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
 
+/**
+ * Split markdown into segments that are either normal text or protected code
+ * (fenced code blocks or inline backtick code). Used by `escapeBareHtmlTags`
+ * so that HTML-like tokens inside code are not escaped.
+ * @param {string} text
+ * @returns {Array<{text: string, protected: boolean}>}
+ */
+function splitCodeAware(text) {
+  const segments = [];
+  let i = 0;
+
+  while (i < text.length) {
+    // Fenced code block: ```...``` or ~~~...~~~ (check before inline since
+    // ``` starts with a backtick too).
+    const fenceMatch = text.slice(i).match(/^(```[\s\S]*?```|~~~[\s\S]*?~~~)/);
+    if (fenceMatch) {
+      segments.push({ text: fenceMatch[0], protected: true });
+      i += fenceMatch[0].length;
+      continue;
+    }
+
+    // Inline code: `...` (single-line, no nested backticks)
+    if (text[i] === "`" && (i === 0 || text[i - 1] !== "\\")) {
+      const inlineMatch = text.slice(i).match(/^`([^`\n]+)`/);
+      if (inlineMatch) {
+        segments.push({ text: inlineMatch[0], protected: true });
+        i += inlineMatch[0].length;
+        continue;
+      }
+    }
+
+    // Find the next protected region starting from i + 1 (not i, which
+    // would match the current character and cause an infinite loop when
+    // a lone backtick doesn't form a code span).
+    const nextInline = text.indexOf("`", i + 1);
+    const nextTilde = text.indexOf("~~~", i + 1);
+    const nextSpecial = Math.min(
+      nextInline === -1 ? Infinity : nextInline,
+      nextTilde === -1 ? Infinity : nextTilde,
+    );
+
+    const end = nextSpecial === Infinity ? text.length : nextSpecial;
+    segments.push({ text: text.slice(i, end), protected: false });
+    i = end;
+  }
+
+  return segments;
+}
+
 export function escapeBareHtmlTags(markdown) {
   if (typeof markdown !== "string") return markdown;
 
-  return markdown
-    .split(/(`[^`\n]+`)/)
-    .map((part, i) => {
-      if (i % 2 === 1) return part;
+  // Protect fenced code blocks and inline code from bare-tag escaping.
+  // `markdown-it` renders the contents of these as-is, so escaping them here
+  // would display `&lt;`/`&gt;` literally instead of the intended `<`/`>`.
+  const segments = splitCodeAware(markdown);
 
-      // First pass: always escape blocked interactive / embedded tags
-      let text = part.replace(HTML_TAG_RE, (match, closingSlash, tagName, attrs) => {
+  return segments
+    .map((segment) => {
+      if (segment.protected) return segment.text;
+
+      let text = segment.text.replace(HTML_TAG_RE, (match, closingSlash, tagName, attrs) => {
         if (!BLOCKED_HTML_TAGS.has(tagName.toLowerCase())) return match;
         const open = closingSlash ? "&lt;/" : "&lt;";
         const close = "&gt;";
