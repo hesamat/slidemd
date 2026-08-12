@@ -16,6 +16,7 @@ import {
   buildTitlePanelHtml,
   syncBgState,
 } from "../editor/ui/style-helpers.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const TEMPLATES = [
   {
@@ -176,6 +177,7 @@ export class NewPresentationModal {
     return new Promise((resolve) => {
       const backdrop = this._createDom();
       document.body.appendChild(backdrop);
+      modalOpened();
 
       let currentStep = 0;
       let selectedBg = "";
@@ -324,6 +326,7 @@ export class NewPresentationModal {
       const resolveWith = () => {
         ac.abort();
         backdrop.remove();
+        modalClosed();
         resolve({
           background: getBackgroundValue(),
           theme: selectedTheme,
@@ -339,10 +342,13 @@ export class NewPresentationModal {
       const dismiss = () => {
         ac.abort();
         backdrop.remove();
+        modalClosed();
         resolve(null);
       };
 
       cancelBtn.addEventListener("click", dismiss);
+
+      backdrop.querySelector(`.${P}close`).addEventListener("click", dismiss);
 
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) dismiss();
@@ -425,8 +431,6 @@ export class NewPresentationModal {
         </div>
       </div>
     `;
-
-    el.querySelector(`.${P}close`).onclick = () => el.remove();
 
     return el;
   }

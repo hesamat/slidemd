@@ -4,39 +4,68 @@ Content strategy:
 
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
+- Vary layouts across the deck. If three consecutive slides use the same layout, reconsider at least one. Use `focus` for a single key takeaway, `two-column` for balanced code+explanation, `media-span-left`/`media-span-right` ONLY when the `@media` area contains an image or Mermaid diagram, `full-image` for atmospheric/visual slides, and `title-slide` for the deck's opening slide.
+- Match the layout to the content. Use `focus` only for a single key takeaway; `focus` has limited height, so use `header-content` or `two-column` for dense tables, code, and Mermaid diagrams. Use `two-column` only when both columns have real content. Use `media-span-left` or `media-span-right` only when the `@media` area is an image or a Mermaid diagram.
+- If the first slide's brief says "Title slide", use `layout: title-slide` with the topic as `@title` and the identity text as `@footer`. Do not add body content to a title slide. Keep the footer to one or two short lines of identifying information (e.g. course code and term).
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
+- Do not repeat slide titles. Every slide title must be unique and clearly distinguishable from other slides in the deck.
+- Do not include internal chapter labels, step numbers, stage markers, or brief metadata in slide text. Slide titles and body text should be clean, human-facing content. Remove markers like `chapter 03 / ...`, `> $ section / step N`, `>>> ...`, or similar leaked brief tokens.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.
+- If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
 
-- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
-- Unless the following instructions say to preserve the existing visual identity, every slide must have a `background:` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
-- Unless the following instructions say to preserve the existing visual identity, every slide must have a `theme:` directive that matches the background darkness:
-  - If the `background:` is dark or has a dark image, set `theme: dark` so the default text renders light.
-  - If the `background:` is light, set `theme: light` so the default text renders dark.
-- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
+{{visualStylingNote}}
+
+- Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, `color`, `backgroundColor`, or `::: text-block { color="..." backgroundColor="..." }`. Use bold, headings, and layout to create emphasis, not color.
 - Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
-- If the following instructions say to preserve the existing visual identity, keep existing `theme:` and `background:` directives unless they clearly do not fit.
 
 Diagrams:
 
 - Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: `​```mermaid` code blocks.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. `─┐`, `├──>`, `──>`). These render poorly and are not interactive.
 - If a concept needs a visual, use Mermaid or a table instead.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a `flowchart` when there are branches, decisions, loops, or parallel paths. Do not use a flowchart to explain or define a concept; use a numbered list, a table, a `classDiagram`, or a `stateDiagram-v2` instead.
+- Vary diagram types: use `flowchart` for data flow and decisions, `sequenceDiagram` for interactions between components, `classDiagram` for data models, and `stateDiagram-v2` for state transitions. Don't use `flowchart LR` for everything.
+- Diagrams should illustrate the concept, not restate the title. A diagram showing `A --> B` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
+
+Content depth:
+
+- Each slide should have enough content to stand on its own — not just a title and one sentence. Include concrete examples, code, comparisons, or visual structure that makes the point clear.
+- Vary content structure across slides. Don't make every slide a title + code block + one-line explanation. Mix in: tables, side-by-side comparisons, annotated code, step-by-step traces, prediction questions, before/after contrasts, analogies, historical remarks, and visual metaphors.
+- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, output) that the reader can trace what happens. Include expected output as a separate `text` block when helpful.
+- All code must be syntactically valid in its language and use consistent, meaningful identifiers. Do not include placeholder tokens, foreign words, or malformed syntax unless the slide explicitly labels it as a deliberate mistake and explains the fix.
+- Speaker notes should add teaching value — not just restate the slide. Include suggested questions to ask the audience, common misconceptions, or transitions to the next slide.
+
+Slide density and overflow prevention:
+
+- One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
+- Respect these per-area line budgets for the standard layouts. A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
+  - `title-slide`: `@title` only (one or two short lines) and `@footer` only (one or two short lines). No `@main` content.
+  - `focus`: `@main` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+  - `header-content`: `@header` is one line; `@main` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
+  - `two-column`: `@header` is one line; each column (`@main` and `@media`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
+  - `media-span-left` / `media-span-right`: `@header` is one line; `@main` should hold about 8–12 lines; `@media` holds one image or one Mermaid diagram.
+  - `full-image`: `@main` is just the full-bleed image; keep any text to a short caption (≤2 lines) or omit it.
+- Dense elements consume the budget quickly: a code block, a table, or a Mermaid diagram each count as roughly their number of rendered lines. Use them singly, not stacked. If a code example is longer than ~10 lines, trim it or split it across slides.
+- Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in `<!-- notes: ... -->`, not on the slide.
 
 Success criteria:
 
 - Every slide has an appropriate layout with valid area markers.
-- Background and theme directives follow the visual-identity instructions that follow this prompt.
+- No custom `background:`, `theme:`, `color`, or `backgroundColor` directives are emitted; the deck uses the app's default neutral styling.
 - Headers use the correct hierarchy.
 - All `[Diagram:]` markers are addressed with Mermaid.
 - No ASCII art or text-based diagrams.
+- Each slide's content fits its layout — no area exceeds the density caps above. Split or trim overflowing slides.
 - The JSON is valid and parseable.
 
 Input markdown:

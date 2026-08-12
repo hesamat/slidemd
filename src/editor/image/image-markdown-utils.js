@@ -38,7 +38,7 @@ export function isMediaSpanFillImage(imgElement) {
   if (!imgElement || imgElement.style?.position) return false;
   const area = imgElement.closest?.(".slide__area--media");
   const slide = area?.closest?.(".slide");
-  if (!area || !slide?.dataset?.mediaSpan) return false;
+  if (!area || !slide?.dataset?.mediaFullBleed) return false;
   if (area.querySelectorAll("img").length !== 1) return false;
 
   const content = [...area.children].filter(

@@ -10,6 +10,7 @@
  */
 import { DeckImagesResolver } from "./deck-images-resolver.js";
 import { Logger } from "../../core/logger.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 export class ImagePicker {
   static modal = null;
@@ -325,7 +326,9 @@ export class ImagePicker {
     this.modal.classList.toggle("image-picker-modal--path-only", this._pathOnly);
     this._syncInsertButton();
     this._syncPresetActive();
+    const wasHidden = this.modal.classList.contains("webdeck-hidden");
     this.modal.classList.remove("webdeck-hidden");
+    if (wasHidden) modalOpened();
     // Default to "Existing" tab
     this.tabButtons.forEach((b) => b.classList.toggle("active", b.dataset.tab === "existing"));
     this.tabPanels.forEach((p) => p.classList.toggle("active", p.dataset.panel === "existing"));
@@ -333,7 +336,10 @@ export class ImagePicker {
   }
 
   static hide() {
-    if (this.modal) this.modal.classList.add("webdeck-hidden");
+    if (this.modal && !this.modal.classList.contains("webdeck-hidden")) {
+      this.modal.classList.add("webdeck-hidden");
+      modalClosed();
+    }
   }
 
   /**

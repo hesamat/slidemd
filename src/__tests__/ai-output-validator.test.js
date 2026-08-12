@@ -115,6 +115,133 @@ layout: header-content
     expect(result.errors[0].code).toBe("PRESERVE_MULTI_COLUMN_LIST");
   });
 
+  it("errors when a text-block uses unknown attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block { style: "background: red; padding: 20px;" }
+
+### Heading
+
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("style");
+    expect(err.message).not.toContain("red");
+    expect(err.message).not.toContain("20px");
+  });
+
+  it("passes when a text-block uses only known attributes", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block { backgroundColor="#1e293b" markdown=true column-count=1 }
+
+### Heading
+
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.errors.filter((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR")).toHaveLength(0);
+  });
+
+  it("errors when a text-block directive is missing braces", () => {
+    const output = `layout: header-content
+
+@main
+
+::: text-block backgroundColor="#00c2a8" markdown=true
+**key → value**
+:::`;
+    const result = validate("", output, "fix");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "MALFORMED_TEXT_BLOCK");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("braces");
+  });
+
+  it("errors when a focus slide has too much content", () => {
+    const bullets = Array.from({ length: 13 }, (_, i) => `- Supporting point ${i + 1}`).join("\n");
+    const output = `layout: focus
+
+@header
+# Title
+
+@main
+A headline claim
+${bullets}
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
+  it("errors when a header-content slide exceeds its line budget", () => {
+    const bullets = Array.from({ length: 18 }, (_, i) => `- Item ${i + 1}`).join("\n");
+    const output = `layout: header-content
+
+@header
+# Title
+
+@main
+${bullets}
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+    expect(err.message).toContain("18 lines");
+  });
+
+  it("errors when a code block pushes a header-content slide over its line budget", () => {
+    const code = Array.from({ length: 18 }, (_, i) => `    line${i + 1} = ${i + 1}`).join("\n");
+    const output = `layout: header-content
+
+@header
+# Title
+
+@main
+\`\`\`python
+${code}
+\`\`\`
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
+  it("errors when a title-slide has @main content", () => {
+    const output = `layout: title-slide
+
+@title
+# Title
+
+@main
+This should not be here
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    expect(result.ok).toBe(false);
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
   it("returns a parse error when the parser cannot initialize", () => {
     const original = window.markdownit;
     window.markdownit = () => {
@@ -131,6 +258,56 @@ layout: header-content
 
     expect(result.ok).toBe(false);
     expect(result.errors[0].code).toBe("PARSE_ERROR");
+  });
+
+  it("does not flag overflow for fix intent on dense slides", () => {
+    const dense = `layout: header-content
+
+@main
+${Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n")}
+
+@header
+# Title
+
+@footer
+Footer`;
+    const result = validate("", dense, "fix");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeUndefined();
+  });
+
+  it("does not flag overflow for enhanceSlide intent on dense slides", () => {
+    const dense = `layout: header-content
+
+@main
+${Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n")}
+
+@header
+# Title
+
+@footer
+Footer`;
+    const result = validate("", dense, "enhanceSlide");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeUndefined();
+  });
+
+  it("measures content before the first @area marker as @main", () => {
+    // title-slide has main.maxLines = 0; any content before @area should
+    // be detected as @main overflow.
+    const output = `layout: title-slide
+
+# Title
+
+This is content before any area marker.
+More content on a second line.
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
   });
 
   describe("addSpeakerNotes intent", () => {

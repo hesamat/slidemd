@@ -16,6 +16,7 @@ import { DeckImagesResolver } from "../image/deck-images-resolver.js";
 import { ImagePicker } from "../image/image-picker.js";
 import { DirectoryHandleStore } from "../../core/directory-handle-store.js";
 import { Logger } from "../../core/logger.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const IMAGE_MIME_TYPES = {
   png: "image/png",
@@ -60,13 +61,18 @@ export class OpenDeckModal {
   static show() {
     if (!this._el) return;
     this._previousFocus = document.activeElement;
+    const wasHidden = this._el.classList.contains("webdeck-hidden");
     this._el.classList.remove("webdeck-hidden");
-    this._mdBtn?.focus();
+    if (wasHidden) {
+      modalOpened();
+      this._mdBtn?.focus();
+    }
   }
 
   static hide() {
-    if (!this._el) return;
+    if (!this._el || this._el.classList.contains("webdeck-hidden")) return;
     this._el.classList.add("webdeck-hidden");
+    modalClosed();
     this._previousFocus?.focus();
     this._previousFocus = null;
   }

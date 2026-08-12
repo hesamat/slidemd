@@ -5,6 +5,7 @@
  */
 import { escapeHtml } from "../core/utils.js";
 import { Logger } from "../core/logger.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const PALETTE_PREFIX = "command-palette";
 const MAX_RESULTS = 50;
@@ -37,6 +38,7 @@ export class CommandPalette {
     const fullscreenElement = document.fullscreenElement;
     const targetParent = fullscreenElement || document.body;
     targetParent.appendChild(this._modal);
+    modalOpened();
     this._input?.focus();
     this._input?.select();
     this._filter("");
@@ -46,6 +48,7 @@ export class CommandPalette {
     if (!this._modal) return;
     document.removeEventListener("keydown", this._trap);
     this._modal.remove();
+    modalClosed();
     this._modal = null;
     this._input = null;
     this._list = null;

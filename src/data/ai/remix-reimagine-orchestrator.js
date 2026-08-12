@@ -23,30 +23,49 @@ import {
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
+  serializeVisualSystemForBreakdown,
+  buildKeptImagesList,
+  buildAvailableImagesBrief,
 } from "./ai-prompt-fragments.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAllImages } from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
-
-/**
- * @typedef {Object} ReimagineOutlineSlide
- * @property {string} title
- * @property {string} intent
- */
+import { parseVisualSystem } from "./visual-system-schema.js";
+import { normalizeBeats } from "./beat-normalizer.js";
 
 /**
  * @typedef {Object} ReimagineOutlineChapter
  * @property {string} title
  * @property {string} flowTag — one of: hook, context, problem, tension, solution, evidence, comparison, example, transition, climax, cta
  * @property {string} summary
- * @property {ReimagineOutlineSlide[]} slides
+ * @property {number} suggestedSlideCount
  */
 
 /**
  * @typedef {Object} ReimagineOutline
  * @property {string} plan
  * @property {ReimagineOutlineChapter[]} chapters
+ * @property {import("./visual-system-schema.js").VisualSystem|null} visualSystem
+ * @property {number[]} keepImages — 0-based indices into the flattened sent image list
+ * @property {string} [firstSlideIdentity] — identifying text (course code, etc.) for the first slide's footer
+ */
+
+/**
+ * @typedef {Object} ReimagineBreakdownSlide
+ * @property {string} title
+ * @property {string} intent
+ * @property {('continuation'|'transition'|'punctuation'|'emotional'|'divider')} visualBeat
+ * @property {('low'|'medium'|'high')} energy
+ * @property {('subtle'|'moderate'|'strong')} contrast
+ * @property {('continue'|'break')} relationship
+ * @property {string} [imageQuery]
+ */
+
+/**
+ * @typedef {Object} ReimagineBreakdownChapter
+ * @property {string} title
+ * @property {ReimagineBreakdownSlide[]} slides
  */
 
 export class RemixReimagineOrchestrator {
@@ -246,7 +265,7 @@ export class RemixReimagineOrchestrator {
    * @param {import("./ai-operation.js").AiOperation} operation
    * @param {AbortSignal} [signal]
    * @param {object} callbacks
-   * @param {(outline: ReimagineOutline) => Promise<ReimagineOutline|null>} [callbacks.onOutline]
+   * @param {(outline: ReimagineOutline, regenerate: (plan: string) => Promise<ReimagineOutline|null>) => Promise<ReimagineOutline|null>} [callbacks.onOutline]
    * @returns {Promise<string|null>}
    */
   async runReimagine(operation, signal, callbacks = {}) {
@@ -283,24 +302,36 @@ export class RemixReimagineOrchestrator {
     );
     if (!outline) return null;
 
-    // Slide-count guard: soft warn if the outline is outside 70-120% of source.
-    const totalSlides = this.#countOutlineSlides(outline);
+    // Slide-count guard: soft warn if the suggested total is outside 70-120%.
+    const totalSuggested = this.#countSuggestedSlides(outline);
     const minTarget = Math.max(1, Math.round(sourceCount * 0.7));
     const maxTarget = Math.round(sourceCount * 1.2);
-    if (totalSlides < minTarget || totalSlides > maxTarget) {
+    if (totalSuggested < minTarget || totalSuggested > maxTarget) {
       onLog?.(
-        `Warning: outline has ${totalSlides} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
+        `Warning: outline suggests ${totalSuggested} slides, target is ${minTarget}-${maxTarget} (70-120% of ${sourceCount} source slides).`,
         "warn",
       );
     }
 
     // ── Phase 2: User review ──
     // Pass a deep copy so the callback can't mutate the original before we
-    // apply the edited version.
+    // apply the edited version. Also pass a `regenerate` function that the
+    // callback can call to re-run the outline AI with an edited plan.
     let editedOutline = outline;
     if (typeof onOutline === "function") {
       onLog?.("Waiting for outline review\u2026");
-      const edited = await onOutline(this.#cloneOutline(outline));
+      const regenerate = async (newPlan) => {
+        onLog?.("Regenerating outline with edited plan\u2026");
+        return this.#runReimagineOutline(
+          operation,
+          signal,
+          callbacks,
+          sourceCount,
+          slideImages,
+          newPlan,
+        );
+      };
+      const edited = await onOutline(this.#cloneOutline(outline), regenerate);
       if (!edited) {
         onLog?.("Reimagine cancelled during outline review.");
         return null;
@@ -308,17 +339,35 @@ export class RemixReimagineOrchestrator {
       editedOutline = edited;
     }
 
-    // ── Phase 3: Build virtual deck from the chapter outline ──
-    // Each slide entry becomes a virtual slide carrying only a brief
-    // comment. The generate prompt sees the brief and produces the slide
-    // content fresh — no source markdown is sent, so the AI is free to
-    // rewrite examples, visuals, and structure.
-    const virtualSlides = this.#outlineToVirtualSlides(editedOutline);
+    // ── Phase 3: Slide breakdown ──
+    // Now that the chapters are finalized, call the AI to break each chapter
+    // into individual slide briefs. This ensures the slide structure matches
+    // the user's edits, not the original outline draft.
+
+    // Compute kept images from the outline's keepImages indices.
+    // slideImages is a per-slide array; flatten it to get a 0-based list
+    // matching the indices the outline AI used.
+    const keptImageEntries = this.#extractKeptImages(slideImages, editedOutline.keepImages);
+    const keptImageSrcs = keptImageEntries.map((e) => e.src);
+    if (keptImageSrcs.length > 0) {
+      onLog?.(`Keeping ${keptImageSrcs.length} image(s) from original deck for reuse.`);
+    }
+
+    onLog?.("Breaking chapters into slides\u2026");
+    const breakdown = await this.#runSlideBreakdown(
+      editedOutline,
+      signal,
+      callbacks,
+      keptImageSrcs,
+    );
+    if (!breakdown) return null;
+
+    const virtualSlides = this.#breakdownToVirtualSlides(editedOutline, breakdown);
     const virtualDeck = virtualSlides.join("\n\n---\n\n");
     const virtualCount = virtualSlides.length;
 
     onLog?.(
-      `Reimagine outline: ${virtualCount} slide(s) across ${editedOutline.chapters.length} chapter(s).`,
+      `Reimagine: ${virtualCount} slide(s) across ${editedOutline.chapters.length} chapter(s).`,
     );
 
     // Carry the plan as a log line for sidebar visibility.
@@ -326,12 +375,22 @@ export class RemixReimagineOrchestrator {
 
     // ── Phase 4: Execute via existing single-call/batched path ──
     // Clear mode so the inner call doesn't recurse into the reimagine flow.
+    // Pass the visual system through so the generate prompt receives the
+    // design language + beat→treatment mapping via the options suffix.
+    // Pass kept images as vision content (first batch/single call only) and
+    // as a text list in the suffix (all batches).
+    const keptImagesForVision = keptImageEntries.length > 0 ? keptImageEntries : null;
     const execOp = {
       ...operation,
       context: virtualDeck,
-      opts: { ...operation.opts, mode: undefined },
+      opts: {
+        ...operation.opts,
+        mode: undefined,
+        visualSystem: editedOutline.visualSystem ?? null,
+      },
     };
-    const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
+    const execSuffix =
+      buildGenerateOptionsSuffix(execOp.opts) + buildAvailableImagesBrief(keptImageSrcs);
 
     onLog?.(`Generating ${virtualCount} slide(s) for reimagine\u2026`);
     const result =
@@ -342,6 +401,7 @@ export class RemixReimagineOrchestrator {
             execSuffix,
             callbacks,
             virtualCount,
+            keptImagesForVision,
           )
         : await this._wholeDeck.runWholeDeckBatched(
             execOp,
@@ -350,6 +410,7 @@ export class RemixReimagineOrchestrator {
             virtualCount,
             splitSlidesForAi(virtualDeck, "generate"),
             callbacks,
+            keptImagesForVision,
           );
 
     if (!result) return result;
@@ -361,12 +422,42 @@ export class RemixReimagineOrchestrator {
   }
 
   /**
-   * Count total slides across all chapters in a Reimagine outline.
+   * Count total suggested slides across all chapters in a Reimagine outline.
    * @param {ReimagineOutline} outline
    * @returns {number}
    */
-  #countOutlineSlides(outline) {
-    return outline.chapters.reduce((sum, ch) => sum + (ch.slides?.length || 0), 0);
+  #countSuggestedSlides(outline) {
+    return outline.chapters.reduce((sum, ch) => sum + (ch.suggestedSlideCount || 0), 0);
+  }
+
+  /**
+   * Extract the kept image entries from the per-slide slideImages array
+   * using the outline's keepImages indices.
+   *
+   * `slideImages` is `Array<Array<{src, dataUrl}>|null>` — one entry per
+   * slide. `keepImages` is a flat array of 0-based indices into the
+   * flattened list of all images across all slides (in slide order, then
+   * in-image order within each slide).
+   *
+   * @param {Array<Array<{src: string, dataUrl: string}>|null>|null} slideImages
+   * @param {number[]} keepImages — 0-based indices into the flattened image list
+   * @returns {Array<{src: string, dataUrl: string}>} kept image entries
+   */
+  #extractKeptImages(slideImages, keepImages) {
+    if (!slideImages || !keepImages || keepImages.length === 0) return [];
+    const keepSet = new Set(keepImages);
+    const result = [];
+    let flatIdx = 0;
+    for (const imgs of slideImages) {
+      if (!imgs) continue;
+      for (const entry of imgs) {
+        if (keepSet.has(flatIdx)) {
+          result.push(entry);
+        }
+        flatIdx++;
+      }
+    }
+    return result;
   }
 
   /**
@@ -381,25 +472,68 @@ export class RemixReimagineOrchestrator {
         title: ch.title,
         flowTag: ch.flowTag || "",
         summary: ch.summary || "",
-        slides: ch.slides.map((s) => ({ title: s.title, intent: s.intent })),
+        suggestedSlideCount: ch.suggestedSlideCount || 1,
       })),
+      visualSystem: outline.visualSystem ?? null,
+      keepImages: outline.keepImages ? [...outline.keepImages] : [],
+      firstSlideIdentity: outline.firstSlideIdentity || "",
     };
   }
 
   /**
-   * Flatten a Reimagine outline into virtual slide briefs.
-   * Each slide becomes `<!-- brief: {title} — {intent} -->`.
-   * @param {ReimagineOutline} outline
+   * Flatten a breakdown (chapters with slide briefs) into virtual slide briefs.
+   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) | beat: {visualBeat}, energy: {energy}, contrast: {contrast}, relationship: {relationship} | image: {imageQuery} -->`.
+   * Slides with no title or intent fall back to their chapter context, and
+   * slides with no context at all are dropped. `imageQuery` (including
+   * `reuse:<path>` directives) is included in the serialized brief so the
+   * generate AI knows which image to insert on each slide.
+   * @param {ReimagineOutline} outline — the finalized outline (for chapter context)
+   * @param {ReimagineBreakdownChapter[]} breakdown — the breakdown with slide briefs
    * @returns {string[]}
    */
-  #outlineToVirtualSlides(outline) {
+  #breakdownToVirtualSlides(outline, breakdown) {
     const slides = [];
-    for (const chapter of outline.chapters) {
-      for (const slide of chapter.slides) {
-        slides.push(`<!-- brief: ${slide.title} \u2014 ${slide.intent} -->`);
+    const join = (...parts) =>
+      parts
+        .map((p) => (p || "").trim())
+        .filter(Boolean)
+        .join(" \u2014 ");
+    for (let ci = 0; ci < breakdown.chapters.length; ci++) {
+      const bdChapter = breakdown.chapters[ci];
+      const outlineChapter = outline.chapters[ci];
+      const chapterContext = outlineChapter
+        ? join(outlineChapter.title, outlineChapter.summary)
+        : "";
+      for (const slide of bdChapter.slides) {
+        const brief = join(slide.title, slide.intent);
+        if (!brief && !chapterContext) continue;
+        const text = brief
+          ? chapterContext
+            ? `${brief} (chapter: ${chapterContext})`
+            : brief
+          : chapterContext;
+        const beatSuffix = this.#formatBeatSuffix(slide);
+        const imageSuffix =
+          typeof slide.imageQuery === "string" && slide.imageQuery.trim()
+            ? ` | image: ${slide.imageQuery.trim()}`
+            : "";
+        slides.push(`<!-- brief: ${text}${beatSuffix}${imageSuffix} -->`);
       }
     }
     return slides;
+  }
+
+  /**
+   * Format the beat metadata as a `| beat: ...` suffix for the brief comment.
+   * @param {ReimagineBreakdownSlide} slide
+   * @returns {string}
+   */
+  #formatBeatSuffix(slide) {
+    const beat = slide.visualBeat || "continuation";
+    const energy = slide.energy || "medium";
+    const contrast = slide.contrast || "moderate";
+    const relationship = slide.relationship || "continue";
+    return ` | beat: ${beat}, energy: ${energy}, contrast: ${contrast}, relationship: ${relationship}`;
   }
 
   /**
@@ -410,13 +544,22 @@ export class RemixReimagineOrchestrator {
    * @param {object} callbacks
    * @param {number} sourceCount — number of source slides for the slide-count guard
    * @param {Array<string[]|null>} [slideImages] — per-slide compressed image data URLs for vision
+   * @param {string} [planOverride] — when set, the user edited the plan and wants
+   *   the AI to regenerate chapters based on this new plan direction
    * @returns {Promise<ReimagineOutline|null>}
    */
-  async #runReimagineOutline(operation, signal, callbacks = {}, sourceCount, slideImages = null) {
+  async #runReimagineOutline(
+    operation,
+    signal,
+    callbacks = {},
+    sourceCount,
+    slideImages = null,
+    planOverride = null,
+  ) {
     const { context } = operation;
     const { onLog } = callbacks;
 
-    const deckSummary = buildDeckSummary(context);
+    const deckSummary = buildDeckSummary(context, true);
 
     const flow = operation.opts?.flow || "story";
     const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
@@ -434,6 +577,13 @@ export class RemixReimagineOrchestrator {
       },
     );
 
+    // When regenerating with an edited plan, append the user's new plan as
+    // additional guidance so the AI generates chapters aligned with it.
+    const userWithPlan = planOverride
+      ? user +
+        `\n\nThe user has revised the plan direction. Generate chapters that align with this plan:\n"${planOverride}"`
+      : user;
+
     const reasoningEffort = this._useReasoning ? this._effort : "none";
     const maxTokens = estimateMaxTokens(deckSummary, "generate", {
       modelMaxOutput: this._modelMaxOutput,
@@ -441,14 +591,14 @@ export class RemixReimagineOrchestrator {
     });
 
     // Build the user content — either a multi-modal array (vision) or plain text.
-    const userContent = slideImages ? buildVisionMessage(user, slideImages) : user;
+    const userContent = slideImages ? buildVisionMessage(userWithPlan, slideImages) : userWithPlan;
 
     const messages = [
       { role: "system", content: system },
       { role: "user", content: userContent },
     ];
 
-    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    const textTokenEstimate = Math.ceil((system.length + userWithPlan.length) / 4);
     const imageCount = slideImages
       ? slideImages.reduce((sum, imgs) => sum + (imgs?.length || 0), 0)
       : 0;
@@ -482,7 +632,7 @@ export class RemixReimagineOrchestrator {
         onLog?.("Vision not supported by this model — retrying outline with text-only\u2026");
         const textMessages = [
           { role: "system", content: system },
-          { role: "user", content: user },
+          { role: "user", content: userWithPlan },
         ];
         const response = await this._provider.chat(
           {
@@ -548,30 +698,221 @@ export class RemixReimagineOrchestrator {
       if (typeof ch.title !== "string") {
         throw new Error(`Chapter ${i} missing 'title' string`);
       }
-      if (!Array.isArray(ch.slides) || ch.slides.length === 0) {
-        throw new Error(`Chapter ${i} missing non-empty 'slides' array`);
-      }
-      const slides = ch.slides.map((s, j) => {
-        if (typeof s !== "object" || s === null) {
-          throw new Error(`Chapter ${i} slide ${j} is not an object`);
-        }
-        if (typeof s.title !== "string" || typeof s.intent !== "string") {
-          throw new Error(`Chapter ${i} slide ${j} missing 'title' or 'intent' string`);
-        }
-        return { title: s.title, intent: s.intent };
-      });
+      const suggestedSlideCount =
+        typeof ch.suggestedSlideCount === "number" && ch.suggestedSlideCount > 0
+          ? Math.round(ch.suggestedSlideCount)
+          : 1;
       return {
         title: ch.title,
         flowTag: typeof ch.flowTag === "string" ? ch.flowTag : "",
         summary: typeof ch.summary === "string" ? ch.summary : "",
-        slides,
+        suggestedSlideCount,
       };
     });
+
+    // Best-effort visualSystem parse: fall back to DEFAULT_VISUAL_SYSTEM if
+    // missing or invalid. Outline validation (plan/chapters) still throws.
+    const visualSystem = parseVisualSystem(parsed.visualSystem);
+
+    // Parse keepImages: optional array of non-negative integers (0-based
+    // indices into the flattened sent image list). Invalid entries are
+    // filtered out; if absent or empty, no images are kept.
+    const keepImages = Array.isArray(parsed.keepImages)
+      ? parsed.keepImages.filter(
+          (idx) => typeof idx === "number" && idx >= 0 && Number.isInteger(idx),
+        )
+      : [];
+
+    // Parse firstSlideIdentity: optional string extracted from the original
+    // first slide (course code, week number, etc.) to be placed verbatim in
+    // the first slide's footer.
+    const firstSlideIdentity =
+      typeof parsed.firstSlideIdentity === "string" ? parsed.firstSlideIdentity.trim() : "";
 
     return {
       plan: parsed.plan,
       chapters,
+      visualSystem,
+      keepImages,
+      firstSlideIdentity,
     };
+  }
+
+  /**
+   * Run the slide-breakdown phase: call the LLM with the finalized chapters
+   * and parse per-slide briefs for each chapter.
+   * @param {ReimagineOutline} outline — finalized outline from user review
+   * @param {AbortSignal} [signal]
+   * @param {object} callbacks
+   * @returns {Promise<{chapters: ReimagineBreakdownChapter[]}|null>}
+   */
+  async #runSlideBreakdown(outline, signal, callbacks = {}, keptImageSrcs = []) {
+    const { onLog } = callbacks;
+
+    // Serialize the chapters into a compact JSON for the prompt.
+    const chaptersInput = JSON.stringify({
+      chapters: outline.chapters.map((ch) => ({
+        title: ch.title,
+        flowTag: ch.flowTag,
+        summary: ch.summary,
+        suggestedSlideCount: ch.suggestedSlideCount,
+      })),
+    });
+
+    const visualSystemInput = serializeVisualSystemForBreakdown(outline.visualSystem);
+    const keptImagesInput = buildKeptImagesList(keptImageSrcs);
+    const firstSlideIdentityInput = outline.firstSlideIdentity
+      ? `firstSlideIdentity: "${outline.firstSlideIdentity}"`
+      : "firstSlideIdentity: (none — no specific identity to preserve)";
+
+    const { system, user } = composeMessages(
+      getFragment("system-prompt.md"),
+      getFragment("reimagine-breakdown-prompt.md"),
+      {
+        chapters: chaptersInput,
+        visualSystem: visualSystemInput,
+        keptImages: keptImagesInput,
+        firstSlideIdentity: firstSlideIdentityInput,
+      },
+    );
+
+    const reasoningEffort = this._useReasoning ? this._effort : "none";
+    const maxTokens = estimateMaxTokens(chaptersInput, "generate", {
+      modelMaxOutput: this._modelMaxOutput,
+      reasoningEffort,
+    });
+
+    const messages = [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ];
+
+    const textTokenEstimate = Math.ceil((system.length + user.length) / 4);
+    onLog?.(
+      `[Tokens] Breakdown request \u2014 estimated input: ~${textTokenEstimate.toLocaleString()} text. Output cap (estimated): ${maxTokens.toLocaleString()}.`,
+    );
+
+    const response = await this._provider.chat(
+      {
+        messages,
+        maxTokens,
+        responseFormat: null,
+        reasoning: buildReasoningBody(this._useReasoning, this._effort, this._effortSupported),
+      },
+      signal,
+    );
+
+    if (response.usage) {
+      const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+      onLog?.(
+        `[Tokens] Breakdown response \u2014 provider usage: ${prompt_tokens ?? "?"} prompt + ${completion_tokens ?? "?"} completion = ${total_tokens ?? "?"} total.`,
+      );
+    }
+
+    return this.#parseBreakdownResponse(response.content, outline, callbacks);
+  }
+
+  /**
+   * Parse the slide-breakdown JSON from an LLM response.
+   * Validates that the breakdown chapters match the outline chapters.
+   * @param {string} text
+   * @param {ReimagineOutline} outline
+   * @returns {{chapters: ReimagineBreakdownChapter[]}|null}
+   */
+  #parseBreakdownResponse(text, outline, callbacks = {}) {
+    if (!text || typeof text !== "string") return null;
+
+    let cleaned = text.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (fenceMatch) {
+      cleaned = fenceMatch[1].trim();
+    }
+
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("Breakdown response did not contain JSON");
+    }
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error("Breakdown response was not valid JSON");
+    }
+
+    if (!Array.isArray(parsed.chapters) || parsed.chapters.length === 0) {
+      throw new Error("Breakdown response missing 'chapters' array");
+    }
+
+    const rawChapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];
+    const { onLog } = callbacks || {};
+    if (rawChapters.length !== outline.chapters.length) {
+      onLog?.(
+        `Breakdown returned ${rawChapters.length} chapter(s), expected ${outline.chapters.length} — aligning to outline.`,
+        "warn",
+      );
+    }
+
+    const chapters = outline.chapters.map((outlineChapter, i) => {
+      const rawCh = rawChapters[i];
+      const ch =
+        typeof rawCh === "object" && rawCh !== null ? rawCh : { title: outlineChapter.title };
+      const title =
+        typeof ch.title === "string" && ch.title.trim() ? ch.title.trim() : outlineChapter.title;
+      const rawSlides = Array.isArray(ch.slides) ? ch.slides : [];
+      if (rawSlides.length === 0) {
+        onLog?.(
+          `Breakdown chapter "${title}" has no slides; synthesizing a placeholder from the chapter summary.`,
+          "warn",
+        );
+      }
+      const slides =
+        rawSlides.length > 0
+          ? rawSlides.map((s, _j) => {
+              if (typeof s !== "object" || s === null) {
+                return {
+                  title: title,
+                  intent: outlineChapter.summary || "",
+                  visualBeat: "continuation",
+                  energy: "medium",
+                  contrast: "moderate",
+                  relationship: "continue",
+                };
+              }
+              return {
+                title: typeof s.title === "string" ? s.title : title,
+                intent: typeof s.intent === "string" ? s.intent : outlineChapter.summary || "",
+                visualBeat: typeof s.visualBeat === "string" ? s.visualBeat : "continuation",
+                energy: typeof s.energy === "string" ? s.energy : "medium",
+                contrast: typeof s.contrast === "string" ? s.contrast : "moderate",
+                relationship: typeof s.relationship === "string" ? s.relationship : "continue",
+                ...(typeof s.imageQuery === "string" &&
+                s.imageQuery.trim() &&
+                s.imageQuery.trim().startsWith("reuse:")
+                  ? { imageQuery: s.imageQuery.trim() }
+                  : {}),
+              };
+            })
+          : [
+              {
+                title,
+                intent: outlineChapter.summary || "",
+                visualBeat: "continuation",
+                energy: "medium",
+                contrast: "moderate",
+                relationship: "continue",
+              },
+            ];
+      return { title, slides };
+    });
+
+    // Normalize beats across the entire deck (flatten, normalize, re-nest).
+    const allSlides = chapters.flatMap((ch) => ch.slides);
+    normalizeBeats(allSlides);
+
+    return { chapters };
   }
 
   /**
@@ -807,13 +1148,37 @@ export class RemixReimagineOrchestrator {
         errors.push(`${prefix}: source must not be empty for action "${entry.action}"`);
       }
 
+      const normalized = [];
       for (const idx of entry.source) {
-        if (typeof idx !== "number" || idx < 0 || idx >= sourceCount) {
+        if (typeof idx !== "number" || !Number.isInteger(idx) || idx < 0) {
+          errors.push(`${prefix}: source index ${idx} is not a valid non-negative integer`);
+        } else if (sourceCount === 0) {
+          errors.push(`${prefix}: source index ${idx} out of range (no source slides)`);
+        } else if (idx === sourceCount) {
+          // Treat an index exactly one past the last valid index as a 1-based
+          // off-by-one mistake: clamp to the last slide and continue. Larger
+          // out-of-range values are still rejected below.
+          normalized.push(sourceCount - 1);
+          coveredSources.add(sourceCount - 1);
+        } else if (idx > sourceCount) {
           errors.push(`${prefix}: source index ${idx} out of range (0-${sourceCount - 1})`);
         } else {
+          normalized.push(idx);
           coveredSources.add(idx);
         }
       }
+
+      // Detect duplicates within this entry (e.g. an off-by-one clamp that
+      // collapsed two distinct indices to the same slide). Duplicates in a
+      // merge would paste the same slide twice; in a keep/rewrite they are
+      // equally nonsensical.
+      const unique = new Set(normalized);
+      if (unique.size !== normalized.length) {
+        errors.push(
+          `${prefix}: source contains duplicate indices after normalization: [${normalized.join(", ")}]`,
+        );
+      }
+      entry.source = normalized;
 
       if ((entry.action === "rewrite" || entry.action === "keep") && entry.source.length !== 1) {
         errors.push(

@@ -17,8 +17,8 @@ function createManager(editor) {
   });
 }
 
-describe("GridResizerManager media-span intent", () => {
-  it("writes media-span intent when resizing a named media-span preset", () => {
+describe("GridResizerManager media-full-bleed intent", () => {
+  it("does not add media-full-bleed intent when resizing a named media-span preset without one", () => {
     const editor = {
       getValue: () => "layout: media-span-right\n\n@media\nImage",
       setValue: vi.fn(),
@@ -32,11 +32,26 @@ describe("GridResizerManager media-span intent", () => {
     );
 
     const [md] = editor.setValue.mock.calls[0];
-    expect(md).toContain("\nlayout: ");
-    expect(md).toContain("media-span: right");
+    expect(md).toContain("layout: ");
+    expect(md).not.toContain("media-full-bleed:");
+    expect(md).not.toContain("media-span:");
   });
 
-  it("preserves media-span intent across consecutive resizes of the custom grid", () => {
+  it("preserves media-full-bleed intent across consecutive resizes of the custom grid", () => {
+    const customSpec = '"header media" "main media" "footer media" / 1fr 1fr';
+    const editor = {
+      getValue: () => `layout: ${customSpec}\nmedia-full-bleed: true\n\n@media\nImage`,
+      setValue: vi.fn(),
+    };
+    const manager = createManager(editor);
+
+    manager._onGridResize({ cols: "0.8fr 1.2fr", rows: null }, MEDIA_SPAN_RIGHT_GRID, customSpec);
+
+    const [md] = editor.setValue.mock.calls[0];
+    expect(md).toContain("media-full-bleed: true");
+  });
+
+  it("migrates legacy media-span: right intent to media-full-bleed: true when resizing", () => {
     const customSpec = '"header media" "main media" "footer media" / 1fr 1fr';
     const editor = {
       getValue: () => `layout: ${customSpec}\nmedia-span: right\n\n@media\nImage`,
@@ -47,10 +62,11 @@ describe("GridResizerManager media-span intent", () => {
     manager._onGridResize({ cols: "0.8fr 1.2fr", rows: null }, MEDIA_SPAN_RIGHT_GRID, customSpec);
 
     const [md] = editor.setValue.mock.calls[0];
-    expect(md).toContain("media-span: right");
+    expect(md).toContain("media-full-bleed: true");
+    expect(md).not.toContain("media-span:");
   });
 
-  it("does not write media-span intent for non-media layouts", () => {
+  it("does not write media-full-bleed intent for non-media layouts", () => {
     const editor = {
       getValue: () => "layout: two-column\n\n@main\nContent\n\n@media\nImage",
       setValue: vi.fn(),
@@ -64,6 +80,7 @@ describe("GridResizerManager media-span intent", () => {
     );
 
     const [md] = editor.setValue.mock.calls[0];
+    expect(md).not.toContain("media-full-bleed:");
     expect(md).not.toContain("media-span:");
   });
 });

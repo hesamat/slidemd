@@ -11,6 +11,15 @@
  * slide renderer and editor expect, and serialises them back to the directive
  * form.  Keeping text blocks out of raw inline HTML keeps the source readable
  * for both humans and LLMs.
+ *
+ * Supported attributes (key=value or key="value", NOT key: value):
+ *   id, float, x, y, fontSize, color, backgroundColor (alias: background),
+ *   align (alias: textAlign), opacity, z, rotate, column-count (alias: columnCount),
+ *   markdown, bold, italic, underline, strikethrough
+ *
+ * Freeform CSS (style, padding, margin, etc.) is NOT supported — use the
+ * attributes above.  Unknown attributes are surfaced via `unknownAttrs` on
+ * parsed blocks so the AI validator can flag them.
  */
 
 import MarkdownIt from "markdown-it";
@@ -49,21 +58,125 @@ for (const ruleName of blockRules) {
 const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::\s*$/gim;
 
 /**
+ * Set of recognised text-block attribute names (after alias normalisation).
+ * Used to detect unknown attributes so the AI validator can flag them instead
+ * of silently dropping the intended styling.
+ */
+export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
+  "id",
+  "float",
+  "x",
+  "y",
+  "fontSize",
+  "color",
+  "backgroundColor",
+  "background",
+  "align",
+  "textAlign",
+  "opacity",
+  "z",
+  "rotate",
+  "column-count",
+  "columnCount",
+  "markdown",
+  "bold",
+  "italic",
+  "underline",
+  "strikethrough",
+]);
+
+/**
  * Parse a string of attribute tokens from a directive opening line.
- * Tokens are either `key=value` pairs (value optionally quoted) or bare flag
- * names such as `float` or `bold`, which resolve to "true".
+ * Top-level tokens are either `key=value` pairs (value optionally quoted) or
+ * bare flag names such as `float` or `bold`, which resolve to "true".
+ * Colon-style declarations (`key: value`) are unsupported: the key is recorded
+ * as unknown and the value is skipped so value fragments do not pollute the
+ * attribute list.
  * @param {string} attrString
- * @returns {Record<string, string>}
+ * @returns {{attrs: Record<string, string>, unknown: string[]}}
  */
 function parseAttributes(attrString) {
   const attrs = {};
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
-  let m;
-  while ((m = tokenRe.exec(attrString)) !== null) {
-    const key = m[1];
-    attrs[key] = m[2] ?? m[3] ?? "true";
+  const unknown = [];
+  const s = String(attrString ?? "").trim();
+
+  let i = 0;
+  const skipSpaces = () => {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  };
+  const readKey = () => {
+    skipSpaces();
+    if (i >= s.length || !/[a-zA-Z]/.test(s[i])) return null;
+    const start = i;
+    i++;
+    while (i < s.length && /[a-zA-Z0-9-]/.test(s[i])) i++;
+    return s.slice(start, i);
+  };
+  const readQuoted = () => {
+    let value = "";
+    i++; // opening quote
+    while (i < s.length && s[i] !== '"') {
+      value += s[i];
+      i++;
+    }
+    if (i < s.length) i++; // closing quote
+    return value;
+  };
+  const readUnquoted = () => {
+    let value = "";
+    while (i < s.length && !/\s/.test(s[i])) value += s[i++];
+    return value;
+  };
+
+  /**
+   * Skip a colon-style value. For quoted values, the quoted string is
+   * consumed and parsing continues. For unquoted values, the syntax is
+   * ambiguous (CSS property names like `background` collide with known
+   * text-block attribute names), so we skip to the end of the attribute
+   * string. This means subsequent valid `key=value` attributes after an
+   * unquoted colon-style value are not parsed — but colon-style is an
+   * error case flagged for repair, so losing them is acceptable.
+   */
+  const skipColonValue = () => {
+    skipSpaces();
+    if (i < s.length && s[i] === '"') {
+      readQuoted();
+      return;
+    }
+    // Skip to end of attribute string — unquoted colon-style values
+    // are ambiguous and unsupported.
+    i = s.length;
+  };
+
+  while (true) {
+    const key = readKey();
+    if (key === null) {
+      // Skip unexpected characters (e.g. commas between attributes) and
+      // continue parsing instead of breaking, so `{ bold, italic }` or
+      // `{ x=10, y=20 }` don't silently lose attributes after the separator.
+      if (i >= s.length) break;
+      i++;
+      continue;
+    }
+    skipSpaces();
+    if (i < s.length && s[i] === "=") {
+      i++;
+      skipSpaces();
+      const value = i < s.length && s[i] === '"' ? readQuoted() : readUnquoted();
+      attrs[key] = value;
+      if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);
+    } else if (i < s.length && s[i] === ":") {
+      // Colon-style is unsupported; record only the key and ignore the value.
+      unknown.push(key);
+      i++;
+      skipColonValue();
+    } else {
+      attrs[key] = "true";
+      if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);
+    }
   }
-  return attrs;
+
+  return { attrs, unknown };
 }
 
 /**
@@ -159,7 +272,10 @@ function buildStyleString(settings) {
   push("text-decoration", settings.textDecoration);
   if (settings.columnCount) {
     pushNum("column-count", settings.columnCount);
-  } else {
+  } else if (!settings.markdown) {
+    // Only apply pre-wrap for escaped plain-text mode.  Markdown-rendered
+    // blocks contain block-level HTML (<p>, <ul>, etc.) where pre-wrap
+    // would break normal flow.
     parts.push("white-space:pre-wrap");
   }
   return parts.join("; ");
@@ -167,6 +283,11 @@ function buildStyleString(settings) {
 
 /**
  * Render a text block as the HTML div the slide renderer and editor expect.
+ *
+ * Content is markdown-rendered when `columnCount` is set (multi-column flow)
+ * or when `markdown` is explicitly enabled.  Otherwise the content is escaped
+ * and shown as plain text with `white-space:pre-wrap` — this is the mode the
+ * editor's inline `contenteditable` editing relies on.
  * @param {object} settings
  * @param {string} content
  * @param {number} [sourceLine=0] - 0-indexed line of the directive within the area.
@@ -174,7 +295,8 @@ function buildStyleString(settings) {
  */
 export function buildTextBlockHtml(settings, content, sourceLine = 0) {
   const isColumn = Boolean(settings.columnCount);
-  const safeContent = isColumn
+  const renderMarkdown = isColumn || Boolean(settings.markdown);
+  const safeContent = renderMarkdown
     ? textBlockMd.render(content, { sourceLine })
     : escapeHtml(content).replace(/\n/g, "&#10;");
   const style = buildStyleString(settings);
@@ -182,6 +304,7 @@ export function buildTextBlockHtml(settings, content, sourceLine = 0) {
     "text-block",
     settings.float ? "text-block--float" : "",
     isColumn ? "text-block--multi-column" : "",
+    settings.markdown ? "text-block--markdown" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -215,6 +338,7 @@ export function buildTextBlockDirective(settings, content) {
     settings.zIndex ? `z=${settings.zIndex}` : "",
     settings.rotation ? `rotate=${settings.rotation}` : "",
     settings.columnCount ? `column-count=${Math.round(settings.columnCount)}` : "",
+    settings.markdown ? "markdown=true" : "",
     settings.fontWeight === "bold" || settings.fontWeight === "700" ? "bold=true" : "",
     settings.fontStyle === "italic" ? "italic=true" : "",
     settings.textDecoration?.includes("underline") ? "underline=true" : "",
@@ -223,7 +347,7 @@ export function buildTextBlockDirective(settings, content) {
     .filter(Boolean)
     .join(" ");
 
-  const open = attrs ? `::: text-block { ${attrs} }` : "::: text-block";
+  const open = attrs ? `::: text-block { ${attrs} }` : "::: text-block { }";
   const safeContent = content || "Text";
   return `${open}\n${safeContent}\n:::`;
 }
@@ -231,7 +355,7 @@ export function buildTextBlockDirective(settings, content) {
 /**
  * Parse all text-block directives in a markdown string.
  * @param {string} markdown
- * @returns {Array<{start:number,end:number,settings:object,content:string}>}
+ * @returns {Array<{start:number,end:number,settings:object,content:string,unknownAttrs:string[]}>}
  */
 export function parseTextBlockDirectives(markdown) {
   const results = [];
@@ -239,7 +363,7 @@ export function parseTextBlockDirectives(markdown) {
   // Reset lastIndex in case of repeated calls
   TEXT_BLOCK_RE.lastIndex = 0;
   while ((match = TEXT_BLOCK_RE.exec(markdown)) !== null) {
-    const attrs = parseAttributes(match[1]);
+    const { attrs, unknown } = parseAttributes(match[1]);
     const id = sanitizeId(attrs.id);
     const float = toBool(attrs.float);
     const left = toNum(attrs.x);
@@ -252,6 +376,7 @@ export function parseTextBlockDirectives(markdown) {
     const zIndex = toNum(attrs.z);
     const rotation = toNum(attrs.rotate);
     const columnCount = toNum(attrs.columnCount ?? attrs["column-count"]);
+    const markdownFlag = toBool(attrs.markdown);
     const fontWeight = toBool(attrs.bold) ? "bold" : "";
     const fontStyle = toBool(attrs.italic) ? "italic" : "";
     const decorations = [];
@@ -267,6 +392,7 @@ export function parseTextBlockDirectives(markdown) {
       start,
       end,
       content,
+      unknownAttrs: unknown,
       settings: {
         id,
         float,
@@ -280,6 +406,7 @@ export function parseTextBlockDirectives(markdown) {
         zIndex,
         rotation,
         columnCount,
+        markdown: markdownFlag,
         fontWeight,
         fontStyle,
         textDecoration,

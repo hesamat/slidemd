@@ -3,6 +3,8 @@
  * Modern toast notification system to replace native alerts
  */
 
+import { modalOpened, modalClosed } from "../core/modal-state.js";
+
 export class Notification {
   static container = null;
   static toastId = 0;
@@ -375,11 +377,15 @@ export class Notification {
     };
 
     let escapeHandler;
+    let dismissed = false;
     const cleanup = () => {
+      if (dismissed) return;
+      dismissed = true;
       backdrop.classList.add("notification-modal-backdrop--hide");
       setTimeout(() => {
         if (backdrop.parentNode) backdrop.remove();
       }, 200);
+      modalClosed();
       if (escapeHandler) {
         document.removeEventListener("keydown", escapeHandler);
         escapeHandler = null;
@@ -414,6 +420,7 @@ export class Notification {
     document.addEventListener("keydown", escapeHandler);
 
     this.getRootElement().appendChild(backdrop);
+    modalOpened();
 
     return {
       dismiss: cleanup,
@@ -456,14 +463,18 @@ export class Notification {
   ) {
     return new Promise((resolve) => {
       let backdrop;
+      let dismissed = false;
 
       const cleanup = () => {
+        if (dismissed) return;
+        dismissed = true;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => {
           if (backdrop.parentNode) {
             backdrop.remove();
           }
         }, 200);
+        modalClosed();
       };
 
       const handleCancel = async () => {
@@ -506,6 +517,7 @@ export class Notification {
       backdrop = bd;
 
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       requestAnimationFrame(() => primaryButton?.element?.focus());
@@ -736,6 +748,7 @@ export class Notification {
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => backdrop.remove(), 200);
         document.removeEventListener("keydown", keyHandler);
+        modalClosed();
         resolve({ ok, value });
       };
 
@@ -776,6 +789,7 @@ export class Notification {
       modal.appendChild(actions);
       backdrop.appendChild(modal);
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       // Document-scoped so Escape/Enter keep working even when a click
       // inside the dialog moved focus out of the modal (a keydown on body
@@ -812,6 +826,7 @@ export class Notification {
       });
 
       this.getRootElement().appendChild(backdrop);
+      modalOpened();
 
       const primaryButton = buttons.find((b) => b.isPrimary);
       const buttonToFocus =
@@ -821,13 +836,17 @@ export class Notification {
       requestAnimationFrame(() => buttonToFocus?.focus());
 
       let escapeHandler;
+      let dismissed = false;
       const cleanup = () => {
+        if (dismissed) return;
+        dismissed = true;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => {
           if (backdrop.parentNode) {
             backdrop.remove();
           }
         }, 200);
+        modalClosed();
         // Remove escape handler on any close
         if (escapeHandler) {
           document.removeEventListener("keydown", escapeHandler);

@@ -23,7 +23,7 @@ const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
  * @param {string} gridTemplateAreas
  * @returns {"left"|"right"|null}
  */
-export function getMediaSpanSideFromGrid(gridTemplateAreas) {
+export function getMediaFullBleedSideFromGrid(gridTemplateAreas) {
   const rows = String(gridTemplateAreas || "")
     .match(/"[^"]*"|'[^']*'/g)
     ?.map((row) => row.slice(1, -1).split(/\s+/).filter(Boolean));
@@ -204,15 +204,6 @@ export class LayoutData {
     const key = this._normalizeName(layoutName);
     if (!key) return null;
     return this.getCustomLayout(key) || LAYOUTS.layouts[key]?.gridTemplate || null;
-  }
-
-  /**
-   * Get the media-span edge for a named layout, if it has one.
-   * @param {string} layoutName
-   * @returns {"left"|"right"|null}
-   */
-  static getMediaSpanSide(layoutName) {
-    return getMediaSpanSideFromGrid(this.getGridTemplate(layoutName));
   }
 
   /**

@@ -256,6 +256,49 @@ describe("Notification", () => {
       await expect(promise).resolves.toBe(true);
       expect(onAction).toHaveBeenCalledTimes(1);
     });
+
+    it("does not decrement modal counter twice on double action click", async () => {
+      const { resetModalState, isModalOpen } = await import("../core/modal-state.js");
+      resetModalState();
+
+      const onAction = vi.fn();
+      const promise = Notification.critical("Processing...", { onAction });
+
+      const btn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (b) => b.textContent === "Continue",
+      );
+
+      // Click the button twice rapidly — second cleanup should be a no-op
+      btn?.click();
+      btn?.click();
+
+      await promise;
+      expect(isModalOpen()).toBe(false);
+    });
+  });
+
+  describe("showModal idempotent cleanup", () => {
+    it("does not decrement modal counter twice on double-click", async () => {
+      const { resetModalState, isModalOpen } = await import("../core/modal-state.js");
+      resetModalState();
+
+      const promise = Notification.showBlocking("Test", {
+        title: "Test",
+        buttons: [{ label: "OK", resolvesTo: true }],
+      });
+
+      const backdrop = document.querySelector(".notification-modal-backdrop");
+      const btn = document.querySelector(".notification-modal__actions button");
+
+      // Click the button (first cleanup)
+      btn?.click();
+      // Immediately click the backdrop (second cleanup — should be a no-op)
+      backdrop?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+      await promise;
+      // The modal counter should be 0 (not -1) — one open, one close
+      expect(isModalOpen()).toBe(false);
+    });
   });
 
   describe("prompt", () => {

@@ -10,6 +10,7 @@ import { MarkdownParser } from "../data/markdown-parser.js";
 import { AssetLoader } from "../core/asset-loader.js";
 import { SlideRenderer } from "../renderer/slide-renderer.js";
 import { Notification } from "../renderer/notification.js";
+import { resetModalState } from "../core/modal-state.js";
 import { UiActions } from "../ui/ui-actions.js";
 import { RoleManager } from "./role-manager.js";
 import { DeckImagesResolver } from "../editor/image/deck-images-resolver.js";
@@ -286,6 +287,10 @@ export class ReloadManager extends EventEmitter {
    * @returns {Promise<void>}
    */
   async replaceDeck(newDeck, { startAtFirstSlide = false, syncStore = true } = {}) {
+    // Reset any leaked modal state from a broken dismiss path so keyboard
+    // shortcuts are not permanently suppressed after a deck reload.
+    resetModalState();
+
     const preservedIndex = startAtFirstSlide
       ? 0
       : Math.min(this.slideNavigator.currentIndex, newDeck.slides.length - 1);

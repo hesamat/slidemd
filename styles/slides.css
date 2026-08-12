@@ -63,7 +63,7 @@
 .slide {
   position: absolute;
   inset: 0;
-  /* Slide container padding, as variables so full-bleed areas (media-span)
+  /* Slide container padding, as variables so full-bleed areas (media-full-bleed)
      can mirror them exactly. */
   --slide-pad-top: 105px;
   --slide-pad-right: 125px;
@@ -116,13 +116,6 @@ body:not([data-edit-mode="true"]):not([data-show-hidden="true"]) .slide--hidden:
 .slide.active {
   visibility: visible;
   display: grid;
-  animation: slideIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-/* Suppress the entrance animation during live edit-mode preview updates
-   to prevent the slide from flickering on every keystroke. */
-[data-edit-mode="true"] .slide.active {
-  animation: none;
 }
 
 /* Grid layout for multi-area slides */
@@ -790,9 +783,9 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-/* --- MEDIA-SPAN EDGE-TO-EDGE MEDIA --- */
+/* --- MEDIA-FULL-BLEED EDGE-TO-EDGE MEDIA --- */
 
-/* The media column of a media-span layout always bleeds to the slide edges
+/* The media column of a media-full-bleed layout always bleeds to the slide edges
    while the content column keeps the slide padding — the layout itself
    implies bleed, independent of the media area's content (image, mermaid,
    text, table). The negative margins mirror the --slide-pad-* variables
@@ -806,7 +799,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    would share the column with the label button and leave a gap at the top.
    Multiple images and other content keep flowing normally inside the
    bleeding column. */
-.slide[data-media-span="right"] .slide__area--media {
+.slide[data-media-full-bleed="right"] .slide__area--media {
   /* max-width: 100% (from .slide__area) is relative to the grid cell and
      would neutralize the negative right margin — drop it so the area can
      extend past the cell to the slide edge. */
@@ -817,7 +810,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
     calc(-1 * var(--slide-pad-bottom)) 0;
 }
 
-.slide[data-media-span="left"] .slide__area--media {
+.slide[data-media-full-bleed="left"] .slide__area--media {
   max-width: none;
   padding: 0;
   overflow: hidden;
@@ -827,7 +820,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 
 /* The image fills the area edge to edge; it is removed from the flex column
    so the editor's @media label button does not push it down. */
-.slide[data-media-span]
+.slide[data-media-full-bleed]
   .slide__area--media:has(
     > img:only-child,
     > button.editor-area-label + img:last-child,
@@ -839,8 +832,10 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   z-index: 2;
 }
 
-.slide[data-media-span] .slide__area--media:has(> img:only-child) > img:not([style*="position"]),
-.slide[data-media-span]
+.slide[data-media-full-bleed]
+  .slide__area--media:has(> img:only-child)
+  > img:not([style*="position"]),
+.slide[data-media-full-bleed]
   .slide__area--media:has(> button.editor-area-label + img:last-child)
   > img:not([style*="position"]) {
   /* Fill the media column: absolute insets plus forced width/height. The
@@ -852,13 +847,13 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   inset: 0;
   width: 100% !important;
   height: 100% !important;
-  object-fit: contain;
+  object-fit: cover;
   max-height: none;
   display: block;
 }
 
-.slide[data-media-span] .slide__area--media:has(> p:only-child > img:only-child) > p,
-.slide[data-media-span]
+.slide[data-media-full-bleed] .slide__area--media:has(> p:only-child > img:only-child) > p,
+.slide[data-media-full-bleed]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p {
   position: absolute;
@@ -866,17 +861,17 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   margin: 0;
 }
 
-.slide[data-media-span]
+.slide[data-media-full-bleed]
   .slide__area--media:has(> p:only-child > img:only-child)
   > p
   > img:not([style*="position"]),
-.slide[data-media-span]
+.slide[data-media-full-bleed]
   .slide__area--media:has(> button.editor-area-label + p:last-child > img:only-child)
   > p
   > img:not([style*="position"]) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   max-height: none;
   display: block;
 }
@@ -912,8 +907,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 .slide__area .mermaid .flowchartTitleText {
-  font-size: 24px !important;
+  font-size: 20px !important;
   font-weight: 600 !important;
+}
+
+/* Focus layout has limited vertical space; keep Mermaid diagrams inside the area. */
+.slide[data-layout="focus"] .slide__area--main .mermaid {
+  max-width: 90%;
+  max-height: 60%;
 }
 
 /* --- KATEX MATH --- */
@@ -1143,21 +1144,8 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
    7. Animation & Accessibility
    ========================================================================== */
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateZ(0);
-  }
-}
-
 /* Respect prefers-reduced-motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
-  .slide.active,
   .slide__area a,
   .slide__area button,
   .slide__area tbody tr {

@@ -1,7 +1,145 @@
-import { MarkdownParser } from "../markdown-parser.js";
+import { MarkdownParser, splitSlides } from "../markdown-parser.js";
 import { LayoutData } from "../layout-data.js";
 import { LayoutParser } from "../layout-parser.js";
+import { parseTextBlockDirectives } from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
+
+/**
+ * Base line budget for a content area that fills the entire slide. Derived
+ * areas scale down from this based on their fraction of the grid.
+ */
+const BASE_LINES_PER_SLIDE = 20;
+
+/**
+ * Multipliers applied by area type. Compact areas (header, footer, title)
+ * get a lower multiplier because they hold short labels, not body content.
+ * Media areas get a higher multiplier because image/mermaid markdown is
+ * verbose — a single image tag or diagram may span several lines.
+ */
+const AREA_TYPE_MULTIPLIERS = {
+  header: 0.15,
+  footer: 0.15,
+  title: 0.3,
+  media: 2.0,
+};
+
+/** Areas that are always compact regardless of grid size. */
+const COMPACT_AREAS = new Set(["header", "footer", "title"]);
+
+/** Cache of computed limits per layout spec, cleared on layout changes. */
+const limitsCache = new Map();
+
+/**
+ * Parse a CSS grid track list (columns or rows) into numeric fractions.
+ * - `1fr` / `2fr` → the fr value (1, 2)
+ * - `minmax(0, 1fr)` → 1
+ * - `auto` → 0.1 (compact, negligible for text capacity)
+ * - fixed sizes (`300px`, `0.08fr`) → parsed value or 0.3 for pure px
+ * @param {string} trackStr - e.g. "1fr 1fr" or "auto minmax(0, 1fr) auto"
+ * @returns {number[]}
+ */
+function parseTrackFractions(trackStr) {
+  // Split on whitespace but keep parenthesised groups (e.g. `minmax(0, 1fr)`)
+  // intact — a naive split breaks `minmax(0, 1fr)` into two tokens.
+  const tokens = trackStr.trim().match(/[^()\s]+\([^)]*\)|[^\s]+/g) || [];
+  return tokens.map((tok) => {
+    const frMatch = tok.match(/([\d.]+)fr$/);
+    if (frMatch) return Number(frMatch[1]);
+    if (tok === "auto") return 0.1;
+    const minmaxMatch = tok.match(/minmax\([^,]+,\s*([\d.]+)fr\)/);
+    if (minmaxMatch) return Number(minmaxMatch[1]);
+    // Fixed-size tracks (px, %, etc.) — treat as moderate but small.
+    return 0.3;
+  });
+}
+
+/**
+ * Build a map from area name → list of {col, row} cells from the
+ * grid-template-areas string.
+ * @param {string} gridTemplateAreas - e.g. '"header header" "main media"'
+ * @returns {Record<string, Array<{col: number, row: number}>>}
+ */
+function buildAreaCellMap(gridTemplateAreas) {
+  const rowMatches = gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  const areaCells = {};
+  for (let rowIdx = 0; rowIdx < rowMatches.length; rowIdx++) {
+    const cells = rowMatches[rowIdx].slice(1, -1).split(/\s+/).filter(Boolean);
+    for (let colIdx = 0; colIdx < cells.length; colIdx++) {
+      const name = cells[colIdx];
+      if (/^\.+$/.test(name)) continue;
+      if (!areaCells[name]) areaCells[name] = [];
+      areaCells[name].push({ col: colIdx, row: rowIdx });
+    }
+  }
+  return areaCells;
+}
+
+/**
+ * Compute per-area line limits from the layout's grid geometry.
+ *
+ * Instead of hardcoding a table of layout names → limits (which drifts when
+ * layouts are added or renamed), this derives limits from the grid template:
+ * each area's maxLines is proportional to its fraction of the total grid
+ * space, adjusted by area type. Special cases are detected structurally:
+ * - If the layout has no `main` area, main gets 0 (content shouldn't be there).
+ * - If the layout has a single area, it gets a low limit (full-bleed image).
+ *
+ * @param {string} layoutName - layout preset name or grid template string
+ * @returns {Record<string, {maxLines: number}>}
+ */
+function computeAreaLimits(layoutName) {
+  const cached = limitsCache.get(layoutName);
+  if (cached) return cached;
+
+  const gridTemplate = LayoutParser.resolvePreset(layoutName);
+  const parsed = LayoutParser.parse(gridTemplate);
+  const { gridTemplateAreas, gridTemplateColumns, gridTemplateRows, orderedAreas } = parsed;
+
+  // Single-area layout (e.g. full-image) — the area is for media, not text.
+  if (orderedAreas.length === 1) {
+    const limits = { [orderedAreas[0]]: { maxLines: 4 } };
+    limitsCache.set(layoutName, limits);
+    return limits;
+  }
+
+  const colFr = parseTrackFractions(gridTemplateColumns);
+  const rowFr = parseTrackFractions(gridTemplateRows);
+  const totalCol = colFr.reduce((s, f) => s + f, 0) || 1;
+  const totalRow = rowFr.reduce((s, f) => s + f, 0) || 1;
+
+  const areaCells = buildAreaCellMap(gridTemplateAreas);
+  const limits = {};
+
+  for (const areaName of orderedAreas) {
+    const cells = areaCells[areaName] || [];
+    if (cells.length === 0) continue;
+
+    // Sum the fraction of grid space this area occupies.
+    let fraction = 0;
+    for (const { col, row } of cells) {
+      fraction += (colFr[col] / totalCol) * (rowFr[row] / totalRow);
+    }
+
+    const multiplier = AREA_TYPE_MULTIPLIERS[areaName] ?? 1.0;
+    let maxLines = Math.round(BASE_LINES_PER_SLIDE * fraction * multiplier);
+
+    if (COMPACT_AREAS.has(areaName)) {
+      maxLines = Math.max(2, Math.min(6, maxLines));
+    } else {
+      maxLines = Math.max(1, Math.min(24, maxLines));
+    }
+
+    limits[areaName] = { maxLines };
+  }
+
+  // If the layout has no `main` area, content routed to @main is misplaced.
+  if (!limits.main) {
+    limits.main = { maxLines: 0 };
+  }
+
+  limitsCache.set(layoutName, limits);
+  return limits;
+}
 
 /**
  * Validates AI-generated Markdown against an output schema.
@@ -50,12 +188,15 @@ export class AiOutputValidator {
    * @param {string} intent
    * @param {object} [opts]
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
+   * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
+   *   (used by polish, which must preserve existing content rather than trim it)
    * @returns {ValidationResult}
    */
   validate(outputMarkdown, intent, opts = {}) {
     const schema = getSchema(intent);
     const errors = [];
     const warnings = [];
+    this._skipOverflow = !!opts.skipOverflow;
 
     let deckData;
     try {
@@ -110,6 +251,12 @@ export class AiOutputValidator {
       }
     }
 
+    // Split raw markdown into per-slide text for text-block directive checks.
+    // The parsed `slides` array has already converted text-block directives to
+    // HTML, so we re-split the raw input to inspect directive attributes.
+    const rawSlideTexts = splitSlides(outputMarkdown);
+    const inputRawSlideTexts = this._inputMarkdown ? splitSlides(this._inputMarkdown) : [];
+
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
 
@@ -142,8 +289,15 @@ export class AiOutputValidator {
         }
       }
 
+      // Check text-block directives for unknown attributes (e.g. `style:`,
+      // `padding`, `margin` — these are silently dropped by the parser).
+      const rawSlide = rawSlideTexts[i] || "";
+      const inputRawSlide = inputRawSlideTexts[i] || "";
+      this._checkTextBlockAttributes(rawSlide, inputRawSlide, i, errors, intent);
+
       if (schema.checkContentRules) {
-        this._checkContentRules(slide, i, errors, warnings);
+        const rawSlide = rawSlideTexts[i] || "";
+        this._checkContentRules(slide, rawSlide, i, errors, warnings, intent);
       }
 
       // Intent-specific constraints (compare against input slide)
@@ -260,11 +414,69 @@ export class AiOutputValidator {
   }
 
   /**
+   * Check text-block directives for unknown attributes.  The text-block parser
+   * silently drops attributes it doesn't recognise (e.g. `style:`, `padding`,
+   * `margin`), which means the AI can produce a directive that looks correct but
+   * renders with none of the intended styling.  For generate intents this is a
+   * hard error; for preserve-oriented intents (fix/polish/etc.) only unknown
+   * attributes that were not already present in the input are flagged, so the
+   * model can obey the "preserve existing text-block blocks" instruction.
+   * @param {string} rawSlide - raw slide markdown (before text-block conversion)
+   * @param {string} inputRawSlide - raw input slide markdown for comparison
+   * @param {number} index - 0-based slide index
+   * @param {ValidationError[]} errors
+   * @param {string} intent
+   */
+  _checkTextBlockAttributes(rawSlide, inputRawSlide, index, errors, intent) {
+    const blocks = parseTextBlockDirectives(rawSlide);
+    const inputBlocks = parseTextBlockDirectives(inputRawSlide);
+    const inputUnknownSet = new Set(inputBlocks.flatMap((b) => b.unknownAttrs || []));
+    const isPreserve = intent !== "generate";
+
+    for (const block of blocks) {
+      const unknownAttrs = block.unknownAttrs || [];
+      if (unknownAttrs.length === 0) continue;
+
+      const newUnknowns = isPreserve
+        ? unknownAttrs.filter((a) => !inputUnknownSet.has(a))
+        : unknownAttrs;
+      if (newUnknowns.length > 0) {
+        errors.push({
+          slide: index,
+          code: "UNKNOWN_TEXT_BLOCK_ATTR",
+          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
+        });
+      }
+    }
+    // Detect malformed text-block directives: the opening line must use
+    // braces around attributes (::: text-block { ... }). Without braces the
+    // directive is silently not parsed and passes through as raw text.
+    const malformedRe = /^:::\s*text-block(?:[ \t]+([^\n]*?))?[ \t]*$/gim;
+    let match;
+    let hasMalformed = false;
+    while ((match = malformedRe.exec(rawSlide)) !== null) {
+      const rest = (match[1] || "").trim();
+      if (rest && !rest.startsWith("{")) {
+        hasMalformed = true;
+        break;
+      }
+    }
+    if (hasMalformed) {
+      errors.push({
+        slide: index,
+        code: "MALFORMED_TEXT_BLOCK",
+        message: `Slide ${index + 1} has a text-block directive without braces. Use ::: text-block { ... } with attributes inside { }.`,
+      });
+    }
+  }
+
+  /**
    * Per-slide content rules (#150):
    * - header-default-h1: if a slide has a header area, its first heading should be h1 (warning, not error)
    * - no-header-on-multi-image: if a slide has >1 image, layout must not be header-content (error)
+   * - content volume: detect slides that are likely to overflow their layout areas
    */
-  _checkContentRules(slide, index, errors, warnings) {
+  _checkContentRules(slide, rawSlide, index, errors, warnings, intent) {
     // header-default-h1
     const headerHtml = (slide.areas && slide.areas.header) || "";
     const firstHeading = headerHtml.match(/<h([1-6])\b[^>]*>/i);
@@ -293,6 +505,151 @@ export class AiOutputValidator {
         message: `Slide ${index + 1} has ${imgCount} images but uses header-content (use media-span-left, media-span-right, two-column, or full-image instead)`,
       });
     }
+
+    // content volume / likely overflow
+    // Only enforce for the generate intent — fix/enhance are conservative
+    // modes whose purpose is to preserve the user's existing content, so
+    // flagging an already-dense slide as overflow would pressure the AI to
+    // delete content the user asked it to keep. Polish also uses the
+    // generate validation path but sets skipOverflow because it must
+    // preserve the same slide count and content.
+    if (intent === "generate" && !this._skipOverflow) {
+      this._checkContentVolume(slide, rawSlide, index, errors);
+    }
+  }
+
+  /**
+   * Detect slide content that is likely to overflow its layout areas based on
+   * per-area line/bullet/code/table limits. These are conservative heuristics
+   * meant to catch overflows before rendering, not exact pixel checks.
+   * @param {object} slide - parsed slide
+   * @param {string} rawSlide - raw markdown for the slide
+   * @param {number} index - 0-based slide index
+   * @param {ValidationError[]} errors
+   */
+  _checkContentVolume(slide, rawSlide, index, errors) {
+    const layout = slide.layout || "default";
+    const limits = computeAreaLimits(layout);
+    const areaContents = this._extractAreaContents(rawSlide);
+
+    for (const [areaName, content] of Object.entries(areaContents)) {
+      const areaLimits = limits[areaName];
+      if (!areaLimits) continue;
+
+      const metrics = this._measureAreaContent(content);
+
+      if (areaLimits.maxLines != null && metrics.lineCount > areaLimits.maxLines) {
+        errors.push({
+          slide: index,
+          code: "SLIDE_CONTENT_OVERFLOW",
+          message: `Slide ${index + 1} @${areaName} has too much content (${metrics.lineCount} lines, max ${areaLimits.maxLines}). Trim to one key idea, move detail to speaker notes, or split into multiple slides.`,
+        });
+      }
+    }
+  }
+
+  /**
+   * Split raw slide markdown into content keyed by @area marker.
+   * @param {string} rawSlide
+   * @returns {Record<string, string>}
+   */
+  _extractAreaContents(rawSlide) {
+    const areas = {};
+    const lines = rawSlide.split("\n");
+    // Per the parser contract, content before the first @area marker flows
+    // into @main. Start there so it is measured.
+    let currentArea = "main";
+    const buffer = [];
+
+    const flush = () => {
+      const text = buffer.join("\n").trim();
+      if (text) {
+        areas[currentArea] = areas[currentArea] ? `${areas[currentArea]}\n${text}` : text;
+      }
+      buffer.length = 0;
+    };
+
+    for (const line of lines) {
+      const markerMatch = line.trim().match(/^@([a-zA-Z0-9_-]+)$/);
+      if (markerMatch) {
+        flush();
+        currentArea = markerMatch[1];
+      } else {
+        buffer.push(line);
+      }
+    }
+    flush();
+    return areas;
+  }
+
+  /**
+   * Count visible content lines, bullets, code lines, and table rows in an
+   * area's raw markdown.
+   * @param {string} content
+   * @returns {{lineCount: number, bulletCount: number, codeLineCount: number, tableRowCount: number}}
+   */
+  _measureAreaContent(content) {
+    const lines = content.split("\n");
+    let lineCount = 0;
+    let bulletCount = 0;
+    let codeLineCount = 0;
+    let tableRowCount = 0;
+    let inCode = false;
+    let inComment = false;
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (line.length === 0) continue;
+
+      // Track multi-line HTML comments (<!-- notes: ... --> spanning lines)
+      if (inComment) {
+        if (line.includes("-->")) inComment = false;
+        continue;
+      }
+      if (line.startsWith("<!--")) {
+        if (!line.includes("-->")) inComment = true;
+        continue;
+      }
+
+      if (line === ":::" || /^:::\s+/.test(line)) continue; // text-block directive markers
+      if (
+        /^(layout|theme|background|media-full-bleed|media-span|hidden|code-font-size|align|area-style(?:-[a-zA-Z0-9_-]+)?)\s*:/i.test(
+          line,
+        )
+      ) {
+        continue;
+      }
+
+      if (line.startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+
+      if (inCode) {
+        codeLineCount++;
+        lineCount++;
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+        bulletCount++;
+        lineCount++;
+        continue;
+      }
+
+      // Table rows: must contain a pipe and have content on both sides.
+      // Skip separator-only rows (|---|---|) — they carry no content.
+      if (line.includes("|") && !line.startsWith("\\")) {
+        if (/^\|?[\s-]*-{2,}[\s|:-]*$/.test(line)) continue; // separator row
+        tableRowCount++;
+        lineCount++;
+        continue;
+      }
+
+      lineCount++;
+    }
+
+    return { lineCount, bulletCount, codeLineCount, tableRowCount };
   }
 }
 

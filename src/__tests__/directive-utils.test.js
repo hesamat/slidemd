@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   updateLayoutDirective,
-  updateMediaSpanDirective,
+  updateMediaFullBleedDirective,
   updateBackgroundDirective,
   updateThemeDirective,
   updateAreaStyleDirective,
@@ -12,6 +12,7 @@ import {
   parseSingleColumnLayout,
   makeAreaFullHeight,
   areaSpansAllRows,
+  readMediaFullBleedDirective,
 } from "../editor/core/directive-utils.js";
 
 describe("removeAreaFromLayout", () => {
@@ -265,9 +266,28 @@ describe("updateLayoutDirective", () => {
     expect(result).toContain("media-span: right");
   });
 
-  it("writes media-span intent for resized layouts", () => {
-    const result = updateMediaSpanDirective("layout: custom\n# Title", "left");
-    expect(result).toMatch(/^media-span: left\nlayout: custom\n/);
+  it("writes media-full-bleed: true when enabled", () => {
+    const result = updateMediaFullBleedDirective("layout: custom\n# Title", true);
+    expect(result).toMatch(/^media-full-bleed: true\nlayout: custom\n/);
+  });
+
+  it("removes the media-full-bleed directive when disabled", () => {
+    const result = updateMediaFullBleedDirective(
+      "media-full-bleed: true\nlayout: custom\n# Title",
+      false,
+    );
+    expect(result).not.toContain("media-full-bleed:");
+  });
+
+  it("readMediaFullBleedDirective accepts yes/1/on in addition to true", () => {
+    expect(readMediaFullBleedDirective("media-full-bleed: yes\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: 1\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: on\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: true\n# Title")).toBe(true);
+    expect(readMediaFullBleedDirective("media-full-bleed: false\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("media-full-bleed: no\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("media-full-bleed: 0\n# Title")).toBe(false);
+    expect(readMediaFullBleedDirective("# Title")).toBe(false);
   });
 });
 

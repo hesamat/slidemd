@@ -5,12 +5,11 @@
  * Extracted from EditController.
  */
 import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData } from "../../data/layout-data.js";
 import { attachGridResizer, buildLayoutSpec } from "./grid-resizer.js";
 import {
   updateLayoutDirective,
-  updateMediaSpanDirective,
-  readMediaSpanDirective,
+  updateMediaFullBleedDirective,
+  readMediaFullBleedDirective,
 } from "../core/directive-utils.js";
 
 export class GridResizerManager {
@@ -62,7 +61,7 @@ export class GridResizerManager {
       slideEl,
       layoutInfo,
       this._deckStage,
-      (change) => this._onGridResize(change, layoutInfo, layoutSpec),
+      (change) => this._onGridResize(change, layoutInfo),
       layoutSpec,
     );
 
@@ -93,7 +92,7 @@ export class GridResizerManager {
     btn.classList.toggle("active", this._gridResizerVisible);
   }
 
-  _onGridResize(change, layoutInfo, layoutSpec) {
+  _onGridResize(change, layoutInfo) {
     if (!this.markdownEditor) return;
     const markdown = this.markdownEditor.getValue();
     let newSpec;
@@ -104,17 +103,13 @@ export class GridResizerManager {
     }
     // A resized media-span preset becomes a custom grid spec, so on later
     // resizes the original layout name is gone. Preserve the intent from an
-    // already-written media-span directive (previous resize) or derive it
+    // already-written media-full-bleed directive (previous resize) or derive it
     // from the named preset being resized; updateLayoutDirective strips the
     // directive, so it must be re-added here or the bleed would be lost.
-    const existingSide = readMediaSpanDirective(markdown);
-    const namedSide = LayoutData.isBuiltIn(layoutSpec)
-      ? LayoutData.getMediaSpanSide(layoutSpec)
-      : null;
-    const mediaSpanSide = existingSide || namedSide;
+    const existingFullBleed = readMediaFullBleedDirective(markdown);
     let newMarkdown = updateLayoutDirective(markdown, newSpec);
-    if (mediaSpanSide) {
-      newMarkdown = updateMediaSpanDirective(newMarkdown, mediaSpanSide);
+    if (existingFullBleed) {
+      newMarkdown = updateMediaFullBleedDirective(newMarkdown, true);
     }
     this.markdownEditor.setValue(newMarkdown, { suppressOnChange: false });
   }

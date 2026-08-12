@@ -16,6 +16,8 @@ import {
   getFragment,
   hasVariant,
   stripFrontmatter,
+  buildVisualSystemBrief,
+  buildVisualStylingNote,
 } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
 import { getIntentUserFragment } from "./ai-intent-registry.js";
@@ -35,6 +37,10 @@ export {
  * @param {string} [opts.mode] — "polish" | "remix" | "reimagine"
  * @param {boolean} [opts.addSpeakerNotes]
  * @param {boolean} [opts.preserveVisualIdentity]
+ * @param {import("./visual-system-schema.js").VisualSystem|null} [opts.visualSystem]
+ *   When present, a visual system brief + beat→treatment mapping is appended,
+ *   overriding the generate prompt's generic "Pick ONE coherent visual theme"
+ *   instruction with specific design-language guidance.
  * @returns {string}
  */
 export function buildGenerateOptionsSuffix(opts = {}) {
@@ -60,6 +66,9 @@ export function buildGenerateOptionsSuffix(opts = {}) {
   } else if (opts.preserveVisualIdentity === false) {
     parts.push(`\n${extractVariant(visualIdentityGuidance, "discard")}`);
   }
+  if (opts.visualSystem) {
+    parts.push(buildVisualSystemBrief(opts.visualSystem));
+  }
   return parts.join("");
 }
 
@@ -73,15 +82,22 @@ export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
   const fragment =
     mode === "fix" ? getFragment("fix-prompt.md") : getFragment("generate-prompt.md");
-  return composeMessages(getFragment("system-prompt.md"), fragment, { markdown: cleaned });
+  const substitutions = { markdown: cleaned };
+  if (mode !== "fix") {
+    substitutions.visualStylingNote = buildVisualStylingNote(false);
+  }
+  return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
 }
 
 /**
  * Generate a lightweight deck summary for batch context.
  * @param {string} markdown - The original markdown.
+ * @param {boolean} [includeFirstSlide=false] - When true, appends the full raw
+ *   text of the first slide so the reimagine outline prompt can extract
+ *   identifying information for the first slide's footer.
  * @returns {string}
  */
-export function buildDeckSummary(markdown) {
+export function buildDeckSummary(markdown, includeFirstSlide = false) {
   // Fence-aware split so `---` inside code blocks doesn't create phantom
   // slides and misalign the outline (same fix as buildBatchMessages /
   // extractDirectives / injectDirectives).
@@ -113,6 +129,12 @@ export function buildDeckSummary(markdown) {
   if (hasDiagrams) features.push("diagrams");
   if (hasImages) features.push("images");
   if (features.length) parts.push(`Features: ${features.join(", ")}.`);
+  // Include the full text of the first slide so the outline AI can preserve
+  // identifying information (course code, week number, author, event name)
+  // that may live in the footer or body rather than the title heading.
+  if (includeFirstSlide && slides.length > 0) {
+    parts.push("First slide (preserve its identifying info):", slides[0].trim());
+  }
   parts.push("Outline:", titles.join("\n"));
   return parts.join("\n");
 }
@@ -139,6 +161,7 @@ export function buildBatchMessages(
   totalSlides,
   deckSummary,
   batchMode,
+  hasVisualSystem = false,
 ) {
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
@@ -174,13 +197,22 @@ export function buildBatchMessages(
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
   // prompt fragment. The fragment selection is owned by the intent registry.
+  const isGenerateFragment = mode !== "fix" && batchMode !== "polish";
   const fragment =
     mode === "fix"
       ? getFragment(getIntentUserFragment("enhanceSlide"))
       : getFragment(getIntentUserFragment(batchMode === "polish" ? "polish" : "generate"));
-  const { system, user } = composeMessages(getFragment("system-prompt.md"), fragment, {
-    markdown: contentForPrompt,
-  });
+  const substitutions = { markdown: contentForPrompt };
+  // Only provide visualStylingNote for the generate fragment (which has the
+  // {{visualStylingNote}} placeholder).
+  if (isGenerateFragment) {
+    substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
+  }
+  const { system, user } = composeMessages(
+    getFragment("system-prompt.md"),
+    fragment,
+    substitutions,
+  );
 
   const pagination = getFragment("batch-pagination.md");
   const paginationVariant = mode === "fix" ? "fix" : "generate";

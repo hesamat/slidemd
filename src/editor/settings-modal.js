@@ -14,12 +14,13 @@
 // SettingsModal no longer supports OpenCode due to CORS and endpoint issues.
 
 import { validateAiBaseUrl, KEY_REQUIRED_PROVIDERS } from "../data/ai/ai-provider-client.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const STORAGE_KEY_BASE_URL = "webdeck_ai_base_url";
 const STORAGE_KEY_BASE_OVERRIDE = "webdeck_ai_base_override";
 const STORAGE_KEY_PROVIDER = "webdeck_ai_provider";
 const REMEMBER_KEY = "webdeck_openrouter_remember";
-const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-latest";
+const DEFAULT_MODEL = "~deepseek/deepseek-v4-flash-latest";
 const DEFAULT_EFFORT = "high";
 const DEFAULT_PROVIDER = "OpenRouter";
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -259,6 +260,7 @@ export class SettingsModal {
       document.body.style.overflow = "";
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
+      modalClosed();
     }
   }
 
@@ -283,12 +285,9 @@ export class SettingsModal {
       const backdrop = this.#createDom();
       document.body.appendChild(backdrop);
       this._currentBackdrop = backdrop;
+      modalOpened();
 
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      const restoreScroll = () => {
-        document.body.style.overflow = prevOverflow;
-      };
 
       const dialog = backdrop.querySelector(`.${P}dialog`);
       const errorEl = backdrop.querySelector(`.${P}error`);
@@ -786,9 +785,7 @@ export class SettingsModal {
         }
 
         cleanup();
-        restoreScroll();
-        backdrop.remove();
-        this._currentBackdrop = null;
+        SettingsModal.close();
         resolve({
           apiKey,
           model: selectedModel,
@@ -806,18 +803,14 @@ export class SettingsModal {
 
       cancelBtn.addEventListener("click", () => {
         cleanup();
-        restoreScroll();
-        backdrop.remove();
-        this._currentBackdrop = null;
+        SettingsModal.close();
         resolve(null);
       });
 
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) {
           cleanup();
-          restoreScroll();
-          backdrop.remove();
-          this._currentBackdrop = null;
+          SettingsModal.close();
           resolve(null);
         }
       });

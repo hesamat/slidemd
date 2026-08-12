@@ -8,7 +8,7 @@
 import { safeString, escapeHtml, DESIGN_SIZE, splitCssDeclarations } from "../core/utils.js";
 import { LayoutParser } from "../data/layout-parser.js";
 import { DeckLoader } from "../data/deck-loader.js";
-import { LayoutData, getMediaSpanSideFromGrid } from "../data/layout-data.js";
+import { LayoutData, getMediaFullBleedSideFromGrid } from "../data/layout-data.js";
 import createDOMPurify from "dompurify";
 import { Logger } from "../core/logger.js";
 
@@ -209,12 +209,8 @@ export class SlideRenderer {
 
     // Apply --code-font-size CSS variable from slide directive or layout definition
     const layoutKey = safeString(slide?.layout)?.trim().toLowerCase();
-    const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const declaredMediaSide = safeString(slide?.mediaSpan).toLowerCase();
-    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
-      ? LayoutData.getMediaSpanSide(layoutKey)
-      : null;
-    const mediaSpanSide = declaredMediaSide || namedMediaSide;
+    const geometryMediaSide = getMediaFullBleedSideFromGrid(layout.gridTemplateAreas);
+    const mediaFullBleed = Boolean(slide?.mediaFullBleed);
 
     let layoutStyleKey = layoutKey;
     let dataLayout = layoutKey;
@@ -232,8 +228,8 @@ export class SlideRenderer {
     if (dataLayout) {
       wrapper.setAttribute("data-layout", dataLayout);
     }
-    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
-      wrapper.setAttribute("data-media-span", geometryMediaSide);
+    if (geometryMediaSide && mediaFullBleed) {
+      wrapper.setAttribute("data-media-full-bleed", geometryMediaSide);
     }
 
     grid.style.gridTemplateAreas = layout.gridTemplateAreas;
@@ -314,7 +310,7 @@ export class SlideRenderer {
       // Full-height areas meet the slide edge on their border side. This
       // applies to both named media-span layouts and custom grids created by
       // the Span all rows action; media bleed itself remains intent-gated by
-      // data-media-span above.
+      // data-media-full-bleed above.
       if (fullHeightAreas.has(name)) {
         const colIdx = allRowCells[0].indexOf(name);
         if (colIdx === 0) area.style.paddingLeft = "0";

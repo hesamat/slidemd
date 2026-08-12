@@ -8,6 +8,7 @@
 import { PptxExtractor } from "../data/pptx-extractor.js";
 import { convertToSlideMd } from "../data/pptx-to-slide-md.js";
 import { Logger } from "../core/logger.js";
+import { modalOpened, modalClosed } from "../core/modal-state.js";
 
 const P = "conversion-modal__";
 const STORAGE_KEY = "webdeck_import_defaults";
@@ -31,6 +32,7 @@ export class ConversionModal {
       document.body.style.overflow = "";
       this._currentBackdrop.remove();
       this._currentBackdrop = null;
+      modalClosed();
     }
   }
 
@@ -44,13 +46,10 @@ export class ConversionModal {
       const backdrop = this.#createDom();
       document.body.appendChild(backdrop);
       this._currentBackdrop = backdrop;
+      modalOpened();
 
       // Prevent background scroll while modal is open
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      const restoreScroll = () => {
-        document.body.style.overflow = prevOverflow;
-      };
 
       let selectedFile = null;
       let extractionResult = null;
@@ -330,8 +329,7 @@ export class ConversionModal {
           }
           finalMarkdown = mdLines.join("\n");
         }
-        restoreScroll();
-        backdrop.remove();
+        ConversionModal.close();
         // Always return images so background images can be uploaded and their
         // file references in the markdown can be rewritten to server paths.
         // When not importing content images, only background images are referenced
@@ -345,8 +343,7 @@ export class ConversionModal {
       });
       // Cancel
       cancelBtn.addEventListener("click", () => {
-        restoreScroll();
-        backdrop.remove();
+        ConversionModal.close();
         resolve(null);
       });
 
@@ -358,8 +355,7 @@ export class ConversionModal {
       });
       backdrop.addEventListener("click", (e) => {
         if (backdropMouseDown && e.target === backdrop) {
-          restoreScroll();
-          backdrop.remove();
+          ConversionModal.close();
           resolve(null);
         }
         backdropMouseDown = false;

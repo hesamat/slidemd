@@ -13,13 +13,22 @@ export class AreaContextMenu {
    * @param {(areaName: string) => void} opts.onMakeFullHeight
    * @param {(areaName: string, align: string) => void} opts.onAlignMain
    * @param {(areaName: string, color: string) => void} opts.onSetBackground
+   * @param {(areaName: string) => void} opts.onToggleFullBleed
    */
-  constructor({ onDeleteArea, onSwapArea, onMakeFullHeight, onAlignMain, onSetBackground }) {
+  constructor({
+    onDeleteArea,
+    onSwapArea,
+    onMakeFullHeight,
+    onAlignMain,
+    onSetBackground,
+    onToggleFullBleed,
+  }) {
     this._onDeleteArea = onDeleteArea;
     this._onSwapArea = onSwapArea;
     this._onMakeFullHeight = onMakeFullHeight;
     this._onAlignMain = onAlignMain;
     this._onSetBackground = onSetBackground;
+    this._onToggleFullBleed = onToggleFullBleed;
     this._menuEl = null;
     this._colorInput = null;
     this._abortController = null;
@@ -49,9 +58,11 @@ export class AreaContextMenu {
    * @param {object} [opts]
    * @param {boolean} [opts.canDelete=true]
    * @param {boolean} [opts.canSwap=false]  — show swap option
-   * @param {boolean} [opts.canMakeFullHeight=false]  — show "Span all rows" option
+   * @param {boolean} [opts.canMakeFullHeight=false]  — show "Make column full height" option
    * @param {boolean} [opts.canAlignMain=false]  — show main alignment options
    * @param {boolean} [opts.canSetBackground=false]  — show background color picker
+   * @param {boolean} [opts.canFullBleed=false]  — show the media full-bleed toggle
+   * @param {string} [opts.fullBleedLabel]  — label for the full-bleed item
    * @param {string} [opts.currentColor]  — seed value for the colour picker (#rrggbb)
    * @param {boolean} [opts.hasBackground]  — whether the area already has a background
    * @param {string} [opts.activeAlign]  — currently active alignment for main
@@ -64,8 +75,18 @@ export class AreaContextMenu {
     const canMakeFullHeight = opts.canMakeFullHeight === true;
     const canAlignMain = opts.canAlignMain === true;
     const canSetBackground = opts.canSetBackground === true;
+    const canFullBleed = opts.canFullBleed === true;
+    const fullBleedLabel = opts.fullBleedLabel || "";
     const activeAlign = opts.activeAlign;
-    if (!canDelete && !canSwap && !canMakeFullHeight && !canAlignMain && !canSetBackground) return;
+    if (
+      !canDelete &&
+      !canSwap &&
+      !canMakeFullHeight &&
+      !canAlignMain &&
+      !canSetBackground &&
+      !canFullBleed
+    )
+      return;
 
     const menu = document.createElement("div");
     menu.className = "area-context-menu";
@@ -120,11 +141,25 @@ export class AreaContextMenu {
       btn.type = "button";
       btn.className = "area-context-menu__item";
       btn.setAttribute("role", "menuitem");
-      btn.innerHTML = `<span class="area-context-menu__label">Span all rows</span>`;
+      btn.innerHTML = `<span class="area-context-menu__label">Make column full height</span>`;
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.close();
         this._onMakeFullHeight?.(areaName);
+      });
+      menu.appendChild(btn);
+    }
+
+    if (canFullBleed && fullBleedLabel) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-context-menu__item";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = `<span class="area-context-menu__label">${fullBleedLabel}</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.close();
+        this._onToggleFullBleed?.(areaName);
       });
       menu.appendChild(btn);
     }

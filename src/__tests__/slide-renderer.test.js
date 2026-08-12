@@ -71,7 +71,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "resized-media",
       layout: '"main media" "main media" / 3fr 2fr',
-      mediaSpan: "right",
+      mediaFullBleed: true,
       areas: {
         main: "<p>Body</p>",
         media: '<img src="images/photo.png" alt="Photo" />',
@@ -80,7 +80,7 @@ describe("SlideRenderer", () => {
     const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
     const area = el.querySelector('.slide__area[data-area-name="media"]');
 
-    expect(el.dataset.mediaSpan).toBe("right");
+    expect(el.dataset.mediaFullBleed).toBe("right");
     expect(area.style.paddingRight).toBe("0px");
   });
 
@@ -93,7 +93,7 @@ describe("SlideRenderer", () => {
     const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
     const area = el.querySelector('.slide__area[data-area-name="sidebar"]');
 
-    expect(el.dataset.mediaSpan).toBeUndefined();
+    expect(el.dataset.mediaFullBleed).toBeUndefined();
     expect(area.style.paddingRight).toBe("0px");
   });
 
@@ -101,6 +101,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "media-span-left-footer",
       layout: "media-span-left",
+      mediaFullBleed: true,
       areas: {
         media: '<img src="images/photo.png" alt="Photo" />',
         main: "<p>Body</p>",
@@ -110,7 +111,7 @@ describe("SlideRenderer", () => {
     const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
     const footer = el.querySelector('.slide__area[data-area-name="footer"]');
 
-    expect(el.dataset.mediaSpan).toBe("left");
+    expect(el.dataset.mediaFullBleed).toBe("left");
     expect(footer.style.gridColumn).toBe("");
   });
 
@@ -120,7 +121,7 @@ describe("SlideRenderer", () => {
     const slide = {
       id: "inert-intent",
       layout: "two-column",
-      mediaSpan: "right",
+      mediaFullBleed: true,
       areas: {
         main: "<p>Body</p>",
         media: "<p>Media</p>",
@@ -128,7 +129,7 @@ describe("SlideRenderer", () => {
     };
     const el = SlideRenderer.createSlideElement({ slides: [slide] }, slide, 0, true);
 
-    expect(el.dataset.mediaSpan).toBeUndefined();
+    expect(el.dataset.mediaFullBleed).toBeUndefined();
   });
 
   it("sets data-layout to focus for the built-in focus preset", () => {

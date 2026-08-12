@@ -386,7 +386,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(planUser).toContain("Preserve the deck's core message");
-      expect(planUser).toContain("Preserve the original theme");
+      expect(planUser).toContain("strip out the original color theme");
       expect(planUser).toContain("valid source indices are 0 through 1");
     });
 
@@ -398,6 +398,20 @@ describe("AiOrchestrator", () => {
             title: "The problem",
             flowTag: "problem",
             summary: "Why current approaches fail.",
+            suggestedSlideCount: 2,
+          },
+          {
+            title: "The approach",
+            flowTag: "solution",
+            summary: "The proposed solution.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "The problem",
             slides: [
               { title: "Hook", intent: "Open with a surprising statistic." },
               { title: "Stakes", intent: "What we lose by ignoring this." },
@@ -405,8 +419,6 @@ describe("AiOrchestrator", () => {
           },
           {
             title: "The approach",
-            flowTag: "solution",
-            summary: "The proposed solution.",
             slides: [{ title: "Approach", intent: "Introduce the solution." }],
           },
         ],
@@ -418,7 +430,12 @@ describe("AiOrchestrator", () => {
           { layout: "header-content", content: "@header\n## Approach\n\n@main\n- The solution" },
         ],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const result = await orchestrator.runWholeDeckOperation(op);
@@ -431,8 +448,8 @@ describe("AiOrchestrator", () => {
       expect(outlineUser).toContain("rethink the topic, examples, notes, and visuals");
       expect(outlineUser).toContain("Do not preserve the original theme");
       expect(outlineUser).toContain("storytelling techniques");
-      // At least 2 calls: outline + execute (may retry on validation)
-      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // At least 3 calls: outline + breakdown + execute (may retry on validation)
+      expect(provider.chat.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 
     it("reimagine invokes onOutline callback and uses the edited outline", async () => {
@@ -443,9 +460,18 @@ describe("AiOrchestrator", () => {
             title: "Opening",
             flowTag: "hook",
             summary: "Hook the audience.",
+            suggestedSlideCount: 2,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Edited chapter",
             slides: [
-              { title: "Hook", intent: "Open with a surprising statistic." },
-              { title: "Approach", intent: "Introduce the solution." },
+              { title: "Edited Hook", intent: "Edited intent 1." },
+              { title: "Edited Approach", intent: "Edited intent 2." },
+              { title: "New Slide", intent: "Brand new slide." },
             ],
           },
         ],
@@ -457,7 +483,12 @@ describe("AiOrchestrator", () => {
           { layout: "header-content", content: "@header\n## New Slide\n\n@main\n- New" },
         ],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const outlines = [];
@@ -471,11 +502,7 @@ describe("AiOrchestrator", () => {
                 title: "Edited chapter",
                 flowTag: "solution",
                 summary: "Edited summary.",
-                slides: [
-                  { title: "Edited Hook", intent: "Edited intent 1." },
-                  { title: "Edited Approach", intent: "Edited intent 2." },
-                  { title: "New Slide", intent: "Brand new slide." },
-                ],
+                suggestedSlideCount: 3,
               },
             ],
           };
@@ -484,15 +511,130 @@ describe("AiOrchestrator", () => {
       expect(outlines).toHaveLength(1);
       expect(outlines[0].plan).toBe("Original plan.");
       expect(outlines[0].chapters).toHaveLength(1);
-      expect(outlines[0].chapters[0].slides).toHaveLength(2);
+      expect(outlines[0].chapters[0].title).toBe("Opening");
+      expect(outlines[0].chapters[0].suggestedSlideCount).toBe(2);
       expect(result).toContain("Edited Hook");
       expect(result).toContain("New Slide");
-      // The execute call's context should carry the edited outline briefs
-      const execUser = provider.chat.mock.calls[1][0].messages.find(
+      // The execute call's context should carry the breakdown briefs
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Edited Hook");
       expect(execUser).toContain("Brand new slide");
+    });
+
+    it("reimagine passes a regenerate function to onOutline", async () => {
+      const firstOutline = JSON.stringify({
+        plan: "Original plan.",
+        chapters: [{ title: "C1", flowTag: "hook", summary: "Hook.", suggestedSlideCount: 1 }],
+      });
+      const regeneratedOutline = JSON.stringify({
+        plan: "Regenerated plan.",
+        chapters: [
+          { title: "New C1", flowTag: "context", summary: "New context.", suggestedSlideCount: 2 },
+          {
+            title: "New C2",
+            flowTag: "solution",
+            summary: "New solution.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "New C1",
+            slides: [
+              { title: "S1", intent: "I1." },
+              { title: "S2", intent: "I2." },
+            ],
+          },
+          {
+            title: "New C2",
+            slides: [{ title: "S3", intent: "I3." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## S1\n\n@main\n- 1" },
+          { layout: "header-content", content: "@header\n## S2\n\n@main\n- 2" },
+          { layout: "header-content", content: "@header\n## S3\n\n@main\n- 3" },
+        ],
+      });
+      const provider = mockProviderSequence([
+        firstOutline,
+        regeneratedOutline, // regenerate call
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline, regenerate) => {
+          expect(typeof regenerate).toBe("function");
+          // Regenerate with an edited plan
+          const newOutline = await regenerate("A revised plan direction.");
+          expect(newOutline.plan).toBe("Regenerated plan.");
+          expect(newOutline.chapters).toHaveLength(2);
+          return newOutline;
+        },
+      });
+      expect(result).toContain("S1");
+      expect(result).toContain("S3");
+    });
+
+    it("reimagine feeds chapter title/summary into the briefs from breakdown", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Original plan.",
+        chapters: [
+          {
+            title: "Opening",
+            flowTag: "hook",
+            summary: "Hook the audience.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Rewritten chapter",
+            slides: [{ title: "Hook", intent: "Open with a statistic." }],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## One\n\n@main\n- A" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async () => ({
+          plan: "Edited plan.",
+          chapters: [
+            {
+              title: "Rewritten chapter",
+              flowTag: "solution",
+              summary: "Rewritten summary.",
+              suggestedSlideCount: 1,
+            },
+          ],
+        }),
+      });
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain(
+        "<!-- brief: Hook \u2014 Open with a statistic. (chapter: Rewritten chapter \u2014 Rewritten summary.) | beat: continuation, energy: medium, contrast: moderate, relationship: continue -->",
+      );
     });
 
     it("reimagine returns null when onOutline resolves null (user cancelled)", async () => {
@@ -503,7 +645,7 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [{ title: "Hook", intent: "Open." }],
+            suggestedSlideCount: 1,
           },
         ],
       });
@@ -525,6 +667,14 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
+            suggestedSlideCount: 1,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
             slides: [{ title: "Hook", intent: "Open." }],
           },
         ],
@@ -532,15 +682,20 @@ describe("AiOrchestrator", () => {
       const executeResponse = JSON.stringify({
         slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const result = await orchestrator.runWholeDeckOperation(op);
       expect(result).toContain("Hook");
     });
 
-    it("reimagine warns when slide count is outside 70-120% target", async () => {
-      // 2 source slides; target is 1-2 (70-120%). Return 5 slides → outside range.
+    it("reimagine warns when suggested slide count is outside 70-120% target", async () => {
+      // 2 source slides; target is 1-2 (70-120%). Suggest 5 → outside range.
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
         chapters: [
@@ -548,13 +703,15 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [
-              { title: "S1", intent: "I1." },
-              { title: "S2", intent: "I2." },
-              { title: "S3", intent: "I3." },
-              { title: "S4", intent: "I4." },
-              { title: "S5", intent: "I5." },
-            ],
+            suggestedSlideCount: 5,
+          },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: Array(5).fill({ title: "S", intent: "I." }),
           },
         ],
       });
@@ -564,7 +721,12 @@ describe("AiOrchestrator", () => {
           content: "@header\n## S\n\n@main\n- x",
         }),
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       const logs = [];
@@ -582,14 +744,22 @@ describe("AiOrchestrator", () => {
             title: "Ch1",
             flowTag: "hook",
             summary: "S.",
-            slides: [{ title: "Hook", intent: "Open." }],
+            suggestedSlideCount: 1,
           },
         ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "Hook", intent: "Open." }] }],
       });
       const executeResponse = JSON.stringify({
         slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
       });
-      const provider = mockProviderSequence([outlineResponse, executeResponse, executeResponse]);
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, {
         mode: "reimagine",
@@ -627,18 +797,223 @@ describe("AiOrchestrator", () => {
       );
     });
 
-    it("reimagine throws on chapter with empty slides", async () => {
+    it("reimagine aligns breakdown with mismatched chapter count and continues", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [
+          { title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 },
+          { title: "Ch2", flowTag: "solution", summary: "S2.", suggestedSlideCount: 1 },
+        ],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## S\n\n@main\n- A" },
+          { layout: "header-content", content: "@header\n## Ch2\n\n@main\n- B" },
+        ],
+      });
       const provider = mockProviderSequence([
-        JSON.stringify({
-          plan: "B.",
-          chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", slides: [] }],
-        }),
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
       ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
-      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
-        "missing non-empty 'slides' array",
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(typeof result).toBe("string");
+      expect(result).toBeTruthy();
+    });
+
+    it("reimagine threads visualSystem from outline through breakdown to generate", async () => {
+      const visualSystem = {
+        palette: {
+          base: "#1a1a2e",
+          surface: "#16213e",
+          accent: "#e94560",
+          contrast: "#0f3460",
+          highlight: "#ffffff",
+        },
+        typography: { character: "cinematic", headline: "bold", body: "clean" },
+        composition: { density: "spacious", whitespace: "expansive", alignment: "centered" },
+        imagery: { role: "atmospheric", mood: "dramatic", treatment: "full-bleed" },
+        motifs: ["red accent lines"],
+        contrastRules: ["Use white slides for key reveals"],
+      };
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        visualSystem,
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                visualBeat: "punctuation",
+                energy: "high",
+                contrast: "strong",
+                relationship: "break",
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      // visualSystem is passed through the onOutline callback
+      expect(outlines).toHaveLength(1);
+      expect(outlines[0].visualSystem).not.toBeNull();
+      expect(outlines[0].visualSystem.palette.base).toBe("#1a1a2e");
+      expect(outlines[0].visualSystem.palette.accent).toBe("#e94560");
+
+      // Breakdown prompt receives the visual system
+      const breakdownUser = provider.chat.mock.calls[1][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(breakdownUser).toContain("#1a1a2e");
+      expect(breakdownUser).toContain("cinematic");
+
+      // Generate prompt receives the visual system brief
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain("Visual system");
+      expect(execUser).toContain("spacious density");
+      expect(execUser).toContain("beat:");
+
+      // Brief includes the beat suffix (punctuation on slide 1 is normalized
+      // to continuation by the beat normalizer)
+      expect(execUser).toContain(
+        "| beat: continuation, energy: high, contrast: strong, relationship: break",
       );
+    });
+
+    it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when outline omits visualSystem", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      // Falls back to default visual system
+      expect(outlines[0].visualSystem).not.toBeNull();
+      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+
+      // Generate prompt still receives the visual system brief (from default)
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(execUser).toContain("Visual system");
+      expect(execUser).toContain("do NOT use the palette colors");
+    });
+
+    it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        visualSystem: { palette: { base: "not-a-hex" } },
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## S\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
+    });
+
+    it("reimagine includes imageQuery in brief serialization for generate AI", async () => {
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                imageQuery: "reuse:images/storm.jpg",
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
+      await orchestrator.runWholeDeckOperation(op);
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      // imageQuery SHOULD appear in the serialized brief as | image: <query>
+      expect(execUser).toContain("image: reuse:images/storm.jpg");
     });
 
     it("throws on invalid plan action", async () => {
@@ -662,6 +1037,20 @@ describe("AiOrchestrator", () => {
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow("Invalid remix plan");
+    });
+
+    it("throws on duplicate source indices after off-by-one clamp", async () => {
+      // sourceCount = 2; index 2 is clamped to 1, producing [1, 1]
+      const badPlan = JSON.stringify({
+        plan: [
+          { action: "keep", source: [0], brief: "", title: "S1" },
+          { action: "merge", source: [1, 2], brief: "merge last two", title: "M" },
+        ],
+      });
+      const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(/duplicate indices/);
     });
 
     it("throws on uncovered source slide", async () => {
@@ -955,6 +1344,232 @@ describe("AiOrchestrator", () => {
       const executeUserMsg = executeCall.messages.find((m) => m.role === "user");
       expect(executeUserMsg.content).toContain("a.png");
       expect(executeUserMsg.content).toContain("b.png");
+    });
+  });
+
+  describe("runWholeDeckOperation (reimagine with image reuse)", () => {
+    const TWO_SLIDE_WITH_IMAGES =
+      'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n<img src="images/b.png">';
+
+    const OUTLINE_WITH_KEEP = JSON.stringify({
+      plan: "Reimagined plan.",
+      visualSystem: null,
+      keepImages: [0], // keep only the first image (a.png)
+      chapters: [
+        {
+          title: "Chapter 1",
+          flowTag: "hook",
+          summary: "Hook.",
+          suggestedSlideCount: 2,
+        },
+      ],
+    });
+
+    const BREAKDOWN_RESPONSE = JSON.stringify({
+      chapters: [
+        {
+          title: "Chapter 1",
+          slides: [
+            { title: "Slide A", intent: "Intent A." },
+            { title: "Slide B", intent: "Intent B." },
+          ],
+        },
+      ],
+    });
+
+    const EXECUTE_RESPONSE = JSON.stringify({
+      slides: [
+        { layout: "header-content", content: "@header\n## Slide A\n\n@main\n- A" },
+        { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
+      ],
+    });
+
+    it("passes keepImages from outline through to onOutline callback", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const outlines = [];
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => {
+          outlines.push(outline);
+          return outline;
+        },
+      });
+      expect(outlines).toHaveLength(1);
+      expect(outlines[0].keepImages).toEqual([0]);
+    });
+
+    it("sends kept images as vision content to the generate call", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // The generate call (3rd chat call) should have vision content
+      const generateCall = provider.chat.mock.calls[2][0];
+      const userMsg = generateCall.messages.find((m) => m.role === "user");
+      expect(Array.isArray(userMsg.content)).toBe(true);
+      const imageBlocks = userMsg.content.filter((b) => b.type === "image_url");
+      expect(imageBlocks.length).toBe(1); // only the kept image
+    });
+
+    it("lists kept image paths in the generate prompt text", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // The generate call user content (as text) should mention the kept image path
+      const generateCall = provider.chat.mock.calls[2][0];
+      const userMsg = generateCall.messages.find((m) => m.role === "user");
+      const textPart = Array.isArray(userMsg.content)
+        ? userMsg.content.find((b) => b.type === "text")?.text
+        : userMsg.content;
+      expect(textPart).toContain("images/a.png");
+      // The non-kept image should NOT be listed
+      expect(textPart).not.toContain("images/b.png");
+    });
+
+    it("lists kept images in the breakdown prompt", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // The breakdown call (2nd chat call) should list the kept image
+      const breakdownCall = provider.chat.mock.calls[1][0];
+      const breakdownUser = breakdownCall.messages.find((m) => m.role === "user").content;
+      expect(breakdownUser).toContain("images/a.png");
+      expect(breakdownUser).not.toContain("images/b.png");
+    });
+
+    it("does not send vision content when keepImages is empty", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const outlineNoKeep = JSON.stringify({
+        plan: "Reimagined plan.",
+        visualSystem: null,
+        keepImages: [],
+        chapters: [{ title: "C1", flowTag: "hook", summary: "Hook.", suggestedSlideCount: 2 }],
+      });
+
+      const provider = mockProviderSequence([
+        outlineNoKeep,
+        BREAKDOWN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // The generate call should be text-only (no vision content)
+      const generateCall = provider.chat.mock.calls[2][0];
+      const userMsg = generateCall.messages.find((m) => m.role === "user");
+      expect(typeof userMsg.content).toBe("string");
+    });
+
+    it("falls back to text-only generate when provider rejects vision", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const visionError = new Error("HTTP 400: model does not support image content");
+      visionError.name = "AiHttpError";
+      visionError.status = 400;
+      const provider = {
+        chat: vi
+          .fn()
+          .mockResolvedValueOnce({ content: OUTLINE_WITH_KEEP, raw: { finish_reason: "stop" } })
+          .mockResolvedValueOnce({ content: BREAKDOWN_RESPONSE, raw: { finish_reason: "stop" } })
+          .mockRejectedValueOnce(visionError) // generate with images fails
+          .mockResolvedValue({ content: EXECUTE_RESPONSE, raw: { finish_reason: "stop" } }), // text-only retry and any repair
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+        onLog: (msg) => logs.push(msg),
+      });
+      expect(result).not.toBeNull();
+      expect(logs.some((l) => l.includes("Vision not supported"))).toBe(true);
     });
   });
 

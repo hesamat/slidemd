@@ -10,7 +10,7 @@
 
 import { MarkdownParser } from "../../data/markdown-parser.js";
 import { LayoutParser } from "../../data/layout-parser.js";
-import { LayoutData, getMediaSpanSideFromGrid } from "../../data/layout-data.js";
+import { LayoutData, getMediaFullBleedSideFromGrid } from "../../data/layout-data.js";
 import { SlideRenderer } from "../../renderer/slide-renderer.js";
 import { ContentEnhancer } from "../../renderer/content-enhancer.js";
 import { AssetLoader } from "../../core/asset-loader.js";
@@ -116,25 +116,18 @@ export class SlidePreviewUpdater {
    * Refresh the full-bleed media marker on the in-place fast path, mirroring
    * SlideRenderer.createSlideElement. Editing only the media-span directive
    * keeps layout and area names identical, so without this the previously
-   * rendered data-media-span attribute would go stale.
+   * rendered data-media-full-bleed attribute would go stale.
    * @param {HTMLElement} slideEl
    * @param {object} slideData
    * @param {object} layout - Parsed layout (LayoutParser.parse output)
    */
   _syncMediaSpanFlag(slideEl, slideData, layout) {
-    const layoutKey = String(slideData?.layout || "")
-      .trim()
-      .toLowerCase();
-    const geometryMediaSide = getMediaSpanSideFromGrid(layout.gridTemplateAreas);
-    const declaredMediaSide = String(slideData?.mediaSpan || "").toLowerCase();
-    const namedMediaSide = LayoutData.isBuiltIn(layoutKey)
-      ? LayoutData.getMediaSpanSide(layoutKey)
-      : null;
-    const mediaSpanSide = declaredMediaSide || namedMediaSide;
-    if (geometryMediaSide && geometryMediaSide === mediaSpanSide) {
-      slideEl.setAttribute("data-media-span", geometryMediaSide);
+    const geometryMediaSide = getMediaFullBleedSideFromGrid(layout.gridTemplateAreas);
+    const mediaFullBleed = Boolean(slideData?.mediaFullBleed);
+    if (geometryMediaSide && mediaFullBleed) {
+      slideEl.setAttribute("data-media-full-bleed", geometryMediaSide);
     } else {
-      slideEl.removeAttribute("data-media-span");
+      slideEl.removeAttribute("data-media-full-bleed");
     }
   }
 

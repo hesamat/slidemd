@@ -239,6 +239,32 @@ export function isHeaderLikeTextElement(
 }
 
 /**
+ * Detect whether the slide's non-header body is just a short caption rather
+ * than substantive content. Used to avoid forcing a caption + single
+ * dominant image into media-span, which shrinks the image into a side column
+ * and leaves @main nearly empty. A caption body is exactly one short,
+ * single-line text element (e.g. "- Real output from demo.py:"); a real
+ * content column has multiple lines, multiple elements, or a longer run.
+ * @param {import('./pptx-extractor.js').ExtractedElement[]} bodyEls
+ * @returns {boolean}
+ */
+function isCaptionOnlyBody(bodyEls) {
+  // The body must be exactly one short, single-line text element — no tables,
+  // charts, extra text boxes, or non-dominant images alongside it. A body
+  // with any other content is a real column, not a caption.
+  if (bodyEls.length !== 1) return false;
+  const el = bodyEls[0];
+  if (el.type !== ELEMENT_TYPES.TEXT || !el.content?.trim()) return false;
+  const text = stripHtml(el.content || "").trim();
+  if (text.length >= CONFIG.maxHeaderLength) return false;
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.length <= 1;
+}
+
+/**
  * Infer the layout type from element positions.
  * @param {import('./pptx-extractor.js').ExtractedElement[]} textEls
  * @param {number} slideWidth
@@ -398,12 +424,20 @@ export function inferLayout(
   const leftEls = allEls.filter((el) => partition(el) === "left");
   const rightEls = allEls.filter((el) => partition(el) === "right");
 
+  const bodyEls = allEls.filter((el) => el !== headerEl && !dominantImages.includes(el));
+  // A caption-only body (a single short text element beside one dominant
+  // image) is not a real content column — media-span would shrink the image
+  // into a side column and leave @main nearly empty. Treat the image as the
+  // main content instead and use the focus layout.
+  const captionWithOneImage = dominantImages.length === 1 && isCaptionOnlyBody(bodyEls);
+
   const hasTwoColumns = leftEls.length > 0 && rightEls.length > 0;
   const hasTextColumns =
     leftEls.some((el) => el.type === ELEMENT_TYPES.TEXT) ||
     rightEls.some((el) => el.type === ELEMENT_TYPES.TEXT);
 
   if (hasHeader && hasTwoColumns && hasTextColumns) {
+    if (captionWithOneImage) return LAYOUT.FOCUS;
     // MEDIA_SPAN is a better fit when one column holds only images and the
     // other holds text — regardless of which physical side each column is on.
     // The header never lands in either column list, so a text-only column
@@ -441,8 +475,6 @@ export function inferLayout(
     return LAYOUT.TWO_COLUMN;
   }
 
-  const bodyEls = allEls.filter((el) => el !== headerEl && !dominantImages.includes(el));
-
   // Check for text/table/chart content in body (not just images)
   const hasTextBody = bodyEls.some(
     (el) =>
@@ -451,6 +483,9 @@ export function inferLayout(
       el.type === ELEMENT_TYPES.CHART,
   );
 
+  // A caption-only body beside a single dominant image is the focus case
+  // handled above — fall through to media-span only for substantive bodies.
+  if (captionWithOneImage) return LAYOUT.FOCUS;
   // Header + dominant image + text body → media-span (image spans right, text on left)
   if (dominantImages.length === 1 && hasTextBody) return LAYOUT.MEDIA_SPAN;
   if (hasHeader) return LAYOUT.HEADER_CONTENT;

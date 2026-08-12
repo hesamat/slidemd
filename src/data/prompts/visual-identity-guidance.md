@@ -1,6 +1,6 @@
 <!-- variant: preserve -->
 
-Preserve the original theme, colors, backgrounds, and visual language whenever possible. Keep each slide's existing `theme:` and `background:` directives unless they clearly do not fit the restructured content.
+Preserve the original color theme, colored text, backgrounds, `theme:`, and `background:` directives. Do not introduce new `theme:`, `background:`, or colored text directives, and do not add `color` or `backgroundColor` attributes.
 <!-- variant: discard -->
 
-Do not preserve the original theme, colors, backgrounds, or visual language. You may introduce new `theme:` and `background:` directives that support the new direction, or omit them entirely.
+Do not preserve the original color theme, colored text, backgrounds, or visual language. Strip all `theme:`, `background:`, and `color`/`backgroundColor` directives. Do not introduce new colors, `theme:`, `background:`, or colored text. The app provides its own neutral color scheme.

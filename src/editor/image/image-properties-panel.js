@@ -95,7 +95,10 @@ export class ImagePropertiesPanel {
   }
 
   static hide() {
-    if (this.el) this.el.classList.add("webdeck-hidden");
+    if (this.el && this.isVisible()) {
+      this.el.classList.add("webdeck-hidden");
+      this._currentImg = null;
+    }
   }
 
   static isVisible() {

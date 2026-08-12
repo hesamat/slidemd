@@ -106,6 +106,24 @@ describe("buildDeckSummary", () => {
     expect(summary).toContain("1. [header-content] Slide 1");
     expect(summary).toContain("2. [header-content] Slide 2");
   });
+
+  it("includes the full first slide content for identity preservation when requested", () => {
+    const md =
+      "layout: focus\n@header\n# Dictionaries\n\n@main\n- Content\n\n@footer\nCOMP 1510 202630\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item";
+    const summary = buildDeckSummary(md, true);
+    expect(summary).toContain("First slide (preserve its identifying info):");
+    expect(summary).toContain("COMP 1510 202630");
+    expect(summary).toContain("# Dictionaries");
+  });
+
+  it("does not include the full first slide by default", () => {
+    const md =
+      "layout: focus\n@header\n# Dictionaries\n\n@main\n- Content\n\n@footer\nCOMP 1510 202630\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item";
+    const summary = buildDeckSummary(md);
+    expect(summary).not.toContain("First slide (preserve its identifying info):");
+    expect(summary).not.toContain("COMP 1510 202630");
+    expect(summary).toContain("1. [focus] Dictionaries");
+  });
 });
 
 describe("buildBatchMessages", () => {
@@ -221,13 +239,15 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("preserves visual identity when requested", () => {
     const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
-    expect(suffix).toContain("Preserve the original theme");
+    expect(suffix).toContain("Preserve the original color theme");
+    expect(suffix).toContain("`theme:`");
+    expect(suffix).toContain("`background:`");
   });
 
   it("tells reimagine to discard visual identity", () => {
     const suffix = buildGenerateOptionsSuffix({ mode: "reimagine", preserveVisualIdentity: false });
-    expect(suffix).toContain("Do not preserve the original theme");
-    expect(suffix).toContain("You may introduce new `theme:`");
+    expect(suffix).toContain("Do not preserve the original color theme");
+    expect(suffix).toContain("Do not introduce new colors");
   });
 });
 

@@ -217,7 +217,9 @@ export class SlideStylePanel {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
     }
-    if (this.el) this.el.classList.add("webdeck-hidden");
+    if (this.el && this.isVisible()) {
+      this.el.classList.add("webdeck-hidden");
+    }
   }
 
   static isVisible() {

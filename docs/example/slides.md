@@ -31,7 +31,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 0px; width: 796px; height: 796px; border-radius: 19px; border: none; object-fit: contain; cursor: move" />
+<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 0px; width: 656px; height: 656px; border-radius: 19px; border: none; object-fit: contain; cursor: move" />
 
 ---
 
@@ -112,8 +112,7 @@ Right column content.
 
 ---
 
-layout: left-heavy
-
+layout: "header media" "main media" "footer media" / 2fr 1fr
 @header
 
 # Code, Math & Diagrams
@@ -170,10 +169,11 @@ Press `E` to toggle split-screen editing with live preview.
 ### Writing Tools
 
 - **Live preview:** See changes instantly as you type
+- **Auto-save:** Silent debounced save to disk
+- **Ctrl+S** (`Cmd+S`): Instant save from anywhere
 - **Autocomplete:** `layout:`, `theme:`, `@media` directives
 - **Slash commands:** Type `/` for quick insertions
-- **Mermaid helper:** Insert diagram scaffolds
-- **Search:** `/` or `Ctrl+Shift+F` (`Cmd+Shift+F` on Mac) to search across all slides
+- **Search:** `Ctrl+Shift+F` to search across all slides
 
 ### Slide Management
 
@@ -253,11 +253,11 @@ To **insert an image**, drag and drop it onto a slide in Edit Mode, or use the i
 
 ### Background Images
 
-Add `background: url(...)` to slide frontmatter for full-slide backgrounds. Use a remote URL:
+Add `background: url(...)` to slide frontmatter for full-slide backgrounds.
 
-```yaml
-background: url(https://example.com/hero.png)
-```
+### Media Full-Bleed
+
+Make `@media` span the full slide height edge-to-edge with `media-full-bleed: true`.
 
 @media
 
@@ -303,11 +303,12 @@ layout: two-column
 2. **Recent Decks** – Quickly reopen recent presentations from the modal
 3. **CLI dev server** – `npm run dev:cli` serves your deck with live reload
 
-### PPTX Import (Experimental)
+### PPTX Import
 
 - Import PowerPoint files via Menu → Import PPTX
+- Preserves the original slide order from the presentation
 - Extracts images into an `images/` folder
-- Converts slide content to Markdown with layout hints
+- Converts slide content to Markdown with layout inference
 - Original `.pptx` is not modified
 - Import is instant — refine slides with AI editing afterward
 
@@ -328,16 +329,16 @@ Let the AI handle the busywork so you can focus on the message.
 - **Enhance slide** — polish formatting, headers, code blocks, and layout in one click
 - **Add speaker notes** — generate speaker notes without touching the slide
 
-<img src="images/image-a199.png" alt="image-3e14" style="position: relative; left: 239px; top: 8px; width: 342px; height: 346px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
-
+<img src="images/image-d8f9.png" alt="image-d8f9" style="position: relative; left: 148px; top: 9px; width: 523px; height: 350px; border-radius: 15px; border: none; object-fit: contain; cursor: move" />
 @media
 
 ### Whole Deck
 
-- **Polish** — fix formatting and layouts, improve wording, pick better layouts. Keeps the same slide count and order.
-- **Remix** — reorganize the story: reorder, merge, or rewrite slides. AI proposes an outline, you preview and apply.
-- **Reimagine** — take a bold new direction: rethink the topic, examples, notes, and visuals.
-- **Options** — choose Flow (Story / Technical / Persuasive / Instructional), add speaker notes, send content images to the AI (Remix/Reimagine), or preserve the visual identity for Remix (Reimagine always discards it).
+- **Polish** — fix formatting, wording, and layouts. Keeps slide count and order.
+- **Remix** — reorder, merge, or rewrite slides. AI proposes an outline to preview.
+- **Reimagine** — bold new direction with editable outline before generating.
+- **Vision** — send content images to the AI for visual-aware restructuring.
+- **Options** — choose Flow, add speaker notes, or preserve visual identity for Remix.
 
 Set up your provider in **Settings**, open the **AI dropdown**, and try any action. `Ctrl+Z` undoes the result.
 
@@ -532,28 +533,35 @@ This slide won't show in the viewer unless `?showHidden=1` is in the URL.
 
 ---
 
-layout: header-content
-
+layout: two-column
 @header
 
-# Multi-Column Text Blocks
+# Text Blocks
 
 @main
 
-Use `::: text-block { column-count=2 }` to wrap long lists so they flow across multiple columns:
+Use `::: text-block { ... }` to wrap content with custom styling. Attributes are comma- or space-separated.
+
+### Available Attributes
+
+| Attribute      | Effect             |
+| -------------- | ------------------ |
+| `column-count` | Multi-column flow  |
+| `font-size`    | Override text size |
+| `color`        | Text color         |
+| `background`   | Background color   |
+| `padding`      | Inner padding      |
+
+@media
+
+### Example usage
 
 ::: text-block { column-count=2 }
 
-1. Text blocks
-2. Float positioning
-3. Font size and color
-4. Multi-column lists
-5. PPTX import support
-6. Live editing
-7. Markdown directives
-8. Offline builds
-9. PDF export
-10. HTML export
+1. First item
+2. Second item
+3. Third item
+4. Fourth item
 
 :::
 
@@ -561,11 +569,11 @@ Use `::: text-block { column-count=2 }` to wrap long lists so they flow across m
 
 layout: focus
 
-@header
+@main
 
 # Ready to Present?
 
-@main
+<br>
 
 **Press `E`** – Validate slide flow and fit
 **Press `P`** – Open viewer on your presentation display

@@ -109,7 +109,8 @@ export class SingleSlideOrchestrator {
 
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
-        throw new Error("AI did not return valid JSON");
+        const snippet = contentText.slice(0, 200).replace(/\n/g, " ").trim();
+        throw new Error(`AI did not return valid JSON. Response snippet: "${snippet}"`);
       }
 
       if (!parsed.slides || parsed.slides.length === 0) {

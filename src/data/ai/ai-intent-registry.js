@@ -10,7 +10,12 @@
  * applies per-intent input transforms (e.g. frontmatter stripping).
  */
 
-import { composeMessages, getFragment, stripFrontmatter } from "./ai-prompt-fragments.js";
+import {
+  composeMessages,
+  getFragment,
+  stripFrontmatter,
+  buildVisualStylingNote,
+} from "./ai-prompt-fragments.js";
 
 const INTENTS = {
   // Single-slide intents — the slide markdown is sent as-is (frontmatter
@@ -57,6 +62,14 @@ function composeForIntent(intent, ctx) {
   const def = INTENTS[intent];
   if (!def) throw new Error(`Unknown AI intent: ${intent}`);
   const substitutions = def.transform ? def.transform(ctx) : { markdown: ctx.markdown };
+  // Only provide visualStylingNote for the generate intent (which has the
+  // {{visualStylingNote}} placeholder). When a visual system is present,
+  // suppress the generic "pick your own theme" guidance — the visual system
+  // brief in the options suffix provides the specific palette. Otherwise,
+  // include the generic guidance.
+  if (intent === "generate") {
+    substitutions.visualStylingNote = buildVisualStylingNote(ctx.hasVisualSystem);
+  }
   return composeMessages(getFragment(def.system), getFragment(def.user), substitutions);
 }
 

@@ -16,10 +16,12 @@ import polishPrompt from "../prompts/polish-prompt.md?raw";
 import addSpeakerNotesPrompt from "../prompts/add-speaker-notes-prompt.md?raw";
 import remixPlanPrompt from "../prompts/remix-plan-prompt.md?raw";
 import reimagineOutlinePrompt from "../prompts/reimagine-outline-prompt.md?raw";
+import reimagineBreakdownPrompt from "../prompts/reimagine-breakdown-prompt.md?raw";
 import flowGuidance from "../prompts/flow-guidance.md?raw";
 import speakerNotesGuidance from "../prompts/speaker-notes-guidance.md?raw";
 import visualIdentityGuidance from "../prompts/visual-identity-guidance.md?raw";
 import remixVisualIdentityGuidance from "../prompts/remix-visual-identity-guidance.md?raw";
+import visualStylingNote from "../prompts/visual-styling-note.md?raw";
 import imagesGuidance from "../prompts/images-guidance.md?raw";
 import batchPagination from "../prompts/batch-pagination.md?raw";
 import creativeGuidance from "../prompts/creative-guidance.md?raw";
@@ -33,10 +35,12 @@ export const FRAGMENTS = {
   "add-speaker-notes-prompt.md": addSpeakerNotesPrompt,
   "remix-plan-prompt.md": remixPlanPrompt,
   "reimagine-outline-prompt.md": reimagineOutlinePrompt,
+  "reimagine-breakdown-prompt.md": reimagineBreakdownPrompt,
   "flow-guidance.md": flowGuidance,
   "speaker-notes-guidance.md": speakerNotesGuidance,
   "visual-identity-guidance.md": visualIdentityGuidance,
   "remix-visual-identity-guidance.md": remixVisualIdentityGuidance,
+  "visual-styling-note.md": visualStylingNote,
   "images-guidance.md": imagesGuidance,
   "batch-pagination.md": batchPagination,
   "creative-guidance.md": creativeGuidance,
@@ -150,6 +154,89 @@ export function buildRemixVisualIdentityGuidance(preserveVisualIdentity) {
   );
 }
 
+/**
+ * Build the {{visualStylingNote}} substitution for generate prompts.
+ * When a visual system is present, the note points the model at the design
+ * language while telling it explicitly not to use the palette colors, so it
+ * does not contradict `buildVisualSystemBrief`.
+ * @param {boolean} hasVisualSystem
+ * @returns {string}
+ */
+export function buildVisualStylingNote(hasVisualSystem) {
+  return extractVariant(
+    getFragment("visual-styling-note.md"),
+    hasVisualSystem ? "present" : "absent",
+  );
+}
+
+/**
+ * Build a compact JSON serialization of the visual system for the breakdown
+ * prompt's `{{visualSystem}}` placeholder.
+ * @param {import("./visual-system-schema.js").VisualSystem|null} vs
+ * @returns {string}
+ */
+export function serializeVisualSystemForBreakdown(vs) {
+  if (!vs) return "{}";
+  return JSON.stringify(vs);
+}
+
+/**
+ * Build the `{{keptImages}}` section for the breakdown prompt.
+ * Lists the kept image paths from the original deck so the breakdown AI
+ * can reference them via `reuse:<path>` in `imageQuery`.
+ * @param {string[]} keptImageSrcs — original markdown src paths of kept images
+ * @returns {string}
+ */
+export function buildKeptImagesList(keptImageSrcs) {
+  if (!keptImageSrcs || keptImageSrcs.length === 0) {
+    return "No images from the original deck were kept. Omit imageQuery for all slides.";
+  }
+  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
+  return `Kept images from the original deck (only allowed as \`reuse:<path>\` in imageQuery):\n${lines}`;
+}
+
+/**
+ * Build the available-images brief for the generate prompt's options suffix.
+ * Lists the kept image paths so the Generate AI can insert them where
+ * appropriate. Returns an empty string when no images are available.
+ * @param {string[]} keptImageSrcs — original markdown src paths of kept images
+ * @returns {string}
+ */
+export function buildAvailableImagesBrief(keptImageSrcs) {
+  if (!keptImageSrcs || keptImageSrcs.length === 0) return "";
+  const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
+  return `\nAvailable images from the original deck — insert with \`<img src="path">\` where appropriate (use the exact path listed):\n${lines}\n`;
+}
+
+/**
+ * Build the visual system brief + beat→treatment mapping for the generate
+ * prompt's options suffix. When a visual system is present, this overrides
+ * the generate prompt's generic "Pick ONE coherent visual theme" instruction
+ * with specific design-language guidance.
+ *
+ * Returns an empty string when no visual system is provided so the existing
+ * generic visual-styling guidance applies.
+ *
+ * @param {import("./visual-system-schema.js").VisualSystem|null} vs
+ * @returns {string}
+ */
+export function buildVisualSystemBrief(vs) {
+  if (!vs) return "";
+
+  // The visual system is for structural guidance only. The app handles its own
+  // colors, so we explicitly tell the generate AI not to use the palette.
+  return `
+Visual system — use the following design language for composition, imagery, and rhythm, but do NOT use the palette colors in \`background:\`, \`theme:\`, \`color\`, or \`backgroundColor\` directives. The app provides its own neutral color scheme.
+
+- Composition: ${vs.composition.density} density, ${vs.composition.whitespace} whitespace, ${vs.composition.alignment} alignment
+- Imagery: ${vs.imagery.role}; mood: ${vs.imagery.mood}; treatment: ${vs.imagery.treatment}
+
+Do not output \`background:\`, \`theme:\`, or colored text. Use bold, headings, tables, diagrams, and layout to create emphasis, not color.
+
+Each slide brief includes a \`| beat: ...\` suffix that defines the slide's structural role. Use it to vary layout and density, not to inject color.
+`;
+}
+
 const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar", "footer"];
 
 /**
@@ -218,10 +305,16 @@ export function stripThemeAndBackground(markdown) {
 export function stripFrontmatter(markdown, mode) {
   if (mode === "generate") {
     // Generate mode: keep background and theme so AI sees the originals
-    return stripDirectives(markdown, /^(layout|media-span|hidden|code-font-size):\s*.*$/);
+    return stripDirectives(
+      markdown,
+      /^(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+    );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
-  return stripDirectives(markdown, /^(theme|background|media-span|hidden|code-font-size):\s*.*$/);
+  return stripDirectives(
+    markdown,
+    /^(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+  );
 }
 
 function stripDirectives(markdown, pattern) {

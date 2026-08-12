@@ -20,7 +20,7 @@ export function slidesToMarkdown(slides) {
       if (slide.layout) parts.push(`layout: ${slide.layout}`);
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
-      if (slide.mediaSpan) parts.push(`media-span: ${slide.mediaSpan}`);
+      if (slide.mediaFullBleed) parts.push("media-full-bleed: true");
       parts.push("");
       // Strip SLIDE INDEX comments from content
       const content = (slide.content || "").replace(
@@ -46,7 +46,7 @@ export function areasToMarkdown(slides) {
       if (slide.layout) parts.push(`layout: ${slide.layout}`);
       if (slide.background) parts.push(`background: ${slide.background}`);
       if (slide.theme) parts.push(`theme: ${slide.theme}`);
-      if (slide.mediaSpan) parts.push(`media-span: ${slide.mediaSpan}`);
+      if (slide.mediaFullBleed) parts.push("media-full-bleed: true");
       parts.push("");
       // Convert areas object back to markdown with area markers
       const areas = slide.areas || {};
@@ -177,7 +177,7 @@ export function parseAiResponse(text) {
     const looksLikeSlide = slideTexts.some((text) => {
       const t = text.trim();
       return (
-        /^(layout|media-span|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
+        /^(layout|media-full-bleed|media-span|background|theme|header-style|area-style|hidden|hide|code-font-size):/im.test(
           t,
         ) ||
         /^@\w+/m.test(t) ||
@@ -195,15 +195,22 @@ export function parseAiResponse(text) {
           withoutBackground,
           "theme",
         );
-        const { value: mediaSpan, markdown: withoutMediaSpan } = parser.extractDirective(
+        const { value: mediaFullBleed, markdown: withoutMediaFullBleed } = parser.extractDirective(
           withoutTheme,
+          "media-full-bleed",
+        );
+        const { value: legacyMediaSpan, markdown: withoutMediaSpan } = parser.extractDirective(
+          withoutMediaFullBleed,
           "media-span",
         );
+        const mediaFullBleedValue =
+          parser.parseBooleanDirectiveValue(mediaFullBleed) === true ||
+          /^(left|right)$/i.test(legacyMediaSpan);
         return {
           layout,
           background,
           theme,
-          mediaSpan: /^(left|right)$/i.test(mediaSpan) ? mediaSpan.toLowerCase() : "",
+          mediaFullBleed: mediaFullBleedValue,
           content: withoutMediaSpan,
         };
       });

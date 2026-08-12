@@ -12,6 +12,7 @@
 import { splitSlidesForAi, BATCH_SIZE } from "../../data/ai/ai-prompt-builder.js";
 import { countContentImages } from "../../data/ai/slide-image-extractor.js";
 import { escapeHtml } from "../../core/utils.js";
+import { modalOpened, modalClosed } from "../../core/modal-state.js";
 
 const P = "ai-generate-modal__";
 
@@ -122,11 +123,13 @@ export class AiGenerateModal {
 
       backdrop.appendChild(dialog);
       document.body.appendChild(backdrop);
+      modalOpened();
 
       let settingsOpen = false;
 
       const close = (result) => {
         backdrop.remove();
+        modalClosed();
         document.removeEventListener("keydown", onKeydown);
         resolve(result);
       };
@@ -162,7 +165,7 @@ export class AiGenerateModal {
         remix:
           "Reorganize the story: reorder, merge, or rewrite slides. The AI proposes a plan, then you preview and apply it.",
         reimagine:
-          "Take a bold new direction. The AI proposes a brief and chapter outline, you review and edit it, then the full deck is generated fresh. Visuals are not preserved.",
+          "Take a bold new direction. The AI proposes a brief and chapter outline, you review and adjust it, then the full deck is generated fresh. Visuals are not preserved.",
       };
 
       const FLOW_DESCRIPTIONS = {

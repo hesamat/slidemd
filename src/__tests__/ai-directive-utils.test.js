@@ -15,20 +15,20 @@ describe("extractDirectives", () => {
       layout: "header-content",
       background: "#fff",
       theme: "",
-      mediaSpan: "",
+      mediaFullBleed: false,
     });
     expect(result[1]).toEqual({
       layout: "two-column",
       background: "",
       theme: "dark",
-      mediaSpan: "",
+      mediaFullBleed: false,
     });
   });
 
   it("extracts the media-span intent directive", () => {
     const md = "layout: media-span-right\nmedia-span: right\n@media\nImage";
     const result = extractDirectives(md);
-    expect(result[0].mediaSpan).toBe("right");
+    expect(result[0].mediaFullBleed).toBe(true);
   });
 
   it("is fence-aware — a --- inside a code block does not create a phantom slide", () => {
@@ -40,13 +40,13 @@ describe("extractDirectives", () => {
       layout: "header-content",
       background: "#fff",
       theme: "",
-      mediaSpan: "",
+      mediaFullBleed: false,
     });
     expect(result[1]).toEqual({
       layout: "two-column",
       background: "",
       theme: "dark",
-      mediaSpan: "",
+      mediaFullBleed: false,
     });
   });
 
@@ -57,12 +57,17 @@ describe("extractDirectives", () => {
     ];
     const result = extractDirectives("", slides);
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ layout: "focus", background: "red", theme: "", mediaSpan: "" });
+    expect(result[0]).toEqual({
+      layout: "focus",
+      background: "red",
+      theme: "",
+      mediaFullBleed: false,
+    });
     expect(result[1]).toEqual({
       layout: "header-content",
       background: "",
       theme: "light",
-      mediaSpan: "",
+      mediaFullBleed: false,
     });
   });
 });
@@ -188,18 +193,18 @@ describe("injectDirectives", () => {
 
   it("restores media-span intent in fix mode", () => {
     const md = "layout: media-span-right\n\n@media\nImage";
-    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaFullBleed: true }];
     const result = injectDirectives(md, orig, "fix");
-    expect(result).toContain("media-span: right");
+    expect(result).toContain("media-full-bleed: true");
   });
 
   it("strips an AI-echoed media-span line and restores the original in fix mode", () => {
     const md = "layout: media-span-right\nmedia-span: left\n\n@media\nImage";
-    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+    const orig = [{ layout: "media-span-right", background: "", theme: "", mediaFullBleed: true }];
     const result = injectDirectives(md, orig, "fix");
-    expect(result.match(/^media-span:/gm)).toHaveLength(1);
-    expect(result).toContain("media-span: right");
-    expect(result).not.toContain("media-span: left");
+    expect(result.match(/^media-full-bleed:/gm)).toHaveLength(1);
+    expect(result).toContain("media-full-bleed: true");
+    expect(result).not.toContain("media-span:");
   });
 
   describe("generate mode", () => {
@@ -228,9 +233,11 @@ describe("injectDirectives", () => {
 
     it("fills in a media-span directive the AI dropped", () => {
       const md = "layout: media-span-right\n\n@media\nImage";
-      const orig = [{ layout: "media-span-right", background: "", theme: "", mediaSpan: "right" }];
+      const orig = [
+        { layout: "media-span-right", background: "", theme: "", mediaFullBleed: true },
+      ];
       const result = injectDirectives(md, orig, "generate");
-      expect(result).toContain("media-span: right");
+      expect(result).toContain("media-full-bleed: true");
     });
 
     it("leaves a background: line inside a code block untouched", () => {
