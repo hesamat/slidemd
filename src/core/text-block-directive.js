@@ -150,7 +150,14 @@ function parseAttributes(attrString) {
 
   while (true) {
     const key = readKey();
-    if (key === null) break;
+    if (key === null) {
+      // Skip unexpected characters (e.g. commas between attributes) and
+      // continue parsing instead of breaking, so `{ bold, italic }` or
+      // `{ x=10, y=20 }` don't silently lose attributes after the separator.
+      if (i >= s.length) break;
+      i++;
+      continue;
+    }
     skipSpaces();
     if (i < s.length && s[i] === "=") {
       i++;

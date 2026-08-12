@@ -463,8 +463,11 @@ export class Notification {
   ) {
     return new Promise((resolve) => {
       let backdrop;
+      let dismissed = false;
 
       const cleanup = () => {
+        if (dismissed) return;
+        dismissed = true;
         backdrop.classList.add("notification-modal-backdrop--hide");
         setTimeout(() => {
           if (backdrop.parentNode) {

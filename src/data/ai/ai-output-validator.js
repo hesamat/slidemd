@@ -230,7 +230,7 @@ export class AiOutputValidator {
 
       if (schema.checkContentRules) {
         const rawSlide = rawSlideTexts[i] || "";
-        this._checkContentRules(slide, rawSlide, i, errors, warnings);
+        this._checkContentRules(slide, rawSlide, i, errors, warnings, intent);
       }
 
       // Intent-specific constraints (compare against input slide)
@@ -409,7 +409,7 @@ export class AiOutputValidator {
    * - no-header-on-multi-image: if a slide has >1 image, layout must not be header-content (error)
    * - content volume: detect slides that are likely to overflow their layout areas
    */
-  _checkContentRules(slide, rawSlide, index, errors, warnings) {
+  _checkContentRules(slide, rawSlide, index, errors, warnings, intent) {
     // header-default-h1
     const headerHtml = (slide.areas && slide.areas.header) || "";
     const firstHeading = headerHtml.match(/<h([1-6])\b[^>]*>/i);
@@ -440,7 +440,13 @@ export class AiOutputValidator {
     }
 
     // content volume / likely overflow
-    this._checkContentVolume(slide, rawSlide, index, errors);
+    // Only enforce for the generate intent — fix/enhance are conservative
+    // modes whose purpose is to preserve the user's existing content, so
+    // flagging an already-dense slide as overflow would pressure the AI to
+    // delete content the user asked it to keep.
+    if (intent === "generate") {
+      this._checkContentVolume(slide, rawSlide, index, errors);
+    }
   }
 
   /**
@@ -481,13 +487,17 @@ export class AiOutputValidator {
   _extractAreaContents(rawSlide) {
     const areas = {};
     const lines = rawSlide.split("\n");
-    let currentArea = null;
+    // Per the parser contract, content before the first @area marker flows
+    // into @main. Start there so it is measured.
+    let currentArea = "main";
     const buffer = [];
 
     const flush = () => {
-      if (currentArea) {
-        areas[currentArea] = buffer.join("\n");
+      const text = buffer.join("\n").trim();
+      if (text) {
+        areas[currentArea] = areas[currentArea] ? `${areas[currentArea]}\n${text}` : text;
       }
+      buffer.length = 0;
     };
 
     for (const line of lines) {
@@ -495,7 +505,6 @@ export class AiOutputValidator {
       if (markerMatch) {
         flush();
         currentArea = markerMatch[1];
-        buffer.length = 0;
       } else {
         buffer.push(line);
       }

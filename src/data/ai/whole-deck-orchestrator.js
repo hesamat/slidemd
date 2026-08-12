@@ -429,18 +429,34 @@ export class WholeDeckOrchestrator {
             );
           } else if (batchResult.error.type === "validation" && attempts < 2) {
             const errs = batchResult.error.errors;
+            const errSummary = errs
+              .slice(0, 3)
+              .map((e) => e.message)
+              .join("; ");
             onLog?.(
-              `Batch ${batch.index + 1}: ${errs.length} validation issue(s) — retrying`,
+              `Batch ${batch.index + 1}: ${errs.length} validation issue(s) — retrying: ${errSummary}`,
               "warn",
             );
             retryCount++;
             if (batchResult.error.repairMessages) {
               repairMessages.set(batch.batchKey, batchResult.error.repairMessages);
             }
+            // Don't re-upload vision images on retry — the AI already saw
+            // them and the repair message is text-only.
+            batch.hasVisionImages = false;
             queue.unshift(batch);
           } else if (attempts < 2) {
-            onLog?.(`Batch ${batch.index + 1}: ${batchResult.error.type} — retrying`, "warn");
+            const detail = batchResult.error.detail
+              ? `: ${batchResult.error.detail}`
+              : batchResult.error.message
+                ? `: ${batchResult.error.message}`
+                : "";
+            onLog?.(
+              `Batch ${batch.index + 1}: ${batchResult.error.type} — retrying${detail}`,
+              "warn",
+            );
             retryCount++;
+            batch.hasVisionImages = false;
             queue.unshift(batch);
           } else {
             const isValidation = batchResult.error.type === "validation";
@@ -452,12 +468,24 @@ export class WholeDeckOrchestrator {
                 slides: batchResult.error.slides,
               });
               completedSlides += batch.end - batch.start;
+              const errSummary = errs
+                .slice(0, 3)
+                .map((e) => e.message)
+                .join("; ");
               onLog?.(
-                `Batch ${batch.index + 1}: accepted with ${errs.length} validation issue(s)`,
+                `Batch ${batch.index + 1}: accepted with ${errs.length} validation issue(s): ${errSummary}`,
                 "warn",
               );
             } else {
-              onLog?.(`Batch ${batch.index + 1}: failed (${batchResult.error.type})`, "error");
+              const detail = batchResult.error.detail
+                ? `: ${batchResult.error.detail}`
+                : batchResult.error.message
+                  ? `: ${batchResult.error.message}`
+                  : "";
+              onLog?.(
+                `Batch ${batch.index + 1}: failed (${batchResult.error.type}${detail})`,
+                "error",
+              );
             }
             const nextBatch = queue.length > 0 ? queue[0] : null;
             onProgress?.(completedSlides, totalSlides, nextBatch);
@@ -616,7 +644,8 @@ export class WholeDeckOrchestrator {
 
       const parsed = parseAiResponse(contentText);
       if (!parsed) {
-        return { error: { type: "parse-error" } };
+        const snippet = contentText.slice(0, 200).replace(/\n/g, " ").trim();
+        return { error: { type: "parse-error", detail: snippet } };
       }
 
       const enhancedMarkdown = slidesToMarkdown(parsed.slides);

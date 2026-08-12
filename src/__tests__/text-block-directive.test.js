@@ -187,4 +187,20 @@ describe("text block markdown flag", () => {
     const directive = buildTextBlockDirective({ id: "tb-plain" }, "Text");
     expect(directive).not.toContain("markdown");
   });
+
+  it("parses attributes separated by commas (space before comma)", () => {
+    const directive = "::: text-block { bold , italic , underline }\nText\n:::";
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.fontWeight).toBe("bold");
+    expect(parsed.settings.fontStyle).toBe("italic");
+    expect(parsed.settings.textDecoration).toBe("underline");
+  });
+
+  it("parses key=value attributes separated by commas", () => {
+    const directive = "::: text-block { x=10 , y=20 , fontSize=48 }\nText\n:::";
+    const [parsed] = parseTextBlockDirectives(directive);
+    expect(parsed.settings.left).toBe(10);
+    expect(parsed.settings.top).toBe(20);
+    expect(parsed.settings.fontSize).toBe(48);
+  });
 });

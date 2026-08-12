@@ -4,6 +4,7 @@
  */
 import { SHORTCUTS, isMac } from "./keyboard-shortcuts.js";
 import { Logger } from "../core/logger.js";
+import { isModalOpen } from "../core/modal-state.js";
 
 export class KeyboardHandler {
   static #buildPlainKeyMap() {
@@ -211,7 +212,7 @@ export class KeyboardHandler {
     // Suppress all shortcuts while any modal is open. The modal's own
     // keydown handler (Escape, etc.) still fires because it's a separate
     // listener on document.
-    if (document.body?.hasAttribute?.("data-modal-open")) return;
+    if (isModalOpen()) return;
 
     const isEditable = this.#isEditableTarget(e);
     const inCodeMirror = this.#isInCodeMirror(e);

@@ -256,6 +256,25 @@ describe("Notification", () => {
       await expect(promise).resolves.toBe(true);
       expect(onAction).toHaveBeenCalledTimes(1);
     });
+
+    it("does not decrement modal counter twice on double action click", async () => {
+      const { resetModalState, isModalOpen } = await import("../core/modal-state.js");
+      resetModalState();
+
+      const onAction = vi.fn();
+      const promise = Notification.critical("Processing...", { onAction });
+
+      const btn = [...document.querySelectorAll(".notification-modal__actions button")].find(
+        (b) => b.textContent === "Continue",
+      );
+
+      // Click the button twice rapidly — second cleanup should be a no-op
+      btn?.click();
+      btn?.click();
+
+      await promise;
+      expect(isModalOpen()).toBe(false);
+    });
   });
 
   describe("showModal idempotent cleanup", () => {

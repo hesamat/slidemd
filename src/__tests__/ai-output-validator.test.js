@@ -263,6 +263,56 @@ Footer`;
     expect(result.errors[0].code).toBe("PARSE_ERROR");
   });
 
+  it("does not flag overflow for fix intent on dense slides", () => {
+    const dense = `layout: header-content
+
+@main
+${Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n")}
+
+@header
+# Title
+
+@footer
+Footer`;
+    const result = validate("", dense, "fix");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeUndefined();
+  });
+
+  it("does not flag overflow for enhanceSlide intent on dense slides", () => {
+    const dense = `layout: header-content
+
+@main
+${Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n")}
+
+@header
+# Title
+
+@footer
+Footer`;
+    const result = validate("", dense, "enhanceSlide");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeUndefined();
+  });
+
+  it("measures content before the first @area marker as @main", () => {
+    // title-slide has main.maxLines = 0; any content before @area should
+    // be detected as @main overflow.
+    const output = `layout: title-slide
+
+# Title
+
+This is content before any area marker.
+More content on a second line.
+
+@footer
+Footer`;
+    const result = validate("", output, "generate");
+    const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+    expect(err).toBeDefined();
+    expect(err.message).toContain("@main");
+  });
+
   describe("addSpeakerNotes intent", () => {
     const slideWithNotes = (notes) => `layout: header-content
 
