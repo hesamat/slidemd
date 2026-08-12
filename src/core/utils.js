@@ -110,49 +110,115 @@ const ALWAYS_OK_BARE = new Set(["br", "hr"]);
 const HTML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?\/?>/g;
 
 /**
+ * Find the start index of the next backtick run that is not escaped by an
+ * odd number of backslashes. Returns -1 if none is found.
+ * @param {string} text
+ * @param {number} start
+ * @returns {number}
+ */
+function findNextBacktickRun(text, start) {
+  for (let i = start; i < text.length; i++) {
+    if (text[i] !== "`") continue;
+    let backslashes = 0;
+    let p = i - 1;
+    while (p >= 0 && text[p] === "\\") {
+      backslashes++;
+      p--;
+    }
+    if (backslashes % 2 === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Append segments for a non-fenced region, splitting out CommonMark inline
+ * code spans (single-line, any run of backticks) as protected.
+ * @param {Array<{text: string, protected: boolean}>} segments
+ * @param {string} source
+ */
+function splitInlineCode(segments, source) {
+  let i = 0;
+  while (i < source.length) {
+    const nextBacktick = findNextBacktickRun(source, i);
+    if (nextBacktick === -1) {
+      segments.push({ text: source.slice(i), protected: false });
+      break;
+    }
+    if (nextBacktick > i) {
+      segments.push({ text: source.slice(i, nextBacktick), protected: false });
+    }
+    const inlineMatch = source.slice(nextBacktick).match(/^(`+)([^`\n]*?)\1(?!`)/);
+    if (inlineMatch) {
+      segments.push({ text: inlineMatch[0], protected: true });
+      i = nextBacktick + inlineMatch[0].length;
+    } else {
+      segments.push({ text: source[nextBacktick], protected: false });
+      i = nextBacktick + 1;
+    }
+  }
+}
+
+/**
  * Split markdown into segments that are either normal text or protected code
  * (fenced code blocks or inline backtick code). Used by `escapeBareHtmlTags`
  * so that HTML-like tokens inside code are not escaped.
+ *
+ * Fence detection follows CommonMark rules: the opener/closer must appear at
+ * the start of a line (with up to three spaces indent), use the same marker
+ * character (backtick or tilde), and the closer must be at least as long as
+ * the opener. This prevents prose that merely contains `~~~...~~~` from being
+ * incorrectly treated as a protected code block.
+ *
  * @param {string} text
  * @returns {Array<{text: string, protected: boolean}>}
  */
 function splitCodeAware(text) {
-  const segments = [];
-  let i = 0;
+  const regions = [];
+  const source = safeString(text);
+  const lines = source.split("\n");
+  let inFence = false;
+  let fenceStart = 0;
+  let fenceMarker = "";
+  let fenceLength = 0;
+  let pos = 0;
 
-  while (i < text.length) {
-    // Fenced code block: ```...``` or ~~~...~~~ (check before inline since
-    // ``` starts with a backtick too).
-    const fenceMatch = text.slice(i).match(/^(```[\s\S]*?```|~~~[\s\S]*?~~~)/);
+  for (const line of lines) {
+    // CommonMark fence: up to 3 spaces indent, then a run of 3+ backticks or
+    // tildes at the start of the line. Backtick fences may not contain
+    // backticks in the info string; tilde fences have no such restriction.
+    const fenceMatch = line.match(/^(\s{0,3})(`{3,}[^`\n]*|~{3,}.*)$/);
     if (fenceMatch) {
-      segments.push({ text: fenceMatch[0], protected: true });
-      i += fenceMatch[0].length;
-      continue;
-    }
-
-    // Inline code: `...` (single-line, no nested backticks)
-    if (text[i] === "`" && (i === 0 || text[i - 1] !== "\\")) {
-      const inlineMatch = text.slice(i).match(/^`([^`\n]+)`/);
-      if (inlineMatch) {
-        segments.push({ text: inlineMatch[0], protected: true });
-        i += inlineMatch[0].length;
-        continue;
+      const marker = fenceMatch[2][0];
+      const length = fenceMatch[2].length;
+      if (!inFence) {
+        inFence = true;
+        fenceStart = pos;
+        fenceMarker = marker;
+        fenceLength = length;
+      } else if (marker === fenceMarker && length >= fenceLength) {
+        regions.push({ start: fenceStart, end: pos + line.length, protected: true });
+        inFence = false;
       }
     }
+    pos += line.length + 1;
+  }
 
-    // Find the next protected region starting from i + 1 (not i, which
-    // would match the current character and cause an infinite loop when
-    // a lone backtick doesn't form a code span).
-    const nextInline = text.indexOf("`", i + 1);
-    const nextTilde = text.indexOf("~~~", i + 1);
-    const nextSpecial = Math.min(
-      nextInline === -1 ? Infinity : nextInline,
-      nextTilde === -1 ? Infinity : nextTilde,
-    );
+  // An unclosed fence runs to the end of the document (CommonMark).
+  if (inFence) {
+    regions.push({ start: fenceStart, end: source.length, protected: true });
+  }
 
-    const end = nextSpecial === Infinity ? text.length : nextSpecial;
-    segments.push({ text: text.slice(i, end), protected: false });
-    i = end;
+  const segments = [];
+  let lastEnd = 0;
+  for (const region of regions) {
+    if (region.start > lastEnd) {
+      splitInlineCode(segments, source.slice(lastEnd, region.start));
+    }
+    segments.push({ text: source.slice(region.start, region.end), protected: true });
+    lastEnd = region.end;
+  }
+  if (lastEnd < source.length) {
+    splitInlineCode(segments, source.slice(lastEnd));
   }
 
   return segments;

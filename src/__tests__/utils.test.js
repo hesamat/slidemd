@@ -179,6 +179,47 @@ describe("escapeBareHtmlTags", () => {
     );
   });
 
+  it("leaves multi-backtick inline code unchanged", () => {
+    expect(escapeBareHtmlTags("``<button>`` is an HTML element")).toBe(
+      "``<button>`` is an HTML element",
+    );
+    expect(escapeBareHtmlTags("```<button>``` is an HTML element")).toBe(
+      "```<button>``` is an HTML element",
+    );
+  });
+
+  it("escapes tags inside inline tildes, which are not CommonMark code spans", () => {
+    expect(escapeBareHtmlTags("text ~~~ <script>alert(1)</script> ~~~ more")).toBe(
+      "text ~~~ &lt;script&gt;alert(1)&lt;/script&gt; ~~~ more",
+    );
+    expect(escapeBareHtmlTags("text ~~~ <iframe src=x></iframe> ~~~ more")).toBe(
+      "text ~~~ &lt;iframe src=x&gt;&lt;/iframe&gt; ~~~ more",
+    );
+  });
+
+  it("protects tags inside real fenced code blocks", () => {
+    const input = "```\n<script>alert(1)</script>\n```";
+    expect(escapeBareHtmlTags(input)).toBe(input);
+  });
+
+  it("treats an unclosed backtick fence as a real code block (mismatched tilde closer does not end it)", () => {
+    const input = "```js\ncode\n<script>alert(1)</script>\n~~~";
+    expect(escapeBareHtmlTags(input)).toBe(input);
+  });
+
+  it("does not treat a 4-space-indented fence marker as a fenced code block", () => {
+    const input = "    ```js\n    <script>alert(1)</script>\n    ```";
+    expect(escapeBareHtmlTags(input)).toBe(
+      "    ```js\n    &lt;script&gt;alert(1)&lt;/script&gt;\n    ```",
+    );
+  });
+
+  it("escapes tags around backslash-escaped backticks", () => {
+    expect(escapeBareHtmlTags("\\`<button>\\` is an HTML element")).toBe(
+      "\\`&lt;button&gt;\\` is an HTML element",
+    );
+  });
+
   it("returns non-string input as-is", () => {
     expect(escapeBareHtmlTags(null)).toBe(null);
     expect(escapeBareHtmlTags(42)).toBe(42);

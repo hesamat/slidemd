@@ -164,6 +164,7 @@ layout: header-content
   });
 
   it("errors when a focus slide has too much content", () => {
+    const bullets = Array.from({ length: 13 }, (_, i) => `- Supporting point ${i + 1}`).join("\n");
     const output = `layout: focus
 
 @header
@@ -171,11 +172,7 @@ layout: header-content
 
 @main
 A headline claim
-- Supporting point one
-- Supporting point two
-- Supporting point three
-- Supporting point four
-- Supporting point five
+${bullets}
 
 @footer
 Footer`;
@@ -187,7 +184,7 @@ Footer`;
   });
 
   it("errors when a header-content slide exceeds its line budget", () => {
-    const bullets = Array.from({ length: 16 }, (_, i) => `- Item ${i + 1}`).join("\n");
+    const bullets = Array.from({ length: 18 }, (_, i) => `- Item ${i + 1}`).join("\n");
     const output = `layout: header-content
 
 @header
@@ -203,11 +200,11 @@ Footer`;
     const err = result.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
     expect(err).toBeDefined();
     expect(err.message).toContain("@main");
-    expect(err.message).toContain("16 lines");
+    expect(err.message).toContain("18 lines");
   });
 
   it("errors when a code block pushes a header-content slide over its line budget", () => {
-    const code = Array.from({ length: 15 }, (_, i) => `    line${i + 1} = ${i + 1}`).join("\n");
+    const code = Array.from({ length: 18 }, (_, i) => `    line${i + 1} = ${i + 1}`).join("\n");
     const output = `layout: header-content
 
 @header

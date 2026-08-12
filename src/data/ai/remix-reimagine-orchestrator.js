@@ -632,7 +632,7 @@ export class RemixReimagineOrchestrator {
         onLog?.("Vision not supported by this model — retrying outline with text-only\u2026");
         const textMessages = [
           { role: "system", content: system },
-          { role: "user", content: user },
+          { role: "user", content: userWithPlan },
         ];
         const response = await this._provider.chat(
           {

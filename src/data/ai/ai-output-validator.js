@@ -5,77 +5,141 @@ import { parseTextBlockDirectives } from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
- * Per-area content limits used to detect likely slide overflow before the
- * deck is rendered. These are conservative heuristics, not exact pixel
- * measurements — they catch the most common overflow cases.
+ * Base line budget for a content area that fills the entire slide. Derived
+ * areas scale down from this based on their fraction of the grid.
  */
-const AREA_CONTENT_LIMITS = {
-  "title-slide": {
-    title: { maxLines: 6 },
-    main: { maxLines: 0 },
-  },
-  "header-content": {
-    header: { maxLines: 2 },
-    main: { maxLines: 14 },
-  },
-  focus: {
-    header: { maxLines: 2 },
-    main: { maxLines: 5 },
-  },
-  "two-column": {
-    header: { maxLines: 2 },
-    main: { maxLines: 10 },
-    media: { maxLines: 10 },
-  },
-  "media-span-left": {
-    header: { maxLines: 2 },
-    main: { maxLines: 12 },
-    media: { maxLines: 20 },
-  },
-  "media-span-right": {
-    header: { maxLines: 2 },
-    main: { maxLines: 12 },
-    media: { maxLines: 20 },
-  },
-  "full-image": {
-    main: { maxLines: 2 },
-  },
-  "three-column": {
-    header: { maxLines: 2 },
-    main: { maxLines: 10 },
-    media: { maxLines: 10 },
-    secondary: { maxLines: 10 },
-  },
-  "left-heavy": {
-    header: { maxLines: 2 },
-    main: { maxLines: 14 },
-    media: { maxLines: 10 },
-  },
-  "right-heavy": {
-    header: { maxLines: 2 },
-    main: { maxLines: 10 },
-    media: { maxLines: 14 },
-  },
-  "header-two-column": {
-    header: { maxLines: 2 },
-    main: { maxLines: 10 },
-    media: { maxLines: 10 },
-  },
-  "sidebar-content": {
-    header: { maxLines: 2 },
-    sidebar: { maxLines: 10 },
-    main: { maxLines: 14 },
-  },
-  "content-sidebar": {
-    header: { maxLines: 2 },
-    sidebar: { maxLines: 10 },
-    main: { maxLines: 14 },
-  },
-  default: {
-    header: { maxLines: 2 },
-    main: { maxLines: 16 },
-  },
+const BASE_LINES_PER_SLIDE = 20;
+
+/**
+ * Multipliers applied by area type. Compact areas (header, footer, title)
+ * get a lower multiplier because they hold short labels, not body content.
+ * Media areas get a higher multiplier because image/mermaid markdown is
+ * verbose — a single image tag or diagram may span several lines.
+ */
+const AREA_TYPE_MULTIPLIERS = {
+  header: 0.15,
+  footer: 0.15,
+  title: 0.3,
+  media: 2.0,
 };
+
+/** Areas that are always compact regardless of grid size. */
+const COMPACT_AREAS = new Set(["header", "footer", "title"]);
+
+/** Cache of computed limits per layout spec, cleared on layout changes. */
+const limitsCache = new Map();
+
+/**
+ * Parse a CSS grid track list (columns or rows) into numeric fractions.
+ * - `1fr` / `2fr` → the fr value (1, 2)
+ * - `minmax(0, 1fr)` → 1
+ * - `auto` → 0.1 (compact, negligible for text capacity)
+ * - fixed sizes (`300px`, `0.08fr`) → parsed value or 0.3 for pure px
+ * @param {string} trackStr - e.g. "1fr 1fr" or "auto minmax(0, 1fr) auto"
+ * @returns {number[]}
+ */
+function parseTrackFractions(trackStr) {
+  // Split on whitespace but keep parenthesised groups (e.g. `minmax(0, 1fr)`)
+  // intact — a naive split breaks `minmax(0, 1fr)` into two tokens.
+  const tokens = trackStr.trim().match(/[^()\s]+\([^)]*\)|[^\s]+/g) || [];
+  return tokens.map((tok) => {
+    const frMatch = tok.match(/([\d.]+)fr$/);
+    if (frMatch) return Number(frMatch[1]);
+    if (tok === "auto") return 0.1;
+    const minmaxMatch = tok.match(/minmax\([^,]+,\s*([\d.]+)fr\)/);
+    if (minmaxMatch) return Number(minmaxMatch[1]);
+    // Fixed-size tracks (px, %, etc.) — treat as moderate but small.
+    return 0.3;
+  });
+}
+
+/**
+ * Build a map from area name → list of {col, row} cells from the
+ * grid-template-areas string.
+ * @param {string} gridTemplateAreas - e.g. '"header header" "main media"'
+ * @returns {Record<string, Array<{col: number, row: number}>>}
+ */
+function buildAreaCellMap(gridTemplateAreas) {
+  const rowMatches = gridTemplateAreas.match(/"[^"]*"|'[^']*'/g) || [];
+  const areaCells = {};
+  for (let rowIdx = 0; rowIdx < rowMatches.length; rowIdx++) {
+    const cells = rowMatches[rowIdx].slice(1, -1).split(/\s+/).filter(Boolean);
+    for (let colIdx = 0; colIdx < cells.length; colIdx++) {
+      const name = cells[colIdx];
+      if (/^\.+$/.test(name)) continue;
+      if (!areaCells[name]) areaCells[name] = [];
+      areaCells[name].push({ col: colIdx, row: rowIdx });
+    }
+  }
+  return areaCells;
+}
+
+/**
+ * Compute per-area line limits from the layout's grid geometry.
+ *
+ * Instead of hardcoding a table of layout names → limits (which drifts when
+ * layouts are added or renamed), this derives limits from the grid template:
+ * each area's maxLines is proportional to its fraction of the total grid
+ * space, adjusted by area type. Special cases are detected structurally:
+ * - If the layout has no `main` area, main gets 0 (content shouldn't be there).
+ * - If the layout has a single area, it gets a low limit (full-bleed image).
+ *
+ * @param {string} layoutName - layout preset name or grid template string
+ * @returns {Record<string, {maxLines: number}>}
+ */
+function computeAreaLimits(layoutName) {
+  const cached = limitsCache.get(layoutName);
+  if (cached) return cached;
+
+  const gridTemplate = LayoutParser.resolvePreset(layoutName);
+  const parsed = LayoutParser.parse(gridTemplate);
+  const { gridTemplateAreas, gridTemplateColumns, gridTemplateRows, orderedAreas } = parsed;
+
+  // Single-area layout (e.g. full-image) — the area is for media, not text.
+  if (orderedAreas.length === 1) {
+    const limits = { [orderedAreas[0]]: { maxLines: 4 } };
+    limitsCache.set(layoutName, limits);
+    return limits;
+  }
+
+  const colFr = parseTrackFractions(gridTemplateColumns);
+  const rowFr = parseTrackFractions(gridTemplateRows);
+  const totalCol = colFr.reduce((s, f) => s + f, 0) || 1;
+  const totalRow = rowFr.reduce((s, f) => s + f, 0) || 1;
+
+  const areaCells = buildAreaCellMap(gridTemplateAreas);
+  const limits = {};
+
+  for (const areaName of orderedAreas) {
+    const cells = areaCells[areaName] || [];
+    if (cells.length === 0) continue;
+
+    // Sum the fraction of grid space this area occupies.
+    let fraction = 0;
+    for (const { col, row } of cells) {
+      fraction += (colFr[col] / totalCol) * (rowFr[row] / totalRow);
+    }
+
+    const multiplier = AREA_TYPE_MULTIPLIERS[areaName] ?? 1.0;
+    let maxLines = Math.round(BASE_LINES_PER_SLIDE * fraction * multiplier);
+
+    if (COMPACT_AREAS.has(areaName)) {
+      maxLines = Math.max(2, Math.min(6, maxLines));
+    } else {
+      maxLines = Math.max(1, Math.min(24, maxLines));
+    }
+
+    limits[areaName] = { maxLines };
+  }
+
+  // If the layout has no `main` area, content routed to @main is misplaced.
+  if (!limits.main) {
+    limits.main = { maxLines: 0 };
+  }
+
+  limitsCache.set(layoutName, limits);
+  return limits;
+}
 
 /**
  * Validates AI-generated Markdown against an output schema.
@@ -465,7 +529,7 @@ export class AiOutputValidator {
    */
   _checkContentVolume(slide, rawSlide, index, errors) {
     const layout = slide.layout || "default";
-    const limits = AREA_CONTENT_LIMITS[layout] || AREA_CONTENT_LIMITS.default;
+    const limits = computeAreaLimits(layout);
     const areaContents = this._extractAreaContents(rawSlide);
 
     for (const [areaName, content] of Object.entries(areaContents)) {
