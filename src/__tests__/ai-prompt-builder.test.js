@@ -230,7 +230,9 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("preserves visual identity when requested", () => {
     const suffix = buildGenerateOptionsSuffix({ preserveVisualIdentity: true });
-    expect(suffix).toContain("The app provides its own neutral color scheme");
+    expect(suffix).toContain("Preserve the original color theme");
+    expect(suffix).toContain("`theme:`");
+    expect(suffix).toContain("`background:`");
   });
 
   it("tells reimagine to discard visual identity", () => {

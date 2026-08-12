@@ -745,7 +745,9 @@ What to do:
 - Use tables for 2-3 item comparisons.
 - Preserve each slide's \`theme:\` and \`background:\` directives and the existing color scheme. Do not add new \`theme:\`/\`background:\` values, colored text, or \`color\`/\`backgroundColor\` attributes.
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
+- Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
+- Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
 
@@ -759,6 +761,7 @@ Success criteria:
 - Each slide has a layout and non-empty content.
 - Headers use the correct hierarchy.
 - Existing \`theme:\`, \`background:\`, and color scheme are preserved.
+- The output is visibly different from the input (better formatting, wording, or layout).
 - All \`[Diagram:]\` markers are addressed.
 - Speaker notes are preserved and placed at the end of the slide content.
 
@@ -1079,7 +1082,7 @@ Rules:
 - Cover every source slide. Reorder freely if a different order tells the story better.
 - Use \`keep\` for slides that are already clear, well-structured, and in the right place.
 - Use \`rewrite\` when the topic is right but the content or layout could be improved.
-- Use \`merge\` when adjacent slides are thin, overlapping, or redundant.
+- Use \`merge\` sparingly — only when adjacent slides are genuinely thin, overlapping, or redundant and combining them clearly improves the deck. Do not merge slides with distinct topics, key takeaways, or strong standalone value. When in doubt, prefer \`keep\` or \`rewrite\`.
 
 Preserve the deck's core message and important source material. Reorganize where it improves clarity, pacing, or narrative flow. Use merge thoughtfully and keep slides that are already effective.
 
