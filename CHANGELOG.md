@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.9.2 (2026-08-12)
+
+### Reimagine Outline Simplification
+
+- Remove the visual system palette dropdown from the reimagine outline modal; drop custom color theming from the outline flow.
+- Add image reuse (`imageQuery: "reuse:<path>"`) to the breakdown prompt so the generate phase can honor existing images.
+- Add editable plan field and palette presets to the reimagine outline modal.
+- Suppress keyboard shortcuts while the outline modal is open.
+- Harden breakdown/chapter alignment resilience so mismatched chapter counts don't crash the flow.
+
+### AI Prompt & Behavior Tightening
+
+- Only honor `reuse:<path>` image queries; do not invent image URLs or use placeholder `src` values.
+- Add `object-fit: contain;` for logos/diagrams and `object-fit: cover;` for full-bleed photos to the system prompt.
+- Add KaTeX math syntax guidance (`$...$` inline, `$$...$$` display) to the system prompt.
+- Add text-block grammar guidance to AI prompts and validate unknown text-block attributes.
+- Tighten polish and remix prompts: remove contradictions, preserve existing styling, discourage over-merging.
+- Instruct polish and remix AIs to review fenced code blocks and fix syntax errors, broken logic, and nonsensical/placeholder code — not just formatting.
+- Add per-area line budgets to `generate-prompt.md` to prevent slide overflow (replaces rigid per-item caps).
+- Emit `SLIDE_CONTENT_OVERFLOW` errors from `AiOutputValidator` when a slide exceeds its line budget, driving the existing repair-message retry loop.
+
+### Media Full-Bleed
+
+- Rename the directive from `media-span: left|right` to `media-full-bleed: true`.
+- Restrict the full-bleed context menu option to the `@media` area.
+- Rename the CSS attribute from `data-media-span` to `data-media-full-bleed` and the helper from `getMediaSpanSideFromGrid` to `getMediaFullBleedSideFromGrid`.
+- Preserve backwards compatibility for old `media-span:` directives.
+- Only show the full-bleed toggle when the renderer will actually apply it (multi-row, uniform grids).
+- Add the full-bleed media toggle to the CodeMirror `@media` context menu.
+- Align `readMediaFullBleedDirective` with `parseBooleanDirectiveValue` so the editor toggle correctly reads `yes`/`1`/`on`, not just the literal `"true"` string.
+
+### Modal State & Keyboard Suppression
+
+- Consolidate modal state into `src/core/modal-state.js` with a shared open-counter and `data-modal-open` body attribute.
+- Fix modal open/close idempotency across the editor (ConversionModal, OpenDeckModal, SlideSearch, Notification loading modals, SettingsModal, showModal).
+- Make `Notification.showLoadingModal` and `showModal` cleanup idempotent so double-dismisses don't unbalance the modal-state counter.
+- Suppress all keyboard shortcuts while any modal is open (interactive dialogs and loading modals).
+- Export `resetModalState` and call it from `ReloadManager.replaceDeck` as a safety valve against leaked modal-open state.
+
+### Remix/Reimagine Plan Validator Hardening
+
+- Defend against 1-based source index off-by-one errors (clamp `sourceCount` to last slide).
+- Reject duplicate source indices after normalization so a merge cannot paste the same slide twice.
+- Guard the `sourceCount === 0` case.
+- Remove silent source-index de-duplication that could mask invalid plans.
+
+### Editor & Text-Block Fixes
+
+- Parse colon-style text-block attribute assignments so repair messages don't list value fragments as unsupported attributes.
+- Skip unquoted colon-style text-block values to end of string so value fragments (`background`, `red`, `padding`, `20px`) do not leak into the unknown-attribute list.
+- Always emit braces from `buildTextBlockDirective` so attribute-less text blocks round-trip correctly.
+
+### Other Fixes
+
+- Avoid double-sending vision images when a truncated batch is split in the whole-deck orchestrator.
+- Update beat-normalizer documentation to reflect that `emotional` is also downgraded on the first slide.
+- Move the reimagine outline regenerate handler registration after its dependencies are declared.
+- Total tests now **1182**.
+
 ## 0.9.1 (2026-08-10)
 
 ### Whole-Deck Modes (Polish, Remix, Reimagine)

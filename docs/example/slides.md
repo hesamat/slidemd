@@ -31,7 +31,7 @@ An open-source tool for creating and presenting slides using plain Markdown. Bui
 
 @media
 
-<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 0px; width: 796px; height: 796px; border-radius: 19px; border: none; object-fit: contain; cursor: move" />
+<img src="images/icon.png" alt="SlideMD Icon" style="position: relative; left: 0px; top: 0px; width: 656px; height: 656px; border-radius: 19px; border: none; object-fit: contain; cursor: move" />
 
 ---
 
@@ -112,8 +112,7 @@ Right column content.
 
 ---
 
-layout: left-heavy
-
+layout: "header media" "main media" "footer media" / 2fr 1fr
 @header
 
 # Code, Math & Diagrams
