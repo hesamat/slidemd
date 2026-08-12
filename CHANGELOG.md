@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.9.2 (2026-08-12)
+
+### Reimagine Outline
+
+- Remove the visual system palette dropdown, drop custom color theming, add image reuse, editable plan, palette presets, modal shortcut suppression, and breakdown/chapter alignment resilience.
+
+### AI Prompt Tightening
+
+- Only honor `reuse:<path>` image queries; do not invent image URLs or use placeholder `src` values.
+- Add `object-fit: contain;` for logos/diagrams and `object-fit: cover;` for full-bleed photos to the system prompt.
+- Add KaTeX math syntax guidance (`$...$` inline, `$$...$$` display) to the system prompt.
+- Add text-block grammar guidance to AI prompts and validate unknown text-block attributes.
+- Tighten polish and remix prompts: remove contradictions, preserve existing styling, and discourage over-merging.
+- Instruct polish and remix AIs to review fenced code blocks and fix syntax errors, broken logic, and nonsensical/placeholder code — not just formatting.
+- Balance remix merge guidance: use `merge` instead of `prefer merge`, and explicitly tell the AI not to merge slides with distinct topics or standalone value.
+
+### Media Full-Bleed
+
+- Rename the directive from `media-span: left|right` to `media-full-bleed: true`.
+- Restrict the full-bleed context menu option to the `@media` area.
+- Rename the CSS attribute from `data-media-span` to `data-media-full-bleed` and the helper from `getMediaSpanSideFromGrid` to `getMediaFullBleedSideFromGrid`.
+- Preserve backwards compatibility for old `media-span:` directives.
+- Only show the full-bleed toggle when the renderer will actually apply it (multi-row, uniform grids).
+- Add the full-bleed media toggle to the CodeMirror `@media` context menu.
+
+### PPTX Import Fixes
+
+- Fix slide order when slides have been reordered in PowerPoint: read `<p:sldIdLst>` from `presentation.xml` and re-sort slides to match the author's intended order.
+- Fix slide loss/scrambling when file numbering has gaps (e.g. slide1, slide2, slide4 after a deletion): build a `fileNum → arrayIndex` map from the actual sorted slide files instead of assuming `raw.slides[slideNum - 1]`.
+- Use focus layout for caption-only body beside a single dominant image instead of forcing media-span.
+- Add `pptx-slide-order.test.js` with 5 tests covering slide reordering via `sldIdLst`, file-number gaps, gap+reorder, and empty-`sldIdLst` fallback.
+
+### Editor & Modal Fixes
+
+- Consolidate modal state into `src/core/modal-state.js` and fix modal open/close idempotency across the editor (ConversionModal, OpenDeckModal, SlideSearch, Notification loading modals, SettingsModal).
+- Fix `NewPresentationModal` close (×) button bypassing the modal-state counter — wired it through `dismiss()` so it properly decrements the counter.
+- Fix `Notification.prompt` (file-name chooser) not participating in the modal-state counter, so keyboard shortcuts are now suppressed while it is visible.
+- Make `Notification.showLoadingModal` cleanup idempotent so double-dismisses don't unbalance the modal-state counter.
+- Export `resetModalState` and call it from `ReloadManager.replaceDeck` as a safety valve against leaked modal-open state.
+- Suppress all keyboard shortcuts while any modal is open (interactive dialogs and loading modals).
+- Replace `WheelHandler` DOM-query `isModalOpen()` with the centralized `modal-state.js` API.
+- Remove `slideIn` CSS animation causing a white flash on dark slides.
+
+### Bare-Tag Escaping Hardening
+
+- Rewrite `splitCodeAware` with CommonMark-compliant fence detection: fences must start at line beginning (up to 3 spaces indent), use matching marker characters (backtick or tilde), closer must be at least as long as the opener, and unclosed fences run to end of document.
+- Add proper inline code span detection with backslash-escape handling and multi-backtick span support.
+- Prevents prose containing `~~~...~~~` from being incorrectly treated as a protected code block, ensuring blocked HTML tags (`<script>`, `<iframe>`) in such prose are still escaped.
+
+### AI Validator Fixes
+
+- Skip the content-volume/overflow check for polish mode (polish must preserve the same slide count and content, so the "split into multiple slides" remedy was unavailable and only pressured the AI to delete content).
+- Add per-area line budgets to `generate-prompt.md` to prevent slide overflow (replaces rigid per-item caps).
+- Replace the hardcoded `AREA_CONTENT_LIMITS` table with `computeAreaLimits()` that derives per-area line budgets from grid geometry, eliminating the layout-name drift risk flagged in `REVIEW.md`. Media areas get a 2.0x multiplier for verbose image/mermaid markdown. Custom layouts are now supported automatically.
+- Emit `SLIDE_CONTENT_OVERFLOW` errors from `AiOutputValidator` when a slide exceeds its line budget, driving the existing repair-message retry loop.
+- Defend the remix/reimagine plan validator against 1-based source index off-by-one errors and duplicate source indices.
+- Avoid double-sending vision images when a truncated batch is split in the whole-deck orchestrator.
+- Fix vision-retry fallback in `#runReimagineOutline` to use `userWithPlan` instead of `user`, so the user's edited plan survives a text-only retry on image-incapable models.
+
+### Cleanup
+
+- Remove dead `LayoutData.getMediaSpanSide` method (no production callers after the full-bleed refactor) and its test assertions.
+- Remove 48 lines of dead CSS for the removed visual-system palette dropdown from `ai-reimagine-outline-modal.css`.
+- Update `slides.css` comments from `media-span` to `media-full-bleed` terminology.
+- Parse colon-style text-block attribute assignments so repair messages don't list value fragments as unsupported attributes.
+- Always emit braces from `buildTextBlockDirective` so attribute-less text blocks round-trip correctly.
+- Move the reimagine outline regenerate handler registration after its dependencies are declared.
+- Update beat-normalizer documentation to reflect that `emotional` is also downgraded on the first slide.
+
+### Documentation
+
+- Split the 360-line README into a concise landing page with focused guides: `docs/authoring.md`, `docs/ai-editing.md`, `docs/keyboard-shortcuts.md`, `docs/import-export.md`.
+- Update `docs/example/slides.md` to showcase Phase 14.5 features (text-block attributes, auto-save, Ctrl+S, vision, editable outline, media-full-bleed, PPTX slide-order preservation).
+- Add `reimagine-breakdown-prompt.md` and `visual-styling-note.md` to the AGENTS.md prompt catalog table.
+- Update `reimagine-outline-prompt.md` description in AGENTS.md to include `visualSystem`, `keepImages`, and `firstSlideIdentity` output fields.
+
+### Dependency Hygiene
+
+- Regenerate `package-lock.json` to align with `package.json` (version `0.9.1`, dompurify exact pin `3.4.13`).
+
 ## 0.9.1 (2026-08-10)
 
 ### Whole-Deck Modes (Polish, Remix, Reimagine)
