@@ -206,38 +206,17 @@ export function buildAvailableImagesBrief(keptImageSrcs) {
 export function buildVisualSystemBrief(vs) {
   if (!vs) return "";
 
-  const paletteLines = [
-    `  - base: ${vs.palette.base}`,
-    `  - surface: ${vs.palette.surface}`,
-    `  - accent: ${vs.palette.accent}`,
-    `  - contrast: ${vs.palette.contrast}`,
-    `  - highlight: ${vs.palette.highlight}`,
-  ].join("\n");
-
-  const motifs = vs.motifs.length > 0 ? `\n- Motifs: ${vs.motifs.join("; ")}` : "";
-  const contrastRules =
-    vs.contrastRules.length > 0 ? `\n- Contrast rules: ${vs.contrastRules.join("; ")}` : "";
-
+  // The visual system is for structural guidance only. The app handles its own
+  // colors, so we explicitly tell the generate AI not to use the palette.
   return `
-Visual system — follow this design language instead of choosing your own:
+Visual system — use the following design language for composition, imagery, and rhythm, but do NOT use the palette colors in \`background:\`, \`theme:\`, \`color\`, or \`backgroundColor\` directives. The app provides its own neutral color scheme.
 
-- Palette:
-${paletteLines}
-- Typography: ${vs.typography.character}; headlines: ${vs.typography.headline}; body: ${vs.typography.body}
 - Composition: ${vs.composition.density} density, ${vs.composition.whitespace} whitespace, ${vs.composition.alignment} alignment
-- Imagery: ${vs.imagery.role}; mood: ${vs.imagery.mood}; treatment: ${vs.imagery.treatment}${motifs}${contrastRules}
+- Imagery: ${vs.imagery.role}; mood: ${vs.imagery.mood}; treatment: ${vs.imagery.treatment}
 
-Each slide brief includes a \`| beat: ...\` suffix that defines the slide's visual role within this design language. Apply the beat→treatment mapping:
+Do not output \`background:\`, \`theme:\`, or colored text. Use bold, headings, tables, diagrams, and layout to create emphasis, not color.
 
-- continuation: maintain established composition, motifs, palette, and density
-- transition: visually shift toward the next chapter; reduce content density and emphasize hierarchy
-- punctuation: strong focal point, minimal competing content, deliberately contrasting treatment (consider theme inversion — e.g. stark highlight background with inverted text on an otherwise dark deck)
-- emotional: let imagery/atmosphere dominate; restrained text
-- divider: minimal content, clear section marker, strong chapter identity
-
-For \`relationship: break\`, deliberately allow a noticeable departure from the preceding slide while remaining consistent with the overall visual system. For \`relationship: continue\`, preserve visual continuity.
-
-Use the palette colors directly in \`background:\` directives. Set \`theme: dark\` when the background is dark (base/surface tones) and \`theme: light\` when the background is light (highlight tone) so text remains readable.
+Each slide brief includes a \`| beat: ...\` suffix that defines the slide's structural role. Use it to vary layout and density, not to inject color.
 `;
 }
 

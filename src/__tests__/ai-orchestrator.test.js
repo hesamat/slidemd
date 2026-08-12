@@ -386,7 +386,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(planUser).toContain("Preserve the deck's core message");
-      expect(planUser).toContain("Preserve the original theme");
+      expect(planUser).toContain("strip out the original color theme");
       expect(planUser).toContain("valid source indices are 0 through 1");
     });
 
@@ -889,9 +889,8 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("#1a1a2e");
+      expect(execUser).toContain("spacious density");
       expect(execUser).toContain("beat:");
-      expect(execUser).toContain("punctuation");
 
       // Brief includes the beat suffix (punctuation on slide 1 is normalized
       // to continuation by the beat normalizer)
@@ -935,7 +934,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       expect(execUser).toContain("Visual system");
-      expect(execUser).toContain("#0f172a");
+      expect(execUser).toContain("do NOT use the palette colors");
     });
 
     it("reimagine falls back to DEFAULT_VISUAL_SYSTEM when visualSystem is invalid", async () => {
@@ -968,7 +967,7 @@ describe("AiOrchestrator", () => {
       expect(outlines[0].visualSystem.palette.base).toBe("#0f172a");
     });
 
-    it("reimagine includes imageQuery in breakdown parse but not in brief serialization", async () => {
+    it("reimagine includes imageQuery in brief serialization for generate AI", async () => {
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
         chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
@@ -1002,9 +1001,8 @@ describe("AiOrchestrator", () => {
       const execUser = provider.chat.mock.calls[2][0].messages.find(
         (m) => m.role === "user",
       ).content;
-      // imageQuery should NOT appear in the serialized brief
-      expect(execUser).not.toContain("stormy ocean");
-      expect(execUser).not.toContain("imageQuery");
+      // imageQuery SHOULD appear in the serialized brief as | image: <query>
+      expect(execUser).toContain("image: stormy ocean dark moody");
     });
 
     it("throws on invalid plan action", async () => {

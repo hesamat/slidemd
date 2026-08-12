@@ -48,6 +48,7 @@ import { normalizeBeats } from "./beat-normalizer.js";
  * @property {ReimagineOutlineChapter[]} chapters
  * @property {import("./visual-system-schema.js").VisualSystem|null} visualSystem
  * @property {number[]} keepImages — 0-based indices into the flattened sent image list
+ * @property {string} [firstSlideIdentity] — identifying text (course code, etc.) for the first slide's footer
  */
 
 /**
@@ -378,7 +379,7 @@ export class RemixReimagineOrchestrator {
     // design language + beat→treatment mapping via the options suffix.
     // Pass kept images as vision content (first batch/single call only) and
     // as a text list in the suffix (all batches).
-    const keptImagesForVision = keptImageEntries.length > 0 ? [keptImageEntries] : null;
+    const keptImagesForVision = keptImageEntries.length > 0 ? keptImageEntries : null;
     const execOp = {
       ...operation,
       context: virtualDeck,
@@ -475,15 +476,17 @@ export class RemixReimagineOrchestrator {
       })),
       visualSystem: outline.visualSystem ?? null,
       keepImages: outline.keepImages ? [...outline.keepImages] : [],
+      firstSlideIdentity: outline.firstSlideIdentity || "",
     };
   }
 
   /**
    * Flatten a breakdown (chapters with slide briefs) into virtual slide briefs.
-   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) | beat: {visualBeat}, energy: {energy}, contrast: {contrast}, relationship: {relationship} -->`.
+   * Each slide becomes `<!-- brief: {title} — {intent} (chapter: {title} — {summary}) | beat: {visualBeat}, energy: {energy}, contrast: {contrast}, relationship: {relationship} | image: {imageQuery} -->`.
    * Slides with no title or intent fall back to their chapter context, and
-   * slides with no context at all are dropped. `imageQuery` is stored on the
-   * virtual slide metadata but not included in the serialized brief.
+   * slides with no context at all are dropped. `imageQuery` (including
+   * `reuse:<path>` directives) is included in the serialized brief so the
+   * generate AI knows which image to insert on each slide.
    * @param {ReimagineOutline} outline — the finalized outline (for chapter context)
    * @param {ReimagineBreakdownChapter[]} breakdown — the breakdown with slide briefs
    * @returns {string[]}
@@ -510,7 +513,11 @@ export class RemixReimagineOrchestrator {
             : brief
           : chapterContext;
         const beatSuffix = this.#formatBeatSuffix(slide);
-        slides.push(`<!-- brief: ${text}${beatSuffix} -->`);
+        const imageSuffix =
+          typeof slide.imageQuery === "string" && slide.imageQuery.trim()
+            ? ` | image: ${slide.imageQuery.trim()}`
+            : "";
+        slides.push(`<!-- brief: ${text}${beatSuffix}${imageSuffix} -->`);
       }
     }
     return slides;
@@ -716,11 +723,18 @@ export class RemixReimagineOrchestrator {
         )
       : [];
 
+    // Parse firstSlideIdentity: optional string extracted from the original
+    // first slide (course code, week number, etc.) to be placed verbatim in
+    // the first slide's footer.
+    const firstSlideIdentity =
+      typeof parsed.firstSlideIdentity === "string" ? parsed.firstSlideIdentity.trim() : "";
+
     return {
       plan: parsed.plan,
       chapters,
       visualSystem,
       keepImages,
+      firstSlideIdentity,
     };
   }
 
@@ -747,11 +761,19 @@ export class RemixReimagineOrchestrator {
 
     const visualSystemInput = serializeVisualSystemForBreakdown(outline.visualSystem);
     const keptImagesInput = buildKeptImagesList(keptImageSrcs);
+    const firstSlideIdentityInput = outline.firstSlideIdentity
+      ? `firstSlideIdentity: "${outline.firstSlideIdentity}"`
+      : "firstSlideIdentity: (none — no specific identity to preserve)";
 
     const { system, user } = composeMessages(
       getFragment("system-prompt.md"),
       getFragment("reimagine-breakdown-prompt.md"),
-      { chapters: chaptersInput, visualSystem: visualSystemInput, keptImages: keptImagesInput },
+      {
+        chapters: chaptersInput,
+        visualSystem: visualSystemInput,
+        keptImages: keptImagesInput,
+        firstSlideIdentity: firstSlideIdentityInput,
+      },
     );
 
     const reasoningEffort = this._useReasoning ? this._effort : "none";

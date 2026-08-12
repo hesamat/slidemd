@@ -26,6 +26,42 @@ Guidance:
 
 Do not apply rigid mathematical quotas. Optimize for visual rhythm rather than satisfying an arbitrary number of beat occurrences.
 
+## First slide identity
+
+The first slide of the deck must preserve the identifying information from the original deck's first slide. The outline provides this as `firstSlideIdentity`:
+
+{{firstSlideIdentity}}
+
+The first slide brief's `intent` field must include this text verbatim (e.g. "Footer: COMP 1510 202630"). The generate phase will place it in the slide's `@footer` area. Keep the footer to one or two short lines; do not overload it with long institutional text.
+
+## Deck structure
+
+The first chapter should open with TWO special slides before content begins:
+
+1. **Title slide** (first slide of the deck): The intent should say "Title slide for the deck. Topic: <topic>. Footer: <firstSlideIdentity>. Use a large title and minimal content — this is the opening visual." The generate AI will use the `title-slide` layout for this.
+2. **Agenda slide** (second slide of the deck): The intent should say "Agenda/outline slide listing the chapter titles as a roadmap: <chapter 1 title>, <chapter 2 title>, ... Keep it visual and scannable, not a wall of text."
+
+Only after these two slides should the chapter's content slides begin. If the first chapter's `suggestedSlideCount` is less than 3, increase it to accommodate the title and agenda slides.
+
+## Layout variety
+
+The generate AI chooses layouts, but you can guide it through the intent. Vary the visual structure across slides — don't make every slide a code block with an explanation. Consider:
+
+- Diagrams and flowcharts for conceptual relationships (Mermaid)
+- Tables for comparisons
+- Full-image or media-span layouts for emotional/visual slides
+- Focus layouts for key takeaways and predictions
+- Two-column for code + explanation or before/after comparisons
+- Use `media-span-left`/`media-span-right` ONLY when the slide's `@media` area will contain an image or a Mermaid diagram. Do not choose these layouts for tables, text, or code.
+
+If a slide should use a specific visual format, mention it in the intent (e.g. "Use a Mermaid flowchart to show the data flow" or "Use a table comparing lists vs dictionaries").
+
+When describing diagrams in the intent, be specific about what the diagram should show — not just "use a flowchart" but "use a flowchart showing the access path from list → dict → key → value with 5+ nodes and a branch for the error case." Trivial diagrams (two boxes with an arrow) add no value; guide the generate AI toward diagrams that illustrate real structure, relationships, or transformations.
+
+Do not ask for a Mermaid diagram that is just a straight line of 4+ boxes connected by arrows. That is a list, not a diagram. Only request a flowchart when the concept has branches, decisions, loops, or parallel paths. Otherwise, recommend a numbered list, table, or code example.
+
+Vary the content format across slides in a chapter. Don't make every slide "code block + explanation." Mix in: comparison tables, step-by-step traces, prediction questions, before/after contrasts, annotated examples, diagrams, analogies, and historical remarks. If a chapter has 5 slides, at least 2 should use a non-code-centric format and at least 1 should use an analogy or a memorable story.
+
 ## Image queries
 
 If a slide would benefit from an image, include an `imageQuery` — a short search query describing the desired image. Make image queries consistent with the visual system's imagery mood. Do not force literal repetition of mood words if that makes the query unnatural. If no image is needed, omit `imageQuery`.
@@ -109,7 +145,10 @@ Rules:
   - `relationship` — one of: `continue`, `break`. Default `continue`.
   - `imageQuery` — (optional) a short search query for an image that would enhance the slide. Omit if no image is needed.
 - Slides within a chapter should flow naturally — each one building on the previous, none redundant.
+- Every slide `title` must be unique within the deck. Do not repeat a title used by another slide. If a topic reappears, use a distinct, specific title (e.g., "A reliable workflow" and "The path to a reliable answer" instead of the same title twice).
+- Slide titles must not include internal chapter labels, step numbers, stage markers, or brief metadata. Titles should be clean, human-facing headings (e.g., "Trace the path before you run it", not "chapter 03 / prediction").
 - Use the chapter summary as the primary guide for what the slides should cover. The summary specifies the key points; distribute them across the slides.
+- Enrich technical content with analogies, real-world examples, historical remarks, or memorable stories. The intent for at least a few slides per chapter should explicitly include a concrete comparison or a non-technical context that helps learners connect the concept to something familiar.
 
 Success criteria:
 

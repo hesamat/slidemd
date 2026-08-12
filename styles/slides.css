@@ -912,8 +912,14 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
 }
 
 .slide__area .mermaid .flowchartTitleText {
-  font-size: 24px !important;
+  font-size: 20px !important;
   font-weight: 600 !important;
+}
+
+/* Focus layout has limited vertical space; keep Mermaid diagrams inside the area. */
+.slide[data-layout="focus"] .slide__area--main .mermaid {
+  max-width: 90%;
+  max-height: 60%;
 }
 
 /* --- KATEX MATH --- */

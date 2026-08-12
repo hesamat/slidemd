@@ -63,6 +63,7 @@ Output format:
     ]
   },
   "keepImages": [0, 2],
+  "firstSlideIdentity": "COMP 1510 202630",
   "chapters": [
     {
       "title": "Where we were",
@@ -98,13 +99,17 @@ Rules:
   - `contrastRules` — 1-3 rules for when and how to break the visual pattern.
   - Do NOT design a linear progression (e.g. "slide 1 dark, slide 2 lighter..."). Design a system with rules, motifs, and deliberate contrast.
 - `keepImages` — optional array of 0-based indices into the sent image list (images are numbered sequentially across all slides, starting from 0). Include only images worth carrying over to the new deck — logos, team photos, product screenshots, diagrams, or other irreplaceable visuals. Omit generic stock photos, decorative backgrounds, or images that won't fit the new narrative. If no images were sent or none are worth keeping, omit this field or return an empty array.
+- `firstSlideIdentity` — a short string (1-2 lines) extracted EXCLUSIVELY from the "First slide (preserve its identifying info)" text provided above. Do NOT look at other slides for this. Extract the identifying text from the first slide's footer, header, or title (e.g. course code + term, event name, author). Keep it concise: do not include the full institutional description or repeated course names. If the first slide has no identifying information beyond the title heading, use the title itself. Do NOT mention this field or the footer in the plan text — just extract the value into this field.
 - `chapters` — 3-7 chapters that group the narrative into a clear arc. Each chapter has:
   - `title` — short chapter title.
   - `flowTag` — one of: `hook`, `context`, `problem`, `tension`, `solution`, `evidence`, `comparison`, `example`, `transition`, `climax`, `cta`.
   - `summary` — 2-4 sentences describing what the chapter covers, the key points it should make, and how it connects to the chapters before and after it. This is the primary input to slide generation, so be specific about the content and direction.
   - `suggestedSlideCount` — integer: how many slides this chapter should contain. Aim for the total across all chapters to be within {{minSlides}}-{{maxSlides}} (70-120% of the original {{sourceCount}} slides). Do not collapse the deck drastically — if the original is large, keep enough slides to cover the material.
+- The first chapter should open with a title slide. The first chapter's first slide should be a proper title slide — not a content slide. It should display the deck's topic title and the `firstSlideIdentity` text (course code, term, etc.) in the footer. The second slide should be an agenda/outline slide that lists the chapter titles as a roadmap for the audience. Only after these two slides should the content begin.
 - Take a bold editorial approach. You may rethink the topic, examples, notes, and visuals. Preserve the user's core intent and factual accuracy, but do not preserve the original structure, topics, examples, or speaker notes merely for the sake of the original.
 - Do not preserve the original theme, colors, backgrounds, or visual language. You may propose a new visual direction.
+- Preserve the identity of the first slide. Extract the identifying information (course code, week number, author, event name) from the original first slide into the `firstSlideIdentity` field. The first chapter's first slide should display this concise identity text verbatim in its footer, even as the surrounding design and narrative change.
+- Be creative with the narrative angle. Don't just reorganize the same content — find a fresh hook, a surprising metaphor, a compelling character arc, or a concrete analogy that makes the material feel new. Include historical remarks, real-world examples, and accessible comparisons where they help learners understand abstract concepts. The deck should feel like it was crafted by an editor, not auto-generated.
 
 Success criteria:
 

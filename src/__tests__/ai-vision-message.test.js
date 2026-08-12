@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildVisionMessage,
+  buildImageLibraryVisionMessage,
   extractBase64FromDataUri,
   mapContentForAnthropic,
   mapContentForGemini,
@@ -15,22 +16,25 @@ const PNG_DATA_URI = "data:image/png;base64,iVBORw0KGgo=";
 describe("buildVisionMessage", () => {
   it("builds a content array with text + image blocks per slide", () => {
     const content = buildVisionMessage("Analyze this deck", [
-      [{ src: "images/a.png", dataUrl: JPEG_DATA_URI }],
+      [{ src: "images/a.png", dataUrl: JPEG_DATA_URI, width: 800, height: 600 }],
       null,
       [
-        { src: "images/b.png", dataUrl: PNG_DATA_URI },
+        { src: "images/b.png", dataUrl: PNG_DATA_URI, width: 1024, height: 768 },
         { src: "images/c.png", dataUrl: JPEG_DATA_URI },
       ],
     ]);
     expect(content[0]).toEqual({ type: "text", text: "Analyze this deck" });
-    // Slide 1 has 1 image
+    // Slide 1 has 1 image (flat index 0, with dimensions)
     expect(content[1]).toEqual({ type: "text", text: "Slide 1 images:" });
-    expect(content[2]).toEqual({ type: "image_url", image_url: { url: JPEG_DATA_URI } });
+    expect(content[2]).toEqual({ type: "text", text: "[Image 0] (800x600px)" });
+    expect(content[3]).toEqual({ type: "image_url", image_url: { url: JPEG_DATA_URI } });
     // Slide 2 has no images — skipped
-    // Slide 3 has 2 images
-    expect(content[3]).toEqual({ type: "text", text: "Slide 3 images:" });
-    expect(content[4]).toEqual({ type: "image_url", image_url: { url: PNG_DATA_URI } });
-    expect(content[5]).toEqual({ type: "image_url", image_url: { url: JPEG_DATA_URI } });
+    // Slide 3 has 2 images (flat indices 1 and 2; second has no dims)
+    expect(content[4]).toEqual({ type: "text", text: "Slide 3 images:" });
+    expect(content[5]).toEqual({ type: "text", text: "[Image 1] (1024x768px)" });
+    expect(content[6]).toEqual({ type: "image_url", image_url: { url: PNG_DATA_URI } });
+    expect(content[7]).toEqual({ type: "text", text: "[Image 2]" });
+    expect(content[8]).toEqual({ type: "image_url", image_url: { url: JPEG_DATA_URI } });
   });
 
   it("returns text-only content when no slides have images", () => {
@@ -42,6 +46,40 @@ describe("buildVisionMessage", () => {
   it("handles empty slideImages array", () => {
     const content = buildVisionMessage("Analyze", []);
     expect(content).toEqual([{ type: "text", text: "Analyze" }]);
+  });
+});
+
+describe("buildImageLibraryVisionMessage", () => {
+  it("builds a content array with an image library labeled with src + dimensions", () => {
+    const content = buildImageLibraryVisionMessage("Generate slides", [
+      { src: "images/team.jpg", dataUrl: JPEG_DATA_URI, width: 1200, height: 800 },
+      { src: "images/logo.png", dataUrl: PNG_DATA_URI },
+    ]);
+    expect(content[0]).toEqual({ type: "text", text: "Generate slides" });
+    expect(content[1]).toEqual({
+      type: "text",
+      text: 'Kept images from the original deck (available for reuse on any slide). Use the exact src path in <img src="..."> when reusing. Dimensions are original pixel sizes — set width in the <img> style to fit the slide layout:',
+    });
+    expect(content[2]).toEqual({
+      type: "text",
+      text: "[Image 0] src: images/team.jpg (1200x800px)",
+    });
+    expect(content[3]).toEqual({ type: "image_url", image_url: { url: JPEG_DATA_URI } });
+    expect(content[4]).toEqual({
+      type: "text",
+      text: "[Image 1] src: images/logo.png",
+    });
+    expect(content[5]).toEqual({ type: "image_url", image_url: { url: PNG_DATA_URI } });
+  });
+
+  it("returns text-only content when no images are provided", () => {
+    const content = buildImageLibraryVisionMessage("Generate", []);
+    expect(content).toEqual([{ type: "text", text: "Generate" }]);
+  });
+
+  it("returns text-only content when images is null", () => {
+    const content = buildImageLibraryVisionMessage("Generate", null);
+    expect(content).toEqual([{ type: "text", text: "Generate" }]);
   });
 });
 

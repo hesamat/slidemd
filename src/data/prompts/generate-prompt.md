@@ -4,31 +4,47 @@ Content strategy:
 
 - Improve wording: make headers concise, tighten bullet points, replace vague text with specific statements.
 - Pick the best layout for each slide's content — don't default to header-content if a two-column, focus, or table layout would be clearer.
+- Vary layouts across the deck. If three consecutive slides use the same layout, reconsider at least one. Use `focus` for a single key takeaway, `two-column` for balanced code+explanation, `media-span-left`/`media-span-right` ONLY when the `@media` area contains an image or Mermaid diagram, `full-image` for atmospheric/visual slides, and `title-slide` for the deck's opening slide.
+- Match the layout to the content. Do not use `focus` for dense tables, long code blocks, or Mermaid diagrams; `focus` has limited height and diagrams overflow. Use `header-content` or `two-column` for diagrams. Do not use `two-column` when one column would be empty or contain only a single long diagram. Do not use `media-span-left` or `media-span-right` unless the `@media` area is an image or a Mermaid diagram; tables, text, and code do not belong in the `@media` area.
+- If the first slide's brief says "Title slide", use `layout: title-slide` with the topic as `@title` and the identity text as `@footer`. Do not add body content to a title slide. Keep the footer to one or two short lines of identifying information (e.g. course code and term).
 - Use tables for 2-3 item comparisons.
 - Use two-column for diagrams, code, or dense content.
+- Do not repeat slide titles. Every slide title must be unique and clearly distinguishable from other slides in the deck.
+- Do not include internal chapter labels, step numbers, stage markers, or brief metadata in slide text. Slide titles and body text should be clean, human-facing content. Remove markers like `chapter 03 / ...`, `> $ section / step N`, `>>> ...`, or similar leaked brief tokens.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
 - Drop images that are low quality, redundant, or don't add value to the slide.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
+- The brief may include `| image: <query>` at the end. If the query is `reuse:<path>` (e.g. `reuse:images/team-photo.jpg`), insert `<img src="path">` on that slide using the exact path. If the query is a search term, treat it as guidance for what kind of image would fit (you may skip it if no image source is available).
+- If the brief intent text contains "Footer: <text>", place that text verbatim in the slide's `@footer` area (not in `@main`). This is used to preserve deck identity (course code, week number, etc.) on the first slide.
 - Follow the mode and visual-identity instructions that follow this prompt.
 
 Visual styling:
 
-- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.
-- Unless the following instructions say to preserve the existing visual identity, every slide must have a `background:` directive. Use solid colors, gradients, or image URLs. The background should support the chosen theme and be readable with the text color.
-- Unless the following instructions say to preserve the existing visual identity, every slide must have a `theme:` directive that matches the background darkness:
-  - If the `background:` is dark or has a dark image, set `theme: dark` so the default text renders light.
-  - If the `background:` is light, set `theme: light` so the default text renders dark.
-- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.
+{{visualStylingNote}}
+
+- Do not introduce custom color themes, backgrounds, or colored text. Use the app's default neutral styling. Do not output `background:`, `theme:`, `style="..."`, or `::: text-block { color="..." backgroundColor="..." }` for theming.
+- Do not use `<span style="...">`, `color`, or `backgroundColor` to color text. Use bold, headings, and layout to create emphasis, not color.
 - Place content images using `<img>` tags with appropriate `position: relative` + `left`/`top`/`width` for custom placement when the layout allows it.
 - For full-bleed visuals, use `layout: full-image` with the image as the `@main` content.
-- If the following instructions say to preserve the existing visual identity, keep existing `theme:` and `background:` directives unless they clearly do not fit.
 
 Diagrams:
 
 - Use Mermaid for ALL diagrams (flowcharts, sequence diagrams, class diagrams, etc.). Mermaid syntax: `​```mermaid` code blocks.
 - Do NOT use ASCII art, box-drawing characters, or text-based diagrams (e.g. `─┐`, `├──>`, `──>`). These render poorly and are not interactive.
 - If a concept needs a visual, use Mermaid or a table instead.
+- Diagrams should be substantive, not trivial. A two-box flowchart is not a diagram — it is a label. Show real relationships: multiple paths, branches, before/after states, data transformations, or layered structures. Aim for 5+ nodes in most diagrams.
+- Do not draw a linear sequence of 4+ boxes connected by arrows. That is a bullet list, not a diagram. Only use a `flowchart` when there are branches, decisions, loops, or parallel paths. If the content is best shown as a sequence, use a numbered list or a table instead.
+- Vary diagram types: use `flowchart` for data flow and decisions, `sequenceDiagram` for interactions between components, `classDiagram` for data models, and `stateDiagram-v2` for state transitions. Don't use `flowchart LR` for everything.
+- Diagrams should illustrate the concept, not restate the title. A diagram showing `A --> B` with the same text as the slide title adds nothing. Show the internal structure, the decision points, or the transformation steps.
+
+Content depth:
+
+- Each slide should have enough content to stand on its own — not just a title and one sentence. Include concrete examples, code, comparisons, or visual structure that makes the point clear.
+- Vary content structure across slides. Don't make every slide a title + code block + one-line explanation. Mix in: tables, side-by-side comparisons, annotated code, step-by-step traces, prediction questions, before/after contrasts, analogies, historical remarks, and visual metaphors.
+- Code blocks should be realistic and illustrative, not trivially short. Show enough context (variables, types, output) that the reader can trace what happens. Include expected output as a separate `text` block when helpful.
+- All code must be syntactically valid in its language and use consistent, meaningful identifiers. Do not include placeholder tokens, foreign words, or malformed syntax unless the slide explicitly labels it as a deliberate mistake and explains the fix.
+- Speaker notes should add teaching value — not just restate the slide. Include suggested questions to ask the audience, common misconceptions, or transitions to the next slide.
 
 Success criteria:
 

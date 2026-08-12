@@ -57,6 +57,20 @@ function composeForIntent(intent, ctx) {
   const def = INTENTS[intent];
   if (!def) throw new Error(`Unknown AI intent: ${intent}`);
   const substitutions = def.transform ? def.transform(ctx) : { markdown: ctx.markdown };
+  // Only provide visualStylingNote for the generate intent (which has the
+  // {{visualStylingNote}} placeholder). When a visual system is present,
+  // suppress the generic "pick your own theme" guidance — the visual system
+  // brief in the options suffix provides the specific palette. Otherwise,
+  // include the generic guidance.
+  if (intent === "generate") {
+    if (ctx.hasVisualSystem) {
+      substitutions.visualStylingNote ??=
+        "- A visual system with a specific palette and design language is provided in the instructions below. Follow it exclusively — do not invent your own colors or theme.";
+    } else {
+      substitutions.visualStylingNote ??=
+        "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
+    }
+  }
   return composeMessages(getFragment(def.system), getFragment(def.user), substitutions);
 }
 

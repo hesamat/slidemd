@@ -197,7 +197,12 @@ describe("extractAll", () => {
       'layout: header-content\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@main\n- No images';
     const result = await extractAll(md);
     expect(result[0]).toEqual([
-      { src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/compressed=" },
+      {
+        src: "images/a.png",
+        dataUrl: "data:image/jpeg;base64,/9j/compressed=",
+        width: 1024,
+        height: 768,
+      },
     ]);
     expect(result[1]).toBeNull();
   });

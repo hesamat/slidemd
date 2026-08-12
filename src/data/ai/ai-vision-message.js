@@ -20,25 +20,66 @@
  * Build a multi-modal user message content array from a text prompt and
  * per-slide image collections.
  *
+ * Each image is labeled with a flat 0-based index (Image 0, Image 1, …)
+ * so downstream consumers (e.g. the reimagine outline AI's `keepImages`
+ * field) can reference images by their position in the flattened list.
+ *
  * @param {string} text — the text prompt (deck summary / outline)
  * @param {Array<Array<{src: string, dataUrl: string}>|null>} slideImages —
  *   for each slide, an array of `{ src, dataUrl }` entries (see
  *   `slide-image-extractor.js#extractAll`), or null/empty if the slide has
  *   no images. Images are inserted in order with a "Slide N images:" label
- *   before each slide's image blocks.
+ *   before each slide's image blocks, and each image gets an
+ *   "[Image K]" label where K is its 0-based flat index.
  * @returns {Array<{type: string, text?: string, image_url?: {url: string}}>}
  *   OpenAI-format content array.
  */
 export function buildVisionMessage(text, slideImages) {
   const content = [{ type: "text", text }];
 
+  let flatIdx = 0;
   for (let i = 0; i < slideImages.length; i++) {
     const images = slideImages[i];
     if (!images || images.length === 0) continue;
     content.push({ type: "text", text: `Slide ${i + 1} images:` });
     for (const entry of images) {
+      const dims = entry.width && entry.height ? ` (${entry.width}x${entry.height}px)` : "";
+      content.push({ type: "text", text: `[Image ${flatIdx}]${dims}` });
       content.push({ type: "image_url", image_url: { url: entry.dataUrl } });
+      flatIdx++;
     }
+  }
+
+  return content;
+}
+
+/**
+ * Build a multi-modal user message content array that appends an "image
+ * library" — a flat collection of kept images from the original deck — to
+ * the text prompt. Unlike `buildVisionMessage` which labels images per
+ * slide, this labels them as a shared library so the AI understands these
+ * images are available for insertion on any slide, not tied to a specific
+ * source slide.
+ *
+ * @param {string} text — the text prompt (generate briefs + suffix)
+ * @param {Array<{src: string, dataUrl: string}>} images — flat list of kept images
+ * @returns {Array<{type: string, text?: string, image_url?: {url: string}}>}
+ *   OpenAI-format content array.
+ */
+export function buildImageLibraryVisionMessage(text, images) {
+  const content = [{ type: "text", text }];
+
+  if (!images || images.length === 0) return content;
+
+  content.push({
+    type: "text",
+    text: 'Kept images from the original deck (available for reuse on any slide). Use the exact src path in <img src="..."> when reusing. Dimensions are original pixel sizes — set width in the <img> style to fit the slide layout:',
+  });
+  for (let i = 0; i < images.length; i++) {
+    const dims =
+      images[i].width && images[i].height ? ` (${images[i].width}x${images[i].height}px)` : "";
+    content.push({ type: "text", text: `[Image ${i}] src: ${images[i].src}${dims}` });
+    content.push({ type: "image_url", image_url: { url: images[i].dataUrl } });
   }
 
   return content;

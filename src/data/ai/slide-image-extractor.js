@@ -124,6 +124,32 @@ export async function compressImage(src, maxBytes = 40000, maxWidth = 768) {
 }
 
 /**
+ * Compress an image and return both the data URL and the ORIGINAL image
+ * dimensions (naturalWidth × naturalHeight). The dimensions let downstream
+ * consumers (e.g. vision messages for AI) include size context so the AI
+ * can reason about aspect ratio and placement.
+ *
+ * @param {string} src — image URL or data URI
+ * @param {number} [maxBytes=40000] — max base64 size of the output data URL
+ * @param {number} [maxWidth=768] — max width in pixels
+ * @returns {Promise<{dataUrl: string, width: number, height: number}|null>}
+ */
+export async function compressImageWithMeta(src, maxBytes = 40000, maxWidth = 768) {
+  try {
+    const img = await loadImage(src);
+    if (!img || !img.width || !img.height) return null;
+
+    const naturalWidth = img.naturalWidth || img.width;
+    const naturalHeight = img.naturalHeight || img.height;
+    const dataUrl = await compressImage(src, maxBytes, maxWidth);
+    if (!dataUrl) return null;
+    return { dataUrl, width: naturalWidth, height: naturalHeight };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Load an Image from a URL or data URI.
  * Sets `crossOrigin = "anonymous"` for http(s) sources so CORS-enabled hosts
  * can be drawn to canvas and read back via `toDataURL`. Without this, any
@@ -187,7 +213,7 @@ function drawToDataUrl(img, width, height, quality) {
  *   `images/...` relative paths to fetchable URLs. Defaults to a no-op
  *   pass-through. Editor callers should pass `DeckImagesResolver.resolvePreviewSrc`
  *   so relative image paths resolve to the dev server or directory handle.
- * @returns {Promise<Array<Array<{src: string, dataUrl: string}>|null>>} per-slide image entries
+ * @returns {Promise<Array<Array<{src: string, dataUrl: string, width: number, height: number}>|null>>} per-slide image entries
  */
 export async function extractAll(markdown, resolveSrc = (src) => Promise.resolve(src)) {
   const perSlideSrcs = extractAllImageSrcs(markdown);
@@ -207,8 +233,10 @@ export async function extractAll(markdown, resolveSrc = (src) => Promise.resolve
               `extractAll: relative image "${src}" was not resolved — pass a resolveSrc callback`,
             );
           }
-          const dataUrl = await compressImage(resolved);
-          return dataUrl ? { src, dataUrl } : null;
+          const meta = await compressImageWithMeta(resolved);
+          return meta
+            ? { src, dataUrl: meta.dataUrl, width: meta.width, height: meta.height }
+            : null;
         }),
       );
       const valid = compressed.filter((entry) => entry !== null);

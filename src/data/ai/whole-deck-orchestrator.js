@@ -22,7 +22,7 @@ import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAiResponse, slidesToMarkdown } from "./ai-response-parser.js";
 import { extractDirectives, injectDirectives } from "./ai-directive-utils.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
-import { buildVisionMessage } from "./ai-vision-message.js";
+import { buildImageLibraryVisionMessage } from "./ai-vision-message.js";
 
 export class WholeDeckOrchestrator {
   /**
@@ -111,8 +111,8 @@ export class WholeDeckOrchestrator {
    * @param {string} optionsSuffix
    * @param {object} callbacks
    * @param {number} [expectedSlideCount] — when set, the output must have exactly this many slides
-   * @param {Array<Array<{src: string, dataUrl: string}>|null>} [visionImages] —
-   *   per-slide kept images to send as vision content (reimagine image reuse)
+   * @param {Array<{src: string, dataUrl: string}>} [visionImages] —
+   *   flat list of kept images to send as an image library (reimagine image reuse)
    * @returns {Promise<string|null>}
    */
   async runWholeDeckSingleCall(
@@ -130,14 +130,17 @@ export class WholeDeckOrchestrator {
 
     // Polish uses polish-prompt.md (specific cleanup + layout improvement rules)
     // instead of generate-prompt.md with a vague suffix.
+    const hasVisualSystem = !!operation.opts?.visualSystem;
     const { system, user } =
       operation.opts?.mode === "polish"
         ? buildPolishMessages(context)
-        : buildMessagesForIntent(intent, { markdown: context });
+        : buildMessagesForIntent(intent, { markdown: context, hasVisualSystem });
     const userText = user + optionsSuffix;
     // When vision images are provided, build multi-modal content so the AI
     // can see the kept images and decide where to insert them.
-    const userContent = visionImages ? buildVisionMessage(userText, visionImages) : userText;
+    const userContent = visionImages
+      ? buildImageLibraryVisionMessage(userText, visionImages)
+      : userText;
     let messages = [
       { role: "system", content: system },
       { role: "user", content: userContent },
@@ -219,6 +222,47 @@ export class WholeDeckOrchestrator {
   }
 
   /**
+   * Build batches for whole-deck generation. If `<!-- brief: ... (chapter: ...) -->`
+   * markers are present, batches are aligned to chapter boundaries; long chapters
+   * are split into chunks of up to `BATCH_SIZE`. Otherwise, fall back to fixed
+   * `BATCH_SIZE`-slide chunks.
+   * @param {string[]} allSlides
+   * @returns {Array<{start: number, end: number}>}
+   */
+  #buildBatches(allSlides) {
+    const slideChapters = allSlides.map((slide) => {
+      const match = slide.match(/\(chapter:\s*([\s\S]+?)(?:\s+\u2014\s+|\))/);
+      return match ? match[1].trim() : null;
+    });
+    const chapters = [];
+    let currentChapter = null;
+    let start = 0;
+    for (let i = 0; i < slideChapters.length; i++) {
+      const chapter = slideChapters[i];
+      if (chapter && chapter !== currentChapter) {
+        if (i > start) {
+          chapters.push({ start, end: i });
+        }
+        currentChapter = chapter;
+        start = i;
+      }
+    }
+    if (start < slideChapters.length) {
+      chapters.push({ start, end: slideChapters.length });
+    }
+    if (chapters.length === 0) {
+      chapters.push({ start: 0, end: slideChapters.length });
+    }
+    const batches = [];
+    for (const { start, end } of chapters) {
+      for (let i = start; i < end; i += BATCH_SIZE) {
+        batches.push({ start: i, end: Math.min(i + BATCH_SIZE, end) });
+      }
+    }
+    return batches;
+  }
+
+  /**
    * Batched path for whole-deck generate (>8 slides).
    * Uses a 2-worker queue with per-batch retry, truncation split, and ordered reassembly.
    * @param {import("./ai-operation.js").AiOperation} operation
@@ -226,10 +270,10 @@ export class WholeDeckOrchestrator {
    * @param {string} optionsSuffix
    * @param {number} totalSlides
    * @param {object} callbacks
-   * @param {Array<Array<{src: string, dataUrl: string}>|null>} [visionImages] —
-   *   kept images to send as vision content with the first batch only (reimagine
-   *   image reuse). Later batches receive the image src paths as text in the
-   *   options suffix but not the actual image data.
+   * @param {Array<{src: string, dataUrl: string}>} [visionImages] —
+   *   flat list of kept images to send as an image library with the first
+   *   batch only (reimagine image reuse). Later batches receive the image
+   *   src paths as text in the options suffix but not the actual image data.
    * @returns {Promise<string|null>}
    */
   async runWholeDeckBatched(
@@ -246,11 +290,11 @@ export class WholeDeckOrchestrator {
     const deckSummary = buildDeckSummary(context);
     const { onProgress, onLog } = callbacks;
 
-    // Build initial batches
-    const batches = [];
-    for (let i = 0; i < totalSlides; i += BATCH_SIZE) {
-      batches.push({ start: i, end: Math.min(i + BATCH_SIZE, totalSlides) });
-    }
+    // Build chapter-aligned batches. If the virtual deck has `<!-- brief: ... (chapter: ...) -->`
+    // markers (reimagine / remix output), each chapter becomes its own batch and long chapters are
+    // split into up to BATCH_SIZE chunks. Otherwise, fall back to fixed 8-slide batches.
+    const batches = this.#buildBatches(allSlides);
+    const hasChapters = allSlides.some((slide) => /\(chapter:\s*/.test(slide));
 
     const results = new Map();
     let completedSlides = 0;
@@ -260,7 +304,9 @@ export class WholeDeckOrchestrator {
     const repairMessages = new Map();
     const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
 
-    onLog?.(`Split ${totalSlides} slides into ${batches.length} batch(es)`);
+    onLog?.(
+      `Split ${totalSlides} slides into ${batches.length} batch(es)${hasChapters ? " (chapter-aligned)" : ""}`,
+    );
     onProgress?.(0, totalSlides, queue[0]);
 
     const worker = async () => {
@@ -279,6 +325,7 @@ export class WholeDeckOrchestrator {
           signal,
           repairMessages: repairMessages.get(batch.batchKey) || [],
           mode: operation.opts?.mode,
+          hasVisualSystem: !!operation.opts?.visualSystem,
           // Only the first batch gets vision images — subsequent batches
           // know the paths from the options suffix text.
           visionImages: batch.index === 0 ? visionImages : null,
@@ -433,6 +480,7 @@ export class WholeDeckOrchestrator {
     signal,
     repairMessages = [],
     mode,
+    hasVisualSystem = false,
     visionImages = null,
   }) {
     const batchMarkdown = allSlides.slice(batch.start, batch.end).join("\n\n---\n\n");
@@ -445,10 +493,13 @@ export class WholeDeckOrchestrator {
       totalSlides,
       deckSummary,
       mode,
+      hasVisualSystem,
     );
 
     const userText = user + optionsSuffix;
-    const userContent = visionImages ? buildVisionMessage(userText, visionImages) : userText;
+    const userContent = visionImages
+      ? buildImageLibraryVisionMessage(userText, visionImages)
+      : userText;
     const messages = [
       { role: "system", content: system },
       { role: "user", content: userContent },

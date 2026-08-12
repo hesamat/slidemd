@@ -279,26 +279,6 @@ describe("AiReimagineOutlineModal", () => {
     await promise;
   });
 
-  it("displays visual system summary with palette swatches", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const visualSystem = dialog.querySelector(".ai-reimagine-outline-modal__visual-system");
-    expect(visualSystem).not.toBeNull();
-    const swatches = visualSystem.querySelectorAll(".ai-reimagine-outline-modal__swatch");
-    expect(swatches).toHaveLength(5);
-    // Check that swatches have inline background styles (jsdom may normalize hex to rgb)
-    expect(swatches[0].style.background).toMatch(/#0f172a|rgb\(15,\s*23,\s*42\)/);
-    expect(swatches[2].style.background).toMatch(/#06b6d4|rgb\(6,\s*182,\s*212\)/);
-    // Check typography character is shown
-    const details = visualSystem.querySelectorAll(
-      ".ai-reimagine-outline-modal__visual-system-detail",
-    );
-    expect(details.length).toBeGreaterThanOrEqual(1);
-    expect(details[0].textContent).toContain("bold editorial");
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
   it("passes visualSystem through unchanged on generate", async () => {
     const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
@@ -314,31 +294,14 @@ describe("AiReimagineOutlineModal", () => {
     ]);
   });
 
-  it("does not render visual system section when visualSystem is null", async () => {
-    const outlineWithoutVs = { ...SAMPLE_OUTLINE, visualSystem: null };
-    const promise = AiReimagineOutlineModal.show(outlineWithoutVs);
+  it("does not render a visual system section or palette dropdown", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
     const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
     expect(dialog.querySelector(".ai-reimagine-outline-modal__visual-system")).toBeNull();
+    expect(dialog.querySelector(".ai-reimagine-outline-modal__palette-select")).toBeNull();
+    expect(dialog.querySelector(".ai-reimagine-outline-modal__swatch")).toBeNull();
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
-  });
-
-  it("does not render visual system section when visualSystem is undefined", async () => {
-    const outlineWithoutVs = { plan: SAMPLE_OUTLINE.plan, chapters: SAMPLE_OUTLINE.chapters };
-    const promise = AiReimagineOutlineModal.show(outlineWithoutVs);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    expect(dialog.querySelector(".ai-reimagine-outline-modal__visual-system")).toBeNull();
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
-  it("returns visualSystem as null when it was not provided", async () => {
-    const outlineWithoutVs = { plan: SAMPLE_OUTLINE.plan, chapters: SAMPLE_OUTLINE.chapters };
-    const promise = AiReimagineOutlineModal.show(outlineWithoutVs);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    dialog.querySelector('[data-action="generate"]').click();
-    const result = await promise;
-    expect(result.visualSystem).toBeNull();
   });
 
   it("renders plan as an editable textarea", async () => {
@@ -370,79 +333,6 @@ describe("AiReimagineOutlineModal", () => {
     dialog.querySelector('[data-action="generate"]').click();
     const result = await promise;
     expect(result.plan).toBe(SAMPLE_OUTLINE.plan);
-  });
-
-  it("renders a palette dropdown with presets", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const select = dialog.querySelector(".ai-reimagine-outline-modal__palette-select");
-    expect(select).not.toBeNull();
-    expect(select.tagName).toBe("SELECT");
-    const options = select.querySelectorAll("option");
-    // Custom + 8 presets
-    expect(options.length).toBe(9);
-    expect(options[0].value).toBe("Custom");
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
-  it("selects the matching preset when the AI palette matches a preset", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const select = dialog.querySelector(".ai-reimagine-outline-modal__palette-select");
-    // SAMPLE_OUTLINE.palette matches the "Midnight" preset
-    expect(select.value).toBe("Midnight");
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
-  it("selects Custom when the AI palette does not match any preset", async () => {
-    const customOutline = {
-      ...SAMPLE_OUTLINE,
-      visualSystem: {
-        ...SAMPLE_OUTLINE.visualSystem,
-        palette: {
-          base: "#123456",
-          surface: "#234567",
-          accent: "#345678",
-          contrast: "#456789",
-          highlight: "#567890",
-        },
-      },
-    };
-    const promise = AiReimagineOutlineModal.show(customOutline);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const select = dialog.querySelector(".ai-reimagine-outline-modal__palette-select");
-    expect(select.value).toBe("Custom");
-    dialog.querySelector('[data-action="cancel"]').click();
-    await promise;
-  });
-
-  it("updates the palette and swatches when a preset is selected", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const select = dialog.querySelector(".ai-reimagine-outline-modal__palette-select");
-    select.value = "Ocean";
-    select.dispatchEvent(new Event("change"));
-    const swatches = dialog.querySelectorAll(".ai-reimagine-outline-modal__swatch");
-    // Ocean palette base is #0c4a6e
-    expect(swatches[0].style.background).toMatch(/#0c4a6e|rgb\(12,\s*74,\s*110\)/);
-    dialog.querySelector('[data-action="generate"]').click();
-    const result = await promise;
-    expect(result.visualSystem.palette.base).toBe("#0c4a6e");
-    expect(result.visualSystem.palette.accent).toBe("#22d3ee");
-  });
-
-  it("does not change the palette when Custom is selected", async () => {
-    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
-    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
-    const select = dialog.querySelector(".ai-reimagine-outline-modal__palette-select");
-    const originalBase = SAMPLE_OUTLINE.visualSystem.palette.base;
-    select.value = "Custom";
-    select.dispatchEvent(new Event("change"));
-    dialog.querySelector('[data-action="generate"]').click();
-    const result = await promise;
-    expect(result.visualSystem.palette.base).toBe(originalBase);
   });
 
   it("does not show regenerate button when onRegenerate is not provided", async () => {

@@ -81,7 +81,12 @@ export function buildMessages(markdown, mode) {
   const cleaned = stripFrontmatter(markdown, mode);
   const fragment =
     mode === "fix" ? getFragment("fix-prompt.md") : getFragment("generate-prompt.md");
-  return composeMessages(getFragment("system-prompt.md"), fragment, { markdown: cleaned });
+  const substitutions = { markdown: cleaned };
+  if (mode !== "fix") {
+    substitutions.visualStylingNote =
+      "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
+  }
+  return composeMessages(getFragment("system-prompt.md"), fragment, substitutions);
 }
 
 /**
@@ -121,6 +126,12 @@ export function buildDeckSummary(markdown) {
   if (hasDiagrams) features.push("diagrams");
   if (hasImages) features.push("images");
   if (features.length) parts.push(`Features: ${features.join(", ")}.`);
+  // Include the full text of the first slide so the outline AI can preserve
+  // identifying information (course code, week number, author, event name)
+  // that may live in the footer or body rather than the title heading.
+  if (slides.length > 0) {
+    parts.push("First slide (preserve its identifying info):", slides[0].trim());
+  }
   parts.push("Outline:", titles.join("\n"));
   return parts.join("\n");
 }
@@ -147,6 +158,7 @@ export function buildBatchMessages(
   totalSlides,
   deckSummary,
   batchMode,
+  hasVisualSystem = false,
 ) {
   const cleaned = stripFrontmatter(markdown, mode);
   // Use the fence-aware split so `---` inside code blocks doesn't create
@@ -182,13 +194,24 @@ export function buildBatchMessages(
   // Polish mode uses polish-prompt.md (specific PPTX cleanup rules) even
   // in generate mode — the mode controls frontmatter stripping, not the
   // prompt fragment. The fragment selection is owned by the intent registry.
+  const isGenerateFragment = mode !== "fix" && batchMode !== "polish";
   const fragment =
     mode === "fix"
       ? getFragment(getIntentUserFragment("enhanceSlide"))
       : getFragment(getIntentUserFragment(batchMode === "polish" ? "polish" : "generate"));
-  const { system, user } = composeMessages(getFragment("system-prompt.md"), fragment, {
-    markdown: contentForPrompt,
-  });
+  const substitutions = { markdown: contentForPrompt };
+  // Only provide visualStylingNote for the generate fragment (which has the
+  // {{visualStylingNote}} placeholder).
+  if (isGenerateFragment) {
+    substitutions.visualStylingNote = hasVisualSystem
+      ? "- A visual system with a specific palette and design language is provided in the instructions below. Follow it exclusively — do not invent your own colors or theme."
+      : "- Pick ONE coherent visual theme for the whole deck: a light palette with dark text, a dark palette with light text, or a high-contrast accent palette. Use it consistently across slides — do not make each slide look random.\n- Use a small set of accent colors repeatedly (e.g., one primary highlight color, one secondary). Keep backgrounds within the same family and vary them subtly for rhythm.";
+  }
+  const { system, user } = composeMessages(
+    getFragment("system-prompt.md"),
+    fragment,
+    substitutions,
+  );
 
   const pagination = getFragment("batch-pagination.md");
   const paginationVariant = mode === "fix" ? "fix" : "generate";
