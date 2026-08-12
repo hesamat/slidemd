@@ -336,7 +336,12 @@ export class WholeDeckOrchestrator {
     let splitCount = 0;
     const retryAttempts = new Map();
     const repairMessages = new Map();
-    const queue = batches.map((b, i) => ({ ...b, index: i, batchKey: `${b.start}-${b.end}` }));
+    const queue = batches.map((b, i) => ({
+      ...b,
+      index: i,
+      batchKey: `${b.start}-${b.end}`,
+      hasVisionImages: i === 0,
+    }));
 
     onLog?.(
       `Split ${totalSlides} slides into ${batches.length} batch(es)${hasChapters ? " (chapter-aligned)" : ""}`,
@@ -362,7 +367,7 @@ export class WholeDeckOrchestrator {
           hasVisualSystem: !!operation.opts?.visualSystem,
           // Only the first batch gets vision images — subsequent batches
           // know the paths from the options suffix text.
-          visionImages: batch.index === 0 ? visionImages : null,
+          visionImages: batch.hasVisionImages ? visionImages : null,
         });
 
         if (batchResult === null) {
@@ -412,8 +417,15 @@ export class WholeDeckOrchestrator {
                 end: mid,
                 index: batch.index,
                 batchKey: `${batch.start}-${mid}`,
+                hasVisionImages: false,
               },
-              { start: mid, end: batch.end, index: batch.index, batchKey: `${mid}-${batch.end}` },
+              {
+                start: mid,
+                end: batch.end,
+                index: batch.index,
+                batchKey: `${mid}-${batch.end}`,
+                hasVisionImages: false,
+              },
             );
           } else if (batchResult.error.type === "validation" && attempts < 2) {
             const errs = batchResult.error.errors;

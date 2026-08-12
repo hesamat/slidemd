@@ -6,8 +6,8 @@
  * sequence.
  *
  * Rules:
- * 1. If the first slide is `divider` or `punctuation`, change it to
- *    `continuation` (a `transition` on slide 1 has no preceding state to
+ * 1. If the first slide is `divider`, `punctuation`, or `emotional`, change it to
+ *    `continuation` (a high-impact beat on slide 1 has no preceding state to
  *    transition from).
  * 2. If two high-impact beats (`punctuation`, `emotional`, `divider`) occur
  *    consecutively, downgrade the second to `continuation`.
@@ -35,7 +35,7 @@ const HIGH_IMPACT_BEATS = new Set(["punctuation", "emotional", "divider"]);
 export function normalizeBeats(slides) {
   if (!Array.isArray(slides) || slides.length === 0) return slides;
 
-  // Rule 1: first slide cannot be divider or punctuation.
+  // Rule 1: first slide cannot be a high-impact beat.
   if (HIGH_IMPACT_BEATS.has(slides[0].visualBeat)) {
     slides[0].visualBeat = "continuation";
   }

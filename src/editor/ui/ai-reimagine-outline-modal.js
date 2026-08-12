@@ -136,48 +136,6 @@ export class AiReimagineOutlineModal {
       let keepImages = outline.keepImages ? [...outline.keepImages] : [];
       let firstSlideIdentity = outline.firstSlideIdentity ?? "";
 
-      // Regenerate chapters: re-run the outline AI with the edited plan.
-      if (regenerateBtn && opts.onRegenerate) {
-        regenerateBtn.addEventListener("click", async () => {
-          const newPlan = planInput.value.trim();
-          if (!newPlan) {
-            errorEl.textContent = "Enter a plan before regenerating.";
-            return;
-          }
-          errorEl.textContent = "";
-          regenerateBtn.disabled = true;
-          regenerateBtn.textContent = "Regenerating\u2026";
-          try {
-            const newOutline = await opts.onRegenerate(newPlan);
-            if (newOutline) {
-              // Apply regenerated values to working copies, not the original outline.
-              if (newOutline.visualSystem) visualSystem = newOutline.visualSystem;
-              if (newOutline.keepImages) keepImages = [...newOutline.keepImages];
-              if (newOutline.firstSlideIdentity !== undefined)
-                firstSlideIdentity = newOutline.firstSlideIdentity;
-              // Re-render chapters and stats
-              chapters.length = 0;
-              for (const ch of newOutline.chapters) {
-                chapters.push({
-                  title: ch.title,
-                  flowTag: ch.flowTag || "",
-                  summary: ch.summary || "",
-                  suggestedSlideCount: ch.suggestedSlideCount || 1,
-                });
-              }
-              renderChapters();
-              renderStats();
-              planInput.value = newOutline.plan;
-            }
-          } catch (err) {
-            errorEl.textContent = err?.message || "Regeneration failed.";
-          } finally {
-            regenerateBtn.disabled = false;
-            regenerateBtn.textContent = "Regenerate chapters";
-          }
-        });
-      }
-
       /** @type {OutlineChapter[]} */
       const chapters = outline.chapters.map((ch) => ({
         title: ch.title,
@@ -292,6 +250,48 @@ export class AiReimagineOutlineModal {
         chaptersList.appendChild(addBtn);
       };
       renderChapters();
+
+      // Regenerate chapters: re-run the outline AI with the edited plan.
+      if (regenerateBtn && opts.onRegenerate) {
+        regenerateBtn.addEventListener("click", async () => {
+          const newPlan = planInput.value.trim();
+          if (!newPlan) {
+            errorEl.textContent = "Enter a plan before regenerating.";
+            return;
+          }
+          errorEl.textContent = "";
+          regenerateBtn.disabled = true;
+          regenerateBtn.textContent = "Regenerating\u2026";
+          try {
+            const newOutline = await opts.onRegenerate(newPlan);
+            if (newOutline) {
+              // Apply regenerated values to working copies, not the original outline.
+              if (newOutline.visualSystem) visualSystem = newOutline.visualSystem;
+              if (newOutline.keepImages) keepImages = [...newOutline.keepImages];
+              if (newOutline.firstSlideIdentity !== undefined)
+                firstSlideIdentity = newOutline.firstSlideIdentity;
+              // Re-render chapters and stats
+              chapters.length = 0;
+              for (const ch of newOutline.chapters) {
+                chapters.push({
+                  title: ch.title,
+                  flowTag: ch.flowTag || "",
+                  summary: ch.summary || "",
+                  suggestedSlideCount: ch.suggestedSlideCount || 1,
+                });
+              }
+              renderChapters();
+              renderStats();
+              planInput.value = newOutline.plan;
+            }
+          } catch (err) {
+            errorEl.textContent = err?.message || "Regeneration failed.";
+          } finally {
+            regenerateBtn.disabled = false;
+            regenerateBtn.textContent = "Regenerate chapters";
+          }
+        });
+      }
 
       // Focus the first chapter title input so keyboard users have an entry point.
       const firstTitleInput = dialog.querySelector(`.${P}chapter-title-input`);

@@ -95,7 +95,7 @@ export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
 function parseAttributes(attrString) {
   const attrs = {};
   const unknown = [];
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*(?:"([^"]*)"|([^\s"]+)))?/g;
+  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*[:=]\s*(?:"([^"]*)"|([^\s"]+)))?/g;
   let m;
   while ((m = tokenRe.exec(attrString)) !== null) {
     const key = m[1];
@@ -273,7 +273,7 @@ export function buildTextBlockDirective(settings, content) {
     .filter(Boolean)
     .join(" ");
 
-  const open = attrs ? `::: text-block { ${attrs} }` : "::: text-block";
+  const open = attrs ? `::: text-block { ${attrs} }` : "::: text-block { }";
   const safeContent = content || "Text";
   return `${open}\n${safeContent}\n:::`;
 }

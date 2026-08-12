@@ -239,7 +239,7 @@ Its purpose is only to catch obvious bad outputs, not to redesign the sequence.
 
 At minimum:
 
-1. If the first slide is `divider` or `punctuation`, change it to `continuation`. (A `transition` on slide 1 has no preceding state to transition from.)
+1. If the first slide is `divider`, `punctuation`, or `emotional`, change it to `continuation`. (A high-impact beat on slide 1 has no preceding state to transition from.)
 2. If two high-impact beats (`punctuation`, `emotional`, `divider`) occur consecutively without a strong narrative reason, downgrade the second to `continuation`.
 3. Preserve all other model decisions.
 
@@ -440,6 +440,7 @@ Test:
 
 - first slide `punctuation` → normalized to `continuation`
 - first slide `divider` → normalized to `continuation`
+- first slide `emotional` → normalized to `continuation`
 - consecutive high-impact beats are normalized (second → `continuation`)
 - normal sequences remain unchanged
 
