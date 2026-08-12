@@ -27,6 +27,8 @@ Rules:
 - Preserve any existing `::: text-block` blocks exactly, including all attributes and inner text.
 - Convert `[Diagram: ...]` to Mermaid only for true flowcharts or hierarchies; otherwise use bullet points.
 - Handle `<img>` tags in the input: preserve them unless the prompt says to drop specific images. When repositioning an image, use `style="position: relative; left: Npx; top: Npx; width: Npx;"` on the `<img>` tag for custom placement.
+- Only use an `<img>` `src` that actually exists in the input, the kept-image list, or a `reuse:<path>` directive. Do not invent URLs, search for images, or use placeholder `src` values.
+- Use `style="object-fit: contain;"` on logos, diagrams, or screenshots that must not be cropped. Use `object-fit: cover;` for full-bleed photos that should fill their area (the app CSS already defaults to `cover` for media-span images).
 - Use KaTeX syntax for math: `$...$` for inline math and `$$...$$` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use `<sup>`/`<sub>` instead of proper KaTeX.
 
 Allowed layouts and areas:
