@@ -1,199 +1,432 @@
-# Reimagine Mode — Improvement Plan (P1 & P2)
+# Reimagine Mode — Improvement Plan
 
-## Background
+## Product contract
 
-The reimagine mode (outline -> breakdown -> generate) was introduced in 0.9.1.
-Real-world testing revealed four issues:
+Reimagine should make an existing deck feel newly authored, not merely rewritten or reskinned.
 
-| Priority | Items  | Scope                                                 | Status          |
-| -------- | ------ | ----------------------------------------------------- | --------------- |
-| P0       | A1-A3  | Overflow: prompt caps + validator + repair            | Shipped (0.9.3) |
-| P1       | B4, B5 | Color: remove neutral-only, add visual system palette | This plan       |
-| P1       | C6, C7 | Images: source-image inventory + reuse pipeline       | This plan       |
-| P2       | D8     | Voice: presentation-oriented prose                    | This plan       |
+> **Surprise the user in its thinking, reassure them in its structure, and make the result coherent in its execution.**
 
-P0 is done. This document covers P1 (Color + Images) and P2 (Voice).
+Given an existing deck and an optional presentation flow, Reimagine should produce a fresh presentation on the same subject with:
 
-**Design decision — palette application:** The AI emits `background:` and
-`theme:` directives from the visual system palette. The app does **not**
-apply the palette programmatically post-generation. Rationale:
+- a new editorial angle and narrative arc;
+- new examples, analogies, explanations, and slide structure where useful;
+- deliberate visual rhythm and presentation-oriented prose;
+- a visual direction that is distinct from the source deck but bounded by the renderer's existing capabilities.
 
-- The AI needs to know the final colors while composing (text color, image
-  treatment, contrast decisions all depend on the background).
-- The existing architecture already has the AI set `background:` and `theme:`.
-- A programmatic post-pass would be a new token-resolution subsystem, which
-  the `visual-system-beat-engine.md` plan explicitly rules out.
-- A light validator check (flag missing `background:`/`theme:` when a visual
-  system is present) is sufficient to catch drift via the repair loop.
+Reimagine must preserve:
 
----
+- the user's core intent and factual accuracy;
+- essential first-slide identity information such as a course code, event, author, or term;
+- the user's ability to review and change the creative direction before slide generation.
 
-## P1a — Color (B4, B5)
+Reimagine may change:
 
-### B4: Remove neutral-only styling constraints
+- slide order, grouping, and count;
+- chapter structure and examples;
+- layouts, imagery treatment, themes, and backgrounds;
+- speaker notes and presentation voice.
 
-Multiple prompt locations force the AI to use the app's default neutral
-styling and forbid `background:`, `theme:`, `color`, and `backgroundColor`.
-These must be removed or relaxed for the reimagine flow so the AI can use
-the visual system palette.
+The target slide count remains approximately 70–120% of the source deck. The result is always applied through the existing validated and undoable AI pipeline.
 
-**Files to edit:**
-
-| File                                                | Current behavior                                                                                  | Change                                                                                                                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `generate-prompt.md` line 26                        | "Use the app's default neutral styling. Do not output `background:`, `theme:`..."                 | Replace with: when a `{{visualSystemBrief}}` is present, use the palette to set `background:` and `theme:`; when absent, fall back to the existing "pick one coherent visual theme" guidance |
-| `generate-prompt.md` line 64                        | "No custom `background:`, `theme:`... are emitted"                                                | Remove this success criterion when a visual system is present                                                                                                                                |
-| `visual-styling-note.md` (present variant)          | "Do not use the palette colors in `background:`... the app provides its own neutral color scheme" | Replace with: use the palette to set `background:` and `theme: dark`/`theme: light` per slide; maintain legibility                                                                           |
-| `visual-identity-guidance.md` (discard variant)     | "Do not introduce new colors... The app provides its own neutral color scheme"                    | Replace with: when a visual system is present, use its palette; otherwise pick a coherent theme                                                                                              |
-| `remix-visual-identity-guidance.md` (both variants) | "Do not introduce new colors... The app provides its own neutral color scheme"                    | Same change as above (remix does not use visual system today, but the discard variant should not forbid colors outright)                                                                     |
-| `polish-prompt.md` lines 15, 26                     | "Do not add new `theme:`/`background:` values, colored text..."                                   | Leave unchanged — polish preserves existing styling and should not introduce new colors                                                                                                      |
-| `fix-prompt.md` line 19                             | "Do NOT use `color` or `backgroundColor`"                                                         | Leave unchanged — single-slide fix is conservative                                                                                                                                           |
-| `reimagine-outline-prompt.md` line 110              | "Do not preserve the original theme, colors, backgrounds"                                         | Already correct — the outline AI proposes a new visual direction                                                                                                                             |
-
-**Non-goal:** Do not change the polish or fix-prompt flows. They are
-conservative by design and should not start introducing new colors.
-
-### B5: Add visual system palette to the generate prompt
-
-This is the core of the `visual-system-beat-engine.md` plan — thread the
-`visualSystem` from the outline output through to the generate prompt.
-
-**Changes:**
-
-1. **Outline output schema** — add `visualSystem` field (palette, typography,
-   composition, imagery, motifs, contrastRules). Add `validateVisualSystem()`
-   with `DEFAULT_VISUAL_SYSTEM` fallback. Validation is best-effort and
-   decoupled from outline validation (palette is the only hard requirement;
-   missing palette = full default; valid palette + missing fields = partial
-   merge).
-
-2. **Generate prompt** — add `{{visualSystemBrief}}` placeholder. When
-   present, it expands to a formatted summary of the palette (hex colors),
-   typography, composition, imagery mood, motifs, and contrast rules. The
-   prompt instructs the AI to:
-   - Set `background:` using the palette's `base`/`surface` colors.
-   - Set `theme: dark` or `theme: light` based on the palette's luminance.
-   - Use `accent` and `contrast` colors for emphasis (via `::: text-block`
-     with `color`/`backgroundColor` attributes, which are already supported
-     by the renderer).
-   - Apply motifs and contrast rules as compositional guidance.
-
-3. **Validator** — when a visual system is present, flag slides that are
-   missing `background:` or `theme:` as a repair-worthy error (not a hard
-   reject). This catches AI drift without a programmatic override.
-
-4. **Outline modal** — add a read-only visual-system summary (color swatches
-   with hex values, typography character, composition style, imagery mood,
-   motifs). No editing UI.
-
-**Non-goals:**
-
-- No color-contrast helper / WCAG token resolver.
-- No new renderer layout types.
-- No CSS variable system — the AI emits directives the renderer already
-  understands.
+This plan is about making Reimagine feel like a guided editorial art director. It is not a plan for a generalized design-token system, a web image-search product, or a new renderer.
 
 ---
 
-## P1b — Images (C6, C7)
+## Current state
 
-### C6: Source-image inventory in the breakdown phase
+The following foundations already exist and should be treated as shipped rather than planned work:
 
-The breakdown prompt currently allows `imageQuery: "reuse:<path>"` but does
-not tell the AI which images exist in the source deck. As a result, the AI
-cannot assign reuse queries because it doesn't know the paths.
+- P0 overflow protection: prompt caps, output validation, and repair handling.
+- Outline output with a `visualSystem` and deterministic fallback validation.
+- `visualSystem` threading from outline through breakdown to generate.
+- Breakdown-level visual beats: `continuation`, `transition`, `punctuation`, `emotional`, and `divider`.
+- Beat normalization to catch obvious first-slide and consecutive high-impact beats.
+- Source-image extraction, kept-image selection, and `reuse:<path>` image references.
+- Generate-side instructions for placing kept images.
+- Tolerant JSON extraction and a breakdown repair retry for model responses wrapped in prose or fences.
+- Outline review with editable plan and chapters.
 
-**Changes:**
+The main gaps are not missing infrastructure. They are incomplete product wiring and an unclear visual contract:
 
-1. **Orchestrator** — extract the source deck's image inventory (paths + alt
-   text) using the existing `SlideImageExtractor` (already used for vision).
-   Pass the inventory to the breakdown phase as part of the virtual deck
-   context.
-
-2. **Breakdown prompt** — add a "Source images" section listing each image
-   path and its alt text. Instruct the AI to assign
-   `imageQuery: "reuse:<path>"` to slides where a source image is relevant.
-   Do not require every slide to have an image — only assign reuse when the
-   image adds value.
-
-### C7: Image placement in the generate phase
-
-The generate prompt currently only honors `reuse:<path>` but does not
-explicitly instruct the AI to place the image in the slide.
-
-**Changes:**
-
-1. **Generate prompt** — when a `reuse:<path>` query is present in the brief
-   comment, instruct the AI to place the image using `![alt](path)` in the
-   appropriate area (usually `@media`, or `@main` for full-bleed layouts).
-   The existing `| image: reuse:<path>` serialization in the brief comment
-   already works; the prompt just needs to tell the AI to act on it.
-
-2. **Validator** — add a warning-level check (not a hard error) when a slide
-   has a `reuse:<path>` image query in its brief but no `<img>` or
-   `![...](...)` in the generated markdown. This drives a repair retry.
-
-**Non-goals:**
-
-- No web image search (Unsplash, Pexels, etc.).
-- No automatic image query generation for non-reuse queries.
-- No image cropping or composition AI.
+1. The outline review does not show the visual direction the user is approving.
+2. The generated visual system contains palette information, but the current generate guidance explicitly suppresses palette use and keeps the deck neutral.
+3. The generate prompt does not provide the full visual-system summary or beat-to-treatment mapping.
+4. Presentation voice and speaker notes remain too generic.
+5. Image reuse is prompted but not yet verified by the output validator.
 
 ---
 
-## P2 — Voice (D8)
+## Design principles
 
-### D8: Presentation-oriented prose
+### 1. Reimagine starts with an editorial thesis
 
-The generate prompt's content guidance produces flat, encyclopedic prose.
-Slides read like textbook paragraphs rather than presentation talking points.
+A compelling result needs a reason to be different. The outline should communicate the new point of view, not only list chapters.
 
-**Changes:**
+Examples of useful editorial theses:
 
-1. **Generate prompt content guidance** — replace prescriptive content rules
-   with presentation-oriented guidance:
-   - Use conversational headlines (not full sentences, not label-only).
-   - Prefer bullet points and short phrases over paragraphs.
-   - One idea per bullet; no compound bullets.
-   - Use progressive disclosure: headline teases, body delivers.
-   - Vary sentence structure; avoid starting every bullet with a verb.
-   - Use concrete examples, analogies, and real-world references.
+- Reframe a reference guide as a journey from misconception to realization.
+- Turn a technical explanation into a problem-solving story.
+- Open with a historical failure, build tension around its consequences, and reveal the modern approach.
+- Organize the material around decisions the audience must make.
 
-2. **Flow-aware voice** — the existing `flow` option (story / technical /
-   persuasive / instructional) should influence the voice:
-   - **Story**: narrative arcs, anecdotes, before/after framing.
-   - **Technical**: precise terminology, code examples, architecture diagrams.
-   - **Persuasive**: problem-solution, evidence, calls to action.
-   - **Instructional**: step-by-step, examples, tips/warnings.
+The existing `plan` field should serve as this creative direction. Avoid adding a second overlapping concept unless implementation proves that the current field cannot express it.
 
-3. **Beat-aware content density** (depends on P1a visual system work):
-   - `punctuation` slides: 1-3 key points, large type, minimal text.
-   - `emotional` slides: 1-2 lines, image-dominant.
-   - `divider` slides: title + optional subtitle only.
-   - `continuation` slides: normal density (within line budget).
-   - `transition` slides: slightly reduced density to signal a shift.
+### 2. The user reviews the direction, not raw AI output
 
-4. **Speaker notes** — when `addSpeakerNotes` is enabled, instruct the AI to
-   write notes in a conversational speaking voice, not as a restatement of
-   the slide content.
+The review stage is the control point between probabilistic planning and expensive generation. It should expose the creative decisions that matter without becoming a full design editor.
 
-**Non-goals:**
+The user should be able to understand:
 
-- No automated A/B testing of voice quality.
-- No per-slide tone detection or adjustment.
-- No LLM-as-judge scoring in the validation loop.
+- what the new deck is trying to say;
+- how the narrative will progress;
+- what visual character the deck will have;
+- what source identity or assets will be preserved;
+- what will intentionally change.
+
+The visual system remains read-only in this phase. If the direction is wrong, the user can edit the plan and regenerate the outline rather than manually editing a palette schema.
+
+### 3. The visual system is a design language, not a token engine
+
+The AI may propose a palette, typography character, composition, imagery treatment, motifs, and contrast rules. These guide generation; they do not create a new rendering subsystem.
+
+The AI emits existing SlideMD directives and primitives. The renderer remains responsible for parsing and rendering them. No programmatic palette post-pass, CSS-variable system, WCAG token resolver, or new layout type is needed.
+
+### 4. Reimagine styling is scoped to Reimagine
+
+Polish and single-slide Enhance/Fix are conservative by design. Remix should continue to preserve visual identity when requested.
+
+Only Reimagine should activate the fresh visual-system styling contract. The shared generate prompt must use conditional guidance so enabling palette-aware Reimagine does not cause other flows to start inventing themes or colors.
+
+### 5. Deterministic code catches concrete failures
+
+Validation should catch syntax, layout, overflow, missing requested assets, and obvious contract failures. It should not attempt to judge whether a deck is beautiful or optimize a beat sequence mathematically.
 
 ---
 
-## Implementation Order
+## Workstream A — Creative direction and outline review
 
-1. **P1a (color)** — remove neutral-only constraints, add visual system
-   palette to the generate prompt. This is the largest change and unblocks
-   beat-aware density in P2.
-2. **P1b (images)** — source-image inventory + reuse pipeline. Independent
-   of P1a but ships in the same PR to keep the reimagine flow coherent.
-3. **P2 (voice)** — prompt edits only. Depends on beat metadata from P1a
-   for beat-aware density; the rest can be done independently.
+### A1: Make the outline an actionable creative brief
 
-P1a + P1b should ship as one PR. P2 can ship as a follow-up PR or be
-included if the review surface is manageable.
+**Files:**
+
+- `src/data/prompts/reimagine-outline-prompt.md`
+- `src/data/ai/remix-reimagine-orchestrator.js`
+
+The outline prompt should require the `plan` to state:
+
+- the deck's core message;
+- the fresh editorial angle;
+- the intended narrative structure;
+- the implied audience or desired outcome when it can be inferred from the source.
+
+The prompt should continue to preserve factual accuracy and first-slide identity while allowing the AI to rethink structure, examples, and visuals.
+
+Do not add a large new schema solely to represent an audience or goal. Prefer expressing those assumptions in the existing plan unless the user flow later demonstrates that a separate editable field is necessary.
+
+### A2: Show the creative direction in the review modal
+
+**Files:**
+
+- `src/editor/ui/ai-reimagine-outline-modal.js`
+- `styles/ai-reimagine-outline-modal.css`
+
+Add a compact read-only section alongside the plan and chapters showing:
+
+- the visual-system palette as swatches with hex values;
+- typography character;
+- composition style;
+- imagery role and mood;
+- one or two motifs or contrast rules;
+- first-slide identity and selected reusable images when available.
+
+Use human-facing labels such as **Creative direction** or **Visual direction**. Do not show raw JSON or expose every schema field.
+
+The section must update when the user regenerates the outline with an edited plan and must remain read-only when the user edits chapters.
+
+### A3: Preserve the current review controls
+
+Keep the existing ability to:
+
+- edit the plan;
+- rename, reorder, add, and remove chapters;
+- edit chapter summaries and flow tags;
+- regenerate chapters from an edited plan;
+- cancel before breakdown or generation.
+
+Do not make individual slide briefs editable in this phase. The purpose of the modal is to approve the direction, not to duplicate the editor.
+
+---
+
+## Workstream B — Bounded visual-system application
+
+### B1: Use the full visual-system brief during generation
+
+**Files:**
+
+- `src/data/ai/ai-prompt-fragments.js`
+- `src/data/ai/ai-prompt-builder.js`
+- `src/data/prompts/generate-prompt.md`
+- `src/data/prompts/visual-styling-note.md`
+
+When a `visualSystem` is present, generation guidance must include:
+
+- palette roles: base, surface, accent, contrast, and highlight;
+- typography character, headline style, and body style;
+- density, whitespace, and alignment preferences;
+- imagery role, mood, and treatment;
+- recurring motifs;
+- contrast rules.
+
+The current options-suffix injection mechanism is acceptable. A literal `{{visualSystemBrief}}` placeholder is not required if the resulting prompt is clear and the substitutions remain testable.
+
+### B2: Allow renderer-native styling for Reimagine
+
+For Reimagine generation only:
+
+- allow `theme: dark` and `theme: light` based on the visual direction and slide content;
+- allow palette-derived `background:` values using the existing SlideMD syntax;
+- use base/surface colors for foundations and accent/contrast/highlight colors for deliberate emphasis;
+- prefer existing layouts, images, Mermaid, tables, and hierarchy before relying on arbitrary text-block styling.
+
+Do not require every slide to contain a new `background:` and `theme:` directive. A design system can be expressed through composition, density, imagery, layout, and selective contrast. Do not encourage the AI to use every palette color on every slide.
+
+The generic neutral-only instructions must move into the no-visual-system path or otherwise be made conditional. They must remain unchanged for Polish, Fix, and other non-Reimagine flows.
+
+### B3: Keep the visual contract bounded
+
+Do not implement:
+
+- a palette-to-CSS-token resolver;
+- a programmatic post-generation color pass;
+- a new contrast or WCAG engine;
+- arbitrary CSS or freeform style attributes;
+- new renderer layout types;
+- automatic theme changes based on opaque heuristics after generation.
+
+The AI is responsible for making the creative styling choices. The existing renderer is responsible for rendering those choices.
+
+### B4: Add narrow visual-system validation
+
+**File:** `src/data/ai/ai-output-validator.js`
+
+Add warning-level checks only for concrete failures:
+
+- invalid slide theme values when a theme directive is emitted;
+- malformed or unsupported styling directives;
+- a visual-system Reimagine result that contains no explicit theme/background styling anywhere, indicating that the visual direction was completely ignored.
+
+Do not flag an individual slide merely because it lacks `background:` or `theme:`. Do not attempt to infer whether an arbitrary gradient matches the palette. Warnings should drive a repair retry without turning a creative choice into a hard rejection.
+
+---
+
+## Workstream C — Beat-aware composition and density
+
+### C1: Teach Generate how to use beat metadata
+
+**Files:**
+
+- `src/data/prompts/generate-prompt.md`
+- `src/data/ai/ai-prompt-fragments.js`
+
+The breakdown already serializes beat metadata into each virtual slide brief. Add explicit treatment guidance:
+
+| Beat           | Generate guidance                                                                |
+| -------------- | -------------------------------------------------------------------------------- |
+| `continuation` | Maintain the established visual language and normal content density.             |
+| `transition`   | Signal a chapter or idea change with reduced density and a changed hierarchy.    |
+| `punctuation`  | Give one takeaway a strong focal point with minimal competing content.           |
+| `emotional`    | Let imagery or atmosphere carry more of the communication; keep text restrained. |
+| `divider`      | Use minimal content and make the chapter boundary unmistakable.                  |
+
+Apply `energy`, `contrast`, and `relationship` as modifiers:
+
+- high energy permits stronger hierarchy and more visual emphasis;
+- strong contrast permits a deliberate departure within the visual system;
+- `relationship: continue` favors continuity with the preceding slide;
+- `relationship: break` permits a noticeable but intentional departure.
+
+Do not add quotas, sequence scoring, mathematical scheduling, or a visual-rhythm optimizer.
+
+### C2: Keep beat normalization small
+
+Retain the existing deterministic normalizer for obvious mistakes such as a high-impact first slide or adjacent high-impact beats. Do not expand it into a design engine.
+
+---
+
+## Workstream D — Presentation-oriented voice
+
+### D1: Improve generate content guidance
+
+**File:** `src/data/prompts/generate-prompt.md`
+
+Add concise guidance to make slides feel spoken and presentable:
+
+- use conversational headlines rather than full-sentence labels;
+- prefer short phrases and bullets over encyclopedia-style paragraphs;
+- keep one idea per bullet;
+- use progressive disclosure: the headline creates interest and the body delivers the point;
+- vary sentence openings and structure;
+- use concrete examples, analogies, comparisons, and real-world references;
+- put supporting detail in speaker notes when it does not belong on the slide.
+
+Keep the existing line budgets and overflow rules. Voice guidance must not become a reason to pack more text onto a slide.
+
+### D2: Deepen flow-aware voice
+
+**File:** `src/data/prompts/flow-guidance.md`
+
+Expand the existing flow variants without making them repetitive:
+
+- **Story:** narrative arc, characters or situations, tension, before/after framing, and payoff;
+- **Technical:** precise terminology, progressive complexity, evidence, code or architecture examples;
+- **Persuasive:** problem, stakes, evidence, solution, benefits, and a clear call to action;
+- **Instructional:** objectives, steps, examples, likely mistakes, tips, and recap.
+
+Flow guidance should affect both wording and slide sequencing. It must not override the user's reviewed chapter structure.
+
+### D3: Make speaker notes sound spoken
+
+**File:** `src/data/prompts/speaker-notes-guidance.md`
+
+When notes are enabled, instruct the AI to:
+
+- write in a conversational speaking voice;
+- add transitions, explanations, questions, examples, or misconceptions;
+- avoid repeating the visible slide content verbatim;
+- keep notes useful for presenting the actual slide.
+
+When notes are not enabled, preserve the existing behavior.
+
+---
+
+## Workstream E — Source-image reuse reliability
+
+### E1: Keep the current source-image inventory
+
+The source-image inventory and `reuse:<path>` pipeline are the correct scope for this iteration:
+
+- only reuse images that actually exist in the source deck;
+- preserve exact source paths;
+- allow slides to omit images when no source image adds value;
+- do not fabricate URLs or search the web.
+
+### E2: Validate requested image placement
+
+**File:** `src/data/ai/ai-output-validator.js`
+
+When a virtual slide brief contains `image: reuse:<path>`, emit a warning if the generated markdown contains no matching image reference. Accept the existing supported image forms, including HTML `<img>` and Markdown image syntax.
+
+Prefer checking the exact requested path rather than accepting any unrelated image. Use the warning to trigger the existing repair loop.
+
+---
+
+## Workstream F — Reliability and regression coverage
+
+Keep the existing tolerant response parsing, output validation, and repair loop. Do not make valid JSON formatting a source of unnecessary failures when the model adds fences or surrounding prose.
+
+Add or update focused tests for:
+
+### Visual-system contract
+
+- valid visual-system generation and normalization;
+- invalid palette fallback;
+- partial merge with a valid palette;
+- full visual-system prompt content;
+- conditional neutral versus Reimagine styling guidance;
+- no impact on Polish/Fix/Remix prompt behavior.
+
+### Review UI
+
+- visual-system summary appears when present;
+- palette values are escaped safely;
+- regeneration updates the summary;
+- missing visual system is handled without a broken or empty panel;
+- resolved outline preserves the visual system unchanged.
+
+### Beat generation
+
+- beat metadata remains in virtual brief serialization;
+- each beat maps to the intended density/treatment guidance;
+- existing beat normalization behavior remains unchanged.
+
+### Image reuse
+
+- source-image inventory reaches breakdown;
+- `reuse:<path>` reaches generation;
+- missing requested image produces a warning;
+- unrelated images do not satisfy an exact reuse request.
+
+### Voice
+
+- flow variants are included only for the applicable flow;
+- speaker-note guidance differs correctly between add and preserve modes;
+- prompt snapshots and hygiene tests cover the new language.
+
+### Pipeline resilience
+
+- direct JSON, fenced JSON, prose-wrapped JSON, nested braces, and escaped quotes continue to parse;
+- breakdown repair retry remains available after a parse failure;
+- existing overflow, layout, and invalid-output repair behavior remains intact.
+
+---
+
+## Implementation order
+
+1. **Clarify and expose the creative direction** — update outline copy and add the read-only visual direction summary to the modal.
+2. **Activate bounded Reimagine visual styling** — make the visual prompt conditional, pass the full visual system, and allow renderer-native theme/background choices only in Reimagine.
+3. **Wire beat-aware generation** — make the existing beat metadata affect density, hierarchy, layout, imagery, and contrast.
+4. **Improve presentation voice and speaker notes** — update content guidance and the flow variants.
+5. **Add exact image-reuse validation** — complete C7 without expanding into image search.
+6. **Update focused tests, snapshots, and hygiene checks.**
+
+The visual direction, beat treatment, and voice changes form the core user-visible improvement. Image validation and additional parser coverage are reliability work that should support, not define, the product experience.
+
+---
+
+## Acceptance criteria
+
+Reimagine is successful when:
+
+- the user can understand and approve the new editorial and visual direction before generation;
+- the generated deck is meaningfully different in thesis, structure, and slide rhythm—not just wording;
+- Reimagine can use a bounded, renderer-native visual treatment without changing other AI modes;
+- visual beats produce visibly different density and hierarchy;
+- headlines, bullets, and speaker notes sound presentation-ready;
+- kept source images are placed when requested and never fabricated;
+- output remains valid, within density limits, repairable, and undoable;
+- no new renderer subsystem, web image-search system, or LLM-as-judge is required.
+
+---
+
+## Explicit non-goals
+
+Do not implement in this iteration:
+
+- Unsplash, Pexels, or other web image search;
+- automatic image-query generation for assets not present in the source deck;
+- a generalized design-token or CSS-variable engine;
+- programmatic palette application after generation;
+- WCAG token resolution or automatic contrast correction;
+- new slide layouts or beat-specific renderer components;
+- mathematical beat quotas or sequence optimization;
+- LLM-as-judge scoring of creative quality;
+- full per-slide editing inside the outline modal;
+- changes to the conservative Polish or Fix styling contracts.
+
+---
+
+## Relationship to the visual-system beat-engine plan
+
+`docs/plans/visual-system-beat-engine.md` remains the lower-level reference for the existing visual-system schema, beat metadata, normalization, and outline → breakdown → generate plumbing.
+
+This plan is the product-facing direction for completing that work. Where the two documents differ, this plan takes precedence on the following points:
+
+- visual styling is active for Reimagine only, not globally;
+- the user must be able to inspect the visual direction before generation;
+- missing `background:` or `theme:` on an individual slide is not automatically a failure;
+- the existing `reuse:<path>` pipeline is part of the current Reimagine flow and should be validated rather than removed;
+- the current options-suffix injection is acceptable; implementation should not be changed solely to create a literal placeholder.
+
+The implementation principle remains:
+
+> **LLM proposes; deterministic code validates obvious failures; the existing renderer renders; the user remains in control of the creative direction.**

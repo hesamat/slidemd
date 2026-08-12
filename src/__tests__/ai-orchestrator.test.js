@@ -777,7 +777,7 @@ describe("AiOrchestrator", () => {
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
       await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
-        "Outline response did not contain JSON",
+        "Outline response did not contain valid JSON",
       );
     });
 
@@ -1570,6 +1570,48 @@ describe("AiOrchestrator", () => {
       });
       expect(result).not.toBeNull();
       expect(logs.some((l) => l.includes("Vision not supported"))).toBe(true);
+    });
+
+    it("retries breakdown parse failure and succeeds on second attempt", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([[], []]);
+
+      const BAD_BREAKDOWN = "Sure! Here {is} the breakdown:\nThis is not JSON at all.";
+      const GOOD_BREAKDOWN = JSON.stringify({
+        chapters: [
+          {
+            title: "Chapter 1",
+            slides: [
+              { title: "Slide A", intent: "Intent A." },
+              { title: "Slide B", intent: "Intent B." },
+            ],
+          },
+        ],
+      });
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BAD_BREAKDOWN, // first breakdown attempt fails
+        GOOD_BREAKDOWN, // retry succeeds
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const logs = [];
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+        onLog: (msg) => logs.push(msg),
+      });
+      expect(result).not.toBeNull();
+      expect(logs.some((l) => l.includes("Breakdown parse failed"))).toBe(true);
+      // The retry should have consumed an extra provider call: outline + bad
+      // breakdown + retry breakdown + execute calls (one or more depending
+      // on batching). Without the retry it would be 4; with it it's 5.
+      expect(provider.chat).toHaveBeenCalledTimes(5);
     });
   });
 
