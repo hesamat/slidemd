@@ -852,7 +852,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   inset: 0;
   width: 100% !important;
   height: 100% !important;
-  object-fit: contain;
+  object-fit: cover;
   max-height: none;
   display: block;
 }
@@ -876,7 +876,7 @@ body[data-edit-mode="true"] .editor-area-label[data-overflow="1"] {
   > img:not([style*="position"]) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   max-height: none;
   display: block;
 }

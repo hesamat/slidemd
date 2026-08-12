@@ -172,10 +172,10 @@ export function serializeVisualSystemForBreakdown(vs) {
  */
 export function buildKeptImagesList(keptImageSrcs) {
   if (!keptImageSrcs || keptImageSrcs.length === 0) {
-    return "No images from the original deck were kept. Use normal search queries for all imageQuery fields.";
+    return "No images from the original deck were kept. Omit imageQuery for all slides.";
   }
   const lines = keptImageSrcs.map((src) => `- ${src}`).join("\n");
-  return `Kept images from the original deck (reference with \`reuse:<path>\` in imageQuery):\n${lines}`;
+  return `Kept images from the original deck (only allowed as \`reuse:<path>\` in imageQuery):\n${lines}`;
 }
 
 /**

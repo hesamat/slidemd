@@ -809,7 +809,7 @@ export class RemixReimagineOrchestrator {
       );
     }
 
-    return this.#parseBreakdownResponse(response.content, outline);
+    return this.#parseBreakdownResponse(response.content, outline, callbacks);
   }
 
   /**
@@ -819,7 +819,7 @@ export class RemixReimagineOrchestrator {
    * @param {ReimagineOutline} outline
    * @returns {{chapters: ReimagineBreakdownChapter[]}|null}
    */
-  #parseBreakdownResponse(text, outline) {
+  #parseBreakdownResponse(text, outline, callbacks = {}) {
     if (!text || typeof text !== "string") return null;
 
     let cleaned = text.trim();
@@ -846,42 +846,60 @@ export class RemixReimagineOrchestrator {
       throw new Error("Breakdown response missing 'chapters' array");
     }
 
-    if (parsed.chapters.length !== outline.chapters.length) {
-      throw new Error(
-        `Breakdown has ${parsed.chapters.length} chapters, expected ${outline.chapters.length}`,
+    const rawChapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];
+    if (rawChapters.length !== outline.chapters.length) {
+      const { onLog } = callbacks || {};
+      onLog?.(
+        `Breakdown returned ${rawChapters.length} chapter(s), expected ${outline.chapters.length} — aligning to outline.`,
+        "warn",
       );
     }
 
-    const chapters = parsed.chapters.map((ch, i) => {
-      if (typeof ch !== "object" || ch === null) {
-        throw new Error(`Breakdown chapter ${i} is not an object`);
-      }
-      if (typeof ch.title !== "string") {
-        throw new Error(`Breakdown chapter ${i} missing 'title' string`);
-      }
-      if (!Array.isArray(ch.slides) || ch.slides.length === 0) {
-        throw new Error(`Breakdown chapter ${i} missing non-empty 'slides' array`);
-      }
-      const slides = ch.slides.map((s, j) => {
-        if (typeof s !== "object" || s === null) {
-          throw new Error(`Breakdown chapter ${i} slide ${j} is not an object`);
-        }
-        if (typeof s.title !== "string" || typeof s.intent !== "string") {
-          throw new Error(`Breakdown chapter ${i} slide ${j} missing 'title' or 'intent' string`);
-        }
-        return {
-          title: s.title,
-          intent: s.intent,
-          visualBeat: typeof s.visualBeat === "string" ? s.visualBeat : "continuation",
-          energy: typeof s.energy === "string" ? s.energy : "medium",
-          contrast: typeof s.contrast === "string" ? s.contrast : "moderate",
-          relationship: typeof s.relationship === "string" ? s.relationship : "continue",
-          ...(typeof s.imageQuery === "string" && s.imageQuery.trim()
-            ? { imageQuery: s.imageQuery.trim() }
-            : {}),
-        };
-      });
-      return { title: ch.title, slides };
+    const chapters = outline.chapters.map((outlineChapter, i) => {
+      const rawCh = rawChapters[i];
+      const ch =
+        typeof rawCh === "object" && rawCh !== null ? rawCh : { title: outlineChapter.title };
+      const title =
+        typeof ch.title === "string" && ch.title.trim() ? ch.title.trim() : outlineChapter.title;
+      const rawSlides = Array.isArray(ch.slides) ? ch.slides : [];
+      const slides =
+        rawSlides.length > 0
+          ? rawSlides.map((s, _j) => {
+              if (typeof s !== "object" || s === null) {
+                return {
+                  title: title,
+                  intent: outlineChapter.summary || "",
+                  visualBeat: "continuation",
+                  energy: "medium",
+                  contrast: "moderate",
+                  relationship: "continue",
+                };
+              }
+              return {
+                title: typeof s.title === "string" ? s.title : title,
+                intent: typeof s.intent === "string" ? s.intent : outlineChapter.summary || "",
+                visualBeat: typeof s.visualBeat === "string" ? s.visualBeat : "continuation",
+                energy: typeof s.energy === "string" ? s.energy : "medium",
+                contrast: typeof s.contrast === "string" ? s.contrast : "moderate",
+                relationship: typeof s.relationship === "string" ? s.relationship : "continue",
+                ...(typeof s.imageQuery === "string" &&
+                s.imageQuery.trim() &&
+                s.imageQuery.trim().startsWith("reuse:")
+                  ? { imageQuery: s.imageQuery.trim() }
+                  : {}),
+              };
+            })
+          : [
+              {
+                title,
+                intent: outlineChapter.summary || "",
+                visualBeat: "continuation",
+                energy: "medium",
+                contrast: "moderate",
+                relationship: "continue",
+              },
+            ];
+      return { title, slides };
     });
 
     // Normalize beats across the entire deck (flatten, normalize, re-nest).

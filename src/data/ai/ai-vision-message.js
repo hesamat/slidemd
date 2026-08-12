@@ -71,15 +71,25 @@ export function buildImageLibraryVisionMessage(text, images) {
 
   if (!images || images.length === 0) return content;
 
+  // Defensive: callers sometimes nest the flat list in an extra array. The
+  // expected shape is Array<{src, dataUrl}>; if we see Array<Array<...>>,
+  // flatten once before processing.
+  const flatImages =
+    Array.isArray(images) && images.length > 0 && Array.isArray(images[0]) ? images.flat() : images;
+
+  if (flatImages.length === 0) return content;
+
   content.push({
     type: "text",
     text: 'Kept images from the original deck (available for reuse on any slide). Use the exact src path in <img src="..."> when reusing. Dimensions are original pixel sizes — set width in the <img> style to fit the slide layout:',
   });
-  for (let i = 0; i < images.length; i++) {
+  for (let i = 0; i < flatImages.length; i++) {
     const dims =
-      images[i].width && images[i].height ? ` (${images[i].width}x${images[i].height}px)` : "";
-    content.push({ type: "text", text: `[Image ${i}] src: ${images[i].src}${dims}` });
-    content.push({ type: "image_url", image_url: { url: images[i].dataUrl } });
+      flatImages[i].width && flatImages[i].height
+        ? ` (${flatImages[i].width}x${flatImages[i].height}px)`
+        : "";
+    content.push({ type: "text", text: `[Image ${i}] src: ${flatImages[i].src}${dims}` });
+    content.push({ type: "image_url", image_url: { url: flatImages[i].dataUrl } });
   }
 
   return content;

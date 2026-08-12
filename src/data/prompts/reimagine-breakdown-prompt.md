@@ -58,15 +58,13 @@ If a slide should use a specific visual format, mention it in the intent (e.g. "
 
 When describing diagrams in the intent, be specific about what the diagram should show — not just "use a flowchart" but "use a flowchart showing the access path from list → dict → key → value with 5+ nodes and a branch for the error case." Trivial diagrams (two boxes with an arrow) add no value; guide the generate AI toward diagrams that illustrate real structure, relationships, or transformations.
 
-Do not ask for a Mermaid diagram that is just a straight line of 4+ boxes connected by arrows. That is a list, not a diagram. Only request a flowchart when the concept has branches, decisions, loops, or parallel paths. Otherwise, recommend a numbered list, table, or code example.
+Do not ask for a Mermaid diagram that is just a straight line of 4+ boxes connected by arrows. That is a list, not a diagram. Only request a flowchart when the concept has branches, decisions, loops, or parallel paths. Do not request a flowchart to explain or define a concept; use a numbered list, table, or code example instead.
 
 Vary the content format across slides in a chapter. Don't make every slide "code block + explanation." Mix in: comparison tables, step-by-step traces, prediction questions, before/after contrasts, annotated examples, diagrams, analogies, and historical remarks. If a chapter has 5 slides, at least 2 should use a non-code-centric format and at least 1 should use an analogy or a memorable story.
 
 ## Image queries
 
-If a slide would benefit from an image, include an `imageQuery` — a short search query describing the desired image. Make image queries consistent with the visual system's imagery mood. Do not force literal repetition of mood words if that makes the query unnatural. If no image is needed, omit `imageQuery`.
-
-If kept images from the original deck are listed below, you can reference one by setting `imageQuery` to `reuse:<path>` (e.g. `reuse:images/team-photo.jpg`). Use this when a kept image fits the slide's content. If no kept image fits, use a normal search query instead.
+If a slide would benefit from an image, you may only use an image from the original deck. Reference it by setting `imageQuery` to `reuse:<path>` (e.g. `reuse:images/team-photo.jpg`). Use this when a kept image fits the slide's content. If no kept image fits, omit `imageQuery`. Do not use search terms, descriptions, or AI-generated image ideas.
 
 {{keptImages}}
 
@@ -114,7 +112,7 @@ Output format:
           "energy": "medium",
           "contrast": "moderate",
           "relationship": "break",
-          "imageQuery": "broken gears industrial moody"
+          "imageQuery": "reuse:images/gears.jpg"
         },
         {
           "title": "The cost of inaction",
@@ -123,7 +121,7 @@ Output format:
           "energy": "high",
           "contrast": "strong",
           "relationship": "break",
-          "imageQuery": "storm clouds dramatic moody"
+          "imageQuery": "reuse:images/storm.jpg"
         }
       ]
     }
@@ -143,7 +141,7 @@ Rules:
   - `energy` — one of: `low`, `medium`, `high`. Default `medium`.
   - `contrast` — one of: `subtle`, `moderate`, `strong`. Default `moderate`.
   - `relationship` — one of: `continue`, `break`. Default `continue`.
-  - `imageQuery` — (optional) a short search query for an image that would enhance the slide. Omit if no image is needed.
+  - `imageQuery` — (optional) only allowed as a `reuse:<path>` reference to a kept image from the original deck. Omit if no kept image fits.
 - Slides within a chapter should flow naturally — each one building on the previous, none redundant.
 - Every slide `title` must be unique within the deck. Do not repeat a title used by another slide. If a topic reappears, use a distinct, specific title (e.g., "A reliable workflow" and "The path to a reliable answer" instead of the same title twice).
 - Slide titles must not include internal chapter labels, step numbers, stage markers, or brief metadata. Titles should be clean, human-facing headings (e.g., "Trace the path before you run it", not "chapter 03 / prediction").

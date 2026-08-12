@@ -41,6 +41,8 @@ const SAMPLE_OUTLINE = {
     motifs: ["accent divider lines", "oversized chapter numbers"],
     contrastRules: ["Use stark white for takeaways"],
   },
+  keepImages: [0, 2],
+  firstSlideIdentity: "COMP 1510 202630",
 };
 
 describe("AiReimagineOutlineModal", () => {
@@ -302,6 +304,22 @@ describe("AiReimagineOutlineModal", () => {
     expect(dialog.querySelector(".ai-reimagine-outline-modal__swatch")).toBeNull();
     dialog.querySelector('[data-action="cancel"]').click();
     await promise;
+  });
+
+  it("passes keepImages through unchanged on generate", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    expect(result.keepImages).toEqual([0, 2]);
+  });
+
+  it("passes firstSlideIdentity through unchanged on generate", async () => {
+    const promise = AiReimagineOutlineModal.show(SAMPLE_OUTLINE);
+    const dialog = document.querySelector(".ai-reimagine-outline-modal__dialog");
+    dialog.querySelector('[data-action="generate"]').click();
+    const result = await promise;
+    expect(result.firstSlideIdentity).toBe("COMP 1510 202630");
   });
 
   it("renders plan as an editable textarea", async () => {

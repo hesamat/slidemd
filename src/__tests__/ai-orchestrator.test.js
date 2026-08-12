@@ -797,7 +797,7 @@ describe("AiOrchestrator", () => {
       );
     });
 
-    it("reimagine throws on breakdown with mismatched chapter count", async () => {
+    it("reimagine aligns breakdown with mismatched chapter count and continues", async () => {
       const outlineResponse = JSON.stringify({
         plan: "Plan.",
         chapters: [
@@ -808,12 +808,23 @@ describe("AiOrchestrator", () => {
       const breakdownResponse = JSON.stringify({
         chapters: [{ title: "Ch1", slides: [{ title: "S", intent: "I." }] }],
       });
-      const provider = mockProviderSequence([outlineResponse, breakdownResponse]);
+      const executeResponse = JSON.stringify({
+        slides: [
+          { layout: "header-content", content: "@header\n## S\n\n@main\n- A" },
+          { layout: "header-content", content: "@header\n## Ch2\n\n@main\n- B" },
+        ],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
       const orchestrator = new AiOrchestrator({ provider });
       const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "reimagine" });
-      await expect(orchestrator.runWholeDeckOperation(op)).rejects.toThrow(
-        "Breakdown has 1 chapters, expected 2",
-      );
+      const result = await orchestrator.runWholeDeckOperation(op);
+      expect(typeof result).toBe("string");
+      expect(result).toBeTruthy();
     });
 
     it("reimagine threads visualSystem from outline through breakdown to generate", async () => {
@@ -980,7 +991,7 @@ describe("AiOrchestrator", () => {
               {
                 title: "Hook",
                 intent: "Open.",
-                imageQuery: "stormy ocean dark moody",
+                imageQuery: "reuse:images/storm.jpg",
               },
             ],
           },
@@ -1002,7 +1013,7 @@ describe("AiOrchestrator", () => {
         (m) => m.role === "user",
       ).content;
       // imageQuery SHOULD appear in the serialized brief as | image: <query>
-      expect(execUser).toContain("image: stormy ocean dark moody");
+      expect(execUser).toContain("image: reuse:images/storm.jpg");
     });
 
     it("throws on invalid plan action", async () => {
