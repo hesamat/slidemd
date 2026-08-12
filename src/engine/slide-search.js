@@ -377,6 +377,8 @@ export class SlideSearch {
    * Close the search modal and clean up.
    */
   close() {
+    if (!this._modal) return;
+
     if (this._searchTimeout) {
       clearTimeout(this._searchTimeout);
       this._searchTimeout = null;

@@ -49,11 +49,7 @@ export class ConversionModal {
       modalOpened();
 
       // Prevent background scroll while modal is open
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      const restoreScroll = () => {
-        document.body.style.overflow = prevOverflow;
-      };
 
       let selectedFile = null;
       let extractionResult = null;
@@ -333,8 +329,7 @@ export class ConversionModal {
           }
           finalMarkdown = mdLines.join("\n");
         }
-        restoreScroll();
-        backdrop.remove();
+        ConversionModal.close();
         // Always return images so background images can be uploaded and their
         // file references in the markdown can be rewritten to server paths.
         // When not importing content images, only background images are referenced
@@ -348,8 +343,7 @@ export class ConversionModal {
       });
       // Cancel
       cancelBtn.addEventListener("click", () => {
-        restoreScroll();
-        backdrop.remove();
+        ConversionModal.close();
         resolve(null);
       });
 
@@ -361,8 +355,7 @@ export class ConversionModal {
       });
       backdrop.addEventListener("click", (e) => {
         if (backdropMouseDown && e.target === backdrop) {
-          restoreScroll();
-          backdrop.remove();
+          ConversionModal.close();
           resolve(null);
         }
         backdropMouseDown = false;

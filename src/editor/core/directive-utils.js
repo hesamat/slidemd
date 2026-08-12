@@ -324,7 +324,7 @@ export function makeAreaFullHeight(markdown, areaName) {
  *
  * @param {string} markdown
  * @param {string} areaName
- * @returns {{ can: boolean, targetSide?: "left"|"right", targetCol?: number, mediaOnTarget?: boolean, currentSide?: "left"|"right"|"", label?: string }}
+ * @returns {{ can: boolean, label: string, willEnable: boolean }}
  */
 export function getMediaFullBleedInfo(markdown, areaName) {
   const name = String(areaName || "")
@@ -358,7 +358,6 @@ export function getMediaFullBleedInfo(markdown, areaName) {
   if (targetCol !== 0 && targetCol !== maxLen - 1) {
     return { can: false };
   }
-  const targetSide = targetCol === 0 ? "left" : "right";
 
   const mediaColIdx = targetCol;
   const mediaSpansAll = rows.every((row) => row[mediaColIdx] === "media");
@@ -370,23 +369,13 @@ export function getMediaFullBleedInfo(markdown, areaName) {
   const willEnable = !currentFullBleed;
   const label = willEnable ? "Make media column full-bleed" : "Remove media column full-bleed";
 
-  return {
-    can: true,
-    targetSide,
-    targetCol,
-    mediaOnTarget: true,
-    currentFullBleed,
-    willMove: false,
-    willEnable,
-    label,
-  };
+  return { can: true, label, willEnable };
 }
 
 /**
- * Toggle full-bleed for the @media area on the side of the clicked area.
- * Rewrites the layout to put @media in that column and spans it over every
- * row, then writes or removes the `media-full-bleed:` intent. If the media is
- * already on that side and already bleeding, the bleed is removed.
+ * Toggle the `media-full-bleed:` intent for the @media area when the layout
+ * already places @media in an edge column spanning all rows. If full-bleed is
+ * currently disabled it is enabled; if it is already enabled it is removed.
  *
  * @param {string} markdown
  * @param {string} areaName
