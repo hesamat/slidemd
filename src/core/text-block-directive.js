@@ -87,21 +87,76 @@ export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
 
 /**
  * Parse a string of attribute tokens from a directive opening line.
- * Tokens are either `key=value` pairs (value optionally quoted) or bare flag
- * names such as `float` or `bold`, which resolve to "true".
+ * Top-level tokens are either `key=value` pairs (value optionally quoted) or
+ * bare flag names such as `float` or `bold`, which resolve to "true".
+ * Colon-style declarations (`key: value`) are unsupported: the key is recorded
+ * as unknown and the value is skipped so value fragments do not pollute the
+ * attribute list.
  * @param {string} attrString
  * @returns {{attrs: Record<string, string>, unknown: string[]}}
  */
 function parseAttributes(attrString) {
   const attrs = {};
   const unknown = [];
-  const tokenRe = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*[:=]\s*(?:"([^"]*)"|([^\s"]+)))?/g;
-  let m;
-  while ((m = tokenRe.exec(attrString)) !== null) {
-    const key = m[1];
-    attrs[key] = m[2] ?? m[3] ?? "true";
-    if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);
+  const s = String(attrString ?? "").trim();
+
+  let i = 0;
+  const skipSpaces = () => {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  };
+  const readKey = () => {
+    skipSpaces();
+    if (i >= s.length || !/[a-zA-Z]/.test(s[i])) return null;
+    const start = i;
+    i++;
+    while (i < s.length && /[a-zA-Z0-9-]/.test(s[i])) i++;
+    return s.slice(start, i);
+  };
+  const readQuoted = () => {
+    let value = "";
+    i++; // opening quote
+    while (i < s.length && s[i] !== '"') {
+      value += s[i];
+      i++;
+    }
+    if (i < s.length) i++; // closing quote
+    return value;
+  };
+  const readUnquoted = () => {
+    let value = "";
+    while (i < s.length && !/\s/.test(s[i])) value += s[i++];
+    return value;
+  };
+  const skipValue = () => {
+    skipSpaces();
+    if (i < s.length && s[i] === '"') {
+      readQuoted();
+    } else {
+      readUnquoted();
+    }
+  };
+
+  while (true) {
+    const key = readKey();
+    if (key === null) break;
+    skipSpaces();
+    if (i < s.length && s[i] === "=") {
+      i++;
+      skipSpaces();
+      const value = i < s.length && s[i] === '"' ? readQuoted() : readUnquoted();
+      attrs[key] = value;
+      if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);
+    } else if (i < s.length && s[i] === ":") {
+      // Colon-style is unsupported; record only the key and ignore the value.
+      unknown.push(key);
+      i++;
+      skipValue();
+    } else {
+      attrs[key] = "true";
+      if (!KNOWN_TEXT_BLOCK_ATTRIBUTES.has(key)) unknown.push(key);
+    }
   }
+
   return { attrs, unknown };
 }
 

@@ -287,11 +287,7 @@ export class SettingsModal {
       this._currentBackdrop = backdrop;
       modalOpened();
 
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      const restoreScroll = () => {
-        document.body.style.overflow = prevOverflow;
-      };
 
       const dialog = backdrop.querySelector(`.${P}dialog`);
       const errorEl = backdrop.querySelector(`.${P}error`);
@@ -789,9 +785,7 @@ export class SettingsModal {
         }
 
         cleanup();
-        restoreScroll();
-        backdrop.remove();
-        this._currentBackdrop = null;
+        SettingsModal.close();
         resolve({
           apiKey,
           model: selectedModel,
@@ -809,18 +803,14 @@ export class SettingsModal {
 
       cancelBtn.addEventListener("click", () => {
         cleanup();
-        restoreScroll();
-        backdrop.remove();
-        this._currentBackdrop = null;
+        SettingsModal.close();
         resolve(null);
       });
 
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) {
           cleanup();
-          restoreScroll();
-          backdrop.remove();
-          this._currentBackdrop = null;
+          SettingsModal.close();
           resolve(null);
         }
       });

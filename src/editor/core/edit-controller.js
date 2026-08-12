@@ -1079,6 +1079,12 @@ export class EditController {
           action: () => this._makeAreaFullHeight(name),
         });
       }
+      if (name === "media" && this._canFullBleed(name)) {
+        items.push({
+          label: this._getFullBleedLabel(name),
+          action: () => this._toggleFullBleed(name),
+        });
+      }
       return items.length ? items : null;
     }
 

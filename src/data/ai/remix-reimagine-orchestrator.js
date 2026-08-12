@@ -1152,22 +1152,19 @@ export class RemixReimagineOrchestrator {
       for (const idx of entry.source) {
         if (typeof idx !== "number" || !Number.isInteger(idx) || idx < 0) {
           errors.push(`${prefix}: source index ${idx} is not a valid non-negative integer`);
+        } else if (sourceCount === 0) {
+          errors.push(`${prefix}: source index ${idx} out of range (no source slides)`);
         } else if (idx === sourceCount) {
           // Treat an index exactly one past the last valid index as a 1-based
           // off-by-one mistake: clamp to the last slide and continue. Larger
           // out-of-range values are still rejected below.
-          const clamped = sourceCount > 0 ? sourceCount - 1 : 0;
-          if (!normalized.includes(clamped)) {
-            normalized.push(clamped);
-            coveredSources.add(clamped);
-          }
+          normalized.push(sourceCount - 1);
+          coveredSources.add(sourceCount - 1);
         } else if (idx > sourceCount) {
           errors.push(`${prefix}: source index ${idx} out of range (0-${sourceCount - 1})`);
         } else {
-          if (!normalized.includes(idx)) {
-            normalized.push(idx);
-            coveredSources.add(idx);
-          }
+          normalized.push(idx);
+          coveredSources.add(idx);
         }
       }
       entry.source = normalized;

@@ -44,11 +44,21 @@ export function isModalOpen() {
 }
 
 /**
- * Reset the counter (for testing).
+ * Reset the counter. Used as a safety valve when loading a new deck, so any
+ * leaked modal-open state from a broken dismiss path does not permanently
+ * suppress keyboard shortcuts.
  */
-export function _resetModalState() {
+export function resetModalState() {
   openCount = 0;
   if (typeof document !== "undefined" && document.body) {
     document.body.removeAttribute("data-modal-open");
   }
+}
+
+/**
+ * Reset the counter (for testing).
+ * @deprecated Use {@link resetModalState}.
+ */
+export function _resetModalState() {
+  resetModalState();
 }

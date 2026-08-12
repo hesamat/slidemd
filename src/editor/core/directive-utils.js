@@ -348,7 +348,10 @@ export function getMediaFullBleedInfo(markdown, areaName) {
   }
 
   const rows = rowMatches.map((q) => q.slice(1, -1).split(/\s+/).filter(Boolean));
-  const maxLen = Math.max(...rows.map((row) => row.length), 1);
+  if (rows.length < 2 || rows.some((row) => row.length !== rows[0].length)) {
+    return { can: false };
+  }
+  const maxLen = rows[0].length;
 
   const sampleRow = rows.find((row) => row.includes(name));
   if (!sampleRow) {

@@ -130,7 +130,8 @@ layout: header-content
     const err = result.errors.find((e) => e.code === "UNKNOWN_TEXT_BLOCK_ATTR");
     expect(err).toBeDefined();
     expect(err.message).toContain("style");
-    expect(err.message).toContain("padding");
+    expect(err.message).not.toContain("red");
+    expect(err.message).not.toContain("20px");
   });
 
   it("passes when a text-block uses only known attributes", () => {
