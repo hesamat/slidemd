@@ -1,7 +1,10 @@
 import { MarkdownParser, splitSlides } from "../markdown-parser.js";
 import { LayoutData } from "../layout-data.js";
 import { LayoutParser } from "../layout-parser.js";
-import { parseTextBlockDirectives } from "../../core/text-block-directive.js";
+import {
+  parseTextBlockDirectives,
+  CANONICAL_TEXT_BLOCK_ATTRIBUTES,
+} from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -444,7 +447,7 @@ export class AiOutputValidator {
         errors.push({
           slide: index,
           code: "UNKNOWN_TEXT_BLOCK_ATTR",
-          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: id, float, x, y, fontSize, color, backgroundColor, align, opacity, z, rotate, column-count, markdown, bold, italic, underline, strikethrough. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
+          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: ${CANONICAL_TEXT_BLOCK_ATTRIBUTES.join(", ")}. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
         });
       }
     }

@@ -70,6 +70,11 @@ console.log(x);
 
 describe("layout list sync", () => {
   it("covers every layout with defined areas", () => {
+    // Derived independently of getValidLayoutNames() so this test still has
+    // regression value if that helper's filter ever starts omitting or
+    // over-including names — it re-derives "usable layout" from the same
+    // two primitives (getAllLayouts + hasLayout) rather than calling the
+    // helper under test.
     const list = getAllowedLayoutList();
     const listed = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
     for (const name of listed) {

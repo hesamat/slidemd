@@ -265,7 +265,7 @@ const ALLOWED_AREAS = ["title", "header", "main", "media", "secondary", "sidebar
  * @returns {string}
  */
 export function getAllowedLayoutList() {
-  const layouts = LayoutData.getAllLayouts().filter((name) => LayoutData.hasLayout(name));
+  const layouts = LayoutData.getValidLayoutNames();
   const lines = [];
   for (const layout of layouts) {
     const allowedAreas = LayoutData.getAreaNames(layout);

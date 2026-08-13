@@ -186,7 +186,10 @@ export class LayoutPicker {
       return;
     }
 
-    const layouts = LayoutData.getAllLayouts();
+    // getValidLayoutNames() excludes custom layouts with an empty/corrupted
+    // stored grid template (getAllLayouts() alone would still list the name),
+    // so the picker never offers a layout that hasLayout() would then reject.
+    const layouts = LayoutData.getValidLayoutNames();
 
     this.grid.innerHTML = layouts
       .map((layout) => this._renderOption(layout))

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { LayoutData, getMediaFullBleedSideFromGrid } from "../data/layout-data.js";
 
 describe("LayoutData", () => {
@@ -124,6 +124,72 @@ describe("LayoutData", () => {
 
     it("returns false for missing layout", () => {
       expect(LayoutData.hasLayout("nonexistent")).toBe(false);
+    });
+  });
+
+  describe("getValidLayoutNames", () => {
+    it("returns the same names as getAllLayouts when nothing is stale", () => {
+      expect(LayoutData.getValidLayoutNames()).toEqual(LayoutData.getAllLayouts());
+    });
+
+    describe("with a stale custom layout", () => {
+      let originalLocalStorage;
+
+      beforeEach(() => {
+        originalLocalStorage = globalThis.localStorage;
+      });
+
+      afterEach(() => {
+        if (originalLocalStorage === undefined) delete globalThis.localStorage;
+        else globalThis.localStorage = originalLocalStorage;
+        LayoutData.deleteCustomLayout("stale-custom");
+        LayoutData._customMap = null;
+      });
+
+      it("excludes an empty-template entry present directly in the in-memory custom map", () => {
+        // setCustomLayout() and _loadCustomLayouts() both now guard against
+        // ever storing/loading an empty grid template (see the tests below),
+        // but getValidLayoutNames() is a second, independent layer of
+        // defense — it must still exclude a stale entry if the in-memory
+        // map ends up with one through any other path.
+        LayoutData._customMap = { "stale-custom": "" };
+
+        expect(LayoutData.getAllLayouts()).toContain("stale-custom");
+        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+      });
+
+      it("prunes an empty grid template already sitting in localStorage before it reaches getAllLayouts", () => {
+        // Simulates directly-corrupted localStorage (the only realistic way
+        // to end up with an empty custom grid template, since the UI form
+        // and setCustomLayout() both reject it): _loadCustomLayouts() must
+        // filter such entries out at load time, not just at display time.
+        const store = { "webdeck:custom-layouts": JSON.stringify({ "stale-custom": "" }) };
+        globalThis.localStorage = {
+          getItem: (key) => store[key] ?? null,
+          setItem: (key, value) => {
+            store[key] = value;
+          },
+        };
+        LayoutData._customMap = null; // force a fresh load from the stub
+
+        expect(LayoutData.getAllLayouts()).not.toContain("stale-custom");
+        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+      });
+
+      it("rejects saving a custom layout with an empty or blank grid template", () => {
+        const store = {};
+        globalThis.localStorage = {
+          getItem: (key) => store[key] ?? null,
+          setItem: (key, value) => {
+            store[key] = value;
+          },
+        };
+        LayoutData._customMap = null;
+
+        expect(LayoutData.setCustomLayout("stale-custom", "")).toBe(false);
+        expect(LayoutData.setCustomLayout("stale-custom", "   ")).toBe(false);
+        expect(LayoutData.getAllLayouts()).not.toContain("stale-custom");
+      });
     });
   });
 });

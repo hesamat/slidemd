@@ -5,6 +5,7 @@ import {
   parseTextBlockDirectives,
   updateTextBlockDirective,
   KNOWN_TEXT_BLOCK_ATTRIBUTES,
+  CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../core/text-block-directive.js";
 
 describe("text block directive round trip", () => {
@@ -148,6 +149,30 @@ describe("text block unknown attributes", () => {
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("markdown")).toBe(true);
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("style")).toBe(false);
     expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has("padding")).toBe(false);
+  });
+
+  it("exports a curated canonical list without alias near-duplicates", () => {
+    // CANONICAL_TEXT_BLOCK_ATTRIBUTES is what's shown to humans/the AI
+    // (e.g. the validator's "unsupported attribute" message); it must omit
+    // alias spellings like background/textAlign/columnCount so that list
+    // doesn't read as ~20 near-duplicate names, while every name in it is
+    // still recognised by the parser.
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).toContain("backgroundColor");
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).toContain("align");
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).toContain("column-count");
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).not.toContain("background");
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).not.toContain("textAlign");
+    expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).not.toContain("columnCount");
+    for (const attr of CANONICAL_TEXT_BLOCK_ATTRIBUTES) {
+      expect(KNOWN_TEXT_BLOCK_ATTRIBUTES.has(attr)).toBe(true);
+    }
+    // No drift: every non-alias name in KNOWN_TEXT_BLOCK_ATTRIBUTES must
+    // appear in the canonical list too.
+    const aliases = new Set(["background", "textAlign", "columnCount"]);
+    for (const attr of KNOWN_TEXT_BLOCK_ATTRIBUTES) {
+      if (aliases.has(attr)) continue;
+      expect(CANONICAL_TEXT_BLOCK_ATTRIBUTES).toContain(attr);
+    }
   });
 });
 
