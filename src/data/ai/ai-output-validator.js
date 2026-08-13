@@ -3,7 +3,7 @@ import { LayoutData } from "../layout-data.js";
 import { LayoutParser } from "../layout-parser.js";
 import {
   parseTextBlockDirectives,
-  KNOWN_TEXT_BLOCK_ATTRIBUTES,
+  CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../../core/text-block-directive.js";
 import { getSchema } from "./ai-output-schema.js";
 
@@ -447,7 +447,7 @@ export class AiOutputValidator {
         errors.push({
           slide: index,
           code: "UNKNOWN_TEXT_BLOCK_ATTR",
-          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: ${[...KNOWN_TEXT_BLOCK_ATTRIBUTES].join(", ")}. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
+          message: `Slide ${index + 1} text-block uses unsupported attributes: ${newUnknowns.join(", ")}. Supported: ${CANONICAL_TEXT_BLOCK_ATTRIBUTES.join(", ")}. Use key=value or key="value" syntax (not key: value). Freeform CSS (style, padding, margin) is not supported.`,
         });
       }
     }

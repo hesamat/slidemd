@@ -146,12 +146,37 @@ describe("LayoutData", () => {
         LayoutData._customMap = null;
       });
 
-      it("excludes a custom layout name whose stored grid template is empty", () => {
-        // getAllLayouts() lists every custom layout name regardless of
-        // whether its stored grid template is a non-empty string;
-        // hasLayout() rejects an empty template. getValidLayoutNames()
-        // must apply that filter so callers never advertise a name that
-        // hasLayout()/the validator would then reject.
+      it("excludes an empty-template entry present directly in the in-memory custom map", () => {
+        // setCustomLayout() and _loadCustomLayouts() both now guard against
+        // ever storing/loading an empty grid template (see the tests below),
+        // but getValidLayoutNames() is a second, independent layer of
+        // defense — it must still exclude a stale entry if the in-memory
+        // map ends up with one through any other path.
+        LayoutData._customMap = { "stale-custom": "" };
+
+        expect(LayoutData.getAllLayouts()).toContain("stale-custom");
+        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+      });
+
+      it("prunes an empty grid template already sitting in localStorage before it reaches getAllLayouts", () => {
+        // Simulates directly-corrupted localStorage (the only realistic way
+        // to end up with an empty custom grid template, since the UI form
+        // and setCustomLayout() both reject it): _loadCustomLayouts() must
+        // filter such entries out at load time, not just at display time.
+        const store = { "webdeck:custom-layouts": JSON.stringify({ "stale-custom": "" }) };
+        globalThis.localStorage = {
+          getItem: (key) => store[key] ?? null,
+          setItem: (key, value) => {
+            store[key] = value;
+          },
+        };
+        LayoutData._customMap = null; // force a fresh load from the stub
+
+        expect(LayoutData.getAllLayouts()).not.toContain("stale-custom");
+        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+      });
+
+      it("rejects saving a custom layout with an empty or blank grid template", () => {
         const store = {};
         globalThis.localStorage = {
           getItem: (key) => store[key] ?? null,
@@ -160,10 +185,10 @@ describe("LayoutData", () => {
           },
         };
         LayoutData._customMap = null;
-        LayoutData.setCustomLayout("stale-custom", "");
 
-        expect(LayoutData.getAllLayouts()).toContain("stale-custom");
-        expect(LayoutData.getValidLayoutNames()).not.toContain("stale-custom");
+        expect(LayoutData.setCustomLayout("stale-custom", "")).toBe(false);
+        expect(LayoutData.setCustomLayout("stale-custom", "   ")).toBe(false);
+        expect(LayoutData.getAllLayouts()).not.toContain("stale-custom");
       });
     });
   });

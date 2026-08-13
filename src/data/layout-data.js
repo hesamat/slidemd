@@ -52,7 +52,14 @@ export class LayoutData {
       if (!parsed || typeof parsed !== "object") return Object.create(null);
       const map = Object.create(null);
       for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value === "string" && !BLOCKED_KEYS.has(key)) {
+        // Drop entries with an empty/falsy grid template (e.g. saved before
+        // validation was added, or corrupted localStorage) at load time so
+        // no consumer — layout picker, autocomplete, AI prompt/repair
+        // guidance — ever has to special-case a name that hasLayout()
+        // would then reject. This intentionally does not persist the prune
+        // back to storage; a later setCustomLayout() call for the same key
+        // still overwrites cleanly.
+        if (typeof value === "string" && value.trim() && !BLOCKED_KEYS.has(key)) {
           map[key] = value;
         }
       }
@@ -110,13 +117,18 @@ export class LayoutData {
 
   /**
    * Save (or overwrite) a user-defined custom layout in localStorage.
-   * Rejects built-in preset names so users cannot shadow them.
+   * Rejects built-in preset names so users cannot shadow them. Also rejects
+   * an empty/blank grid template — hasLayout() and getValidLayoutNames()
+   * both treat such an entry as unusable, so accepting it here would
+   * silently create a stale layout name no consumer can offer or resolve.
    */
   static setCustomLayout(name, gridTemplate) {
     const key = this._normalizeName(name);
     if (!key || BLOCKED_KEYS.has(key) || this.isBuiltIn(key)) return false;
+    const trimmed = String(gridTemplate || "").trim();
+    if (!trimmed) return false;
     const map = this._getCustomMap();
-    map[key] = String(gridTemplate || "").trim();
+    map[key] = trimmed;
     this._saveCustomLayouts(map);
     return true;
   }

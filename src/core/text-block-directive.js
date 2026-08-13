@@ -58,11 +58,15 @@ for (const ruleName of blockRules) {
 const TEXT_BLOCK_RE = /^:::\s*text-block\s*\{([^}]*)\}[ \t]*\r?\n([\s\S]*?)^:::\s*$/gim;
 
 /**
- * Set of recognised text-block attribute names (after alias normalisation).
- * Used to detect unknown attributes so the AI validator can flag them instead
- * of silently dropping the intended styling.
+ * Canonical text-block attribute names, one entry per concept — this is
+ * what should be shown to humans or the AI (e.g. the validator's
+ * "unsupported attribute" message) so the list doesn't read as ~20 near-
+ * duplicate names. `background`, `textAlign`, and `columnCount` below are
+ * accepted aliases for `backgroundColor`, `align`, and `column-count`
+ * respectively; they're recognised by the parser (via KNOWN_TEXT_BLOCK_ATTRIBUTES)
+ * but intentionally omitted here to keep the display list curated.
  */
-export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
+export const CANONICAL_TEXT_BLOCK_ATTRIBUTES = [
   "id",
   "float",
   "x",
@@ -70,19 +74,30 @@ export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
   "fontSize",
   "color",
   "backgroundColor",
-  "background",
   "align",
-  "textAlign",
   "opacity",
   "z",
   "rotate",
   "column-count",
-  "columnCount",
   "markdown",
   "bold",
   "italic",
   "underline",
   "strikethrough",
+];
+
+const TEXT_BLOCK_ATTRIBUTE_ALIASES = ["background", "textAlign", "columnCount"];
+
+/**
+ * Set of recognised text-block attribute names, including aliases (after
+ * alias normalisation the parser accepts either spelling). Used to detect
+ * unknown attributes so the AI validator can flag them instead of silently
+ * dropping the intended styling. Derived from CANONICAL_TEXT_BLOCK_ATTRIBUTES
+ * so the two lists can't drift apart.
+ */
+export const KNOWN_TEXT_BLOCK_ATTRIBUTES = new Set([
+  ...CANONICAL_TEXT_BLOCK_ATTRIBUTES,
+  ...TEXT_BLOCK_ATTRIBUTE_ALIASES,
 ]);
 
 /**

@@ -13,7 +13,6 @@
 
 import { getFragment } from "./ai-prompt-fragments.js";
 import { replacePlaceholders } from "./ai-prompt-composer.js";
-import { LayoutData } from "../layout-data.js";
 
 /**
  * Actionable, code-specific guidance appended once per distinct error code
@@ -26,11 +25,17 @@ const CODE_GUIDANCE = new Map([
     "SLIDE_CONTENT_OVERFLOW",
     "Reduce content density — trim bullets, move detail to speaker notes, or split the slide.",
   ],
-  // getValidLayoutNames() applies the same hasLayout() filter as
-  // getAllowedLayoutList() (see ai-prompt-fragments.js) so the two lists
-  // can't drift — a custom layout with an empty/falsy stored grid template
-  // would otherwise be advertised here as valid and rejected on retry.
-  ["UNKNOWN_LAYOUT", () => `Valid layouts: ${LayoutData.getValidLayoutNames().join(", ")}.`],
+  // The system prompt already lists every valid layout name with its
+  // allowed @areas (both orchestrators append this repair message to the
+  // same conversation, so that list is still present). Point back at it
+  // instead of re-listing names in a different format — repeating the
+  // list here would also grow the repair message with the layout count
+  // and omit that a custom CSS grid-template string is a valid `layout:`
+  // value too (AiOutputValidator._isValidLayout).
+  [
+    "UNKNOWN_LAYOUT",
+    'Use one of the layouts listed in the system prompt above (each shows its allowed @areas), or a custom CSS grid-template string, e.g. `"header header" "main media" / 1fr 1fr`.',
+  ],
   // Each INVALID_AREA issue message above already states that slide's
   // allowed areas ("... allows only: ..."), so this points back at the
   // issue list itself rather than repeating a layout→area table here.
