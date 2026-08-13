@@ -268,5 +268,45 @@ describe("injectDirectives", () => {
       expect(result).toContain("theme: dark");
       expect(result).toContain("@header\n## Title");
     });
+
+    it("extracts capitalized directives (Theme:/Background:) the same as lowercase", () => {
+      const md = "layout: header-content\nBackground: #fff\nTheme: dark\n@header\n## Hi";
+      const result = extractDirectives(md);
+      expect(result[0].background).toBe("#fff");
+      expect(result[0].theme).toBe("dark");
+    });
+
+    it("strips a capitalized AI-echoed Theme: line and restores the original in fix mode", () => {
+      // The AI echoes `Theme: light` capitalized; fix mode must strip it so
+      // the original `theme: dark` is the only theme that survives — otherwise
+      // MarkdownParser.extractDirective (which keeps the last match) would
+      // apply the AI's value.
+      const md = "layout: header-content\nTheme: light\n\n@header\n## Title";
+      const orig = [{ layout: "header-content", background: "", theme: "dark" }];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result.match(/^theme:/gim) || []).toHaveLength(1);
+      expect(result).toContain("theme: dark");
+      expect(result).not.toContain("Theme: light");
+      expect(result).not.toMatch(/theme:\s*light/i);
+    });
+
+    it("strips a capitalized AI-echoed Background: line and restores the original in fix mode", () => {
+      const md = "layout: header-content\nBackground : #123456\n\n@header\n## Title";
+      const orig = [{ layout: "header-content", background: "#fff", theme: "" }];
+      const result = injectDirectives(md, orig, "fix");
+      expect(result.match(/^background:/gim) || []).toHaveLength(1);
+      expect(result).toContain("background: #fff");
+      expect(result).not.toMatch(/background:\s*#123456/i);
+    });
+
+    it("recognizes a capitalized Theme: the AI dropped is not double-injected in generate mode", () => {
+      const md = "layout: header-content\nTheme: dark\n\n@header\n## Title";
+      const orig = [{ layout: "header-content", background: "", theme: "dark" }];
+      const result = injectDirectives(md, orig, "generate");
+      // hasTopLevelDirective must see the capitalized line as present, so no
+      // duplicate is spliced in after layout.
+      expect(result.match(/^theme:/gim) || []).toHaveLength(1);
+      expect(result).toContain("Theme: dark");
+    });
   });
 });

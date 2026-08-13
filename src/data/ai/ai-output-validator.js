@@ -5,7 +5,12 @@ import {
   parseTextBlockDirectives,
   CANONICAL_TEXT_BLOCK_ATTRIBUTES,
 } from "../../core/text-block-directive.js";
-import { parseAllImages } from "../image-markdown-parser.js";
+import {
+  parseAllImages,
+  splitBackgroundValue,
+  findFencedRanges,
+  normalizeImageSrc,
+} from "../image-markdown-parser.js";
 import { getSchema } from "./ai-output-schema.js";
 
 /**
@@ -643,7 +648,11 @@ export class AiOutputValidator {
    * sides: converting an existing `<img>` into a full-bleed `background:` is a
    * legitimate layout choice the image-source check (restrictImageSources)
    * already governs, and dropping one is the same as dropping an image. Only
-   * color/gradient backgrounds participate in the identity comparison.
+   * the color/gradient part of a `background:` value participates in the
+   * identity comparison — `splitBackgroundValue` extracts it so a color
+   * smuggled alongside a legitimate image url in a mixed single-layer value
+   * (e.g. `#fff url(hero.png)`) is still caught, instead of the whole value
+   * being excluded from comparison merely because it contains `url(`.
    *
    * Comparisons are case/whitespace-insensitive, but error messages embed the
    * raw values so the repair message asks the model to restore the exact
@@ -655,16 +664,16 @@ export class AiOutputValidator {
    */
   _checkPreservedIdentity(inputSlides, outputSlides, errors) {
     const normalize = (v) => v.trim().toLowerCase();
-    const isImageBackground = (v) => /url\(/i.test(v);
+    const backgroundColorPart = (v) => splitBackgroundValue(v).colorPart;
     const count = Math.min(inputSlides.length, outputSlides.length);
     for (let i = 0; i < count; i++) {
       for (const name of ["theme", "background"]) {
-        const rawInput = extractTopLevelDirectiveValues(inputSlides[i], name).filter(
-          (v) => !(name === "background" && isImageBackground(v)),
-        );
-        const rawOutput = extractTopLevelDirectiveValues(outputSlides[i], name).filter(
-          (v) => !(name === "background" && isImageBackground(v)),
-        );
+        const rawInput = extractTopLevelDirectiveValues(inputSlides[i], name)
+          .map((v) => (name === "background" ? backgroundColorPart(v) : v))
+          .filter((v) => v.trim() !== "");
+        const rawOutput = extractTopLevelDirectiveValues(outputSlides[i], name)
+          .map((v) => (name === "background" ? backgroundColorPart(v) : v))
+          .filter((v) => v.trim() !== "");
         const inputValues = rawInput.map(normalize);
         const outputValues = rawOutput.map(normalize);
 
@@ -768,9 +777,17 @@ export class AiOutputValidator {
    *   and accept only `allowedImageSrcs`
    */
   _checkImageSources(outputSlides, errors, allowedImageSrcs = [], opts = {}) {
-    const allowed = new Set(allowedImageSrcs);
+    // Normalized comparison (leading `./` stripped, percent-encoding
+    // decoded) — a model that reuses a real deck image but writes it
+    // slightly differently (`./images/a.png` vs `images/a.png`, a
+    // URL-encoded space) must not be flagged as fabricated. See
+    // `normalizeImageSrc` and the orchestrator's `stripFabricatedImages`,
+    // which normalizes the same way so validation and the mechanical
+    // backstop agree on what counts as a match.
+    const allowed = new Set(allowedImageSrcs.map(normalizeImageSrc));
     if (!opts || !opts.onlyExplicit) {
-      for (const src of collectImageSources(this._inputMarkdown)) allowed.add(src);
+      for (const src of collectImageSources(this._inputMarkdown))
+        allowed.add(normalizeImageSrc(src));
     }
     // No image sources anywhere (no explicit allowlist, no images in the
     // input): nothing may be referenced. Flagging every output image would
@@ -782,10 +799,10 @@ export class AiOutputValidator {
     for (let i = 0; i < outputSlides.length; i++) {
       const offenders = [];
       for (const img of parseAllImages(stripFencedBlocks(outputSlides[i]))) {
-        if (!allowed.has(img.src)) offenders.push(img.src);
+        if (!allowed.has(normalizeImageSrc(img.src))) offenders.push(img.src);
       }
       for (const url of extractBackgroundUrls(outputSlides[i])) {
-        if (!allowed.has(url)) offenders.push(url);
+        if (!allowed.has(normalizeImageSrc(url))) offenders.push(url);
       }
       if (offenders.length > 0) {
         errors.push({
@@ -935,17 +952,11 @@ function normalizeAreasForCompare(areas) {
  */
 export function extractTopLevelDirectiveValues(markdown, name) {
   const values = [];
-  let inFence = false;
   const re = new RegExp(`^\\s*${name}\\s*:\\s*(.+)$`, "i");
-  for (const line of markdown.split("\n")) {
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
+  forEachTopLevelLine(markdown, (line) => {
     const match = line.match(re);
     if (match && match[1].trim()) values.push(match[1].trim());
-  }
+  });
   return values;
 }
 
@@ -982,42 +993,55 @@ export function collectImageSources(markdown) {
  */
 function extractBackgroundUrls(markdown) {
   const urls = [];
-  let inFence = false;
-  for (const line of markdown.split("\n")) {
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
+  forEachTopLevelLine(markdown, (line) => {
     const match = line.match(/^\s*background\s*:\s*(.+)$/i);
-    if (!match) continue;
+    if (!match) return;
     for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
       urls.push(urlMatch[1]);
     }
-  }
+  });
   return urls;
+}
+
+/**
+ * Call `callback(line)` for each line of `markdown` that is outside a fenced
+ * code block. Shared by every fence-aware line scan in this module so they
+ * all agree on what counts as a fence — built on `findFencedRanges`, which
+ * (unlike this module's previous per-function ```-only `inFence` toggling)
+ * also recognizes `~~~` fences, matching `parseAllImagesOutsideFences` and
+ * the remix orchestrator's fence walks.
+ * @param {string} markdown
+ * @param {(line: string) => void} callback
+ */
+function forEachTopLevelLine(markdown, callback) {
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
+  let offset = 0;
+  for (const line of markdown.split("\n")) {
+    if (!inFenceAt(offset)) callback(line);
+    offset += line.length + 1;
+  }
 }
 
 /**
  * Blank out fenced code blocks (both fence markers and their bodies) so
  * image/directive scans ignore code samples — a code fence may legitimately
- * illustrate `<img>` tags or directive lines.
+ * illustrate `<img>` tags or directive lines. Line breaks are preserved so
+ * line-oriented scans downstream (e.g. `extractTopLevelDirectiveValues`) see
+ * the same line count and offsets as the original markdown.
  * @param {string} markdown
  * @returns {string}
  */
 function stripFencedBlocks(markdown) {
-  const lines = markdown.split("\n");
-  let inFence = false;
-  const out = [];
-  for (const line of lines) {
-    if (/^\s*```/.test(line)) {
-      // Blank opening and closing markers alike — the fence text is not
-      // markdown content.
-      out.push("");
-      inFence = !inFence;
-      continue;
-    }
-    out.push(inFence ? "" : line);
+  const ranges = findFencedRanges(markdown);
+  if (ranges.length === 0) return markdown;
+  let result = "";
+  let cursor = 0;
+  for (const { start, end } of ranges) {
+    result += markdown.slice(cursor, start);
+    result += markdown.slice(start, end).replace(/[^\n]/g, "");
+    cursor = end;
   }
-  return out.join("\n");
+  result += markdown.slice(cursor);
+  return result;
 }

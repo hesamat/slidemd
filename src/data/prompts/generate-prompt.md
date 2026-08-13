@@ -12,7 +12,7 @@ Content strategy:
 - Do not repeat slide titles. Every slide title must be unique and clearly distinguishable from other slides in the deck.
 - Do not include internal chapter labels, step numbers, stage markers, or brief metadata in slide text. Slide titles and body text should be clean, human-facing content. Remove markers like `chapter 03 / ...`, `> $ section / step N`, `>>> ...`, or similar leaked brief tokens.
 - Add speaker notes where helpful: `<!-- notes: ... -->`.
-- Drop images that are low quality, redundant, or don't add value to the slide.
+- Drop images that are low quality, redundant, or don't add value to the slide — unless the visual-styling instructions below say to preserve the deck's visual identity. In that case, keep every image from the input slide (as `<img>` or `background: url(...)`); do not drop it for quality or relevance reasons.
 - If the input appears to be from a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images to where they make sense, and tighten the text.
 - If a slide has a `<!-- brief: ... -->` comment, follow that brief. A brief saying "merge" means combine the following slides into one output slide.
 - The brief may include `| image: <query>` at the end. Only honor the query if it is a `reuse:<path>` directive (e.g. `reuse:images/team-photo.jpg`). In that case, insert `<img src="path">` on that slide using the exact path. If the query is anything other than `reuse:<path>` (a search term, a description, etc.), ignore it — do not insert an image.

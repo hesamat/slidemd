@@ -435,6 +435,31 @@ Background: url(images/bg.png)
     expect(result).not.toContain("background: #1a1a2e");
     expect(result).toContain("Background: url(images/bg.png)");
   });
+
+  it("strips a color smuggled alongside an image in a mixed background", () => {
+    // `background: #fff url(images/hero.png)` renders the color behind the
+    // (possibly transparent) image — discard mode must not leave the stale
+    // color behind while keeping the image. Only the url part survives.
+    const md =
+      "layout: full-image\nbackground: #fff url(images/hero.png) center/cover\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png) center/cover");
+    expect(result).not.toMatch(/background:.*#fff/i);
+  });
+
+  it("strips a gradient smuggled alongside an image in a mixed background", () => {
+    const md =
+      "layout: full-image\nbackground: linear-gradient(rgba(0,0,0,.5), transparent) url(images/hero.png)\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png)");
+    expect(result).not.toMatch(/background:.*gradient/i);
+  });
+
+  it("leaves a pure image background untouched", () => {
+    const md = "layout: full-image\nbackground: url(images/hero.png)\n@main\n## Hero";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("background: url(images/hero.png)");
+  });
 });
 
 describe("getAllowedLayoutList", () => {

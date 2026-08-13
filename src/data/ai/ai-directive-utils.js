@@ -24,11 +24,15 @@ import { splitSlides } from "../markdown-parser.js";
 export function extractDirectives(markdown, slides) {
   const sections = slides || splitSlides(markdown);
   return sections.map((slide) => {
-    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/m);
-    const bgMatch = slide.match(/^\s*background\s*:\s*(.+)$/m);
-    const themeMatch = slide.match(/^\s*theme\s*:\s*(.+)$/m);
-    const mediaFullBleedMatch = slide.match(/^\s*media-full-bleed\s*:\s*(.+)$/m);
-    const mediaSpanMatch = slide.match(/^\s*media-span\s*:\s*(.+)$/m);
+    // Case-insensitive to match MarkdownParser.extractDirective's
+    // `^\s*${name}\s*:` with the `i` flag — a capitalized `Theme: dark` must
+    // be read here the same as `theme: dark`, or it is extracted as empty
+    // and the original styling is lost on the AI round-trip.
+    const layoutMatch = slide.match(/^\s*layout\s*:\s*(.+)$/im);
+    const bgMatch = slide.match(/^\s*background\s*:\s*(.+)$/im);
+    const themeMatch = slide.match(/^\s*theme\s*:\s*(.+)$/im);
+    const mediaFullBleedMatch = slide.match(/^\s*media-full-bleed\s*:\s*(.+)$/im);
+    const mediaSpanMatch = slide.match(/^\s*media-span\s*:\s*(.+)$/im);
     const mediaFullBleed =
       /^(true|1|yes|y|on)$/i.test(mediaFullBleedMatch?.[1]?.trim() || "") ||
       /^(left|right)$/i.test(mediaSpanMatch?.[1]?.trim() || "");
@@ -207,7 +211,11 @@ function stripLeadingDirectives(lines, names) {
       }
       const match = line.match(directiveLine);
       if (match) {
-        if (namesSet.has(match[1])) continue; // strip
+        // Case-insensitive name comparison — an echoed `Theme: light` must be
+        // stripped the same as `theme: light`, or injectDirectives splices
+        // the original after it and MarkdownParser.extractDirective (which
+        // keeps the *last* match) picks the AI's value instead of the user's.
+        if (namesSet.has(match[1].toLowerCase())) continue; // strip
         out.push(line);
         continue;
       }

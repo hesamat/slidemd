@@ -31,7 +31,13 @@ import {
 import { collectImageSources, extractTopLevelDirectiveValues } from "./ai-output-validator.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
-import { parseAllImages, parseAllImagesOutsideFences } from "../image-markdown-parser.js";
+import {
+  parseAllImages,
+  parseAllImagesOutsideFences,
+  findFencedRanges,
+  splitBackgroundValue,
+  normalizeImageSrc,
+} from "../image-markdown-parser.js";
 import { buildReasoningBody, isVisionError } from "./orchestrator-shared.js";
 import { parseVisualSystem } from "./visual-system-schema.js";
 import { normalizeBeats } from "./beat-normalizer.js";
@@ -181,18 +187,14 @@ export class RemixReimagineOrchestrator {
     // in a text-only remix the model never saw any pictures, so a
     // hallucinated keepImages array must not be allowed to delete images.
     const imagesForVirtualDeck = imagesWereSent ? slideImages : null;
-    const virtualDeck = this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
+    // `processedSourcesByEntry` is the same per-rewrite-entry source slides
+    // (post keepImages filtering) that were joined into each virtual slide —
+    // reused below by the deterministic preserve-mode backstop instead of
+    // re-splitting/re-filtering the deck per entry, per source slide.
+    const { markdown: virtualDeck, processedSourcesByEntry: virtualSourceSlidesByEntry } =
+      this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
-    // Per-rewrite-entry virtual source slides (from planContext, after any
-    // keepImages filtering) — used by the deterministic preserve-mode backstop
-    // to restore dropped theme/background/image-background directives. These
-    // are the same slides #planToVirtualDeck joined into each virtual slide,
-    // split back out here so the backstop can map by rewrite-entry order
-    // instead of original slide position (remix may reorder/merge).
-    const virtualSourceSlidesByEntry = rewriteEntries.map((entry) =>
-      entry.source.map((idx) => splitSlidesForAi(planContext, "generate")[idx]).filter(Boolean),
-    );
     // Image allowlist for the execute phase: every src the virtual deck may
     // legitimately reference. This is what validation unions with the
     // input-derived sources, so it must only cover the rewritten slides.
@@ -328,9 +330,9 @@ export class RemixReimagineOrchestrator {
     // strip uses the unified allowlist (rewritten + kept srcs) so kept-slide
     // images are not mistaken for fabricated references.
     if (preserveVisualIdentity) {
-      return stripFabricatedImages(finalMarkdown, finalAllowedSrcs);
+      return stripFabricatedImages(finalMarkdown, finalAllowedSrcs, onLog);
     }
-    return stripFabricatedImages(stripVisualIdentity(finalMarkdown), finalAllowedSrcs);
+    return stripFabricatedImages(stripVisualIdentity(finalMarkdown), finalAllowedSrcs, onLog);
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -514,7 +516,7 @@ export class RemixReimagineOrchestrator {
     // are kept because the validator guarantees they are deck images — and
     // remove any fabricated image references the model insisted on (the
     // validator only repairs; it never hard-fails).
-    return stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs);
+    return stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs, onLog);
   }
 
   /**
@@ -1330,6 +1332,13 @@ export class RemixReimagineOrchestrator {
    * from the source slide content before building the virtual slide. This
    * tells the execute phase which images to drop.
    *
+   * Also returns the per-rewrite-entry processed source slides (post
+   * keepImages filtering) so callers building the preserve-mode identity
+   * backstop don't need to re-split and re-filter the deck themselves —
+   * re-running `splitSlidesForAi` once per source slide of every entry would
+   * make deck re-parsing cost grow with the square of the deck size, and
+   * re-filtering separately would let the two computations drift apart.
+   *
    * @param {Array<object>} plan
    * @param {string} sourceMarkdown
    * @param {Array<Array<{src: string, dataUrl: string}>|null>|null} [slideImages] —
@@ -1341,12 +1350,16 @@ export class RemixReimagineOrchestrator {
    *   images by src identity (not ordinal position) so that images excluded
    *   from extraction (backgrounds, SVG placeholders) or that failed to
    *   compress — which never reached the model — are never touched.
-   * @returns {string}
+   * @returns {{ markdown: string, processedSourcesByEntry: string[][] }} —
+   *   `processedSourcesByEntry` covers only non-"keep" entries, in the same
+   *   order as they appear in `plan` (matching `rewriteEntries` order).
    */
   #planToVirtualDeck(plan, sourceMarkdown, slideImages = null) {
     // Use the fence-aware split so `---` inside code blocks doesn't create
-    // phantom slides and misalign source indices with the plan.
+    // phantom slides and misalign source indices with the plan. Split once
+    // for the whole deck instead of once per source slide of every entry.
     const sourceSlides = splitSlidesForAi(sourceMarkdown, "generate");
+    const processedSourcesByEntry = [];
 
     const virtualSlides = plan.map((entry) => {
       if (entry.action === "keep") {
@@ -1361,6 +1374,7 @@ export class RemixReimagineOrchestrator {
         if (!sentImages || !entry.keepImages || !Array.isArray(entry.keepImages)) return slide;
         return filterImagesByKeepIndices(slide, entry.keepImages, sentImages);
       });
+      processedSourcesByEntry.push(processedSources.filter(Boolean));
 
       // Join source slides with a merge marker (not ---) so splitSlidesForAi
       // treats the whole entry as one virtual slide.
@@ -1368,7 +1382,7 @@ export class RemixReimagineOrchestrator {
       return `<!-- brief: ${entry.brief} -->\n${sourceContent}`;
     });
 
-    return virtualSlides.join("\n\n---\n\n");
+    return { markdown: virtualSlides.join("\n\n---\n\n"), processedSourcesByEntry };
   }
 }
 
@@ -1380,9 +1394,12 @@ export class RemixReimagineOrchestrator {
  * (onlyExplicitImageSources closes that gap at validation time, but filtering
  * here is defense in depth and keeps the brief itself honest).
  *
- * Non-`reuse:` imageQuery values (free-text search queries) are passed
- * through unchanged — the generate AI may use them to pick from the kept
- * images listed in the options suffix.
+ * Non-`reuse:` imageQuery values (free-text search queries) are dropped
+ * entirely: reimagine only has kept source images to offer (no image search
+ * is wired up), so a free-text query cannot be satisfied and would only
+ * nudge the generate AI to invent a picture. onlyExplicitImageSources +
+ * the final strip would then delete that invented image, leaving an empty
+ * media area — dropping the query here avoids that dead end up front.
  *
  * @param {unknown} imageQuery
  * @param {string[]} keptImageSrcs
@@ -1393,7 +1410,13 @@ function parseImageQuery(imageQuery, keptImageSrcs, onLog) {
   if (typeof imageQuery !== "string") return {};
   const q = imageQuery.trim();
   if (!q) return {};
-  if (!q.startsWith("reuse:")) return { imageQuery: q };
+  if (!q.startsWith("reuse:")) {
+    onLog?.(
+      `Breakdown imageQuery "${q}" is not a reuse:<path> reference — dropping it (no image search is available).`,
+      "warn",
+    );
+    return {};
+  }
   const path = q.slice("reuse:".length).trim();
   if (keptImageSrcs.includes(path)) return { imageQuery: q };
   onLog?.(
@@ -1480,9 +1503,13 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   if (!sourceSlides || sourceSlides.length === 0) return slideMarkdown;
 
   const normalize = (v) => v.trim().toLowerCase();
-  const isImageBackground = (v) => /url\(/i.test(v);
 
   // Collect source identity values (color/theme) and image background urls.
+  // A single background layer can mix a color with an image (e.g.
+  // `#fff url(hero.png)`) — splitBackgroundValue separates the two so a
+  // color riding alongside a legitimate image is still tracked for
+  // restoration, instead of the whole value being treated as pure image
+  // content merely because it contains `url(`.
   const sourceThemes = [];
   const sourceColorBackgrounds = [];
   const sourceImageUrls = [];
@@ -1492,26 +1519,27 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
     }
     for (const v of extractTopLevelDirectiveValues(src, "background")) {
       if (!v.trim()) continue;
-      if (isImageBackground(v)) {
-        for (const m of v.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
+      const { colorPart, imagePart, hasImage } = splitBackgroundValue(v);
+      if (colorPart) sourceColorBackgrounds.push(colorPart);
+      if (hasImage) {
+        for (const m of imagePart.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
           sourceImageUrls.push(m[1]);
         }
-      } else {
-        sourceColorBackgrounds.push(v);
       }
     }
   }
 
   const outputThemes = extractTopLevelDirectiveValues(slideMarkdown, "theme").map(normalize);
   const outputBackgrounds = extractTopLevelDirectiveValues(slideMarkdown, "background");
-  const outputColorBackgrounds = outputBackgrounds
-    .filter((v) => !isImageBackground(v))
-    .map(normalize);
+  const outputColorBackgrounds = [];
   const outputImageUrls = new Set();
   for (const v of outputBackgrounds) {
-    if (!isImageBackground(v)) continue;
-    for (const m of v.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-      outputImageUrls.add(m[1]);
+    const { colorPart, imagePart, hasImage } = splitBackgroundValue(v);
+    if (colorPart) outputColorBackgrounds.push(normalize(colorPart));
+    if (hasImage) {
+      for (const m of imagePart.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
+        outputImageUrls.add(m[1]);
+      }
     }
   }
   for (const img of parseAllImagesOutsideFences(slideMarkdown)) {
@@ -1545,19 +1573,17 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   if (toRestore.length === 0) return slideMarkdown;
 
   const lines = slideMarkdown.split("\n");
+  const fences = findFencedRanges(slideMarkdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
   let insertAt = 0;
-  let inFence = false;
+  let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    if (/^\s*layout\s*:/i.test(line)) {
+    if (!inFenceAt(offset) && /^\s*layout\s*:/i.test(line)) {
       insertAt = i + 1;
       break;
     }
+    offset += line.length + 1;
   }
   lines.splice(insertAt, 0, ...toRestore);
   return lines.join("\n");
@@ -1581,20 +1607,35 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
  * here leave ordinary blank lines that are harmless in markdown, and a global
  * collapse would reformat blank runs inside fences.
  *
+ * Src comparison is normalized (leading `./` stripped, percent-encoding
+ * decoded) rather than literal: `allowedSrcs` is built from exact source
+ * strings (`collectImageSources`), so a model that reuses a real deck image
+ * but writes it slightly differently — `./images/a.png` vs `images/a.png`,
+ * or a URL-encoded space — would otherwise fail the literal comparison, get
+ * flagged as FABRICATED_IMAGE_SRC by validation, survive the repair loop's
+ * two-attempt cap, and then have this backstop silently delete it, leaving a
+ * media area or `full-image` slide with no visual.
+ *
  * @param {string} markdown
  * @param {string[]} allowedSrcs — srcs the deck may reference (rewritten +
  *   kept sources for remix, kept image paths for reimagine)
+ * @param {(msg: string, level?: string) => void} [onLog] — logs each removed
+ *   image/background so a silently emptied media area is not a silent
+ *   failure mode.
  * @returns {string}
  */
-function stripFabricatedImages(markdown, allowedSrcs) {
-  const allowed = new Set(allowedSrcs);
+function stripFabricatedImages(markdown, allowedSrcs, onLog) {
+  const allowed = new Set(allowedSrcs.map(normalizeImageSrc));
   // Collect removal ranges (byte offsets into the markdown) in document
   // order, then apply them in reverse so earlier offsets don't shift.
   const removals = [];
 
   // Multiline <img> and markdown images outside fences.
   for (const img of parseAllImagesOutsideFences(markdown)) {
-    if (!allowed.has(img.src)) removals.push({ start: img.start, end: img.end });
+    if (!allowed.has(normalizeImageSrc(img.src))) {
+      removals.push({ start: img.start, end: img.end });
+      onLog?.(`Removing fabricated image reference not in the allowed set: ${img.src}`, "warn");
+    }
   }
 
   // background: url(...) directives outside fences. A directive line is
@@ -1602,25 +1643,26 @@ function stripFabricatedImages(markdown, allowedSrcs) {
   // layers with any disallowed url are dropped too (the validator already
   // flagged them, so the backstop mirrors that strictness).
   const lines = markdown.split("\n");
-  let inFence = false;
+  const fences = findFencedRanges(markdown);
+  const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
   let offset = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineStart = offset;
     const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      offset = lineEnd;
-      continue;
-    }
-    if (!inFence) {
+    if (!inFenceAt(lineStart)) {
       const bgMatch = line.match(/^\s*background\s*:\s*(.+)$/i);
       if (bgMatch) {
         const urls = [...bgMatch[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)].map(
           (m) => m[1],
         );
-        if (urls.length > 0 && urls.some((u) => !allowed.has(u))) {
+        const disallowed = urls.filter((u) => !allowed.has(normalizeImageSrc(u)));
+        if (disallowed.length > 0) {
           removals.push({ start: lineStart, end: lineEnd });
+          onLog?.(
+            `Removing background referencing fabricated image(s) not in the allowed set: ${disallowed.join(", ")}`,
+            "warn",
+          );
         }
       }
     }

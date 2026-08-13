@@ -109,3 +109,84 @@ export function parseAllImagesOutsideFences(markdown) {
   const inFence = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
   return parseAllImages(markdown).filter((img) => !inFence(img.start));
 }
+
+// Background-shorthand tokens that describe positioning/sizing/repetition/
+// attachment rather than color — e.g. `background: url(a.png) center/cover`.
+// Excluded from the "color" classification in `splitBackgroundValue` so they
+// travel with the image part instead of being mistaken for a color the user
+// or model introduced.
+const BG_LAYOUT_KEYWORD_RE =
+  /^(repeat-x|repeat-y|no-repeat|repeat|round|space|cover|contain|center|top|bottom|left|right|fixed|local|scroll|border-box|padding-box|content-box|auto|none|initial|inherit|unset)$/i;
+const BG_NUMERIC_RE = /^[\d.]+(%|px|em|rem|vh|vw)?$/i;
+
+/**
+ * Normalize an image src for allowlist comparison — strip a leading `./` and
+ * decode percent-encoding. Allowlists (`collectImageSources`,
+ * `keptImageSrcs`, etc.) are built from exact source strings, so a model
+ * that reuses a real deck image but writes it slightly differently —
+ * `./images/a.png` vs `images/a.png`, or a URL-encoded space — would
+ * otherwise fail a literal comparison: flagged as fabricated by validation,
+ * then silently deleted by the mechanical strip backstop, leaving a media
+ * area or `full-image` slide with no visual and no visible explanation.
+ * @param {string} src
+ * @returns {string}
+ */
+export function normalizeImageSrc(src) {
+  const stripped = src.trim().replace(/^\.\//, "");
+  try {
+    return decodeURI(stripped);
+  } catch {
+    // Malformed percent-encoding — compare on the un-decoded string rather
+    // than throwing.
+    return stripped;
+  }
+}
+
+/**
+ * Split a CSS `background` shorthand value into its color/gradient part and
+ * its image (`url(...)`) part.
+ *
+ * A single background layer can legitimately mix a color with an image —
+ * `background: #fff url(images/hero.png) center/cover` renders the color
+ * behind the (possibly transparent) image. Classifying the whole value as
+ * "image" merely because it contains `url(` — as every call site did before
+ * this helper existed — lets a color/gradient smuggled in alongside a
+ * legitimate image url bypass identity checks and survive the discard-mode
+ * strip, contradicting both preserve mode's dropped/added detection and
+ * discard mode's "no stale visual directives" guarantee.
+ *
+ * This is a token-level split, not a full CSS parser: `url(...)` occurrences
+ * and recognized layout keywords/units/tokens containing `/` (position or
+ * position/size shorthand) are treated as the image part; every other token
+ * is treated as color/gradient content. Good enough for the solid-color,
+ * gradient, and single-image values this app's directives actually contain.
+ *
+ * @param {string} value — the text after `background:` (trimmed by caller)
+ * @returns {{ colorPart: string, imagePart: string, hasImage: boolean }}
+ */
+export function splitBackgroundValue(value) {
+  // Tokenize on whitespace and top-level commas, treating function calls
+  // (`url(...)`, `linear-gradient(...)`, `rgba(...)`, …) as atomic units —
+  // splitting a gradient on its internal commas/spaces would fragment it
+  // into stray numerics and keywords that then leak into the image part.
+  const tokens = value.match(/[a-z-]+\([^)]*\)|[^\s,]+/gi) || [];
+  const colorTokens = [];
+  const otherTokens = [];
+  for (const token of tokens) {
+    if (
+      /^url\(/i.test(token) ||
+      token.includes("/") ||
+      BG_LAYOUT_KEYWORD_RE.test(token) ||
+      BG_NUMERIC_RE.test(token)
+    ) {
+      otherTokens.push(token);
+    } else {
+      colorTokens.push(token);
+    }
+  }
+  return {
+    colorPart: colorTokens.join(" ").trim(),
+    imagePart: otherTokens.join(" ").trim(),
+    hasImage: otherTokens.some((t) => /^url\(/i.test(t)),
+  };
+}

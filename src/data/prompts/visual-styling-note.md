@@ -4,7 +4,7 @@
 
 <!-- variant: absent-preserve -->
 
-- Keep the deck's existing visual identity: preserve each slide's `theme:`, `background:`, and color directives exactly as they are. Do not introduce new themes, backgrounds, or colored text. Use bold, headings, and layout to create emphasis, not color.
+- Keep the deck's existing visual identity: preserve each slide's `theme:`, `background:`, and color directives exactly as they are. Do not introduce new themes, backgrounds, or colored text. Use bold, headings, and layout to create emphasis, not color. Also keep every source image on the slide (as `<img>` or `background: url(...)`) — the "drop low-value images" rule above does not apply here; visual identity includes the slide's pictures, not just its colors.
 
 <!-- variant: present -->
 

@@ -3,6 +3,8 @@ import {
   parseAllImages,
   findFencedRanges,
   parseAllImagesOutsideFences,
+  splitBackgroundValue,
+  normalizeImageSrc,
 } from "../data/image-markdown-parser.js";
 
 describe("parseAllImages", () => {
@@ -104,5 +106,72 @@ describe("parseAllImagesOutsideFences", () => {
     const result = parseAllImagesOutsideFences(md);
     expect(result).toHaveLength(1);
     expect(result[0].src).toBe("images/middle.png");
+  });
+});
+
+describe("splitBackgroundValue", () => {
+  it("splits a pure color background into colorPart only", () => {
+    const result = splitBackgroundValue("#fff");
+    expect(result.colorPart).toBe("#fff");
+    expect(result.imagePart).toBe("");
+    expect(result.hasImage).toBe(false);
+  });
+
+  it("splits a pure image background into imagePart only", () => {
+    const result = splitBackgroundValue("url(images/hero.png) center/cover");
+    expect(result.colorPart).toBe("");
+    expect(result.imagePart).toContain("url(images/hero.png)");
+    expect(result.hasImage).toBe(true);
+  });
+
+  it("splits a mixed color+image background into both parts", () => {
+    const result = splitBackgroundValue("#fff url(images/hero.png)");
+    expect(result.colorPart).toBe("#fff");
+    expect(result.imagePart).toContain("url(images/hero.png)");
+    expect(result.hasImage).toBe(true);
+  });
+
+  it("treats gradient tokens as color content", () => {
+    const result = splitBackgroundValue("linear-gradient(rgba(0,0,0,.5), transparent)");
+    expect(result.colorPart).toContain("linear-gradient");
+    expect(result.hasImage).toBe(false);
+  });
+
+  it("keeps layout keywords with the image part", () => {
+    const result = splitBackgroundValue("#1a1a2e url(images/bg.png) no-repeat center");
+    expect(result.colorPart).toBe("#1a1a2e");
+    expect(result.imagePart).toContain("url(images/bg.png)");
+    expect(result.imagePart).toContain("no-repeat");
+    expect(result.imagePart).toContain("center");
+    expect(result.hasImage).toBe(true);
+  });
+
+  it("handles quoted urls and percent-encoded paths", () => {
+    const result = splitBackgroundValue('#000 url("images/my%20pic.png")');
+    expect(result.colorPart).toBe("#000");
+    expect(result.imagePart).toContain('url("images/my%20pic.png")');
+    expect(result.hasImage).toBe(true);
+  });
+});
+
+describe("normalizeImageSrc", () => {
+  it("strips a leading ./", () => {
+    expect(normalizeImageSrc("./images/a.png")).toBe("images/a.png");
+  });
+
+  it("decodes percent-encoding", () => {
+    expect(normalizeImageSrc("images/my%20pic.png")).toBe("images/my pic.png");
+  });
+
+  it("handles malformed percent-encoding without throwing", () => {
+    expect(normalizeImageSrc("images/%zz.png")).toBe("images/%zz.png");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(normalizeImageSrc("  images/a.png  ")).toBe("images/a.png");
+  });
+
+  it("leaves already-normal paths unchanged", () => {
+    expect(normalizeImageSrc("images/a.png")).toBe("images/a.png");
   });
 });

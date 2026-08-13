@@ -8,6 +8,7 @@
 
 import { AiPromptComposer, collectPlaceholders } from "./ai-prompt-composer.js";
 import { LayoutData } from "../layout-data.js";
+import { splitBackgroundValue } from "../image-markdown-parser.js";
 
 import systemPrompt from "../prompts/system-prompt.md?raw";
 import fixPrompt from "../prompts/fix-prompt.md?raw";
@@ -322,6 +323,13 @@ export function stripThemeAndBackground(markdown) {
  * images, so an image background is content, not identity, and stripping it
  * would silently empty a full-bleed slide the model deliberately composed.
  *
+ * A single background layer can mix a color with an image (e.g.
+ * `background: #fff url(images/hero.png)`), so a value is split via
+ * `splitBackgroundValue` rather than classified as "image" wholesale just
+ * because it contains `url(` anywhere — otherwise a stale/invented color
+ * riding alongside a legitimate image would survive this strip and
+ * contradict discard mode's "no stale visual directives" guarantee.
+ *
  * Used for the final deck in reimagine (always) and remix discard mode.
  *
  * @param {string} markdown
@@ -331,8 +339,11 @@ export function stripVisualIdentity(markdown) {
   return stripDirectivesWith(markdown, (line) => {
     const match = line.match(/^\s*(theme|background)\s*:\s*(.*)$/i);
     if (!match) return false;
-    // Keep image backgrounds; strip color/gradient backgrounds and all themes.
-    return !(match[1].toLowerCase() === "background" && /url\(/i.test(match[2]));
+    if (match[1].toLowerCase() === "theme") return true; // strip theme entirely
+    const { colorPart, imagePart, hasImage } = splitBackgroundValue(match[2]);
+    if (!hasImage) return true; // pure color/gradient — strip
+    if (!colorPart) return false; // pure image — keep the line as-is
+    return `background: ${imagePart}`; // mixed — drop the smuggled color, keep the image
   });
 }
 
@@ -369,15 +380,18 @@ function stripDirectives(markdown, pattern) {
 }
 
 /**
- * Strip lines matched by `shouldStrip`, replacing them with a single blank
- * separator and collapsing blank-line runs — but only outside fenced code
- * blocks. Fence content is kept verbatim so code samples (e.g. two blank
- * lines between Python functions) are never reformatted.
+ * Strip or rewrite lines via `processLine`, replacing stripped lines with a
+ * single blank separator and collapsing blank-line runs — but only outside
+ * fenced code blocks. Fence content is kept verbatim so code samples (e.g.
+ * two blank lines between Python functions) are never reformatted.
  * @param {string} markdown
- * @param {(line: string) => boolean} shouldStrip
+ * @param {(line: string) => boolean|string} processLine — return `true` to
+ *   strip the line, `false` to keep it unchanged, or a string to replace it
+ *   (e.g. rewriting a mixed color+image `background:` line to drop only the
+ *   color part).
  * @returns {string}
  */
-function stripDirectivesWith(markdown, shouldStrip) {
+function stripDirectivesWith(markdown, processLine) {
   const lines = markdown.split("\n");
   const out = [];
   let inFence = false;
@@ -397,13 +411,18 @@ function stripDirectivesWith(markdown, shouldStrip) {
       out.push(line);
       continue;
     }
-    if (shouldStrip(line) || line.trim() === "") {
+    if (line.trim() === "") {
+      pendingBlank = true;
+      continue;
+    }
+    const result = processLine(line);
+    if (result === true) {
       pendingBlank = true;
       continue;
     }
     if (pendingBlank) out.push("");
     pendingBlank = false;
-    out.push(line);
+    out.push(typeof result === "string" ? result : line);
   }
   return out.join("\n").trim();
 }

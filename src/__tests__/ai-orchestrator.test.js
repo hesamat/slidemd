@@ -503,6 +503,72 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("<img");
     });
 
+    it("keeps a real image the model wrote with a normalized path variant", async () => {
+      // The source image is `images/a.png`; the model reuses it as
+      // `./images/a.png`. Literal comparison would flag it as fabricated and
+      // the strip would delete it, emptying the media area — normalized
+      // comparison (leading `./` stripped, percent-encoding decoded) must
+      // accept it.
+      const deckWithImage =
+        'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+        ],
+      });
+      const pathVariant = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: '@header\n## Slide 1\n\n@main\n- Tightened\n\n<img src="./images/a.png">',
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, pathVariant, pathVariant]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithImage, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain('src="./images/a.png"');
+    });
+
+    it("logs fabricated image removals via onLog", async () => {
+      const deckWithImage =
+        'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+        ],
+      });
+      const fabricated = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              '@header\n## Slide 1\n\n@main\n- Tightened\n\n<img src="https://evil.example/x.png">',
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, fabricated, fabricated]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const logs = [];
+      const op = createOperation("generate", null, deckWithImage, { mode: "remix" });
+      await orchestrator.runWholeDeckOperation(op, undefined, {
+        onLog: (msg, level) => logs.push({ msg, level }),
+      });
+
+      // The mechanical strip must surface what it removed instead of
+      // silently emptying a media area.
+      expect(
+        logs.some(
+          (l) =>
+            l.level === "warn" && l.msg.includes("fabricated") && l.msg.includes("evil.example"),
+        ),
+      ).toBe(true);
+    });
+
     it("preserves kept-slide images through the final fabricated-image strip", async () => {
       // A kept slide carries an image that never appears in the virtual deck
       // (only rewritten slides go through the execute call). The final strip
@@ -1495,6 +1561,62 @@ describe("AiOrchestrator", () => {
         : execUser;
       // The hallucinated reuse: path must not appear in the brief.
       expect(execText).not.toContain("reuse:images/storm.jpg");
+    });
+
+    it("reimagine drops free-text imageQuery (not a reuse: reference)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [],
+      ]);
+      const outlineResponse = JSON.stringify({
+        plan: "Plan.",
+        keepImages: [0],
+        chapters: [{ title: "Ch1", flowTag: "hook", summary: "S.", suggestedSlideCount: 1 }],
+      });
+      // A free-text search query is not a reuse:<path> directive — reimagine
+      // has no image search, so keeping it in the brief would invite the
+      // model to invent a picture that the final strip then deletes.
+      const breakdownResponse = JSON.stringify({
+        chapters: [
+          {
+            title: "Ch1",
+            slides: [
+              {
+                title: "Hook",
+                intent: "Open.",
+                imageQuery: "a stormy sky over mountains at dusk",
+              },
+            ],
+          },
+        ],
+      });
+      const executeResponse = JSON.stringify({
+        slides: [{ layout: "header-content", content: "@header\n## Hook\n\n@main\n- x" }],
+      });
+      const provider = mockProviderSequence([
+        outlineResponse,
+        breakdownResponse,
+        executeResponse,
+        executeResponse,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const execUser = provider.chat.mock.calls[2][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      const execText = Array.isArray(execUser)
+        ? execUser.map((b) => b.text || "").join("\n")
+        : execUser;
+      // The free-text query must not appear in the serialized brief (the
+      // generate prompt's own `| image:` rule text may legitimately contain
+      // the word "image:" — what matters is that no brief carries the query).
+      expect(execText).not.toContain("| image: a stormy sky");
+      expect(execText).not.toContain("stormy sky");
     });
 
     it("throws on invalid plan action", async () => {

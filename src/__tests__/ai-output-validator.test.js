@@ -793,11 +793,31 @@ background: #fff url(images/hero.png)
 
 @main
 <img src="images/hero.png">`;
-      // `background: #fff url(...)` mixes a new color with the image — the
-      // whole value is treated as image content, so the added color is not
-      // flagged (the image-source check governs the url part).
+      // `background: #fff url(...)` mixes a new color with the image —
+      // splitBackgroundValue separates the layers, so the smuggled `#fff`
+      // is detected as an added identity directive (the image-source check
+      // governs the url part separately).
+      const result = validatePreserve(input, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
+    });
+
+    it("passes when a mixed background's color part matches the input", () => {
+      const input = `layout: header-content
+background: #1a1a2e
+
+@main
+<img src="images/hero.png">`;
+      const output = `layout: full-image
+background: #1a1a2e url(images/hero.png) center/cover
+
+@main
+<img src="images/hero.png">`;
+      // Same color as the input, image layer added (governed by the
+      // image-source check) — no identity violation.
       const result = validatePreserve(input, output);
       expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it("passes when directives are indented", () => {
@@ -1102,6 +1122,77 @@ background: linear-gradient(rgba(0, 0, 0, 0.5)), url(https://example.com/bg.png)
       });
       expect(result.ok).toBe(false);
       expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("accepts an allowed image written with a ./ prefix (normalized comparison)", () => {
+      const input = `<!-- brief: Slide A -->`;
+      const output = `layout: header-content
+
+@main
+<img src="./images/team.png" alt="Team">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/team.png"],
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("accepts an allowed image written with percent-encoding (normalized comparison)", () => {
+      const input = `<!-- brief: Slide A -->`;
+      const output = `layout: header-content
+
+@main
+<img src="images/my%20pic.png" alt="Team">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/my pic.png"],
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("ignores image references inside ~~~ fenced code blocks", () => {
+      // The validator's fence scans were ```-only before the consolidation
+      // onto findFencedRanges — a ~~~ fenced code sample illustrating an
+      // <img> tag was treated as a real reference and flagged.
+      const input = `<!-- brief: Slide A -->`;
+      const output = `layout: header-content
+
+@main
+~~~
+<img src="https://developer.mozilla.org/logo.png">
+~~~`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/real.png"],
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("ignores background: lines inside ~~~ fenced code blocks", () => {
+      const input = `<!-- brief: Slide A -->`;
+      const output = `layout: header-content
+
+@main
+~~~
+background: url(https://evil.example/x.png)
+~~~`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: ["images/real.png"],
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it("onlyExplicitImageSources skips the input-derived union", () => {
