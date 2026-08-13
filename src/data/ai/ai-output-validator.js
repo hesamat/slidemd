@@ -351,9 +351,20 @@ export class AiOutputValidator {
       this._checkImageSources(rawSlideTexts, errors, opts.allowedImageSrcs);
     }
     // Positional identity preservation — only meaningful when slide counts match
-    // (expectedSlideCount enforces this in the remix execute path).
-    if (opts.enforcePreserveIdentity && rawSlideTexts.length === inputRawSlideTexts.length) {
-      this._checkPreservedIdentity(inputRawSlideTexts, rawSlideTexts, errors);
+    // (expectedSlideCount enforces this in the remix execute path). When they
+    // differ the check would attach directives to the wrong slides, so it is
+    // skipped with a warning instead of silently passing.
+    if (opts.enforcePreserveIdentity) {
+      if (rawSlideTexts.length === inputRawSlideTexts.length) {
+        this._checkPreservedIdentity(inputRawSlideTexts, rawSlideTexts, errors);
+      } else if (this._inputMarkdown) {
+        warnings.push({
+          slide: -1,
+          code: "IDENTITY_CHECK_SKIPPED",
+          message:
+            "Identity-preservation check skipped — the output slide count differs from the input.",
+        });
+      }
     }
 
     return { ok: errors.length === 0, errors, warnings, slides };
@@ -848,7 +859,11 @@ function extractTopLevelDirectiveValues(markdown, name) {
 }
 
 /**
- * Extract `url(...)` values from top-level (non-fenced) `background:` directives.
+ * Extract all `url(...)` values from top-level (non-fenced) `background:`
+ * directives. Scans every occurrence in the value — a background may combine
+ * multiple layers, e.g. `linear-gradient(rgba(0,0,0,.5)), url(images/bg.png)`
+ * or `#000 url(images/bg.png) center/cover` — not just values that begin with
+ * `url(`.
  * @param {string} markdown
  * @returns {string[]}
  */
@@ -861,8 +876,11 @@ function extractBackgroundUrls(markdown) {
       continue;
     }
     if (inFence) continue;
-    const match = line.match(/^background:\s*url\(\s*['"]?([^'")\s]+)['"]?\s*\)/i);
-    if (match) urls.push(match[1]);
+    const match = line.match(/^background:\s*(.+)$/i);
+    if (!match) continue;
+    for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
+      urls.push(urlMatch[1]);
+    }
   }
   return urls;
 }

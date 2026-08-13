@@ -748,6 +748,8 @@ layout: header-content
       const result = validatePreserve(INPUT, output);
       // Count mismatch is the only error — no identity errors on misaligned slides.
       expect(result.errors.map((e) => e.code)).toEqual(["SLIDE_COUNT_MISMATCH"]);
+      // The skip is surfaced as a warning so callers know enforcement didn't run.
+      expect(result.warnings.map((w) => w.code)).toContain("IDENTITY_CHECK_SKIPPED");
     });
 
     it("does not enforce identity when enforcePreserveIdentity is not set", () => {
@@ -858,6 +860,35 @@ background: url(images/bg.png)
     it("errors on a fabricated background url", () => {
       const output = `layout: header-content
 background: url(https://example.com/bg.png)
+
+@main
+- Text`;
+      const result = validateSources(INPUT, output);
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("allows a background url that is not the start of the value", () => {
+      // Multi-layer/gradient backgrounds put url(...) after other layers —
+      // every occurrence on the background line must be scanned.
+      const input = `layout: header-content
+background: linear-gradient(rgba(0, 0, 0, 0.5)), url(images/bg.png)
+
+@main
+- Text`;
+      const output = `layout: header-content
+background: #000 url(images/bg.png) center/cover no-repeat
+
+@main
+- Text`;
+      const result = validateSources(input, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("errors on a fabricated background url embedded in a gradient/shorthand value", () => {
+      const output = `layout: header-content
+background: linear-gradient(rgba(0, 0, 0, 0.5)), url(https://example.com/bg.png)
 
 @main
 - Text`;
