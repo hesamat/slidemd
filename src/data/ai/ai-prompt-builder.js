@@ -120,12 +120,18 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
       // Count non-empty content lines, excluding frontmatter directives, @area
       // markers, speaker notes, and code fence delimiters. Trim each line
       // before testing so indented markers and nested bullets are handled.
+      // Only exclude known slide-level directive keys (matching the parser's
+      // list in markdown-parser.js) — not any "word:" pattern, which would
+      // wrongly drop body prose like "Example:" or "Output:".
       const contentLines = lines.filter((l) => {
         const t = l.trim();
-        if (/^(@\w+|layout:|theme:|background:|---)/.test(t)) return false;
-        // Exclude other frontmatter directives (e.g. hidden:, media-full-bleed:,
-        // area-style-*, code-center:, activity:).
-        if (/^\w[\w-]*:/.test(t) && !/^#{1,6}\s/.test(t)) return false;
+        if (/^(@\w+|---)/.test(t)) return false;
+        if (
+          /^(layout|theme|background|hidden|hide|media-full-bleed|media-span|align|header-style|area-style(?:-[\w-]+)?|code-font-size)\s*:/i.test(
+            t,
+          )
+        )
+          return false;
         // Exclude speaker notes comments.
         if (/^<!--\s*notes:/.test(t)) return false;
         // Exclude code fence delimiters (``` or ~~~).
@@ -133,8 +139,9 @@ export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerS
         return true;
       });
       meta.push(`${contentLines.length} lines`);
-      // Count bullets — trim first so nested/indented bullets are counted.
-      const bulletCount = contentLines.filter((l) => /^[-*]\s/.test(l.trim())).length;
+      // Count list items — trim first so nested/indented items are counted.
+      // Includes unordered (-, *, +) and ordered (1. 2. etc.) list markers.
+      const bulletCount = contentLines.filter((l) => /^([-*+]|\d+\.)\s/.test(l.trim())).length;
       if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
       if (/```/.test(slide)) meta.push("code");
       if (/<img/.test(slide)) meta.push("image");

@@ -173,7 +173,7 @@ describe("buildDeckSummary", () => {
     expect(summary).toContain("2 lines");
   });
 
-  it("enriched metadata excludes non-standard directives from line count", () => {
+  it("enriched metadata excludes known frontmatter directives from line count", () => {
     const md =
       "layout: header-content\nhidden: true\nmedia-full-bleed: true\n@header\n## Slide\n\n@main\n- Point 1";
     const summary = buildDeckSummary(md, false, true);
@@ -181,11 +181,26 @@ describe("buildDeckSummary", () => {
     expect(summary).toContain("(2 lines, 1 bullet)");
   });
 
+  it("enriched metadata does NOT exclude body prose with colons (Example:, Output:)", () => {
+    const md =
+      "layout: header-content\n@header\n## Slide\n\n@main\nExample: this is a labelled line\nOutput: another labelled line\n- Point 1";
+    const summary = buildDeckSummary(md, false, true);
+    // Heading + Example + Output + bullet = 4 content lines, 1 bullet
+    expect(summary).toContain("(4 lines, 1 bullet)");
+  });
+
   it("enriched metadata counts nested/indented bullets", () => {
     const md = "layout: header-content\n@main\n- Top level\n  - Nested bullet\n  - Another nested";
     const summary = buildDeckSummary(md, false, true);
     // 3 bullets total (including indented ones)
     expect(summary).toContain("3 bullets");
+  });
+
+  it("enriched metadata counts + and ordered list items as bullets", () => {
+    const md = "layout: header-content\n@main\n- Dash item\n+ Plus item\n1. First\n2. Second";
+    const summary = buildDeckSummary(md, false, true);
+    // 4 list items total
+    expect(summary).toContain("4 bullets");
   });
 });
 

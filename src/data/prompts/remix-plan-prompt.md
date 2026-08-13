@@ -41,7 +41,7 @@ Rules:
   - `merge` — combine multiple slides into one. `source` must have 2 or more indices.
 - `source` indices are 0-based into the original deck. The deck has {{sourceCount}} source slides, so valid source indices are 0 through {{maxSourceIndex}} inclusive. The outline above is numbered from 1 for readability, but the index for the first source slide is 0 and the last source slide is {{maxSourceIndex}}.
 - `brief` is a one-sentence description of what the output slide should contain and how it should change. Required for `rewrite` and `merge`; empty for `keep`. Be specific — name what to tighten, add, rearrange, or combine, not just "improve this slide".
-- `reason` is a short explanation of why this action was chosen (not what the slide will contain — that goes in `brief`). Required for all actions including `keep`. Keep it to one sentence.
+- `reason` is a short explanation of why this action was chosen (not what the slide will contain — that goes in `brief`). Expected for all actions including `keep`, but not strictly required — if omitted, the plan still succeeds. Keep it to one sentence.
 - `title` is a short label for the slide (used for display, not sent to the generator).
 - `keepImages` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit `keepImages` entirely — do not guess it.
 - Cover every source slide. Reorder freely if a different order tells the story better.
@@ -61,7 +61,7 @@ Success criteria:
 - The plan covers every original slide (every source index appears in at least one entry).
 - The JSON is valid and parseable.
 - No source index is out of range.
-- Each output slide has a clear purpose stated in `reason`.
+- Each output slide has a clear purpose; include `reason` to explain the decision.
 - Each `rewrite`/`merge` `brief` is specific and actionable, not generic.
 
 Input deck summary and outline:

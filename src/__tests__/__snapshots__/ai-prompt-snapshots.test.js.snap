@@ -414,7 +414,7 @@ Slide density and overflow prevention:
 - Respect these per-area line budgets.
   - A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
   - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
-  - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+  - \`focus\`: \`@main\` should hold at most 8–11 lines. This layout uses a larger font, so be selective — a headline plus supporting points, a short code block, or a compact table.
   - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
   - \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
   - \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
@@ -657,7 +657,7 @@ Slide density and overflow prevention:
 - Respect these per-area line budgets.
   - A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
   - \`title-slide\`: \`@title\` only (one or two short lines) and \`@footer\` only (one or two short lines). No \`@main\` content.
-  - \`focus\`: \`@main\` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+  - \`focus\`: \`@main\` should hold at most 8–11 lines. This layout uses a larger font, so be selective — a headline plus supporting points, a short code block, or a compact table.
   - \`header-content\`: \`@header\` is one line; \`@main\` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
   - \`two-column\`: \`@header\` is one line; each column (\`@main\` and \`@media\`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
   - \`media-span-left\` / \`media-span-right\`: \`@header\` is one line; \`@main\` should hold about 8–12 lines; \`@media\` holds one image or one Mermaid diagram.
@@ -790,7 +790,7 @@ What to do:
 - Drop images that are low quality, redundant, or add no value, and keep the rest.
 - Wrap multi-line code or complex examples in fenced code blocks with the appropriate language tag.
 - If the input looks like a PPTX import (mismatched layouts, images in wrong areas, verbose text boxes), fix the layout to match the actual content, reposition images where they make sense, and tighten the text.
-- Respect per-area density budgets when choosing layouts and tightening wording. Rough per-area line budgets: \`title-slide\` \`@title\`/\`@footer\` one or two short lines each and no \`@main\` content, \`header-content\` \`@main\` ~10-14 lines, \`focus\` \`@main\` ~4-5 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines, \`full-image\` \`@main\` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
+- Respect per-area density budgets when choosing layouts and tightening wording. Rough per-area line budgets: \`title-slide\` \`@title\`/\`@footer\` one or two short lines each and no \`@main\` content, \`header-content\` \`@main\` ~10-13 lines, \`focus\` \`@main\` ~8-11 lines, \`two-column\` columns ~6-10 lines each, \`media-span\` \`@main\` ~8-12 lines, \`full-image\` \`@main\` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
 - Apply all of the above changes; do not return the input unchanged or leave formatting problems unfixed.
 
 Constraints:
@@ -1128,7 +1128,7 @@ Rules:
   - \`merge\` — combine multiple slides into one. \`source\` must have 2 or more indices.
 - \`source\` indices are 0-based into the original deck. The deck has 3 source slides, so valid source indices are 0 through 2 inclusive. The outline above is numbered from 1 for readability, but the index for the first source slide is 0 and the last source slide is 2.
 - \`brief\` is a one-sentence description of what the output slide should contain and how it should change. Required for \`rewrite\` and \`merge\`; empty for \`keep\`. Be specific — name what to tighten, add, rearrange, or combine, not just "improve this slide".
-- \`reason\` is a short explanation of why this action was chosen (not what the slide will contain — that goes in \`brief\`). Required for all actions including \`keep\`. Keep it to one sentence.
+- \`reason\` is a short explanation of why this action was chosen (not what the slide will contain — that goes in \`brief\`). Expected for all actions including \`keep\`, but not strictly required — if omitted, the plan still succeeds. Keep it to one sentence.
 - \`title\` is a short label for the slide (used for display, not sent to the generator).
 - \`keepImages\` is only meaningful when you were sent slide images (see "When images are provided" below). If you were not sent any images, omit \`keepImages\` entirely — do not guess it.
 - Cover every source slide. Reorder freely if a different order tells the story better.
@@ -1148,7 +1148,7 @@ Success criteria:
 - The plan covers every original slide (every source index appears in at least one entry).
 - The JSON is valid and parseable.
 - No source index is out of range.
-- Each output slide has a clear purpose stated in \`reason\`.
+- Each output slide has a clear purpose; include \`reason\` to explain the decision.
 - Each \`rewrite\`/\`merge\` \`brief\` is specific and actionable, not generic.
 
 Input deck summary and outline:
