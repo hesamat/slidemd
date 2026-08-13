@@ -243,10 +243,7 @@ describe("buildGenerateOptionsSuffix", () => {
 
   it("asks to preserve existing notes when not adding new ones", () => {
     const suffix = buildGenerateOptionsSuffix({ mode: "polish" });
-    expect(suffix).toContain("Do not author new speaker notes");
-    // Relocation of existing slide content is allowed (polish moves overflow
-    // to notes); only authoring new commentary is forbidden.
-    expect(suffix).toContain("relocate existing slide content");
+    expect(suffix).toContain("Do not add new speaker notes");
   });
 
   it("preserves visual identity when requested", () => {

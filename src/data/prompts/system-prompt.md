@@ -31,6 +31,7 @@ Rules:
 - Only use an `<img>` `src` that actually exists in the input, the kept-image list, or a `reuse:<path>` directive. Do not invent URLs, search for images, or use placeholder `src` values.
 - Use `style="object-fit: contain;"` on logos, diagrams, or screenshots that must not be cropped. Use `object-fit: cover;` for full-bleed photos that should fill their area (the app CSS already defaults to `cover` for media-span images).
 - Use KaTeX syntax for math: `$...$` for inline math and `$$...$$` for display math. The app renders these with KaTeX. Do not write ASCII art equations or use `<sup>`/`<sub>` instead of proper KaTeX.
+- When a slide with a one-column layout (`header-content` or `focus`) has too much content for its area, switch it to `two-column` and distribute the content across `@main` and `@media`. Do not delete content or move it to speaker notes to fit a density budget.
 
 Allowed layouts and areas:
 {{layoutList}}
