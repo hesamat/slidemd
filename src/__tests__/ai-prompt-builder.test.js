@@ -382,6 +382,15 @@ def b():
     // Runs of 2+ blank lines outside fences collapse to a single blank line.
     expect(result).toContain("- A\n\n- B\n\n- C");
   });
+
+  it("strips indented and capitalized directives (the parser accepts both)", () => {
+    const md = "  theme: dark\nTheme: dark\n  background: #fff\n@main\n- Item";
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("Theme:");
+    expect(result).not.toContain("background: #fff");
+    expect(result).toContain("@main");
+  });
 });
 
 describe("stripVisualIdentity", () => {
@@ -412,6 +421,19 @@ background: url(images/bg.png) center/cover
     const md = "layout: header-content\nbackground: linear-gradient(#000, #fff)\n@main\n- Item";
     const result = stripVisualIdentity(md);
     expect(result).not.toContain("background:");
+  });
+
+  it("strips indented and capitalized identity directives but keeps their image backgrounds", () => {
+    const md = `  theme: dark
+  background: #1a1a2e
+Background: url(images/bg.png)
+
+@main
+- Item`;
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background: #1a1a2e");
+    expect(result).toContain("Background: url(images/bg.png)");
   });
 });
 

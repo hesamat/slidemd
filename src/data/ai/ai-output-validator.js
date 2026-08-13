@@ -620,28 +620,41 @@ export class AiOutputValidator {
    * virtual slides carry one directive set per source, and the AI picks one) —
    * and must not introduce directive values the input slide does not have.
    *
+   * `background: url(...)` values are treated as images, not identity, on both
+   * sides: converting an existing `<img>` into a full-bleed `background:` is a
+   * legitimate layout choice the image-source check (restrictImageSources)
+   * already governs, and dropping one is the same as dropping an image. Only
+   * color/gradient backgrounds participate in the identity comparison.
+   *
+   * Comparisons are case/whitespace-insensitive, but error messages embed the
+   * raw values so the repair message asks the model to restore the exact
+   * spelling from the source deck.
+   *
    * @param {string[]} inputSlides — raw input slide texts (same index order as output)
    * @param {string[]} outputSlides — raw output slide texts
    * @param {ValidationError[]} errors
    */
   _checkPreservedIdentity(inputSlides, outputSlides, errors) {
-    // Case/whitespace-insensitive comparison: a model echoing
-    // `background: #1A1A2E` for an input `background: #1a1a2e` preserves the
-    // identity — flagging it only burns a repair round-trip. Raw values are
-    // kept for error messages.
     const normalize = (v) => v.trim().toLowerCase();
+    const isImageBackground = (v) => /url\(/i.test(v);
     const count = Math.min(inputSlides.length, outputSlides.length);
     for (let i = 0; i < count; i++) {
       for (const name of ["theme", "background"]) {
-        const inputValues = extractTopLevelDirectiveValues(inputSlides[i], name).map(normalize);
-        const outputValues = extractTopLevelDirectiveValues(outputSlides[i], name).map(normalize);
+        const rawInput = extractTopLevelDirectiveValues(inputSlides[i], name).filter(
+          (v) => !(name === "background" && isImageBackground(v)),
+        );
+        const rawOutput = extractTopLevelDirectiveValues(outputSlides[i], name).filter(
+          (v) => !(name === "background" && isImageBackground(v)),
+        );
+        const inputValues = rawInput.map(normalize);
+        const outputValues = rawOutput.map(normalize);
 
         if (inputValues.length === 0) {
           if (outputValues.length > 0) {
             errors.push({
               slide: i,
               code: "IDENTITY_DIRECTIVE_ADDED",
-              message: `Slide ${i + 1} introduced ${name}: ${outputValues.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
+              message: `Slide ${i + 1} introduced ${name}: ${rawOutput.join(", ")} — not present in the input. Do not add new ${name} directives when visual identity is preserved.`,
             });
           }
           continue;
@@ -652,10 +665,10 @@ export class AiOutputValidator {
           errors.push({
             slide: i,
             code: "IDENTITY_DIRECTIVE_DROPPED",
-            message: `Slide ${i + 1} dropped the input's ${name}: ${inputValues.join(", ")} — keep it when visual identity preservation is enabled.`,
+            message: `Slide ${i + 1} dropped the input's ${name}: ${rawInput.join(", ")} — keep it when visual identity preservation is enabled.`,
           });
         }
-        const added = outputValues.filter((v) => !inputSet.has(v));
+        const added = rawOutput.filter((v) => !inputSet.has(normalize(v)));
         if (added.length > 0) {
           errors.push({
             slide: i,
@@ -689,6 +702,12 @@ export class AiOutputValidator {
   _checkImageSources(outputSlides, errors, allowedImageSrcs = []) {
     const allowed = new Set(allowedImageSrcs);
     for (const src of collectImageSources(this._inputMarkdown)) allowed.add(src);
+    // No image sources anywhere (no explicit allowlist, no images in the
+    // input): nothing may be referenced. Flagging every output image would
+    // only burn a repair round-trip per batch — the orchestrator's mechanical
+    // strip (stripFabricatedImages) removes whatever the model emits anyway,
+    // so the final deck is guaranteed clean either way.
+    if (allowed.size === 0) return;
 
     for (let i = 0; i < outputSlides.length; i++) {
       const offenders = [];
@@ -837,8 +856,9 @@ function normalizeAreasForCompare(areas) {
  * Extract all top-level (non-fenced) values of a `name:` directive from a
  * slide's raw markdown. A slide may carry several values of the same directive
  * (e.g. a merged virtual slide with one `theme:`/`background:` per source).
- * Leading whitespace is tolerated (the parser may not honour indented
- * directives, but flagging them only burns a repair round-trip).
+ * Leading whitespace and case are tolerated to match the parser's own
+ * directive matching (`^\s*${name}\s*:` with the `i` flag) — an indented or
+ * capitalized directive renders, so it must participate in the checks.
  * @param {string} markdown
  * @param {string} name — directive name, e.g. "theme" or "background"
  * @returns {string[]}
@@ -846,7 +866,7 @@ function normalizeAreasForCompare(areas) {
 function extractTopLevelDirectiveValues(markdown, name) {
   const values = [];
   let inFence = false;
-  const re = new RegExp(`^\\s*${name}:\\s*(.+)$`);
+  const re = new RegExp(`^\\s*${name}:\\s*(.+)$`, "i");
   for (const line of markdown.split("\n")) {
     if (/^\s*```/.test(line)) {
       inFence = !inFence;
@@ -886,7 +906,7 @@ export function collectImageSources(markdown) {
  * directives. Scans every occurrence in the value — a background may combine
  * multiple layers, e.g. `linear-gradient(rgba(0,0,0,.5)), url(images/bg.png)`
  * or `#000 url(images/bg.png) center/cover` — not just values that begin with
- * `url(`.
+ * `url(`. Leading whitespace and case are tolerated to match the parser.
  * @param {string} markdown
  * @returns {string[]}
  */
@@ -899,7 +919,7 @@ function extractBackgroundUrls(markdown) {
       continue;
     }
     if (inFence) continue;
-    const match = line.match(/^background:\s*(.+)$/i);
+    const match = line.match(/^\s*background:\s*(.+)$/i);
     if (!match) continue;
     for (const urlMatch of match[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
       urls.push(urlMatch[1]);
@@ -909,8 +929,9 @@ function extractBackgroundUrls(markdown) {
 }
 
 /**
- * Blank out fenced code blocks so image/directive scans ignore code samples
- * (a code fence may legitimately illustrate `<img>` tags or directive lines).
+ * Blank out fenced code blocks (both fence markers and their bodies) so
+ * image/directive scans ignore code samples — a code fence may legitimately
+ * illustrate `<img>` tags or directive lines.
  * @param {string} markdown
  * @returns {string}
  */
@@ -919,7 +940,13 @@ function stripFencedBlocks(markdown) {
   let inFence = false;
   const out = [];
   for (const line of lines) {
-    if (/^\s*```/.test(line)) inFence = !inFence;
+    if (/^\s*```/.test(line)) {
+      // Blank opening and closing markers alike — the fence text is not
+      // markdown content.
+      out.push("");
+      inFence = !inFence;
+      continue;
+    }
     out.push(inFence ? "" : line);
   }
   return out.join("\n");

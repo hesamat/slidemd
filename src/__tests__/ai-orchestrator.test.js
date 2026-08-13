@@ -472,6 +472,37 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("background:");
     });
 
+    it("removes fabricated image references from the final deck mechanically", async () => {
+      // Both execute attempts (first + repair) insist on an external image
+      // URL. Validation is advisory — it accepts after max attempts — so the
+      // orchestrator must strip the fabricated reference from the final deck.
+      const deckWithImage =
+        'layout: header-content\n@header\n## Slide 1\n\n@main\n<img src="images/a.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+        ],
+      });
+      const fabricated = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              '@header\n## Slide 1\n\n@main\n- Tightened\n\n<img src="https://evil.example/x.png">',
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, fabricated, fabricated]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deckWithImage, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("Tightened");
+      expect(result).not.toContain("evil.example");
+      expect(result).not.toContain("<img");
+    });
+
     it("allows images relocated across batch boundaries in the batched execute path", async () => {
       // 10 source slides → a 2-batch virtual deck. The deck's only image lives
       // on the last source slide (batch 2), but the model places it on the
@@ -1911,6 +1942,60 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Slide A");
       expect(result).not.toContain("theme:");
       expect(result).not.toContain("background:");
+    });
+
+    it("removes fabricated images from the reimagine result mechanically", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      // No kept images and no reuse: refs in the briefs — the image-source
+      // check is skipped for an empty allowlist, so the fabricated reference
+      // must be removed mechanically from the final deck.
+      const OUTLINE_NO_KEEP = JSON.stringify({
+        plan: "Reimagined plan.",
+        visualSystem: null,
+        keepImages: [],
+        chapters: [
+          {
+            title: "Chapter 1",
+            flowTag: "hook",
+            summary: "Hook.",
+            suggestedSlideCount: 2,
+          },
+        ],
+      });
+      const provider = mockProviderSequence([
+        OUTLINE_NO_KEEP,
+        BREAKDOWN_RESPONSE,
+        JSON.stringify({
+          slides: [
+            {
+              layout: "header-content",
+              content:
+                '@header\n## Slide A\n\n@main\n- A\n\n<img src="https://evil.example/x.png">',
+            },
+            { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
+          ],
+        }),
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // Execute passed validation on the first attempt (3 calls), and the
+      // fabricated image is gone from the final deck.
+      expect(provider.chat).toHaveBeenCalledTimes(3);
+      expect(result).toContain("Slide A");
+      expect(result).not.toContain("evil.example");
+      expect(result).not.toContain("<img");
     });
 
     it("keeps image backgrounds in the reimagine result (strips colors/themes only)", async () => {

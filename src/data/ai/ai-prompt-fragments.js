@@ -302,13 +302,16 @@ export function composeMessages(systemFragment, userFragment, substitutions = {}
 
 /**
  * Strip `theme:` and `background:` directives from markdown.
- * Only replaces directives outside fenced code blocks.
+ * Only replaces directives outside fenced code blocks. Leading whitespace and
+ * case are tolerated — the markdown parser accepts both (`^\s*${name}\s*:` with
+ * the `i` flag), so an indented `  theme: dark` would otherwise render while
+ * surviving the strip.
  *
  * @param {string} markdown
  * @returns {string}
  */
 export function stripThemeAndBackground(markdown) {
-  return stripDirectives(markdown, /^(theme|background):\s*.*$/);
+  return stripDirectives(markdown, /^\s*(theme|background):\s*.*$/i);
 }
 
 /**
@@ -326,10 +329,10 @@ export function stripThemeAndBackground(markdown) {
  */
 export function stripVisualIdentity(markdown) {
   return stripDirectivesWith(markdown, (line) => {
-    const match = line.match(/^(theme|background):\s*(.*)$/);
+    const match = line.match(/^\s*(theme|background):\s*(.*)$/i);
     if (!match) return false;
     // Keep image backgrounds; strip color/gradient backgrounds and all themes.
-    return !(match[1] === "background" && /url\(/i.test(match[2]));
+    return !(match[1].toLowerCase() === "background" && /url\(/i.test(match[2]));
   });
 }
 
@@ -351,13 +354,13 @@ export function stripFrontmatter(markdown, mode) {
     // Generate mode: keep background and theme so AI sees the originals
     return stripDirectives(
       markdown,
-      /^(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+      /^\s*(layout|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/i,
     );
   }
   // Fix mode: keep layout so AI preserves it; strip theme/background/hidden/code-font-size
   return stripDirectives(
     markdown,
-    /^(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/,
+    /^\s*(theme|background|media-full-bleed|media-span|hidden|code-font-size):\s*.*$/i,
   );
 }
 

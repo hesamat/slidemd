@@ -184,6 +184,9 @@ export class RemixReimagineOrchestrator {
     const virtualDeck = this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
+    // Image allowlist for the execute phase and the final fabricated-image
+    // strip: every src the virtual deck may legitimately reference.
+    const virtualDeckSrcs = collectImageSources(virtualDeck);
 
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
@@ -205,7 +208,7 @@ export class RemixReimagineOrchestrator {
         preserveVisualIdentity,
         enforcePreserveIdentity: preserveVisualIdentity,
         restrictImageSources: true,
-        allowedImageSrcs: collectImageSources(virtualDeck),
+        allowedImageSrcs: virtualDeckSrcs,
       },
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
@@ -275,7 +278,10 @@ export class RemixReimagineOrchestrator {
     // invented. Strip them mechanically so stale identity never survives the
     // splice — image backgrounds (background: url(...)) are kept, since the
     // validator already guarantees they resolve to deck images.
-    return preserveVisualIdentity ? finalMarkdown : stripVisualIdentity(finalMarkdown);
+    if (preserveVisualIdentity) {
+      return stripFabricatedImages(finalMarkdown, virtualDeckSrcs);
+    }
+    return stripFabricatedImages(stripVisualIdentity(finalMarkdown), virtualDeckSrcs);
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -453,8 +459,10 @@ export class RemixReimagineOrchestrator {
     // directives, so there's nothing to gap-fill — return the result as-is.
     // Reimagine always discards visual identity, so strip any theme/color
     // directives the AI echoed back — image backgrounds (background: url(...))
-    // are kept because the validator guarantees they are deck images.
-    return stripVisualIdentity(result);
+    // are kept because the validator guarantees they are deck images — and
+    // remove any fabricated image references the model insisted on (the
+    // validator only repairs; it never hard-fails).
+    return stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs);
   }
 
   /**
@@ -1352,4 +1360,60 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
   }
   // Clean up any double blank lines left by removals
   return result.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Mechanical backstop behind FABRICATED_IMAGE_SRC: remove `<img>` tags and
+ * `background: url(...)` directives whose srcs are not in the allowed set.
+ * Validation only drives the repair loop and accepts the last response after
+ * two attempts, so without this a persistent model's broken image reference
+ * would still land in the final deck.
+ *
+ * Fenced code blocks are untouched (code samples may illustrate `<img>` tags).
+ * No blank-line collapse is applied — unlike directive stripping, removals
+ * here leave ordinary blank lines that are harmless in markdown, and a global
+ * collapse would reformat blank runs inside fences.
+ *
+ * @param {string} markdown
+ * @param {string[]} allowedSrcs — srcs the deck may reference (virtual-deck
+ *   sources for remix, kept image paths for reimagine)
+ * @returns {string}
+ */
+function stripFabricatedImages(markdown, allowedSrcs) {
+  const allowed = new Set(allowedSrcs);
+  const lines = markdown.split("\n");
+  const out = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^\s*```/.test(line.trim())) {
+      inFence = !inFence;
+      out.push(line);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
+    // A background directive whose value references a disallowed image — drop
+    // the whole line (allowed image backgrounds are kept by stripVisualIdentity
+    // or, in preserve mode, are legitimate identity).
+    const bgMatch = line.match(/^\s*background:\s*(.+)$/i);
+    if (bgMatch) {
+      const urls = [...bgMatch[1].matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)].map(
+        (m) => m[1],
+      );
+      if (urls.length > 0 && urls.some((u) => !allowed.has(u))) continue;
+    }
+    // Remove <img> tags with disallowed srcs (images are single-line). Work
+    // backwards so positions don't shift as tags are removed.
+    let stripped = line;
+    const imgs = parseAllImages(stripped);
+    for (let i = imgs.length - 1; i >= 0; i--) {
+      if (!allowed.has(imgs[i].src)) {
+        stripped = stripped.slice(0, imgs[i].start) + stripped.slice(imgs[i].end);
+      }
+    }
+    out.push(stripped);
+  }
+  return out.join("\n").trim();
 }
