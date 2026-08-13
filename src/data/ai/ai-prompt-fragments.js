@@ -312,6 +312,28 @@ export function stripThemeAndBackground(markdown) {
 }
 
 /**
+ * Strip visual-identity directives from AI output while keeping image
+ * backgrounds. `theme:` lines and color/gradient `background:` directives are
+ * removed, but `background: url(...)` values are kept — the execute-phase
+ * validator (restrictImageSources) guarantees those URLs resolve to deck
+ * images, so an image background is content, not identity, and stripping it
+ * would silently empty a full-bleed slide the model deliberately composed.
+ *
+ * Used for the final deck in reimagine (always) and remix discard mode.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function stripVisualIdentity(markdown) {
+  return stripDirectivesWith(markdown, (line) => {
+    const match = line.match(/^(theme|background):\s*(.*)$/);
+    if (!match) return false;
+    // Keep image backgrounds; strip color/gradient backgrounds and all themes.
+    return !(match[1] === "background" && /url\(/i.test(match[2]));
+  });
+}
+
+/**
  * Strip frontmatter directives from markdown.
  * Only replaces directives outside fenced code blocks.
  *
@@ -340,27 +362,45 @@ export function stripFrontmatter(markdown, mode) {
 }
 
 function stripDirectives(markdown, pattern) {
+  return stripDirectivesWith(markdown, (line) => pattern.test(line));
+}
+
+/**
+ * Strip lines matched by `shouldStrip`, replacing them with a single blank
+ * separator and collapsing blank-line runs — but only outside fenced code
+ * blocks. Fence content is kept verbatim so code samples (e.g. two blank
+ * lines between Python functions) are never reformatted.
+ * @param {string} markdown
+ * @param {(line: string) => boolean} shouldStrip
+ * @returns {string}
+ */
+function stripDirectivesWith(markdown, shouldStrip) {
   const lines = markdown.split("\n");
-  const result = [];
+  const out = [];
   let inFence = false;
+  let pendingBlank = false;
   for (const line of lines) {
     if (/^```/.test(line.trim())) {
+      const opening = !inFence;
+      // Markdown requires a blank line before a fence opener — restore the
+      // separator when the stripped content ended right before one.
+      if (opening && pendingBlank) out.push("");
+      pendingBlank = false;
       inFence = !inFence;
-      result.push(line);
+      out.push(line);
       continue;
     }
     if (inFence) {
-      result.push(line);
+      out.push(line);
       continue;
     }
-    if (pattern.test(line)) {
-      result.push("");
+    if (shouldStrip(line) || line.trim() === "") {
+      pendingBlank = true;
       continue;
     }
-    result.push(line);
+    if (pendingBlank) out.push("");
+    pendingBlank = false;
+    out.push(line);
   }
-  return result
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return out.join("\n").trim();
 }

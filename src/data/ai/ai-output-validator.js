@@ -625,11 +625,16 @@ export class AiOutputValidator {
    * @param {ValidationError[]} errors
    */
   _checkPreservedIdentity(inputSlides, outputSlides, errors) {
+    // Case/whitespace-insensitive comparison: a model echoing
+    // `background: #1A1A2E` for an input `background: #1a1a2e` preserves the
+    // identity — flagging it only burns a repair round-trip. Raw values are
+    // kept for error messages.
+    const normalize = (v) => v.trim().toLowerCase();
     const count = Math.min(inputSlides.length, outputSlides.length);
     for (let i = 0; i < count; i++) {
       for (const name of ["theme", "background"]) {
-        const inputValues = extractTopLevelDirectiveValues(inputSlides[i], name);
-        const outputValues = extractTopLevelDirectiveValues(outputSlides[i], name);
+        const inputValues = extractTopLevelDirectiveValues(inputSlides[i], name).map(normalize);
+        const outputValues = extractTopLevelDirectiveValues(outputSlides[i], name).map(normalize);
 
         if (inputValues.length === 0) {
           if (outputValues.length > 0) {
@@ -667,7 +672,8 @@ export class AiOutputValidator {
    * execute phase is restricted to the input deck's images (remix/reimagine).
    *
    * Allowed sources are the union of an explicit `allowedImageSrcs` list
-   * (reimagine's kept images, communicated via the options suffix) and the srcs
+   * (reimagine's kept images and remix's full virtual-deck images,
+   * communicated via the options suffix / cross-batch allowlist) and the srcs
    * derived from the input markdown: `<img>` srcs, `reuse:<path>` references
    * (reimagine briefs), and `background: url(...)` values. Both `<img src>`
    * and `background: url(...)` in the output must resolve to one of them — an
@@ -682,14 +688,7 @@ export class AiOutputValidator {
    */
   _checkImageSources(outputSlides, errors, allowedImageSrcs = []) {
     const allowed = new Set(allowedImageSrcs);
-    if (this._inputMarkdown) {
-      const inputUnfenced = stripFencedBlocks(this._inputMarkdown);
-      for (const img of parseAllImages(inputUnfenced)) allowed.add(img.src);
-      for (const match of inputUnfenced.matchAll(/reuse:([^\s"'<>|)]+)/g)) {
-        allowed.add(match[1]);
-      }
-      for (const url of extractBackgroundUrls(this._inputMarkdown)) allowed.add(url);
-    }
+    for (const src of collectImageSources(this._inputMarkdown)) allowed.add(src);
 
     for (let i = 0; i < outputSlides.length; i++) {
       const offenders = [];
@@ -838,6 +837,8 @@ function normalizeAreasForCompare(areas) {
  * Extract all top-level (non-fenced) values of a `name:` directive from a
  * slide's raw markdown. A slide may carry several values of the same directive
  * (e.g. a merged virtual slide with one `theme:`/`background:` per source).
+ * Leading whitespace is tolerated (the parser may not honour indented
+ * directives, but flagging them only burns a repair round-trip).
  * @param {string} markdown
  * @param {string} name — directive name, e.g. "theme" or "background"
  * @returns {string[]}
@@ -845,7 +846,7 @@ function normalizeAreasForCompare(areas) {
 function extractTopLevelDirectiveValues(markdown, name) {
   const values = [];
   let inFence = false;
-  const re = new RegExp(`^${name}:\\s*(.+)$`);
+  const re = new RegExp(`^\\s*${name}:\\s*(.+)$`);
   for (const line of markdown.split("\n")) {
     if (/^\s*```/.test(line)) {
       inFence = !inFence;
@@ -856,6 +857,28 @@ function extractTopLevelDirectiveValues(markdown, name) {
     if (match && match[1].trim()) values.push(match[1].trim());
   }
   return values;
+}
+
+/**
+ * Collect every image reference a deck may legitimately use: `<img>` srcs,
+ * `reuse:<path>` references, and `background: url(...)` values. Fence-aware —
+ * code samples that merely illustrate `<img>` tags are not image references.
+ * Used by `_checkImageSources` for the input-derived allowlist and by the
+ * remix orchestrator to build the explicit full-deck allowlist that lets
+ * batched validation accept images relocated across batch boundaries.
+ * @param {string} markdown
+ * @returns {string[]}
+ */
+export function collectImageSources(markdown) {
+  if (!markdown) return [];
+  const srcs = [];
+  const unfenced = stripFencedBlocks(markdown);
+  for (const img of parseAllImages(unfenced)) srcs.push(img.src);
+  for (const match of unfenced.matchAll(/reuse:([^\s"'<>|)]+)/g)) {
+    srcs.push(match[1]);
+  }
+  for (const url of extractBackgroundUrls(markdown)) srcs.push(url);
+  return srcs;
 }
 
 /**

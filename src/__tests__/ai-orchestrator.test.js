@@ -472,6 +472,55 @@ describe("AiOrchestrator", () => {
       expect(result).not.toContain("background:");
     });
 
+    it("allows images relocated across batch boundaries in the batched execute path", async () => {
+      // 10 source slides → a 2-batch virtual deck. The deck's only image lives
+      // on the last source slide (batch 2), but the model places it on the
+      // first batch's output — the explicit full-deck allowlist must accept it
+      // (a batch-local allowlist would flag it as fabricated).
+      const BIG_DECK = Array.from(
+        { length: 10 },
+        (_, i) =>
+          `layout: header-content\n@header\n## Slide ${i + 1}\n\n@main\n- Item ${i + 1}${i === 9 ? '\n\n<img src="images/a.png">' : ""}`,
+      ).join("\n\n---\n\n");
+      const PLAN = JSON.stringify({
+        plan: Array.from({ length: 10 }, (_, i) => ({
+          action: "rewrite",
+          source: [i],
+          brief: `Tighten slide ${i + 1}`,
+          title: `S${i + 1}`,
+        })),
+      });
+      // Deterministic per-request mock: the execute batches are distinguished
+      // by the number of `<!-- brief:` markers in the user message, so both
+      // workers get a response matching their batch's expected slide count.
+      // The literal `<!-- brief: ... -->` example in the generate prompt must
+      // not count.
+      const provider = {
+        chat: vi.fn().mockImplementation(async ({ messages }) => {
+          const user = messages.find((m) => m.role === "user").content;
+          const text = Array.isArray(user) ? user.map((b) => b.text || "").join("\n") : user;
+          const briefCount = (text.match(/<!-- brief: (?!\.\.\.)/g) || []).length;
+          if (briefCount === 0) return { content: PLAN, raw: { finish_reason: "stop" } };
+          const slides = Array.from({ length: briefCount }, (_, i) => ({
+            layout: "header-content",
+            content:
+              i === 0 ? '@main\n- Tightened\n\n<img src="images/a.png">' : "@main\n- Tightened",
+          }));
+          return { content: JSON.stringify({ slides }), raw: { finish_reason: "stop" } };
+        }),
+      };
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, BIG_DECK, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // Plan + 2 batches, no repair round-trips — both batches validated on
+      // the first attempt despite the cross-batch image reuse.
+      expect(provider.chat).toHaveBeenCalledTimes(3);
+      expect(result).toContain('src="images/a.png"');
+      // All 10 rewritten slides made it into the reassembled deck.
+      expect(result.split("\n\n---\n\n")).toHaveLength(10);
+    });
+
     it("does not route to remix for mode=polish", async () => {
       const provider = mockProvider(SINGLE_SLIDE_RESPONSE);
       const orchestrator = new AiOrchestrator({ provider });
@@ -1862,6 +1911,45 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Slide A");
       expect(result).not.toContain("theme:");
       expect(result).not.toContain("background:");
+    });
+
+    it("keeps image backgrounds in the reimagine result (strips colors/themes only)", async () => {
+      const { extractAll } = await import("../data/ai/slide-image-extractor.js");
+      extractAll.mockResolvedValue([
+        [{ src: "images/a.png", dataUrl: "data:image/jpeg;base64,/9j/a=" }],
+        [{ src: "images/b.png", dataUrl: "data:image/jpeg;base64,/9j/b=" }],
+      ]);
+
+      const provider = mockProviderSequence([
+        OUTLINE_WITH_KEEP,
+        BREAKDOWN_RESPONSE,
+        JSON.stringify({
+          slides: [
+            {
+              layout: "full-image",
+              content:
+                'theme: dark\nbackground: #1a1a2e\nbackground: url(images/a.png) center/cover\n@main\n<img src="images/a.png">',
+            },
+            { layout: "header-content", content: "@header\n## Slide B\n\n@main\n- B" },
+          ],
+        }),
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_WITH_IMAGES, {
+        mode: "reimagine",
+        includeImages: true,
+      });
+      const result = await orchestrator.runWholeDeckOperation(op, undefined, {
+        onOutline: async (outline) => outline,
+      });
+
+      // Execute passed validation on the first attempt (3 calls), the theme
+      // and color background are stripped, but the full-bleed image background
+      // survives the discard strip.
+      expect(provider.chat).toHaveBeenCalledTimes(3);
+      expect(result).toContain("background: url(images/a.png) center/cover");
+      expect(result).not.toContain("theme:");
+      expect(result).not.toContain("background: #1a1a2e");
     });
 
     it("allows kept images in the execute output when briefs carry no reuse: refs", async () => {

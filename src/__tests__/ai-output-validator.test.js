@@ -705,6 +705,36 @@ theme: dark
       expect(result.errors.map((e) => e.code)).toContain("IDENTITY_DIRECTIVE_ADDED");
     });
 
+    it("passes when identity values differ only in case", () => {
+      const output = `layout: header-content
+theme: DARK
+background: #1A1A2E
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(INPUT, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("passes when directives are indented", () => {
+      const output = `layout: header-content
+  theme: dark
+  background: #1a1a2e
+
+@header
+# Title
+
+@main
+- Tightened point`;
+      const result = validatePreserve(INPUT, output);
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it("passes when a merged slide keeps one of several input backgrounds", () => {
       // A merged virtual slide carries one directive set per source slide.
       const input = `layout: header-content

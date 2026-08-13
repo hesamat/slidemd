@@ -15,6 +15,7 @@ import {
   BATCH_SIZE,
   splitSlidesForAi,
   stripThemeAndBackground,
+  stripVisualIdentity,
 } from "./ai-prompt-builder.js";
 import { splitSlides } from "../markdown-parser.js";
 import { extractAll } from "./slide-image-extractor.js";
@@ -27,6 +28,7 @@ import {
   buildKeptImagesList,
   buildAvailableImagesBrief,
 } from "./ai-prompt-fragments.js";
+import { collectImageSources } from "./ai-output-validator.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import { parseAllImages } from "../image-markdown-parser.js";
@@ -134,7 +136,9 @@ export class RemixReimagineOrchestrator {
     }
 
     const mode = operation.opts?.mode || "remix";
-    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? mode === "remix";
+    // Default matches #runRemixPlan's `?? true` so the plan prompt and the
+    // execute phase can never resolve the option differently.
+    const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
     const planContext = preserveVisualIdentity ? context : stripThemeAndBackground(context);
 
     onLog?.(`Planning ${mode} restructure\u2026`);
@@ -188,7 +192,10 @@ export class RemixReimagineOrchestrator {
     // the visual-styling note), but only the remix execute operation sets
     // enforcePreserveIdentity so identity validation never leaks into
     // polish/generate paths that set preserveVisualIdentity themselves.
-    // Restrict output images to the virtual deck's sources (no fabricated URLs).
+    // Restrict output images to the virtual deck's sources (no fabricated
+    // URLs); the full-deck allowlist lets batched validation accept images
+    // relocated across batch boundaries (each batch's own slides remain the
+    // positional source of truth for identity checks).
     const execOp = {
       ...operation,
       context: virtualDeck,
@@ -198,6 +205,7 @@ export class RemixReimagineOrchestrator {
         preserveVisualIdentity,
         enforcePreserveIdentity: preserveVisualIdentity,
         restrictImageSources: true,
+        allowedImageSrcs: collectImageSources(virtualDeck),
       },
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
@@ -263,9 +271,11 @@ export class RemixReimagineOrchestrator {
     const finalMarkdown = finalSlides.join("\n\n---\n\n");
 
     // Discard mode: the plan context was stripped, but the AI may still echo
-    // theme/background directives it saw in other instructions or invented.
-    // Strip mechanically so stale visual directives never survive the splice.
-    return preserveVisualIdentity ? finalMarkdown : stripThemeAndBackground(finalMarkdown);
+    // theme/color-background directives it saw in other instructions or
+    // invented. Strip them mechanically so stale identity never survives the
+    // splice — image backgrounds (background: url(...)) are kept, since the
+    // validator already guarantees they resolve to deck images.
+    return preserveVisualIdentity ? finalMarkdown : stripVisualIdentity(finalMarkdown);
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -441,9 +451,10 @@ export class RemixReimagineOrchestrator {
     // The generate path gap-fills directives positionally when the slide
     // count matches. For reimagine the virtual deck has no original
     // directives, so there's nothing to gap-fill — return the result as-is.
-    // Reimagine always discards visual identity, so strip any theme/background
-    // the AI echoed back from the source deck.
-    return stripThemeAndBackground(result);
+    // Reimagine always discards visual identity, so strip any theme/color
+    // directives the AI echoed back — image backgrounds (background: url(...))
+    // are kept because the validator guarantees they are deck images.
+    return stripVisualIdentity(result);
   }
 
   /**

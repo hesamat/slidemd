@@ -9,6 +9,7 @@ import {
   BATCH_SIZE,
   stripFrontmatter,
   stripThemeAndBackground,
+  stripVisualIdentity,
 } from "../data/ai/ai-prompt-builder.js";
 
 describe("buildMessages", () => {
@@ -353,6 +354,64 @@ describe("stripThemeAndBackground", () => {
     const result = stripThemeAndBackground(md);
     expect(result).toContain("theme: dark");
     expect(result).toContain("@main");
+  });
+
+  it("preserves blank lines inside code fences (no global collapse)", () => {
+    const md = `layout: header-content
+theme: dark
+
+@main
+\`\`\`python
+def a():
+    pass
+
+
+def b():
+    pass
+\`\`\``;
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    // Two blank lines between functions survive the strip.
+    expect(result).toContain("pass\n\n\ndef");
+  });
+
+  it("collapses blank runs between content outside fences", () => {
+    const md = "theme: dark\n\n@main\n- A\n\n\n- B\n\n\n\n- C";
+    const result = stripThemeAndBackground(md);
+    expect(result).not.toContain("theme:");
+    // Runs of 2+ blank lines outside fences collapse to a single blank line.
+    expect(result).toContain("- A\n\n- B\n\n- C");
+  });
+});
+
+describe("stripVisualIdentity", () => {
+  it("strips themes and color backgrounds but keeps image backgrounds", () => {
+    const md = `layout: full-image
+theme: dark
+background: #1a1a2e
+
+@main
+<img src="images/hero.png">
+
+---
+
+layout: header-content
+background: url(images/bg.png) center/cover
+
+@main
+- Item`;
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("theme:");
+    expect(result).not.toContain("background: #1a1a2e");
+    // A full-bleed image background the validator allowed is content, not identity.
+    expect(result).toContain("background: url(images/bg.png) center/cover");
+    expect(result).toContain("images/hero.png");
+  });
+
+  it("strips gradient backgrounds without image references", () => {
+    const md = "layout: header-content\nbackground: linear-gradient(#000, #fff)\n@main\n- Item";
+    const result = stripVisualIdentity(md);
+    expect(result).not.toContain("background:");
   });
 });
 

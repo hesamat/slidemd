@@ -27,6 +27,7 @@ export {
   getAllowedLayoutList,
   stripFrontmatter,
   stripThemeAndBackground,
+  stripVisualIdentity,
 } from "./ai-prompt-fragments.js";
 
 /**
