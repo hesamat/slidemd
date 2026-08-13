@@ -48,7 +48,8 @@ Content depth:
 Slide density and overflow prevention:
 
 - One main idea per slide. If a slide's content cannot fit comfortably, split it into two slides or move the detail to speaker notes. Do not try to pack every concept onto one slide.
-- Respect these per-area line budgets. {{densityBudgets}}
+- Respect these per-area line budgets.
+  {{densityBudgets}}
 - Speaker notes are where detail lives: common misconceptions, step-by-step narration, extra examples, and transition scripts should go in `<!-- notes: ... -->`, not on the slide.
 
 Success criteria:

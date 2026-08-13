@@ -556,6 +556,7 @@ AI prompts live in `src/data/prompts/`:
 | `creative-guidance.md`              | snippet  | Remix creative guidance for the `{{creativeGuidance}}` placeholder                                           |
 | `visual-styling-note.md`            | snippet  | Visual styling note appended to reimagine breakdown prompt                                                   |
 | `repair-message.md`                 | snippet  | Repair message template for validation failures                                                              |
+| `density-budgets.md`                | snippet  | Per-area line-budget guidance variants (full/compact) for the generate and polish prompts                    |
 
 Snippet files contain `<!-- variant: name -->` sections; code selects a variant via `extractVariant` in `src/data/ai/ai-prompt-fragments.js`. The `FRAGMENTS` map in that module is the single runtime catalog of every prompt file.
 

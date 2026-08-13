@@ -23,6 +23,7 @@ Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/p
 | `batch-pagination.md`               | snippet  | Batch pagination instructions variants (fix/generate) for `buildBatchMessages`                            |
 | `creative-guidance.md`              | snippet  | Remix creative guidance text for the `{{creativeGuidance}}` placeholder                                   |
 | `repair-message.md`                 | snippet  | Repair message template for validation failures                                                           |
+| `density-budgets.md`                | snippet  | Per-area line-budget guidance variants (full/compact) for the generate and polish prompts                 |
 
 Snippet files hold `<!-- variant: name -->` sections selected via `extractVariant` in [`ai-prompt-fragments.js`](../src/data/ai/ai-prompt-fragments.js). The JSON output format example lives directly in `system-prompt.md`.
 

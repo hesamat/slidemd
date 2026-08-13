@@ -203,6 +203,16 @@ describe("buildBatchMessages", () => {
     expect(user).toContain("Return exactly 4 slide(s)");
   });
 
+  it("fix mode with polish batchMode does not add densityBudgets substitution", () => {
+    // fix-prompt.md has no {{densityBudgets}} placeholder; AiPromptComposer
+    // throws on unused substitutions. This combination is currently unreachable
+    // in production (the only caller passes "generate"), but the guard prevents
+    // a hard-fail if a future caller ever passes fix + polish.
+    const { user } = buildBatchMessages(md, "fix", 0, 4, 12, "Deck: 12 slides.", "polish");
+    expect(user).toContain("CRITICAL: You must return EXACTLY 4 slide(s)");
+    expect(user).not.toContain("per-area line budgets");
+  });
+
   it("non-polish mode uses generate-prompt fragment", () => {
     const { user } = buildBatchMessages(md, "generate", 0, 4, 12, "Deck: 12 slides.");
     expect(user).toContain("Refine this SlideMD presentation");

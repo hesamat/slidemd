@@ -210,7 +210,7 @@ export function buildBatchMessages(
   if (isGenerateFragment) {
     substitutions.visualStylingNote = buildVisualStylingNote(hasVisualSystem);
     substitutions.densityBudgets = buildDensityBudgets("full");
-  } else if (batchMode === "polish") {
+  } else if (mode !== "fix" && batchMode === "polish") {
     substitutions.densityBudgets = buildDensityBudgets("compact");
   }
   const { system, user } = composeMessages(
