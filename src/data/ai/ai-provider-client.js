@@ -247,6 +247,8 @@ export class AiProviderClient {
     let currentMaxTokens = maxTokens;
     let maxTokensAdjusted = false;
     let lastErr = null;
+    /** @type {AiTokenExhaustedError|null} — original exhaustion error when a widen retry is in flight */
+    let tokenExhaustedFrom = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         return await tryFetch(includeResponseFormat, includeReasoning, currentMaxTokens);
@@ -271,6 +273,26 @@ export class AiProviderClient {
           currentMaxTokens = err.requiredMinimum + 2048;
           maxTokensAdjusted = true;
           continue;
+        }
+        // Widen max_tokens once when the model exhausted its budget mid-flight
+        // (finish_reason "length", no visible content). A single retry with
+        // more room often lets the reasoning pass finish and emit output.
+        if (err instanceof AiTokenExhaustedError && !maxTokensAdjusted) {
+          const next = Math.min(currentMaxTokens + 16384, 128000);
+          if (next <= currentMaxTokens) {
+            // Already at the cap — a byte-identical retry is pointless.
+            throw err;
+          }
+          tokenExhaustedFrom = err;
+          currentMaxTokens = next;
+          maxTokensAdjusted = true;
+          continue;
+        }
+        // The widened retry failed: if the provider rejected the larger
+        // max_tokens (exceeds the model's cap), surface the token-exhaustion
+        // guidance instead of a confusing HTTP 400.
+        if (tokenExhaustedFrom && err instanceof AiHttpError) {
+          throw tokenExhaustedFrom;
         }
         throw err;
       }
