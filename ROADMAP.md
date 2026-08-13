@@ -666,6 +666,13 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 | [ ] Improve presentation voice    | Add flow-aware prose, conversational headlines, progressive disclosure, concrete examples, and useful speaker notes.                                                                                |
 | [ ] Validate image reuse          | Warn and repair when a `reuse:<path>` brief does not result in the requested source image being placed.                                                                                             |
 
+### Flow-Aware Outline Structure
+
+| Task                              | Details                                                                                                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [ ] Flow-specific technique menus | Replace the fixed seven-item technique list in `reimagine-outline-prompt.md` with per-flow subsets so instructional and technical decks are steered toward fitting structures. |
+| [ ] Extend flowTag vocabulary     | Add instructional (`objectives`, `steps`, `example`, `practice`, `recap`) and technical (`assertion`, `evidence`, `implication`) tags; map them through the breakdown phase.   |
+
 ### Validation & Test Coverage
 
 | Task                             | Details                                                                                                                                                                                                      |
@@ -682,6 +689,7 @@ The detailed implementation plan is [`docs/plans/reimagine-improvements.md`](doc
 - Headlines, body content, and speaker notes are presentation-ready.
 - Kept source images are placed when requested and never fabricated.
 - The output remains valid, repairable, undoable, and within density limits.
+- The outline's technique menu and flow tags fit the chosen flow rather than offering a one-size-fits-all narrative menu.
 
 ---
 

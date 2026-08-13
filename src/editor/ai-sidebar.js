@@ -180,11 +180,11 @@ export class AiSidebar {
       const planLabel = mode
         ? `${mode.charAt(0).toUpperCase() + mode.slice(1)} plan`
         : "Remix plan";
-      const keepCount = plan.filter((e) => e.action === "keep").length;
+      const polishCount = plan.filter((e) => e.action === "polish").length;
       const rewriteCount = plan.filter((e) => e.action === "rewrite").length;
       const mergeCount = plan.filter((e) => e.action === "merge").length;
       const parts = [];
-      if (keepCount) parts.push(`${keepCount} keep`);
+      if (polishCount) parts.push(`${polishCount} polish`);
       if (rewriteCount) parts.push(`${rewriteCount} rewrite`);
       if (mergeCount) parts.push(`${mergeCount} merge`);
       const summary = `${plan.length} slides from ${sourceCount} source (${parts.join(", ")})`;
@@ -217,8 +217,8 @@ export class AiSidebar {
         content.className = `${P}plan-content`;
         const label = document.createElement("span");
         label.className = `${P}plan-label`;
-        if (entry.action === "keep") {
-          label.textContent = `Slide ${sourceLabel}: ${entry.title}`;
+        if (entry.action === "polish") {
+          label.textContent = `Slide ${sourceLabel}: ${entry.title} — ${entry.brief || ""}`;
         } else if (entry.action === "merge") {
           label.textContent = `Slides ${sourceLabel} \u2192 ${entry.title} \u2014 ${entry.brief || ""}`;
         } else {
@@ -226,7 +226,7 @@ export class AiSidebar {
         }
         content.appendChild(label);
         // Show the decision rationale under the label so users can understand
-        // why each slide was kept, rewritten, or merged.
+        // why each slide was polished, rewritten, or merged.
         if (entry.reason) {
           const reasonEl = document.createElement("div");
           reasonEl.className = `${P}plan-reason`;

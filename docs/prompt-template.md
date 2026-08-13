@@ -15,7 +15,7 @@ Prompts are split into reusable fragments in [`src/data/prompts/`](../src/data/p
 | `add-speaker-notes-prompt.md`       | `user`   | Add speaker notes to slide (single-slide)                                                                 |
 | `remix-plan-prompt.md`              | `user`   | Plan phase for Remix: analyze deck → output restructuring plan JSON (may include image blocks for vision) |
 | `reimagine-outline-prompt.md`       | `user`   | Outline phase for Reimagine: analyze deck → output `{ plan, chapters: [...] }` JSON for user review       |
-| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants (story/technical/persuasive/instructional) for the generate suffix       |
+| `flow-guidance.md`                  | snippet  | Narrative-flow guidance variants (instructional/story/technical/persuasive) for the generate suffix       |
 | `speaker-notes-guidance.md`         | snippet  | Speaker-notes guidance variants (add/preserve) for the generate suffix                                    |
 | `visual-identity-guidance.md`       | snippet  | Visual-identity guidance variants (preserve/discard) used by the generate suffix                          |
 | `remix-visual-identity-guidance.md` | snippet  | Visual-identity guidance variants (preserve/discard) used by the remix plan prompt                        |
@@ -107,7 +107,7 @@ Uses a dedicated three-phase flow separate from Remix:
 The pre-flight modal returns:
 
 - `mode` — `polish`, `remix`, or `reimagine`
-- `flow` — `story`, `technical`, `persuasive`, `instructional` (sets the narrative genre for Remix/Reimagine; the AI picks storytelling techniques within that genre; hidden for Polish)
+- `flow` — `instructional`, `story`, `technical`, `persuasive` (sets the narrative genre for Remix/Reimagine; the AI picks storytelling techniques within that genre; hidden for Polish)
 - `addSpeakerNotes` — add notes to slides that don't have them
 - `includeImages` — send content images to the plan AI (Remix and Reimagine only, only when images exist)
 - `preserveVisualIdentity` — keep theme, colors, backgrounds (Remix only; hidden for Reimagine, which always discards visual identity)

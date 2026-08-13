@@ -156,44 +156,17 @@ export class RemixReimagineOrchestrator {
       slideImages,
     );
 
-    // "keep" entries must never be sent to the execute call — the generate
-    // prompt has no way to distinguish "leave this slide untouched" from a
-    // normal slide, so a `keep` entry would still get reworded/re-laid-out.
-    // Instead, splice the original slide back into its planned position after
-    // the execute call runs on everything else. For reimagine (or when visual
-    // identity is off), strip the original theme/background so the result is
-    // not anchored to the old visual style.
-    const rawSourceSlides = splitSlides(planContext);
-    const keptByPlanIndex = new Map();
-    const rewriteEntries = [];
-    plan.forEach((entry, i) => {
-      if (entry.action === "keep") {
-        keptByPlanIndex.set(i, rawSourceSlides[entry.source[0]]);
-      } else {
-        rewriteEntries.push(entry);
-      }
-    });
-
-    onLog?.(
-      `${mode} plan: ${plan.length} output slides from ${splitSlidesForAi(context, "generate").length} source slides (${keptByPlanIndex.size} kept as-is)`,
-    );
-
-    if (rewriteEntries.length === 0) {
-      // Every entry is "keep" — nothing to send to the AI.
-      return plan.map((_, i) => keptByPlanIndex.get(i)).join("\n\n---\n\n");
-    }
-
-    // ── Phase 2: Build virtual deck from the non-"keep" plan entries ──
+    // ── Phase 2: Build virtual deck from all plan entries ──
     // Only honour keepImages when images were actually sent to the plan AI —
     // in a text-only remix the model never saw any pictures, so a
     // hallucinated keepImages array must not be allowed to delete images.
     const imagesForVirtualDeck = imagesWereSent ? slideImages : null;
-    // `processedSourcesByEntry` is the same per-rewrite-entry source slides
+    // `processedSourcesByEntry` is the same per-entry source slides
     // (post keepImages filtering) that were joined into each virtual slide —
     // reused below by the deterministic preserve-mode backstop instead of
     // re-splitting/re-filtering the deck per entry, per source slide.
     const { markdown: virtualDeck, processedSourcesByEntry: virtualSourceSlidesByEntry } =
-      this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
+      this.#planToVirtualDeck(plan, planContext, imagesForVirtualDeck);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
     // Image allowlist for the execute phase: ONLY the images the plan AI
@@ -269,47 +242,40 @@ export class RemixReimagineOrchestrator {
 
     // Remix/reimagine intentionally reorders/splits/merges slides, so positional
     // directive injection would attach backgrounds/themes to the wrong
-    // slides. The virtual deck and kept source slides already carry the
-    // appropriate directives (preserved for remix, stripped for reimagine), and
-    // the AI sees them in generate mode — the rewritten slides are used as-is
-    // so any styling the AI kept or chose survives re-splicing.
-    const rewrittenSlides = splitSlides(result);
-    let rewriteIdx = 0;
+    // slides. The virtual deck already carries the appropriate directives
+    // (preserved for remix, stripped for reimagine), and the AI sees them in
+    // generate mode — the generated slides are used as-is so any styling the
+    // AI kept or chose survives re-splicing.
+    const generatedSlides = splitSlides(result);
 
-    // Guard against the AI returning the wrong number of rewrite slides. If it
-    // returns too few, fall back to the original source slide for the missing
-    // ones so the deck never contains literal `undefined`. If it returns too
-    // many, drop the extras — note that positional correspondence may be
-    // unreliable in that case since the AI may have merged/split differently.
-    if (rewrittenSlides.length > rewriteEntries.length) {
+    // Guard against the AI returning the wrong number of slides. If it returns
+    // too few, fall back to the joined original source slides for the missing
+    // entries so the deck never contains literal `undefined`. If it returns too
+    // many, drop the extras — positional correspondence may be unreliable if the
+    // AI merged or split differently from the plan.
+    if (generatedSlides.length > plan.length) {
       onLog?.(
-        `Warning: expected ${rewriteEntries.length} rewritten slide(s), got ${rewrittenSlides.length} — ` +
+        `Warning: expected ${plan.length} slide(s), got ${generatedSlides.length} — ` +
           "dropping surplus slides. Positional correspondence may be unreliable if the AI merged or split content differently.",
         "warn",
       );
-      rewrittenSlides.length = rewriteEntries.length;
-    } else if (rewrittenSlides.length < rewriteEntries.length) {
+      generatedSlides.length = plan.length;
+    } else if (generatedSlides.length < plan.length) {
       onLog?.(
-        `Warning: expected ${rewriteEntries.length} rewritten slide(s), got ${rewrittenSlides.length} — ` +
+        `Warning: expected ${plan.length} slide(s), got ${generatedSlides.length} — ` +
           "falling back to original source slides for missing entries.",
         "warn",
       );
-      while (rewrittenSlides.length < rewriteEntries.length) {
-        const entry = rewriteEntries[rewrittenSlides.length];
-        const fallback = rawSourceSlides[entry?.source?.[0]] ?? "";
-        rewrittenSlides.push(fallback);
+      while (generatedSlides.length < plan.length) {
+        const sources = virtualSourceSlidesByEntry[generatedSlides.length] || [""];
+        generatedSlides.push(sources.join("\n\n---\n\n"));
       }
     }
-
-    const finalSlides = plan.map((_, i) =>
-      keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
-    );
 
     // Final image pass, per slide, so the positional own-image exemption is
     // enforceable (a flat deck-wide allowlist would let a background from
     // slide A be adopted by slide B):
-    // - Kept slides are spliced verbatim from the source — nothing to strip.
-    // - Rewritten slides may reference (a) images the plan AI analyzed (the
+    // - Generated slides may reference (a) images the plan AI analyzed (the
     //   vision payload) and (b) images that belong to their own source
     //   slides. Anything else — e.g. a background image from another slide —
     //   is mechanically removed, matching what validation flags.
@@ -317,10 +283,9 @@ export class RemixReimagineOrchestrator {
     // theme/color never survives while image backgrounds (content) do.
     let restoreIdx = 0;
     const identityStripped = preserveVisualIdentity
-      ? finalSlides
-      : finalSlides.map((slide) => stripVisualIdentity(slide));
-    const cleaned = identityStripped.map((slide, i) => {
-      if (keptByPlanIndex.has(i)) return slide;
+      ? generatedSlides
+      : generatedSlides.map((slide) => stripVisualIdentity(slide));
+    const cleaned = identityStripped.map((slide) => {
       const sources = virtualSourceSlidesByEntry[restoreIdx] || [];
       restoreIdx++;
       // Own-source images = physical references only (collectOwnImageSources
@@ -336,7 +301,7 @@ export class RemixReimagineOrchestrator {
     // background or a source image background and still land in the final
     // deck. Runs AFTER the image strip so restored source image backgrounds
     // (never analyzed, therefore not in the strip allowlist) survive.
-    // Restore those directives deterministically, mapped by rewrite-entry
+    // Restore those directives deterministically, mapped by plan-entry
     // order (not original slide position — remix may reorder/merge). For
     // merged source slides, restore the first source's value when the model
     // dropped all of them; if the model kept any valid identity value from
@@ -347,7 +312,6 @@ export class RemixReimagineOrchestrator {
     if (preserveVisualIdentity) {
       let restoreIdx2 = 0;
       for (let i = 0; i < cleaned.length; i++) {
-        if (keptByPlanIndex.has(i)) continue;
         const sources = virtualSourceSlidesByEntry[restoreIdx2] || [];
         restoreIdx2++;
         const restored = restorePreservedIdentity(cleaned[i], sources, onLog);
@@ -686,7 +650,7 @@ export class RemixReimagineOrchestrator {
 
     const deckSummary = buildDeckSummary(context, true);
 
-    const flow = operation.opts?.flow || "story";
+    const flow = operation.opts?.flow || "instructional";
     const minSlides = Math.max(1, Math.round(sourceCount * 0.7));
     const maxSlides = Math.round(sourceCount * 1.2);
 
@@ -1194,8 +1158,8 @@ export class RemixReimagineOrchestrator {
     // Log each plan entry
     for (const entry of plan) {
       const sourceLabel = entry.source.map((s) => s + 1).join("+");
-      if (entry.action === "keep") {
-        onLog?.(`[Plan] Keep slide ${sourceLabel}: ${entry.title}`);
+      if (entry.action === "polish") {
+        onLog?.(`[Plan] Polish slide ${sourceLabel}: ${entry.title}`);
       } else if (entry.action === "merge") {
         onLog?.(`[Plan] Merge slides ${sourceLabel} \u2192 ${entry.title}: ${entry.brief}`);
       } else {
@@ -1236,7 +1200,7 @@ export class RemixReimagineOrchestrator {
    */
   #validatePlan(plan, sourceCount) {
     const errors = [];
-    const validActions = new Set(["keep", "rewrite", "merge"]);
+    const validActions = new Set(["polish", "rewrite", "merge"]);
     const coveredSources = new Set();
 
     if (plan.length === 0) {
@@ -1284,7 +1248,7 @@ export class RemixReimagineOrchestrator {
 
       // Detect duplicates within this entry (e.g. an off-by-one clamp that
       // collapsed two distinct indices to the same slide). Duplicates in a
-      // merge would paste the same slide twice; in a keep/rewrite they are
+      // merge would paste the same slide twice; in a polish/rewrite they are
       // equally nonsensical.
       const unique = new Set(normalized);
       if (unique.size !== normalized.length) {
@@ -1294,7 +1258,7 @@ export class RemixReimagineOrchestrator {
       }
       entry.source = normalized;
 
-      if ((entry.action === "rewrite" || entry.action === "keep") && entry.source.length !== 1) {
+      if ((entry.action === "rewrite" || entry.action === "polish") && entry.source.length !== 1) {
         errors.push(
           `${prefix}: ${entry.action} must have exactly 1 source, got ${entry.source.length}`,
         );
@@ -1304,7 +1268,7 @@ export class RemixReimagineOrchestrator {
         errors.push(`${prefix}: merge must have exactly 2 sources, got ${entry.source.length}`);
       }
 
-      if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {
+      if (!entry.brief || entry.brief.trim().length === 0) {
         errors.push(`${prefix}: brief is required for action "${entry.action}"`);
       }
 
@@ -1348,7 +1312,7 @@ export class RemixReimagineOrchestrator {
 
   /**
    * Convert a remix plan into a virtual deck markdown string.
-   * Each non-keep entry gets its brief embedded as an HTML comment.
+   * Each entry gets its brief embedded as an HTML comment.
    * The virtual deck is fed through the existing generate path.
    *
    * For merge entries, source slides are joined with `\n\n` (not `---`) so
@@ -1378,8 +1342,8 @@ export class RemixReimagineOrchestrator {
    *   from extraction (backgrounds, SVG placeholders) or that failed to
    *   compress — which never reached the model — are never touched.
    * @returns {{ markdown: string, processedSourcesByEntry: string[][] }} —
-   *   `processedSourcesByEntry` covers only non-"keep" entries, in the same
-   *   order as they appear in `plan` (matching `rewriteEntries` order).
+   *   `processedSourcesByEntry` covers all entries, in the same
+   *   order as they appear in `plan`.
    */
   #planToVirtualDeck(plan, sourceMarkdown, slideImages = null) {
     // Use the fence-aware split so `---` inside code blocks doesn't create
@@ -1389,10 +1353,6 @@ export class RemixReimagineOrchestrator {
     const processedSourcesByEntry = [];
 
     const virtualSlides = plan.map((entry) => {
-      if (entry.action === "keep") {
-        return sourceSlides[entry.source[0]];
-      }
-
       // Apply keepImages filtering: strip images not in the keep list from
       // each source slide before joining.
       const processedSources = entry.source.map((idx) => {

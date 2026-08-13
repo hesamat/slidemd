@@ -267,7 +267,13 @@ describe("AiOrchestrator", () => {
 
     const REMIX_PLAN_RESPONSE = JSON.stringify({
       plan: [
-        { action: "keep", source: [0], brief: "", reason: "Already clear", title: "Slide 1" },
+        {
+          action: "polish",
+          source: [0],
+          brief: "Tighten the title wording",
+          reason: "Already clear",
+          title: "Slide 1",
+        },
         {
           action: "rewrite",
           source: [1],
@@ -278,10 +284,14 @@ describe("AiOrchestrator", () => {
       ],
     });
 
-    // With the keep short-circuit, only the non-keep (rewrite) plan entry is
-    // sent to the execute call, so the mock response contains 1 slide.
+    // All plan entries are sent to the execute call as a virtual deck, so the
+    // mock response contains 2 slides (one per plan entry).
     const EXECUTE_RESPONSE = JSON.stringify({
       slides: [
+        {
+          layout: "header-content",
+          content: "@header\n## Slide 1\n\n@main\n- Item 1",
+        },
         {
           layout: "header-content",
           content: "@header\n## Slide 2\n\n@main\n- Concise point",
@@ -345,14 +355,14 @@ describe("AiOrchestrator", () => {
       expect(result).toContain("Slide 1");
       expect(result).toContain("Slide 2");
       // Plan entries were logged
-      expect(logs.some((l) => l.includes("[Plan] Keep"))).toBe(true);
+      expect(logs.some((l) => l.includes("[Plan] Polish"))).toBe(true);
       expect(logs.some((l) => l.includes("[Plan] Rewrite"))).toBe(true);
     });
 
     it("falls back to original source slides when execute returns a mismatched slide count", async () => {
-      // The execute phase returns zero rewritten slides even though the plan
-      // has one rewrite entry. The fallback should use the original source slide
-      // so the deck doesn't contain literal `undefined`.
+      // The execute phase returns zero slides even though the plan has two
+      // entries. The fallback should use the joined original source slides for
+      // each missing entry so the deck doesn't contain literal `undefined`.
       const MISSING_EXECUTE_RESPONSE = JSON.stringify({
         slides: [],
       });
@@ -368,7 +378,7 @@ describe("AiOrchestrator", () => {
         onLog: (msg) => logs.push(msg),
       });
 
-      expect(logs.some((l) => l.includes("expected 1 rewritten slide(s), got 0"))).toBe(true);
+      expect(logs.some((l) => l.includes("expected 2 slide(s), got 0"))).toBe(true);
       expect(result).toContain("Slide 1");
       expect(result).toContain("Slide 2");
       expect(result).not.toContain("undefined");
@@ -386,7 +396,13 @@ describe("AiOrchestrator", () => {
             reason: "Content is verbose",
             title: "Slide 1",
           },
-          { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
+          {
+            action: "polish",
+            source: [1],
+            brief: "Tighten the wording",
+            reason: "Fine as-is",
+            title: "Slide 2",
+          },
         ],
       });
       // First attempt drops theme/background and invents an external image URL.
@@ -397,6 +413,10 @@ describe("AiOrchestrator", () => {
             content:
               '@header\n## Slide 1\n\n@main\n- Concise\n\n<img src="https://example.com/invented.png">',
           },
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Item 2",
+          },
         ],
       });
       // Repair attempt restores identity and uses only the source image.
@@ -406,6 +426,10 @@ describe("AiOrchestrator", () => {
             layout: "header-content",
             content:
               'theme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Concise\n\n<img src="images/a.png">',
+          },
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Item 2",
           },
         ],
       });
@@ -442,7 +466,13 @@ describe("AiOrchestrator", () => {
             reason: "Content is verbose",
             title: "Slide 1",
           },
-          { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
+          {
+            action: "polish",
+            source: [1],
+            brief: "Tighten the wording",
+            reason: "Fine as-is",
+            title: "Slide 2",
+          },
         ],
       });
       // The AI echoes the old theme/background even though the plan context
@@ -453,6 +483,10 @@ describe("AiOrchestrator", () => {
             layout: "header-content",
             content:
               "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n- Concise point",
+          },
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 2\n\n@main\n- Item 2",
           },
         ],
       });
@@ -482,7 +516,7 @@ describe("AiOrchestrator", () => {
       const plan = JSON.stringify({
         plan: [
           { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const fabricated = JSON.stringify({
@@ -520,7 +554,7 @@ describe("AiOrchestrator", () => {
       const plan = JSON.stringify({
         plan: [
           { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const pathVariant = JSON.stringify({
@@ -548,7 +582,7 @@ describe("AiOrchestrator", () => {
       const plan = JSON.stringify({
         plan: [
           { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const fabricated = JSON.stringify({
@@ -648,12 +682,16 @@ describe("AiOrchestrator", () => {
         "layout: full-image\nbackground: url(images/bg.png) center/cover\n@main\n## Kept\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
       const plan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
           { action: "rewrite", source: [1], brief: "Tighten", reason: "verbose", title: "S2" },
         ],
       });
       const adopted = JSON.stringify({
         slides: [
+          {
+            layout: "full-image",
+            content: "background: url(images/bg.png) center/cover\n@main\n## Kept",
+          },
           {
             layout: "header-content",
             content: '@header\n## Slide 2\n\n@main\n- Tightened\n\n<img src="images/bg.png">',
@@ -665,7 +703,7 @@ describe("AiOrchestrator", () => {
       const op = createOperation("generate", null, deck, { mode: "remix" });
       const result = await orchestrator.runWholeDeckOperation(op);
 
-      // The kept slide's own background survives…
+      // The polished slide's own background survives…
       expect(result).toContain("background: url(images/bg.png) center/cover");
       // …but the adopted <img> on the rewritten slide is stripped.
       expect(result).not.toContain('<img src="images/bg.png"');
@@ -681,7 +719,7 @@ describe("AiOrchestrator", () => {
       const plan = JSON.stringify({
         plan: [
           { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const execute = JSON.stringify({
@@ -708,7 +746,7 @@ describe("AiOrchestrator", () => {
         "layout: full-image\nbackground: url(images/bg.png) center/cover\n@main\n## Kept\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2";
       const plan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
           { action: "rewrite", source: [1], brief: "Tighten", reason: "verbose", title: "S2" },
         ],
       });
@@ -735,12 +773,16 @@ describe("AiOrchestrator", () => {
         'layout: header-content\ntheme: dark\nbackground: #1a1a2e\n@header\n## Slide 1\n\n@main\n<img src="images/kept.png">\n\n---\n\nlayout: header-content\n@header\n## Slide 2\n\n@main\n- Item 2';
       const plan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
           { action: "rewrite", source: [1], brief: "Tighten", reason: "verbose", title: "S2" },
         ],
       });
       const execute = JSON.stringify({
         slides: [
+          {
+            layout: "header-content",
+            content: '@header\n## Slide 1\n\n@main\n<img src="images/kept.png">',
+          },
           {
             layout: "header-content",
             content: "theme: dark\nbackground: #1a1a2e\n@header\n## Slide 2\n\n@main\n- Tightened",
@@ -1151,7 +1193,7 @@ describe("AiOrchestrator", () => {
       const provider = mockProviderSequence([
         JSON.stringify({
           plan: [
-            { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+            { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
             { action: "rewrite", source: [1], brief: "fix", reason: "ok", title: "S2" },
           ],
         }),
@@ -1977,7 +2019,7 @@ describe("AiOrchestrator", () => {
     it("does not throw when reason is missing (optional display-only field)", async () => {
       const planNoReason = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", title: "S1" },
           {
             action: "rewrite",
             source: [1],
@@ -1997,7 +2039,7 @@ describe("AiOrchestrator", () => {
     it("coerces non-string reason to string without throwing", async () => {
       const planBadReasonType = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: 42, title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: 42, title: "S1" },
           {
             action: "rewrite",
             source: [1],
@@ -2027,7 +2069,7 @@ describe("AiOrchestrator", () => {
     it("throws on out-of-range source index", async () => {
       const badPlan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
           { action: "rewrite", source: [5], brief: "fix", reason: "ok", title: "S5" },
         ],
       });
@@ -2041,7 +2083,7 @@ describe("AiOrchestrator", () => {
       // sourceCount = 2; index 2 is clamped to 1, producing [1, 1]
       const badPlan = JSON.stringify({
         plan: [
-          { action: "keep", source: [0], brief: "", reason: "ok", title: "S1" },
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
           { action: "merge", source: [1, 2], brief: "merge last two", reason: "ok", title: "M" },
         ],
       });
@@ -2053,7 +2095,9 @@ describe("AiOrchestrator", () => {
 
     it("throws on uncovered source slide", async () => {
       const badPlan = JSON.stringify({
-        plan: [{ action: "keep", source: [0], brief: "", reason: "ok", title: "S1" }],
+        plan: [
+          { action: "polish", source: [0], brief: "Tighten wording", reason: "ok", title: "S1" },
+        ],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
       const orchestrator = new AiOrchestrator({ provider });
@@ -2126,7 +2170,13 @@ describe("AiOrchestrator", () => {
           title: "Slide 1",
           keepImages: [0],
         },
-        { action: "keep", source: [1], brief: "", reason: "Fine as-is", title: "Slide 2" },
+        {
+          action: "polish",
+          source: [1],
+          brief: "Tighten the wording",
+          reason: "Fine as-is",
+          title: "Slide 2",
+        },
       ],
     });
 
@@ -2261,7 +2311,7 @@ describe("AiOrchestrator", () => {
             title: "S1",
             keepImages: "not-an-array",
           },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const provider = mockProviderSequence([badPlan, EXECUTE_RESPONSE]);
@@ -2297,7 +2347,7 @@ describe("AiOrchestrator", () => {
             title: "S1",
             keepImages: [0], // keep only a.png, drop b.png
           },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const executeResponse = JSON.stringify({
@@ -2341,7 +2391,7 @@ describe("AiOrchestrator", () => {
             title: "S1",
             keepImages: [0], // hallucinated — no images were ever sent
           },
-          { action: "keep", source: [1], brief: "", reason: "ok", title: "S2" },
+          { action: "polish", source: [1], brief: "Tighten wording", reason: "ok", title: "S2" },
         ],
       });
       const executeResponse = JSON.stringify({
