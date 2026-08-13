@@ -355,7 +355,8 @@ export class RemixReimagineOrchestrator {
       }
     }
 
-    return cleaned.join("\n\n---\n\n");
+    const collapsed = cleaned.map((slide) => collapseBackgroundDirectives(slide));
+    return collapsed.join("\n\n---\n\n");
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -539,7 +540,10 @@ export class RemixReimagineOrchestrator {
     // are kept because the validator guarantees they are deck images — and
     // remove any fabricated image references the model insisted on (the
     // validator only repairs; it never hard-fails).
-    return stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs, onLog);
+    const cleaned = stripFabricatedImages(stripVisualIdentity(result), keptImageSrcs, onLog);
+    const slides = splitSlides(cleaned);
+    const collapsed = slides.map((slide) => collapseBackgroundDirectives(slide));
+    return collapsed.join("\n\n---\n\n");
   }
 
   /**
@@ -1563,18 +1567,20 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   const outputThemes = extractTopLevelDirectiveValues(slideMarkdown, "theme").map(normalize);
   const outputBackgrounds = extractTopLevelDirectiveValues(slideMarkdown, "background");
   const outputColorBackgrounds = [];
-  const outputImageUrls = new Set();
+  const outputBackgroundImageParts = [];
+  const outputAllImageUrls = new Set();
   for (const v of outputBackgrounds) {
     const { colorPart, imagePart, hasImage } = splitBackgroundValue(v);
-    if (colorPart) outputColorBackgrounds.push(normalize(colorPart));
+    if (colorPart) outputColorBackgrounds.push({ raw: colorPart, norm: normalize(colorPart) });
     if (hasImage) {
+      outputBackgroundImageParts.push(imagePart);
       for (const m of imagePart.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
-        outputImageUrls.add(m[1]);
+        outputAllImageUrls.add(m[1]);
       }
     }
   }
   for (const img of parseAllImagesOutsideFences(slideMarkdown)) {
-    outputImageUrls.add(img.src);
+    outputAllImageUrls.add(img.src);
   }
 
   const toRestore = [];
@@ -1586,22 +1592,65 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
     namesToStrip.add("theme");
     onLog?.(`Restore: re-injecting dropped theme: ${sourceThemes[0]}`, "warn");
   }
-  // Color background: same rule.
-  if (
+
+  // Background: the slide renderer keeps only the LAST `background:`
+  // directive (MarkdownParser.extractDirective overwrites `value` for each
+  // match). A combined color+image source value such as
+  // `linear-gradient(...), url(hero.png) center/cover` must therefore be
+  // re-emitted as a SINGLE `background:` directive. The previous split-into-
+  // separate-lines behavior caused the gradient overlay to be silently
+  // dropped and, for merged source slides, only the last of several images
+  // to render.
+  //
+  // Build one combined layer:
+  // - color/gradient: a model-kept source color if the model preserved one
+  //   (preserve its choice), otherwise the first source color (restore).
+  // - image: a model-kept background image if any (do not destroy a
+  //   converted/relocated image while stripping to restore the color),
+  //   otherwise the first source image URL that is absent from the output.
+  //   Only the first source image is restored — a second center/cover image
+  //   would be hidden behind the first, so stacking them is dead weight.
+  const restoreColor =
     sourceColorBackgrounds.length > 0 &&
-    !sourceColorBackgrounds.some((b) => outputColorBackgrounds.includes(normalize(b)))
-  ) {
-    toRestore.push(`background: ${sourceColorBackgrounds[0]}`);
+    !sourceColorBackgrounds.some((b) =>
+      outputColorBackgrounds.some((o) => o.norm === normalize(b)),
+    );
+  const absentSourceImageUrls = sourceImageUrls.filter((url) => !outputAllImageUrls.has(url));
+  const restoreImage = absentSourceImageUrls.length > 0;
+
+  if (restoreColor || restoreImage) {
     namesToStrip.add("background");
-    onLog?.(`Restore: re-injecting dropped background: ${sourceColorBackgrounds[0]}`, "warn");
-  }
-  // Image backgrounds: restore each source image URL that is entirely absent
-  // from the output (not as <img>, not as background: url(...)).
-  for (const url of sourceImageUrls) {
-    if (!outputImageUrls.has(url)) {
-      toRestore.push(`background: url(${url}) center/cover`);
-      namesToStrip.add("background");
-      onLog?.(`Restore: re-injecting dropped image background: ${url}`, "warn");
+
+    let colorForLine = "";
+    if (sourceColorBackgrounds.length > 0) {
+      const kept = outputColorBackgrounds.find((o) =>
+        sourceColorBackgrounds.some((b) => normalize(b) === o.norm),
+      );
+      colorForLine = kept ? kept.raw : sourceColorBackgrounds[0];
+    }
+
+    let imageForLine = "";
+    if (outputBackgroundImageParts.length > 0) {
+      imageForLine = outputBackgroundImageParts[0];
+    } else if (restoreImage) {
+      const first = absentSourceImageUrls[0];
+      imageForLine = `url(${first}) center/cover`;
+      onLog?.(`Restore: re-injecting dropped image background: ${first}`, "warn");
+      for (const extra of absentSourceImageUrls.slice(1)) {
+        onLog?.(
+          `Restore: dropping extra source image background from merged slide (only one center/cover image is visible): ${extra}`,
+          "warn",
+        );
+      }
+    }
+
+    if (restoreColor && colorForLine) {
+      onLog?.(`Restore: re-injecting dropped background: ${colorForLine}`, "warn");
+    }
+
+    const combined = [colorForLine, imageForLine].filter(Boolean).join(", ");
+    if (combined) {
+      toRestore.push(`background: ${combined}`);
     }
   }
 
@@ -1631,6 +1680,65 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
     offset += line.length + 1;
   }
   lines.splice(insertAt, 0, ...toRestore);
+  return lines.join("\n");
+}
+
+/**
+ * Collapse multiple top-level `background:` directives in a slide's leading
+ * block into a single CSS multi-layer directive.
+ *
+ * The slide renderer (MarkdownParser.extractDirective) keeps only the LAST
+ * `background:` directive — so when the AI (or an earlier restore pass) emits
+ * the color/gradient and the image as separate `background:` lines, the
+ * overlay is silently dropped and text over a raw photo becomes unreadable.
+ * Combining the layers into one directive lets CSS render them all.
+ *
+ * Fence-aware: a literal `background:` inside a code block is left untouched.
+ * Single-directive slides are returned unchanged.
+ *
+ * @param {string} markdown
+ * @returns {string}
+ */
+function collapseBackgroundDirectives(markdown) {
+  const lines = markdown.split("\n");
+  const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
+
+  // Collect indices of top-level background: lines in the leading block.
+  const bgIndices = [];
+  let inLeadingBlock = true;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (inLeadingBlock) {
+      if (/^\s*```/.test(line)) {
+        inLeadingBlock = false;
+        continue;
+      }
+      if (line.trim() === "") continue;
+      if (/^\s*background\s*:/i.test(line)) {
+        bgIndices.push(i);
+        continue;
+      }
+      if (anyDirective.test(line)) continue;
+      inLeadingBlock = false;
+    }
+  }
+  if (bgIndices.length <= 1) return markdown;
+
+  // Combine all layers: collect color/gradient parts and image parts from
+  // every background line, preserving order, then emit one directive.
+  const layers = [];
+  for (const idx of bgIndices) {
+    const value = lines[idx].replace(/^\s*background\s*:\s*/i, "").trim();
+    const { colorPart, imagePart, hasImage } = splitBackgroundValue(value);
+    if (colorPart) layers.push(colorPart);
+    if (hasImage && imagePart) layers.push(imagePart);
+  }
+  if (layers.length === 0) return markdown;
+
+  lines[bgIndices[0]] = `background: ${layers.join(", ")}`;
+  for (let j = bgIndices.length - 1; j >= 1; j--) {
+    lines.splice(bgIndices[j], 1);
+  }
   return lines.join("\n");
 }
 

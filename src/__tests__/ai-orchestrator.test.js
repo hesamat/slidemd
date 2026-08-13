@@ -906,6 +906,125 @@ describe("AiOrchestrator", () => {
       expect(result.match(/background: url\(images\/hero\.png\)/g) || []).toHaveLength(1);
     });
 
+    it("restores a dropped combined color+image background as a single directive", async () => {
+      const deck =
+        "layout: header-content\ntheme: dark\nbackground: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero.png) center/cover\n@header\n## Slide 1\n\n@main\n- Item 1";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const dropBg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Slide 1\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, dropBg, dropBg]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("theme: dark");
+      expect(result).toContain(
+        "background: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero.png) center/cover",
+      );
+      // Must be a single background: line; no split color/image lines.
+      const bgMatches = result.match(/^\s*background\s*:/gm) || [];
+      expect(bgMatches.length).toBe(1);
+    });
+
+    it("restores only the first source image background for merged slides", async () => {
+      const deck =
+        "layout: header-content\nbackground: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero1.png) center/cover\n@header\n## Slide 1\n\n@main\n- Item 1\n\n---\n\nlayout: header-content\nbackground: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero2.png) center/cover\n@header\n## Slide 2\n\n@main\n- Item 2";
+      const plan = JSON.stringify({
+        plan: [
+          {
+            action: "merge",
+            source: [0, 1],
+            brief: "Merge",
+            reason: "verbose",
+            title: "Merged",
+          },
+        ],
+      });
+      const dropBg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content: "@header\n## Merged\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, dropBg, dropBg]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      // First source image only; the second is dropped because a stacked
+      // center/cover image would be hidden behind the first.
+      expect(result).toContain(
+        "background: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero1.png) center/cover",
+      );
+      expect(result).not.toContain("images/hero2.png");
+    });
+
+    it("merges restored color with a kept background image", async () => {
+      const deck =
+        "layout: header-content\nbackground: #1a1a2e, url(images/hero.png) center/cover\n@header\n## Slide 1\n\n@main\n- Item 1";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const keepImageDropColor = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              "background: url(images/hero.png) center/cover\n@header\n## Slide 1\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, keepImageDropColor, keepImageDropColor]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain("background: #1a1a2e, url(images/hero.png) center/cover");
+    });
+
+    it("collapses model-emitted split background layers into one directive", async () => {
+      const deck =
+        "layout: header-content\nbackground: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero.png) center/cover\n@header\n## Slide 1\n\n@main\n- Item 1";
+      const plan = JSON.stringify({
+        plan: [
+          { action: "rewrite", source: [0], brief: "Tighten", reason: "verbose", title: "S1" },
+        ],
+      });
+      const splitBg = JSON.stringify({
+        slides: [
+          {
+            layout: "header-content",
+            content:
+              "background: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65))\nbackground: url(images/hero.png) center/cover\n@header\n## Slide 1\n\n@main\n- Tightened",
+          },
+        ],
+      });
+      const provider = mockProviderSequence([plan, splitBg, splitBg]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, deck, { mode: "remix" });
+      const result = await orchestrator.runWholeDeckOperation(op);
+
+      expect(result).toContain(
+        "background: linear-gradient(rgba(0,0,0,0.65),rgba(0,0,0,0.65)), url(images/hero.png) center/cover",
+      );
+      const bgMatches = result.match(/^\s*background\s*:/gm) || [];
+      expect(bgMatches.length).toBe(1);
+    });
+
     it("allows images relocated across batch boundaries in the batched execute path", async () => {
       // 10 source slides → a 2-batch virtual deck. The deck's only image lives
       // on the last source slide (batch 2), but the model places it on the

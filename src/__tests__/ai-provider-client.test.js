@@ -246,6 +246,101 @@ describe("AiProviderClient", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
+  describe("null-content response diagnostics", () => {
+    it("currently throws AiParseError when content is null with finish_reason: length", async () => {
+      // This is the suspected real-world failure: reasoning model exhausts
+      // max_tokens during thinking, returns content: null, finish_reason: "length".
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [{ message: { content: null }, finish_reason: "length" }],
+            usage: { prompt_tokens: 5000, completion_tokens: 24000, total_tokens: 29000 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiParseError);
+      expect(err.message).toContain("Response missing choices[0].message.content");
+    });
+
+    it("currently throws AiParseError when message.refusal is present", async () => {
+      // Some providers put a content refusal in message.refusal and content: null.
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              { message: { content: null, refusal: "Content filtered" }, finish_reason: "stop" },
+            ],
+            usage: { total_tokens: 100 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiParseError);
+      expect(err.message).toContain("Response missing choices[0].message.content");
+    });
+
+    it("currently throws AiParseError when message.reasoning is present but content is null", async () => {
+      // Some reasoning models may return only reasoning content in a separate field.
+      const client = makeClient();
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: null, reasoning: "internal thinking..." },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { total_tokens: 500 },
+          }),
+      });
+
+      let err;
+      try {
+        await client.chat({
+          messages: [],
+          maxTokens: 24000,
+          responseFormat: null,
+          reasoning: null,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(AiParseError);
+      expect(err.message).toContain("Response missing choices[0].message.content");
+    });
+
+    it.todo("should retry with widened max_tokens when content is null with finish_reason: length");
+    it.todo("should surface a content refusal when message.refusal is present");
+    it.todo("should handle reasoning-only responses (message.reasoning without content)");
+  });
+
   it("AiHttpError message includes a sanitized body summary", async () => {
     const client = makeClient();
     globalThis.fetch.mockResolvedValue({
