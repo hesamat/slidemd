@@ -310,6 +310,31 @@ Footer`;
     expect(err.message).toContain("@main");
   });
 
+  describe("per-layout @main line limits", () => {
+    // Real-world rendering limits tuned from actual slide overflow testing.
+    // The formula-derived values didn't match what actually fits on screen.
+    const cases = [
+      ["header-content", 13],
+      ["two-column", 10],
+      ["focus", 11],
+      ["media-span-left", 12],
+      ["media-span-right", 12],
+    ];
+
+    for (const [layout, max] of cases) {
+      it(`${layout}: ${max} lines in @main pass, ${max + 1} fails`, () => {
+        const atMax = Array.from({ length: max }, (_, i) => `- Line ${i + 1}`).join("\n");
+        const overMax = Array.from({ length: max + 1 }, (_, i) => `- Line ${i + 1}`).join("\n");
+        const r1 = validate("", `layout: ${layout}\n@main\n${atMax}`, "generate");
+        const r2 = validate("", `layout: ${layout}\n@main\n${overMax}`, "generate");
+        const overflowAtMax = r1.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+        const overflowOver = r2.errors.find((e) => e.code === "SLIDE_CONTENT_OVERFLOW");
+        expect(overflowAtMax).toBeUndefined();
+        expect(overflowOver).toBeDefined();
+      });
+    }
+  });
+
   describe("addSpeakerNotes intent", () => {
     const slideWithNotes = (notes) => `layout: header-content
 

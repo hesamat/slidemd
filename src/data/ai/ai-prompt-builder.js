@@ -97,9 +97,13 @@ export function buildMessages(markdown, mode) {
  * @param {boolean} [includeFirstSlide=false] - When true, appends the full raw
  *   text of the first slide so the reimagine outline prompt can extract
  *   identifying information for the first slide's footer.
+ * @param {boolean} [enrichPerSlide=false] - When true, adds per-slide metadata
+ *   (content line count, bullet count, code/image/diagram markers) to each
+ *   outline entry. Used by the Remix plan phase so the planning AI has enough
+ *   signal to make keep/rewrite/merge decisions without seeing full content.
  * @returns {string}
  */
-export function buildDeckSummary(markdown, includeFirstSlide = false) {
+export function buildDeckSummary(markdown, includeFirstSlide = false, enrichPerSlide = false) {
   // Fence-aware split so `---` inside code blocks doesn't create phantom
   // slides and misalign the outline (same fix as buildBatchMessages /
   // extractDirectives / injectDirectives).
@@ -110,7 +114,41 @@ export function buildDeckSummary(markdown, includeFirstSlide = false) {
     const lines = slide.split("\n").filter((l) => l.trim());
     const titleLine = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || `Slide ${i + 1}`;
     const title = titleLine.replace(/^#+\s*/, "").trim();
-    return `${i + 1}. [${layout}] ${title}`;
+    let entry = `${i + 1}. [${layout}] ${title}`;
+    if (enrichPerSlide) {
+      const meta = [];
+      // Count non-empty content lines, excluding frontmatter directives, @area
+      // markers, speaker notes, and code fence delimiters. Trim each line
+      // before testing so indented markers and nested bullets are handled.
+      // Only exclude known slide-level directive keys (matching the parser's
+      // list in markdown-parser.js) — not any "word:" pattern, which would
+      // wrongly drop body prose like "Example:" or "Output:".
+      const contentLines = lines.filter((l) => {
+        const t = l.trim();
+        if (/^(@\w+|---)/.test(t)) return false;
+        if (
+          /^(layout|theme|background|hidden|hide|media-full-bleed|media-span|align|header-style|area-style(?:-[\w-]+)?|code-font-size)\s*:/i.test(
+            t,
+          )
+        )
+          return false;
+        // Exclude speaker notes comments.
+        if (/^<!--\s*notes:/.test(t)) return false;
+        // Exclude code fence delimiters (``` or ~~~).
+        if (/^(```|~~~)/.test(t)) return false;
+        return true;
+      });
+      meta.push(`${contentLines.length} lines`);
+      // Count list items — trim first so nested/indented items are counted.
+      // Includes unordered (-, *, +) and ordered (1. 2. etc.) list markers.
+      const bulletCount = contentLines.filter((l) => /^([-*+]|\d+\.)\s/.test(l.trim())).length;
+      if (bulletCount > 0) meta.push(`${bulletCount} bullet${bulletCount > 1 ? "s" : ""}`);
+      if (/```/.test(slide)) meta.push("code");
+      if (/<img/.test(slide)) meta.push("image");
+      if (/\[Diagram:/.test(slide)) meta.push("diagram");
+      if (meta.length) entry += ` (${meta.join(", ")})`;
+    }
+    return entry;
   });
 
   const hasCode = slides.some((s) => /```/.test(s));

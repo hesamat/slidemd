@@ -2,7 +2,7 @@
 
 - A "line" counts as one paragraph, one bullet item, one table row, or one line of code:
   - `title-slide`: `@title` only (one or two short lines) and `@footer` only (one or two short lines). No `@main` content.
-  - `focus`: `@main` should hold at most 4–5 lines. This layout uses a larger font, so be especially stingy — a headline plus a couple of supporting lines is plenty.
+  - `focus`: `@main` should hold at most 8–11 lines. This layout uses a larger font, so be selective — a headline plus supporting points, a short code block, or a compact table.
   - `header-content`: `@header` is one line; `@main` should hold about 10–14 lines total. That budget is consumed by any combination of paragraphs, bullets, table rows, and code lines.
   - `two-column`: `@header` is one line; each column (`@main` and `@media`) should hold about 6–10 lines and be roughly balanced — neither column should be more than twice as tall as the other.
   - `media-span-left` / `media-span-right`: `@header` is one line; `@main` should hold about 8–12 lines; `@media` holds one image or one Mermaid diagram.
@@ -11,4 +11,4 @@
 
 <!-- variant: compact -->
 
-Rough per-area line budgets: `title-slide` `@title`/`@footer` one or two short lines each and no `@main` content, `header-content` `@main` ~10-14 lines, `focus` `@main` ~4-5 lines, `two-column` columns ~6-10 lines each, `media-span` `@main` ~8-12 lines, `full-image` `@main` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.
+Rough per-area line budgets: `title-slide` `@title`/`@footer` one or two short lines each and no `@main` content, `header-content` `@main` ~10-13 lines, `focus` `@main` ~8-11 lines, `two-column` columns ~6-10 lines each, `media-span` `@main` ~8-12 lines, `full-image` `@main` is the full-bleed image with at most a short caption. A code block, table, or diagram counts as roughly its number of rendered lines.

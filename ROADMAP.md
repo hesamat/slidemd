@@ -579,27 +579,27 @@ Goal: Pay down structural debt and close test gaps before improving the existing
 
 ---
 
-## Phase 14.6: Polish Quality & Presentation Readiness
+## Phase 14.6: Polish Quality & Presentation Readiness ✅
 
 Goal: Make Polish a reliable conservative pass that improves presentation quality without changing the deck's identity, narrative, slide count, or order.
 
 ### Content & Layout Quality
 
-| Task                              | Details                                                                                                                                                                                                                                                                        |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [ ] Improve presentation prose    | Make headlines concise and human-facing, tighten bullets, replace vague wording, and remove textbook-style repetition without adding content indiscriminately.                                                                                                                 |
-| [ ] Improve density handling      | Detect crowded slides, move supporting detail to notes where appropriate, and choose clearer layouts without changing the slide sequence.                                                                                                                                      |
-| [ ] Split lumped PPTX code blocks | PPTX import cannot detect separate code blocks on a slide and often merges them into one fenced block. Instruct all AI modes (Polish, Fix, Generate, Remix, Reimagine) to detect and split lumped code blocks back into separate fenced blocks with appropriate language tags. |
-| [ ] Improve imported-deck polish  | Continue addressing PPTX-import artifacts: mismatched layouts, misplaced images, verbose text boxes, broken code, and weak hierarchy.                                                                                                                                          |
-| [ ] Preserve speaker notes        | Keep existing notes unchanged unless the user explicitly enables note generation.                                                                                                                                                                                              |
+| Task                              | Details                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Improve presentation prose    | Make headlines concise and human-facing, tighten bullets, replace vague wording, and remove textbook-style repetition without adding content indiscriminately. (PR #208)                                                                                                                 |
+| [x] Improve density handling      | Detect crowded slides, move supporting detail to notes where appropriate, and choose clearer layouts without changing the slide sequence. (PR #208)                                                                                                                                      |
+| [x] Split lumped PPTX code blocks | PPTX import cannot detect separate code blocks on a slide and often merges them into one fenced block. Instruct all AI modes (Polish, Fix, Generate, Remix, Reimagine) to detect and split lumped code blocks back into separate fenced blocks with appropriate language tags. (PR #208) |
+| [x] Improve imported-deck polish  | Continue addressing PPTX-import artifacts: mismatched layouts, misplaced images, verbose text boxes, broken code, and weak hierarchy. (PR #208)                                                                                                                                          |
+| [x] Preserve speaker notes        | Keep existing notes unchanged unless the user explicitly enables note generation. (PR #208)                                                                                                                                                                                              |
 
 ### Preservation & Validation
 
-| Task                             | Details                                                                                                                                             |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Harden identity preservation | Preserve existing `theme:`, `background:`, color scheme, slide count, slide order, and narrative flow.                                              |
-| [ ] Improve repair feedback      | Make validation and repair messages specific to overflow, malformed layouts, broken diagrams, and formatting failures.                              |
-| [ ] Add quality fixtures         | Cover dense slides, code, tables, Mermaid, PPTX conversions, notes, images, and already-polished slides that should not be rewritten unnecessarily. |
+| Task                             | Details                                                                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] Harden identity preservation | Preserve existing `theme:`, `background:`, color scheme, slide count, slide order, and narrative flow. (PR #208)                                              |
+| [x] Improve repair feedback      | Make validation and repair messages specific to overflow, malformed layouts, broken diagrams, and formatting failures. (PR #209)                              |
+| [x] Add quality fixtures         | Cover dense slides, code, tables, Mermaid, PPTX conversions, notes, images, and already-polished slides that should not be rewritten unnecessarily. (PR #209) |
 
 ### Acceptance Criteria
 
@@ -618,10 +618,10 @@ Goal: Make Remix a dependable plan→execute restructuring mode between conserva
 
 | Task                           | Details                                                                                                                                            |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ ] Improve editorial planning | Produce clearer keep/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides. |
-| [ ] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                           |
-| [ ] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                  |
-| [ ] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                               |
+| [x] Improve editorial planning | Produce clearer keep/rewrite/merge decisions, stronger one-sentence briefs, purposeful reordering, and fewer redundant or low-value output slides. |
+| [x] Preserve source coverage   | Ensure every source slide is accounted for and that important source material is not silently lost during restructuring.                           |
+| [x] Improve merge decisions    | Merge only thin, overlapping, or redundant slides; keep distinct topics and strong standalone takeaways separate.                                  |
+| [x] Improve plan observability | Surface the restructuring plan and important decisions in the AI sidebar so users can understand what Remix changed.                               |
 
 ### Visual Identity & Assets
 
@@ -989,7 +989,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 | Phase 13.2: Vision-Enabled Remix & Hardening | ✅ Complete |
 | Phase 14: Conflict Resolution & Undo         | ✅ Complete |
 | Phase 14.5: Structural Cleanup & Tests       | ✅ Complete |
-| Phase 14.6: Polish Quality & Presentation    | Planned     |
+| Phase 14.6: Polish Quality & Presentation    | ✅ Complete |
 | Phase 14.7: Remix Quality & Visual Identity  | Planned     |
 | Phase 14.8: Reimagine Creative Direction     | Planned     |
 | Phase 14.9: PPTX Import Quality              | Planned     |
@@ -1002,7 +1002,7 @@ Goal: Enable cloud image storage, pluggable storage drivers, and seamless Open/S
 ### Priority Order
 
 ```
-Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 → Phase 14.6 → Phase 14.7 → Phase 14.8 → Phase 14.9 → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
+Phase 1 ✅ → Phase 2 ✅ → Phase 3 ✅ → Phase 4 ✅ → Phase 5 ✅ → Phase 6 ✅ → Phase 7 ✅ → Phase 7.5 ✅ → Phase 8 ✅ → Phase 9 ✅ → Phase 10 ✅ → Phase 11 ✅ → Phase 12 ✅ → Phase 13 ✅ → Phase 13.1 ✅ → Phase 13.2 ✅ → Phase 14 ✅ → Phase 14.5 ✅ → Phase 14.6 ✅ → Phase 14.7 → Phase 14.8 → Phase 14.9 → Phase 15 → Phase 15.1 (interactive classroom) → Phase 15.5 (v1.0 release) → Phase 16 → Phase 17
 ```
 
 Phase 7 was originally planned as AI-powered conversion but was implemented as rule-based layout inference instead — no API keys or external services needed. Phase 7.5 added the CLI dev server with `.md + images/` as primary format and `.textpack` for sharing. Phase 8 added AI post-processing via OpenRouter for PPTX imports. Phase 9 (Text Insertion & Editor UX) added draggable text blocks, editor polish, and layout/media controls. Phase 10 hardened the renderer pipeline with snapshot tests and a unified `ContentEnhancer`.

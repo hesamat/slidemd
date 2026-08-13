@@ -935,7 +935,7 @@ export class RemixReimagineOrchestrator {
     const { context } = operation;
     const { onLog } = callbacks;
 
-    const deckSummary = buildDeckSummary(context);
+    const deckSummary = buildDeckSummary(context, false, true);
     const sourceCount = splitSlidesForAi(context, "generate").length;
 
     const mode = operation.opts?.mode || "remix";
@@ -1180,6 +1180,19 @@ export class RemixReimagineOrchestrator {
 
       if (entry.action !== "keep" && (!entry.brief || entry.brief.trim().length === 0)) {
         errors.push(`${prefix}: brief is required for action "${entry.action}"`);
+      }
+
+      // `reason` explains why this action was chosen. Optional — the prompt
+      // asks for it, but less compliant models may omit it. Coerce non-string
+      // values to string; if missing/empty, the sidebar simply omits the
+      // rationale line. Don't hard-fail the plan over a display-only field.
+      if (entry.reason != null) {
+        if (typeof entry.reason !== "string") {
+          entry.reason = String(entry.reason);
+        }
+        if (entry.reason.trim().length === 0) {
+          delete entry.reason;
+        }
       }
 
       // keepImages is optional. If present, must be an array of non-negative
