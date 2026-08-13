@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.0 (2026-08-13)
+
+### Remix & Reimagine
+
+- Replace the Remix plan `keep` action with `polish`. Polish now lightly improves/fixes each slide instead of copying it unchanged; `rewrite` and `merge` remain unchanged. Update the AI sidebar badges, plan prompt, and `docs/ai-editing.md` accordingly.
+- Make `instructional` the default whole-deck AI flow and wire flow-aware restructuring priorities (`instructional`/`story`/`technical`/`persuasive`) into the remix plan via `remix-flow-guidance.md`.
+- Enforce visual identity mechanically in preserve mode: `applyPreservedIdentity` deterministically restores source `theme:`/`background:` after the execute phase, removing the need for validator retry loops. Discard mode and Reimagine strip stale theme/background/color directives while keeping legitimate image backgrounds.
+- Restrict execute-phase images to source-deck paths. Models may not invent `background: url(...)` or `<img src>` values; `normalizeImageSrc` handles `./` prefixes and percent-encoding. Dropped images and fabricated URLs are flagged or stripped mechanically.
+- Limit remix `merge` actions to two source slides and prevent merging image/diagram-heavy slides. Tighten keep/rewrite/merge criteria in the plan prompt.
+
+### AI Model Reliability
+
+- Detect reasoning-model token exhaustion (`content: null` with `finish_reason: "length"`) and retry once with a widened `max_tokens` budget. Surface clear guidance to the user if the wider budget also exhausts.
+- Raise the reasoning `max_tokens` floor to 32k (medium) and 40k (high) to reduce exhaustion on non-trivial tasks.
+
+### Prompt & Quality Fixes
+
+- Preserve original closing sign-off, thank-you, and call-to-action text in recap/closing slides.
+- Prevent the AI from adding answers, expected outputs, or result comments to code blocks unless the source already contains them.
+- Make directive extraction/stripping fence-aware for both ` ``` ` and `~~~` fences; track fence markers and escape directive names in regex helpers.
+- Preserve original background layer structure and place solid colors behind images in restored backgrounds.
+- Update prompt catalogs (`AGENTS.md`, `docs/prompt-template.md`) and `ROADMAP.md` for `polish`/`rewrite`/`merge` terminology.
+
 ## 0.9.2 (2026-08-12)
 
 ### Reimagine Outline
