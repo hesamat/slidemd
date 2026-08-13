@@ -372,6 +372,11 @@ export class MarkdownParser {
 
   /**
    * Extract a named directive (e.g. "layout", "theme") from slide markdown.
+   * Scans only the leading directive block (the run of blank and
+   * directive-like lines before the first body line — a heading, `@area`
+   * marker, prose, or fenced code block) so a mid-slide line that merely
+   * looks like a directive (e.g. `Background: the story so far`) is not
+   * mistaken for one.
    * @param {string} markdownText
    * @param {string} directiveName - Case-insensitive directive name.
    * @returns {import('../types.js').DirectiveResult}
@@ -379,31 +384,46 @@ export class MarkdownParser {
   extractDirective(markdownText, directiveName) {
     const text = safeString(markdownText).replace(/\r\n?/g, "\n");
     const lines = text.split("\n");
-    const fence = new FenceTracker();
     let value = "";
     let found = false;
     let from = -1;
     let to = -1;
     const out = [];
     let offset = 0;
+    let inLeadingBlock = true;
+    const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const lineStart = offset;
       const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
-      fence.toggle(line);
-      if (!fence.isInFence) {
-        const pattern = new RegExp(`^\\s*${directiveName}\\s*:\\s*(.*)\\s*$`, "i");
-        const match = line.match(pattern);
-        if (match) {
-          value = match[1].trim();
-          found = true;
-          from = lineStart;
-          to = lineEnd;
-          offset = lineEnd;
-          continue;
+
+      if (inLeadingBlock) {
+        // A fenced code block delimiter ends the leading directive block.
+        if (/^\s*```/.test(line)) {
+          inLeadingBlock = false;
+        } else if (line.trim() === "") {
+          // Blank lines stay in the leading block.
+        } else {
+          const pattern = new RegExp(`^\\s*${directiveName}\\s*:\\s*(.*)\\s*$`, "i");
+          const match = line.match(pattern);
+          if (match) {
+            value = match[1].trim();
+            found = true;
+            from = lineStart;
+            to = lineEnd;
+            offset = lineEnd;
+            continue;
+          }
+          // Another directive (not the one we're looking for) stays in the
+          // leading block but is kept in the output.
+          if (!anyDirective.test(line)) {
+            // First non-blank, non-directive line ends the leading block.
+            inLeadingBlock = false;
+          }
         }
       }
+
       out.push(line);
       offset = lineEnd;
     }

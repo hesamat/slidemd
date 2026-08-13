@@ -249,9 +249,23 @@ describe("MarkdownParser.extractDirective", () => {
   });
 
   it("ignores directives inside code fences", () => {
-    const md = "```\nlayout: fake\n```\nlayout: real\n# Hello";
+    const md = "layout: real\n```\nlayout: fake\n```\n# Hello";
     const result = parser.extractDirective(md, "layout");
     expect(result.value).toBe("real");
+  });
+
+  it("does not match directives after the leading directive block", () => {
+    const md = "layout: two-column\n# Heading\nbackground: not-a-directive";
+    const result = parser.extractDirective(md, "background");
+    expect(result.found).toBe(false);
+    expect(result.value).toBe("");
+  });
+
+  it("matches directives separated by blank lines in the leading block", () => {
+    const md = "layout: two-column\n\ntheme: dark\n\n# Hello";
+    const result = parser.extractDirective(md, "theme");
+    expect(result.found).toBe(true);
+    expect(result.value).toBe("dark");
   });
 
   it("handles empty input", () => {

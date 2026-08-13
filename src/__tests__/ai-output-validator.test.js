@@ -1198,7 +1198,8 @@ background: url(https://evil.example/x.png)
     it("onlyExplicitImageSources skips the input-derived union", () => {
       // The input brief carries a reuse:<path> reference, but
       // onlyExplicitImageSources must not trust it — only the explicit
-      // allowedImageSrcs are accepted.
+      // allowedImageSrcs are accepted (and the positional exemption does not
+      // cover reuse: paths, which are instructions, not images).
       const input = `<!-- brief: Slide A | image: reuse:images/hallucinated.png -->`;
       const output = `layout: header-content
 
@@ -1213,6 +1214,69 @@ background: url(https://evil.example/x.png)
       });
       expect(result.ok).toBe(false);
       expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+    });
+
+    it("allows an output slide to keep its own input slide's image (positional exemption)", () => {
+      // Text-only remix: no analyzed images, but a rewritten slide may keep
+      // its own source slide's image — preservation, not reuse.
+      const input = `layout: header-content
+
+@main
+<img src="images/a.png">`;
+      const output = `layout: header-content
+
+@main
+- Tightened
+
+<img src="images/a.png">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 1,
+        restrictImageSources: true,
+        allowedImageSrcs: [],
+        onlyExplicitImageSources: true,
+      });
+      expect(result.ok).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("flags an image adopted from another input slide (positional exemption is per-slide)", () => {
+      const input = `layout: header-content
+
+@main
+<img src="images/a.png">
+
+---
+
+layout: header-content
+
+@main
+- Item 2`;
+      const output = `layout: header-content
+
+@main
+- Tightened
+
+---
+
+layout: header-content
+
+@main
+- Tightened
+
+<img src="images/a.png">`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 2,
+        restrictImageSources: true,
+        allowedImageSrcs: [],
+        onlyExplicitImageSources: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("FABRICATED_IMAGE_SRC");
+      // The violation is on slide 2 (index 1), not the slide the image
+      // belongs to.
+      expect(result.errors.find((e) => e.code === "FABRICATED_IMAGE_SRC").slide).toBe(1);
     });
   });
 
@@ -1286,6 +1350,92 @@ theme: dark
 - Tightened point`;
       const result = validatePreserve(input, output);
       expect(result.ok).toBe(false);
+      expect(result.errors.map((e) => e.code)).toContain("PRESERVED_IMAGE_SRC_DROPPED");
+    });
+
+    it("does not error when the output reuses the image with a ./ prefix (normalized)", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+<img src="./images/hero.png">`;
+      const result = validatePreserve(input, output);
+      expect(result.errors.map((e) => e.code)).not.toContain("PRESERVED_IMAGE_SRC_DROPPED");
+    });
+
+    it("does not error when the model relocates an image to another slide (deck-wide)", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">
+
+---
+
+layout: header-content
+theme: dark
+
+@main
+- Slide 2`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+- Slide 1 (no image)
+
+---
+
+layout: full-image
+theme: dark
+background: url(images/hero.png) center/cover
+
+@main
+## Hero`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 2,
+        enforcePreserveIdentity: true,
+      });
+      expect(result.errors.map((e) => e.code)).not.toContain("PRESERVED_IMAGE_SRC_DROPPED");
+    });
+
+    it("still errors when an image is dropped from the entire deck", () => {
+      const input = `layout: header-content
+theme: dark
+
+@main
+<img src="images/hero.png">
+
+---
+
+layout: header-content
+theme: dark
+
+@main
+- Slide 2`;
+      const output = `layout: header-content
+theme: dark
+
+@main
+- Slide 1 (no image)
+
+---
+
+layout: header-content
+theme: dark
+
+@main
+- Slide 2`;
+      const validator = new AiOutputValidator({ inputMarkdown: input });
+      const result = validator.validate(output, "generate", {
+        expectedSlideCount: 2,
+        enforcePreserveIdentity: true,
+      });
       expect(result.errors.map((e) => e.code)).toContain("PRESERVED_IMAGE_SRC_DROPPED");
     });
   });

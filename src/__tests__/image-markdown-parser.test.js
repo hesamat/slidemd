@@ -137,6 +137,14 @@ describe("splitBackgroundValue", () => {
     expect(result.hasImage).toBe(false);
   });
 
+  it("tokenizes nested-paren gradients as a single unit", () => {
+    // The regex must handle one level of nesting so
+    // linear-gradient(rgba(...), transparent) is one token, not two fragments.
+    const result = splitBackgroundValue("linear-gradient(rgba(0,0,0,.5), transparent)");
+    expect(result.colorPart).toBe("linear-gradient(rgba(0,0,0,.5), transparent)");
+    expect(result.hasImage).toBe(false);
+  });
+
   it("keeps layout keywords with the image part", () => {
     const result = splitBackgroundValue("#1a1a2e url(images/bg.png) no-repeat center");
     expect(result.colorPart).toBe("#1a1a2e");

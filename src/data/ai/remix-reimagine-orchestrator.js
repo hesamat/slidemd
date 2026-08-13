@@ -28,7 +28,8 @@ import {
   buildKeptImagesList,
   buildAvailableImagesBrief,
 } from "./ai-prompt-fragments.js";
-import { collectImageSources, extractTopLevelDirectiveValues } from "./ai-output-validator.js";
+import { collectOwnImageSources, extractTopLevelDirectiveValues } from "./ai-output-validator.js";
+import { stripLeadingDirectives } from "./ai-directive-utils.js";
 import { buildVisionMessage, estimateTotalImageTokens } from "./ai-vision-message.js";
 import { estimateMaxTokens } from "./ai-token-estimator.js";
 import {
@@ -195,23 +196,26 @@ export class RemixReimagineOrchestrator {
       this.#planToVirtualDeck(rewriteEntries, planContext, imagesForVirtualDeck);
     const virtualSlides = splitSlidesForAi(virtualDeck, "generate");
     const virtualCount = virtualSlides.length;
-    // Image allowlist for the execute phase: every src the virtual deck may
-    // legitimately reference. This is what validation unions with the
-    // input-derived sources, so it must only cover the rewritten slides.
-    const virtualDeckSrcs = collectImageSources(virtualDeck);
-    // Kept slides are spliced back into the final deck verbatim, so their
-    // images must survive the final fabricated-image strip. The strip
-    // operates on the whole final deck (kept + rewritten), and without the
-    // kept srcs in the allowlist every kept-slide image would be stripped as
-    // "fabricated" because it never appears in the virtual deck. Collect from
-    // the same planContext slides we splice in so discard mode (which strips
-    // image backgrounds from planContext) doesn't re-allow a background the
-    // plan context no longer carries.
-    const keptSrcs = [];
-    for (const slide of keptByPlanIndex.values()) {
-      if (slide) keptSrcs.push(...collectImageSources(slide));
-    }
-    const finalAllowedSrcs = Array.from(new Set([...virtualDeckSrcs, ...keptSrcs]));
+    // Image allowlist for the execute phase: ONLY the images the plan AI
+    // actually saw as vision content may be adopted by rewritten slides.
+    // Background images are never extracted (slide-image-extractor excludes
+    // them), so they are never analyzed and can never be reused elsewhere —
+    // this is what stops a source background from ending up as an <img> on
+    // another slide. A rewritten slide may additionally KEEP its own source
+    // slide's images (positional exemption, enforced by validation and the
+    // per-slide strip below) — that is preservation, not reuse, and it also
+    // means a text-only remix keeps each slide's own pictures without
+    // letting the model shuffle them around.
+    const analyzedSrcs = imagesWereSent
+      ? Array.from(
+          new Set(
+            (slideImages || [])
+              .flat()
+              .map((e) => e?.src)
+              .filter(Boolean),
+          ),
+        )
+      : [];
 
     // ── Phase 3: Execute via existing single-call/batched path ──
     // Build a synthetic operation with the virtual deck as context.
@@ -220,10 +224,13 @@ export class RemixReimagineOrchestrator {
     // the visual-styling note), but only the remix execute operation sets
     // enforcePreserveIdentity so identity validation never leaks into
     // polish/generate paths that set preserveVisualIdentity themselves.
-    // Restrict output images to the virtual deck's sources (no fabricated
-    // URLs); the full-deck allowlist lets batched validation accept images
-    // relocated across batch boundaries (each batch's own slides remain the
-    // positional source of truth for identity checks).
+    // Restrict output images to the analyzed set (no fabricated URLs, no
+    // un-analyzed adoptions). onlyExplicitImageSources skips the input-derived
+    // union — the virtual deck text still carries source image markup
+    // (including backgrounds), and trusting it would re-open the loophole
+    // where a background the AI never saw becomes legal. The deck-wide
+    // allowlist still lets batched validation accept analyzed images
+    // relocated across batch boundaries.
     const execOp = {
       ...operation,
       context: virtualDeck,
@@ -233,7 +240,8 @@ export class RemixReimagineOrchestrator {
         preserveVisualIdentity,
         enforcePreserveIdentity: preserveVisualIdentity,
         restrictImageSources: true,
-        allowedImageSrcs: virtualDeckSrcs,
+        allowedImageSrcs: analyzedSrcs,
+        onlyExplicitImageSources: true,
       },
     };
     const execSuffix = buildGenerateOptionsSuffix(execOp.opts);
@@ -297,42 +305,57 @@ export class RemixReimagineOrchestrator {
       keptByPlanIndex.has(i) ? keptByPlanIndex.get(i) : rewrittenSlides[rewriteIdx++],
     );
 
+    // Final image pass, per slide, so the positional own-image exemption is
+    // enforceable (a flat deck-wide allowlist would let a background from
+    // slide A be adopted by slide B):
+    // - Kept slides are spliced verbatim from the source — nothing to strip.
+    // - Rewritten slides may reference (a) images the plan AI analyzed (the
+    //   vision payload) and (b) images that belong to their own source
+    //   slides. Anything else — e.g. a background image from another slide —
+    //   is mechanically removed, matching what validation flags.
+    // In discard mode the identity strip runs first, per slide, so stale
+    // theme/color never survives while image backgrounds (content) do.
+    let restoreIdx = 0;
+    const identityStripped = preserveVisualIdentity
+      ? finalSlides
+      : finalSlides.map((slide) => stripVisualIdentity(slide));
+    const cleaned = identityStripped.map((slide, i) => {
+      if (keptByPlanIndex.has(i)) return slide;
+      const sources = virtualSourceSlidesByEntry[restoreIdx] || [];
+      restoreIdx++;
+      // Own-source images = physical references only (collectOwnImageSources
+      // excludes reuse: paths — they are instructions, not images; the
+      // validator's positional exemption applies the same rule).
+      const ownSrcs = sources.flatMap((s) => collectOwnImageSources(s));
+      return stripFabricatedImages(slide, [...analyzedSrcs, ...ownSrcs], onLog);
+    });
+
     // Deterministic preserve-mode backstop: validation is advisory (the
     // whole-deck orchestrator accepts the last response after two failed
     // attempts), so a persistent model can drop a source theme/color
     // background or a source image background and still land in the final
-    // deck. Restore those directives deterministically, mapped by
-    // rewrite-entry order (not original slide position — remix may
-    // reorder/merge). For merged source slides, restore the first source's
-    // value when the model dropped all of them; if the model kept any valid
-    // identity value from the merged sources, leave it alone. Image
-    // backgrounds are only restored when the image URL is otherwise absent
-    // from the output slide — converting an <img> to a background is a
-    // legitimate layout choice and must not be double-inserted.
+    // deck. Runs AFTER the image strip so restored source image backgrounds
+    // (never analyzed, therefore not in the strip allowlist) survive.
+    // Restore those directives deterministically, mapped by rewrite-entry
+    // order (not original slide position — remix may reorder/merge). For
+    // merged source slides, restore the first source's value when the model
+    // dropped all of them; if the model kept any valid identity value from
+    // the merged sources, leave it alone. Image backgrounds are only
+    // restored when the image URL is otherwise absent from the output slide
+    // — converting an <img> to a background is a legitimate layout choice
+    // and must not be double-inserted.
     if (preserveVisualIdentity) {
-      let restoreIdx = 0;
-      for (let i = 0; i < finalSlides.length; i++) {
+      let restoreIdx2 = 0;
+      for (let i = 0; i < cleaned.length; i++) {
         if (keptByPlanIndex.has(i)) continue;
-        const sources = virtualSourceSlidesByEntry[restoreIdx] || [];
-        restoreIdx++;
-        const restored = restorePreservedIdentity(finalSlides[i], sources, onLog);
-        if (restored !== finalSlides[i]) finalSlides[i] = restored;
+        const sources = virtualSourceSlidesByEntry[restoreIdx2] || [];
+        restoreIdx2++;
+        const restored = restorePreservedIdentity(cleaned[i], sources, onLog);
+        if (restored !== cleaned[i]) cleaned[i] = restored;
       }
     }
 
-    const finalMarkdown = finalSlides.join("\n\n---\n\n");
-
-    // Discard mode: the plan context was stripped, but the AI may still echo
-    // theme/color-background directives it saw in other instructions or
-    // invented. Strip them mechanically so stale identity never survives the
-    // splice — image backgrounds (background: url(...)) are kept, since the
-    // validator already guarantees they resolve to deck images. The final
-    // strip uses the unified allowlist (rewritten + kept srcs) so kept-slide
-    // images are not mistaken for fabricated references.
-    if (preserveVisualIdentity) {
-      return stripFabricatedImages(finalMarkdown, finalAllowedSrcs, onLog);
-    }
-    return stripFabricatedImages(stripVisualIdentity(finalMarkdown), finalAllowedSrcs, onLog);
+    return cleaned.join("\n\n---\n\n");
   }
 
   // ── Reimagine (brief + outline → generate) ──
@@ -1418,7 +1441,11 @@ function parseImageQuery(imageQuery, keptImageSrcs, onLog) {
     return {};
   }
   const path = q.slice("reuse:".length).trim();
-  if (keptImageSrcs.includes(path)) return { imageQuery: q };
+  // Normalized comparison so a `reuse:./images/a.png` brief whose kept set
+  // lists `images/a.png` is not falsely rejected — consistent with
+  // `_checkImageSources` and `stripFabricatedImages`.
+  const normalizedKept = keptImageSrcs.map(normalizeImageSrc);
+  if (normalizedKept.includes(normalizeImageSrc(path))) return { imageQuery: q };
   onLog?.(
     `Breakdown imageQuery "${q}" references an image not in the kept set — dropping it.`,
     "warn",
@@ -1490,6 +1517,10 @@ function filterImagesByKeepIndices(slideMarkdown, keepIndices, sentImages) {
  *   an `<img>` src nor a `background: url(...)` value). Converting an `<img>`
  *   to a full-bleed background is a legitimate layout choice, so only
  *   restore when the image is truly missing.
+ * - Strip conflicting model-emitted `theme:`/`background:` from the leading
+ *   directive block before inserting restored values. Without this, the
+ *   renderer's last-directive-wins behavior (MarkdownParser.extractDirective
+ *   keeps the last match) would pick the model's value over the restored one.
  * - Insert restored directives after the existing `layout:` line (or
  *   prepend at the top when there is no layout directive). Fence-aware so
  *   a literal `theme:` inside a code block is not mistaken for a directive.
@@ -1547,10 +1578,12 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   }
 
   const toRestore = [];
+  const namesToStrip = new Set();
   // Theme: restore the first source theme when the output has none of the
   // source themes.
   if (sourceThemes.length > 0 && !sourceThemes.some((t) => outputThemes.includes(normalize(t)))) {
     toRestore.push(`theme: ${sourceThemes[0]}`);
+    namesToStrip.add("theme");
     onLog?.(`Restore: re-injecting dropped theme: ${sourceThemes[0]}`, "warn");
   }
   // Color background: same rule.
@@ -1559,6 +1592,7 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
     !sourceColorBackgrounds.some((b) => outputColorBackgrounds.includes(normalize(b)))
   ) {
     toRestore.push(`background: ${sourceColorBackgrounds[0]}`);
+    namesToStrip.add("background");
     onLog?.(`Restore: re-injecting dropped background: ${sourceColorBackgrounds[0]}`, "warn");
   }
   // Image backgrounds: restore each source image URL that is entirely absent
@@ -1566,14 +1600,25 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
   for (const url of sourceImageUrls) {
     if (!outputImageUrls.has(url)) {
       toRestore.push(`background: url(${url}) center/cover`);
+      namesToStrip.add("background");
       onLog?.(`Restore: re-injecting dropped image background: ${url}`, "warn");
     }
   }
 
   if (toRestore.length === 0) return slideMarkdown;
 
-  const lines = slideMarkdown.split("\n");
-  const fences = findFencedRanges(slideMarkdown);
+  // Strip conflicting model-emitted theme:/background: from the leading
+  // directive block before inserting restored values. Without this, the
+  // renderer's last-directive-wins behavior (MarkdownParser.extractDirective
+  // keeps the last match) would pick the model's value over the restored one,
+  // defeating the backstop and leaving duplicate directive lines in the
+  // markdown.
+  let lines = slideMarkdown.split("\n");
+  if (namesToStrip.size > 0) {
+    lines = stripLeadingDirectives(lines, [...namesToStrip]);
+  }
+  const stripped = lines.join("\n");
+  const fences = findFencedRanges(stripped);
   const inFenceAt = (offset) => fences.some((r) => offset >= r.start && offset < r.end);
   let insertAt = 0;
   let offset = 0;
@@ -1609,7 +1654,8 @@ function restorePreservedIdentity(slideMarkdown, sourceSlides, onLog) {
  *
  * Src comparison is normalized (leading `./` stripped, percent-encoding
  * decoded) rather than literal: `allowedSrcs` is built from exact source
- * strings (`collectImageSources`), so a model that reuses a real deck image
+ * strings (`collectImageSources` in ai-output-validator), so a model that
+ * reuses a real deck image
  * but writes it slightly differently — `./images/a.png` vs `images/a.png`,
  * or a URL-encoded space — would otherwise fail the literal comparison, get
  * flagged as FABRICATED_IMAGE_SRC by validation, survive the repair loop's

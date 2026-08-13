@@ -148,26 +148,39 @@ export function injectDirectives(markdown, origDirectives, mode = "fix") {
 }
 
 /**
- * Find the line index of a top-level (non-fenced) `name:` directive.
+ * Find the line index of a top-level (non-fenced) `name:` directive, scanning
+ * only the slide's leading directive block (the run of blank and
+ * directive-like lines before the first body line — a heading, `@area`
+ * marker, prose, or fenced code block). A mid-slide line that merely looks
+ * like a directive (e.g. `Background: the story so far` in the body) is not
+ * matched, preventing false suppression of generate-mode gap-fills.
  * @param {string[]} lines
  * @param {string} name
  * @returns {number}
  */
 function findTopLevelDirectiveIdx(lines, name) {
-  let inFence = false;
+  let inLeadingBlock = true;
   // Tolerate leading whitespace and whitespace before the colon so an
   // indented `  theme: dark` or `theme :dark` is recognized the same as
   // `theme: dark` — the markdown parser accepts both (`^\s*${name}\s*:` with
   // the `i` flag), so the AI round-trip must too.
   const re = new RegExp(`^\\s*${name}\\s*:`, "i");
+  const anyDirective = /^\s*[a-zA-Z][\w-]*\s*:/i;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    // A fenced code block delimiter ends the leading directive block.
     if (/^\s*```/.test(line)) {
-      inFence = !inFence;
+      inLeadingBlock = false;
       continue;
     }
-    if (inFence) continue;
+    if (!inLeadingBlock) break;
+    if (line.trim() === "") continue;
     if (re.test(line)) return i;
+    // Another directive (not the one we're looking for) stays in the
+    // leading block.
+    if (anyDirective.test(line)) continue;
+    // First non-blank, non-directive line ends the leading block.
+    inLeadingBlock = false;
   }
   return -1;
 }
@@ -195,7 +208,7 @@ function hasTopLevelDirective(lines, name) {
  * @param {string[]} names — directive names to strip (e.g. ["background", "theme"])
  * @returns {string[]}
  */
-function stripLeadingDirectives(lines, names) {
+export function stripLeadingDirectives(lines, names) {
   const namesSet = new Set(names);
   // Tolerate leading whitespace and whitespace before/after the colon so
   // `  theme : dark` is recognized the same as `theme: dark` — the markdown

@@ -169,7 +169,10 @@ export function splitBackgroundValue(value) {
   // (`url(...)`, `linear-gradient(...)`, `rgba(...)`, …) as atomic units —
   // splitting a gradient on its internal commas/spaces would fragment it
   // into stray numerics and keywords that then leak into the image part.
-  const tokens = value.match(/[a-z-]+\([^)]*\)|[^\s,]+/gi) || [];
+  // The inner `(?:[^()]|\([^)]*\))*` handles one level of nesting (e.g.
+  // `linear-gradient(rgba(0,0,0,.5), transparent)`) — sufficient for the
+  // CSS background values this app's directives contain.
+  const tokens = value.match(/[a-z-]+\((?:[^()]|\([^)]*\))*\)|[^\s,]+/gi) || [];
   const colorTokens = [];
   const otherTokens = [];
   for (const token of tokens) {

@@ -59,7 +59,7 @@ const CODE_GUIDANCE = new Map([
   ],
   [
     "FABRICATED_IMAGE_SRC",
-    "Only use images that exist in the input deck (with their exact paths) or are referenced by `reuse:<path>` directives — never fabricate image URLs.",
+    "Only reuse images that were sent to you with the request (the `[Image N]` vision entries) or that already belong to the slide you are rewriting. Do not adopt other slides' backgrounds or unseen images, and never fabricate image URLs.",
   ],
   [
     "PRESERVED_IMAGE_SRC_DROPPED",

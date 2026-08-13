@@ -3,6 +3,7 @@ import {
   extractDirectives,
   restoreDirectives,
   injectDirectives,
+  stripLeadingDirectives,
 } from "../data/ai/ai-directive-utils.js";
 
 describe("extractDirectives", () => {
@@ -307,6 +308,33 @@ describe("injectDirectives", () => {
       // duplicate is spliced in after layout.
       expect(result.match(/^theme:/gim) || []).toHaveLength(1);
       expect(result).toContain("Theme: dark");
+    });
+
+    it("does not treat mid-slide prose as an existing directive in generate mode", () => {
+      // A prose line `Background: the story so far` in the body must not
+      // suppress the gap-fill for the original background.
+      const md = "layout: header-content\n\n@main\n# Heading\n\nBackground: the story so far";
+      const orig = [{ layout: "header-content", background: "#fff", theme: "" }];
+      const result = injectDirectives(md, orig, "generate");
+      expect(result).toContain("background: #fff");
+    });
+  });
+
+  describe("stripLeadingDirectives", () => {
+    it("strips named directives from the leading block only", () => {
+      const lines = [
+        "layout: header-content",
+        "theme: dark",
+        "",
+        "# Heading",
+        "background: not a directive",
+      ];
+      const result = stripLeadingDirectives(lines, ["theme", "background"]);
+      expect(result).not.toContain("theme: dark");
+      // The mid-slide "background:" line is outside the leading block and
+      // must survive.
+      expect(result).toContain("background: not a directive");
+      expect(result).toContain("layout: header-content");
     });
   });
 });
