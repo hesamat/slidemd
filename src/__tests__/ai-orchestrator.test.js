@@ -5,8 +5,11 @@ import { AiOrchestrator, isVisionError } from "../data/ai/ai-orchestrator.js";
 import { createOperation } from "../data/ai/ai-operation.js";
 
 // The output validator renders markdown through markdown-it (window.markdownit),
-// which is only defined in jsdom — without it validation always fails with
-// PARSE_ERROR and the remix/reimagine repair loops degrade to accept-after-retry.
+// which is only defined in jsdom. With it available, validation runs for real;
+// tests that want to exercise the retry/repair path must supply a genuine
+// validation failure (e.g. an invalid area, fabricated image URL, or wrong
+// slide count). Identity-preservation retries are no longer used in remix
+// because identity is enforced mechanically after the execute phase.
 beforeAll(() => {
   window.markdownit = markdownit;
 });
@@ -1209,6 +1212,66 @@ describe("AiOrchestrator", () => {
       // Enriched metadata: bullet count and code marker
       expect(planUser).toContain("bullets");
       expect(planUser).toContain("code");
+    });
+
+    it("remix plan prompt injects the flow-specific guidance for the chosen flow", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "remix",
+        flow: "instructional",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).toContain("This deck teaches");
+      expect(planUser).toContain("keep clear sequential steps in their order");
+      // Other flows' guidance must not leak in
+      expect(planUser).not.toContain("tells a story");
+      expect(planUser).not.toContain("assertion-evidence");
+    });
+
+    it("remix plan prompt selects guidance matching the flow (story)", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, {
+        mode: "remix",
+        flow: "story",
+      });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).toContain("This deck tells a story");
+      expect(planUser).not.toContain("This deck teaches");
+      expect(planUser).not.toContain("This deck argues");
+    });
+
+    it("remix plan prompt is flow-blind when no flow is provided", async () => {
+      const provider = mockProviderSequence([
+        REMIX_PLAN_RESPONSE,
+        EXECUTE_RESPONSE,
+        EXECUTE_RESPONSE,
+      ]);
+      const orchestrator = new AiOrchestrator({ provider });
+      const op = createOperation("generate", null, TWO_SLIDE_MD, { mode: "remix" });
+      await orchestrator.runWholeDeckOperation(op);
+      const planUser = provider.chat.mock.calls[0][0].messages.find(
+        (m) => m.role === "user",
+      ).content;
+      expect(planUser).not.toContain("This deck teaches");
+      expect(planUser).not.toContain("This deck tells a story");
+      expect(planUser).not.toContain("This deck explains");
+      expect(planUser).not.toContain("This deck argues");
     });
 
     it("routes reimagine through the outline flow (no remix plan)", async () => {

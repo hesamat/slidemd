@@ -391,6 +391,14 @@ def b():
     expect(result).not.toContain("background: #fff");
     expect(result).toContain("@main");
   });
+
+  it("does not strip body text that starts with theme: or background:", () => {
+    const md =
+      "layout: header-content\n@main\n- Item 1\n\nbackground: the war began in 1939\n\ntheme: the main theme is hope";
+    const result = stripThemeAndBackground(md);
+    expect(result).toContain("background: the war began in 1939");
+    expect(result).toContain("theme: the main theme is hope");
+  });
 });
 
 describe("stripVisualIdentity", () => {
@@ -460,6 +468,14 @@ Background: url(images/bg.png)
     const result = stripVisualIdentity(md);
     expect(result).toContain("background: url(images/hero.png)");
   });
+
+  it("does not strip body text that starts with Theme: or Background:", () => {
+    const md =
+      "layout: header-content\n@main\n- Item 1\n\nBackground: the war began in 1939\n\nTheme: the main theme is hope";
+    const result = stripVisualIdentity(md);
+    expect(result).toContain("Background: the war began in 1939");
+    expect(result).toContain("Theme: the main theme is hope");
+  });
 });
 
 describe("getAllowedLayoutList", () => {
@@ -508,6 +524,14 @@ describe("stripFrontmatter", () => {
     expect(result).not.toContain("layout: header-content");
     expect(result).toContain("background: #fff");
     expect(result).toContain("theme: dark");
+  });
+
+  it("does not strip body text that starts with a directive-like word", () => {
+    const md =
+      "layout: header-content\n@main\n- Item\n\nhidden: this is body text\n\ncode-font-size: this is also body text";
+    const result = stripFrontmatter(md, "fix");
+    expect(result).toContain("hidden: this is body text");
+    expect(result).toContain("code-font-size: this is also body text");
   });
 });
 

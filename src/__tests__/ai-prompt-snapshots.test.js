@@ -11,6 +11,7 @@ import { buildMessagesForIntent, buildPolishMessages } from "../data/ai/ai-inten
 import { buildBatchMessages } from "../data/ai/ai-prompt-builder.js";
 import {
   buildImagesSectionForPrompt,
+  buildRemixFlowGuidance,
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
@@ -129,6 +130,24 @@ describe("composed prompt snapshots", () => {
       getFragment("remix-plan-prompt.md"),
       {
         markdown: "Deck: 3 slides.\nOutline:\n1. [title-slide] AI for Presentations",
+        flowGuidance: buildRemixFlowGuidance(""),
+        creativeGuidance: getFragment("creative-guidance.md").trim(),
+        visualIdentityGuidance: buildRemixVisualIdentityGuidance(true),
+        sourceCount: "3",
+        maxSourceIndex: "2",
+        imagesSection: buildImagesSectionForPrompt(false),
+      },
+    );
+    expect({ system, user }).toMatchSnapshot();
+  });
+
+  it("remix plan with story flow guidance", () => {
+    const { system, user } = composeMessages(
+      getFragment("system-prompt.md"),
+      getFragment("remix-plan-prompt.md"),
+      {
+        markdown: "Deck: 3 slides.\nOutline:\n1. [title-slide] AI for Presentations",
+        flowGuidance: buildRemixFlowGuidance("story"),
         creativeGuidance: getFragment("creative-guidance.md").trim(),
         visualIdentityGuidance: buildRemixVisualIdentityGuidance(true),
         sourceCount: "3",

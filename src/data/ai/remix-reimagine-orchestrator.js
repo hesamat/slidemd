@@ -21,6 +21,7 @@ import { splitSlides } from "../markdown-parser.js";
 import { extractAll } from "./slide-image-extractor.js";
 import {
   buildImagesSectionForPrompt,
+  buildRemixFlowGuidance,
   buildRemixVisualIdentityGuidance,
   composeMessages,
   getFragment,
@@ -268,7 +269,11 @@ export class RemixReimagineOrchestrator {
       );
       while (generatedSlides.length < plan.length) {
         const sources = virtualSourceSlidesByEntry[generatedSlides.length] || [""];
-        generatedSlides.push(sources.join("\n\n---\n\n"));
+        // Use only the first source slide for the fallback. A merge entry's
+        // sources contain a `<!-- merge source -->` marker; injecting that
+        // (or a `---` separator) would create an embedded slide boundary and
+        // desynchronize the final deck's slide count.
+        generatedSlides.push(sources[0] || "");
       }
     }
 
@@ -1026,8 +1031,15 @@ export class RemixReimagineOrchestrator {
     const preserveVisualIdentity = operation.opts?.preserveVisualIdentity ?? true;
     const visualIdentityGuidance = buildRemixVisualIdentityGuidance(preserveVisualIdentity);
 
+    // Flow-specific restructuring priorities for the plan phase. Empty when
+    // the flow is unknown or absent, so plan prompting stays flow-blind for
+    // callers that do not supply a flow (the execute phase already applies
+    // flow guidance via the generate options suffix).
+    const flowGuidance = buildRemixFlowGuidance(operation.opts?.flow);
+
     const composeArgs = {
       markdown: deckSummary,
+      flowGuidance,
       creativeGuidance,
       visualIdentityGuidance,
       sourceCount: sourceCount.toString(),

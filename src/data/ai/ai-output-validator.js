@@ -220,14 +220,13 @@ export class AiOutputValidator {
    * @param {number} [opts.expectedSlideCount] — when set, enforce exact slide count
    * @param {boolean} [opts.skipOverflow] — skip the content-volume/overflow check
    *   (used by polish, which must preserve existing content rather than trim it)
-   * @param {boolean} [opts.enforcePreserveIdentity] — when true (remix preserve
-   *   mode execute phase only), enforce per-slide preservation of the input's
-   *   `theme:`/`background:` directives: each input directive must survive at the
-   *   same position, and no new directive values may be introduced (positional —
-   *   only meaningful when the slide count matches the input, which
-   *   expectedSlideCount enforces). This is a distinct opt from the prompt-side
-   *   preserveVisualIdentity (which polish/generate also set) so identity
-   *   validation never applies to paths that gap-fill directives instead.
+   * @param {boolean} [opts.enforcePreserveIdentity] — when true, enforce per-slide
+   *   preservation of the input's `theme:`/`background:` directives: each input
+   *   directive must survive at the same position, and no new directive values may
+   *   be introduced (positional — only meaningful when the slide count matches the
+   *   input, which expectedSlideCount enforces). This is kept for unit-test coverage
+   *   and backwards compatibility; the remix execute path no longer sets it because
+   *   identity is enforced mechanically after generation instead of via retries.
    * @param {boolean} [opts.restrictImageSources] — when true (remix/reimagine execute),
    *   every `<img src>` and `background: url(...)` in the output must reference an
    *   image that exists in the input deck (an `<img>` src, a `reuse:<path>` reference,

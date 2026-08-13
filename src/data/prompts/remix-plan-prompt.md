@@ -52,6 +52,8 @@ Rules:
 - Never merge a slide that is marked with `image` or `diagram` in the outline metadata, or whose layout name suggests a prominent visual (`media-left`, `media-right`, `full-image`, `media-span-*`, etc.). Those slides should remain standalone so the image or diagram stays prominent; use `polish` or `rewrite` instead.
 - Do not produce output slides with no clear purpose. If a source slide adds no value, merge it into a neighbor rather than leaving it as a standalone low-value slide.
 
+{{flowGuidance}}
+
 {{creativeGuidance}}
 
 {{visualIdentityGuidance}}
