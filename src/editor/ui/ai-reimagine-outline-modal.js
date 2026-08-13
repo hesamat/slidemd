@@ -89,23 +89,34 @@ export class AiReimagineOutlineModal {
       const dialog = document.createElement("div");
       dialog.className = `${P}dialog`;
       dialog.innerHTML = `
-        <h2 class="${P}title">Reimagine: Review plan</h2>
-        <p class="${P}subtitle">The AI proposed a new direction with a narrative arc. Review the chapter structure below, then generate the full deck.</p>
+        <div class="${P}header">
+          <h2 class="${P}title">Reimagine: Review plan</h2>
+          <p class="${P}subtitle">The AI proposed a new direction. Review the creative plan, visual direction, and chapter structure before generating the full deck.</p>
+        </div>
 
-        <div class="${P}summary-section">
-          <div class="${P}field">
-            <label class="${P}label" for="${P}plan-input">Plan</label>
-            <div class="${P}plan-row">
-              <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
+        <div class="${P}top-grid">
+          <div class="${P}card ${P}plan-card">
+            <div class="${P}card-header">
+              <label class="${P}label" for="${P}plan-input">Creative plan</label>
               ${
                 opts.onRegenerate
-                  ? `<button type="button" class="${P}btn ${P}btn--secondary" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
+                  ? `<button type="button" class="${P}btn ${P}btn--secondary ${P}btn--small" id="${P}regenerate-btn" title="Regenerate chapters based on the edited plan">Regenerate chapters</button>`
                   : ""
               }
             </div>
+            <textarea id="${P}plan-input" class="${P}plan-input" rows="3">${escapeHtml(outline.plan)}</textarea>
           </div>
-          <div id="${P}stats" class="${P}stats"></div>
+
+          <div class="${P}card ${P}visual-system-card">
+            <div class="${P}card-header">
+              <span class="${P}label">Visual direction</span>
+              <span class="${P}badge ${P}badge--readonly">read-only</span>
+            </div>
+            <div id="${P}visual-system" class="${P}visual-system"></div>
+          </div>
         </div>
+
+        <div id="${P}stats" class="${P}stats"></div>
 
         <div class="${P}chapters-header">
           <span class="${P}label">Chapters</span>
@@ -126,6 +137,7 @@ export class AiReimagineOutlineModal {
 
       const chaptersList = dialog.querySelector(`#${P}chapters-list`);
       const statsEl = dialog.querySelector(`#${P}stats`);
+      const visualSystemEl = dialog.querySelector(`#${P}visual-system`);
       const errorEl = dialog.querySelector(`.${P}error`);
       const planInput = dialog.querySelector(`#${P}plan-input`);
       const regenerateBtn = dialog.querySelector(`#${P}regenerate-btn`);
@@ -160,6 +172,104 @@ export class AiReimagineOutlineModal {
               ? `<span class="${P}stat ${inRange ? "" : P + "stat--warn"}">target ${minTarget}\u2013${maxTarget} (from ${sourceCount})</span>`
               : ""
           }
+        `;
+      };
+
+      /**
+       * Render the read-only visual direction summary.
+       */
+      const renderVisualSystem = () => {
+        if (!visualSystem) {
+          visualSystemEl.innerHTML = `<p class="${P}visual-system-empty">No visual direction provided.</p>`;
+          return;
+        }
+        const { palette, typography, composition, imagery, motifs, contrastRules } = visualSystem;
+        const swatches = Object.entries(palette || {})
+          .map(
+            ([name, color]) => `
+            <div class="${P}palette-swatch">
+              <span class="${P}swatch-color" style="background-color: ${escapeAttr(String(color))};" title="${escapeAttr(name)}"></span>
+              <span class="${P}swatch-name">${escapeHtml(name)}</span>
+              <span class="${P}swatch-value">${escapeHtml(String(color))}</span>
+            </div>
+          `,
+          )
+          .join("");
+
+        const identityText = firstSlideIdentity ? escapeHtml(firstSlideIdentity) : "None";
+        const keptCount = keepImages.length;
+        const keptImagesText =
+          keptCount > 0
+            ? `${keptCount} source image${keptCount === 1 ? "" : "s"} selected to keep`
+            : "None";
+
+        visualSystemEl.innerHTML = `
+          <div class="${P}visual-system-section">
+            <div class="${P}visual-system-label">Palette</div>
+            <div class="${P}palette">${swatches}</div>
+          </div>
+
+          <div class="${P}visual-system-grid">
+            <div class="${P}visual-system-section">
+              <div class="${P}visual-system-label">Typography</div>
+              <div class="${P}visual-system-value">${escapeHtml(typography?.character || "—")}</div>
+              <div class="${P}visual-system-sublabel">Headlines</div>
+              <div class="${P}visual-system-value">${escapeHtml(typography?.headline || "—")}</div>
+              <div class="${P}visual-system-sublabel">Body</div>
+              <div class="${P}visual-system-value">${escapeHtml(typography?.body || "—")}</div>
+            </div>
+
+            <div class="${P}visual-system-section">
+              <div class="${P}visual-system-label">Composition</div>
+              <div class="${P}visual-system-value">${escapeHtml(composition?.density || "—")} density</div>
+              <div class="${P}visual-system-sublabel">Whitespace</div>
+              <div class="${P}visual-system-value">${escapeHtml(composition?.whitespace || "—")}</div>
+              <div class="${P}visual-system-sublabel">Alignment</div>
+              <div class="${P}visual-system-value">${escapeHtml(composition?.alignment || "—")}</div>
+            </div>
+          </div>
+
+          <div class="${P}visual-system-section">
+            <div class="${P}visual-system-label">Imagery</div>
+            <div class="${P}visual-system-value">${escapeHtml(imagery?.role || "—")}</div>
+            <div class="${P}visual-system-sublabel">Mood</div>
+            <div class="${P}visual-system-value">${escapeHtml(imagery?.mood || "—")}</div>
+            <div class="${P}visual-system-sublabel">Treatment</div>
+            <div class="${P}visual-system-value">${escapeHtml(imagery?.treatment || "—")}</div>
+          </div>
+
+          ${
+            motifs?.length
+              ? `
+            <div class="${P}visual-system-section">
+              <div class="${P}visual-system-label">Motifs</div>
+              <div class="${P}chip-list">${motifs.map((m) => `<span class="${P}chip">${escapeHtml(m)}</span>`).join("")}</div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            contrastRules?.length
+              ? `
+            <div class="${P}visual-system-section">
+              <div class="${P}visual-system-label">Contrast rules</div>
+              <div class="${P}chip-list">${contrastRules.map((r) => `<span class="${P}chip">${escapeHtml(r)}</span>`).join("")}</div>
+            </div>
+          `
+              : ""
+          }
+
+          <div class="${P}visual-system-meta">
+            <div class="${P}visual-system-meta-item">
+              <span class="${P}visual-system-meta-label">First slide identity</span>
+              <span class="${P}visual-system-meta-value">${identityText}</span>
+            </div>
+            <div class="${P}visual-system-meta-item">
+              <span class="${P}visual-system-meta-label">Source images kept</span>
+              <span class="${P}visual-system-meta-value">${keptImagesText}</span>
+            </div>
+          </div>
         `;
       };
 
@@ -250,6 +360,7 @@ export class AiReimagineOutlineModal {
         chaptersList.appendChild(addBtn);
       };
       renderChapters();
+      renderVisualSystem();
 
       // Regenerate chapters: re-run the outline AI with the edited plan.
       if (regenerateBtn && opts.onRegenerate) {
@@ -282,6 +393,7 @@ export class AiReimagineOutlineModal {
               }
               renderChapters();
               renderStats();
+              renderVisualSystem();
               planInput.value = newOutline.plan;
             }
           } catch (err) {
